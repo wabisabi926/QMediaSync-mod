@@ -1,0 +1,1191 @@
+<template>
+  <div class="core-settings-container">
+    <!-- 核心设置卡片 -->
+    <el-card class="core-settings-card" shadow="hover">
+      <template #header>
+        <h2 class="card-title">核心设置</h2>
+        <p class="card-subtitle">系统核心功能和账号管理</p>
+      </template>
+
+      <div class="core-content">
+        <!-- 115账号登录部分 -->
+        <div v-if="!cookieCloudEnabled" class="login-section">
+          <h3 class="section-title">
+            <el-icon><User /></el-icon>
+            115网盘账号登录
+          </h3>
+          <p class="section-description">登录115网盘账号以获取必要的访问权限</p>
+
+          <!-- 设备类型选择 -->
+          <el-form :model="loginData" :label-position="'top'" class="login-form">
+            <el-form-item label="选择登录设备类型" prop="device_type">
+              <el-select
+                v-model="loginData.device_type"
+                placeholder="请选择登录设备类型"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="(label, value) in deviceTypes"
+                  :key="value"
+                  :label="label"
+                  :value="value"
+                />
+              </el-select>
+              <div class="form-help">不同设备类型可能有不同的功能限制，请根据实际需要选择</div>
+            </el-form-item>
+          </el-form>
+
+          <div class="login-actions">
+            <el-button
+              type="primary"
+              size="large"
+              @click="handle115Login"
+              :loading="loginLoading"
+              :disabled="!loginData.device_type"
+            >
+              <el-icon><Key /></el-icon>
+              登录115账号
+            </el-button>
+
+            <el-button
+              type="primary"
+              plain
+              size="large"
+              @click="checkLoginStatus"
+              :loading="checkingStatus"
+            >
+              <el-icon><Search /></el-icon>
+              检查登录状态
+            </el-button>
+          </div>
+
+          <!-- 登录状态显示 -->
+          <el-alert
+            v-if="loginStatus"
+            :title="loginStatus.title"
+            :type="loginStatus.type"
+            :description="loginStatus.description"
+            :closable="false"
+            show-icon
+            class="login-status"
+          />
+        </div>
+
+        <!-- CookieCloud启用提示 -->
+        <div v-if="cookieCloudEnabled" class="cookiecloud-notice">
+          <el-alert title="CookieCloud已启用" type="info" :closable="false" show-icon>
+            <template #default>
+              <p>
+                检测到CookieCloud功能已启用，系统将自动从CookieCloud同步115网盘的登录状态，无需手动登录。
+              </p>
+              <p>如需手动管理115账号登录，请先在CookieCloud设置中禁用该功能。</p>
+            </template>
+          </el-alert>
+        </div>
+        <!-- 115账号详细信息 -->
+        <div v-if="accountInfo" class="account-info">
+          <h4 class="info-title">账号信息</h4>
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-label">用户ID:</span>
+              <span class="info-value">{{ accountInfo.user_id }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">用户名:</span>
+              <span class="info-value">{{ accountInfo.username }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">存储空间:</span>
+              <span class="info-value"
+                >{{ formatStorage(accountInfo.used_space) }} /
+                {{ formatStorage(accountInfo.total_space) }}</span
+              >
+            </div>
+            <div class="info-item">
+              <span class="info-label">使用率:</span>
+              <span class="info-value"
+                >{{ getStoragePercent(accountInfo.used_space, accountInfo.total_space) }}%</span
+              >
+            </div>
+            <div class="info-item">
+              <span class="info-label">会员等级:</span>
+              <span class="info-value" :class="getMemberClass(accountInfo.member_level)">{{
+                accountInfo.member_level
+              }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">到期时间:</span>
+              <span class="info-value" :class="getExpireClass(accountInfo.expire_time)">{{
+                formatExpireTime(accountInfo.expire_time)
+              }}</span>
+            </div>
+          </div>
+
+          <!-- 存储空间进度条 -->
+          <div class="storage-progress">
+            <el-progress
+              :percentage="getStoragePercent(accountInfo.used_space, accountInfo.total_space)"
+              :color="getProgressColor(accountInfo.used_space, accountInfo.total_space)"
+              :show-text="false"
+            />
+          </div>
+        </div>
+
+        <el-divider />
+
+        <!-- 网络代理设置部分 -->
+        <div class="proxy-section">
+          <h3 class="section-title">
+            <el-icon><Link /></el-icon>
+            网络代理设置
+          </h3>
+          <p class="section-description">配置Socks5代理以访问被限制的网络服务（如Telegram API）</p>
+
+          <el-form :model="proxyData" :label-position="'top'" class="proxy-form">
+            <el-form-item label="Socks5代理地址" prop="proxy_url">
+              <el-input
+                v-model="proxyData.proxy_url"
+                placeholder="例如: socks5://127.0.0.1:7891 或 socks5://proxy.example.com:10808"
+                :disabled="proxyLoading"
+                clearable
+              />
+              <div class="form-help">
+                支持Socks5代理，格式：socks5://[用户名:密码@]主机:端口，留空表示不使用代理
+              </div>
+            </el-form-item>
+
+            <el-form-item>
+              <div class="proxy-actions">
+                <el-button
+                  type="primary"
+                  @click="testProxy"
+                  :loading="testingProxy"
+                  :disabled="proxyLoading"
+                  size="large"
+                >
+                  <el-icon><Connection /></el-icon>
+                  测试代理连接
+                </el-button>
+
+                <el-button
+                  type="success"
+                  @click="saveProxy"
+                  :loading="proxyLoading"
+                  :disabled="testingProxy"
+                  size="large"
+                >
+                  <el-icon><Check /></el-icon>
+                  保存代理设置
+                </el-button>
+              </div>
+            </el-form-item>
+          </el-form>
+
+          <!-- 代理状态显示 -->
+          <el-alert
+            v-if="proxyStatus"
+            :title="proxyStatus.title"
+            :type="proxyStatus.type"
+            :description="proxyStatus.description"
+            :closable="false"
+            show-icon
+            class="proxy-status"
+          />
+        </div>
+
+        <el-divider />
+      </div>
+    </el-card>
+
+    <!-- 其他设置快捷入口 -->
+    <el-card class="settings-links-card" shadow="hover">
+      <template #header>
+        <h2 class="card-title">设置管理</h2>
+        <p class="card-subtitle">快速访问各项系统设置</p>
+      </template>
+
+      <div class="settings-links">
+        <el-button
+          type="success"
+          plain
+          @click="$router.push('/settings/user')"
+          size="large"
+          class="settings-link-btn"
+        >
+          <el-icon><UserFilled /></el-icon>
+          <span>用户账号设置</span>
+        </el-button>
+
+        <el-button
+          type="primary"
+          plain
+          @click="$router.push('/settings/cookiecloud')"
+          size="large"
+          class="settings-link-btn"
+        >
+          <el-icon><Upload /></el-icon>
+          <span>CookieCloud设置</span>
+        </el-button>
+
+        <el-button
+          type="warning"
+          plain
+          @click="$router.push('/settings/telegram')"
+          size="large"
+          class="settings-link-btn"
+        >
+          <el-icon><ChatLineRound /></el-icon>
+          <span>Telegram通知设置</span>
+        </el-button>
+
+        <el-button
+          type="info"
+          plain
+          @click="$router.push('/settings/strm')"
+          size="large"
+          class="settings-link-btn"
+        >
+          <el-icon><VideoPlay /></el-icon>
+          <span>STRM配置</span>
+        </el-button>
+      </div>
+    </el-card>
+  </div>
+
+  <!-- 二维码登录对话框 -->
+  <el-dialog
+    v-model="showQRDialog"
+    title="115账号扫码登录"
+    width="400px"
+    :close-on-click-modal="false"
+    :close-on-press-escape="false"
+    @close="closeQRDialog"
+  >
+    <div class="qr-login-container">
+      <div class="qr-code-section">
+        <div v-if="qrCodeUrl" class="qr-code-wrapper">
+          <img :src="qrCodeUrl" alt="登录二维码" class="qr-code-image" />
+        </div>
+        <div v-else class="qr-loading">
+          <el-icon class="is-loading"><Loading /></el-icon>
+          <p>正在生成二维码...</p>
+        </div>
+      </div>
+
+      <div class="qr-status-section">
+        <div v-if="qrStatus === 'waiting'" class="status-waiting">
+          <el-icon><Iphone /></el-icon>
+          <p>请使用115手机客户端扫描二维码</p>
+        </div>
+        <div v-else-if="qrStatus === 'scanned'" class="status-scanned">
+          <el-icon><SuccessFilled /></el-icon>
+          <p>扫描成功，请在手机上确认登录</p>
+        </div>
+        <div v-else-if="qrStatus === 'confirmed'" class="status-confirmed">
+          <el-icon><CircleCheckFilled /></el-icon>
+          <p>登录确认成功，正在获取账号信息...</p>
+        </div>
+        <div v-else-if="qrStatus === 'expired'" class="status-expired">
+          <el-icon><WarningFilled /></el-icon>
+          <p>二维码已过期，请重新获取</p>
+        </div>
+        <div v-else-if="qrStatus === 'error'" class="status-error">
+          <el-icon><CircleCloseFilled /></el-icon>
+          <p>登录过程中出现错误，请重试</p>
+        </div>
+      </div>
+    </div>
+
+    <template #footer>
+      <div class="dialog-footer">
+        <el-button @click="closeQRDialog">取消</el-button>
+        <el-button
+          v-if="qrStatus === 'expired' || qrStatus === 'error'"
+          type="primary"
+          @click="refreshQRCode"
+        >
+          重新获取二维码
+        </el-button>
+      </div>
+    </template>
+  </el-dialog>
+</template>
+
+<script setup lang="ts">
+import { SERVER_URL } from '@/const'
+import type { AxiosStatic } from 'axios'
+import {
+  Upload,
+  ChatLineRound,
+  User,
+  Key,
+  Search,
+  UserFilled,
+  Link,
+  Connection,
+  Check,
+  Loading,
+  Iphone,
+  SuccessFilled,
+  CircleCheckFilled,
+  WarningFilled,
+  CircleCloseFilled,
+  VideoPlay,
+} from '@element-plus/icons-vue'
+import { inject, onMounted, onUnmounted, reactive, ref } from 'vue'
+
+interface LoginStatus {
+  title: string
+  type: 'success' | 'warning' | 'error' | 'info'
+  description: string
+}
+
+interface AccountInfo {
+  user_id: string
+  username: string
+  used_space: number
+  total_space: number
+  member_level: string
+  expire_time: string
+}
+
+interface ProxyData {
+  proxy_url: string
+}
+
+interface ProxyStatus {
+  title: string
+  type: 'success' | 'warning' | 'error' | 'info'
+  description: string
+}
+
+interface LoginData {
+  device_type: string
+}
+
+const http: AxiosStatic | undefined = inject('$http')
+const isMobile = ref(false)
+const loginLoading = ref(false)
+const checkingStatus = ref(false)
+const loginStatus = ref<LoginStatus | null>(null)
+const accountInfo = ref<AccountInfo | null>(null)
+
+// 二维码登录相关状态
+const showQRDialog = ref(false)
+const qrCodeUrl = ref('')
+const sessionId = ref('')
+const pollingTimer = ref<number | null>(null)
+const qrStatus = ref<'waiting' | 'scanned' | 'confirmed' | 'expired' | 'error'>('waiting')
+
+// CookieCloud状态
+const cookieCloudEnabled = ref(false)
+
+// 代理相关状态
+const proxyLoading = ref(false)
+const testingProxy = ref(false)
+const proxyStatus = ref<ProxyStatus | null>(null)
+
+const proxyData = reactive<ProxyData>({
+  proxy_url: '',
+})
+
+// 登录相关数据
+const loginData = reactive<LoginData>({
+  device_type: '',
+})
+
+// 设备类型选项
+const deviceTypes: Record<string, string> = {
+  web: '网页',
+  qandriod: 'Android',
+  qios: 'iOS',
+  harmony: '鸿蒙',
+}
+
+// 检测是否为移动设备
+const checkMobile = () => {
+  isMobile.value = window.innerWidth <= 768
+}
+
+// 处理115账号登录
+const handle115Login = async () => {
+  try {
+    loginLoading.value = true
+    loginStatus.value = null
+    accountInfo.value = null
+
+    // 获取二维码
+    const response = await http?.post(
+      `${SERVER_URL}/auth/115-qr-login`,
+      {},
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    )
+
+    if (response?.data.code === 200 && response.data.data) {
+      qrCodeUrl.value = response.data.data.qr_code
+      sessionId.value = response.data.data.session_id
+      showQRDialog.value = true
+      qrStatus.value = 'waiting'
+
+      // 开始轮询二维码状态
+      startPolling()
+    } else {
+      loginStatus.value = {
+        title: '获取二维码失败',
+        type: 'error',
+        description: response?.data.msg || '无法获取登录二维码，请稍后重试',
+      }
+    }
+  } catch (error) {
+    console.error('115登录错误:', error)
+    loginStatus.value = {
+      title: '登录出错',
+      type: 'error',
+      description: '登录过程中发生错误，请检查网络连接',
+    }
+  } finally {
+    loginLoading.value = false
+  }
+}
+
+// 检查115登录状态
+const checkLoginStatus = async () => {
+  try {
+    checkingStatus.value = true
+    loginStatus.value = null
+    accountInfo.value = null
+
+    const response = await http?.get(`${SERVER_URL}/auth/115-status`)
+
+    if (response?.data.code === 200) {
+      const isLoggedIn = response.data.data?.logged_in || false
+
+      loginStatus.value = {
+        title: isLoggedIn ? '115账号已登录' : '115账号未登录',
+        type: isLoggedIn ? 'success' : 'warning',
+        description: isLoggedIn ? `已成功登录115网盘账号` : '请点击登录按钮完成115账号登录',
+      }
+
+      // 如果已登录，保存账号详细信息
+      if (isLoggedIn && response.data.data) {
+        accountInfo.value = {
+          user_id: response.data.data.user_id || '未知',
+          username: response.data.data.username || '未知用户',
+          used_space: response.data.data.used_space || 0,
+          total_space: response.data.data.total_space || 0,
+          member_level: response.data.data.member_level || '普通会员',
+          expire_time: response.data.data.expire_time || '',
+        }
+      }
+    } else {
+      loginStatus.value = {
+        title: '无法获取登录状态',
+        type: 'error',
+        description: response?.data.msg || '检查登录状态失败，请稍后重试',
+      }
+    }
+  } catch (error) {
+    console.error('检查登录状态错误:', error)
+    loginStatus.value = {
+      title: '状态检查出错',
+      type: 'error',
+      description: '检查过程中发生错误，请检查网络连接',
+    }
+  } finally {
+    checkingStatus.value = false
+  }
+}
+
+// 测试代理连接
+const testProxy = async () => {
+  try {
+    testingProxy.value = true
+    proxyStatus.value = null
+
+    const testData = new URLSearchParams()
+    testData.append('socks5_proxy', proxyData.proxy_url)
+
+    const response = await http?.post(`${SERVER_URL}/setting/test-socks5-proxy`, testData, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    })
+
+    if (response?.data.code === 200) {
+      proxyStatus.value = {
+        title: '代理连接测试成功',
+        type: 'success',
+        description: proxyData.proxy_url
+          ? `代理服务器 ${proxyData.proxy_url} 连接正常`
+          : '直连网络连接正常',
+      }
+    } else {
+      proxyStatus.value = {
+        title: '代理连接测试失败',
+        type: 'error',
+        description: response?.data.msg || '无法连接到代理服务器，请检查地址和端口',
+      }
+    }
+  } catch (error) {
+    console.error('代理测试错误:', error)
+    proxyStatus.value = {
+      title: '代理测试出错',
+      type: 'error',
+      description: '测试过程中发生错误，请检查网络连接和代理设置',
+    }
+  } finally {
+    testingProxy.value = false
+  }
+}
+
+// 保存代理设置
+const saveProxy = async () => {
+  try {
+    proxyLoading.value = true
+    proxyStatus.value = null
+
+    const saveData = new URLSearchParams()
+    saveData.append('socks5_proxy', proxyData.proxy_url)
+
+    const response = await http?.post(`${SERVER_URL}/setting/update-socks5-proxy`, saveData, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    })
+
+    if (response?.data.code === 200) {
+      proxyStatus.value = {
+        title: '代理设置已保存',
+        type: 'success',
+        description: proxyData.proxy_url
+          ? `已设置代理服务器：${proxyData.proxy_url}`
+          : '已清除代理设置，使用直连网络',
+      }
+    } else {
+      proxyStatus.value = {
+        title: '保存代理设置失败',
+        type: 'error',
+        description: response?.data.msg || '保存设置失败，请重试',
+      }
+    }
+  } catch (error) {
+    console.error('保存代理设置错误:', error)
+    proxyStatus.value = {
+      title: '保存设置出错',
+      type: 'error',
+      description: '保存过程中发生错误，请检查网络连接',
+    }
+  } finally {
+    proxyLoading.value = false
+  }
+}
+
+// 加载代理设置
+const loadProxy = async () => {
+  try {
+    const response = await http?.get(`${SERVER_URL}/setting/socks5-proxy`)
+
+    if (response?.data.code === 200 && response.data.data) {
+      proxyData.proxy_url = response.data.data.socks5_proxy || ''
+    }
+  } catch (error) {
+    console.error('加载代理设置错误:', error)
+  }
+}
+
+// 检查CookieCloud状态
+const checkCookieCloudStatus = async () => {
+  try {
+    const response = await http?.get(`${SERVER_URL}/setting/get-cookie-cloud`)
+
+    if (response?.data.code === 200 && response.data.data) {
+      cookieCloudEnabled.value = response.data.data.enabled === '1' || false
+    }
+  } catch (error) {
+    console.error('检查CookieCloud状态错误:', error)
+    cookieCloudEnabled.value = false
+  }
+}
+
+// 格式化存储空间
+const formatStorage = (bytes: number): string => {
+  if (!bytes || bytes === 0) return '0 B'
+
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+  const i = Math.floor(Math.log(bytes) / Math.log(1024))
+  const size = bytes / Math.pow(1024, i)
+
+  return `${size.toFixed(i === 0 ? 0 : 2)} ${sizes[i]}`
+}
+
+// 计算存储使用百分比
+const getStoragePercent = (used: number, total: number): number => {
+  if (!total || total === 0) return 0
+  return Math.round((used / total) * 100)
+}
+
+// 获取进度条颜色
+const getProgressColor = (used: number, total: number): string => {
+  const percent = getStoragePercent(used, total)
+  if (percent >= 90) return '#f56c6c'
+  if (percent >= 70) return '#e6a23c'
+  return '#67c23a'
+}
+
+// 获取会员等级样式类
+const getMemberClass = (level: string): string => {
+  const lowerLevel = level.toLowerCase()
+  if (lowerLevel.includes('vip') || lowerLevel.includes('会员')) {
+    return 'member-vip'
+  }
+  return 'member-normal'
+}
+
+// 格式化到期时间
+const formatExpireTime = (expireTime: string): string => {
+  if (!expireTime) return '未知'
+
+  const date = new Date(expireTime)
+  if (isNaN(date.getTime())) return expireTime
+
+  const now = new Date()
+  const diffTime = date.getTime() - now.getTime()
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+  if (diffDays < 0) {
+    return '已过期'
+  } else if (diffDays === 0) {
+    return '今天到期'
+  } else if (diffDays <= 30) {
+    return `${diffDays}天后到期`
+  } else {
+    return date.toLocaleDateString('zh-CN')
+  }
+}
+
+// 获取到期时间样式类
+const getExpireClass = (expireTime: string): string => {
+  if (!expireTime) return 'expire-unknown'
+
+  const date = new Date(expireTime)
+  if (isNaN(date.getTime())) return 'expire-unknown'
+
+  const now = new Date()
+  const diffTime = date.getTime() - now.getTime()
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+  if (diffDays < 0) return 'expire-expired'
+  if (diffDays <= 7) return 'expire-warning'
+  if (diffDays <= 30) return 'expire-caution'
+  return 'expire-normal'
+}
+
+// 开始轮询二维码状态
+const startPolling = () => {
+  if (pollingTimer.value) {
+    clearInterval(pollingTimer.value)
+  }
+
+  pollingTimer.value = setInterval(async () => {
+    await checkQRStatus()
+  }, 2000) // 每2秒检查一次
+}
+
+// 停止轮询
+const stopPolling = () => {
+  if (pollingTimer.value) {
+    clearInterval(pollingTimer.value)
+    pollingTimer.value = null
+  }
+}
+
+// 检查二维码状态
+const checkQRStatus = async () => {
+  if (!sessionId.value) return
+
+  try {
+    const response = await http?.get(
+      `${SERVER_URL}/auth/115-qr-status?session_id=${sessionId.value}`,
+    )
+
+    if (response?.data.code === 200 && response.data.data) {
+      const status = response.data.data.status
+
+      switch (status) {
+        case 'waiting':
+          qrStatus.value = 'waiting'
+          break
+        case 'scanned':
+          qrStatus.value = 'scanned'
+          break
+        case 'confirmed':
+          qrStatus.value = 'confirmed'
+          stopPolling()
+          // 延迟1秒后关闭对话框并刷新登录状态
+          setTimeout(() => {
+            closeQRDialog()
+            checkLoginStatus()
+          }, 1000)
+          break
+        case 'expired':
+          qrStatus.value = 'expired'
+          stopPolling()
+          break
+        case 'error':
+          qrStatus.value = 'error'
+          stopPolling()
+          break
+      }
+    }
+  } catch (error) {
+    console.error('检查二维码状态错误:', error)
+  }
+}
+
+// 关闭二维码对话框
+const closeQRDialog = () => {
+  showQRDialog.value = false
+  stopPolling()
+  qrCodeUrl.value = ''
+  sessionId.value = ''
+  qrStatus.value = 'waiting'
+}
+
+// 刷新二维码
+const refreshQRCode = async () => {
+  qrStatus.value = 'waiting'
+  qrCodeUrl.value = ''
+
+  try {
+    const response = await http?.post(
+      `${SERVER_URL}/auth/115-qrcode`,
+      {},
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    )
+
+    if (response?.data.code === 200 && response.data.data) {
+      qrCodeUrl.value = response.data.data.qr_code
+      sessionId.value = response.data.data.session_id
+      startPolling()
+    } else {
+      qrStatus.value = 'error'
+    }
+  } catch (error) {
+    console.error('刷新二维码错误:', error)
+    qrStatus.value = 'error'
+  }
+}
+
+onMounted(() => {
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
+  checkLoginStatus()
+  loadProxy()
+  checkCookieCloudStatus()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
+  stopPolling()
+})
+</script>
+
+<style scoped>
+.core-settings-container {
+  width: 100%;
+  max-width: none;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 0;
+}
+
+.core-settings-card,
+.settings-links-card {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+.card-title {
+  margin: 0 0 8px 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.card-subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: #909399;
+}
+
+.core-content {
+  margin-top: 20px;
+}
+
+.login-section,
+.proxy-section {
+  margin-bottom: 24px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.section-description {
+  margin: 0 0 16px 0;
+  font-size: 14px;
+  color: #606266;
+  line-height: 1.5;
+}
+
+.login-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.login-status {
+  margin-top: 16px;
+}
+
+.account-info {
+  margin-top: 20px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e4e7ed;
+}
+
+.info-title {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.info-item:last-child {
+  border-bottom: none;
+}
+
+.info-label {
+  font-size: 13px;
+  color: #606266;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.info-value {
+  font-size: 14px;
+  color: #303133;
+  font-weight: 600;
+  flex: 1;
+}
+
+.member-vip {
+  color: #e6a23c;
+}
+
+.member-normal {
+  color: #909399;
+}
+
+.expire-normal {
+  color: #67c23a;
+}
+
+.expire-caution {
+  color: #e6a23c;
+}
+
+.expire-warning {
+  color: #f56c6c;
+}
+
+.expire-expired {
+  color: #f56c6c;
+  font-weight: bold;
+}
+
+.expire-unknown {
+  color: #909399;
+}
+
+.storage-progress {
+  margin-top: 16px;
+}
+
+.cookiecloud-notice {
+  margin-bottom: 24px;
+}
+
+.cookiecloud-notice .el-alert {
+  border-radius: 8px;
+}
+
+.cookiecloud-notice p {
+  margin: 0 0 8px 0;
+  line-height: 1.5;
+}
+
+.cookiecloud-notice p:last-child {
+  margin-bottom: 0;
+}
+
+.proxy-form {
+  margin-top: 16px;
+}
+
+.proxy-form .el-form-item {
+  margin-bottom: 20px;
+}
+
+.proxy-form .form-help {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.proxy-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.proxy-status {
+  margin-top: 16px;
+}
+
+.settings-links {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.settings-link-btn {
+  height: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.settings-link-btn .el-icon {
+  font-size: 20px;
+}
+
+/* 二维码登录对话框样式 */
+.qr-login-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 0;
+}
+
+.qr-code-section {
+  margin-bottom: 20px;
+}
+
+.qr-code-wrapper {
+  display: flex;
+  justify-content: center;
+  padding: 20px;
+  background: #fff;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+}
+
+.qr-code-image {
+  width: 200px;
+  height: 200px;
+  border-radius: 4px;
+}
+
+.qr-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60px 20px;
+  color: #909399;
+}
+
+.qr-loading .el-icon {
+  font-size: 32px;
+  margin-bottom: 16px;
+}
+
+.qr-status-section {
+  text-align: center;
+  min-height: 60px;
+}
+
+.status-waiting,
+.status-scanned,
+.status-confirmed,
+.status-expired,
+.status-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-waiting .el-icon {
+  font-size: 24px;
+  color: #909399;
+}
+
+.status-scanned .el-icon {
+  font-size: 24px;
+  color: #67c23a;
+}
+
+.status-confirmed .el-icon {
+  font-size: 24px;
+  color: #67c23a;
+}
+
+.status-expired .el-icon {
+  font-size: 24px;
+  color: #e6a23c;
+}
+
+.status-error .el-icon {
+  font-size: 24px;
+  color: #f56c6c;
+}
+
+.status-waiting p,
+.status-scanned p,
+.status-confirmed p,
+.status-expired p,
+.status-error p {
+  margin: 0;
+  font-size: 14px;
+  color: #606266;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .core-settings-card,
+  .settings-links-card {
+    margin: 0;
+  }
+
+  .card-title {
+    font-size: 20px;
+  }
+
+  .card-subtitle {
+    font-size: 13px;
+  }
+
+  .login-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .login-actions .el-button {
+    width: 100%;
+  }
+
+  .proxy-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .proxy-actions .el-button {
+    width: 100%;
+  }
+
+  .info-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .info-item {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 0;
+  }
+
+  .status-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .settings-links {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .settings-link-btn {
+    width: 100%;
+    height: 50px;
+  }
+
+  .section-title {
+    font-size: 16px;
+  }
+}
+
+/* 小屏移动设备 */
+@media (max-width: 480px) {
+  .card-title {
+    font-size: 18px;
+  }
+
+  .section-title {
+    font-size: 15px;
+  }
+
+  .section-description {
+    font-size: 13px;
+  }
+}
+</style>

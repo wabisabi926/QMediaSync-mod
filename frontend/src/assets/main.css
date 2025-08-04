@@ -1,0 +1,80 @@
+@import './base.css';
+
+#app {
+  width: 100%;
+  margin: 0 auto;
+  font-weight: normal;
+}
+
+.flex {
+  display: flex;
+}
+
+.ml-2 {
+  margin-left: 2px;
+}
+
+/* 移动端全局优化 */
+@media (max-width: 768px) {
+  body {
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  /* 防止移动端缩放 */
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  /* 优化点击区域 */
+  .el-button {
+    min-height: 44px;
+    padding: 8px 16px;
+  }
+
+  /* 优化表单间距 */
+  .el-form-item {
+    margin-bottom: 16px;
+  }
+
+  /* 优化卡片间距 */
+  .el-card {
+    margin-bottom: 12px;
+  }
+}
+
+/* 小屏设备优化 */
+@media (max-width: 480px) {
+  .el-button {
+    min-height: 40px;
+    padding: 6px 12px;
+    font-size: 14px;
+  }
+
+  .el-form-item {
+    margin-bottom: 14px;
+  }
+
+  .el-card {
+    margin-bottom: 10px;
+  }
+}
+
+/* 横屏优化 */
+@media (max-height: 500px) and (orientation: landscape) {
+  .mobile-header {
+    padding: 6px 12px !important;
+  }
+
+  .main-content {
+    padding: 8px !important;
+  }
+}

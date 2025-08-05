@@ -48,44 +48,20 @@
           </el-descriptions>
         </div>
 
-        <!-- 执行日志列表 -->
-        <div class="task-logs">
-          <h3>执行日志</h3>
-          <el-table
-            :data="taskLogs"
-            v-loading="logsLoading"
-            stripe
-            class="logs-table"
-            empty-text="暂无执行日志"
-            max-height="500"
-          >
-            <el-table-column prop="timestamp" label="时间" width="180">
-              <template #default="scope">
-                {{ formatDateTime(scope.row.timestamp) }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="level" label="级别" width="100">
-              <template #default="scope">
-                <el-tag :type="getLogLevelType(scope.row.level)" size="small">
-                  {{ scope.row.level }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="message" label="日志信息" min-width="400" />
-          </el-table>
-
-          <!-- 分页器 -->
-          <el-pagination
-            v-if="logsTotal > 0"
-            v-model:current-page="logsCurrentPage"
-            v-model:page-size="logsPageSize"
-            :total="logsTotal"
-            :page-sizes="[20, 50, 100]"
-            layout="total, sizes, prev, pager, next, jumper"
-            class="logs-pagination"
-            @size-change="handleLogsPageSizeChange"
-            @current-change="handleLogsPageChange"
-          />
+        <!-- 文件对比树 -->
+        <div class="file-compare-tree">
+          <h3>文件对比</h3>
+          <div class="tree-container" v-loading="logsLoading">
+            <el-tree
+              :data="compareData"
+              :props="treeProps"
+              :render-content="renderContent"
+              class="compare-tree"
+              default-expand-all
+              empty-text="暂无对比数据"
+              max-height="500"
+            />
+          </div>
         </div>
       </div>
     </el-card>
@@ -99,6 +75,18 @@ import { ArrowLeft } from '@element-plus/icons-vue'
 import { inject, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+// 与同步任务列表接口保持一致的数据结构
+interface ApiSyncRecord {
+  id: number
+  created_at: number
+  finish_at: number | null
+  status: number
+  total: number
+  new_strm: number
+  downloaded_meta: number
+}
+
+// 任务详情数据结构
 interface TaskInfo {
   id: number
   start_time: number
@@ -109,11 +97,15 @@ interface TaskInfo {
   downloaded_meta: number
 }
 
-interface TaskLog {
-  id: number
-  timestamp: number
-  level: 'INFO' | 'WARNING' | 'ERROR' | 'DEBUG'
-  message: string
+// 定义文件对比项接口
+interface CompareItem {
+  id: string
+  name: string
+  type: 'file' | 'directory'
+  cloudFile?: { path: string; exists: boolean }
+  localFile?: { path: string; exists: boolean }
+  status: 'add' | 'delete' | 'nochange'
+  children?: CompareItem[]
 }
 
 const http: AxiosStatic | undefined = inject('$http')
@@ -125,14 +117,9 @@ const taskId = ref(route.params.id as string)
 
 // 数据状态
 const taskInfo = ref<TaskInfo | null>(null)
-const taskLogs = ref<TaskLog[]>([])
+const compareData = ref<CompareItem[]>([])
 const infoLoading = ref(false)
 const logsLoading = ref(false)
-
-// 日志分页
-const logsCurrentPage = ref(1)
-const logsPageSize = ref(20)
-const logsTotal = ref(0)
 
 // 返回上一页
 const goBack = () => {
@@ -168,22 +155,6 @@ const getStatusText = (status: number) => {
       return '失败'
     default:
       return '未知'
-  }
-}
-
-// 获取日志级别类型
-const getLogLevelType = (level: string) => {
-  switch (level) {
-    case 'INFO':
-      return 'primary'
-    case 'WARNING':
-      return 'warning'
-    case 'ERROR':
-      return 'danger'
-    case 'DEBUG':
-      return 'info'
-    default:
-      return 'info'
   }
 }
 
@@ -225,6 +196,61 @@ const getExecutionDuration = () => {
   }
 }
 
+// 树状图配置
+const treeProps = {
+  children: 'children',
+  label: 'name',
+}
+
+// 渲染树节点内容
+const renderContent = (h: any, { node, data }: any) => {
+  return h('div', { class: 'tree-node-content' }, [
+    h('div', { class: 'node-name' }, [h('span', data.name)]),
+    h('div', { class: 'node-cloud' }, data.cloudFile?.exists ? data.cloudFile.path : '-'),
+    h('div', { class: 'node-local' }, data.localFile?.exists ? data.localFile.path : '-'),
+    h('div', { class: 'node-status' }, [
+      h(
+        'el-tag',
+        {
+          props: {
+            type: getCompareStatusType(data.status),
+          },
+          attrs: { size: 'small' },
+        },
+        getCompareStatusText(data.status),
+      ),
+    ]),
+  ])
+}
+
+// 获取对比状态标签类型
+const getCompareStatusType = (status: string) => {
+  switch (status) {
+    case 'add':
+      return 'success'
+    case 'delete':
+      return 'danger'
+    case 'nochange':
+      return 'info'
+    default:
+      return 'info'
+  }
+}
+
+// 获取对比状态文本
+const getCompareStatusText = (status: string) => {
+  switch (status) {
+    case 'add':
+      return '新增'
+    case 'delete':
+      return '删除'
+    case 'nochange':
+      return '不处理'
+    default:
+      return '未知'
+  }
+}
+
 // 加载任务信息
 const loadTaskInfo = async () => {
   try {
@@ -250,48 +276,87 @@ const loadTaskInfo = async () => {
   }
 }
 
-// 加载任务日志
-const loadTaskLogs = async () => {
+// 加载文件对比数据
+const loadCompareData = async () => {
   try {
     logsLoading.value = true
-    const response = await http?.get(`${SERVER_URL}/sync/task/${taskId.value}/logs`, {
-      params: {
-        page: logsCurrentPage.value,
-        page_size: logsPageSize.value,
-      },
-    })
+    const response = await http?.get(`${SERVER_URL}/sync/task/${taskId.value}/compare`)
 
     if (response?.data.code === 200) {
-      // 暂时使用空数据，等待后端接口实现
-      taskLogs.value = []
-      logsTotal.value = 0
+      // 处理API返回的数据，确保符合CompareItem结构
+      compareData.value = response.data.data.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        type: item.type,
+        cloudFile: item.cloud_file
+          ? {
+              path: item.cloud_file.path,
+              exists: item.cloud_file.exists,
+            }
+          : undefined,
+        localFile: item.local_file
+          ? {
+              path: item.local_file.path,
+              exists: item.local_file.exists,
+            }
+          : undefined,
+        status: item.status,
+        children: item.children
+          ? item.children.map((child: any) => ({
+              id: child.id,
+              name: child.name,
+              type: child.type,
+              cloudFile: child.cloud_file
+                ? {
+                    path: child.cloud_file.path,
+                    exists: child.cloud_file.exists,
+                  }
+                : undefined,
+              localFile: child.local_file
+                ? {
+                    path: child.local_file.path,
+                    exists: child.local_file.exists,
+                  }
+                : undefined,
+              status: child.status,
+              children: child.children
+                ? child.children.map((subchild: any) => ({
+                    id: subchild.id,
+                    name: subchild.name,
+                    type: subchild.type,
+                    cloudFile: subchild.cloud_file
+                      ? {
+                          path: subchild.cloud_file.path,
+                          exists: subchild.cloud_file.exists,
+                        }
+                      : undefined,
+                    localFile: subchild.local_file
+                      ? {
+                          path: subchild.local_file.path,
+                          exists: subchild.local_file.exists,
+                        }
+                      : undefined,
+                    status: subchild.status,
+                  }))
+                : undefined,
+            }))
+          : undefined,
+      }))
+    } else {
+      compareData.value = []
     }
   } catch (error) {
-    console.error('加载任务日志错误:', error)
-    // 暂时使用空数据
-    taskLogs.value = []
-    logsTotal.value = 0
+    console.error('加载文件对比数据错误:', error)
+    compareData.value = []
   } finally {
     logsLoading.value = false
   }
 }
 
-// 日志分页处理
-const handleLogsPageSizeChange = (newSize: number) => {
-  logsPageSize.value = newSize
-  logsCurrentPage.value = 1
-  loadTaskLogs()
-}
-
-const handleLogsPageChange = (newPage: number) => {
-  logsCurrentPage.value = newPage
-  loadTaskLogs()
-}
-
 // 页面挂载时加载数据
 onMounted(() => {
   loadTaskInfo()
-  loadTaskLogs()
+  loadCompareData()
 })
 </script>
 
@@ -350,22 +415,52 @@ onMounted(() => {
   color: #303133;
 }
 
-.task-logs h3 {
+.file-compare-tree h3 {
   margin: 0 0 16px 0;
   font-size: 18px;
   font-weight: 600;
   color: #303133;
 }
 
-.logs-table {
+.tree-container {
   width: 100%;
-  margin-bottom: 20px;
+  overflow-x: auto;
 }
 
-.logs-pagination {
+.compare-tree {
+  width: 100%;
+  min-width: 800px;
+}
+
+.tree-node-content {
   display: flex;
-  justify-content: center;
-  margin-top: 20px;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 4px 0;
+}
+
+.node-name {
+  flex: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 10px;
+}
+
+.node-cloud,
+.node-local {
+  flex: 3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 10px;
+  color: #606266;
+}
+
+.node-status {
+  flex: 1;
+  text-align: center;
 }
 
 /* 移动端适配 */

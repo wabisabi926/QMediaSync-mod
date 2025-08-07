@@ -300,7 +300,7 @@ const saveSettings = async () => {
     loading.value = true
     // 构造标准 form 表单数据
     const reqFormData = new URLSearchParams()
-    reqFormData.append('enabled', formData.enabled.toString())
+    reqFormData.append('enabled', formData.enabled ? '1' : '0')
     reqFormData.append('serverUrl', formData.serverUrl)
     reqFormData.append('uuid', formData.uuid)
     reqFormData.append('password', formData.password)

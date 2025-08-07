@@ -314,6 +314,7 @@
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
+import QRCode from 'qrcode'
 import {
   Upload,
   ChatLineRound,
@@ -363,6 +364,11 @@ interface LoginData {
   device_type: string
 }
 
+interface QRCodeData {
+  qrcode: string
+  [key: string]: unknown // 允许其他未知字段
+}
+
 const http: AxiosStatic | undefined = inject('$http')
 const isMobile = ref(false)
 const loginLoading = ref(false)
@@ -373,8 +379,10 @@ const accountInfo = ref<AccountInfo | null>(null)
 // 二维码登录相关状态
 const showQRDialog = ref(false)
 const qrCodeUrl = ref('')
-const sessionId = ref('')
-const pollingTimer = ref<number | null>(null)
+const qrCodeContent = ref('') // 保存二维码内容
+const qrCodeData = ref<QRCodeData | null>(null) // 保存完整的扫码接口结果
+// 轮询定时器
+const pollingTimer = ref<NodeJS.Timeout | null>(null)
 const qrStatus = ref<'waiting' | 'scanned' | 'confirmed' | 'expired' | 'error'>('waiting')
 
 // CookieCloud状态
@@ -399,7 +407,9 @@ const deviceTypes: Record<string, string> = {
   web: '网页',
   qandriod: 'Android',
   qios: 'iOS',
-  harmony: '鸿蒙',
+  tv: '安卓TV',
+  alipaymini: '支付宝小程序',
+  wechatmini: '微信小程序',
 }
 
 // 检测是否为移动设备
@@ -407,7 +417,26 @@ const checkMobile = () => {
   isMobile.value = window.innerWidth <= 768
 }
 
-// 处理115账号登录
+// 生成二维码
+const generateQRCode = async (content: string): Promise<string> => {
+  try {
+    // 使用本地 qrcode 库生成二维码
+    const qrDataURL = await QRCode.toDataURL(content, {
+      width: 200,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF',
+      },
+    })
+    return qrDataURL
+  } catch (error) {
+    console.error('生成二维码失败:', error)
+    // 如果本地生成失败，回退到在线服务
+    const encodedContent = encodeURIComponent(content)
+    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodedContent}`
+  }
+} // 处理115账号登录
 const handle115Login = async () => {
   try {
     loginLoading.value = true
@@ -415,19 +444,19 @@ const handle115Login = async () => {
     accountInfo.value = null
 
     // 获取二维码
-    const response = await http?.post(
-      `${SERVER_URL}/auth/115-qr-login`,
-      {},
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
+    const formData = new URLSearchParams()
+    formData.append('device_type', loginData.device_type)
+
+    const response = await http?.post(`${SERVER_URL}/auth/115-qrcode`, formData, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-    )
+    })
 
     if (response?.data.code === 200 && response.data.data) {
-      qrCodeUrl.value = response.data.data.qr_code
-      sessionId.value = response.data.data.session_id
+      qrCodeData.value = response.data.data // 保存完整的扫码结果
+      qrCodeContent.value = response.data.data.qrcode // 保存二维码内容
+      qrCodeUrl.value = await generateQRCode(response.data.data.qrcode) // 生成二维码图片
       showQRDialog.value = true
       qrStatus.value = 'waiting'
 
@@ -692,7 +721,7 @@ const startPolling = () => {
 
   pollingTimer.value = setInterval(async () => {
     await checkQRStatus()
-  }, 2000) // 每2秒检查一次
+  }, 10000) // 每10秒检查一次
 }
 
 // 停止轮询
@@ -705,24 +734,38 @@ const stopPolling = () => {
 
 // 检查二维码状态
 const checkQRStatus = async () => {
-  if (!sessionId.value) return
+  if (!qrCodeData.value) return
 
   try {
-    const response = await http?.get(
-      `${SERVER_URL}/auth/115-qr-status?session_id=${sessionId.value}`,
+    // 将扫码数据转换为form表单格式
+    const formData = new URLSearchParams()
+    Object.entries(qrCodeData.value).forEach(([key, value]) => {
+      formData.append(key, String(value))
+    })
+    // 添加设备类型参数
+    formData.append('device_type', loginData.device_type)
+
+    const response = await http?.post(
+      `${SERVER_URL}/auth/115-qrcode-status`,
+      formData, // 传递form表单格式的数据
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      },
     )
 
     if (response?.data.code === 200 && response.data.data) {
       const status = response.data.data.status
 
       switch (status) {
-        case 'waiting':
+        case 2: // 未扫码
           qrStatus.value = 'waiting'
           break
-        case 'scanned':
+        case 3: // 已扫码
           qrStatus.value = 'scanned'
           break
-        case 'confirmed':
+        case 4: // 已确认（扫码成功）
           qrStatus.value = 'confirmed'
           stopPolling()
           // 延迟1秒后关闭对话框并刷新登录状态
@@ -731,18 +774,19 @@ const checkQRStatus = async () => {
             checkLoginStatus()
           }, 1000)
           break
-        case 'expired':
+        case -5: // 已过期
           qrStatus.value = 'expired'
           stopPolling()
           break
-        case 'error':
+        default:
+          // 其他未知状态
           qrStatus.value = 'error'
-          stopPolling()
           break
       }
     }
   } catch (error) {
     console.error('检查二维码状态错误:', error)
+    qrStatus.value = 'error'
   }
 }
 
@@ -751,7 +795,8 @@ const closeQRDialog = () => {
   showQRDialog.value = false
   stopPolling()
   qrCodeUrl.value = ''
-  sessionId.value = ''
+  qrCodeContent.value = ''
+  qrCodeData.value = null
   qrStatus.value = 'waiting'
 }
 
@@ -761,19 +806,19 @@ const refreshQRCode = async () => {
   qrCodeUrl.value = ''
 
   try {
-    const response = await http?.post(
-      `${SERVER_URL}/auth/115-qrcode`,
-      {},
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
+    const formData = new URLSearchParams()
+    formData.append('device_type', loginData.device_type)
+
+    const response = await http?.post(`${SERVER_URL}/auth/115-qrcode`, formData, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-    )
+    })
 
     if (response?.data.code === 200 && response.data.data) {
-      qrCodeUrl.value = response.data.data.qr_code
-      sessionId.value = response.data.data.session_id
+      qrCodeData.value = response.data.data // 保存完整的扫码结果
+      qrCodeContent.value = response.data.data.qrcode // 保存二维码内容
+      qrCodeUrl.value = await generateQRCode(response.data.data.qrcode) // 生成二维码图片
       startPolling()
     } else {
       qrStatus.value = 'error'

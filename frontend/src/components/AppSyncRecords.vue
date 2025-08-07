@@ -53,7 +53,15 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="processed_files" label="处理文件数" width="120" align="center" />
+          <el-table-column prop="sub_status" label="子状态" width="180">
+            <template #default="scope">
+              <el-tag v-if="scope.row.status === 1" type="primary" size="small" effect="light">
+                {{ getSubStatusText(scope.row.sub_status) }}
+              </el-tag>
+              <span v-else>-</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="processed_files" label="总文件数" width="120" align="center" />
           <el-table-column prop="created_strm" label="生成STRM" width="120" align="center" />
           <el-table-column prop="downloaded_meta" label="下载元数据数" width="140" align="center" />
           <el-table-column label="操作" width="100" align="center">
@@ -105,6 +113,7 @@ interface SyncRecord {
   start_time: number
   end_time: number | null
   status: 0 | 1 | 2 | 3 // 0-待开始，1-运行中，2-完成，3-失败
+  sub_status: 0 | 1 | 2 | 3 | 4 | 5 | 6 // 0-未开始，1-正在收集要同步的文件，2-正在查询基础目录结构，3-正在补全文件的路径，4-正在对比文件，5-正在新增和更新文件，6-正在下载元数据
   processed_files: number
   created_strm: number
   downloaded_meta: number
@@ -121,6 +130,7 @@ interface ApiSyncRecord {
   created_at: number
   finish_at: number | null
   status: number
+  sub_status: number
   total: number
   new_strm: number
   downloaded_meta: number
@@ -212,6 +222,28 @@ const getStatusText = (status: number) => {
   }
 }
 
+// 获取子状态文本
+const getSubStatusText = (subStatus: number) => {
+  switch (subStatus) {
+    case 0:
+      return '未开始'
+    case 1:
+      return '正在收集要同步的文件'
+    case 2:
+      return '正在查询基础目录结构'
+    case 3:
+      return '正在补全文件的路径'
+    case 4:
+      return '正在对比文件'
+    case 5:
+      return '正在新增和更新文件'
+    case 6:
+      return '正在下载元数据'
+    default:
+      return '未知'
+  }
+}
+
 // 格式化时间戳为 YYYY-MM-DD HH:mm:ss 格式
 const formatDateTime = (timestamp: number) => {
   if (!timestamp) return '-'
@@ -246,6 +278,7 @@ const loadSyncRecords = async () => {
         start_time: item.created_at,
         end_time: item.finish_at,
         status: item.status as 0 | 1 | 2 | 3,
+        sub_status: item.sub_status as 0 | 1 | 2 | 3 | 4 | 5 | 6,
         processed_files: item.total,
         created_strm: item.new_strm,
         downloaded_meta: item.downloaded_meta || 0,

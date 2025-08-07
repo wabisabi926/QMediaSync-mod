@@ -521,7 +521,7 @@ const loadStrmConfig = async () => {
             params: { file_id: strmData.pan_dir_id },
           })
           if (pathResponse?.data.code === 200 && pathResponse.data.data) {
-            selectedDirPath.value = pathResponse.data.data.path || ''
+            selectedDirPath.value = pathResponse.data.data || ''
           }
         } catch (error) {
           console.error('获取目录路径错误:', error)

@@ -8,13 +8,15 @@
       </template>
 
       <div class="core-content">
-        <!-- 115账号登录部分 -->
+        <!-- 115开放平台授权部分 -->
         <div v-if="!cookieCloudEnabled" class="login-section">
           <h3 class="section-title">
             <el-icon><User /></el-icon>
-            115网盘账号登录
+            115开放平台授权
           </h3>
-          <p class="section-description">登录115网盘账号以获取必要的访问权限</p>
+          <p class="section-description">
+            扫码授权通过使用115开放平台提供的文件筛选、上传、下载功能
+          </p>
 
           <!-- 设备类型选择 -->
           <!-- <el-form :model="loginData" :label-position="'top'" class="login-form">
@@ -38,7 +40,7 @@
           <div class="login-actions">
             <el-button type="primary" size="large" @click="handle115Login" :loading="loginLoading">
               <el-icon><Key /></el-icon>
-              登录115账号
+              点击授权
             </el-button>
 
             <el-button
@@ -49,7 +51,7 @@
               :loading="checkingStatus"
             >
               <el-icon><Search /></el-icon>
-              检查登录状态
+              检查授权状态
             </el-button>
           </div>
 
@@ -70,13 +72,13 @@
           <el-alert title="CookieCloud已启用" type="info" :closable="false" show-icon>
             <template #default>
               <p>
-                检测到CookieCloud功能已启用，系统将自动从CookieCloud同步115网盘的登录状态，无需手动登录。
+                检测到CookieCloud功能已启用，系统将自动从CookieCloud同步115开放平台的授权状态，无需手动授权。
               </p>
-              <p>如需手动管理115账号登录，请先在CookieCloud设置中禁用该功能。</p>
+              <p>如需手动管理115平台授权，请先在CookieCloud设置中禁用该功能。</p>
             </template>
           </el-alert>
         </div>
-        <!-- 115账号详细信息 -->
+        <!-- 115平台账号详细信息 -->
         <div v-if="accountInfo" class="account-info">
           <h4 class="info-title">账号信息</h4>
           <div class="info-grid">
@@ -249,7 +251,7 @@
   <!-- 二维码登录对话框 -->
   <el-dialog
     v-model="showQRDialog"
-    title="115账号扫码登录"
+    title="115开放平台扫码授权"
     width="400px"
     :close-on-click-modal="false"
     :close-on-press-escape="false"
@@ -273,11 +275,11 @@
         </div>
         <div v-else-if="qrStatus === 'scanned'" class="status-scanned">
           <el-icon><SuccessFilled /></el-icon>
-          <p>扫描成功，请在手机上确认登录</p>
+          <p>扫描成功，请在手机上确认授权</p>
         </div>
         <div v-else-if="qrStatus === 'confirmed'" class="status-confirmed">
           <el-icon><CircleCheckFilled /></el-icon>
-          <p>登录确认成功，正在获取账号信息...</p>
+          <p>授权确认成功，正在获取账号信息...</p>
         </div>
         <div v-else-if="qrStatus === 'expired'" class="status-expired">
           <el-icon><WarningFilled /></el-icon>
@@ -285,7 +287,7 @@
         </div>
         <div v-else-if="qrStatus === 'error'" class="status-error">
           <el-icon><CircleCloseFilled /></el-icon>
-          <p>登录过程中出现错误，请重试</p>
+          <p>授权过程中出现错误，请重试</p>
         </div>
       </div>
     </div>
@@ -401,7 +403,6 @@ const loginData = reactive<LoginData>({
 //   web: '网页',
 //   qandriod: 'Android',
 //   qios: 'iOS',
-//   tv: '安卓TV',
 //   alipaymini: '支付宝小程序',
 //   wechatmini: '微信小程序',
 // }
@@ -430,7 +431,7 @@ const generateQRCode = async (content: string): Promise<string> => {
     const encodedContent = encodeURIComponent(content)
     return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodedContent}`
   }
-} // 处理115账号登录
+} // 处理115开放平台授权
 const handle115Login = async () => {
   try {
     loginLoading.value = true
@@ -441,7 +442,7 @@ const handle115Login = async () => {
     const formData = new URLSearchParams()
     formData.append('device_type', loginData.device_type)
 
-    const response = await http?.post(`${SERVER_URL}/auth/115-qrcode`, formData, {
+    const response = await http?.post(`${SERVER_URL}/auth/115-qrcode-open`, formData, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
@@ -488,9 +489,9 @@ const checkLoginStatus = async () => {
       const isLoggedIn = response.data.data?.logged_in || false
 
       loginStatus.value = {
-        title: isLoggedIn ? '115账号已登录' : '115账号未登录',
+        title: isLoggedIn ? '115平台已授权' : '115平台未授权',
         type: isLoggedIn ? 'success' : 'warning',
-        description: isLoggedIn ? `已成功登录115网盘账号` : '请点击登录按钮完成115账号登录',
+        description: isLoggedIn ? `已成功授权115开放平台` : '请点击授权按钮完成115平台授权',
       }
 
       // 如果已登录，保存账号详细信息
@@ -506,9 +507,9 @@ const checkLoginStatus = async () => {
       }
     } else {
       loginStatus.value = {
-        title: '无法获取登录状态',
+        title: '无法获取授权状态',
         type: 'error',
-        description: response?.data.msg || '检查登录状态失败，请稍后重试',
+        description: response?.data.msg || '检查授权状态失败，请稍后重试',
       }
     }
   } catch (error) {
@@ -715,7 +716,7 @@ const startPolling = () => {
 
   pollingTimer.value = setInterval(async () => {
     await checkQRStatus()
-  }, 10000) // 每10秒检查一次
+  }, 1000) // 每10秒检查一次
 }
 
 // 停止轮询
@@ -1001,6 +1002,22 @@ onUnmounted(() => {
 
 .cookiecloud-notice p:last-child {
   margin-bottom: 0;
+}
+
+.login-form {
+  margin-top: 16px;
+  margin-bottom: 20px;
+}
+
+.login-form .el-form-item {
+  margin-bottom: 20px;
+}
+
+.login-form .form-help {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
+  line-height: 1.4;
 }
 
 .proxy-form {

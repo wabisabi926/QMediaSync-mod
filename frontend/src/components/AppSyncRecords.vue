@@ -62,7 +62,7 @@
             </template>
           </el-table-column>
           <el-table-column prop="processed_files" label="总文件数" width="120" align="center" />
-          <el-table-column prop="created_strm" label="生成STRM" width="120" align="center" />
+          <el-table-column prop="created_strm" label="新增STRM数" width="120" align="center" />
           <el-table-column prop="downloaded_meta" label="下载元数据数" width="140" align="center" />
           <el-table-column label="操作" width="100" align="center">
             <template #default="scope">
@@ -133,7 +133,7 @@ interface ApiSyncRecord {
   sub_status: number
   total: number
   new_strm: number
-  downloaded_meta: number
+  new_meta: number
 }
 
 const http: AxiosStatic | undefined = inject('$http')
@@ -281,7 +281,7 @@ const loadSyncRecords = async () => {
         sub_status: item.sub_status as 0 | 1 | 2 | 3 | 4 | 5 | 6,
         processed_files: item.total,
         created_strm: item.new_strm,
-        downloaded_meta: item.downloaded_meta || 0,
+        downloaded_meta: item.new_meta || 0,
       }))
       total.value = response.data.data.total || 0
     }
@@ -420,6 +420,41 @@ onUnmounted(() => {
   display: flex;
   justify-content: center;
   margin-top: 20px;
+}
+
+/* 自定义分页器中文文本 */
+.sync-pagination :deep(.el-pagination__total) {
+  position: relative;
+}
+
+.sync-pagination :deep(.el-pagination__total)::before {
+  content: '总数 ' attr(data-total) ' 条';
+  position: absolute;
+  left: 0;
+  top: 0;
+  background: white;
+  width: 100%;
+  height: 100%;
+  line-height: inherit;
+}
+
+.sync-pagination :deep(.el-pagination__jump) {
+  position: relative;
+}
+
+.sync-pagination :deep(.el-pagination__jump)::before {
+  content: '跳转到';
+  margin-right: 8px;
+}
+
+/* 修改页数显示文本 */
+.sync-pagination :deep(.el-pagination__sizes .el-select .el-input__inner) {
+  font-size: 14px;
+}
+
+.sync-pagination :deep(.el-pagination__sizes::after) {
+  content: '条/页';
+  margin-left: 8px;
 }
 
 .sync-status {

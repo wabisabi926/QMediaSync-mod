@@ -13,6 +13,7 @@ export const useAuthStore = defineStore('auth', () => {
   const token = ref<string | null>(null)
   const user = ref<User | null>(null)
   const isLoading = ref(false)
+  const isLoggingOut = ref(false) // 防止重复登出
 
   // 计算属性
   const isAuthenticated = computed(() => !!token.value)
@@ -57,7 +58,12 @@ export const useAuthStore = defineStore('auth', () => {
 
   // 登出
   const logout = () => {
+    if (isLoggingOut.value) return // 防止重复登出
+    isLoggingOut.value = true
     clearAuth()
+    setTimeout(() => {
+      isLoggingOut.value = false
+    }, 1000) // 1秒后重置标志
   }
 
   // 清除认证信息
@@ -106,6 +112,7 @@ export const useAuthStore = defineStore('auth', () => {
     token,
     user,
     isLoading,
+    isLoggingOut,
 
     // 计算属性
     isAuthenticated,

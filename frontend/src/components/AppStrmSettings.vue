@@ -62,6 +62,7 @@
               placeholder="输入Cron表达式，如：0 2 * * *"
               :disabled="strmLoading"
               class="limited-width-input"
+              @blur="loadCronTimes"
             />
             <div class="form-help">
               <p><strong>常用示例：</strong></p>
@@ -71,6 +72,16 @@
                 <li><code>0 2 * * *</code> - 每天凌晨2点执行</li>
                 <li><code>0 0 * * 0</code> - 每周日0点执行</li>
               </ul>
+
+              <!-- 下次执行时间显示 -->
+              <div v-if="cronTimes.length > 0" class="cron-next-times">
+                <p><strong>下5次执行时间：</strong></p>
+                <div v-loading="cronTimesLoading" class="cron-times-list">
+                  <div v-for="(time, index) in cronTimes" :key="index" class="cron-time-item">
+                    <el-tag type="info" size="small">{{ time }}</el-tag>
+                  </div>
+                </div>
+              </div>
             </div>
           </el-form-item>
 
@@ -269,7 +280,7 @@
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { Check, Refresh, Loading, Folder, ArrowRight } from '@element-plus/icons-vue'
-import { inject, onMounted, reactive, ref } from 'vue'
+import { inject, onMounted, reactive, ref, watch } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 
 interface StrmData {
@@ -310,6 +321,10 @@ const dirTreeLoading = ref(false)
 const selectedDirPath = ref('')
 const currentDir = ref<DirInfo | null>(null)
 const tempSelectedDir = ref<DirInfo | null>(null)
+
+// Cron下次执行时间相关状态
+const cronTimes = ref<string[]>([])
+const cronTimesLoading = ref(false)
 
 // 默认STRM配置
 const defaultStrmData: StrmData = {
@@ -530,9 +545,38 @@ const loadStrmConfig = async () => {
 
       // 更新示例
       updateStrmExample()
+
+      // 加载Cron执行时间
+      await loadCronTimes()
     }
   } catch (error) {
     console.error('加载STRM配置错误:', error)
+  }
+}
+
+// 查询Cron下次执行时间
+const loadCronTimes = async () => {
+  if (!strmData.cron_expression) {
+    cronTimes.value = []
+    return
+  }
+
+  try {
+    cronTimesLoading.value = true
+    const response = await http?.get(`${SERVER_URL}/setting/cron`, {
+      params: { cron: strmData.cron_expression },
+    })
+
+    if (response?.data.code === 200 && response.data.data) {
+      cronTimes.value = response.data.data || []
+    } else {
+      cronTimes.value = []
+    }
+  } catch (error) {
+    console.error('查询Cron执行时间错误:', error)
+    cronTimes.value = []
+  } finally {
+    cronTimesLoading.value = false
   }
 }
 
@@ -553,6 +597,19 @@ const resetStrmConfig = () => {
     description: '配置已重置为默认值，请点击保存按钮应用更改',
   }
 }
+
+// 监听cron表达式变化
+watch(
+  () => strmData.cron_expression,
+  (newCron) => {
+    if (newCron && newCron.trim()) {
+      loadCronTimes()
+    } else {
+      cronTimes.value = []
+    }
+  },
+  { immediate: false },
+)
 
 onMounted(() => {
   loadStrmConfig()
@@ -655,6 +712,29 @@ onMounted(() => {
 
 .cron-examples li:last-child {
   border-bottom: none;
+}
+
+.cron-next-times {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e4e7ed;
+}
+
+.cron-next-times p {
+  margin: 0 0 8px 0;
+  font-weight: 600;
+  color: #303133;
+}
+
+.cron-times-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}
+
+.cron-time-item {
+  margin-bottom: 4px;
 }
 
 .meta-ext-input {

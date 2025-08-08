@@ -18,8 +18,7 @@ const content = `
 1. 系统设置-核心设置-登录115账号 或者 系统设置-CookieCloud设置 - 开启CookieCloud
 2. 如果开启CookieCloud，请在设置完成后回到系统设置-核心设置 查看115账号是否正常获取
 3. 系统设置-strm设置：输入strm直连地址，其他参数请根据需要修改
-4. 同步目录 - 添加同步目录
-5. 同步目录 - 同步目录列表：手动同步一次
+5. 同步记录 - 手动同步 进行首次全量同步（可能时间较长）
 `
 const result = md.render(content)
 </script>

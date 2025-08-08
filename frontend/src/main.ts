@@ -6,6 +6,7 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
+import { ElMessage } from 'element-plus'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import App from './App.vue'
 
@@ -33,13 +34,35 @@ axios.interceptors.request.use(
 // 响应拦截器
 axios.interceptors.response.use(
   (response) => {
+    // 检查响应数据中的code字段
+    if (response.data && response.data.code === 401) {
+      const authStore = useAuthStore()
+      if (!authStore.isLoggingOut) {
+        ElMessage.error('登录已失效，请重新登录')
+        authStore.logout()
+        router.push('/login')
+      }
+      return Promise.reject(new Error('登录已失效，请重新登录'))
+    }
     return response
   },
   (error) => {
+    const authStore = useAuthStore()
+    // 检查HTTP状态码401
     if (error.response?.status === 401) {
-      const authStore = useAuthStore()
-      authStore.logout()
-      router.push('/login')
+      if (!authStore.isLoggingOut) {
+        ElMessage.error('登录已失效，请重新登录')
+        authStore.logout()
+        router.push('/login')
+      }
+    }
+    // 检查响应数据中的code字段
+    else if (error.response?.data?.code === 401) {
+      if (!authStore.isLoggingOut) {
+        ElMessage.error('登录已失效，请重新登录')
+        authStore.logout()
+        router.push('/login')
+      }
     }
     return Promise.reject(error)
   },

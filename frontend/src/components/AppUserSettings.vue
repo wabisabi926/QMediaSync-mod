@@ -92,7 +92,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted, inject } from 'vue'
+import { reactive, ref, inject } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Check, RefreshLeft } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
@@ -200,7 +200,8 @@ const resetForm = async () => {
       type: 'warning',
     })
 
-    await loadSettings()
+    // 重置表单数据
+    formData.password = ''
     formData.confirmPassword = ''
     saveStatus.value = null
     ElMessage.info('表单已重置')

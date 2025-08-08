@@ -17,7 +17,7 @@
           <p class="section-description">登录115网盘账号以获取必要的访问权限</p>
 
           <!-- 设备类型选择 -->
-          <el-form :model="loginData" :label-position="'top'" class="login-form">
+          <!-- <el-form :model="loginData" :label-position="'top'" class="login-form">
             <el-form-item label="选择登录设备类型" prop="device_type">
               <el-select
                 v-model="loginData.device_type"
@@ -33,16 +33,10 @@
               </el-select>
               <div class="form-help">不同设备类型可能有不同的功能限制，请根据实际需要选择</div>
             </el-form-item>
-          </el-form>
+          </el-form> -->
 
           <div class="login-actions">
-            <el-button
-              type="primary"
-              size="large"
-              @click="handle115Login"
-              :loading="loginLoading"
-              :disabled="!loginData.device_type"
-            >
+            <el-button type="primary" size="large" @click="handle115Login" :loading="loginLoading">
               <el-icon><Key /></el-icon>
               登录115账号
             </el-button>
@@ -399,18 +393,18 @@ const proxyData = reactive<ProxyData>({
 
 // 登录相关数据
 const loginData = reactive<LoginData>({
-  device_type: '',
+  device_type: 'web', // 默认使用网页设备类型
 })
 
-// 设备类型选项
-const deviceTypes: Record<string, string> = {
-  web: '网页',
-  qandriod: 'Android',
-  qios: 'iOS',
-  tv: '安卓TV',
-  alipaymini: '支付宝小程序',
-  wechatmini: '微信小程序',
-}
+// 设备类型选项（已隐藏，使用默认的web类型）
+// const deviceTypes: Record<string, string> = {
+//   web: '网页',
+//   qandriod: 'Android',
+//   qios: 'iOS',
+//   tv: '安卓TV',
+//   alipaymini: '支付宝小程序',
+//   wechatmini: '微信小程序',
+// }
 
 // 检测是否为移动设备
 const checkMobile = () => {

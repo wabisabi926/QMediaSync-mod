@@ -140,17 +140,6 @@
             </div>
           </el-form-item>
 
-          <!-- STRM文件存在时的处理方式 -->
-          <el-form-item label="STRM文件存在时" prop="strm_overwrite">
-            <el-radio-group v-model="strmData.strm_overwrite">
-              <el-radio-button :label="1">覆盖</el-radio-button>
-              <el-radio-button :label="0">跳过</el-radio-button>
-            </el-radio-group>
-            <div class="form-help">
-              <p>覆盖：替换已存在的STRM文件；跳过：保留已存在的STRM文件不做更改</p>
-            </div>
-          </el-form-item>
-
           <!-- 保存和重置按钮 -->
           <el-form-item>
             <div class="strm-actions">
@@ -289,7 +278,6 @@ interface StrmData {
   meta_ext: string[]
   cron_expression: string
   direct_url: string
-  strm_overwrite: 0 | 1
   strm_path: string
   pan_dir_id: string
 }
@@ -333,7 +321,6 @@ const defaultStrmData: StrmData = {
   meta_ext: ['.jpg', '.jpeg', '.png', '.webp', '.nfo', '.srt', '.ass', '.svg', '.sup', '.lrc'],
   cron_expression: '30 * * * *',
   direct_url: '',
-  strm_overwrite: 0,
   strm_path: '',
   pan_dir_id: '',
 }
@@ -392,9 +379,6 @@ const formRules: FormRules = {
   ],
   strm_path: [{ required: true, message: '请输入STRM文件存放位置', trigger: 'blur' }],
   pan_dir_id: [{ required: true, message: '请选择115网盘目录', trigger: 'change' }],
-  strm_overwrite: [
-    { required: true, message: '请选择STRM文件存在时的处理方式', trigger: 'change' },
-  ],
 }
 
 // 更新STRM示例
@@ -477,7 +461,6 @@ const saveStrmConfig = async () => {
     saveData.append('meta_ext', JSON.stringify(strmData.meta_ext))
     saveData.append('cron', strmData.cron_expression)
     saveData.append('strm_base_url', strmData.direct_url)
-    saveData.append('strm_overwrite', strmData.strm_overwrite.toString())
     saveData.append('strm_base_dir', strmData.strm_path)
     saveData.append('strm_base_cid', strmData.pan_dir_id)
 
@@ -525,7 +508,6 @@ const loadStrmConfig = async () => {
       strmData.meta_ext = config.meta_ext || defaultStrmData.meta_ext
       strmData.cron_expression = config.cron || defaultStrmData.cron_expression
       strmData.direct_url = config.strm_base_url || ''
-      strmData.strm_overwrite = config.strm_overwrite !== undefined ? config.strm_overwrite : 0
       strmData.strm_path = config.strm_base_dir || ''
       strmData.pan_dir_id = config.strm_base_cid || ''
 

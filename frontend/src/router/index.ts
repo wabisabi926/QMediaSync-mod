@@ -34,7 +34,7 @@ const routes = [
     name: 'settings',
     component: AppSettings,
     meta: {
-      title: '核心设置',
+      title: '115开放平台授权',
       requiresAuth: true,
     },
   },
@@ -94,6 +94,33 @@ const routes = [
       title: 'Telegram通知设置',
       requiresAuth: true,
       parent: 'settings',
+    },
+  },
+  {
+    path: '/instant-upload',
+    name: 'instant-upload',
+    component: () => import('@/components/AppInstantUpload.vue'),
+    meta: {
+      title: 'URL秒传',
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/media-import',
+    name: 'media-import',
+    component: () => import('@/components/AppMediaImport.vue'),
+    meta: {
+      title: '媒体库导入',
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/proxy',
+    name: 'proxy',
+    component: () => import('@/components/AppProxySettings.vue'),
+    meta: {
+      title: '网络代理',
+      requiresAuth: true,
     },
   },
 ]

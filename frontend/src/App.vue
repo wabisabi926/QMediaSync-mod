@@ -49,7 +49,11 @@
             </template>
             <el-menu-item index="/settings">
               <el-icon><Tools /></el-icon>
-              <span>核心设置</span>
+              <span>115开放平台授权</span>
+            </el-menu-item>
+            <el-menu-item index="/proxy">
+              <el-icon><Link /></el-icon>
+              <span>网络代理</span>
             </el-menu-item>
             <el-menu-item index="/settings/strm">
               <el-icon><VideoPlay /></el-icon>
@@ -73,6 +77,21 @@
             <el-icon><DocumentCopy /></el-icon>
             <span>同步记录</span>
           </el-menu-item>
+
+          <el-sub-menu index="/instant" v-if="false">
+            <template #title>
+              <el-icon><Upload /></el-icon>
+              <span>秒传</span>
+            </template>
+            <el-menu-item index="/instant-upload">
+              <el-icon><Link /></el-icon>
+              <span>URL秒传</span>
+            </el-menu-item>
+            <el-menu-item index="/media-import">
+              <el-icon><FolderOpened /></el-icon>
+              <span>媒体库导入</span>
+            </el-menu-item>
+          </el-sub-menu>
         </el-menu>
       </el-aside>
 
@@ -117,6 +136,8 @@ import {
   UserFilled,
   VideoPlay,
   DocumentCopy,
+  Link,
+  FolderOpened,
 } from '@element-plus/icons-vue'
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -175,6 +196,10 @@ const getCurrentPageTitle = () => {
     '/settings/cookiecloud': 'CookieCloud设置',
     '/settings/telegram': 'Telegram通知设置',
     '/settings/strm': 'STRM配置',
+    '/instant-upload': 'URL秒传',
+    '/media-import': '媒体库导入',
+    '/proxy': '网络代理',
+    '/sync-records': '同步记录',
   }
   return titleMap[route.path] || '首页'
 }
@@ -184,6 +209,9 @@ const getDefaultOpeneds = () => {
   const openeds = []
   if (route.path.startsWith('/settings')) {
     openeds.push('/settings')
+  }
+  if (route.path.startsWith('/instant-upload') || route.path.startsWith('/media-import')) {
+    openeds.push('/instant')
   }
   return openeds
 }

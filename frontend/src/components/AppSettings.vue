@@ -1,10 +1,10 @@
 <template>
   <div class="core-settings-container">
-    <!-- 核心设置卡片 -->
+    <!-- 115开放平台授权卡片 -->
     <el-card class="core-settings-card" shadow="hover">
       <template #header>
-        <h2 class="card-title">核心设置</h2>
-        <p class="card-subtitle">系统核心功能和账号管理</p>
+        <h2 class="card-title">115开放平台授权</h2>
+        <p class="card-subtitle">115开放平台授权和账号管理</p>
       </template>
 
       <div class="core-content">
@@ -125,68 +125,6 @@
               :show-text="false"
             />
           </div>
-        </div>
-
-        <el-divider />
-
-        <!-- 网络代理设置部分 -->
-        <div class="proxy-section">
-          <h3 class="section-title">
-            <el-icon><Link /></el-icon>
-            网络代理设置
-          </h3>
-          <p class="section-description">配置Socks5代理以访问被限制的网络服务（如Telegram API）</p>
-
-          <el-form :model="proxyData" :label-position="'top'" class="proxy-form">
-            <el-form-item label="Socks5代理地址" prop="proxy_url">
-              <el-input
-                v-model="proxyData.proxy_url"
-                placeholder="例如: socks5://127.0.0.1:7891 或 socks5://proxy.example.com:10808"
-                :disabled="proxyLoading"
-                clearable
-              />
-              <div class="form-help">
-                支持Socks5代理，格式：socks5://[用户名:密码@]主机:端口，留空表示不使用代理
-              </div>
-            </el-form-item>
-
-            <el-form-item>
-              <div class="proxy-actions">
-                <el-button
-                  type="primary"
-                  @click="testProxy"
-                  :loading="testingProxy"
-                  :disabled="proxyLoading"
-                  size="large"
-                >
-                  <el-icon><Connection /></el-icon>
-                  测试代理连接
-                </el-button>
-
-                <el-button
-                  type="success"
-                  @click="saveProxy"
-                  :loading="proxyLoading"
-                  :disabled="testingProxy"
-                  size="large"
-                >
-                  <el-icon><Check /></el-icon>
-                  保存代理设置
-                </el-button>
-              </div>
-            </el-form-item>
-          </el-form>
-
-          <!-- 代理状态显示 -->
-          <el-alert
-            v-if="proxyStatus"
-            :title="proxyStatus.title"
-            :type="proxyStatus.type"
-            :description="proxyStatus.description"
-            :closable="false"
-            show-icon
-            class="proxy-status"
-          />
         </div>
 
         <el-divider />
@@ -318,9 +256,6 @@ import {
   Key,
   Search,
   UserFilled,
-  Link,
-  Connection,
-  Check,
   Loading,
   Iphone,
   SuccessFilled,
@@ -344,16 +279,6 @@ interface AccountInfo {
   total_space: number
   member_level: string
   expire_time: string
-}
-
-interface ProxyData {
-  proxy_url: string
-}
-
-interface ProxyStatus {
-  title: string
-  type: 'success' | 'warning' | 'error' | 'info'
-  description: string
 }
 
 interface LoginData {
@@ -383,15 +308,6 @@ const qrStatus = ref<'waiting' | 'scanned' | 'confirmed' | 'expired' | 'error'>(
 
 // CookieCloud状态
 const cookieCloudEnabled = ref(false)
-
-// 代理相关状态
-const proxyLoading = ref(false)
-const testingProxy = ref(false)
-const proxyStatus = ref<ProxyStatus | null>(null)
-
-const proxyData = reactive<ProxyData>({
-  proxy_url: '',
-})
 
 // 登录相关数据
 const loginData = reactive<LoginData>({
@@ -521,103 +437,6 @@ const checkLoginStatus = async () => {
     }
   } finally {
     checkingStatus.value = false
-  }
-}
-
-// 测试代理连接
-const testProxy = async () => {
-  try {
-    testingProxy.value = true
-    proxyStatus.value = null
-
-    const testData = new URLSearchParams()
-    testData.append('socks5_proxy', proxyData.proxy_url)
-
-    const response = await http?.post(`${SERVER_URL}/setting/test-socks5-proxy`, testData, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-    })
-
-    if (response?.data.code === 200) {
-      proxyStatus.value = {
-        title: '代理连接测试成功',
-        type: 'success',
-        description: proxyData.proxy_url
-          ? `代理服务器 ${proxyData.proxy_url} 连接正常`
-          : '直连网络连接正常',
-      }
-    } else {
-      proxyStatus.value = {
-        title: '代理连接测试失败',
-        type: 'error',
-        description: response?.data.msg || '无法连接到代理服务器，请检查地址和端口',
-      }
-    }
-  } catch (error) {
-    console.error('代理测试错误:', error)
-    proxyStatus.value = {
-      title: '代理测试出错',
-      type: 'error',
-      description: '测试过程中发生错误，请检查网络连接和代理设置',
-    }
-  } finally {
-    testingProxy.value = false
-  }
-}
-
-// 保存代理设置
-const saveProxy = async () => {
-  try {
-    proxyLoading.value = true
-    proxyStatus.value = null
-
-    const saveData = new URLSearchParams()
-    saveData.append('socks5_proxy', proxyData.proxy_url)
-
-    const response = await http?.post(`${SERVER_URL}/setting/update-socks5-proxy`, saveData, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-    })
-
-    if (response?.data.code === 200) {
-      proxyStatus.value = {
-        title: '代理设置已保存',
-        type: 'success',
-        description: proxyData.proxy_url
-          ? `已设置代理服务器：${proxyData.proxy_url}`
-          : '已清除代理设置，使用直连网络',
-      }
-    } else {
-      proxyStatus.value = {
-        title: '保存代理设置失败',
-        type: 'error',
-        description: response?.data.msg || '保存设置失败，请重试',
-      }
-    }
-  } catch (error) {
-    console.error('保存代理设置错误:', error)
-    proxyStatus.value = {
-      title: '保存设置出错',
-      type: 'error',
-      description: '保存过程中发生错误，请检查网络连接',
-    }
-  } finally {
-    proxyLoading.value = false
-  }
-}
-
-// 加载代理设置
-const loadProxy = async () => {
-  try {
-    const response = await http?.get(`${SERVER_URL}/setting/socks5-proxy`)
-
-    if (response?.data.code === 200 && response.data.data) {
-      proxyData.proxy_url = response.data.data.socks5_proxy || ''
-    }
-  } catch (error) {
-    console.error('加载代理设置错误:', error)
   }
 }
 
@@ -828,7 +647,6 @@ onMounted(() => {
   checkMobile()
   window.addEventListener('resize', checkMobile)
   checkLoginStatus()
-  loadProxy()
   checkCookieCloudStatus()
 })
 

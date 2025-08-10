@@ -133,7 +133,7 @@ const getExpireClass = (expireTime: string): string => {
 const loadAccountInfo = async () => {
   try {
     accountLoading.value = true
-    const response = await http?.get(`${SERVER_URL}/115/account`)
+    const response = await http?.get(`${SERVER_URL}/auth/115-status`)
 
     if (response?.data.code === 200 && response.data.data) {
       accountInfo.value = response.data.data

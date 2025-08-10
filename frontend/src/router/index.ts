@@ -7,7 +7,7 @@ import AppUserSettings from '@/components/AppUserSettings.vue'
 import AppStrmSettings from '@/components/AppStrmSettings.vue'
 import AppSyncRecords from '@/components/AppSyncRecords.vue'
 import AppSyncTaskDetail from '@/components/AppSyncTaskDetail.vue'
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
 const routes = [
@@ -126,7 +126,7 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHistory('/'),
+  history: createWebHashHistory(),
   routes,
 })
 

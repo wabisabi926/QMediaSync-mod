@@ -140,6 +140,39 @@
             </div>
           </el-form-item>
 
+          <!-- 同步完是否上传网盘不存在的元数据 -->
+          <el-form-item label="上传网盘不存在的元数据" prop="upload_meta">
+            <el-radio-group v-model="strmData.upload_meta">
+              <el-radio-button :label="1">上传</el-radio-button>
+              <el-radio-button :label="0">不上传</el-radio-button>
+            </el-radio-group>
+            <div class="form-help">
+              <p>同步完成后是否将本地存在但网盘不存在的元数据文件上传到115网盘</p>
+            </div>
+          </el-form-item>
+
+          <!-- 同步完是否删除网盘不存在的STRM文件 -->
+          <el-form-item label="删除网盘不存在的STRM文件" prop="delete_strm">
+            <el-radio-group v-model="strmData.delete_strm">
+              <el-radio-button :label="1">删除</el-radio-button>
+              <el-radio-button :label="0">不删除</el-radio-button>
+            </el-radio-group>
+            <div class="form-help">
+              <p>同步完成后是否删除本地存在但网盘不存在的STRM文件</p>
+            </div>
+          </el-form-item>
+
+          <!-- 同步完是否删除网盘不存在的空目录 -->
+          <el-form-item label="删除网盘不存在的空目录" prop="delete_dir">
+            <el-radio-group v-model="strmData.delete_dir">
+              <el-radio-button :label="1">删除</el-radio-button>
+              <el-radio-button :label="0">不删除</el-radio-button>
+            </el-radio-group>
+            <div class="form-help">
+              <p>同步完成后是否删除本地存在但网盘不存在的空目录</p>
+            </div>
+          </el-form-item>
+
           <!-- 保存和重置按钮 -->
           <el-form-item>
             <div class="strm-actions">
@@ -280,6 +313,9 @@ interface StrmData {
   direct_url: string
   strm_path: string
   pan_dir_id: string
+  upload_meta: 0 | 1
+  delete_strm: 0 | 1
+  delete_dir: 0 | 1
 }
 
 interface StrmStatus {
@@ -323,6 +359,9 @@ const defaultStrmData: StrmData = {
   direct_url: '',
   strm_path: '',
   pan_dir_id: '',
+  upload_meta: 0, // 默认不上传
+  delete_strm: 1, // 默认删除
+  delete_dir: 0, // 默认不删除
 }
 
 const strmData = reactive<StrmData>({ ...defaultStrmData })
@@ -463,6 +502,9 @@ const saveStrmConfig = async () => {
     saveData.append('strm_base_url', strmData.direct_url)
     saveData.append('strm_base_dir', strmData.strm_path)
     saveData.append('strm_base_cid', strmData.pan_dir_id)
+    saveData.append('upload_meta', strmData.upload_meta.toString())
+    saveData.append('delete_strm', strmData.delete_strm.toString())
+    saveData.append('delete_dir', strmData.delete_dir.toString())
 
     const response = await http?.post(`${SERVER_URL}/setting/update-strm-config`, saveData, {
       headers: {
@@ -510,6 +552,9 @@ const loadStrmConfig = async () => {
       strmData.direct_url = config.strm_base_url || ''
       strmData.strm_path = config.strm_base_dir || ''
       strmData.pan_dir_id = config.strm_base_cid || ''
+      strmData.upload_meta = config.upload_meta !== undefined ? config.upload_meta : 0
+      strmData.delete_strm = config.delete_strm !== undefined ? config.delete_strm : 1
+      strmData.delete_dir = config.delete_dir !== undefined ? config.delete_dir : 0
 
       // 如果有目录ID，加载目录路径
       if (strmData.pan_dir_id) {

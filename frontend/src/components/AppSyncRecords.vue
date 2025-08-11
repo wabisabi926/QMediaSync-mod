@@ -113,7 +113,7 @@ interface SyncRecord {
   start_time: number
   end_time: number | null
   status: 0 | 1 | 2 | 3 // 0-待开始，1-运行中，2-完成，3-失败
-  sub_status: 0 | 1 | 2 | 3 | 4 | 5 | 6 // 0-未开始，1-正在收集要同步的文件，2-正在查询基础目录结构，3-正在补全文件的路径，4-正在对比文件，5-正在新增和更新文件，6-正在下载元数据
+  sub_status: 0 | 1 | 2 | 3 | 4 // 0-待开始，1-正在收集目录结构，2-正在收集文件列表，3-正在比对文件结构，4-正在生成或下载文件
   processed_files: number
   created_strm: number
   downloaded_meta: number
@@ -226,19 +226,15 @@ const getStatusText = (status: number) => {
 const getSubStatusText = (subStatus: number) => {
   switch (subStatus) {
     case 0:
-      return '未开始'
+      return '待开始'
     case 1:
-      return '正在收集要同步的文件'
+      return '正在收集目录结构'
     case 2:
-      return '正在查询基础目录结构'
+      return '正在收集文件列表'
     case 3:
-      return '正在补全文件的路径'
+      return '正在比对文件结构'
     case 4:
-      return '正在对比文件'
-    case 5:
-      return '正在新增和更新文件'
-    case 6:
-      return '正在下载元数据'
+      return '正在生成或下载文件'
     default:
       return '未知'
   }
@@ -278,7 +274,7 @@ const loadSyncRecords = async () => {
         start_time: item.created_at,
         end_time: item.finish_at,
         status: item.status as 0 | 1 | 2 | 3,
-        sub_status: item.sub_status as 0 | 1 | 2 | 3 | 4 | 5 | 6,
+        sub_status: item.sub_status as 0 | 1 | 2 | 3 | 4,
         processed_files: item.total,
         created_strm: item.new_strm,
         downloaded_meta: item.new_meta || 0,

@@ -143,10 +143,10 @@ const getExpireClass = (expireTime: string): string => {
 // 获取队列状态文本
 const getQueueStatusText = (status: string): string => {
   switch (status) {
-    case 'idle':
-      return '空闲'
-    case 'running':
+    case 'active':
       return '运行中'
+    case 'idle':
+      return '等待中'
     case 'paused':
       return '暂停'
     case 'error':
@@ -159,10 +159,10 @@ const getQueueStatusText = (status: string): string => {
 // 获取队列状态样式类
 const getQueueStatusClass = (status: string): string => {
   switch (status) {
+    case 'active':
+      return 'status-running'
     case 'idle':
       return 'status-idle'
-    case 'running':
-      return 'status-running'
     case 'paused':
       return 'status-paused'
     case 'error':
@@ -312,6 +312,15 @@ onMounted(() => {
               <h3 class="queue-section-title">下载状态</h3>
               <div class="queue-stats">
                 <div class="stat-item">
+                  <span class="stat-label">当前状态:</span>
+                  <span
+                    class="stat-value"
+                    :class="getQueueStatusClass(queueStatus.download_status)"
+                  >
+                    {{ getQueueStatusText(queueStatus.download_status) }}
+                  </span>
+                </div>
+                <div class="stat-item">
                   <span class="stat-label">活跃任务:</span>
                   <span class="stat-value active-count">{{ queueStatus.download_active_len }}</span>
                 </div>
@@ -326,6 +335,12 @@ onMounted(() => {
             <div class="queue-section">
               <h3 class="queue-section-title">上传状态</h3>
               <div class="queue-stats">
+                <div class="stat-item">
+                  <span class="stat-label">当前状态:</span>
+                  <span class="stat-value" :class="getQueueStatusClass(queueStatus.upload_status)">
+                    {{ getQueueStatusText(queueStatus.upload_status) }}
+                  </span>
+                </div>
                 <div class="stat-item">
                   <span class="stat-label">活跃任务:</span>
                   <span class="stat-value active-count">{{ queueStatus.upload_active_len }}</span>

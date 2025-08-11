@@ -237,128 +237,142 @@ onMounted(() => {
 </script>
 <template>
   <div class="home-container">
-    <!-- 115账号信息卡片 -->
-    <el-card class="account-card" shadow="hover" v-loading="accountLoading">
-      <template #header>
-        <h2 class="card-title">115账号信息</h2>
-        <p class="card-subtitle">当前登录的115开放平台账号</p>
-      </template>
+    <!-- 账号信息和队列状态行 -->
+    <el-row :gutter="20" class="top-row">
+      <el-col :xs="24" :sm="24" :md="12" :lg="12" :xl="12">
+        <!-- 115账号信息卡片 -->
+        <el-card class="account-card" shadow="hover" v-loading="accountLoading">
+          <template #header>
+            <h2 class="card-title">115账号信息</h2>
+            <p class="card-subtitle">当前登录的115开放平台账号</p>
+          </template>
 
-      <div v-if="accountInfo" class="account-info">
-        <div class="info-grid">
-          <div class="info-item">
-            <span class="info-label">用户ID:</span>
-            <span class="info-value">{{ accountInfo.user_id }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">用户名:</span>
-            <span class="info-value">{{ accountInfo.username }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">存储空间:</span>
-            <span class="info-value"
-              >{{ formatStorage(accountInfo.used_space) }} /
-              {{ formatStorage(accountInfo.total_space) }}</span
-            >
-          </div>
-          <div class="info-item">
-            <span class="info-label">使用率:</span>
-            <span class="info-value"
-              >{{ getStoragePercent(accountInfo.used_space, accountInfo.total_space) }}%</span
-            >
-          </div>
-          <div class="info-item">
-            <span class="info-label">会员等级:</span>
-            <span class="info-value" :class="getMemberClass(accountInfo.member_level)">{{
-              accountInfo.member_level
-            }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">到期时间:</span>
-            <span class="info-value" :class="getExpireClass(accountInfo.expire_time)">{{
-              formatExpireTime(accountInfo.expire_time)
-            }}</span>
-          </div>
-        </div>
-
-        <!-- 存储空间进度条 -->
-        <div class="storage-progress">
-          <el-progress
-            :percentage="getStoragePercent(accountInfo.used_space, accountInfo.total_space)"
-            :color="getProgressColor(accountInfo.used_space, accountInfo.total_space)"
-            :show-text="false"
-          />
-        </div>
-      </div>
-
-      <div v-else class="no-account">
-        <el-empty description="暂未获取到115账号信息">
-          <el-button type="primary" @click="$router.push('/settings')">前往授权</el-button>
-        </el-empty>
-      </div>
-    </el-card>
-
-    <!-- 上传下载状态卡片 -->
-    <el-card class="queue-card" shadow="hover" v-loading="queueLoading">
-      <template #header>
-        <h2 class="card-title">上传下载状态</h2>
-        <p class="card-subtitle">当前队列和任务状态</p>
-      </template>
-
-      <div v-if="queueStatus" class="queue-info">
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <div class="queue-section">
-              <h3 class="queue-section-title">下载状态</h3>
-              <div class="queue-stats">
-                <div class="stat-item">
-                  <span class="stat-label">当前状态:</span>
-                  <span
-                    class="stat-value"
-                    :class="getQueueStatusClass(queueStatus.download_status)"
-                  >
-                    {{ getQueueStatusText(queueStatus.download_status) }}
-                  </span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">活跃任务:</span>
-                  <span class="stat-value active-count">{{ queueStatus.download_active_len }}</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">等待任务:</span>
-                  <span class="stat-value wait-count">{{ queueStatus.download_wait_len }}</span>
-                </div>
+          <div v-if="accountInfo" class="account-info">
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">用户ID:</span>
+                <span class="info-value">{{ accountInfo.user_id }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">用户名:</span>
+                <span class="info-value">{{ accountInfo.username }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">存储空间:</span>
+                <span class="info-value"
+                  >{{ formatStorage(accountInfo.used_space) }} /
+                  {{ formatStorage(accountInfo.total_space) }}</span
+                >
+              </div>
+              <div class="info-item">
+                <span class="info-label">使用率:</span>
+                <span class="info-value"
+                  >{{ getStoragePercent(accountInfo.used_space, accountInfo.total_space) }}%</span
+                >
+              </div>
+              <div class="info-item">
+                <span class="info-label">会员等级:</span>
+                <span class="info-value" :class="getMemberClass(accountInfo.member_level)">{{
+                  accountInfo.member_level
+                }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">到期时间:</span>
+                <span class="info-value" :class="getExpireClass(accountInfo.expire_time)">{{
+                  formatExpireTime(accountInfo.expire_time)
+                }}</span>
               </div>
             </div>
-          </el-col>
-          <el-col :span="12">
-            <div class="queue-section">
-              <h3 class="queue-section-title">上传状态</h3>
-              <div class="queue-stats">
-                <div class="stat-item">
-                  <span class="stat-label">当前状态:</span>
-                  <span class="stat-value" :class="getQueueStatusClass(queueStatus.upload_status)">
-                    {{ getQueueStatusText(queueStatus.upload_status) }}
-                  </span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">活跃任务:</span>
-                  <span class="stat-value active-count">{{ queueStatus.upload_active_len }}</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">等待任务:</span>
-                  <span class="stat-value wait-count">{{ queueStatus.upload_wait_len }}</span>
-                </div>
-              </div>
-            </div>
-          </el-col>
-        </el-row>
-      </div>
 
-      <div v-else class="no-queue">
-        <el-empty description="暂未获取到队列状态信息" />
-      </div>
-    </el-card>
+            <!-- 存储空间进度条 -->
+            <div class="storage-progress">
+              <el-progress
+                :percentage="getStoragePercent(accountInfo.used_space, accountInfo.total_space)"
+                :color="getProgressColor(accountInfo.used_space, accountInfo.total_space)"
+                :show-text="false"
+              />
+            </div>
+          </div>
+
+          <div v-else class="no-account">
+            <el-empty description="暂未获取到115账号信息">
+              <el-button type="primary" @click="$router.push('/settings')">前往授权</el-button>
+            </el-empty>
+          </div>
+        </el-card>
+      </el-col>
+
+      <el-col :xs="24" :sm="24" :md="12" :lg="12" :xl="12">
+        <!-- 上传下载状态卡片 -->
+        <el-card class="queue-card" shadow="hover" v-loading="queueLoading">
+          <template #header>
+            <h2 class="card-title">上传下载状态</h2>
+            <p class="card-subtitle">当前队列和任务状态</p>
+          </template>
+
+          <div v-if="queueStatus" class="queue-info">
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <div class="queue-section">
+                  <h3 class="queue-section-title">下载状态</h3>
+                  <div class="queue-stats">
+                    <div class="stat-item">
+                      <span class="stat-label">当前状态:</span>
+                      <span
+                        class="stat-value"
+                        :class="getQueueStatusClass(queueStatus.download_status)"
+                      >
+                        {{ getQueueStatusText(queueStatus.download_status) }}
+                      </span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-label">活跃任务:</span>
+                      <span class="stat-value active-count">{{
+                        queueStatus.download_active_len
+                      }}</span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-label">等待任务:</span>
+                      <span class="stat-value wait-count">{{ queueStatus.download_wait_len }}</span>
+                    </div>
+                  </div>
+                </div>
+              </el-col>
+              <el-col :span="12">
+                <div class="queue-section">
+                  <h3 class="queue-section-title">上传状态</h3>
+                  <div class="queue-stats">
+                    <div class="stat-item">
+                      <span class="stat-label">当前状态:</span>
+                      <span
+                        class="stat-value"
+                        :class="getQueueStatusClass(queueStatus.upload_status)"
+                      >
+                        {{ getQueueStatusText(queueStatus.upload_status) }}
+                      </span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-label">活跃任务:</span>
+                      <span class="stat-value active-count">{{
+                        queueStatus.upload_active_len
+                      }}</span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-label">等待任务:</span>
+                      <span class="stat-value wait-count">{{ queueStatus.upload_wait_len }}</span>
+                    </div>
+                  </div>
+                </div>
+              </el-col>
+            </el-row>
+          </div>
+
+          <div v-else class="no-queue">
+            <el-empty description="暂未获取到队列状态信息" />
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
 
     <!-- 系统版本信息卡片 -->
     <el-card class="version-card" shadow="hover" v-loading="versionLoading">
@@ -405,12 +419,23 @@ onMounted(() => {
   padding: 0;
 }
 
+/* 顶部行样式 */
+.top-row {
+  margin-bottom: 0;
+}
+
+.top-row .el-col {
+  margin-bottom: 20px;
+}
+
 .account-card,
+.queue-card,
 .version-card,
 .intro-card {
   width: 100%;
   max-width: none;
   margin: 0;
+  height: 100%;
 }
 
 .card-title {
@@ -544,6 +569,10 @@ onMounted(() => {
 
 /* 移动端适配 */
 @media (max-width: 768px) {
+  .top-row .el-col:last-child {
+    margin-bottom: 0;
+  }
+
   .account-card,
   .version-card,
   .intro-card {
@@ -634,7 +663,7 @@ onMounted(() => {
 
 /* 队列状态卡片样式 */
 .queue-card {
-  margin-bottom: 20px;
+  height: 100%;
 }
 
 .queue-info {

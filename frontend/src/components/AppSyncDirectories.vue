@@ -80,7 +80,13 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="dir_depth" label="目录深度" width="100" align="center" v-if="!isMobile">
+        <el-table-column
+          prop="dir_depth"
+          label="目录深度"
+          width="100"
+          align="center"
+          v-if="!isMobile"
+        >
           <template #default="{ row }">
             <span>{{ row.dir_depth || '-' }}</span>
           </template>

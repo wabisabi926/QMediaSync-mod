@@ -31,6 +31,7 @@
           stripe
           class="sync-table"
           empty-text="暂无同步记录"
+          :show-overflow-tooltip="true"
         >
           <el-table-column prop="id" label="任务ID" width="80" />
           <el-table-column prop="start_time" label="开始时间" width="180">
@@ -43,6 +44,16 @@
               {{ scope.row.end_time ? formatDateTime(scope.row.end_time) : '-' }}
             </template>
           </el-table-column>
+          <el-table-column prop="local_path" label="本地路径" width="150" show-overflow-tooltip>
+            <template #default="scope">
+              {{ scope.row.local_path || '-' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="remote_path" label="网盘路径" width="150" show-overflow-tooltip>
+            <template #default="scope">
+              {{ scope.row.remote_path || '-' }}
+            </template>
+          </el-table-column>
           <el-table-column prop="status" label="状态" width="120">
             <template #default="scope">
               <el-tag
@@ -53,7 +64,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="sub_status" label="子状态" width="180">
+          <el-table-column prop="sub_status" label="子状态" width="180" class-name="hidden-xs">
             <template #default="scope">
               <el-tag v-if="scope.row.status === 1" type="primary" size="small" effect="light">
                 {{ getSubStatusText(scope.row.sub_status) }}
@@ -63,8 +74,14 @@
           </el-table-column>
           <el-table-column prop="processed_files" label="总文件数" width="120" align="center" />
           <el-table-column prop="created_strm" label="新增STRM数" width="120" align="center" />
-          <el-table-column prop="downloaded_meta" label="下载元数据数" width="140" align="center" />
-          <el-table-column label="操作" width="100" align="center">
+          <el-table-column
+            prop="downloaded_meta"
+            label="下载元数据数"
+            width="140"
+            align="center"
+            class-name="hidden-xs"
+          />
+          <el-table-column label="操作" width="100" align="center" fixed="right">
             <template #default="scope">
               <el-button type="primary" size="small" @click="viewTaskDetail(scope.row.id)" link>
                 查看
@@ -117,6 +134,8 @@ interface SyncRecord {
   processed_files: number
   created_strm: number
   downloaded_meta: number
+  local_path: string
+  remote_path: string
 }
 
 interface SyncStatus {
@@ -134,6 +153,8 @@ interface ApiSyncRecord {
   total: number
   new_strm: number
   new_meta: number
+  local_path: string
+  remote_path: string
 }
 
 const http: AxiosStatic | undefined = inject('$http')
@@ -278,6 +299,8 @@ const loadSyncRecords = async () => {
         processed_files: item.total,
         created_strm: item.new_strm,
         downloaded_meta: item.new_meta || 0,
+        local_path: item.local_path || '',
+        remote_path: item.remote_path || '',
       }))
       total.value = response.data.data.total || 0
     }
@@ -412,6 +435,20 @@ onUnmounted(() => {
   margin-bottom: 20px;
 }
 
+/* 强制固定操作列 */
+.sync-table :deep(.el-table__fixed-right) {
+  position: sticky !important;
+  right: 0 !important;
+  z-index: 10 !important;
+}
+
+/* 路径列样式 */
+.sync-table :deep(.el-table__cell) .cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .sync-pagination {
   display: flex;
   justify-content: center;
@@ -485,6 +522,32 @@ onUnmounted(() => {
     font-size: 12px;
   }
 
+  /* 移动端表格滚动优化 */
+  .sync-table :deep(.el-table__body-wrapper) {
+    overflow-x: auto;
+  }
+
+  /* 固定操作列的样式优化 */
+  .sync-table :deep(.el-table__fixed-right) {
+    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+    background-color: #fff;
+  }
+
+  .sync-table :deep(.el-table__fixed-right-patch) {
+    background-color: #f5f7fa;
+    border-left: 1px solid #ebeef5;
+  }
+
+  /* 确保固定列在移动端正确显示 */
+  .sync-table :deep(.el-table__fixed-right .el-table__cell) {
+    background-color: #fff;
+  }
+
+  /* 在移动端隐藏子状态和下载元数据列以节省空间 */
+  .sync-table :deep(.hidden-xs) {
+    display: none !important;
+  }
+
   .sync-pagination {
     flex-wrap: wrap;
     gap: 8px;
@@ -495,6 +558,24 @@ onUnmounted(() => {
 @media (max-width: 480px) {
   .card-title {
     font-size: 18px;
+  }
+
+  /* 进一步优化固定列在小屏幕上的显示 */
+  .sync-table :deep(.el-table__fixed-right) {
+    right: 0 !important;
+    box-shadow: -1px 0 4px rgba(0, 0, 0, 0.08);
+    z-index: 3;
+  }
+
+  .sync-table :deep(.el-table__fixed-right .el-table__cell) {
+    background-color: #fff !important;
+    border-left: 1px solid #ebeef5;
+  }
+
+  /* 确保操作按钮在小屏幕上的大小合适 */
+  .sync-table :deep(.el-table__fixed-right .el-button) {
+    padding: 4px 8px;
+    font-size: 11px;
   }
 }
 </style>

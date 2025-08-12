@@ -104,42 +104,6 @@
             </div>
           </el-form-item>
 
-          <!-- STRM文件存放位置 -->
-          <el-form-item label="STRM文件存放位置" prop="strm_path">
-            <el-input
-              v-model="strmData.strm_path"
-              placeholder="输入STRM文件存放的本地路径，如：/media/strm"
-              :disabled="strmLoading"
-              class="limited-width-input"
-            />
-            <div class="form-help">
-              <p>指定STRM文件和元数据文件的存放目录，媒体服务器需要能够访问此目录</p>
-            </div>
-          </el-form-item>
-
-          <!-- 115网盘目录 -->
-          <el-form-item label="115网盘目录" prop="pan_dir_id">
-            <div class="pan-dir-input">
-              <el-input
-                v-model="strmData.pan_dir_id"
-                placeholder="点击选择按钮选择115网盘目录"
-                :disabled="strmLoading"
-                class="limited-width-input"
-                readonly
-              />
-              <el-button type="primary" @click="openDirSelector" :disabled="strmLoading">
-                选择目录
-              </el-button>
-            </div>
-            <div v-if="selectedDirPath" class="selected-path-inline">
-              <span class="path-label">选中目录路径：</span>
-              <code class="path-url">{{ selectedDirPath }}</code>
-            </div>
-            <div class="form-help">
-              <p>选择115网盘中要同步的根目录，系统将扫描此目录下的所有媒体文件</p>
-            </div>
-          </el-form-item>
-
           <!-- 同步完是否上传网盘不存在的元数据 -->
           <el-form-item label="上传网盘不存在的元数据" prop="upload_meta">
             <el-radio-group v-model="strmData.upload_meta">
@@ -247,61 +211,13 @@
         </div>
       </div>
     </el-card>
-
-    <!-- 115网盘目录选择对话框 -->
-    <el-dialog
-      v-model="showDirDialog"
-      title="选择115网盘目录"
-      width="60%"
-      :close-on-click-modal="false"
-    >
-      <div class="dir-selector">
-        <el-scrollbar height="400px">
-          <div v-if="dirTreeLoading" class="loading-container">
-            <el-icon class="is-loading"><Loading /></el-icon>
-            <p>加载中...</p>
-          </div>
-          <div v-else-if="dirTreeData.length === 0" class="empty-container">
-            <p>暂无目录</p>
-          </div>
-          <div v-else class="dir-list">
-            <div
-              v-for="dir in dirTreeData"
-              :key="dir.id"
-              class="dir-item"
-              @click="selectTempDir(dir)"
-            >
-              <el-icon><Folder /></el-icon>
-              <span class="dir-name">{{ dir.name }}</span>
-              <el-icon class="enter-icon"><ArrowRight /></el-icon>
-            </div>
-          </div>
-        </el-scrollbar>
-
-        <!-- 选中目录显示和确认区域 -->
-        <div v-if="tempSelectedDir" class="selected-dir-section">
-          <div class="selected-dir-info">
-            <div class="selected-dir-label">当前选中目录：</div>
-            <div class="selected-dir-path">{{ tempSelectedDir.path || tempSelectedDir.name }}</div>
-          </div>
-        </div>
-      </div>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="showDirDialog = false">取消</el-button>
-          <el-button type="primary" @click="confirmSelectDir" :disabled="!tempSelectedDir">
-            确定选择
-          </el-button>
-        </span>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
-import { Check, Refresh, Loading, Folder, ArrowRight } from '@element-plus/icons-vue'
+import { Check, Refresh } from '@element-plus/icons-vue'
 import { inject, onMounted, reactive, ref, watch } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 
@@ -311,8 +227,6 @@ interface StrmData {
   meta_ext: string[]
   cron_expression: string
   direct_url: string
-  strm_path: string
-  pan_dir_id: string
   upload_meta: 0 | 1
   delete_strm: 0 | 1
   delete_dir: 0 | 1
@@ -324,12 +238,6 @@ interface StrmStatus {
   description: string
 }
 
-interface DirInfo {
-  id: string
-  name: string
-  path?: string
-}
-
 const http: AxiosStatic | undefined = inject('$http')
 
 // 表单引用
@@ -339,12 +247,6 @@ const formRef = ref<FormInstance>()
 const strmLoading = ref(false)
 const strmStatus = ref<StrmStatus | null>(null)
 const strmExample = ref('')
-const showDirDialog = ref(false)
-const dirTreeData = ref<DirInfo[]>([])
-const dirTreeLoading = ref(false)
-const selectedDirPath = ref('')
-const currentDir = ref<DirInfo | null>(null)
-const tempSelectedDir = ref<DirInfo | null>(null)
 
 // Cron下次执行时间相关状态
 const cronTimes = ref<string[]>([])
@@ -357,8 +259,6 @@ const defaultStrmData: StrmData = {
   meta_ext: ['.jpg', '.jpeg', '.png', '.webp', '.nfo', '.srt', '.ass', '.svg', '.sup', '.lrc'],
   cron_expression: '30 * * * *',
   direct_url: '',
-  strm_path: '',
-  pan_dir_id: '',
   upload_meta: 0, // 默认不上传
   delete_strm: 1, // 默认删除
   delete_dir: 0, // 默认不删除
@@ -416,8 +316,6 @@ const formRules: FormRules = {
       trigger: 'blur',
     },
   ],
-  strm_path: [{ required: true, message: '请输入STRM文件存放位置', trigger: 'blur' }],
-  pan_dir_id: [{ required: true, message: '请选择115网盘目录', trigger: 'change' }],
 }
 
 // 更新STRM示例
@@ -429,53 +327,6 @@ const updateStrmExample = () => {
   } else {
     strmExample.value = ''
   }
-}
-
-// 打开目录选择器
-const openDirSelector = async () => {
-  showDirDialog.value = true
-  tempSelectedDir.value = null
-  currentDir.value = null
-  await loadDirTree('0') // 加载根目录
-}
-
-// 加载目录树
-const loadDirTree = async (dirId: string) => {
-  try {
-    dirTreeLoading.value = true
-    const response = await http?.get(`${SERVER_URL}/115/dir-path`, {
-      params: { parent_id: dirId },
-    })
-
-    if (response?.data.code === 200) {
-      dirTreeData.value = response.data.data || []
-    }
-  } catch (error) {
-    console.error('加载目录树错误:', error)
-  } finally {
-    dirTreeLoading.value = false
-  }
-}
-
-// 临时选择目录（点击目录时）
-const selectTempDir = async (dir: DirInfo) => {
-  tempSelectedDir.value = dir
-  currentDir.value = dir
-  // 加载该目录的子目录
-  await loadDirTree(dir.id)
-}
-
-// 确认选择目录
-const confirmSelectDir = async () => {
-  if (!tempSelectedDir.value) return
-
-  const selectedDir = tempSelectedDir.value
-  // 如果获取路径失败，使用目录名称
-  strmData.pan_dir_id = selectedDir.id
-  selectedDirPath.value = selectedDir.path ? selectedDir.path : selectedDir.name
-  showDirDialog.value = false
-  tempSelectedDir.value = null
-  currentDir.value = null
 }
 
 // 保存STRM配置
@@ -500,8 +351,6 @@ const saveStrmConfig = async () => {
     saveData.append('meta_ext', JSON.stringify(strmData.meta_ext))
     saveData.append('cron', strmData.cron_expression)
     saveData.append('strm_base_url', strmData.direct_url)
-    saveData.append('strm_base_dir', strmData.strm_path)
-    saveData.append('strm_base_cid', strmData.pan_dir_id)
     saveData.append('upload_meta', strmData.upload_meta.toString())
     saveData.append('delete_strm', strmData.delete_strm.toString())
     saveData.append('delete_dir', strmData.delete_dir.toString())
@@ -550,25 +399,9 @@ const loadStrmConfig = async () => {
       strmData.meta_ext = config.meta_ext || defaultStrmData.meta_ext
       strmData.cron_expression = config.cron || defaultStrmData.cron_expression
       strmData.direct_url = config.strm_base_url || ''
-      strmData.strm_path = config.strm_base_dir || ''
-      strmData.pan_dir_id = config.strm_base_cid || ''
       strmData.upload_meta = config.upload_meta !== undefined ? config.upload_meta : 0
       strmData.delete_strm = config.delete_strm !== undefined ? config.delete_strm : 1
       strmData.delete_dir = config.delete_dir !== undefined ? config.delete_dir : 0
-
-      // 如果有目录ID，加载目录路径
-      if (strmData.pan_dir_id) {
-        try {
-          const pathResponse = await http?.get(`${SERVER_URL}/115/file-detail`, {
-            params: { file_id: strmData.pan_dir_id },
-          })
-          if (pathResponse?.data.code === 200 && pathResponse.data.data) {
-            selectedDirPath.value = pathResponse.data.data || ''
-          }
-        } catch (error) {
-          console.error('获取目录路径错误:', error)
-        }
-      }
 
       // 更新示例
       updateStrmExample()
@@ -610,7 +443,6 @@ const loadCronTimes = async () => {
 // 重置STRM配置为默认值
 const resetStrmConfig = () => {
   Object.assign(strmData, defaultStrmData)
-  selectedDirPath.value = ''
   updateStrmExample()
 
   // 清除表单验证

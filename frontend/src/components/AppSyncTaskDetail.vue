@@ -104,8 +104,8 @@
               <el-table-column prop="left" label="网盘文件" min-width="300">
                 <template #default="scope">
                   <div class="file-paths">
-                    <div v-for="(path, index) in scope.row.left" :key="index" class="file-path">
-                      {{ path }}
+                    <div class="file-path">
+                      {{ scope.row.left }}
                     </div>
                   </div>
                 </template>
@@ -113,8 +113,8 @@
               <el-table-column prop="right" label="本地文件" min-width="300">
                 <template #default="scope">
                   <div class="file-paths">
-                    <div v-for="(path, index) in scope.row.right" :key="index" class="file-path">
-                      {{ path }}
+                    <div class="file-path">
+                      {{ scope.row.right }}
                     </div>
                   </div>
                 </template>
@@ -182,9 +182,9 @@ interface TaskInfo {
 
 // 定义文件对比项接口
 interface CompareItem {
-  left: string[]
-  right: string[]
-  status: 'same' | 'create' | 'update' | 'delete'
+  left: string
+  right: string
+  status: 'same' | 'create' | 'update' | 'delete' | 'upload' | 'download'
 }
 
 const http: AxiosStatic | undefined = inject('$http')
@@ -202,7 +202,7 @@ const logsLoading = ref(false)
 
 // 对比数据分页
 const compareCurrentPage = ref(1)
-const comparePageSize = ref(100)
+const comparePageSize = ref(10000)
 const compareTotal = ref(0)
 
 // 定时器相关
@@ -349,6 +349,10 @@ const getCompareStatusType = (status: string) => {
   switch (status) {
     case 'create':
       return 'success' // 新增
+    case 'download':
+      return 'success' // 下载
+    case 'upload':
+      return 'success' // 上传
     case 'update':
       return 'warning' // 更新
     case 'delete':
@@ -371,6 +375,10 @@ const getCompareStatusText = (status: string) => {
       return '删除'
     case 'same':
       return '不处理'
+    case 'download':
+      return '下载'
+    case 'upload':
+      return '上传'
     default:
       return '未知'
   }

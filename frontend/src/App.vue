@@ -73,10 +73,20 @@
             </el-menu-item>
           </el-sub-menu>
 
-          <el-menu-item index="/sync-records">
-            <el-icon><DocumentCopy /></el-icon>
-            <span>同步记录</span>
-          </el-menu-item>
+          <el-sub-menu index="/sync">
+            <template #title>
+              <el-icon><DocumentCopy /></el-icon>
+              <span>同步</span>
+            </template>
+            <el-menu-item index="/sync-records">
+              <el-icon><List /></el-icon>
+              <span>同步记录</span>
+            </el-menu-item>
+            <el-menu-item index="/sync-directories">
+              <el-icon><FolderOpened /></el-icon>
+              <span>同步目录</span>
+            </el-menu-item>
+          </el-sub-menu>
 
           <el-sub-menu index="/instant" v-if="false">
             <template #title>
@@ -138,6 +148,7 @@ import {
   DocumentCopy,
   Link,
   FolderOpened,
+  List,
 } from '@element-plus/icons-vue'
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -188,18 +199,18 @@ const handleLogout = async () => {
 }
 
 // 获取当前页面标题
-const getCurrentPageTitle = () => {
-  const titleMap: { [key: string]: string } = {
-    '/': '首页',
-    '/settings': '核心设置',
+const getCurrentPageTitle = (): string => {
+  const titleMap: Record<string, string> = {
+    '/settings': '115开放平台授权',
+    '/settings/strm': 'STRM配置',
     '/settings/user': '用户账号设置',
     '/settings/cookiecloud': 'CookieCloud设置',
     '/settings/telegram': 'Telegram通知设置',
-    '/settings/strm': 'STRM配置',
     '/instant-upload': 'URL秒传',
     '/media-import': '媒体库导入',
     '/proxy': '网络代理',
     '/sync-records': '同步记录',
+    '/sync-directories': '同步目录',
   }
   return titleMap[route.path] || '首页'
 }
@@ -212,6 +223,9 @@ const getDefaultOpeneds = () => {
   }
   if (route.path.startsWith('/instant-upload') || route.path.startsWith('/media-import')) {
     openeds.push('/instant')
+  }
+  if (route.path.startsWith('/sync')) {
+    openeds.push('/sync')
   }
   return openeds
 }

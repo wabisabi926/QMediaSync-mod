@@ -71,8 +71,18 @@
                   <span class="time-label">修改:</span>
                   <span class="time-value">{{ formatTime(row.updated_at) }}</span>
                 </div>
+                <div class="time-item">
+                  <span class="time-label">深度:</span>
+                  <span class="time-value">{{ row.dir_depth || '-' }}</span>
+                </div>
               </div>
             </div>
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="dir_depth" label="目录深度" width="100" align="center" v-if="!isMobile">
+          <template #default="{ row }">
+            <span>{{ row.dir_depth || '-' }}</span>
           </template>
         </el-table-column>
 
@@ -167,6 +177,28 @@
           />
           <div class="form-tip">STRM和元数据实际存放目录（自动生成）</div>
         </el-form-item>
+
+        <el-form-item label="目录深度" prop="dir_depth">
+          <el-input-number
+            v-model="addForm.dir_depth"
+            :min="1"
+            :max="10"
+            :step="1"
+            :disabled="addLoading"
+            placeholder="初始化的目录深度"
+            style="width: 100%"
+          />
+          <p>该设置会严重影响首次同步所需时间，建议认真设置；如果不是很清楚，建议设置成2</p>
+          <div class="form-tip">
+            <p>首次获取目录的深度，建议设置为 1-3 层（默认 2层）</p>
+            <p>
+              如果所选网盘目录是AV类型的根目录，下面的目录结构如：小姐姐名/番号/番号.mkv，那就输入2。
+            </p>
+            <p>
+              如果所选网盘目录是影视剧的根目录，下面的目录结构如：电影/动画电影/哪吒/哪吒.mkv，那就输入3；
+            </p>
+          </div>
+        </el-form-item>
       </el-form>
 
       <template #footer>
@@ -217,6 +249,19 @@
             readonly
           />
           <div class="form-tip">STRM和元数据实际存放目录（自动生成）</div>
+        </el-form-item>
+
+        <el-form-item label="目录深度" prop="dir_depth">
+          <el-input-number
+            v-model="editForm.dir_depth"
+            :min="1"
+            :max="10"
+            :step="1"
+            :disabled="editLoading"
+            placeholder="目录深度"
+            style="width: 100%"
+          />
+          <div class="form-tip">目录深度，建议设置为 1-3 层（默认 2层）</div>
         </el-form-item>
       </el-form>
 
@@ -294,6 +339,7 @@ interface SyncDirectory {
   local_path: string
   remote_path: string
   strm_path?: string
+  dir_depth?: number
   created_at: string
   updated_at: string
   deleting?: boolean
@@ -340,6 +386,7 @@ const addForm = reactive({
   local_path: '',
   base_cid: '',
   strm_path: '',
+  dir_depth: 2,
 })
 
 // 编辑对话框状态
@@ -351,6 +398,7 @@ const editForm = reactive({
   local_path: '',
   base_cid: '',
   strm_path: '',
+  dir_depth: 2,
 })
 const editSelectedDirPath = ref('')
 
@@ -364,6 +412,10 @@ const addFormRules: FormRules = {
     { required: true, message: '请输入CID', trigger: 'blur' },
     { min: 1, max: 100, message: '长度在 1 到 100 个字符', trigger: 'blur' },
   ],
+  dir_depth: [
+    { required: true, message: '请输入目录深度', trigger: 'blur' },
+    { type: 'number', min: 1, max: 10, message: '目录深度必须在 1 到 10 之间', trigger: 'blur' },
+  ],
 }
 
 // 编辑表单验证规则
@@ -375,6 +427,10 @@ const editFormRules: FormRules = {
   base_cid: [
     { required: true, message: '请输入CID', trigger: 'blur' },
     { min: 1, max: 100, message: '长度在 1 到 100 个字符', trigger: 'blur' },
+  ],
+  dir_depth: [
+    { required: true, message: '请输入目录深度', trigger: 'blur' },
+    { type: 'number', min: 1, max: 10, message: '目录深度必须在 1 到 10 之间', trigger: 'blur' },
   ],
 }
 
@@ -460,6 +516,7 @@ const handleAdd = async () => {
     formData.append('local_path', addForm.local_path.trim())
     formData.append('base_cid', addForm.base_cid.trim())
     formData.append('strm_path', addForm.strm_path.trim())
+    formData.append('dir_depth', addForm.dir_depth.toString())
 
     const response = await http?.post(`${SERVER_URL}/sync/path-add`, formData, {
       headers: {
@@ -473,6 +530,7 @@ const handleAdd = async () => {
       addForm.local_path = ''
       addForm.base_cid = ''
       addForm.strm_path = ''
+      addForm.dir_depth = 2
       selectedDirPath.value = ''
       loadDirectories()
     } else {
@@ -491,6 +549,7 @@ const handleEdit = async (row: SyncDirectory) => {
   editForm.id = row.id || 0
   editForm.local_path = row.local_path
   editForm.base_cid = row.base_cid
+  editForm.dir_depth = row.dir_depth || 2
   editSelectedDirPath.value = row.remote_path || ''
 
   // 初始化STRM路径
@@ -512,6 +571,7 @@ const handleEditSave = async () => {
     formData.append('local_path', editForm.local_path.trim())
     formData.append('base_cid', editForm.base_cid.trim())
     formData.append('strm_path', editForm.strm_path.trim())
+    formData.append('dir_depth', editForm.dir_depth.toString())
 
     const response = await http?.post(`${SERVER_URL}/sync/path-update`, formData, {
       headers: {
@@ -526,6 +586,7 @@ const handleEditSave = async () => {
       editForm.local_path = ''
       editForm.base_cid = ''
       editForm.strm_path = ''
+      editForm.dir_depth = 2
       editSelectedDirPath.value = ''
       loadDirectories()
     } else {

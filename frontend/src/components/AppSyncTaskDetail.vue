@@ -287,8 +287,6 @@ const getSubStatusText = (subStatus: number) => {
       return '正在收集目录结构'
     case 2:
       return '正在收集文件列表'
-    case 3:
-      return '正在比对文件结构'
     case 4:
       return '正在生成或下载文件'
     default:
@@ -408,12 +406,6 @@ const getTimelineItems = () => {
       timeField: 'fetch_file_finish_at',
     },
     {
-      key: 'compare',
-      title: '比对文件结构',
-      icon: Connection,
-      timeField: 'compare_finish_at',
-    },
-    {
       key: 'generate',
       title: '生成或下载文件',
       icon: Download,
@@ -449,8 +441,6 @@ const getTimelineItems = () => {
         current = taskInfo.value.sub_status === 1
       } else if (step.key === 'fetch_file') {
         current = taskInfo.value.sub_status === 2
-      } else if (step.key === 'compare') {
-        current = taskInfo.value.sub_status === 3
       } else if (step.key === 'generate') {
         current = taskInfo.value.sub_status === 4
       }

@@ -105,13 +105,16 @@
           </el-form-item>
 
           <!-- 同步完是否上传网盘不存在的元数据 -->
-          <el-form-item label="上传网盘不存在的元数据" prop="upload_meta">
+          <el-form-item label="不存在的元数据" prop="upload_meta">
             <el-radio-group v-model="strmData.upload_meta">
+              <el-radio-button :label="2">删除</el-radio-button>
               <el-radio-button :label="1">上传</el-radio-button>
-              <el-radio-button :label="0">不上传</el-radio-button>
+              <el-radio-button :label="0">保留</el-radio-button>
             </el-radio-group>
             <div class="form-help">
-              <p>同步完成后是否将本地存在但网盘不存在的元数据文件上传到115网盘</p>
+              <p>
+                同步完成后是否将本地存在但网盘不存在的元数据文件上传到115网盘或者保留在本地或者删除
+              </p>
             </div>
           </el-form-item>
 
@@ -227,7 +230,7 @@ interface StrmData {
   meta_ext: string[]
   cron_expression: string
   direct_url: string
-  upload_meta: 0 | 1
+  upload_meta: 0 | 1 | 2
   delete_strm: 0 | 1
   delete_dir: 0 | 1
 }
@@ -259,7 +262,7 @@ const defaultStrmData: StrmData = {
   meta_ext: ['.jpg', '.jpeg', '.png', '.webp', '.nfo', '.srt', '.ass', '.svg', '.sup', '.lrc'],
   cron_expression: '30 * * * *',
   direct_url: '',
-  upload_meta: 0, // 默认不上传
+  upload_meta: 0, // 默认保留
   delete_strm: 1, // 默认删除
   delete_dir: 0, // 默认不删除
 }

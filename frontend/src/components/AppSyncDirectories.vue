@@ -104,9 +104,17 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" :width="isMobile ? 120 : 180" fixed="right">
+        <el-table-column label="操作" :width="isMobile ? 140 : 220" fixed="right">
           <template #default="{ row, $index }">
             <div class="action-buttons">
+              <el-button
+                type="success"
+                size="small"
+                @click="handleStart(row, $index)"
+                :loading="row.starting"
+              >
+                启动
+              </el-button>
               <el-button
                 type="primary"
                 size="small"
@@ -350,6 +358,7 @@ interface SyncDirectory {
   updated_at: string
   deleting?: boolean
   editing?: boolean
+  starting?: boolean
 }
 
 interface DirInfo {
@@ -526,7 +535,7 @@ const handleAdd = async () => {
 
     const response = await http?.post(`${SERVER_URL}/sync/path-add`, formData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
     })
 
@@ -581,7 +590,7 @@ const handleEditSave = async () => {
 
     const response = await http?.post(`${SERVER_URL}/sync/path-update`, formData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
     })
 
@@ -622,7 +631,7 @@ const handleDelete = async (row: SyncDirectory, index: number) => {
 
     const response = await http?.post(`${SERVER_URL}/sync/path-delete`, formData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
     })
 
@@ -640,6 +649,35 @@ const handleDelete = async (row: SyncDirectory, index: number) => {
   } finally {
     if (directories.value[index]) {
       directories.value[index].deleting = false
+    }
+  }
+}
+
+// 处理启动同步目录
+const handleStart = async (row: SyncDirectory, index: number) => {
+  try {
+    directories.value[index].starting = true
+
+    const formData = new FormData()
+    formData.append('id', row.id?.toString() || '')
+
+    const response = await http?.post(`${SERVER_URL}/sync/path/start`, formData, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    })
+
+    if (response?.data.code === 200) {
+      ElMessage.success(`同步目录 "${row.local_path}" 启动成功`)
+    } else {
+      ElMessage.error(response?.data.msg || '启动同步目录失败')
+    }
+  } catch {
+    console.error('启动同步目录错误')
+    ElMessage.error('启动同步目录失败')
+  } finally {
+    if (directories.value[index]) {
+      directories.value[index].starting = false
     }
   }
 }
@@ -1230,11 +1268,11 @@ onUnmounted(() => {
 
   /* 进一步减少操作列宽度 */
   :deep(.el-table__fixed-right) {
-    width: 100px !important;
+    width: 120px !important;
   }
 
   :deep(.el-table__fixed-right .el-table__cell) {
-    width: 100px !important;
+    width: 120px !important;
   }
 }
 </style>

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
-import MarkdownIt from 'markdown-it'
 import { inject, onMounted, ref } from 'vue'
 
 interface AccountInfo {
@@ -34,41 +33,6 @@ const queueStatus = ref<QueueStatus | null>(null)
 const accountLoading = ref(true)
 const versionLoading = ref(true)
 const queueLoading = ref(true)
-
-const md = new MarkdownIt()
-const content = `
-## 介绍
-
-- 基于 115 开放平台接口来同步生成 STRM 和下载元数据，并且提供直链解析服务，不依赖其他项目。
-- 原理：定时同步 115 的文件树根本地文件树对比：
-- 1. 本地存在网盘不存在则删除本地文件（测试版本不会删除任何文件）
-- 2. 本地不存在网盘存在则创建本地文件（STRM 或元数据下载）
-- 3. 本地存在且网盘存在，则判断文件是否一致（文件 pick_code 是否相同），一致则不处理，不一致则更新
-- 实测 3W 多文件大概 22T 的库需要 5 分钟左右完成目录树生成和对比，首次下载元数据需要的时间不定，可能在 1-2 个小时左右。
-- 定时任务设定不能小于 1 小时间隔，建议设置成12点到23点每隔1小时执行一次：0 12-23 * * *
-
-### 功能列表
-
-- [x] 115 开放平台接入
-- [x] STRM 生成
-- [x] 元数据下载
-- [x] 使用CookieCloud同步115网页Cookie（后续可以调用115 api）
-- [x] 接入Telegram通知
-- [x] 目录下新建隐藏文件.meta记录原始信息（供以后使用）
-- [x] 元数据新增同名的隐藏文件.name.meta记录原始信息（供以后使用）
-- [x] 同步时上传网盘不存在的元数据（STRM设置开启）
-- [x] 同步时删除网盘不存在的STRM文件（STRM设置开启）
-- [x] 同步时删除网盘不存在且本地为空的文件夹（STRM设置开启）
-- [ ] 接入资源库(需要通过获取115 Cookie才能使用转存等服务)
-- [ ] emby 302（待定，优先级低）
-- [ ] 影片整理（待定， 优先级最低）
-
-## 使用步骤：
-1. 系统设置-核心设置-扫码授权115开放平台，页面显示出您的账号信息后表示授权成功
-3. 系统设置-strm设置：输入strm直连地址，其他参数请根据需要修改
-5. 同步记录 - 手动同步 进行首次全量同步（可能时间较长）
-`
-const result = md.render(content)
 
 // 格式化存储空间
 const formatStorage = (bytes: number): string => {
@@ -395,16 +359,6 @@ onMounted(() => {
       <div v-else class="no-version">
         <el-empty description="暂未获取到系统版本信息" />
       </div>
-    </el-card>
-
-    <!-- 项目介绍 -->
-    <el-card class="intro-card" shadow="hover">
-      <template #header>
-        <h2 class="card-title">项目介绍</h2>
-        <p class="card-subtitle">115 STRM 服务使用说明</p>
-      </template>
-
-      <div class="intro-content" v-html="result"></div>
     </el-card>
   </div>
 </template>

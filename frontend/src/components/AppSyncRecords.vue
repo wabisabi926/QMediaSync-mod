@@ -24,6 +24,20 @@
       </template>
 
       <div class="sync-content">
+        <!-- 批量删除控制 -->
+        <div style="display: flex; align-items: center; margin-bottom: 8px; gap: 12px">
+          <el-checkbox v-model="batchMode" size="large">批量删除</el-checkbox>
+          <el-button
+            v-if="batchMode"
+            type="danger"
+            size="small"
+            :disabled="selectedIds.length === 0"
+            :loading="batchDeleteLoading"
+            @click="batchDeleteRecords"
+          >
+            批量删除
+          </el-button>
+        </div>
         <!-- 同步记录表格 -->
         <el-table
           :data="syncRecords"
@@ -32,7 +46,15 @@
           class="sync-table"
           empty-text="暂无同步记录"
           :show-overflow-tooltip="true"
+          @selection-change="handleSelectionChange"
         >
+          <el-table-column
+            v-if="batchMode"
+            type="selection"
+            width="50"
+            align="center"
+            :selectable="isDeletableRecord"
+          />
           <el-table-column prop="id" label="任务ID" width="80" />
           <el-table-column prop="start_time" label="开始时间" width="180">
             <template #default="scope">
@@ -81,10 +103,29 @@
             align="center"
             class-name="hidden-xs"
           />
-          <el-table-column label="操作" width="100" align="center" fixed="right">
+          <el-table-column prop="fail_reason" label="失败原因" width="200" show-overflow-tooltip>
+            <template #default="scope">
+              <span v-if="scope.row.status === 3 && scope.row.fail_reason" class="fail-reason-text">
+                {{ scope.row.fail_reason }}
+              </span>
+              <span v-else>-</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="120" align="center" fixed="right">
             <template #default="scope">
               <el-button type="primary" size="small" @click="viewTaskDetail(scope.row.id)" link>
                 查看
+              </el-button>
+              <el-button
+                v-if="isDeletableRecord(scope.row) && !batchMode"
+                type="danger"
+                size="small"
+                style="margin-left: 4px"
+                :loading="deleteLoading"
+                @click="deleteRecord(scope.row.id)"
+                link
+              >
+                删除
               </el-button>
             </template>
           </el-table-column>
@@ -122,8 +163,9 @@
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { Refresh } from '@element-plus/icons-vue'
-import { inject, onMounted, onUnmounted, ref, computed } from 'vue'
+import { inject, onMounted, onUnmounted, ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 interface SyncRecord {
   id: number
@@ -136,6 +178,7 @@ interface SyncRecord {
   downloaded_meta: number
   local_path: string
   remote_path: string
+  fail_reason: string
 }
 
 interface SyncStatus {
@@ -155,6 +198,7 @@ interface ApiSyncRecord {
   new_meta: number
   local_path: string
   remote_path: string
+  fail_reason: string
 }
 
 const http: AxiosStatic | undefined = inject('$http')
@@ -165,6 +209,14 @@ const syncRecords = ref<SyncRecord[]>([])
 const tableLoading = ref(false)
 const syncLoading = ref(false)
 const syncStatus = ref<SyncStatus | null>(null)
+
+// 批量删除相关状态
+const batchMode = ref(false)
+const selectedIds = ref<number[]>([])
+
+// 删除loading状态
+const deleteLoading = ref(false)
+const batchDeleteLoading = ref(false)
 
 // 分页相关
 const currentPage = ref(1)
@@ -301,6 +353,7 @@ const loadSyncRecords = async () => {
         downloaded_meta: item.new_meta || 0,
         local_path: item.local_path || '',
         remote_path: item.remote_path || '',
+        fail_reason: item.fail_reason || '',
       }))
       total.value = response.data.data.total || 0
     }
@@ -379,6 +432,83 @@ onMounted(() => {
 // 页面卸载时清理定时器
 onUnmounted(() => {
   stopAutoRefresh()
+})
+
+// 判断记录是否可删除（完成或失败）
+const isDeletableRecord = (row: SyncRecord) => row.status === 2 || row.status === 3
+
+// 单条删除，无需确认
+const deleteRecord = async (id: number) => {
+  try {
+    deleteLoading.value = true
+    const formData = new FormData()
+    formData.append('ids', id.toString())
+    const response = await http?.post(`${SERVER_URL}/sync/delete-records`, formData, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    })
+    if (response?.data.code === 200) {
+      ElMessage.success('删除成功')
+      await loadSyncRecords()
+    } else {
+      ElMessage.error(response?.data.msg || '删除失败')
+    }
+  } catch {
+    ElMessage.error('删除出错')
+  } finally {
+    deleteLoading.value = false
+  }
+}
+
+// 批量删除
+const batchDeleteRecords = async () => {
+  if (selectedIds.value.length === 0) return
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要批量删除选中的 ${selectedIds.value.length} 条同步记录吗？此操作不可恢复。`,
+      '确认批量删除',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      },
+    )
+
+    batchDeleteLoading.value = true
+    const formData = new FormData()
+    formData.append('ids', selectedIds.value.join(','))
+    const response = await http?.post(`${SERVER_URL}/sync/delete-records`, formData, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      timeout: 60000, // 1分钟超时
+    })
+    if (response?.data.code === 200) {
+      ElMessage.success('批量删除成功')
+      selectedIds.value = []
+      await loadSyncRecords()
+    } else {
+      ElMessage.error(response?.data.msg || '批量删除失败')
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('批量删除出错')
+    }
+  } finally {
+    batchDeleteLoading.value = false
+  }
+}
+
+// 处理多选变化
+const handleSelectionChange = (selection: SyncRecord[]) => {
+  selectedIds.value = selection.map((r) => r.id)
+}
+
+// 切换批量模式时清空选择
+watch(batchMode, (val) => {
+  if (!val) selectedIds.value = []
 })
 </script>
 
@@ -492,6 +622,13 @@ onUnmounted(() => {
 
 .sync-status {
   margin-top: 16px;
+}
+
+.fail-reason-text {
+  color: #f56c6c;
+  font-size: 12px;
+  line-height: 1.4;
+  word-break: break-all;
 }
 
 /* 移动端适配 */

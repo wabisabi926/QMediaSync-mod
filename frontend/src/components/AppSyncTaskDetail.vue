@@ -202,7 +202,7 @@ const logsLoading = ref(false)
 
 // 对比数据分页
 const compareCurrentPage = ref(1)
-const comparePageSize = ref(10000)
+const comparePageSize = ref(100)
 const compareTotal = ref(0)
 
 // 定时器相关

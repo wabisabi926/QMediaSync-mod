@@ -112,9 +112,13 @@
               <el-radio-button :label="0">保留</el-radio-button>
             </el-radio-group>
             <div class="form-help">
+              <p>删除: 本地存在且网盘不存在则删除本地文件</p>
               <p>
-                同步完成后是否将本地存在但网盘不存在的元数据文件上传到115网盘或者保留在本地或者删除
+                上传: 本地存在且网盘不存在，分两种情况: <br />
+                &nbsp;&nbsp;&nbsp;&nbsp;1. 父目录在网盘存在则上传<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;2. 父目录在网盘不存在（网盘已删除）责删除本地文件
               </p>
+              <p>保留：不会删除本地文件，不管网盘有没有删除它</p>
             </div>
           </el-form-item>
 

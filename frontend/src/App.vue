@@ -63,10 +63,6 @@
               <el-icon><UserFilled /></el-icon>
               <span>用户账号设置</span>
             </el-menu-item>
-            <el-menu-item index="/settings/cookiecloud">
-              <el-icon><Upload /></el-icon>
-              <span>CookieCloud设置</span>
-            </el-menu-item>
             <el-menu-item index="/settings/telegram">
               <el-icon><ChatLineRound /></el-icon>
               <span>Telegram通知</span>
@@ -204,7 +200,6 @@ const getCurrentPageTitle = (): string => {
     '/settings': '115开放平台授权',
     '/settings/strm': 'STRM配置',
     '/settings/user': '用户账号设置',
-    '/settings/cookiecloud': 'CookieCloud设置',
     '/settings/telegram': 'Telegram通知设置',
     '/instant-upload': 'URL秒传',
     '/media-import': '媒体库导入',

@@ -144,6 +144,18 @@
             </div>
           </el-form-item>
 
+          <el-form-item label="启用本地代理直链" prop="delete_dir">
+            <el-radio-group v-model="strmData.local_proxy">
+              <el-radio-button :label="1">启用</el-radio-button>
+              <el-radio-button :label="0">关闭</el-radio-button>
+            </el-radio-group>
+            <div class="form-help">
+              <p>
+                开启后将使用本地代理访问直链，可以解决局域网其他设备因为UA问不同无法播放的问题，但是会禁用外网302播放。
+              </p>
+            </div>
+          </el-form-item>
+
           <!-- 保存和重置按钮 -->
           <el-form-item>
             <div class="strm-actions">
@@ -237,6 +249,7 @@ interface StrmData {
   upload_meta: 0 | 1 | 2
   delete_strm: 0 | 1
   delete_dir: 0 | 1
+  local_proxy: 0 | 1
 }
 
 interface StrmStatus {
@@ -269,6 +282,7 @@ const defaultStrmData: StrmData = {
   upload_meta: 0, // 默认保留
   delete_strm: 1, // 默认删除
   delete_dir: 0, // 默认不删除
+  local_proxy: 0, // 是否启用本地代理
 }
 
 const strmData = reactive<StrmData>({ ...defaultStrmData })
@@ -361,6 +375,7 @@ const saveStrmConfig = async () => {
     saveData.append('upload_meta', strmData.upload_meta.toString())
     saveData.append('delete_strm', strmData.delete_strm.toString())
     saveData.append('delete_dir', strmData.delete_dir.toString())
+    saveData.append('local_proxy', strmData.local_proxy.toString())
 
     const response = await http?.post(`${SERVER_URL}/setting/update-strm-config`, saveData, {
       headers: {
@@ -409,6 +424,7 @@ const loadStrmConfig = async () => {
       strmData.upload_meta = config.upload_meta !== undefined ? config.upload_meta : 0
       strmData.delete_strm = config.delete_strm !== undefined ? config.delete_strm : 1
       strmData.delete_dir = config.delete_dir !== undefined ? config.delete_dir : 0
+      strmData.local_proxy = config.local_proxy !== undefined ? config.local_proxy : 0
 
       // 更新示例
       updateStrmExample()

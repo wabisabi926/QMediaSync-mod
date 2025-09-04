@@ -1,7 +1,6 @@
 import AppHome from '@/components/AppHome.vue'
 import AppSettings from '@/components/AppSettings.vue'
 import AppLogin from '@/components/AppLogin.vue'
-import AppCookieCloud from '@/components/AppCookieCloud.vue'
 import AppTelegramSettings from '@/components/AppTelegramSettings.vue'
 import AppUserSettings from '@/components/AppUserSettings.vue'
 import AppStrmSettings from '@/components/AppStrmSettings.vue'
@@ -84,16 +83,6 @@ const routes = [
     meta: {
       title: '同步目录',
       requiresAuth: true,
-    },
-  },
-  {
-    path: '/settings/cookiecloud',
-    name: 'settings-cookiecloud',
-    component: AppCookieCloud,
-    meta: {
-      title: 'CookieCloud设置',
-      requiresAuth: true,
-      parent: 'settings',
     },
   },
   {

@@ -9,7 +9,7 @@
 
       <div class="core-content">
         <!-- 115开放平台授权部分 -->
-        <div v-if="!cookieCloudEnabled" class="login-section">
+        <div v-if="!accountInfo" class="login-section">
           <h3 class="section-title">
             <el-icon><User /></el-icon>
             115开放平台授权
@@ -17,26 +17,6 @@
           <p class="section-description">
             扫码授权通过使用115开放平台提供的文件筛选、上传、下载功能
           </p>
-
-          <!-- 设备类型选择 -->
-          <!-- <el-form :model="loginData" :label-position="'top'" class="login-form">
-            <el-form-item label="选择登录设备类型" prop="device_type">
-              <el-select
-                v-model="loginData.device_type"
-                placeholder="请选择登录设备类型"
-                style="width: 100%"
-              >
-                <el-option
-                  v-for="(label, value) in deviceTypes"
-                  :key="value"
-                  :label="label"
-                  :value="value"
-                />
-              </el-select>
-              <div class="form-help">不同设备类型可能有不同的功能限制，请根据实际需要选择</div>
-            </el-form-item>
-          </el-form> -->
-
           <div class="login-actions">
             <el-button type="primary" size="large" @click="handle115Login" :loading="loginLoading">
               <el-icon><Key /></el-icon>
@@ -67,17 +47,6 @@
           />
         </div>
 
-        <!-- CookieCloud启用提示 -->
-        <div v-if="cookieCloudEnabled" class="cookiecloud-notice">
-          <el-alert title="CookieCloud已启用" type="info" :closable="false" show-icon>
-            <template #default>
-              <p>
-                检测到CookieCloud功能已启用，系统将自动从CookieCloud同步115开放平台的授权状态，无需手动授权。
-              </p>
-              <p>如需手动管理115平台授权，请先在CookieCloud设置中禁用该功能。</p>
-            </template>
-          </el-alert>
-        </div>
         <!-- 115平台账号详细信息 -->
         <div v-if="accountInfo" class="account-info">
           <h4 class="info-title">账号信息</h4>
@@ -148,17 +117,6 @@
         >
           <el-icon><UserFilled /></el-icon>
           <span>用户账号设置</span>
-        </el-button>
-
-        <el-button
-          type="primary"
-          plain
-          @click="$router.push('/settings/cookiecloud')"
-          size="large"
-          class="settings-link-btn"
-        >
-          <el-icon><Upload /></el-icon>
-          <span>CookieCloud设置</span>
         </el-button>
 
         <el-button
@@ -306,9 +264,6 @@ const qrCodeData = ref<QRCodeData | null>(null) // 保存完整的扫码接口�
 const pollingTimer = ref<NodeJS.Timeout | null>(null)
 const qrStatus = ref<'waiting' | 'scanned' | 'confirmed' | 'expired' | 'error'>('waiting')
 
-// CookieCloud状态
-const cookieCloudEnabled = ref(false)
-
 // 登录相关数据
 const loginData = reactive<LoginData>({
   device_type: 'web', // 默认使用网页设备类型
@@ -437,20 +392,6 @@ const checkLoginStatus = async () => {
     }
   } finally {
     checkingStatus.value = false
-  }
-}
-
-// 检查CookieCloud状态
-const checkCookieCloudStatus = async () => {
-  try {
-    const response = await http?.get(`${SERVER_URL}/setting/get-cookie-cloud`)
-
-    if (response?.data.code === 200 && response.data.data) {
-      cookieCloudEnabled.value = response.data.data.enabled === '1' || false
-    }
-  } catch (error) {
-    console.error('检查CookieCloud状态错误:', error)
-    cookieCloudEnabled.value = false
   }
 }
 
@@ -647,7 +588,6 @@ onMounted(() => {
   checkMobile()
   window.addEventListener('resize', checkMobile)
   checkLoginStatus()
-  checkCookieCloudStatus()
 })
 
 onUnmounted(() => {
@@ -803,23 +743,6 @@ onUnmounted(() => {
 
 .storage-progress {
   margin-top: 16px;
-}
-
-.cookiecloud-notice {
-  margin-bottom: 24px;
-}
-
-.cookiecloud-notice .el-alert {
-  border-radius: 8px;
-}
-
-.cookiecloud-notice p {
-  margin: 0 0 8px 0;
-  line-height: 1.5;
-}
-
-.cookiecloud-notice p:last-child {
-  margin-bottom: 0;
 }
 
 .login-form {

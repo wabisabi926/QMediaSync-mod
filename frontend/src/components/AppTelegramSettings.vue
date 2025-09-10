@@ -6,8 +6,13 @@
         <p class="card-subtitle">配置Telegram机器人用于接收系统通知</p>
       </template>
 
-      <el-form :model="formData" :label-position="'top'" class="telegram-form">
-        <el-form-item label="启用Telegram通知" prop="enabled">
+      <el-form
+        :model="formData"
+        :label-position="checkIsMobile ? 'top' : 'left'"
+        :label-width="100"
+        class="telegram-form"
+      >
+        <el-form-item label="启用" prop="enabled">
           <div class="enable-switch">
             <el-switch
               v-model="formData.enabled"
@@ -20,7 +25,7 @@
           </div>
         </el-form-item>
 
-        <el-form-item label="Telegram机器人Token" prop="telegram_bot_token">
+        <el-form-item label="机器人Token" prop="telegram_bot_token">
           <el-input
             v-model="formData.telegram_bot_token"
             placeholder="搜索@BotFather创建机器人，找到TOKEN"
@@ -29,7 +34,7 @@
           <div class="form-help">在Telegram中搜索@BotFather，创建机器人后获取TOKEN</div>
         </el-form-item>
 
-        <el-form-item label="接收通知的Telegram用户ID" prop="telegram_user_id">
+        <el-form-item label="用户ID" prop="telegram_user_id">
           <el-input
             v-model="formData.telegram_user_id"
             placeholder="搜索@get_id_bot，点开始，找到Your Chat Id=后面的数字"
@@ -45,9 +50,8 @@
               @click="testBot"
               :loading="testing"
               :disabled="loading || !formData.enabled"
-              size="large"
+              :icon="Message"
             >
-              <el-icon><Message /></el-icon>
               测试机器人
             </el-button>
 
@@ -56,14 +60,12 @@
               @click="saveSettings"
               :loading="loading"
               :disabled="testing"
-              size="large"
+              :icon="Check"
             >
-              <el-icon><Check /></el-icon>
               保存设置
             </el-button>
 
-            <el-button @click="resetForm" :disabled="loading || testing" size="large">
-              <el-icon><RefreshLeft /></el-icon>
+            <el-button @click="resetForm" :disabled="loading || testing" :icon="RefreshLeft">
               重置
             </el-button>
           </div>
@@ -85,25 +87,11 @@
     <!-- 使用说明 -->
     <el-card class="help-card" shadow="hover">
       <template #header>
-        <h3>配置说明</h3>
+        <h3>注意事项：</h3>
       </template>
 
       <div class="help-content">
-        <el-steps direction="vertical" :active="4">
-          <el-step title="启用Telegram通知" description="打开启用开关以激活Telegram通知功能" />
-          <el-step
-            title="创建Telegram机器人"
-            description="在Telegram中搜索@BotFather并创建机器人"
-          />
-          <el-step title="获取机器人Token" description="从BotFather获取机器人的Token" />
-          <el-step title="获取用户ID" description="搜索@get_id_bot获取您的Chat ID" />
-          <el-step title="测试配置" description="点击测试机器人按钮验证配置" />
-        </el-steps>
-
-        <el-divider />
-
         <div class="help-tips">
-          <h4>注意事项：</h4>
           <ul>
             <li>如果您在中国大陆地区，那么需要设置网络代理才可以访问Telegram接口</li>
             <li>需要先启用Telegram通知功能才能配置和测试机器人</li>
@@ -125,6 +113,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Message, Check, RefreshLeft } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
+import { isMobile } from '@/utils/deviceUtils'
 
 interface TelegramSettings {
   enabled: boolean
@@ -137,7 +126,7 @@ interface TestStatus {
   type: 'success' | 'warning' | 'error' | 'info'
   description: string
 }
-
+const checkIsMobile = ref(isMobile())
 const http: AxiosStatic | undefined = inject('$http')
 const loading = ref(false)
 const testing = ref(false)
@@ -165,14 +154,15 @@ const testBot = async () => {
     testing.value = true
     testStatus.value = null
 
-    const testData = new URLSearchParams()
-    testData.append('enabled', formData.enabled ? '1' : '0')
-    testData.append('token', formData.telegram_bot_token)
-    testData.append('chat_id', formData.telegram_user_id)
+    const requestData = {
+      enabled: formData.enabled ? 1 : 0,
+      token: formData.telegram_bot_token,
+      chat_id: formData.telegram_user_id,
+    }
 
-    const response = await http?.post(`${SERVER_URL}/telegram/test`, testData, {
+    const response = await http?.post(`${SERVER_URL}/telegram/test`, requestData, {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
       },
     })
 
@@ -209,14 +199,15 @@ const saveSettings = async () => {
   try {
     loading.value = true
 
-    const saveData = new URLSearchParams()
-    saveData.append('enabled', formData.enabled ? '1' : '0')
-    saveData.append('token', formData.telegram_bot_token)
-    saveData.append('chat_id', formData.telegram_user_id)
+    const requestData = {
+      enabled: formData.enabled ? 1 : 0,
+      token: formData.telegram_bot_token,
+      chat_id: formData.telegram_user_id,
+    }
 
-    const response = await http?.post(`${SERVER_URL}/setting/update-telegram`, saveData, {
+    const response = await http?.post(`${SERVER_URL}/setting/telegram`, requestData, {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
       },
     })
 
@@ -266,7 +257,7 @@ const loadSettings = async () => {
   try {
     loading.value = true
 
-    const response = await http?.get(`${SERVER_URL}/setting/get-telegram`)
+    const response = await http?.get(`${SERVER_URL}/setting/telegram`)
 
     if (response?.data.code === 200 && response.data.data) {
       formData.enabled = response.data.data.enabled === '1'
@@ -347,7 +338,7 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   gap: 12px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   margin-top: 20px;
 }
 
@@ -384,71 +375,5 @@ onMounted(() => {
 
 .help-tips li {
   margin-bottom: 8px;
-}
-
-/* 移动端适配 */
-@media (max-width: 768px) {
-  .telegram-settings-card,
-  .help-card {
-    margin: 0;
-  }
-
-  .card-title {
-    font-size: 20px;
-  }
-
-  .card-subtitle {
-    font-size: 13px;
-  }
-
-  .form-actions {
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .form-actions .el-button {
-    width: 100%;
-  }
-
-  .el-input {
-    font-size: 16px; /* 防止iOS缩放 */
-  }
-
-  .el-steps {
-    padding: 0 10px;
-  }
-
-  .el-form-item {
-    margin-bottom: 20px;
-  }
-
-  .el-form-item__label {
-    font-size: 14px !important;
-    margin-bottom: 8px !important;
-    font-weight: 500;
-  }
-}
-
-/* 小屏移动设备 */
-@media (max-width: 480px) {
-  .card-title {
-    font-size: 18px;
-  }
-
-  .telegram-form {
-    margin-top: 15px;
-  }
-
-  .help-tips ul {
-    padding-left: 16px;
-  }
-
-  .help-tips li {
-    font-size: 13px;
-  }
-
-  .el-form-item {
-    margin-bottom: 18px;
-  }
 }
 </style>

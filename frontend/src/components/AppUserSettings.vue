@@ -3,11 +3,15 @@
     <el-card class="user-settings-card" shadow="hover">
       <template #header>
         <h2 class="card-title">用户账号密码修改</h2>
-        <p class="card-subtitle">管理系统登录用户名和密码</p>
       </template>
 
-      <el-form :model="formData" :label-position="'top'" class="user-form">
-        <el-form-item label="管理员密码" prop="password" required>
+      <el-form
+        :model="formData"
+        :label-position="checkIsMobile ? 'top' : 'left'"
+        :label-width="90"
+        class="user-form"
+      >
+        <el-form-item label="密码" prop="password" required>
           <el-input
             v-model="formData.password"
             placeholder="请输入管理员密码"
@@ -31,19 +35,21 @@
           <div class="form-help">请再次输入密码以确认</div>
         </el-form-item>
 
-        <el-form-item>
-          <div class="form-actions">
-            <el-button type="success" @click="saveSettings" :loading="loading" size="large">
-              <el-icon><Check /></el-icon>
-              保存设置
-            </el-button>
+        <div class="form-actions">
+          <el-button
+            type="success"
+            @click="saveSettings"
+            :loading="loading"
+            size="large"
+            :icon="Check"
+          >
+            保存设置
+          </el-button>
 
-            <el-button @click="resetForm" :disabled="loading" size="large">
-              <el-icon><RefreshLeft /></el-icon>
-              重置
-            </el-button>
-          </div>
-        </el-form-item>
+          <el-button @click="resetForm" :disabled="loading" size="large" :icon="RefreshLeft">
+            重置
+          </el-button>
+        </div>
       </el-form>
 
       <!-- 保存状态显示 -->
@@ -97,6 +103,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Check, RefreshLeft } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
+import { isMobile } from '@/utils/deviceUtils'
 
 interface UserSettings {
   password: string
@@ -109,6 +116,7 @@ interface SaveStatus {
   description: string
 }
 
+const checkIsMobile = ref(isMobile())
 const http: AxiosStatic | undefined = inject('$http')
 const loading = ref(false)
 const saveStatus = ref<SaveStatus | null>(null)
@@ -148,12 +156,14 @@ const saveSettings = async () => {
     loading.value = true
     saveStatus.value = null
 
-    const saveData = new URLSearchParams()
-    saveData.append('new_password', formData.password)
+    const requestData = {
+      new_password: formData.password,
+      confirm_password: formData.confirmPassword,
+    }
 
-    const response = await http?.post(`${SERVER_URL}/change-password`, saveData, {
+    const response = await http?.post(`${SERVER_URL}/change-password`, requestData, {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
       },
     })
 
@@ -267,7 +277,7 @@ const resetForm = async () => {
   display: flex;
   justify-content: center;
   gap: 12px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   margin-top: 20px;
 }
 
@@ -292,67 +302,5 @@ const resetForm = async () => {
 
 .warning-section {
   margin-top: 16px;
-}
-
-/* 移动端适配 */
-@media (max-width: 768px) {
-  .user-settings-card,
-  .security-card {
-    margin: 0;
-  }
-
-  .card-title {
-    font-size: 20px;
-  }
-
-  .card-subtitle {
-    font-size: 13px;
-  }
-
-  .form-actions {
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .form-actions .el-button {
-    width: 100%;
-  }
-
-  .el-input {
-    font-size: 16px; /* 防止iOS缩放 */
-  }
-
-  .el-form-item {
-    margin-bottom: 20px;
-  }
-
-  .el-form-item__label {
-    font-size: 14px !important;
-    margin-bottom: 8px !important;
-    font-weight: 500;
-  }
-
-  .security-tips {
-    padding-left: 16px;
-  }
-
-  .security-tips li {
-    font-size: 13px;
-  }
-}
-
-/* 小屏移动设备 */
-@media (max-width: 480px) {
-  .card-title {
-    font-size: 18px;
-  }
-
-  .user-form {
-    margin-top: 15px;
-  }
-
-  .el-form-item {
-    margin-bottom: 18px;
-  }
 }
 </style>

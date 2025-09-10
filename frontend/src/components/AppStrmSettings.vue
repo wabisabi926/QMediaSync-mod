@@ -11,7 +11,8 @@
         <el-form
           :model="strmData"
           :rules="formRules"
-          :label-position="'top'"
+          :label-position="checkIsMobile ? 'top' : 'left'"
+          :label-width="180"
           class="strm-form"
           ref="formRef"
         >
@@ -123,7 +124,7 @@
           </el-form-item>
 
           <!-- 同步完是否删除网盘不存在的STRM文件 -->
-          <el-form-item label="删除网盘不存在的STRM文件" prop="delete_strm">
+          <el-form-item label="网盘不存在的STRM文件" prop="delete_strm">
             <el-radio-group v-model="strmData.delete_strm">
               <el-radio-button :label="1">删除</el-radio-button>
               <el-radio-button :label="0">不删除</el-radio-button>
@@ -134,7 +135,7 @@
           </el-form-item>
 
           <!-- 同步完是否删除网盘不存在的空目录 -->
-          <el-form-item label="删除网盘不存在的空目录" prop="delete_dir">
+          <el-form-item label="网盘不存在的空目录" prop="delete_dir">
             <el-radio-group v-model="strmData.delete_dir">
               <el-radio-button :label="1">删除</el-radio-button>
               <el-radio-button :label="0">不删除</el-radio-button>
@@ -144,7 +145,7 @@
             </div>
           </el-form-item>
 
-          <el-form-item label="启用本地代理直链" prop="delete_dir">
+          <el-form-item label="启用本地代理直链" prop="local_proxy">
             <el-radio-group v-model="strmData.local_proxy">
               <el-radio-button :label="1">启用</el-radio-button>
               <el-radio-button :label="0">关闭</el-radio-button>
@@ -157,25 +158,28 @@
           </el-form-item>
 
           <!-- 保存和重置按钮 -->
-          <el-form-item>
-            <div class="strm-actions">
-              <el-button type="success" @click="saveStrmConfig" :loading="strmLoading" size="large">
-                <el-icon><Check /></el-icon>
-                保存STRM配置
-              </el-button>
+          <div class="strm-actions">
+            <el-button
+              type="success"
+              @click="saveStrmConfig"
+              :loading="strmLoading"
+              size="large"
+              :icon="Check"
+            >
+              保存STRM配置
+            </el-button>
 
-              <el-button
-                type="warning"
-                plain
-                @click="resetStrmConfig"
-                :disabled="strmLoading"
-                size="large"
-              >
-                <el-icon><Refresh /></el-icon>
-                重置为默认值
-              </el-button>
-            </div>
-          </el-form-item>
+            <el-button
+              type="warning"
+              plain
+              @click="resetStrmConfig"
+              :disabled="strmLoading"
+              size="large"
+              :icon="Refresh"
+            >
+              重置为默认值
+            </el-button>
+          </div>
         </el-form>
 
         <!-- STRM配置状态显示 -->
@@ -190,46 +194,6 @@
         />
       </div>
     </el-card>
-
-    <!-- STRM配置说明卡片 -->
-    <el-card class="strm-help-card" shadow="hover">
-      <template #header>
-        <h3 class="help-title">配置说明</h3>
-      </template>
-
-      <div class="help-content">
-        <div class="help-section">
-          <h4>什么是STRM文件？</h4>
-          <p>
-            STRM文件是一种特殊的播放列表文件，包含指向远程媒体文件的URL。媒体服务器（如Plex、Emby、Jellyfin）可以读取这些文件并直接播放远程内容，而无需本地存储完整的媒体文件。
-          </p>
-        </div>
-
-        <div class="help-section">
-          <h4>元数据文件</h4>
-          <p>
-            元数据文件包含媒体的附加信息，如封面图片(.jpg)、字幕文件(.srt)、NFO信息文件(.nfo)等。这些文件可以增强媒体服务器的显示效果和播放体验。
-          </p>
-        </div>
-
-        <div class="help-section">
-          <h4>定时同步</h4>
-          <p>
-            使用Cron表达式设置自动同步时间。系统将按照设定的时间自动检查115网盘的更新并生成相应的STRM文件。
-          </p>
-        </div>
-
-        <div class="help-section">
-          <h4>直连地址配置</h4>
-          <p>直连地址是媒体服务器访问115网盘文件的入口地址。请确保：</p>
-          <ul>
-            <li>地址格式正确（http://或https://开头）</li>
-            <li>媒体服务器可以正常访问此地址</li>
-            <li>端口号与实际服务端口一致</li>
-          </ul>
-        </div>
-      </div>
-    </el-card>
   </div>
 </template>
 
@@ -239,7 +203,7 @@ import type { AxiosStatic } from 'axios'
 import { Check, Refresh } from '@element-plus/icons-vue'
 import { inject, onMounted, reactive, ref, watch } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
-
+import { isMobile } from '@/utils/deviceUtils'
 interface StrmData {
   video_ext: string[]
   min_file_size: number
@@ -257,7 +221,7 @@ interface StrmStatus {
   type: 'success' | 'warning' | 'error' | 'info'
   description: string
 }
-
+const checkIsMobile = ref(isMobile())
 const http: AxiosStatic | undefined = inject('$http')
 
 // 表单引用
@@ -366,20 +330,21 @@ const saveStrmConfig = async () => {
     strmLoading.value = true
     strmStatus.value = null
 
-    const saveData = new URLSearchParams()
-    saveData.append('video_ext', JSON.stringify(strmData.video_ext))
-    saveData.append('min_video_size', strmData.min_file_size.toString())
-    saveData.append('meta_ext', JSON.stringify(strmData.meta_ext))
-    saveData.append('cron', strmData.cron_expression)
-    saveData.append('strm_base_url', strmData.direct_url)
-    saveData.append('upload_meta', strmData.upload_meta.toString())
-    saveData.append('delete_strm', strmData.delete_strm.toString())
-    saveData.append('delete_dir', strmData.delete_dir.toString())
-    saveData.append('local_proxy', strmData.local_proxy.toString())
+    const requestData = {
+      video_ext: strmData.video_ext,
+      min_video_size: strmData.min_file_size,
+      meta_ext: strmData.meta_ext,
+      cron: strmData.cron_expression,
+      strm_base_url: strmData.direct_url,
+      upload_meta: strmData.upload_meta,
+      delete_strm: strmData.delete_strm,
+      delete_dir: strmData.delete_dir,
+      local_proxy: strmData.local_proxy,
+    }
 
-    const response = await http?.post(`${SERVER_URL}/setting/update-strm-config`, saveData, {
+    const response = await http?.post(`${SERVER_URL}/setting/update-strm-config`, requestData, {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
       },
     })
 
@@ -536,13 +501,27 @@ onMounted(() => {
   margin-top: 16px;
 }
 
-.strm-form .el-form-item {
-  margin-bottom: 24px;
-  position: relative;
-}
-
 .strm-form .el-form-item .el-form-item__content {
   position: relative;
+  flex: 1;
+  min-width: 200px;
+}
+
+.strm-form .el-form-item :deep(.el-radio-group) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.strm-form .el-form-item :deep(.el-radio-button) {
+  flex: 1;
+  min-width: 80px;
+}
+
+.strm-form .el-form-item :deep(.el-radio-button__inner) {
+  width: 100%;
+  text-align: center;
+  padding: 8px 12px;
 }
 
 .form-help {
@@ -553,23 +532,25 @@ onMounted(() => {
   display: block;
   width: 100%;
   clear: both;
+  margin-left: 0;
 }
 
 .form-help p {
-  margin: 8px 0 12px 0;
-  font-weight: 600;
+  margin: 4px 0 8px 0;
+  font-weight: normal;
   display: block;
   width: 100%;
   clear: both;
+  line-height: 1.4;
 }
 
 .form-help ul {
-  margin: 8px 0 0 0;
+  margin: 4px 0 0 0;
   padding-left: 16px;
 }
 
 .form-help li {
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   line-height: 1.4;
 }
 
@@ -588,7 +569,7 @@ onMounted(() => {
 }
 
 .cron-examples li {
-  padding: 6px 0;
+  padding: 4px 0;
   border-bottom: 1px solid #f0f0f0;
 }
 
@@ -625,12 +606,12 @@ onMounted(() => {
 }
 
 .limited-width-input {
-  max-width: 500px;
+  max-width: 800px;
   width: 100%;
 }
 
 .limited-width-input.el-input-number {
-  max-width: 200px;
+  max-width: 150px;
 }
 
 .strm-example {
@@ -652,10 +633,11 @@ onMounted(() => {
   position: relative;
   width: 100%;
   clear: both;
+  font-size: 12px;
 }
 
 .example-label {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: #606266;
   white-space: nowrap;
@@ -666,7 +648,7 @@ onMounted(() => {
   padding: 4px 8px;
   border-radius: 4px;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-size: 12px;
+  font-size: 11px;
   color: #e6a23c;
   word-break: break-all;
   flex: 1;
@@ -814,11 +796,13 @@ onMounted(() => {
   display: flex;
   gap: 12px;
   margin-bottom: 16px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  align-items: center;
 }
 
 .strm-status {
   margin-top: 16px;
+  border-radius: 8px;
 }
 
 .help-title {
@@ -868,91 +852,5 @@ onMounted(() => {
   font-size: 14px;
   color: #606266;
   line-height: 1.5;
-}
-
-/* 移动端适配 */
-@media (max-width: 768px) {
-  .strm-settings-card,
-  .strm-help-card {
-    margin: 0;
-  }
-
-  .card-title {
-    font-size: 20px;
-  }
-
-  .card-subtitle {
-    font-size: 13px;
-  }
-
-  .limited-width-input,
-  .meta-ext-input {
-    max-width: none;
-    width: 100%;
-  }
-
-  .strm-actions {
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .strm-actions .el-button {
-    width: 100%;
-  }
-
-  .pan-dir-input {
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .pan-dir-input .el-button {
-    width: 100%;
-  }
-
-  .strm-example-inline,
-  .selected-path-inline {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-  }
-
-  .example-label,
-  .path-label {
-    font-size: 12px;
-  }
-
-  .example-url,
-  .path-url {
-    width: 100%;
-    font-size: 11px;
-  }
-
-  .help-title {
-    font-size: 16px;
-  }
-
-  .help-section h4 {
-    font-size: 15px;
-  }
-
-  .help-section p,
-  .help-section li {
-    font-size: 13px;
-  }
-}
-
-/* 小屏移动设备 */
-@media (max-width: 480px) {
-  .card-title {
-    font-size: 18px;
-  }
-
-  .help-title {
-    font-size: 15px;
-  }
-
-  .help-section h4 {
-    font-size: 14px;
-  }
 }
 </style>

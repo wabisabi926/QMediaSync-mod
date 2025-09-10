@@ -6,7 +6,7 @@
           <div class="header-content">
             <div class="header-info">
               <h2 class="card-title">同步目录管理</h2>
-              <p class="card-subtitle">管理本地目录与115网盘目录的同步配置</p>
+              <p class="card-subtitle">管理本地目录与网盘目录的同步配置</p>
               <div class="header-actions">
                 <el-button type="primary" @click="showAddDialog = true">
                   <el-icon><Plus /></el-icon>
@@ -17,161 +17,176 @@
           </div>
         </div>
       </template>
-
-      <!-- 数据表格 -->
-      <el-table
-        :data="directories"
-        v-loading="loading"
-        stripe
-        class="directories-table"
-        empty-text="暂无同步目录"
-        :show-header="!isMobile"
-        size="default"
-      >
-        <el-table-column prop="base_cid" label="CID" min-width="120" :show-overflow-tooltip="true">
-          <template #default="{ row }">
-            <div class="table-cell-wrapper">
-              <span class="cell-label" v-if="isMobile">CID:</span>
-              <span class="cid-text">{{ row.base_cid }}</span>
-            </div>
-          </template>
-        </el-table-column>
-
-        <el-table-column
-          prop="local_path"
-          label="本地目录"
-          min-width="200"
-          :show-overflow-tooltip="true"
+      <el-row :gutter="40">
+        <el-col
+          v-for="(row, index) in directories"
+          :key="row.id || index"
+          :xs="24"
+          :sm="24"
+          :md="12"
+          :lg="8"
+          :xl="4"
         >
-          <template #default="{ row }">
-            <div class="table-cell-wrapper">
-              <span class="cell-label" v-if="isMobile">本地目录:</span>
-              <span class="path-text">{{ row.local_path }}</span>
-            </div>
-          </template>
-        </el-table-column>
-
-        <el-table-column
-          prop="remote_path"
-          label="网盘目录"
-          min-width="200"
-          :show-overflow-tooltip="true"
-        >
-          <template #default="{ row }">
-            <div class="table-cell-wrapper">
-              <span class="cell-label" v-if="isMobile">网盘目录:</span>
-              <span class="path-text">{{ row.remote_path }}</span>
-              <!-- 移动端显示时间信息 -->
-              <div v-if="isMobile" class="mobile-time-info">
-                <div class="time-item">
-                  <span class="time-label">添加:</span>
-                  <span class="time-value">{{ formatTime(row.created_at) }}</span>
+          <el-card shadow="hover">
+            <template #header>
+              <div class="card-header">
+                <div class="card-title">
+                  <el-tooltip
+                    class="box-item"
+                    :content="'目录ID：' + row.base_cid"
+                    placement="bottom"
+                  >
+                    #{{ index + 1 }} {{ row.remote_path }}
+                  </el-tooltip>
                 </div>
-                <div class="time-item">
-                  <span class="time-label">修改:</span>
-                  <span class="time-value">{{ formatTime(row.updated_at) }}</span>
-                </div>
-                <div class="time-item">
-                  <span class="time-label">深度:</span>
-                  <span class="time-value">{{ row.dir_depth || '-' }}</span>
+                <div>
+                  <el-tag :type="sourceTypeTagMap[row.source_type]">
+                    {{ sourceTypeMap[row.source_type] }}
+                  </el-tag>
                 </div>
               </div>
+            </template>
+
+            <div class="card-body">
+              <div class="info-item" v-if="row.source_type !== 'local'">
+                <span class="info-label">账号:</span>
+                <span class="info-value">{{ row.account_name }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">本地目录:</span>
+                <span class="info-value">{{ row.local_path }}</span>
+              </div>
+              <div class="info-item" v-if="row.source_type !== 'local'">
+                <span class="info-label">网盘目录:</span>
+                <span class="info-value">
+                  <el-tooltip
+                    class="box-item"
+                    :content="'目录ID：' + row.base_cid"
+                    placement="bottom"
+                  >
+                    {{ row.remote_path }}
+                  </el-tooltip>
+                </span>
+              </div>
+
+              <div class="info-item" v-if="row.source_type === '115'">
+                <span class="info-label">缓存目录层级:</span>
+                <span class="info-value">{{ row.dir_depth || '-' }}层</span>
+              </div>
+
+              <div class="info-item">
+                <span class="info-label">添加时间:</span>
+                <span class="info-value">{{ formatTime(row.created_at) }}</span>
+              </div>
+
+              <div class="info-item">
+                <span class="info-label">修改时间:</span>
+                <span class="info-value">{{ formatTime(row.updated_at) }}</span>
+              </div>
             </div>
-          </template>
-        </el-table-column>
+            <template #footer>
+              <div class="card-actions">
+                <el-button
+                  type="success"
+                  size="small"
+                  @click="handleStart(row, index)"
+                  :loading="row.starting"
+                  :icon="VideoPlay"
+                  >启动同步</el-button
+                >
+                <el-button
+                  type="primary"
+                  size="small"
+                  @click="handleEdit(row)"
+                  :loading="row.editing"
+                  :icon="Edit"
+                  >编辑</el-button
+                >
+                <el-button
+                  type="danger"
+                  size="small"
+                  @click="handleDelete(row, index)"
+                  :loading="row.deleting"
+                  :icon="Delete"
+                  >删除</el-button
+                >
+              </div>
+            </template>
+          </el-card>
+        </el-col>
 
-        <el-table-column
-          prop="dir_depth"
-          label="目录深度"
-          width="100"
-          align="center"
-          v-if="!isMobile"
-        >
-          <template #default="{ row }">
-            <span>{{ row.dir_depth || '-' }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="created_at" label="添加时间" width="180" v-if="!isMobile">
-          <template #default="{ row }">
-            <span>{{ formatTime(row.created_at) }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="updated_at" label="修改时间" width="180" v-if="!isMobile">
-          <template #default="{ row }">
-            <span>{{ formatTime(row.updated_at) }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="操作" :width="isMobile ? 140 : 220" fixed="right">
-          <template #default="{ row, $index }">
-            <div class="action-buttons">
-              <el-button
-                type="success"
-                size="small"
-                @click="handleStart(row, $index)"
-                :loading="row.starting"
-              >
-                启动
-              </el-button>
-              <el-button
-                type="primary"
-                size="small"
-                @click="handleEdit(row)"
-                :loading="row.editing"
-              >
-                编辑
-              </el-button>
-              <el-button
-                type="danger"
-                size="small"
-                @click="handleDelete(row, $index)"
-                :loading="row.deleting"
-              >
-                删除
-              </el-button>
+        <el-col v-if="directories.length === 0 && !loading" :span="24" class="empty-card-col">
+          <el-card shadow="never" class="empty-card">
+            <div class="empty-content">
+              <el-icon class="empty-icon"><Folder /></el-icon>
+              <p class="empty-text">暂无同步目录</p>
             </div>
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <!-- 分页 -->
-      <div class="pagination-container" v-if="total > 0">
-        <el-pagination
-          v-model:current-page="currentPage"
-          v-model:page-size="pageSize"
-          :page-sizes="[10, 20, 50, 100]"
-          :total="total"
-          layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleSizeChange"
-          @current-change="handleCurrentChange"
-        />
-      </div>
+          </el-card>
+        </el-col>
+      </el-row>
     </el-card>
 
     <!-- 添加同步目录对话框 -->
     <el-dialog
       v-model="showAddDialog"
       title="添加同步目录"
-      width="500px"
+      :width="checkIsMobile ? '90%' : '600px'"
       :close-on-click-modal="false"
     >
-      <el-form ref="addFormRef" :model="addForm" :rules="addFormRules" label-width="100px">
-        <el-form-item label="本地目录" prop="local_path">
-          <el-input v-model="addForm.local_path" placeholder="请输入本地目录路径" clearable />
-          <div class="form-tip">本地同步目录的绝对路径</div>
+      <el-form
+        ref="addFormRef"
+        :model="addForm"
+        :rules="addFormRules"
+        label-width="120px"
+        :label-position="checkIsMobile ? 'top' : 'left'"
+      >
+        <el-form-item label="同步源类型" prop="source_type">
+          <el-select
+            v-model="addForm.source_type"
+            placeholder="请选择同步源类型"
+            @change="handleSourceTypeChange"
+          >
+            <el-option
+              v-for="typeItem in sourceTypeOptions"
+              :key="typeItem.value"
+              :label="typeItem.label"
+              :value="typeItem.value"
+            ></el-option>
+          </el-select>
+          <div class="form-tip">选择同步源的类型</div>
         </el-form-item>
-
-        <el-form-item label="115网盘目录" prop="base_cid">
+        <el-form-item label="网盘账号" prop="account_id" v-if="addForm.source_type !== 'local'">
+          <el-select
+            v-model="addForm.account_id"
+            placeholder="请选择网盘账号"
+            :loading="accountsLoading"
+            :disabled="addLoading"
+          >
+            <el-option
+              v-for="account in accounts"
+              :key="account.id"
+              :label="account.name"
+              :value="account.id"
+            ></el-option>
+          </el-select>
+          <div class="form-tip">选择用于同步的网盘账号</div>
+        </el-form-item>
+        <el-form-item
+          label="来源路径"
+          prop="base_cid"
+          v-if="
+            (addForm.source_type !== 'local' && addForm.account_id) ||
+            addForm.source_type === 'local'
+          "
+        >
           <div class="pan-dir-input">
             <el-input
               v-model="addForm.base_cid"
-              placeholder="点击选择按钮选择115网盘目录"
+              placeholder="点击选择按钮选择网盘目录"
               :disabled="addLoading"
               readonly
             />
-            <el-button type="primary" @click="openDirSelector" :disabled="addLoading">
+            <el-button type="primary" @click="openDirSelector(false)" :disabled="addLoading">
               选择目录
             </el-button>
           </div>
@@ -179,10 +194,37 @@
             <span class="path-label">选中目录路径：</span>
             <code class="path-url">{{ selectedDirPath }}</code>
           </div>
-          <div class="form-tip">选择115网盘中要同步的目录</div>
+          <div class="form-tip">选择网盘中要同步的目录</div>
+        </el-form-item>
+        <el-form-item
+          label="目标路径"
+          prop="local_path"
+          v-if="
+            (addForm.source_type !== 'local' && addForm.account_id) ||
+            addForm.source_type === 'local'
+          "
+        >
+          <div class="pan-dir-input">
+            <el-input
+              v-model="addForm.local_path"
+              placeholder="点击选择按钮选择本地目录"
+              :disabled="addLoading"
+              readonly
+            />
+            <el-button type="primary" @click="openDirSelector(true)" :disabled="addLoading">
+              选择目录
+            </el-button>
+          </div>
+          <div class="form-tip">选择本地目录作为STRM文件的存放位置</div>
         </el-form-item>
 
-        <el-form-item label="STRM存放目录">
+        <el-form-item
+          label="STRM存放目录"
+          v-if="
+            (addForm.source_type !== 'local' && addForm.account_id) ||
+            addForm.source_type === 'local'
+          "
+        >
           <el-input
             v-model="addForm.strm_path"
             placeholder="自动计算：本地目录 + 选中目录路径"
@@ -192,24 +234,22 @@
           <div class="form-tip">STRM和元数据实际存放目录（自动生成）</div>
         </el-form-item>
 
-        <el-form-item label="目录深度" prop="dir_depth">
+        <el-form-item label="缓存目录层级" prop="dir_depth" v-if="addForm.source_type === '115'">
           <el-input-number
             v-model="addForm.dir_depth"
             :min="1"
             :max="10"
             :step="1"
             :disabled="addLoading"
-            placeholder="初始化的目录深度"
             style="width: 100%"
           />
-          <p>该设置会严重影响首次同步所需时间，建议认真设置；如果不是很清楚，建议设置成2</p>
+          <p>该设置会严重影响全量同步所需时间，建议认真设置；如果不是很清楚，建议设置成2</p>
           <div class="form-tip">
-            <p>首次获取目录的深度，建议设置为 1-3 层（默认 2层）</p>
             <p>
               如果所选网盘目录是AV类型的根目录，下面的目录结构如：小姐姐名/番号/番号.mkv，那就输入2。
             </p>
             <p>
-              如果所选网盘目录是影视剧的根目录，下面的目录结构如：电影/动画电影/哪吒/哪吒.mkv，那就输入3；
+              如果所选网盘目录是影视剧的根目录如Media，下面的子目录结构如：电影/动画电影/哪吒/哪吒.mkv，那就输入3；
             </p>
           </div>
         </el-form-item>
@@ -227,16 +267,17 @@
     <el-dialog
       v-model="showEditDialog"
       title="编辑同步目录"
-      width="500px"
+      :width="checkIsMobile ? '90%' : '600px'"
       :close-on-click-modal="false"
     >
-      <el-form ref="editFormRef" :model="editForm" :rules="editFormRules" label-width="100px">
-        <el-form-item label="本地目录" prop="local_path">
-          <el-input v-model="editForm.local_path" placeholder="请输入本地目录路径" clearable />
-          <div class="form-tip">本地同步目录的绝对路径</div>
-        </el-form-item>
-
-        <el-form-item label="115网盘目录" prop="base_cid">
+      <el-form
+        ref="editFormRef"
+        :model="editForm"
+        :rules="editFormRules"
+        label-width="120px"
+        :label-position="checkIsMobile ? 'top' : 'left'"
+      >
+        <el-form-item label="来源路径" prop="base_cid">
           <div class="pan-dir-input">
             <el-input
               v-model="editForm.base_cid"
@@ -244,7 +285,7 @@
               :disabled="editLoading"
               readonly
             />
-            <el-button type="primary" @click="openEditDirSelector" :disabled="editLoading">
+            <el-button type="primary" @click="openEditDirSelector(false)" :disabled="editLoading">
               选择目录
             </el-button>
           </div>
@@ -254,7 +295,31 @@
           </div>
           <div class="form-tip">选择115网盘中要同步的目录</div>
         </el-form-item>
-
+        <el-form-item label="目标路径" prop="local_path">
+          <div class="pan-dir-input">
+            <el-input
+              v-model="editForm.local_path"
+              placeholder="点击选择按钮选择本地目录"
+              :disabled="editLoading"
+              readonly
+            />
+            <el-button type="primary" @click="openEditDirSelector(true)" :disabled="editLoading">
+              选择目录
+            </el-button>
+          </div>
+          <div class="form-tip">选择本地目录作为STRM文件的存放位置</div>
+        </el-form-item>
+        <el-form-item label="缓存目录层级" prop="dir_depth" v-if="editForm.source_type === '115'">
+          <el-input-number
+            v-model="editForm.dir_depth"
+            :min="1"
+            :max="10"
+            :step="1"
+            :disabled="editLoading"
+            style="width: 100%"
+          />
+          <div class="form-tip">缓存目录层级，建议设置为 1-3 层（默认 2层）</div>
+        </el-form-item>
         <el-form-item label="STRM存放目录">
           <el-input
             v-model="editForm.strm_path"
@@ -263,19 +328,6 @@
             readonly
           />
           <div class="form-tip">STRM和元数据实际存放目录（自动生成）</div>
-        </el-form-item>
-
-        <el-form-item label="目录深度" prop="dir_depth">
-          <el-input-number
-            v-model="editForm.dir_depth"
-            :min="1"
-            :max="10"
-            :step="1"
-            :disabled="editLoading"
-            placeholder="目录深度"
-            style="width: 100%"
-          />
-          <div class="form-tip">目录深度，建议设置为 1-3 层（默认 2层）</div>
         </el-form-item>
       </el-form>
 
@@ -289,11 +341,11 @@
       </template>
     </el-dialog>
 
-    <!-- 115网盘目录选择对话框 -->
+    <!-- 目录选择对话框 -->
     <el-dialog
       v-model="showDirDialog"
-      title="选择115网盘目录"
-      width="60%"
+      :title="isSelectingLocalPath ? '选择目标目录' : '选择来源目录'"
+      :width="checkIsMobile ? '90%' : '600px'"
       :close-on-click-modal="false"
     >
       <div class="dir-selector">
@@ -310,7 +362,7 @@
               v-for="dir in dirTreeData"
               :key="dir.id"
               class="dir-item"
-              @click="selectTempDir(dir)"
+              @click="selectTempDir(isSelectingLocalPath, dir)"
             >
               <el-icon><Folder /></el-icon>
               <span class="dir-name">{{ dir.name }}</span>
@@ -342,29 +394,46 @@
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
-import { inject, onMounted, onUnmounted, ref, reactive, watch } from 'vue'
+import { inject, onMounted, onUnmounted, ref, reactive, watch, type Ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Loading, Folder, ArrowRight } from '@element-plus/icons-vue'
+import { Plus, Loading, Folder, ArrowRight, VideoPlay, Edit, Delete } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
+import { formatTime } from '@/utils/timeUtils'
+import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
+import { sourceTypeOptions, sourceTypeTagMap, sourceTypeMap } from '@/utils/sourceTypeUtils'
 
 interface SyncDirectory {
   id?: number
   base_cid: string
   local_path: string
   remote_path: string
-  strm_path?: string
+  strm_path: string
   dir_depth?: number
-  created_at: string
-  updated_at: string
+  created_at: number
+  updated_at: number
   deleting?: boolean
   editing?: boolean
   starting?: boolean
+  source_type: string
+  account_id?: number
+  account_name: string
 }
 
 interface DirInfo {
   id: string
   name: string
   path?: string
+}
+
+// 账户信息接口
+interface CloudAccount {
+  id: number
+  name: string
+  source_type: string
+  user_id: string
+  username: string
+  created_at: number
+  token: string
 }
 
 const http: AxiosStatic | undefined = inject('$http')
@@ -374,10 +443,14 @@ const directories = ref<SyncDirectory[]>([])
 const loading = ref(false)
 const total = ref(0)
 const currentPage = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(9999)
+
+// 账户列表状态
+const accounts = ref<CloudAccount[]>([])
+const accountsLoading = ref(false)
 
 // 移动端检测
-const isMobile = ref(false)
+const checkIsMobile = ref(isMobile())
 
 // 目录选择相关状态
 const showDirDialog = ref(false)
@@ -387,10 +460,13 @@ const selectedDirPath = ref('')
 const currentDir = ref<DirInfo | null>(null)
 const tempSelectedDir = ref<DirInfo | null>(null)
 const isEditMode = ref(false) // 标记是否为编辑模式
+const isSelectingLocalPath = ref(false) // 标记是否为选择本地路径
+const selectedSourceType = ref('')
+const selectedAccountId: Ref<number | string> = ref(0)
 
 // 检测是否为移动设备
 const checkMobile = () => {
-  isMobile.value = window.innerWidth <= 768
+  checkIsMobile.value = isMobile()
 }
 
 // 添加对话框状态
@@ -402,6 +478,8 @@ const addForm = reactive({
   base_cid: '',
   strm_path: '',
   dir_depth: 2,
+  source_type: '',
+  account_id: '',
 })
 
 // 编辑对话框状态
@@ -414,6 +492,8 @@ const editForm = reactive({
   base_cid: '',
   strm_path: '',
   dir_depth: 2,
+  source_type: '',
+  account_id: 0,
 })
 const editSelectedDirPath = ref('')
 
@@ -431,6 +511,8 @@ const addFormRules: FormRules = {
     { required: true, message: '请输入目录深度', trigger: 'blur' },
     { type: 'number', min: 1, max: 10, message: '目录深度必须在 1 到 10 之间', trigger: 'blur' },
   ],
+  source_type: [{ required: true, message: '请选择同步源类型', trigger: 'change' }],
+  account_id: [{ required: true, message: '请选择网盘账号', trigger: 'change' }],
 }
 
 // 编辑表单验证规则
@@ -447,34 +529,7 @@ const editFormRules: FormRules = {
     { required: true, message: '请输入目录深度', trigger: 'blur' },
     { type: 'number', min: 1, max: 10, message: '目录深度必须在 1 到 10 之间', trigger: 'blur' },
   ],
-}
-
-// 格式化时间
-const formatTime = (timestamp: string | number): string => {
-  if (!timestamp) return '-'
-
-  try {
-    // 将秒级时间戳转换为毫秒级时间戳
-    const timestampMs =
-      typeof timestamp === 'string' ? parseInt(timestamp) * 1000 : timestamp * 1000
-    const date = new Date(timestampMs)
-
-    // 检查日期是否有效
-    if (isNaN(date.getTime())) {
-      return '-'
-    }
-
-    return date.toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    })
-  } catch {
-    return '-'
-  }
+  account_id: [{ required: true, message: '请选择网盘账号', trigger: 'change' }],
 }
 
 // 加载同步目录列表
@@ -484,7 +539,7 @@ const loadDirectories = async () => {
     const response = await http?.get(`${SERVER_URL}/sync/path-list`, {
       params: {
         page: currentPage.value,
-        size: pageSize.value,
+        page_size: pageSize.value,
       },
     })
 
@@ -506,19 +561,6 @@ const loadDirectories = async () => {
   }
 }
 
-// 处理页面大小变化
-const handleSizeChange = (newSize: number) => {
-  pageSize.value = newSize
-  currentPage.value = 1
-  loadDirectories()
-}
-
-// 处理页码变化
-const handleCurrentChange = (newPage: number) => {
-  currentPage.value = newPage
-  loadDirectories()
-}
-
 // 处理添加同步目录
 const handleAdd = async () => {
   if (!addFormRef.value) return
@@ -527,15 +569,18 @@ const handleAdd = async () => {
     await addFormRef.value.validate()
     addLoading.value = true
 
-    const formData = new FormData()
-    formData.append('local_path', addForm.local_path.trim())
-    formData.append('base_cid', addForm.base_cid.trim())
-    formData.append('strm_path', addForm.strm_path.trim())
-    formData.append('dir_depth', addForm.dir_depth.toString())
+    const formData = {
+      local_path: addForm.local_path.trim(),
+      base_cid: addForm.base_cid.trim(),
+      remote_path: selectedDirPath.value,
+      dir_depth: addForm.dir_depth,
+      source_type: addForm.source_type.trim(),
+      account_id: addForm.account_id ? addForm.account_id : 0,
+    }
 
     const response = await http?.post(`${SERVER_URL}/sync/path-add`, formData, {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
       },
     })
 
@@ -565,6 +610,8 @@ const handleEdit = async (row: SyncDirectory) => {
   editForm.local_path = row.local_path
   editForm.base_cid = row.base_cid
   editForm.dir_depth = row.dir_depth || 2
+  editForm.source_type = row.source_type || ''
+  editForm.account_id = row.account_id || 0
   editSelectedDirPath.value = row.remote_path || ''
 
   // 初始化STRM路径
@@ -581,16 +628,17 @@ const handleEditSave = async () => {
     await editFormRef.value.validate()
     editLoading.value = true
 
-    const formData = new FormData()
-    formData.append('id', editForm.id.toString())
-    formData.append('local_path', editForm.local_path.trim())
-    formData.append('base_cid', editForm.base_cid.trim())
-    formData.append('strm_path', editForm.strm_path.trim())
-    formData.append('dir_depth', editForm.dir_depth.toString())
+    const formData = {
+      id: editForm.id,
+      local_path: editForm.local_path.trim(),
+      base_cid: editForm.base_cid.trim(),
+      strm_path: editForm.strm_path.trim(),
+      dir_depth: editForm.dir_depth,
+    }
 
     const response = await http?.post(`${SERVER_URL}/sync/path-update`, formData, {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
       },
     })
 
@@ -626,12 +674,13 @@ const handleDelete = async (row: SyncDirectory, index: number) => {
 
     directories.value[index].deleting = true
 
-    const formData = new FormData()
-    formData.append('id', row.id?.toString() || '')
+    const formData = {
+      id: row.id || '',
+    }
 
     const response = await http?.post(`${SERVER_URL}/sync/path-delete`, formData, {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
       },
     })
 
@@ -658,12 +707,13 @@ const handleStart = async (row: SyncDirectory, index: number) => {
   try {
     directories.value[index].starting = true
 
-    const formData = new FormData()
-    formData.append('id', row.id?.toString() || '')
+    const formData = {
+      id: row.id || '',
+    }
 
     const response = await http?.post(`${SERVER_URL}/sync/path/start`, formData, {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
       },
     })
 
@@ -683,20 +733,29 @@ const handleStart = async (row: SyncDirectory, index: number) => {
 }
 
 // 打开目录选择器
-const openDirSelector = async () => {
-  isEditMode.value = false
+const openDirSelector = async (isLocalPath: boolean = false) => {
   showDirDialog.value = true
   tempSelectedDir.value = null
   currentDir.value = null
-  await loadDirTree('0') // 加载根目录
+  selectedSourceType.value = isLocalPath ? 'local' : addForm.source_type
+  isSelectingLocalPath.value = isLocalPath
+  selectedAccountId.value = addForm.account_id
+
+  await loadDirTree(isLocalPath ? 'local' : addForm.source_type, '')
 }
 
 // 加载目录树
-const loadDirTree = async (dirId: string) => {
+const loadDirTree = async (sourceType: string, dirId: string) => {
   try {
     dirTreeLoading.value = true
-    const response = await http?.get(`${SERVER_URL}/115/dir-path`, {
-      params: { parent_id: dirId },
+    // 加载网盘目录树
+    const accountIdToUse = selectedAccountId.value
+    const response = await http?.get(`${SERVER_URL}/path/list`, {
+      params: {
+        parent_id: dirId,
+        source_type: sourceType,
+        account_id: accountIdToUse,
+      },
     })
 
     if (response?.data.code === 200) {
@@ -710,11 +769,12 @@ const loadDirTree = async (dirId: string) => {
 }
 
 // 临时选择目录（点击目录时）
-const selectTempDir = async (dir: DirInfo) => {
+const selectTempDir = async (isLocal: boolean, dir: DirInfo) => {
   tempSelectedDir.value = dir
   currentDir.value = dir
-  // 加载该目录的子目录
-  await loadDirTree(dir.id)
+
+  // 加载该目录的子目
+  await loadDirTree(selectedSourceType.value, dir.id)
 }
 
 // 计算STRM存放目录
@@ -731,12 +791,20 @@ const calculateStrmPath = (localPath: string, dirPath: string): string => {
 
 // 更新添加表单的STRM路径
 const updateAddStrmPath = () => {
-  addForm.strm_path = calculateStrmPath(addForm.local_path, selectedDirPath.value)
+  if (addForm.source_type !== 'local') {
+    addForm.strm_path = calculateStrmPath(addForm.local_path, selectedDirPath.value)
+  } else {
+    addForm.strm_path = addForm.local_path
+  }
 }
 
 // 更新编辑表单的STRM路径
 const updateEditStrmPath = () => {
-  editForm.strm_path = calculateStrmPath(editForm.local_path, editSelectedDirPath.value)
+  if (editForm.source_type !== 'local') {
+    editForm.strm_path = calculateStrmPath(editForm.local_path, editSelectedDirPath.value)
+  } else {
+    editForm.strm_path = editForm.local_path
+  }
 }
 
 // 确认选择目录
@@ -745,32 +813,52 @@ const confirmSelectDir = async () => {
 
   const selectedDir = tempSelectedDir.value
 
-  if (isEditMode.value) {
-    // 编辑模式：设置编辑表单的CID值和显示路径
-    editForm.base_cid = selectedDir.id
-    editSelectedDirPath.value = selectedDir.path ? selectedDir.path : selectedDir.name
-    // 更新编辑表单的STRM路径
-    updateEditStrmPath()
+  if (isSelectingLocalPath.value) {
+    // 选择本地路径：更新local_path字段
+    if (isEditMode.value) {
+      // 编辑模式
+      editForm.local_path = selectedDir.path ? selectedDir.path : selectedDir.name
+    } else {
+      // 添加模式
+      addForm.local_path = selectedDir.path ? selectedDir.path : selectedDir.name
+    }
   } else {
-    // 添加模式：设置添加表单的CID值和显示路径
-    addForm.base_cid = selectedDir.id
-    selectedDirPath.value = selectedDir.path ? selectedDir.path : selectedDir.name
-    // 更新添加表单的STRM路径
-    updateAddStrmPath()
+    // 选择网盘路径：更新base_cid字段
+    if (isEditMode.value) {
+      // 编辑模式：设置编辑表单的CID值和显示路径
+      editForm.base_cid = selectedDir.id
+      editSelectedDirPath.value = selectedDir.path ? selectedDir.path : selectedDir.name
+      // 更新编辑表单的STRM路径
+      updateEditStrmPath()
+    } else {
+      // 添加模式：设置添加表单的CID值和显示路径
+      addForm.base_cid = selectedDir.id
+      selectedDirPath.value = selectedDir.path ? selectedDir.path : selectedDir.name
+      // 更新添加表单的STRM路径
+      updateAddStrmPath()
+    }
   }
 
   showDirDialog.value = false
   tempSelectedDir.value = null
   currentDir.value = null
+  isSelectingLocalPath.value = false
 }
 
 // 编辑时打开目录选择器
-const openEditDirSelector = async () => {
+const openEditDirSelector = async (isLocalPath: boolean = false) => {
   isEditMode.value = true
+  isSelectingLocalPath.value = isLocalPath
   showDirDialog.value = true
   tempSelectedDir.value = null
   currentDir.value = null
-  await loadDirTree('0') // 加载根目录
+  selectedSourceType.value = isLocalPath ? 'local' : editForm.source_type
+  selectedAccountId.value = editForm.account_id
+
+  await loadDirTree(
+    isLocalPath ? 'local' : editForm.source_type,
+    isLocalPath ? editForm.local_path : editForm.base_cid,
+  )
 }
 
 // 监听添加表单本地路径变化
@@ -789,15 +877,51 @@ watch(
   },
 )
 
+const handleSourceTypeChange = () => {
+  if (addForm.source_type !== 'local') {
+    loadAccounts()
+  }
+}
+
+// 加载账户列表
+const loadAccounts = async () => {
+  accounts.value = []
+  try {
+    accountsLoading.value = true
+    const response = await http?.get(`${SERVER_URL}/account/list`)
+    if (response?.data.code === 200) {
+      const data = response.data.data || []
+      for (const account of data) {
+        if (account.username === '' || account.source_type !== addForm.source_type) continue
+        accounts.value.push(account)
+      }
+    } else {
+      console.error('加载账号列表失败:', response?.data.msg || '未知错误')
+      accounts.value = []
+    }
+  } catch (error) {
+    console.error('加载账号列表失败:', error)
+    accounts.value = []
+  } finally {
+    accountsLoading.value = false
+  }
+}
+
 // 组件挂载时加载数据
+let removeDeviceTypeListener: (() => void) | null = null
+
 onMounted(() => {
   checkMobile()
-  window.addEventListener('resize', checkMobile)
+  removeDeviceTypeListener = onDeviceTypeChange((newIsMobile) => {
+    checkIsMobile.value = newIsMobile
+  })
   loadDirectories()
 })
 
 onUnmounted(() => {
-  window.removeEventListener('resize', checkMobile)
+  if (removeDeviceTypeListener) {
+    removeDeviceTypeListener()
+  }
 })
 </script>
 
@@ -817,17 +941,16 @@ onUnmounted(() => {
   max-width: calc(100% + 40px) !important;
 }
 
-/* 确保卡片组件也占满宽度 */
-.full-width-card,
-.sync-directories-container :deep(.el-card) {
-  width: 100% !important;
-  max-width: 100% !important;
-  border-radius: 0 !important;
+.full-width-card {
+  width: 100%;
+  max-width: 100%;
 }
 
 .card-header {
   margin: 0;
   padding: 0;
+  display: flex;
+  justify-content: space-between;
 }
 
 .header-content {
@@ -849,7 +972,7 @@ onUnmounted(() => {
 
 .card-title {
   margin: 0;
-  font-size: 24px;
+  font-size: 16px;
   font-weight: 600;
   color: #303133;
 }
@@ -901,6 +1024,111 @@ onUnmounted(() => {
   line-height: 1.4;
 }
 
+/* 卡片列表基础样式 */
+.directories-card-list {
+  margin-bottom: 20px;
+}
+
+.directory-card-col {
+  margin-bottom: 20px;
+}
+
+.directory-card {
+  height: 100%;
+  transition: all 0.3s;
+}
+
+.directory-card:hover {
+  border-color: #409eff;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.card-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.card-actions {
+  display: flex;
+  justify-content: end;
+  gap: 8px;
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 200px;
+}
+
+.info-item {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 4px;
+}
+
+.info-label {
+  font-size: 12px;
+  color: #606266;
+}
+
+.info-value {
+  font-size: 16px;
+  color: #303133;
+  word-break: break-all;
+  line-height: 1.5;
+}
+
+.info-value.cid-text {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 13px;
+  background: #f5f7fa;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.info-value.path-text {
+  font-size: 13px;
+}
+
+.empty-card-col {
+  margin-bottom: 20px;
+}
+
+.empty-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: #909399;
+  background: #fafafa;
+}
+
+.empty-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.empty-icon {
+  font-size: 48px;
+}
+
+.empty-text {
+  font-size: 16px;
+}
+
 .mobile-time-info {
   display: flex;
   gap: 12px;
@@ -939,12 +1167,6 @@ onUnmounted(() => {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-}
-
-/* 操作按钮组样式 */
-.action-buttons {
-  display: flex;
-  gap: 8px;
 }
 
 /* 115网盘目录选择相关样式 */
@@ -1071,208 +1293,5 @@ onUnmounted(() => {
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   word-break: break-all;
   line-height: 1.4;
-}
-
-/* 移动端适配 */
-@media (max-width: 768px) {
-  .full-width-container {
-    margin: -20px !important;
-    padding: 15px !important;
-    width: calc(100% + 40px) !important;
-  }
-
-  .sync-directories-container {
-    padding: 0;
-  }
-
-  .card-header {
-    gap: 8px;
-  }
-
-  .header-content {
-    align-items: stretch;
-  }
-
-  .header-info {
-    gap: 6px;
-  }
-
-  .header-actions {
-    margin-top: 12px;
-    align-self: flex-start;
-  }
-
-  .card-title {
-    font-size: 20px;
-  }
-
-  .card-subtitle {
-    font-size: 13px;
-  }
-
-  .directories-table {
-    font-size: 14px;
-    margin-bottom: 16px;
-  }
-
-  .table-cell-wrapper {
-    gap: 4px;
-  }
-
-  .cell-label {
-    font-size: 13px;
-    font-weight: 600;
-  }
-
-  .cid-text {
-    font-size: 13px;
-  }
-
-  .path-text {
-    font-size: 13px;
-    line-height: 1.4;
-  }
-
-  .pagination-container {
-    padding: 16px 0;
-  }
-
-  /* 移动端操作按钮适配 */
-  .action-buttons {
-    gap: 4px;
-    flex-direction: column;
-  }
-
-  .action-buttons .el-button {
-    padding: 2px 6px !important;
-    font-size: 11px !important;
-    height: 24px !important;
-    min-height: 24px !important;
-    min-width: 40px !important;
-  }
-
-  /* 对话框在移动端的适配 */
-  :deep(.el-dialog) {
-    width: 95% !important;
-    margin: 0 auto;
-  }
-
-  :deep(.el-dialog__body) {
-    padding: 15px 20px;
-  }
-}
-
-/* 小屏移动设备 */
-@media (max-width: 480px) {
-  .full-width-container {
-    margin: -20px !important;
-    padding: 10px !important;
-    width: calc(100% + 40px) !important;
-  }
-
-  .card-title {
-    font-size: 18px;
-  }
-
-  .card-subtitle {
-    font-size: 12px;
-  }
-
-  .header-content {
-    gap: 8px;
-  }
-
-  .card-header {
-    gap: 6px;
-  }
-
-  .directories-table {
-    font-size: 13px;
-  }
-
-  .cell-label {
-    font-size: 12px;
-  }
-
-  .cid-text,
-  .path-text {
-    font-size: 12px;
-  }
-
-  .mobile-time-info {
-    font-size: 11px;
-  }
-
-  /* 进一步优化操作按钮 */
-  .action-buttons {
-    gap: 3px;
-    flex-direction: column;
-  }
-
-  .action-buttons .el-button {
-    padding: 1px 4px !important;
-    font-size: 10px !important;
-    height: 22px !important;
-    min-height: 22px !important;
-    min-width: 36px !important;
-  }
-
-  .pagination-container {
-    padding: 12px 0;
-  }
-
-  /* 分页组件在小屏下的适配 */
-  :deep(.el-pagination) {
-    font-size: 12px;
-  }
-
-  :deep(.el-pagination .btn-prev),
-  :deep(.el-pagination .btn-next),
-  :deep(.el-pagination .el-pager li) {
-    min-width: 28px;
-    height: 28px;
-    line-height: 28px;
-  }
-}
-
-/* 表格行的移动端适配 */
-@media (max-width: 768px) {
-  :deep(.el-table .cell) {
-    padding: 8px 4px;
-    line-height: 1.3;
-  }
-
-  :deep(.el-table th) {
-    padding: 8px 0;
-  }
-
-  :deep(.el-table td) {
-    padding: 8px 0;
-  }
-}
-
-/* 极小屏设备优化 */
-@media (max-width: 360px) {
-  .action-buttons {
-    gap: 2px;
-    flex-direction: column;
-  }
-
-  .action-buttons .el-button {
-    padding: 1px 3px !important;
-    font-size: 9px !important;
-    height: 20px !important;
-    min-height: 20px !important;
-    min-width: 32px !important;
-  }
-
-  /* 进一步减少操作列宽度 */
-  :deep(.el-table__fixed-right) {
-    width: 120px !important;
-  }
-
-  :deep(.el-table__fixed-right .el-table__cell) {
-    width: 120px !important;
-  }
 }
 </style>

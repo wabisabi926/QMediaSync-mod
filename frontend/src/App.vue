@@ -47,9 +47,13 @@
               <el-icon><Setting /></el-icon>
               <span>系统设置</span>
             </template>
-            <el-menu-item index="/settings">
+            <!-- <el-menu-item index="/settings">
               <el-icon><Tools /></el-icon>
               <span>115开放平台授权</span>
+            </el-menu-item> -->
+            <el-menu-item index="/accounts">
+              <el-icon><Link /></el-icon>
+              <span>网盘账号管理</span>
             </el-menu-item>
             <el-menu-item index="/proxy">
               <el-icon><Link /></el-icon>
@@ -137,7 +141,6 @@ import {
   Setting,
   Menu,
   Upload,
-  Tools,
   ChatLineRound,
   UserFilled,
   VideoPlay,
@@ -150,6 +153,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { isMobile as checkIsMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 
 const route = useRoute()
 const router = useRouter()
@@ -159,7 +163,7 @@ const isMenuOpen = ref(false)
 
 // 检测是否为移动设备
 const checkMobile = () => {
-  isMobile.value = window.innerWidth <= 768
+  isMobile.value = checkIsMobile()
   if (!isMobile.value) {
     isMenuOpen.value = false
   }
@@ -225,13 +229,23 @@ const getDefaultOpeneds = () => {
   return openeds
 }
 
+// 组件挂载时加载数据
+let removeDeviceTypeListener: (() => void) | null = null
+
 onMounted(() => {
   checkMobile()
-  window.addEventListener('resize', checkMobile)
+  removeDeviceTypeListener = onDeviceTypeChange((newIsMobile) => {
+    isMobile.value = newIsMobile
+    if (!newIsMobile) {
+      isMenuOpen.value = false
+    }
+  })
 })
 
 onUnmounted(() => {
-  window.removeEventListener('resize', checkMobile)
+  if (removeDeviceTypeListener) {
+    removeDeviceTypeListener()
+  }
 })
 </script>
 

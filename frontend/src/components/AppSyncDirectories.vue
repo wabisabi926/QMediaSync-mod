@@ -53,20 +53,8 @@
                 <span class="info-value">{{ row.account_name }}</span>
               </div>
               <div class="info-item">
-                <span class="info-label">本地目录:</span>
+                <span class="info-label">目标路径:</span>
                 <span class="info-value">{{ row.local_path }}</span>
-              </div>
-              <div class="info-item" v-if="row.source_type !== 'local'">
-                <span class="info-label">网盘目录:</span>
-                <span class="info-value">
-                  <el-tooltip
-                    class="box-item"
-                    :content="'目录ID：' + row.base_cid"
-                    placement="bottom"
-                  >
-                    {{ row.remote_path }}
-                  </el-tooltip>
-                </span>
               </div>
 
               <div class="info-item" v-if="row.source_type === '115'">

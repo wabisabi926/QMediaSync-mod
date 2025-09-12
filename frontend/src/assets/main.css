@@ -1,5 +1,7 @@
 @import './base.css';
-
+body {
+  font-family: '微软雅黑', Arial, sans-serif;
+}
 #app {
   width: 100%;
   margin: 0 auto;
@@ -35,10 +37,10 @@
   }
 
   /* 优化点击区域 */
-  .el-button {
+  /* .el-button {
     min-height: 44px;
     padding: 8px 16px;
-  }
+  } */
 
   /* 优化表单间距 */
   .el-form-item {
@@ -50,14 +52,17 @@
     margin-bottom: 12px;
   }
 }
+.main-content-container {
+  /* max-width: 800px; */
+}
 
 /* 小屏设备优化 */
 @media (max-width: 480px) {
-  .el-button {
+  /* .el-button {
     min-height: 40px;
     padding: 6px 12px;
     font-size: 14px;
-  }
+  } */
 
   .el-form-item {
     margin-bottom: 14px;

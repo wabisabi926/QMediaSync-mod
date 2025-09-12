@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>123云盘授权</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            text-align: center;
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        .btn:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>123云盘授权</h1>
+        <p>点击下面的按钮完成授权</p>
+        <button class="btn" onclick="authorize()">授权123云盘</button>
+        <button class="btn" onclick="cancel()">取消</button>
+        
+        <div id="result" style="margin-top: 20px;"></div>
+    </div>
+
+    <script>
+        function authorize() {
+            document.getElementById('result').innerHTML = '<p style="color: green;">授权成功！正在返回应用...</p>';
+            
+            // 模拟授权过程，2秒后返回
+            setTimeout(() => {
+                // 这里应该调用实际的授权API
+                // 授权成功后返回应用
+                if (window.opener) {
+                    window.opener.postMessage({type: '123_auth_success'}, '*');
+                    window.close();
+                } else {
+                    // 如果没有opener，可能是直接访问的页面
+                    alert('授权成功！请关闭此页面并返回应用。');
+                }
+            }, 2000);
+        }
+        
+        function cancel() {
+            if (window.opener) {
+                window.opener.postMessage({type: '123_auth_cancel'}, '*');
+                window.close();
+            } else {
+                window.close();
+            }
+        }
+        
+        // 监听来自应用的消息
+        window.addEventListener('message', function(event) {
+            if (event.data.type === 'check_auth_status') {
+                // 这里应该检查实际的授权状态
+                event.source.postMessage({type: '123_auth_status', status: 'pending'}, '*');
+            }
+        });
+    </script>
+</body>
+</html>

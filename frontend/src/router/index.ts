@@ -7,6 +7,7 @@ import AppStrmSettings from '@/components/AppStrmSettings.vue'
 import AppSyncRecords from '@/components/AppSyncRecords.vue'
 import AppSyncTaskDetail from '@/components/AppSyncTaskDetail.vue'
 import AppSyncDirectories from '@/components/AppSyncDirectories.vue'
+import AppCloudAccounts from '@/components/AppCloudAccounts.vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
@@ -26,6 +27,15 @@ const routes = [
     component: AppHome,
     meta: {
       title: '首页',
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/accounts',
+    name: 'accounts',
+    component: AppCloudAccounts,
+    meta: {
+      title: '网盘账号管理',
       requiresAuth: true,
     },
   },

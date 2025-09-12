@@ -272,22 +272,22 @@ const uploadBatchFiles = async () => {
     uploadProgress.value.percentage = 0
     uploadProgress.value.text = '准备批量上传...'
 
-    const formData = new URLSearchParams()
     // 将每行URL转换为字符串数组，然后以JSON格式发送
     const lines = batchUploadData.file_list.trim().split('\n')
     const urlArray = lines.map((line) => line.trim()).filter((line) => line.length > 0) // 过滤空行
 
-    formData.append('file_list', JSON.stringify(urlArray))
-    // 添加115网盘根目录信息
-    formData.append('root_dir_id', selectedDirId.value)
-    formData.append('root_dir_path', selectedDirPath.value)
+    const requestData = {
+      file_list: urlArray,
+      root_dir_id: selectedDirId.value,
+      root_dir_path: selectedDirPath.value
+    }
 
     uploadProgress.value.percentage = 50
     uploadProgress.value.text = '正在处理批量文件...'
 
-    const response = await http?.post(`${SERVER_URL}/upload/batch-instant`, formData, {
+    const response = await http?.post(`${SERVER_URL}/upload/batch-instant`, requestData, {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
       },
     })
 

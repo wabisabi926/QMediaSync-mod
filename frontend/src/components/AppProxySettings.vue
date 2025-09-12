@@ -1,84 +1,72 @@
 <template>
-  <div class="proxy-settings-container">
-    <!-- 网络代理设置卡片 -->
-    <el-card class="proxy-settings-card" shadow="hover">
-      <template #header>
-        <h2 class="card-title">网络代理设置</h2>
-        <p class="card-subtitle">配置网络代理以访问被限制的网络服务</p>
-      </template>
-
-      <div class="proxy-content">
-        <!-- 网络代理设置部分 -->
-        <div class="proxy-section">
-          <h3 class="section-title">
-            <el-icon><Link /></el-icon>
-            HTTP代理配置
-          </h3>
-          <p class="section-description">配置HTTP代理以访问被限制的网络服务（如Telegram API）</p>
-
-          <el-form :model="proxyData" :label-position="'top'" class="proxy-form">
-            <el-form-item label="HTTP代理地址" prop="proxy_url">
-              <el-input
-                v-model="proxyData.proxy_url"
-                placeholder="例如: http://127.0.0.1:7890 或 http://proxy.example.com:8080"
-                :disabled="proxyLoading"
-                clearable
-              />
-              <div class="form-help">
-                支持HTTP代理，格式：http://[用户名:密码@]主机:端口，留空表示不使用代理
-              </div>
-            </el-form-item>
-
-            <el-form-item>
-              <div class="proxy-actions">
-                <el-button
-                  type="primary"
-                  @click="testProxy"
-                  :loading="testingProxy"
-                  :disabled="proxyLoading"
-                  size="large"
-                >
-                  <el-icon><Connection /></el-icon>
-                  测试代理连接
-                </el-button>
-
-                <el-button
-                  type="success"
-                  @click="saveProxy"
-                  :loading="proxyLoading"
-                  :disabled="testingProxy"
-                  size="large"
-                >
-                  <el-icon><Check /></el-icon>
-                  保存代理设置
-                </el-button>
-
-                <el-button
-                  type="warning"
-                  @click="resetProxy"
-                  :disabled="proxyLoading || testingProxy"
-                  size="large"
-                >
-                  <el-icon><RefreshLeft /></el-icon>
-                  重置设置
-                </el-button>
-              </div>
-            </el-form-item>
-          </el-form>
-
-          <!-- 代理状态显示 -->
-          <el-alert
-            v-if="proxyStatus"
-            :title="proxyStatus.title"
-            :type="proxyStatus.type"
-            :description="proxyStatus.description"
-            :closable="false"
-            show-icon
-            class="proxy-status"
-          />
+  <!-- 网络代理设置部分 -->
+  <div class="main-content-container proxy-section">
+    <h3 class="section-title">
+      <el-icon><Link /></el-icon>
+      HTTP代理配置
+    </h3>
+    <el-form :model="proxyData" :label-position="'top'" class="proxy-form">
+      <el-form-item label="HTTP代理地址" prop="proxy_url">
+        <el-input
+          v-model="proxyData.proxy_url"
+          placeholder="例如: http://127.0.0.1:7890 或 http://proxy.example.com:8080"
+          :disabled="proxyLoading"
+          clearable
+        />
+        <div class="form-help">
+          支持HTTP代理，格式：http://[用户名:密码@]主机:端口，留空表示不使用代理
         </div>
-      </div>
-    </el-card>
+      </el-form-item>
+
+      <el-row class="proxy-actions">
+        <el-col style="margin-bottom: 10px" :xs="24" sm="8" :md="8" :lg="6">
+          <el-button
+            type="primary"
+            @click="testProxy"
+            :loading="testingProxy"
+            :disabled="proxyLoading"
+            size="large"
+          >
+            <el-icon><Connection /></el-icon>
+            测试代理连接
+          </el-button>
+        </el-col>
+        <el-col style="margin-bottom: 10px" :xs="24" sm="8" :md="8" :lg="6">
+          <el-button
+            type="success"
+            @click="saveProxy"
+            :loading="proxyLoading"
+            :disabled="testingProxy"
+            size="large"
+          >
+            <el-icon><Check /></el-icon>
+            保存代理设置
+          </el-button>
+        </el-col>
+        <el-col style="margin-bottom: 10px" :xs="24" :sm="8" :md="8" :lg="6">
+          <el-button
+            type="warning"
+            @click="resetProxy"
+            :disabled="proxyLoading || testingProxy"
+            size="large"
+          >
+            <el-icon><RefreshLeft /></el-icon>
+            重置设置
+          </el-button>
+        </el-col>
+      </el-row>
+    </el-form>
+
+    <!-- 代理状态显示 -->
+    <el-alert
+      v-if="proxyStatus"
+      :title="proxyStatus.title"
+      :type="proxyStatus.type"
+      :description="proxyStatus.description"
+      :closable="false"
+      show-icon
+      class="proxy-status"
+    />
   </div>
 </template>
 
@@ -87,6 +75,7 @@ import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { Link, Connection, Check, RefreshLeft } from '@element-plus/icons-vue'
 import { inject, onMounted, reactive, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 
 interface ProxyData {
   proxy_url: string
@@ -111,32 +100,36 @@ const proxyData = reactive<ProxyData>({
 
 // 测试代理连接
 const testProxy = async () => {
+  if (!proxyData.proxy_url.trim()) {
+    ElMessage.warning('请输入代理服务器地址')
+    return
+  }
+
   try {
     testingProxy.value = true
     proxyStatus.value = null
 
-    const testData = new URLSearchParams()
-    testData.append('http_proxy', proxyData.proxy_url)
+    const requestData = {
+      http_proxy: proxyData.proxy_url,
+    }
 
-    const response = await http?.post(`${SERVER_URL}/setting/test-http-proxy`, testData, {
+    const response = await http?.post(`${SERVER_URL}/setting/test-http-proxy`, requestData, {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
       },
     })
 
     if (response?.data.code === 200) {
       proxyStatus.value = {
-        title: '代理连接测试成功',
+        title: '代理测试成功',
         type: 'success',
-        description: proxyData.proxy_url
-          ? `代理服务器 ${proxyData.proxy_url} 连接正常`
-          : '直连网络连接正常',
+        description: '代理服务器连接正常，可以正常使用',
       }
     } else {
       proxyStatus.value = {
-        title: '代理连接测试失败',
+        title: '代理测试失败',
         type: 'error',
-        description: response?.data.msg || '无法连接到代理服务器，请检查地址和端口',
+        description: response?.data.msg || '无法连接到代理服务器，请检查配置',
       }
     }
   } catch (error) {
@@ -157,12 +150,13 @@ const saveProxy = async () => {
     proxyLoading.value = true
     proxyStatus.value = null
 
-    const saveData = new URLSearchParams()
-    saveData.append('http_proxy', proxyData.proxy_url)
+    const requestData = {
+      http_proxy: proxyData.proxy_url,
+    }
 
-    const response = await http?.post(`${SERVER_URL}/setting/update-http-proxy`, saveData, {
+    const response = await http?.post(`${SERVER_URL}/setting/update-http-proxy`, requestData, {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
       },
     })
 
@@ -286,57 +280,7 @@ onMounted(() => {
   line-height: 1.4;
 }
 
-.proxy-actions {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-
 .proxy-status {
   margin-top: 16px;
-}
-
-/* 移动端适配 */
-@media (max-width: 768px) {
-  .proxy-settings-card {
-    margin: 0;
-  }
-
-  .card-title {
-    font-size: 20px;
-  }
-
-  .card-subtitle {
-    font-size: 13px;
-  }
-
-  .proxy-actions {
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .proxy-actions .el-button {
-    width: 100%;
-  }
-
-  .section-title {
-    font-size: 16px;
-  }
-}
-
-/* 小屏移动设备 */
-@media (max-width: 480px) {
-  .card-title {
-    font-size: 18px;
-  }
-
-  .section-title {
-    font-size: 15px;
-  }
-
-  .section-description {
-    font-size: 13px;
-  }
 }
 </style>

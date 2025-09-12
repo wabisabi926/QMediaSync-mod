@@ -162,6 +162,7 @@ import {
 } from '@element-plus/icons-vue'
 import { inject, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { formatDateTime } from '@/utils/timeUtils'
 
 // 任务详情数据结构
 interface TaskInfo {
@@ -292,23 +293,6 @@ const getSubStatusText = (subStatus: number) => {
     default:
       return '未知'
   }
-}
-
-// 格式化时间戳为 YYYY-MM-DD HH:mm:ss 格式
-const formatDateTime = (timestamp: number) => {
-  if (!timestamp) return '-'
-  const date = new Date(timestamp * 1000) // 时间戳转毫秒
-  return date
-    .toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    })
-    .replace(/\//g, '-')
 }
 
 // 计算执行时长

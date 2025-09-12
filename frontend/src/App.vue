@@ -33,9 +33,6 @@
           :default-openeds="getDefaultOpeneds()"
           router
           class="el-menu-vertical"
-          background-color="#545c64"
-          text-color="#fff"
-          active-text-color="#ffd04b"
           @select="handleMenuSelect"
         >
           <el-menu-item index="/">
@@ -47,9 +44,13 @@
               <el-icon><Setting /></el-icon>
               <span>系统设置</span>
             </template>
-            <el-menu-item index="/settings">
+            <!-- <el-menu-item index="/settings">
               <el-icon><Tools /></el-icon>
               <span>115开放平台授权</span>
+            </el-menu-item> -->
+            <el-menu-item index="/accounts">
+              <el-icon><Link /></el-icon>
+              <span>网盘账号管理</span>
             </el-menu-item>
             <el-menu-item index="/proxy">
               <el-icon><Link /></el-icon>
@@ -137,7 +138,6 @@ import {
   Setting,
   Menu,
   Upload,
-  Tools,
   ChatLineRound,
   UserFilled,
   VideoPlay,
@@ -150,6 +150,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { isMobile as checkIsMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 
 const route = useRoute()
 const router = useRouter()
@@ -159,7 +160,7 @@ const isMenuOpen = ref(false)
 
 // 检测是否为移动设备
 const checkMobile = () => {
-  isMobile.value = window.innerWidth <= 768
+  isMobile.value = checkIsMobile()
   if (!isMobile.value) {
     isMenuOpen.value = false
   }
@@ -225,13 +226,23 @@ const getDefaultOpeneds = () => {
   return openeds
 }
 
+// 组件挂载时加载数据
+let removeDeviceTypeListener: (() => void) | null = null
+
 onMounted(() => {
   checkMobile()
-  window.addEventListener('resize', checkMobile)
+  removeDeviceTypeListener = onDeviceTypeChange((newIsMobile) => {
+    isMobile.value = newIsMobile
+    if (!newIsMobile) {
+      isMenuOpen.value = false
+    }
+  })
 })
 
 onUnmounted(() => {
-  window.removeEventListener('resize', checkMobile)
+  if (removeDeviceTypeListener) {
+    removeDeviceTypeListener()
+  }
 })
 </script>
 
@@ -259,7 +270,7 @@ onUnmounted(() => {
 }
 
 .el-aside {
-  background-color: #545c64;
+  background-color: rgb(244 244 245);
   transition: transform 0.3s ease;
   z-index: 1000;
   display: flex;
@@ -268,8 +279,8 @@ onUnmounted(() => {
 
 .user-info {
   padding: 20px 15px;
-  border-bottom: 1px solid #434a50;
-  background-color: #434a50;
+  /* border-bottom: 1px solid #6e7072; */
+  /* background-color: #9ea2a5; */
   display: flex;
   align-items: center;
   gap: 12px;
@@ -293,7 +304,7 @@ onUnmounted(() => {
 }
 
 .username {
-  color: #fff;
+  /* color: #fff; */
   font-size: 14px;
   font-weight: 500;
   margin-bottom: 4px;
@@ -312,13 +323,14 @@ onUnmounted(() => {
 }
 
 .el-menu-vertical {
-  border-right: none;
+  background-color: rgb(244 244 245);
+  /* border-right: none; */
   flex: 1;
 }
 
 .main-content {
   padding: 20px;
-  background-color: #f5f5f5;
+  background-color: #ffffff;
   overflow-y: auto;
   transition: margin-left 0.3s ease;
 }

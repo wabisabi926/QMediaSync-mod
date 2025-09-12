@@ -187,17 +187,18 @@ const startImport = async () => {
     importProgress.value.percentage = 0
     importProgress.value.text = '准备扫描媒体库...'
 
-    const formData = new URLSearchParams()
-    formData.append('library_path', importData.library_path)
-    formData.append('file_types', importData.file_types.join(','))
-    formData.append('target_dir', importData.target_dir || '/')
+    const requestData = {
+      library_path: importData.library_path,
+      file_types: importData.file_types.join(','),
+      target_dir: importData.target_dir || '/'
+    }
 
     importProgress.value.percentage = 30
     importProgress.value.text = '正在扫描文件...'
 
-    const response = await http?.post(`${SERVER_URL}/import/media-library`, formData, {
+    const response = await http?.post(`${SERVER_URL}/import/media-library`, requestData, {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
       },
     })
 

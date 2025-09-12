@@ -99,49 +99,6 @@
         <el-divider />
       </div>
     </el-card>
-
-    <!-- 其他设置快捷入口 -->
-    <el-card class="settings-links-card" shadow="hover">
-      <template #header>
-        <h2 class="card-title">设置管理</h2>
-        <p class="card-subtitle">快速访问各项系统设置</p>
-      </template>
-
-      <div class="settings-links">
-        <el-button
-          type="success"
-          plain
-          @click="$router.push('/settings/user')"
-          size="large"
-          class="settings-link-btn"
-        >
-          <el-icon><UserFilled /></el-icon>
-          <span>用户账号设置</span>
-        </el-button>
-
-        <el-button
-          type="warning"
-          plain
-          @click="$router.push('/settings/telegram')"
-          size="large"
-          class="settings-link-btn"
-        >
-          <el-icon><ChatLineRound /></el-icon>
-          <span>Telegram通知设置</span>
-        </el-button>
-
-        <el-button
-          type="info"
-          plain
-          @click="$router.push('/settings/strm')"
-          size="large"
-          class="settings-link-btn"
-        >
-          <el-icon><VideoPlay /></el-icon>
-          <span>STRM配置</span>
-        </el-button>
-      </div>
-    </el-card>
   </div>
 
   <!-- 二维码登录对话框 -->
@@ -208,21 +165,19 @@ import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import QRCode from 'qrcode'
 import {
-  Upload,
-  ChatLineRound,
   User,
   Key,
   Search,
-  UserFilled,
   Loading,
   Iphone,
   SuccessFilled,
   CircleCheckFilled,
   WarningFilled,
   CircleCloseFilled,
-  VideoPlay,
 } from '@element-plus/icons-vue'
 import { inject, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { formatStorage, formatExpireTime } from '@/utils/timeUtils'
+import { isMobile as checkIsMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 
 interface LoginStatus {
   title: string
@@ -269,18 +224,49 @@ const loginData = reactive<LoginData>({
   device_type: 'web', // 默认使用网页设备类型
 })
 
-// 设备类型选项（已隐藏，使用默认的web类型）
-// const deviceTypes: Record<string, string> = {
-//   web: '网页',
-//   qandriod: 'Android',
-//   qios: 'iOS',
-//   alipaymini: '支付宝小程序',
-//   wechatmini: '微信小程序',
-// }
-
 // 检测是否为移动设备
 const checkMobile = () => {
-  isMobile.value = window.innerWidth <= 768
+  isMobile.value = checkIsMobile()
+}
+
+// 计算存储使用百分比
+const getStoragePercent = (used: number, total: number): number => {
+  if (!total || total === 0) return 0
+  return Math.round((used / total) * 100)
+}
+
+// 获取进度条颜色
+const getProgressColor = (used: number, total: number): string => {
+  const percent = getStoragePercent(used, total)
+  if (percent >= 90) return '#f56c6c'
+  if (percent >= 70) return '#e6a23c'
+  return '#67c23a'
+}
+
+// 获取会员等级样式类
+const getMemberClass = (level: string): string => {
+  const lowerLevel = level.toLowerCase()
+  if (lowerLevel.includes('vip') || lowerLevel.includes('会员')) {
+    return 'member-vip'
+  }
+  return 'member-normal'
+}
+
+// 获取到期时间样式类
+const getExpireClass = (expireTime: string): string => {
+  if (!expireTime) return 'expire-unknown'
+
+  const date = new Date(expireTime)
+  if (isNaN(date.getTime())) return 'expire-unknown'
+
+  const now = new Date()
+  const diffTime = date.getTime() - now.getTime()
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+  if (diffDays < 0) return 'expire-expired'
+  if (diffDays <= 7) return 'expire-warning'
+  if (diffDays <= 30) return 'expire-caution'
+  return 'expire-normal'
 }
 
 // 生成二维码
@@ -310,12 +296,13 @@ const handle115Login = async () => {
     accountInfo.value = null
 
     // 获取二维码
-    const formData = new URLSearchParams()
-    formData.append('device_type', loginData.device_type)
+    const requestData = {
+      device_type: loginData.device_type,
+    }
 
-    const response = await http?.post(`${SERVER_URL}/auth/115-qrcode-open`, formData, {
+    const response = await http?.post(`${SERVER_URL}/auth/115-qrcode-open`, requestData, {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
       },
     })
 
@@ -395,79 +382,6 @@ const checkLoginStatus = async () => {
   }
 }
 
-// 格式化存储空间
-const formatStorage = (bytes: number): string => {
-  if (!bytes || bytes === 0) return '0 B'
-
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
-  const i = Math.floor(Math.log(bytes) / Math.log(1024))
-  const size = bytes / Math.pow(1024, i)
-
-  return `${size.toFixed(i === 0 ? 0 : 2)} ${sizes[i]}`
-}
-
-// 计算存储使用百分比
-const getStoragePercent = (used: number, total: number): number => {
-  if (!total || total === 0) return 0
-  return Math.round((used / total) * 100)
-}
-
-// 获取进度条颜色
-const getProgressColor = (used: number, total: number): string => {
-  const percent = getStoragePercent(used, total)
-  if (percent >= 90) return '#f56c6c'
-  if (percent >= 70) return '#e6a23c'
-  return '#67c23a'
-}
-
-// 获取会员等级样式类
-const getMemberClass = (level: string): string => {
-  const lowerLevel = level.toLowerCase()
-  if (lowerLevel.includes('vip') || lowerLevel.includes('会员')) {
-    return 'member-vip'
-  }
-  return 'member-normal'
-}
-
-// 格式化到期时间
-const formatExpireTime = (expireTime: string): string => {
-  if (!expireTime) return '未知'
-
-  const date = new Date(expireTime)
-  if (isNaN(date.getTime())) return expireTime
-
-  const now = new Date()
-  const diffTime = date.getTime() - now.getTime()
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-  if (diffDays < 0) {
-    return '已过期'
-  } else if (diffDays === 0) {
-    return '今天到期'
-  } else if (diffDays <= 30) {
-    return `${diffDays}天后到期`
-  } else {
-    return date.toLocaleDateString('zh-CN')
-  }
-}
-
-// 获取到期时间样式类
-const getExpireClass = (expireTime: string): string => {
-  if (!expireTime) return 'expire-unknown'
-
-  const date = new Date(expireTime)
-  if (isNaN(date.getTime())) return 'expire-unknown'
-
-  const now = new Date()
-  const diffTime = date.getTime() - now.getTime()
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-  if (diffDays < 0) return 'expire-expired'
-  if (diffDays <= 7) return 'expire-warning'
-  if (diffDays <= 30) return 'expire-caution'
-  return 'expire-normal'
-}
-
 // 开始轮询二维码状态
 const startPolling = () => {
   if (pollingTimer.value) {
@@ -492,20 +406,18 @@ const checkQRStatus = async () => {
   if (!qrCodeData.value) return
 
   try {
-    // 将扫码数据转换为form表单格式
-    const formData = new URLSearchParams()
-    Object.entries(qrCodeData.value).forEach(([key, value]) => {
-      formData.append(key, String(value))
-    })
-    // 添加设备类型参数
-    formData.append('device_type', loginData.device_type)
+    // 构造JSON请求数据
+    const requestData = {
+      ...qrCodeData.value,
+      device_type: loginData.device_type,
+    }
 
     const response = await http?.post(
       `${SERVER_URL}/auth/115-qrcode-status`,
-      formData, // 传递form表单格式的数据
+      requestData, // 传递JSON格式的数据
       {
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Type': 'application/json',
         },
       },
     )
@@ -561,12 +473,13 @@ const refreshQRCode = async () => {
   qrCodeUrl.value = ''
 
   try {
-    const formData = new URLSearchParams()
-    formData.append('device_type', loginData.device_type)
+    const requestData = {
+      device_type: loginData.device_type,
+    }
 
-    const response = await http?.post(`${SERVER_URL}/auth/115-qrcode`, formData, {
+    const response = await http?.post(`${SERVER_URL}/auth/115-qrcode`, requestData, {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
       },
     })
 
@@ -584,14 +497,21 @@ const refreshQRCode = async () => {
   }
 }
 
+// 组件挂载时加载数据
+let removeDeviceTypeListener: (() => void) | null = null
+
 onMounted(() => {
   checkMobile()
-  window.addEventListener('resize', checkMobile)
+  removeDeviceTypeListener = onDeviceTypeChange((newIsMobile) => {
+    isMobile.value = newIsMobile
+  })
   checkLoginStatus()
 })
 
 onUnmounted(() => {
-  window.removeEventListener('resize', checkMobile)
+  if (removeDeviceTypeListener) {
+    removeDeviceTypeListener()
+  }
   stopPolling()
 })
 </script>

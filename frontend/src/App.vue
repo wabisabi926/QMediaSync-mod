@@ -33,9 +33,6 @@
           :default-openeds="getDefaultOpeneds()"
           router
           class="el-menu-vertical"
-          background-color="#545c64"
-          text-color="#fff"
-          active-text-color="#ffd04b"
           @select="handleMenuSelect"
         >
           <el-menu-item index="/">
@@ -273,7 +270,7 @@ onUnmounted(() => {
 }
 
 .el-aside {
-  background-color: #545c64;
+  background-color: rgb(244 244 245);
   transition: transform 0.3s ease;
   z-index: 1000;
   display: flex;
@@ -282,8 +279,8 @@ onUnmounted(() => {
 
 .user-info {
   padding: 20px 15px;
-  border-bottom: 1px solid #434a50;
-  background-color: #434a50;
+  /* border-bottom: 1px solid #6e7072; */
+  /* background-color: #9ea2a5; */
   display: flex;
   align-items: center;
   gap: 12px;
@@ -307,7 +304,7 @@ onUnmounted(() => {
 }
 
 .username {
-  color: #fff;
+  /* color: #fff; */
   font-size: 14px;
   font-weight: 500;
   margin-bottom: 4px;
@@ -326,13 +323,14 @@ onUnmounted(() => {
 }
 
 .el-menu-vertical {
-  border-right: none;
+  background-color: rgb(244 244 245);
+  /* border-right: none; */
   flex: 1;
 }
 
 .main-content {
   padding: 20px;
-  background-color: #f5f5f5;
+  background-color: #ffffff;
   overflow-y: auto;
   transition: margin-left 0.3s ease;
 }

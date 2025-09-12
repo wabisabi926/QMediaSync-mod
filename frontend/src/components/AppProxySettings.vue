@@ -1,84 +1,72 @@
 <template>
-  <div class="proxy-settings-container">
-    <!-- 网络代理设置卡片 -->
-    <el-card class="proxy-settings-card" shadow="hover">
-      <template #header>
-        <h2 class="card-title">网络代理设置</h2>
-        <p class="card-subtitle">配置网络代理以访问被限制的网络服务</p>
-      </template>
-
-      <div class="proxy-content">
-        <!-- 网络代理设置部分 -->
-        <div class="proxy-section">
-          <h3 class="section-title">
-            <el-icon><Link /></el-icon>
-            HTTP代理配置
-          </h3>
-          <el-form :model="proxyData" :label-position="'top'" class="proxy-form">
-            <el-form-item label="HTTP代理地址" prop="proxy_url">
-              <el-input
-                v-model="proxyData.proxy_url"
-                placeholder="例如: http://127.0.0.1:7890 或 http://proxy.example.com:8080"
-                :disabled="proxyLoading"
-                clearable
-              />
-              <div class="form-help">
-                支持HTTP代理，格式：http://[用户名:密码@]主机:端口，留空表示不使用代理
-              </div>
-            </el-form-item>
-
-            <el-row class="proxy-actions">
-              <el-col style="margin-bottom: 10px" :xs="24" sm="8" :md="8" :lg="2">
-                <el-button
-                  type="primary"
-                  @click="testProxy"
-                  :loading="testingProxy"
-                  :disabled="proxyLoading"
-                  size="large"
-                >
-                  <el-icon><Connection /></el-icon>
-                  测试代理连接
-                </el-button>
-              </el-col>
-              <el-col style="margin-bottom: 10px" :xs="24" sm="8" :md="8" :lg="2">
-                <el-button
-                  type="success"
-                  @click="saveProxy"
-                  :loading="proxyLoading"
-                  :disabled="testingProxy"
-                  size="large"
-                >
-                  <el-icon><Check /></el-icon>
-                  保存代理设置
-                </el-button>
-              </el-col>
-              <el-col style="margin-bottom: 10px" :xs="24" :sm="8" :md="8" :lg="2">
-                <el-button
-                  type="warning"
-                  @click="resetProxy"
-                  :disabled="proxyLoading || testingProxy"
-                  size="large"
-                >
-                  <el-icon><RefreshLeft /></el-icon>
-                  重置设置
-                </el-button>
-              </el-col>
-            </el-row>
-          </el-form>
-
-          <!-- 代理状态显示 -->
-          <el-alert
-            v-if="proxyStatus"
-            :title="proxyStatus.title"
-            :type="proxyStatus.type"
-            :description="proxyStatus.description"
-            :closable="false"
-            show-icon
-            class="proxy-status"
-          />
+  <!-- 网络代理设置部分 -->
+  <div class="main-content-container proxy-section">
+    <h3 class="section-title">
+      <el-icon><Link /></el-icon>
+      HTTP代理配置
+    </h3>
+    <el-form :model="proxyData" :label-position="'top'" class="proxy-form">
+      <el-form-item label="HTTP代理地址" prop="proxy_url">
+        <el-input
+          v-model="proxyData.proxy_url"
+          placeholder="例如: http://127.0.0.1:7890 或 http://proxy.example.com:8080"
+          :disabled="proxyLoading"
+          clearable
+        />
+        <div class="form-help">
+          支持HTTP代理，格式：http://[用户名:密码@]主机:端口，留空表示不使用代理
         </div>
-      </div>
-    </el-card>
+      </el-form-item>
+
+      <el-row class="proxy-actions">
+        <el-col style="margin-bottom: 10px" :xs="24" sm="8" :md="8" :lg="6">
+          <el-button
+            type="primary"
+            @click="testProxy"
+            :loading="testingProxy"
+            :disabled="proxyLoading"
+            size="large"
+          >
+            <el-icon><Connection /></el-icon>
+            测试代理连接
+          </el-button>
+        </el-col>
+        <el-col style="margin-bottom: 10px" :xs="24" sm="8" :md="8" :lg="6">
+          <el-button
+            type="success"
+            @click="saveProxy"
+            :loading="proxyLoading"
+            :disabled="testingProxy"
+            size="large"
+          >
+            <el-icon><Check /></el-icon>
+            保存代理设置
+          </el-button>
+        </el-col>
+        <el-col style="margin-bottom: 10px" :xs="24" :sm="8" :md="8" :lg="6">
+          <el-button
+            type="warning"
+            @click="resetProxy"
+            :disabled="proxyLoading || testingProxy"
+            size="large"
+          >
+            <el-icon><RefreshLeft /></el-icon>
+            重置设置
+          </el-button>
+        </el-col>
+      </el-row>
+    </el-form>
+
+    <!-- 代理状态显示 -->
+    <el-alert
+      v-if="proxyStatus"
+      :title="proxyStatus.title"
+      :type="proxyStatus.type"
+      :description="proxyStatus.description"
+      :closable="false"
+      show-icon
+      class="proxy-status"
+    />
   </div>
 </template>
 

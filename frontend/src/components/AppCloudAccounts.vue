@@ -1,84 +1,68 @@
 <template>
-  <div class="cloud-accounts-container">
-    <!-- 网盘账号管理卡片 -->
-    <el-card class="cloud-accounts-card" shadow="hover">
-      <template #header>
-        <h2 class="card-title">网盘账号管理</h2>
-      </template>
-      <div class="accounts-content">
-        <!-- 操作提示 -->
-        <el-alert
-          title="操作提示"
-          type="info"
-          description="先添加账号，然后点击列表中操作区域的授权按钮完成账号绑定"
-          :closable="false"
-          show-icon
-          class="operation-tip"
-        />
+  <div class="main-content-container accounts-content">
+    <!-- 操作提示 -->
+    <el-alert
+      title="操作提示"
+      type="info"
+      description="先添加账号，然后点击列表中操作区域的授权按钮完成账号绑定"
+      :closable="false"
+      show-icon
+      class="operation-tip"
+    />
 
-        <!-- 添加账号按钮 -->
-        <div class="add-account-button">
-          <el-button type="primary" @click="showAddAccountDialog = true">添加账号</el-button>
-        </div>
+    <!-- 添加账号按钮 -->
+    <div class="add-account-button">
+      <el-button type="primary" @click="showAddAccountDialog = true">添加账号</el-button>
+    </div>
 
-        <!-- 账号卡片列表 -->
-        <div
-          v-loading="loading"
-          element-loading-text="加载中..."
-          class="accounts-loading-container"
+    <!-- 账号卡片列表 -->
+    <div v-loading="loading" element-loading-text="加载中..." class="accounts-loading-container">
+      <el-row :gutter="20">
+        <el-col
+          style="margin-bottom: 10px"
+          :xs="24"
+          :sm="12"
+          :md="6"
+          :lg="4"
+          v-for="account in accounts"
+          :key="account.id"
         >
-          <el-row :gutter="20">
-            <el-col
-              style="margin-bottom: 10px"
-              :xs="24"
-              :sm="12"
-              :md="6"
-              :lg="4"
-              v-for="account in accounts"
-              :key="account.id"
-            >
-              <el-card class="account-card" shadow="hover">
-                <template #header>
-                  <div class="account-card-header">
-                    <div class="account-info">
-                      <h3 class="account-name">#{{ account.id }} {{ account.name }}</h3>
-                      <el-tag :type="sourceTypeTagMap[account.type]" effect="dark">
-                        {{ sourceTypeMap[account.type] }}
-                      </el-tag>
-                    </div>
-                    <div>
-                      <el-tag v-if="account.token" type="success" size="large">已授权</el-tag>
-                      <el-tag v-else type="danger" size="large">未授权</el-tag>
-                    </div>
-                  </div>
-                </template>
-                <div class="account-card-body">
-                  <el-row justify="space-between" v-if="account.token">
-                    <el-col :span="12"> <strong>用户ID:</strong> {{ account.userId }} </el-col>
-                    <el-col :span="12"> <strong>用户名:</strong> {{ account.username }} </el-col>
-                  </el-row>
-                  <el-row>
-                    <el-col :span="24"> <strong>添加时间:</strong> {{ account.addTime }} </el-col>
-                  </el-row>
+          <el-card class="account-card" shadow="hover">
+            <template #header>
+              <div class="account-card-header">
+                <div class="account-info">
+                  <h3 class="account-name">#{{ account.id }} {{ account.name }}</h3>
+                  <el-tag :type="sourceTypeTagMap[account.type]" effect="dark">
+                    {{ sourceTypeMap[account.type] }}
+                  </el-tag>
                 </div>
-                <template #footer>
-                  <div class="account-card-footer">
-                    <el-button type="danger" @click="handleDelete(account)"> 删除 </el-button>
-                    <el-button
-                      v-if="!account.token"
-                      type="warning"
-                      @click="handleAuthorize(account)"
-                    >
-                      授权
-                    </el-button>
-                  </div>
-                </template>
-              </el-card>
-            </el-col>
-          </el-row>
-        </div>
-      </div>
-    </el-card>
+                <div>
+                  <el-tag v-if="account.token" type="success" size="large">已授权</el-tag>
+                  <el-tag v-else type="danger" size="large">未授权</el-tag>
+                </div>
+              </div>
+            </template>
+            <div class="account-card-body">
+              <el-row justify="space-between" v-if="account.token">
+                <el-col :span="12"> <strong>用户ID:</strong> {{ account.userId }} </el-col>
+                <el-col :span="12"> <strong>用户名:</strong> {{ account.username }} </el-col>
+              </el-row>
+              <el-row>
+                <el-col :span="24"> <strong>添加时间:</strong> {{ account.addTime }} </el-col>
+              </el-row>
+            </div>
+            <template #footer>
+              <div class="account-card-footer">
+                <el-button type="danger" @click="handleDelete(account)"> 删除 </el-button>
+                <el-button v-if="!account.token" type="warning" @click="handleAuthorize(account)">
+                  授权
+                </el-button>
+              </div>
+            </template>
+          </el-card>
+        </el-col>
+      </el-row>
+    </div>
     <!-- 添加账号对话框 -->
     <el-dialog v-model="showAddAccountDialog" title="添加账号" :width="isMobile ? '90%' : '500px'">
       <el-form :model="newAccountForm" label-width="80px">
@@ -448,7 +432,7 @@ const startPolling = (accountId?: number) => {
 
   pollingTimer.value = setInterval(async () => {
     await checkQRStatus(accountId)
-  }, 10000) // 每10秒检查一次
+  }, 500) // 每500毫秒检查一次
 }
 
 // 停止轮询

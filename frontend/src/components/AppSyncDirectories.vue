@@ -1,6 +1,6 @@
 <template>
-  <div class="sync-directories-container full-width-container">
-    <el-card shadow="hover" class="full-width-card">
+  <div class="main-content-container sync-directories-container full-width-container">
+    <el-card shadow="none" class="full-width-card">
       <template #header>
         <div class="card-header">
           <div class="header-content">
@@ -70,6 +70,27 @@
               <div class="info-item">
                 <span class="info-label">修改时间:</span>
                 <span class="info-value">{{ formatTime(row.updated_at) }}</span>
+              </div>
+
+              <div class="info-item">
+                <el-tooltip
+                  class="box-item"
+                  effect="dark"
+                  content="开启后会根据strm设置中的cron表达式定时同步数据，如果该同步目录内的资源变动概率较小，建议关闭定时同步，然后有变动时手动同步"
+                  placement="bottom"
+                >
+                  <span class="info-label">
+                    <el-icon><Warning /></el-icon> 定时同步:
+                  </span>
+                </el-tooltip>
+                <el-switch
+                  v-model="row.enable_cron"
+                  :active-value="true"
+                  :inactive-value="false"
+                  @change="toggleCron(row)"
+                  active-color="#13ce66"
+                  inactive-color="#dcdfe6"
+                />
               </div>
             </div>
             <template #footer>
@@ -141,7 +162,13 @@
               :value="typeItem.value"
             ></el-option>
           </el-select>
-          <div class="form-tip">选择同步源的类型</div>
+          <div class="form-tip">
+            <div v-if="addForm.source_type === 'local'">
+              本地目录可以通过CD2间接支持更多网盘，请将CD2的本地挂载目录映射到容器中（如果使用docker）,然后选择该目录
+            </div>
+            <div v-if="addForm.source_type === '115'">需要先添加用于同步的115账号并授权</div>
+            <div v-if="addForm.source_type === '123'">需要先添加用于同步的123账号并授权</div>
+          </div>
         </el-form-item>
         <el-form-item label="网盘账号" prop="account_id" v-if="addForm.source_type !== 'local'">
           <el-select
@@ -241,6 +268,44 @@
             </p>
           </div>
         </el-form-item>
+
+        <el-form-item label="是否自定义设置" prop="custom_config">
+          <el-switch
+            v-model="addForm.custom_config"
+            :active-value="true"
+            :inactive-value="false"
+            :disabled="addLoading"
+          />
+          <div class="form-tip">
+            开启后可自定义视频扩展名和元数据扩展名配置，否则使用strm设置中的值
+          </div>
+        </el-form-item>
+
+        <el-form-item label="视频扩展名" prop="video_ext" v-if="addForm.custom_config">
+          <el-input-tag
+            v-model="addForm.video_ext"
+            placeholder="输入扩展名后按回车添加，如：.mp4"
+            :disabled="addLoading"
+          />
+          <div class="form-tip">指定需要生成STRM文件的视频文件扩展名</div>
+        </el-form-item>
+
+        <el-form-item label="元数据扩展名" prop="meta_ext" v-if="addForm.custom_config">
+          <el-input-tag
+            v-model="addForm.meta_ext"
+            placeholder="输入扩展名后按回车添加，如：.nfo"
+            :disabled="addLoading"
+          />
+          <div class="form-tip">指定需要同步的元数据文件扩展名</div>
+        </el-form-item>
+        <el-form-item label="排除文件名" prop="exclude_name" v-if="addForm.custom_config">
+          <el-input-tag
+            v-model="addForm.exclude_name"
+            placeholder="输入文件名后按回车添加，如：.nfo"
+            :disabled="addLoading"
+          />
+          <div class="form-tip">指定需要同步的元数据文件扩展名</div>
+        </el-form-item>
       </el-form>
 
       <template #footer>
@@ -317,6 +382,43 @@
           />
           <div class="form-tip">STRM和元数据实际存放目录（自动生成）</div>
         </el-form-item>
+        <el-form-item label="是否自定义设置" prop="custom_config">
+          <el-switch
+            v-model="editForm.custom_config"
+            :active-value="true"
+            :inactive-value="false"
+            :disabled="editLoading"
+          />
+          <div class="form-tip">
+            开启后可自定义视频扩展名和元数据扩展名配置，否则使用strm设置中的值
+          </div>
+        </el-form-item>
+
+        <el-form-item label="视频扩展名" prop="video_ext" v-if="editForm.custom_config">
+          <el-input-tag
+            v-model="editForm.video_ext"
+            placeholder="输入扩展名后按回车添加，如：.mp4"
+            :disabled="editLoading"
+          />
+          <div class="form-tip">指定需要生成STRM文件的视频文件扩展名</div>
+        </el-form-item>
+
+        <el-form-item label="元数据扩展名" prop="meta_ext" v-if="editForm.custom_config">
+          <el-input-tag
+            v-model="editForm.meta_ext"
+            placeholder="输入扩展名后按回车添加，如：.nfo"
+            :disabled="editLoading"
+          />
+          <div class="form-tip">指定需要同步的元数据文件扩展名</div>
+        </el-form-item>
+        <el-form-item label="排除文件名" prop="exclude_name" v-if="editForm.custom_config">
+          <el-input-tag
+            v-model="editForm.exclude_name"
+            placeholder="输入文件名后按回车添加，如：.nfo"
+            :disabled="editLoading"
+          />
+          <div class="form-tip">指定需要同步的元数据文件扩展名</div>
+        </el-form-item>
       </el-form>
 
       <template #footer>
@@ -384,7 +486,16 @@ import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { inject, onMounted, onUnmounted, ref, reactive, watch, type Ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Loading, Folder, ArrowRight, VideoPlay, Edit, Delete } from '@element-plus/icons-vue'
+import {
+  Plus,
+  Loading,
+  Folder,
+  ArrowRight,
+  VideoPlay,
+  Edit,
+  Delete,
+  Warning,
+} from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { formatTime } from '@/utils/timeUtils'
 import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
@@ -405,6 +516,11 @@ interface SyncDirectory {
   source_type: string
   account_id?: number
   account_name: string
+  custom_config?: boolean
+  video_ext_arr?: string[]
+  meta_ext_arr?: string[]
+  exclude_name_arr?: string[]
+  enable_cron?: boolean
 }
 
 interface DirInfo {
@@ -468,6 +584,11 @@ const addForm = reactive({
   dir_depth: 2,
   source_type: '',
   account_id: '',
+  custom_config: false,
+  video_ext: [] as string[],
+  meta_ext: [] as string[],
+  exclude_name: [] as string[],
+  remote_path: '',
 })
 
 // 编辑对话框状态
@@ -482,6 +603,11 @@ const editForm = reactive({
   dir_depth: 2,
   source_type: '',
   account_id: 0,
+  custom_config: false,
+  video_ext: [] as string[],
+  meta_ext: [] as string[],
+  exclude_name: [] as string[],
+  remote_path: '',
 })
 const editSelectedDirPath = ref('')
 
@@ -564,6 +690,10 @@ const handleAdd = async () => {
       dir_depth: addForm.dir_depth,
       source_type: addForm.source_type.trim(),
       account_id: addForm.account_id ? addForm.account_id : 0,
+      custom_config: addForm.custom_config,
+      video_ext: addForm.video_ext,
+      meta_ext: addForm.meta_ext,
+      exclude_name: addForm.exclude_name,
     }
 
     const response = await http?.post(`${SERVER_URL}/sync/path-add`, formData, {
@@ -579,6 +709,9 @@ const handleAdd = async () => {
       addForm.base_cid = ''
       addForm.strm_path = ''
       addForm.dir_depth = 2
+      addForm.custom_config = false
+      addForm.video_ext = []
+      addForm.meta_ext = []
       selectedDirPath.value = ''
       loadDirectories()
     } else {
@@ -600,6 +733,10 @@ const handleEdit = async (row: SyncDirectory) => {
   editForm.dir_depth = row.dir_depth || 2
   editForm.source_type = row.source_type || ''
   editForm.account_id = row.account_id || 0
+  editForm.custom_config = row.custom_config || false
+  editForm.video_ext = row.video_ext_arr || []
+  editForm.meta_ext = row.meta_ext_arr || []
+  editForm.exclude_name = row.exclude_name_arr || []
   editSelectedDirPath.value = row.remote_path || ''
 
   // 初始化STRM路径
@@ -622,6 +759,12 @@ const handleEditSave = async () => {
       base_cid: editForm.base_cid.trim(),
       strm_path: editForm.strm_path.trim(),
       dir_depth: editForm.dir_depth,
+      custom_config: editForm.custom_config,
+      video_ext: editForm.video_ext,
+      meta_ext: editForm.meta_ext,
+      exclude_name: editForm.exclude_name,
+      source_type: editForm.source_type.trim(),
+      remote_path: editSelectedDirPath.value,
     }
 
     const response = await http?.post(`${SERVER_URL}/sync/path-update`, formData, {
@@ -638,6 +781,9 @@ const handleEditSave = async () => {
       editForm.base_cid = ''
       editForm.strm_path = ''
       editForm.dir_depth = 2
+      editForm.custom_config = false
+      editForm.video_ext = []
+      editForm.meta_ext = []
       editSelectedDirPath.value = ''
       loadDirectories()
     } else {
@@ -717,6 +863,34 @@ const handleStart = async (row: SyncDirectory, index: number) => {
     if (directories.value[index]) {
       directories.value[index].starting = false
     }
+  }
+}
+
+// 处理定时同步开关切换
+const toggleCron = async (row: SyncDirectory) => {
+  try {
+    const formData = {
+      id: row.id || '',
+    }
+
+    const response = await http?.post(`${SERVER_URL}/sync/path/toggle-cron`, formData, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (response?.data.code === 200) {
+      ElMessage.success(row.enable_cron ? '开启定时同步成功' : '关闭定时同步成功')
+    } else {
+      // 如果失败，恢复原来的状态
+      row.enable_cron = !row.enable_cron
+      ElMessage.error(response?.data.msg || '切换定时同步状态失败')
+    }
+  } catch {
+    console.error('切换定时同步状态错误')
+    // 如果失败，恢复原来的状态
+    row.enable_cron = !row.enable_cron
+    ElMessage.error('切换定时同步状态失败')
   }
 }
 
@@ -932,6 +1106,7 @@ onUnmounted(() => {
 .full-width-card {
   width: 100%;
   max-width: 100%;
+  border: 0;
 }
 
 .card-header {
@@ -1057,7 +1232,7 @@ onUnmounted(() => {
 
 .info-item {
   display: flex;
-  align-items: start;
+  align-items: center;
   justify-content: space-between;
   flex-wrap: nowrap;
   gap: 4px;

@@ -2,7 +2,7 @@
   <div class="login-container">
     <div class="login-box">
       <div class="login-header">
-        <h1 class="login-title">Q115-STRM</h1>
+        <h1 class="login-title">QMediaSync</h1>
         <p class="login-subtitle">系统登录</p>
       </div>
 

@@ -52,6 +52,9 @@ body {
     margin-bottom: 12px;
   }
 }
+.main-content-container {
+  /* max-width: 800px; */
+}
 
 /* 小屏设备优化 */
 @media (max-width: 480px) {

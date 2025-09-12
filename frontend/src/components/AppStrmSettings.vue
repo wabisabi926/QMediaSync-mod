@@ -1,199 +1,202 @@
 <template>
-  <div class="strm-settings-container">
-    <!-- STRM设置卡片 -->
-    <el-card class="strm-settings-card" shadow="hover">
-      <template #header>
-        <h2 class="card-title">STRM配置</h2>
-        <p class="card-subtitle">配置STRM文件生成和同步相关设置</p>
-      </template>
+  <!-- STRM设置卡片 -->
+  <div class="main-content-container strm-content">
+    <el-form
+      :model="strmData"
+      :rules="formRules"
+      :label-position="checkIsMobile ? 'top' : 'left'"
+      :label-width="180"
+      class="strm-form"
+      ref="formRef"
+    >
+      <!-- 排除的名称 -->
+      <el-form-item label="排除的名称" prop="exclude_names">
+        <el-input-tag
+          v-model="strmData.exclude_names"
+          placeholder="输入名称后按回车添加"
+          class="meta-ext-input limited-width-input"
+        />
+        <div class="form-help">
+          <p>指定需要排除的文件名或目录名，完整匹配不支持正则表达式。</p>
+          <p>被排除的文件或目录将不会同步，其下的所有内容也都不会同步</p>
+        </div>
+      </el-form-item>
+      <!-- 视频文件扩展名 -->
+      <el-form-item label="视频文件扩展名" prop="video_ext">
+        <el-input-tag
+          v-model="strmData.video_ext"
+          placeholder="输入扩展名后按回车添加，如：.mp4"
+          class="meta-ext-input limited-width-input"
+        />
+        <div class="form-help">
+          <p>指定需要生成STRM文件的视频文件扩展名，如：.mp4, .mkv, .avi, .mov 等</p>
+        </div>
+      </el-form-item>
 
-      <div class="strm-content">
-        <el-form
-          :model="strmData"
-          :rules="formRules"
-          :label-position="checkIsMobile ? 'top' : 'left'"
-          :label-width="180"
-          class="strm-form"
-          ref="formRef"
-        >
-          <!-- 视频文件扩展名 -->
-          <el-form-item label="视频文件扩展名" prop="video_ext">
-            <el-input-tag
-              v-model="strmData.video_ext"
-              placeholder="输入扩展名后按回车添加，如：.mp4"
-              class="meta-ext-input limited-width-input"
-            />
-            <div class="form-help">
-              <p>指定需要生成STRM文件的视频文件扩展名，如：.mp4, .mkv, .avi, .mov 等</p>
-            </div>
-          </el-form-item>
+      <!-- 最小文件大小 -->
+      <el-form-item label="最小文件大小 (MB)" prop="min_file_size">
+        <el-input-number
+          v-model="strmData.min_file_size"
+          :min="0"
+          :step="1"
+          :precision="0"
+          placeholder="输入最小文件大小"
+          :disabled="strmLoading"
+          class="limited-width-input"
+        />
+        <div class="form-help">
+          <p>小于此大小的视频文件将不会生成STRM文件，单位为MB。设置为0表示不限制文件大小</p>
+        </div>
+      </el-form-item>
 
-          <!-- 最小文件大小 -->
-          <el-form-item label="最小文件大小 (MB)" prop="min_file_size">
-            <el-input-number
-              v-model="strmData.min_file_size"
-              :min="0"
-              :step="1"
-              :precision="0"
-              placeholder="输入最小文件大小"
-              :disabled="strmLoading"
-              class="limited-width-input"
-            />
-            <div class="form-help">
-              <p>小于此大小的视频文件将不会生成STRM文件，单位为MB。设置为0表示不限制文件大小</p>
-            </div>
-          </el-form-item>
+      <!-- 元数据扩展名 -->
+      <el-form-item label="元数据扩展名" prop="meta_ext">
+        <el-input-tag
+          v-model="strmData.meta_ext"
+          placeholder="输入扩展名后按回车添加，如：.jpg"
+          class="meta-ext-input limited-width-input"
+        />
+        <div class="form-help">
+          <p>指定需要处理的元数据文件扩展名，如：.jpg, .nfo, .srt, .ass 等</p>
+        </div>
+      </el-form-item>
 
-          <!-- 元数据扩展名 -->
-          <el-form-item label="元数据扩展名" prop="meta_ext">
-            <el-input-tag
-              v-model="strmData.meta_ext"
-              placeholder="输入扩展名后按回车添加，如：.jpg"
-              class="meta-ext-input limited-width-input"
-            />
-            <div class="form-help">
-              <p>指定需要处理的元数据文件扩展名，如：.jpg, .nfo, .srt, .ass 等</p>
-            </div>
-          </el-form-item>
+      <!-- 定时同步表达式 -->
+      <el-form-item label="定时同步表达式" prop="cron_expression">
+        <el-input
+          v-model="strmData.cron_expression"
+          placeholder="输入Cron表达式，如：0 2 * * *"
+          :disabled="strmLoading"
+          class="limited-width-input"
+          @blur="loadCronTimes"
+        />
+        <div class="form-help">
+          <p><strong>常用示例：</strong></p>
+          <ul class="cron-examples">
+            <li><code>0 0 * * *</code> - 每天0点执行</li>
+            <li><code>0 */6 * * *</code> - 每6小时执行一次</li>
+            <li><code>0 2 * * *</code> - 每天凌晨2点执行</li>
+            <li><code>0 0 * * 0</code> - 每周日0点执行</li>
+          </ul>
 
-          <!-- 定时同步表达式 -->
-          <el-form-item label="定时同步表达式" prop="cron_expression">
-            <el-input
-              v-model="strmData.cron_expression"
-              placeholder="输入Cron表达式，如：0 2 * * *"
-              :disabled="strmLoading"
-              class="limited-width-input"
-              @blur="loadCronTimes"
-            />
-            <div class="form-help">
-              <p><strong>常用示例：</strong></p>
-              <ul class="cron-examples">
-                <li><code>0 0 * * *</code> - 每天0点执行</li>
-                <li><code>0 */6 * * *</code> - 每6小时执行一次</li>
-                <li><code>0 2 * * *</code> - 每天凌晨2点执行</li>
-                <li><code>0 0 * * 0</code> - 每周日0点执行</li>
-              </ul>
-
-              <!-- 下次执行时间显示 -->
-              <div v-if="cronTimes.length > 0" class="cron-next-times">
-                <p><strong>下5次执行时间：</strong></p>
-                <div v-loading="cronTimesLoading" class="cron-times-list">
-                  <div v-for="(time, index) in cronTimes" :key="index" class="cron-time-item">
-                    <el-tag type="info" size="small">{{ time }}</el-tag>
-                  </div>
-                </div>
+          <!-- 下次执行时间显示 -->
+          <div v-if="cronTimes.length > 0" class="cron-next-times">
+            <p><strong>下5次执行时间：</strong></p>
+            <div v-loading="cronTimesLoading" class="cron-times-list">
+              <div v-for="(time, index) in cronTimes" :key="index" class="cron-time-item">
+                <el-tag type="info" size="small">{{ time }}</el-tag>
               </div>
             </div>
-          </el-form-item>
-
-          <!-- STRM直连地址 -->
-          <el-form-item label="STRM直连地址" prop="direct_url">
-            <el-input
-              v-model="strmData.direct_url"
-              placeholder="输入HTTP地址，如：http://192.168.1.100:8080"
-              :disabled="strmLoading"
-              @input="updateStrmExample"
-              class="limited-width-input"
-            />
-            <div v-if="strmExample" class="strm-example-inline">
-              <span class="example-label">示例STRM文件内容：</span>
-              <code class="example-url">{{ strmExample }}</code>
-            </div>
-            <div class="form-help">
-              <p>STRM文件将使用此地址作为基础URL，请确保媒体服务器可以访问此地址</p>
-              <p>一般使用部署本项目的机器的ip地址加上端口号，如：http://192.168.1.100:12333</p>
-            </div>
-          </el-form-item>
-
-          <!-- 同步完是否上传网盘不存在的元数据 -->
-          <el-form-item label="不存在的元数据" prop="upload_meta">
-            <el-radio-group v-model="strmData.upload_meta">
-              <el-radio-button :label="2">删除</el-radio-button>
-              <el-radio-button :label="1">上传</el-radio-button>
-              <el-radio-button :label="0">保留</el-radio-button>
-            </el-radio-group>
-            <div class="form-help">
-              <p>删除: 本地存在且网盘不存在则删除本地文件</p>
-              <p>
-                上传: 本地存在且网盘不存在，分两种情况: <br />
-                &nbsp;&nbsp;&nbsp;&nbsp;1. 父目录在网盘存在则上传<br />
-                &nbsp;&nbsp;&nbsp;&nbsp;2. 父目录在网盘不存在（网盘已删除）责删除本地文件
-              </p>
-              <p>保留：不会删除本地文件，不管网盘有没有删除它</p>
-            </div>
-          </el-form-item>
-
-          <!-- 同步完是否删除网盘不存在的STRM文件 -->
-          <el-form-item label="网盘不存在的STRM文件" prop="delete_strm">
-            <el-radio-group v-model="strmData.delete_strm">
-              <el-radio-button :label="1">删除</el-radio-button>
-              <el-radio-button :label="0">不删除</el-radio-button>
-            </el-radio-group>
-            <div class="form-help">
-              <p>同步完成后是否删除本地存在但网盘不存在的STRM文件</p>
-            </div>
-          </el-form-item>
-
-          <!-- 同步完是否删除网盘不存在的空目录 -->
-          <el-form-item label="网盘不存在的空目录" prop="delete_dir">
-            <el-radio-group v-model="strmData.delete_dir">
-              <el-radio-button :label="1">删除</el-radio-button>
-              <el-radio-button :label="0">不删除</el-radio-button>
-            </el-radio-group>
-            <div class="form-help">
-              <p>同步完成后是否删除本地存在但网盘不存在的空目录</p>
-            </div>
-          </el-form-item>
-
-          <el-form-item label="启用本地代理直链" prop="local_proxy">
-            <el-radio-group v-model="strmData.local_proxy">
-              <el-radio-button :label="1">启用</el-radio-button>
-              <el-radio-button :label="0">关闭</el-radio-button>
-            </el-radio-group>
-            <div class="form-help">
-              <p>
-                开启后将使用本地代理访问直链，可以解决局域网其他设备因为UA问不同无法播放的问题，但是会禁用外网302播放。
-              </p>
-            </div>
-          </el-form-item>
-
-          <!-- 保存和重置按钮 -->
-          <div class="strm-actions">
-            <el-button
-              type="success"
-              @click="saveStrmConfig"
-              :loading="strmLoading"
-              size="large"
-              :icon="Check"
-            >
-              保存STRM配置
-            </el-button>
-
-            <el-button
-              type="warning"
-              plain
-              @click="resetStrmConfig"
-              :disabled="strmLoading"
-              size="large"
-              :icon="Refresh"
-            >
-              重置为默认值
-            </el-button>
           </div>
-        </el-form>
+        </div>
+      </el-form-item>
 
-        <!-- STRM配置状态显示 -->
-        <el-alert
-          v-if="strmStatus"
-          :title="strmStatus.title"
-          :type="strmStatus.type"
-          :description="strmStatus.description"
-          :closable="false"
-          show-icon
-          class="strm-status"
+      <!-- STRM直连地址 -->
+      <el-form-item label="STRM直连地址" prop="direct_url">
+        <el-input
+          v-model="strmData.direct_url"
+          placeholder="输入HTTP地址，如：http://192.168.1.100:8080"
+          :disabled="strmLoading"
+          @input="updateStrmExample"
+          class="limited-width-input"
         />
+        <div v-if="strmExample" class="strm-example-inline">
+          <span class="example-label">示例STRM文件内容：</span>
+          <code class="example-url">{{ strmExample }}</code>
+        </div>
+        <div class="form-help">
+          <p>STRM文件将使用此地址作为基础URL，请确保媒体服务器可以访问此地址</p>
+          <p>一般使用部署本项目的机器的ip地址加上端口号，如：http://192.168.1.100:12333</p>
+        </div>
+      </el-form-item>
+
+      <!-- 同步完是否上传网盘不存在的元数据 -->
+      <el-form-item label="不存在的元数据" prop="upload_meta">
+        <el-radio-group v-model="strmData.upload_meta">
+          <el-radio-button :label="2">删除</el-radio-button>
+          <el-radio-button :label="1">上传</el-radio-button>
+          <el-radio-button :label="0">保留</el-radio-button>
+        </el-radio-group>
+        <div class="form-help">
+          <p>删除: 本地存在且网盘不存在则删除本地文件</p>
+          <p>
+            上传: 本地存在且网盘不存在，分两种情况: <br />
+            &nbsp;&nbsp;&nbsp;&nbsp;1. 父目录在网盘存在则上传<br />
+            &nbsp;&nbsp;&nbsp;&nbsp;2. 父目录在网盘不存在（网盘已删除）责删除本地文件
+          </p>
+          <p>保留：不会删除本地文件，不管网盘有没有删除它</p>
+        </div>
+      </el-form-item>
+
+      <!-- 同步完是否删除网盘不存在的STRM文件 -->
+      <el-form-item label="网盘不存在的STRM文件" prop="delete_strm">
+        <el-radio-group v-model="strmData.delete_strm">
+          <el-radio-button :label="1">删除</el-radio-button>
+          <el-radio-button :label="0">不删除</el-radio-button>
+        </el-radio-group>
+        <div class="form-help">
+          <p>同步完成后是否删除本地存在但网盘不存在的STRM文件</p>
+        </div>
+      </el-form-item>
+
+      <!-- 同步完是否删除网盘不存在的空目录 -->
+      <el-form-item label="网盘不存在的空目录" prop="delete_dir">
+        <el-radio-group v-model="strmData.delete_dir">
+          <el-radio-button :label="1">删除</el-radio-button>
+          <el-radio-button :label="0">不删除</el-radio-button>
+        </el-radio-group>
+        <div class="form-help">
+          <p>同步完成后是否删除本地存在但网盘不存在的空目录</p>
+        </div>
+      </el-form-item>
+
+      <el-form-item label="启用本地代理直链" prop="local_proxy">
+        <el-radio-group v-model="strmData.local_proxy">
+          <el-radio-button :label="1">启用</el-radio-button>
+          <el-radio-button :label="0">关闭</el-radio-button>
+        </el-radio-group>
+        <div class="form-help">
+          <p>
+            开启后将使用本地代理访问直链，可以解决局域网其他设备因为UA问不同无法播放的问题，但是会禁用外网302播放。
+          </p>
+        </div>
+      </el-form-item>
+
+      <!-- 保存和重置按钮 -->
+      <div class="strm-actions">
+        <el-button
+          type="success"
+          @click="saveStrmConfig"
+          :loading="strmLoading"
+          size="large"
+          :icon="Check"
+        >
+          保存STRM配置
+        </el-button>
+
+        <el-button
+          type="warning"
+          plain
+          @click="resetStrmConfig"
+          :disabled="strmLoading"
+          size="large"
+          :icon="Refresh"
+        >
+          重置为默认值
+        </el-button>
       </div>
-    </el-card>
+    </el-form>
+
+    <!-- STRM配置状态显示 -->
+    <el-alert
+      v-if="strmStatus"
+      :title="strmStatus.title"
+      :type="strmStatus.type"
+      :description="strmStatus.description"
+      :closable="false"
+      show-icon
+      class="strm-status"
+    />
   </div>
 </template>
 
@@ -214,6 +217,7 @@ interface StrmData {
   delete_strm: 0 | 1
   delete_dir: 0 | 1
   local_proxy: 0 | 1
+  exclude_names: string[]
 }
 
 interface StrmStatus {
@@ -247,6 +251,7 @@ const defaultStrmData: StrmData = {
   delete_strm: 1, // 默认删除
   delete_dir: 0, // 默认不删除
   local_proxy: 0, // 是否启用本地代理
+  exclude_names: [], // 排除的名称列表，默认为空
 }
 
 const strmData = reactive<StrmData>({ ...defaultStrmData })
@@ -340,6 +345,7 @@ const saveStrmConfig = async () => {
       delete_strm: strmData.delete_strm,
       delete_dir: strmData.delete_dir,
       local_proxy: strmData.local_proxy,
+      exclude_names: strmData.exclude_names,
     }
 
     const response = await http?.post(`${SERVER_URL}/setting/update-strm-config`, requestData, {
@@ -390,6 +396,7 @@ const loadStrmConfig = async () => {
       strmData.delete_strm = config.delete_strm !== undefined ? config.delete_strm : 1
       strmData.delete_dir = config.delete_dir !== undefined ? config.delete_dir : 0
       strmData.local_proxy = config.local_proxy !== undefined ? config.local_proxy : 0
+      strmData.exclude_names = config.exclude_names || []
 
       // 更新示例
       updateStrmExample()
@@ -495,6 +502,7 @@ onMounted(() => {
 
 .strm-content {
   margin-top: 20px;
+  max-width: 800px;
 }
 
 .strm-form {

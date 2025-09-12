@@ -1,11 +1,6 @@
 <template>
-  <div class="telegram-settings-container">
-    <el-card class="telegram-settings-card" shadow="hover">
-      <template #header>
-        <h2 class="card-title">Telegram通知设置</h2>
-        <p class="card-subtitle">配置Telegram机器人用于接收系统通知</p>
-      </template>
-
+  <div>
+    <div class="main-content-container telegram-settings-container">
       <el-form
         :model="formData"
         :label-position="checkIsMobile ? 'top' : 'left'"
@@ -71,39 +66,17 @@
           </div>
         </el-form-item>
       </el-form>
-
-      <!-- 测试状态显示 -->
-      <el-alert
-        v-if="testStatus"
-        :title="testStatus.title"
-        :type="testStatus.type"
-        :description="testStatus.description"
-        :closable="false"
-        show-icon
-        class="test-status"
-      />
-    </el-card>
-
-    <!-- 使用说明 -->
-    <el-card class="help-card" shadow="hover">
-      <template #header>
-        <h3>注意事项：</h3>
-      </template>
-
-      <div class="help-content">
-        <div class="help-tips">
-          <ul>
-            <li>如果您在中国大陆地区，那么需要设置网络代理才可以访问Telegram接口</li>
-            <li>需要先启用Telegram通知功能才能配置和测试机器人</li>
-            <li>机器人Token是敏感信息，请妥善保管</li>
-            <li>确保您已经与机器人进行过对话，否则无法接收消息</li>
-            <li>用户ID是数字格式，不是用户名</li>
-            <li>配置完成后建议先测试机器人功能</li>
-            <li>禁用功能后仍会保存配置信息，重新启用时无需重新配置</li>
-          </ul>
-        </div>
-      </div>
-    </el-card>
+    </div>
+    <!-- 测试状态显示 -->
+    <el-alert
+      v-if="testStatus"
+      :title="testStatus.title"
+      :type="testStatus.type"
+      :description="testStatus.description"
+      :closable="false"
+      show-icon
+      class="test-status"
+    />
   </div>
 </template>
 

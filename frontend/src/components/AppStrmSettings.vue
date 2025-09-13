@@ -348,7 +348,7 @@ const saveStrmConfig = async () => {
       exclude_names: strmData.exclude_names,
     }
 
-    const response = await http?.post(`${SERVER_URL}/setting/update-strm-config`, requestData, {
+    const response = await http?.post(`${SERVER_URL}/setting/strm-config`, requestData, {
       headers: {
         'Content-Type': 'application/json',
       },

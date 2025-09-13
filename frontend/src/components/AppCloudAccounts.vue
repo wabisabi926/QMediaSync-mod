@@ -19,10 +19,10 @@
     <div v-loading="loading" element-loading-text="加载中..." class="accounts-loading-container">
       <el-row :gutter="20">
         <el-col
-          style="margin-bottom: 10px"
-          :xs="24"
-          :sm="12"
-          :md="6"
+          style="margin-bottom: 10px; min-width: 360px"
+          :xs="11"
+          :sm="8"
+          :md="8"
           :lg="4"
           v-for="account in accounts"
           :key="account.id"
@@ -68,12 +68,13 @@
       <el-form :model="newAccountForm" label-width="80px">
         <el-form-item label="网盘类型">
           <el-select v-model="newAccountForm.type" placeholder="请选择网盘类型">
-            <el-option
-              v-for="typeItem in sourceTypeOptions"
-              :key="typeItem.value"
-              :label="typeItem.label"
-              :value="typeItem.value"
-            ></el-option>
+            <template v-for="typeItem in sourceTypeOptions" :key="typeItem.value">
+              <el-option
+                v-if="typeItem.value !== 'local'"
+                :label="typeItem.label"
+                :value="typeItem.value"
+              ></el-option>
+            </template>
           </el-select>
         </el-form-item>
         <el-form-item label="账号备注">

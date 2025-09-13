@@ -154,7 +154,7 @@ const saveProxy = async () => {
       http_proxy: proxyData.proxy_url,
     }
 
-    const response = await http?.post(`${SERVER_URL}/setting/update-http-proxy`, requestData, {
+    const response = await http?.post(`${SERVER_URL}/setting/http-proxy`, requestData, {
       headers: {
         'Content-Type': 'application/json',
       },

@@ -948,7 +948,7 @@ const calculateStrmPath = (localPath: string, dirPath: string): string => {
   // 移除目录路径开头的斜杠并规范化路径分隔符
   const cleanDirPath = dirPath.replace(/^[/\\]+/, '').replace(/\//g, '\\')
 
-  return cleanDirPath ? `${cleanLocalPath}\\${cleanDirPath}` : cleanLocalPath
+  return cleanDirPath ? `${cleanLocalPath}/${cleanDirPath}` : cleanLocalPath
 }
 
 // 更新添加表单的STRM路径

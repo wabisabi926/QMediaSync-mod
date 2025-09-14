@@ -12,7 +12,7 @@
       <!-- 排除的名称 -->
       <el-form-item label="排除的名称" prop="exclude_names">
         <el-input-tag
-          v-model="strmData.exclude_names"
+          v-model="strmData.exclude_name"
           placeholder="输入名称后按回车添加"
           class="meta-ext-input limited-width-input"
         />
@@ -206,7 +206,7 @@ interface StrmData {
   delete_strm: 0 | 1
   delete_dir: 0 | 1
   local_proxy: 0 | 1
-  exclude_names: string[]
+  exclude_name: string[]
 }
 
 interface StrmStatus {
@@ -240,7 +240,7 @@ const defaultStrmData: StrmData = {
   delete_strm: 1, // 默认删除
   delete_dir: 0, // 默认不删除
   local_proxy: 0, // 是否启用本地代理
-  exclude_names: [], // 排除的名称列表，默认为空
+  exclude_name: [], // 排除的名称列表，默认为空
 }
 
 const strmData = reactive<StrmData>({ ...defaultStrmData })
@@ -334,7 +334,7 @@ const saveStrmConfig = async () => {
       delete_strm: strmData.delete_strm,
       delete_dir: strmData.delete_dir,
       local_proxy: strmData.local_proxy,
-      exclude_names: strmData.exclude_names,
+      exclude_name: strmData.exclude_name,
     }
 
     const response = await http?.post(`${SERVER_URL}/setting/strm-config`, requestData, {
@@ -385,7 +385,7 @@ const loadStrmConfig = async () => {
       strmData.delete_strm = config.delete_strm !== undefined ? config.delete_strm : 1
       strmData.delete_dir = config.delete_dir !== undefined ? config.delete_dir : 0
       strmData.local_proxy = config.local_proxy !== undefined ? config.local_proxy : 0
-      strmData.exclude_names = config.exclude_names || []
+      strmData.exclude_name = config.exclude_name || []
 
       // 更新示例
       updateStrmExample()

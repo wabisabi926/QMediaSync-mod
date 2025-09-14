@@ -1,0 +1,328 @@
+/* 组件共享样式 */
+
+/* 容器样式 */
+.main-content-container {
+  width: 100%;
+  max-width: none;
+  padding: 0 10px 10px 10px;
+}
+
+/* 卡片样式 */
+.card-header {
+  margin: 0 0 16px 0;
+  padding: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-content {
+  display: flex;
+  align-items: flex-start;
+}
+
+.header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.header-actions {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+}
+
+.card-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.card-subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: #909399;
+}
+
+/* 表单样式 */
+.form-help {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.6;
+}
+
+.form-help p {
+  margin: 4px 0;
+  padding: 0;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+/* 设置页面表单样式 */
+.settings-form {
+  margin-top: 20px;
+  width: 100%;
+}
+
+.settings-form .el-form-item {
+  margin-bottom: 24px;
+}
+
+.settings-form .el-form-item__label {
+  font-weight: 500;
+  color: #303133;
+  margin-bottom: 8px;
+}
+
+/* 示例样式 */
+.example-inline {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.example-label {
+  font-size: 12px;
+  color: #606266;
+  font-weight: 500;
+}
+
+.example-url {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 13px;
+  background: #f5f7fa;
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: #303133;
+}
+
+/* 启用开关样式 */
+.enable-switch {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 有限宽度输入框 */
+.limited-width-input {
+  max-width: 500px;
+}
+
+/* 适配移动设备的表单布局 */
+@media (max-width: 768px) {
+  .limited-width-input {
+    max-width: 100%;
+  }
+
+  .form-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .form-actions .el-button {
+    width: 100%;
+  }
+}
+
+/* Telegram设置特定样式 */
+.telegram-settings-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.telegram-form {
+  margin-top: 20px;
+  width: 100%;
+}
+
+.telegram-form .el-form-item {
+  margin-bottom: 24px;
+}
+
+.telegram-form .el-form-item__label {
+  font-weight: 500;
+  color: #303133;
+  margin-bottom: 8px;
+}
+
+/* Emby设置特定样式 */
+.emby-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.emby-form {
+  width: 100%;
+}
+
+.emby-example-inline {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.emby-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+/* 同步目录特定样式 */
+.sync-directories-container {
+  margin: 0;
+  padding: 0;
+}
+
+/* 全宽度容器，突破父容器的padding限制 */
+.full-width-container {
+  margin: -20px !important;
+  padding: 20px !important;
+  width: calc(100% + 40px) !important;
+  max-width: calc(100% + 40px) !important;
+}
+
+.full-width-card {
+  width: 100%;
+  max-width: 100%;
+  border: 0;
+}
+
+.full-width-card .el-card__body {
+  /* padding: 0 !important; */
+  min-height: 250px;
+}
+
+.directories-table {
+  width: 100% !important;
+  margin-bottom: 20px;
+  overflow-x: auto;
+}
+
+/* 确保表格容器也占满宽度 */
+.directories-table :deep(.el-table) {
+  width: 100% !important;
+}
+
+.directories-table :deep(.el-table__inner-wrapper) {
+  width: 100% !important;
+}
+
+.table-cell-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cell-label {
+  font-size: 12px;
+  color: #909399;
+  font-weight: 500;
+}
+
+.cid-text {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 13px;
+  color: #606266;
+  word-break: break-all;
+  background: #f5f7fa;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.path-text {
+  color: #303133;
+  word-break: break-all;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* 卡片列表基础样式 */
+.directories-card-list {
+  margin-bottom: 20px;
+}
+
+.directory-card-col {
+  margin-bottom: 20px;
+}
+
+.directory-card {
+  height: 100%;
+  transition: all 0.3s;
+}
+
+.directory-card:hover {
+  border-color: #409eff;
+}
+
+.card-actions {
+  display: flex;
+  justify-content: end;
+  gap: 8px;
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 4px;
+}
+
+.info-label {
+  font-size: 12px;
+  color: #606266;
+}
+
+.info-value {
+  font-size: 16px;
+  color: #303133;
+  word-break: break-all;
+  line-height: 1.5;
+}
+
+.empty-card-col {
+  margin-bottom: 20px;
+}
+
+.empty-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: #909399;
+  background: #fafafa;
+}
+
+.empty-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.empty-icon {
+  font-size: 48px;
+}
+
+.strm-status {
+  margin-top: 20px !important;
+}

@@ -1,4 +1,7 @@
 @import './base.css';
+/* 导入组件公共样式 */
+@import './components.css';
+
 body {
   font-family: '微软雅黑', Arial, sans-serif;
 }

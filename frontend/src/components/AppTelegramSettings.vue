@@ -59,10 +59,6 @@
             >
               保存设置
             </el-button>
-
-            <el-button @click="resetForm" :disabled="loading || testing" :icon="RefreshLeft">
-              重置
-            </el-button>
           </div>
         </el-form-item>
       </el-form>
@@ -82,8 +78,8 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted, inject } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Message, Check, RefreshLeft } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { Message, Check } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { isMobile } from '@/utils/deviceUtils'
@@ -206,25 +202,6 @@ const saveSettings = async () => {
   }
 }
 
-// 重置表单
-const resetForm = async () => {
-  try {
-    await ElMessageBox.confirm('确定要重置表单吗？所有未保存的更改将丢失。', '确认重置', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning',
-    })
-
-    formData.enabled = false
-    formData.telegram_bot_token = ''
-    formData.telegram_user_id = ''
-    testStatus.value = null
-    ElMessage.info('表单已重置')
-  } catch {
-    // 用户取消
-  }
-}
-
 // 加载设置
 const loadSettings = async () => {
   try {
@@ -249,104 +226,3 @@ onMounted(() => {
   loadSettings()
 })
 </script>
-
-<style scoped>
-.telegram-settings-container {
-  width: 100%;
-  max-width: none;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  padding: 0 10px 10px 10px;
-}
-
-.telegram-settings-card {
-  width: 100%;
-  max-width: none;
-  margin: 0;
-}
-
-.card-title {
-  margin: 0 0 8px 0;
-  font-size: 24px;
-  font-weight: 600;
-  color: #303133;
-}
-
-.card-subtitle {
-  margin: 0;
-  font-size: 14px;
-  color: #909399;
-}
-
-.telegram-form {
-  margin-top: 20px;
-  width: 100%;
-}
-
-.telegram-form .el-form-item {
-  margin-bottom: 24px;
-}
-
-.telegram-form .el-form-item__label {
-  font-weight: 500;
-  color: #303133;
-  margin-bottom: 8px;
-}
-
-.enable-switch {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.form-help {
-  font-size: 12px;
-  color: #909399;
-  margin-top: 4px;
-  line-height: 1.4;
-}
-
-.form-actions {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-  flex-wrap: nowrap;
-  margin-top: 20px;
-}
-
-.test-status {
-  margin-top: 20px;
-}
-
-.help-card {
-  width: 100%;
-  max-width: none;
-  margin: 0;
-}
-
-.help-content {
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.help-tips {
-  margin-top: 20px;
-}
-
-.help-tips h4 {
-  margin: 0 0 12px 0;
-  color: #303133;
-  font-size: 16px;
-}
-
-.help-tips ul {
-  margin: 0;
-  padding-left: 20px;
-  color: #606266;
-}
-
-.help-tips li {
-  margin-bottom: 8px;
-}
-</style>

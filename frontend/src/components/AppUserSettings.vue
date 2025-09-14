@@ -6,7 +6,17 @@
       :label-width="90"
       class="user-form"
     >
-      <el-form-item label="密码" prop="password" required>
+      <el-form-item label="用户名" prop="username">
+        <el-input
+          v-model="formData.username"
+          placeholder="请输入新的管理员用户名"
+          :disabled="loading"
+          maxlength="50"
+        />
+        <div class="form-help">用户名长度至少3个字符，留空则不修改</div>
+      </el-form-item>
+
+      <el-form-item label="密码" prop="password">
         <el-input
           v-model="formData.password"
           placeholder="请输入管理员密码"
@@ -40,10 +50,6 @@
         >
           保存设置
         </el-button>
-
-        <el-button @click="resetForm" :disabled="loading" size="large" :icon="RefreshLeft">
-          重置
-        </el-button>
       </div>
     </el-form>
 
@@ -70,14 +76,16 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, inject } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Check, RefreshLeft } from '@element-plus/icons-vue'
+import { reactive, ref, inject, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
+import { Check } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { isMobile } from '@/utils/deviceUtils'
-
+import { useAuthStore } from '@/stores/auth'
+import { useRouter } from 'vue-router'
 interface UserSettings {
+  username: string
   password: string
   confirmPassword: string
 }
@@ -87,31 +95,38 @@ interface SaveStatus {
   type: 'success' | 'warning' | 'error' | 'info'
   description: string
 }
-
+const authStore = useAuthStore()
+const router = useRouter()
 const checkIsMobile = ref(isMobile())
 const http: AxiosStatic | undefined = inject('$http')
 const loading = ref(false)
 const saveStatus = ref<SaveStatus | null>(null)
 
 const formData = reactive<UserSettings>({
+  username: '',
   password: '',
   confirmPassword: '',
 })
 
 // 表单验证
 const validateForm = (): boolean => {
-  if (!formData.password) {
-    ElMessage.error('请输入密码')
+  if (formData.username && formData.username.length < 3) {
+    ElMessage.error('用户名长度至少3个字符')
     return false
   }
 
-  if (formData.password.length < 6) {
+  if (formData.password && formData.password.length < 6) {
     ElMessage.error('密码长度至少6个字符')
     return false
   }
 
   if (formData.password !== formData.confirmPassword) {
     ElMessage.error('两次输入的密码不一致')
+    return false
+  }
+
+  if (!formData.username && !formData.password) {
+    ElMessage.error('请至少修改用户名或密码中的一项')
     return false
   }
 
@@ -128,43 +143,48 @@ const saveSettings = async () => {
     loading.value = true
     saveStatus.value = null
 
-    const requestData = {
-      new_password: formData.password,
-      confirm_password: formData.confirmPassword,
-    }
+    const requestData: Record<string, string> = {}
+    requestData.username = formData.username
+    requestData.new_password = formData.password
 
-    const response = await http?.post(`${SERVER_URL}/change-password`, requestData, {
+    const response = await http?.post(`${SERVER_URL}/user/change`, requestData, {
       headers: {
         'Content-Type': 'application/json',
       },
     })
 
     if (response?.data.code === 200) {
-      ElMessage.success('用户密码已修改')
+      ElMessage.success('用户设置已保存')
 
       saveStatus.value = {
-        title: '用户密码已修改',
+        title: '用户设置已保存',
         type: 'success',
-        description: '用户密码已更新，下次登录时请使用新的凭据',
+        description: '用户名和密码已更新，下次登录时请使用新的凭据',
       }
-
-      // 清空确认密码字段
+      // 清空字段
       formData.confirmPassword = ''
+      formData.password = ''
+      if (response?.data.data) {
+        // 如果为true则需要重新登录
+        authStore.logout()
+        ElMessage.success('已退出登录')
+        router.push('/login')
+      }
     } else {
-      ElMessage.error(response?.data.msg || '修改密码失败，请重试')
+      ElMessage.error(response?.data.msg || '保存设置失败，请重试')
 
       saveStatus.value = {
-        title: '修改密码失败',
+        title: '保存设置失败',
         type: 'error',
-        description: response?.data.msg || '无法保存新密码，请检查网络连接后重试',
+        description: response?.data.msg || '无法保存用户设置，请检查网络连接后重试',
       }
     }
   } catch (error) {
-    console.error('修改密码失败:', error)
-    ElMessage.error('修改密码失败，请重试')
+    console.error('保存设置失败:', error)
+    ElMessage.error('保存设置失败，请重试')
 
     saveStatus.value = {
-      title: '修改密码失败',
+      title: '保存设置失败',
       type: 'error',
       description: '保存过程中发生错误，请检查网络连接',
     }
@@ -173,22 +193,23 @@ const saveSettings = async () => {
   }
 }
 
-// 重置表单
-const resetForm = async () => {
-  try {
-    await ElMessageBox.confirm('确定要重置表单吗？所有未保存的更改将丢失。', '确认重置', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning',
-    })
+// 组件挂载时加载当前用户名
+onMounted(() => {
+  loadCurrentUsername()
+})
 
-    // 重置表单数据
-    formData.password = ''
-    formData.confirmPassword = ''
-    saveStatus.value = null
-    ElMessage.info('表单已重置')
-  } catch {
-    // 用户取消
+// 加载当前用户名
+const loadCurrentUsername = async () => {
+  formData.username = authStore.user?.username || ''
+  if (formData.username == '') {
+    try {
+      const response = await http?.get(`${SERVER_URL}/user/info`)
+      if (response?.data.code === 200 && response.data.data?.username) {
+        formData.username = response.data.data.username
+      }
+    } catch (error) {
+      console.error('加载当前用户名失败:', error)
+    }
   }
 }
 </script>

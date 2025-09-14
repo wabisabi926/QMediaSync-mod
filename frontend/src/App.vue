@@ -44,21 +44,21 @@
               <el-icon><Setting /></el-icon>
               <span>系统设置</span>
             </template>
-            <!-- <el-menu-item index="/settings">
-              <el-icon><Tools /></el-icon>
-              <span>115开放平台授权</span>
-            </el-menu-item> -->
             <el-menu-item index="/accounts">
               <el-icon><Link /></el-icon>
               <span>网盘账号管理</span>
             </el-menu-item>
-            <el-menu-item index="/proxy">
-              <el-icon><Link /></el-icon>
-              <span>网络代理</span>
-            </el-menu-item>
             <el-menu-item index="/settings/strm">
               <el-icon><VideoPlay /></el-icon>
               <span>STRM配置</span>
+            </el-menu-item>
+            <el-menu-item index="/settings/emby">
+              <el-icon><VideoPlay /></el-icon>
+              <span>Emby外网302</span>
+            </el-menu-item>
+            <el-menu-item index="/proxy">
+              <el-icon><Link /></el-icon>
+              <span>网络代理</span>
             </el-menu-item>
             <el-menu-item index="/settings/user">
               <el-icon><UserFilled /></el-icon>
@@ -198,7 +198,7 @@ const handleLogout = async () => {
 // 获取当前页面标题
 const getCurrentPageTitle = (): string => {
   const titleMap: Record<string, string> = {
-    '/settings': '115开放平台授权',
+    '/settings/emby': 'Emby外网302',
     '/settings/strm': 'STRM配置',
     '/settings/user': '用户账号设置',
     '/settings/telegram': 'Telegram通知设置',

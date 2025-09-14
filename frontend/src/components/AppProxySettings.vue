@@ -5,7 +5,12 @@
       <el-icon><Link /></el-icon>
       HTTP代理配置
     </h3>
-    <el-form :model="proxyData" :label-position="'top'" class="proxy-form">
+    <el-form
+      :model="proxyData"
+      :label-position="checkIsMobile ? 'top' : 'left'"
+      :label-width="120"
+      class="proxy-form"
+    >
       <el-form-item label="HTTP代理地址" prop="proxy_url">
         <el-input
           v-model="proxyData.proxy_url"
@@ -17,44 +22,28 @@
           支持HTTP代理，格式：http://[用户名:密码@]主机:端口，留空表示不使用代理
         </div>
       </el-form-item>
-
-      <el-row class="proxy-actions">
-        <el-col style="margin-bottom: 10px" :xs="24" sm="8" :md="8" :lg="6">
+      <el-form-item>
+        <div class="proxy-actions">
           <el-button
             type="primary"
             @click="testProxy"
             :loading="testingProxy"
             :disabled="proxyLoading"
-            size="large"
           >
             <el-icon><Connection /></el-icon>
-            测试代理连接
+            测试
           </el-button>
-        </el-col>
-        <el-col style="margin-bottom: 10px" :xs="24" sm="8" :md="8" :lg="6">
           <el-button
             type="success"
             @click="saveProxy"
             :loading="proxyLoading"
             :disabled="testingProxy"
-            size="large"
           >
             <el-icon><Check /></el-icon>
-            保存代理设置
+            保存
           </el-button>
-        </el-col>
-        <el-col style="margin-bottom: 10px" :xs="24" :sm="8" :md="8" :lg="6">
-          <el-button
-            type="warning"
-            @click="resetProxy"
-            :disabled="proxyLoading || testingProxy"
-            size="large"
-          >
-            <el-icon><RefreshLeft /></el-icon>
-            重置设置
-          </el-button>
-        </el-col>
-      </el-row>
+        </div>
+      </el-form-item>
     </el-form>
 
     <!-- 代理状态显示 -->
@@ -73,10 +62,11 @@
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
-import { Link, Connection, Check, RefreshLeft } from '@element-plus/icons-vue'
+import { Link, Connection, Check } from '@element-plus/icons-vue'
 import { inject, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-
+import { isMobile } from '@/utils/deviceUtils'
+const checkIsMobile = ref(isMobile())
 interface ProxyData {
   proxy_url: string
 }
@@ -187,12 +177,6 @@ const saveProxy = async () => {
   }
 }
 
-// 重置代理设置
-const resetProxy = () => {
-  proxyData.proxy_url = ''
-  proxyStatus.value = null
-}
-
 // 加载代理设置
 const loadProxy = async () => {
   try {
@@ -246,6 +230,7 @@ onMounted(() => {
 
 .proxy-section {
   margin-bottom: 24px;
+  padding: 0 10px 10px 10px;
 }
 
 .section-title {

@@ -257,7 +257,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: 0;
+  padding: 0 10px 10px 10px;
 }
 
 .telegram-settings-card {

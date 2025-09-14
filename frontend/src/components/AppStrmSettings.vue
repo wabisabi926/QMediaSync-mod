@@ -101,7 +101,7 @@
           class="limited-width-input"
         />
         <div v-if="strmExample" class="strm-example-inline">
-          <span class="example-label">示例STRM文件内容：</span>
+          <span class="example-label">示例：</span>
           <code class="example-url">{{ strmExample }}</code>
         </div>
         <div class="form-help">
@@ -503,6 +503,7 @@ onMounted(() => {
 .strm-content {
   margin-top: 20px;
   max-width: 800px;
+  padding: 0 10px 10px 10px;
 }
 
 .strm-form {

@@ -57,36 +57,15 @@
       show-icon
       class="save-status"
     />
-    <!-- 安全提示 -->
-    <el-card class="security-card" shadow="hover">
-      <template #header>
-        <h3>安全提示</h3>
-      </template>
-
-      <div class="security-content">
-        <el-alert title="密码安全建议" type="info" :closable="false" show-icon>
+    <div class="security-content">
+      <div class="warning-section">
+        <el-alert title="重要提醒" type="warning" :closable="false" show-icon>
           <template #default>
-            <ul class="security-tips">
-              <li>密码长度至少8位，建议12位以上</li>
-              <li>包含大写字母、小写字母、数字和特殊字符</li>
-              <li>避免使用常见密码或个人信息</li>
-              <li>定期更换密码以提高安全性</li>
-              <li>不要在多个系统中使用相同密码</li>
-            </ul>
+            修改用户名或密码后，您需要重新登录系统。请确保记住新的登录凭据。
           </template>
         </el-alert>
-
-        <el-divider />
-
-        <div class="warning-section">
-          <el-alert title="重要提醒" type="warning" :closable="false" show-icon>
-            <template #default>
-              修改用户名或密码后，您需要重新登录系统。请确保记住新的登录凭据。
-            </template>
-          </el-alert>
-        </div>
       </div>
-    </el-card>
+    </div>
   </div>
 </template>
 
@@ -220,7 +199,7 @@ const resetForm = async () => {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: 0;
+  padding: 0 10px 10px 10px;
 }
 
 .user-settings-card,
@@ -228,6 +207,8 @@ const resetForm = async () => {
   width: 100%;
   max-width: none;
   margin: 0;
+  border: 0;
+  padding: 0;
 }
 
 .card-title {

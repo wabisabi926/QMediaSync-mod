@@ -6,7 +6,6 @@
           <div class="header-content">
             <div class="header-info">
               <h2 class="card-title">同步目录管理</h2>
-              <p class="card-subtitle">管理本地目录与网盘目录的同步配置</p>
               <div class="header-actions">
                 <el-button type="primary" @click="showAddDialog = true">
                   <el-icon><Plus /></el-icon>
@@ -17,112 +16,117 @@
           </div>
         </div>
       </template>
-      <el-row :gutter="40">
-        <el-col
+      <div
+        style="
+          width: 100%;
+          height: 100%;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          justify-content: start;
+          align-items: top;
+        "
+      >
+        <el-card
+          style="min-width: 320px"
+          shadow="hover"
           v-for="(row, index) in directories"
           :key="row.id || index"
-          :xs="24"
-          :sm="24"
-          :md="12"
-          :lg="8"
-          :xl="4"
         >
-          <el-card shadow="hover">
-            <template #header>
-              <div class="card-header">
-                <div class="card-title">
-                  <el-tooltip
-                    class="box-item"
-                    :content="'目录ID：' + row.base_cid"
-                    placement="bottom"
-                  >
-                    #{{ index + 1 }} {{ row.remote_path }}
-                  </el-tooltip>
-                </div>
-                <div>
-                  <el-tag :type="sourceTypeTagMap[row.source_type]">
-                    {{ sourceTypeMap[row.source_type] }}
-                  </el-tag>
-                </div>
-              </div>
-            </template>
-
-            <div class="card-body">
-              <div class="info-item" v-if="row.source_type !== 'local'">
-                <span class="info-label">账号:</span>
-                <span class="info-value">{{ row.account_name }}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">目标路径:</span>
-                <span class="info-value">{{ row.local_path }}</span>
-              </div>
-
-              <div class="info-item" v-if="row.source_type === '115'">
-                <span class="info-label">缓存目录层级:</span>
-                <span class="info-value">{{ row.dir_depth || '-' }}层</span>
-              </div>
-
-              <div class="info-item">
-                <span class="info-label">添加时间:</span>
-                <span class="info-value">{{ formatTime(row.created_at) }}</span>
-              </div>
-
-              <div class="info-item">
-                <span class="info-label">修改时间:</span>
-                <span class="info-value">{{ formatTime(row.updated_at) }}</span>
-              </div>
-
-              <div class="info-item">
+          <template #header>
+            <div class="card-header">
+              <div class="card-title">
                 <el-tooltip
                   class="box-item"
-                  effect="dark"
-                  content="开启后会根据strm设置中的cron表达式定时同步数据，如果该同步目录内的资源变动概率较小，建议关闭定时同步，然后有变动时手动同步"
+                  :content="'目录ID：' + row.base_cid"
                   placement="bottom"
                 >
-                  <span class="info-label">
-                    <el-icon><Warning /></el-icon> 定时同步:
-                  </span>
+                  #{{ index + 1 }} {{ row.remote_path }}
                 </el-tooltip>
-                <el-switch
-                  v-model="row.enable_cron"
-                  :active-value="true"
-                  :inactive-value="false"
-                  @change="toggleCron(row)"
-                  active-color="#13ce66"
-                  inactive-color="#dcdfe6"
-                />
+              </div>
+              <div>
+                <el-tag :type="sourceTypeTagMap[row.source_type]">
+                  {{ sourceTypeMap[row.source_type] }}
+                </el-tag>
               </div>
             </div>
-            <template #footer>
-              <div class="card-actions">
-                <el-button
-                  type="success"
-                  size="small"
-                  @click="handleStart(row, index)"
-                  :loading="row.starting"
-                  :icon="VideoPlay"
-                  >启动同步</el-button
-                >
-                <el-button
-                  type="primary"
-                  size="small"
-                  @click="handleEdit(row)"
-                  :loading="row.editing"
-                  :icon="Edit"
-                  >编辑</el-button
-                >
-                <el-button
-                  type="danger"
-                  size="small"
-                  @click="handleDelete(row, index)"
-                  :loading="row.deleting"
-                  :icon="Delete"
-                  >删除</el-button
-                >
-              </div>
-            </template>
-          </el-card>
-        </el-col>
+          </template>
+
+          <div class="card-body">
+            <div class="info-item" v-if="row.source_type !== 'local'">
+              <span class="info-label">账号:</span>
+              <span class="info-value">{{ row.account_name }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">目标路径:</span>
+              <span class="info-value">{{ row.local_path }}</span>
+            </div>
+
+            <div class="info-item" v-if="row.source_type === '115'">
+              <span class="info-label">缓存目录层级:</span>
+              <span class="info-value">{{ row.dir_depth || '-' }}层</span>
+            </div>
+
+            <div class="info-item">
+              <span class="info-label">添加时间:</span>
+              <span class="info-value">{{ formatTime(row.created_at) }}</span>
+            </div>
+
+            <div class="info-item">
+              <span class="info-label">修改时间:</span>
+              <span class="info-value">{{ formatTime(row.updated_at) }}</span>
+            </div>
+
+            <div class="info-item">
+              <el-tooltip
+                class="box-item"
+                effect="dark"
+                content="开启后会根据strm设置中的cron表达式定时同步数据，如果该同步目录内的资源变动概率较小，建议关闭定时同步，然后有变动时手动同步"
+                placement="bottom"
+              >
+                <span class="info-label">
+                  <el-icon><Warning /></el-icon> 定时同步:
+                </span>
+              </el-tooltip>
+              <el-switch
+                v-model="row.enable_cron"
+                :active-value="true"
+                :inactive-value="false"
+                @change="toggleCron(row)"
+                active-color="#13ce66"
+                inactive-color="#dcdfe6"
+              />
+            </div>
+          </div>
+          <template #footer>
+            <div class="card-actions">
+              <el-button
+                type="success"
+                size="small"
+                @click="handleStart(row, index)"
+                :loading="row.starting"
+                :icon="VideoPlay"
+                >启动同步</el-button
+              >
+              <el-button
+                type="primary"
+                size="small"
+                @click="handleEdit(row)"
+                :loading="row.editing"
+                :icon="Edit"
+                >编辑</el-button
+              >
+              <el-button
+                type="danger"
+                size="small"
+                @click="handleDelete(row, index)"
+                :loading="row.deleting"
+                :icon="Delete"
+                >删除</el-button
+              >
+            </div>
+          </template>
+        </el-card>
 
         <el-col v-if="directories.length === 0 && !loading" :span="24" class="empty-card-col">
           <el-card shadow="never" class="empty-card">
@@ -132,7 +136,7 @@
             </div>
           </el-card>
         </el-col>
-      </el-row>
+      </div>
     </el-card>
 
     <!-- 添加同步目录对话框 -->
@@ -800,11 +804,15 @@ const handleEditSave = async () => {
 // 处理删除同步目录
 const handleDelete = async (row: SyncDirectory, index: number) => {
   try {
-    await ElMessageBox.confirm(`确定要删除同步目录 "${row.local_path}" 吗？`, '确认删除', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning',
-    })
+    await ElMessageBox.confirm(
+      `该操作将删除所有strm和元数据文件，确定要删除同步目录 "${row.local_path}" 吗？`,
+      '确认删除',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      },
+    )
 
     directories.value[index].deleting = true
 
@@ -1108,6 +1116,9 @@ onUnmounted(() => {
   max-width: 100%;
   border: 0;
 }
+.full-width-card .el-card__header {
+  padding: 0 !important;
+}
 
 .card-header {
   margin: 0;
@@ -1227,7 +1238,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  height: 200px;
+  /* height: 200px; */
 }
 
 .info-item {

@@ -1,9 +1,9 @@
 import AppHome from '@/components/AppHome.vue'
-import AppSettings from '@/components/AppSettings.vue'
 import AppLogin from '@/components/AppLogin.vue'
 import AppTelegramSettings from '@/components/AppTelegramSettings.vue'
 import AppUserSettings from '@/components/AppUserSettings.vue'
 import AppStrmSettings from '@/components/AppStrmSettings.vue'
+import AppEmbySettings from '@/components/AppEmbySettings.vue'
 import AppSyncRecords from '@/components/AppSyncRecords.vue'
 import AppSyncTaskDetail from '@/components/AppSyncTaskDetail.vue'
 import AppSyncDirectories from '@/components/AppSyncDirectories.vue'
@@ -36,15 +36,6 @@ const routes = [
     component: AppCloudAccounts,
     meta: {
       title: '网盘账号管理',
-      requiresAuth: true,
-    },
-  },
-  {
-    path: '/settings',
-    name: 'settings',
-    component: AppSettings,
-    meta: {
-      title: '115开放平台授权',
       requiresAuth: true,
     },
   },
@@ -101,6 +92,16 @@ const routes = [
     component: AppTelegramSettings,
     meta: {
       title: 'Telegram通知设置',
+      requiresAuth: true,
+      parent: 'settings',
+    },
+  },
+  {
+    path: '/settings/emby',
+    name: 'settings-emby',
+    component: AppEmbySettings,
+    meta: {
+      title: 'Emby外网302',
       requiresAuth: true,
       parent: 'settings',
     },

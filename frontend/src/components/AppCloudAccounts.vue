@@ -17,51 +17,51 @@
 
     <!-- 账号卡片列表 -->
     <div v-loading="loading" element-loading-text="加载中..." class="accounts-loading-container">
-      <el-row :gutter="20">
-        <el-col
-          style="margin-bottom: 10px; min-width: 360px"
-          :xs="11"
-          :sm="8"
-          :md="8"
-          :lg="4"
-          v-for="account in accounts"
-          :key="account.id"
-        >
-          <el-card class="account-card" shadow="hover">
-            <template #header>
-              <div class="account-card-header">
-                <div class="account-info">
-                  <h3 class="account-name">#{{ account.id }} {{ account.name }}</h3>
-                  <el-tag :type="sourceTypeTagMap[account.type]" effect="dark">
-                    {{ sourceTypeMap[account.type] }}
-                  </el-tag>
-                </div>
-                <div>
-                  <el-tag v-if="account.token" type="success" size="large">已授权</el-tag>
-                  <el-tag v-else type="danger" size="large">未授权</el-tag>
-                </div>
+      <div
+        style="
+          width: 100%;
+          height: 100%;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          justify-content: start;
+          align-items: top;
+        "
+      >
+        <el-card class="account-card" shadow="hover" v-for="account in accounts" :key="account.id">
+          <template #header>
+            <div class="account-card-header">
+              <div class="account-info">
+                <h3 class="account-name">#{{ account.id }} {{ account.name }}</h3>
+                <el-tag :type="sourceTypeTagMap[account.type]" effect="dark">
+                  {{ sourceTypeMap[account.type] }}
+                </el-tag>
               </div>
-            </template>
-            <div class="account-card-body">
-              <el-row justify="space-between" v-if="account.token">
-                <el-col :span="12"> <strong>用户ID:</strong> {{ account.userId }} </el-col>
-                <el-col :span="12"> <strong>用户名:</strong> {{ account.username }} </el-col>
-              </el-row>
-              <el-row>
-                <el-col :span="24"> <strong>添加时间:</strong> {{ account.addTime }} </el-col>
-              </el-row>
+              <div>
+                <el-tag v-if="account.token" type="success" size="large">已授权</el-tag>
+                <el-tag v-else type="danger" size="large">未授权</el-tag>
+              </div>
             </div>
-            <template #footer>
-              <div class="account-card-footer">
-                <el-button type="danger" @click="handleDelete(account)"> 删除 </el-button>
-                <el-button v-if="!account.token" type="warning" @click="handleAuthorize(account)">
-                  授权
-                </el-button>
-              </div>
-            </template>
-          </el-card>
-        </el-col>
-      </el-row>
+          </template>
+          <div class="account-card-body">
+            <el-row justify="space-between" v-if="account.token">
+              <el-col :span="12"> <strong>用户ID:</strong> {{ account.userId }} </el-col>
+              <el-col :span="12"> <strong>用户名:</strong> {{ account.username }} </el-col>
+            </el-row>
+            <el-row>
+              <el-col :span="24"> <strong>添加时间:</strong> {{ account.addTime }} </el-col>
+            </el-row>
+          </div>
+          <template #footer>
+            <div class="account-card-footer">
+              <el-button type="danger" @click="handleDelete(account)"> 删除 </el-button>
+              <el-button v-if="!account.token" type="warning" @click="handleAuthorize(account)">
+                授权
+              </el-button>
+            </div>
+          </template>
+        </el-card>
+      </div>
     </div>
     <!-- 添加账号对话框 -->
     <el-dialog v-model="showAddAccountDialog" title="添加账号" :width="isMobile ? '90%' : '500px'">
@@ -736,10 +736,11 @@ onUnmounted(() => {
 }
 
 .account-card {
-  width: 100%;
+  /* width: 100%; */
   display: flex;
   flex-direction: column;
   transition: all 0.3s ease;
+  min-width: 360px;
 }
 
 .account-card:hover {

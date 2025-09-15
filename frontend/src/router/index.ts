@@ -177,7 +177,7 @@ router.beforeEach(async (to, from, next) => {
 
   // 设置页面标题
   if (to.meta.title) {
-    document.title = `${to.meta.title} - 115 STRM`
+    document.title = `${to.meta.title} - QMediaSync`
   }
 
   next()

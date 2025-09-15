@@ -427,11 +427,17 @@ const deleteRecord = async (id: number) => {
     deleteLoading.value = true
     const formData = new FormData()
     formData.append('ids', id.toString())
-    const response = await http?.post(`${SERVER_URL}/sync/delete-records`, formData, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+    const response = await http?.post(
+      `${SERVER_URL}/sync/delete-records`,
+      {
+        ids: [id],
       },
-    })
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    )
     if (response?.data.code === 200) {
       ElMessage.success('删除成功')
       await loadSyncRecords()
@@ -461,14 +467,18 @@ const batchDeleteRecords = async () => {
     )
 
     batchDeleteLoading.value = true
-    const formData = new FormData()
-    formData.append('ids', selectedIds.value.join(','))
-    const response = await http?.post(`${SERVER_URL}/sync/delete-records`, formData, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+    const response = await http?.post(
+      `${SERVER_URL}/sync/delete-records`,
+      {
+        ids: selectedIds.value,
       },
-      timeout: 60000, // 1分钟超时
-    })
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        timeout: 60000, // 1分钟超时
+      },
+    )
     if (response?.data.code === 200) {
       ElMessage.success('批量删除成功')
       selectedIds.value = []

@@ -33,8 +33,8 @@
             <div class="account-card-header">
               <div class="account-info">
                 <h3 class="account-name">#{{ account.id }} {{ account.name }}</h3>
-                <el-tag :type="sourceTypeTagMap[account.type]" effect="dark">
-                  {{ sourceTypeMap[account.type] }}
+                <el-tag :type="sourceTypeTagMap[account.source_type]" effect="dark">
+                  {{ sourceTypeMap[account.source_type] }}
                 </el-tag>
               </div>
               <div>
@@ -45,18 +45,33 @@
           </template>
           <div class="account-card-body">
             <el-row justify="space-between" v-if="account.token">
-              <el-col :span="12"> <strong>用户ID:</strong> {{ account.userId }} </el-col>
+              <el-col :span="12"> <strong>用户ID:</strong> {{ account.user_id }} </el-col>
               <el-col :span="12"> <strong>用户名:</strong> {{ account.username }} </el-col>
             </el-row>
             <el-row>
-              <el-col :span="24"> <strong>添加时间:</strong> {{ account.addTime }} </el-col>
+              <el-col :span="24">
+                <strong>添加时间:</strong> {{ formatTimestamp(account.created_at) }}
+              </el-col>
             </el-row>
           </div>
           <template #footer>
             <div class="account-card-footer">
               <el-button type="danger" @click="handleDelete(account)"> 删除 </el-button>
-              <el-button v-if="!account.token" type="warning" @click="handleAuthorize(account)">
+              <el-button
+                type="warning"
+                @click="handleAuthorize(account)"
+                size="small"
+                v-if="account.source_type !== 'openlist'"
+              >
                 授权
+              </el-button>
+              <el-button
+                type="primary"
+                @click="handleEdit(account)"
+                size="small"
+                v-if="account.source_type === 'openlist'"
+              >
+                编辑
               </el-button>
             </div>
           </template>
@@ -77,8 +92,20 @@
             </template>
           </el-select>
         </el-form-item>
-        <el-form-item label="账号备注">
+        <el-form-item label="账号备注" v-if="newAccountForm.type !== 'openlist'">
           <el-input v-model="newAccountForm.name" placeholder="请输入账号备注" />
+        </el-form-item>
+        <el-form-item label="访问地址" v-if="newAccountForm.type === 'openlist'">
+          <el-input
+            v-model="newAccountForm.base_url"
+            placeholder="请输入OpenList地址:http://ip:5244"
+          />
+        </el-form-item>
+        <el-form-item label="用户名" v-if="newAccountForm.type === 'openlist'">
+          <el-input v-model="newAccountForm.username" placeholder="请输入用户名" />
+        </el-form-item>
+        <el-form-item label="密码" v-if="newAccountForm.type === 'openlist'">
+          <el-input type="password" v-model="newAccountForm.password" placeholder="请输入密码" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -147,6 +174,38 @@
       </template>
     </el-dialog>
 
+    <!-- 编辑账号对话框 -->
+    <el-dialog
+      v-model="showEditAccountDialog"
+      title="编辑OpenList账号"
+      :width="isMobile ? '90%' : '500px'"
+    >
+      <el-form :model="editAccountForm" label-width="80px">
+        <el-form-item label="访问地址" prop="baseUrl">
+          <el-input
+            v-model="editAccountForm.base_url"
+            placeholder="请输入OpenList地址:http://ip:5244"
+          />
+        </el-form-item>
+        <el-form-item label="用户名" prop="username">
+          <el-input v-model="editAccountForm.username" placeholder="请输入用户名" />
+        </el-form-item>
+        <el-form-item label="密码" prop="password">
+          <el-input
+            type="password"
+            v-model="editAccountForm.password"
+            placeholder="请输入密码（留空则不修改）"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showEditAccountDialog = false">取消</el-button>
+          <el-button type="primary" @click="handleUpdateAccount">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
     <!-- 123云盘授权确认对话框 -->
     <el-dialog
       v-model="show123AuthDialog"
@@ -191,17 +250,6 @@ import { isMobile as checkIsMobile } from '@/utils/deviceUtils'
 
 const isMobile = ref(checkIsMobile())
 
-// 定义API返回的账号数据结构
-interface ApiCloudAccount {
-  id: number
-  source_type: string
-  name: string
-  user_id: string
-  username: string
-  created_at: number
-  token: string
-}
-
 // 定义二维码数据结构
 interface QRCodeData {
   qrcode: string
@@ -211,11 +259,13 @@ interface QRCodeData {
 // 定义页面显示的账号数据结构
 interface CloudAccount {
   id: number
-  type: string
+  source_type: string
   name: string
-  userId: string
+  user_id: string
   username: string
-  addTime: string
+  password: string
+  base_url: string
+  created_at: number
   token: string
 }
 
@@ -235,6 +285,20 @@ const showAddAccountDialog = ref(false)
 const newAccountForm = ref({
   type: '',
   name: '',
+  base_url: '',
+  username: '',
+  password: '',
+})
+
+// 编辑账号相关状态
+const showEditAccountDialog = ref(false)
+const currentEditAccount = ref<CloudAccount | null>(null)
+const editAccountForm = ref({
+  id: 0,
+  source_type: '',
+  base_url: '',
+  username: '',
+  password: '',
 })
 
 // 二维码登录相关状态
@@ -260,14 +324,16 @@ const loadAccounts = async () => {
     if (response?.data.code === 200) {
       const data = response.data.data
       console.log(data)
-      accounts.value = data.map((item: ApiCloudAccount) => ({
+      accounts.value = data.map((item: CloudAccount) => ({
         id: item.id,
-        type: item.source_type,
+        source_type: item.source_type,
         name: item.name,
-        userId: item.user_id,
+        user_id: item.user_id,
         username: item.username,
-        addTime: formatTimestamp(item.created_at),
+        created_at: item.created_at,
         token: item.token,
+        base_url: item.base_url,
+        password: item.password,
       }))
     } else {
       console.error('加载账号列表失败:', response?.data.msg || '未知错误')
@@ -316,16 +382,67 @@ const handleDelete = async (row: CloudAccount) => {
   }
 }
 
+// 处理编辑账号
+const handleEdit = (account: CloudAccount) => {
+  // 设置当前编辑的账号
+  currentEditAccount.value = account
+  console.log(account.base_url, account.password)
+  // 填充编辑表单
+  editAccountForm.value = {
+    id: account.id,
+    source_type: account.source_type,
+    base_url: account.base_url,
+    username: account.username,
+    password: account.password,
+  }
+  console.log(editAccountForm.value)
+  // 显示编辑对话框
+  showEditAccountDialog.value = true
+}
+
+// 处理更新账号
+const handleUpdateAccount = async () => {
+  try {
+    // 准备请求数据
+    const requestData = {
+      id: editAccountForm.value.id,
+      base_url: editAccountForm.value.base_url,
+      username: editAccountForm.value.username,
+      password: editAccountForm.value.password,
+    }
+
+    // 调用API更新账号
+    const response = await http?.post(`${SERVER_URL}/account/openlist`, requestData, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (response?.data.code === 200) {
+      // 更新成功，关闭对话框，刷新账号列表
+      showEditAccountDialog.value = false
+      loadAccounts() // 刷新账号列表
+      ElMessage.success('账号更新成功')
+    } else {
+      console.error('更新账号失败:', response?.data.msg || '未知错误')
+      ElMessage.error(response?.data.msg || '更新账号失败')
+    }
+  } catch (error) {
+    console.error('更新账号错误:', error)
+    ElMessage.error('更新账号失败')
+  }
+}
+
 // 授权账号
 const handleAuthorize = (row: CloudAccount) => {
   console.log('授权账号:', row)
   // 实现授权逻辑
   // 如果是115网盘，显示二维码对话框
-  if (row.type === '115') {
+  if (row.source_type === '115') {
     handle115Login(row.id)
   }
   // 如果是123云盘，显示确认对话框
-  else if (row.type === '123') {
+  else if (row.source_type === '123') {
     selectedAccountId.value = row.id
     show123AuthDialog.value = true
   }
@@ -343,14 +460,26 @@ const proceed123Auth = () => {
 // 处理添加账号
 const handleAddAccount = async () => {
   try {
-    // 准备请求数据
-    const requestData = {
-      source_type: newAccountForm.value.type,
-      name: newAccountForm.value.name,
+    let requestData = {}
+    let url = `${SERVER_URL}/account/add`
+    if (newAccountForm.value.type === 'openlist') {
+      requestData = {
+        source_type: newAccountForm.value.type,
+        base_url: newAccountForm.value.base_url,
+        username: newAccountForm.value.username,
+        password: newAccountForm.value.password,
+      }
+      url = `${SERVER_URL}/account/openlist`
+    } else {
+      // 准备请求数据
+      requestData = {
+        source_type: newAccountForm.value.type,
+        name: newAccountForm.value.name,
+      }
     }
 
     // 调用API添加账号
-    const response = await http?.post(`${SERVER_URL}/account/add`, requestData, {
+    const response = await http?.post(url, requestData, {
       headers: {
         'Content-Type': 'application/json',
       },
@@ -361,6 +490,9 @@ const handleAddAccount = async () => {
       showAddAccountDialog.value = false
       newAccountForm.value.type = ''
       newAccountForm.value.name = ''
+      newAccountForm.value.base_url = ''
+      newAccountForm.value.username = ''
+      newAccountForm.value.password = ''
       loadAccounts() // 刷新账号列表
       console.log('账号添加成功')
     } else {

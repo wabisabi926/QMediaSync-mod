@@ -59,7 +59,7 @@
             </div>
             <div class="info-item">
               <span class="info-label">目标路径:</span>
-              <span class="info-value">{{ row.local_path }}</span>
+              <span class="info-value">{{ GetFullPath(row) }}</span>
             </div>
 
             <div class="info-item" v-if="row.source_type === '115'">
@@ -618,16 +618,22 @@ const editSelectedDirPath = ref('')
 // 表单验证规则
 const addFormRules: FormRules = {
   local_path: [
-    { required: true, message: '请输入本地目录路径', trigger: 'blur' },
+    { required: true, message: '请选择目标目录', trigger: 'blur' },
     { min: 1, max: 500, message: '长度在 1 到 500 个字符', trigger: 'blur' },
   ],
   base_cid: [
-    { required: true, message: '请输入CID', trigger: 'blur' },
+    { required: true, message: '请选择来源目录', trigger: 'blur' },
     { min: 1, max: 100, message: '长度在 1 到 100 个字符', trigger: 'blur' },
   ],
   dir_depth: [
-    { required: true, message: '请输入目录深度', trigger: 'blur' },
-    { type: 'number', min: 1, max: 10, message: '目录深度必须在 1 到 10 之间', trigger: 'blur' },
+    { required: true, message: '请输入缓存的目录深度', trigger: 'blur' },
+    {
+      type: 'number',
+      min: 1,
+      max: 3,
+      message: '缓存的目录深度必须在 1 到 3 之间',
+      trigger: 'blur',
+    },
   ],
   source_type: [{ required: true, message: '请选择同步源类型', trigger: 'change' }],
   account_id: [{ required: true, message: '请选择网盘账号', trigger: 'change' }],
@@ -636,11 +642,11 @@ const addFormRules: FormRules = {
 // 编辑表单验证规则
 const editFormRules: FormRules = {
   local_path: [
-    { required: true, message: '请输入本地目录路径', trigger: 'blur' },
+    { required: true, message: '请选择目标目录', trigger: 'blur' },
     { min: 1, max: 500, message: '长度在 1 到 500 个字符', trigger: 'blur' },
   ],
   base_cid: [
-    { required: true, message: '请输入CID', trigger: 'blur' },
+    { required: true, message: '请选择来源目录', trigger: 'blur' },
     { min: 1, max: 100, message: '长度在 1 到 100 个字符', trigger: 'blur' },
   ],
   dir_depth: [
@@ -648,6 +654,21 @@ const editFormRules: FormRules = {
     { type: 'number', min: 1, max: 10, message: '目录深度必须在 1 到 10 之间', trigger: 'blur' },
   ],
   account_id: [{ required: true, message: '请选择网盘账号', trigger: 'change' }],
+}
+
+const GetFullPath = (row: SyncDirectory) => {
+  // 如果cleanLocalPath以字母开头则用\分隔，如果以/开头则用/分隔
+  const pathSeparator = row.local_path.startsWith('/') ? '/' : '\\'
+  if (row.source_type == 'local') {
+    return row.remote_path
+  }
+  let remotePath = row.remote_path
+  if (pathSeparator === '/') {
+    remotePath = remotePath.replace(/\\/g, pathSeparator)
+  } else {
+    remotePath = remotePath.replace(/\//g, pathSeparator)
+  }
+  return `${row.local_path}${pathSeparator}${remotePath}`
 }
 
 // 加载同步目录列表
@@ -955,8 +976,10 @@ const calculateStrmPath = (localPath: string, dirPath: string): string => {
   const cleanLocalPath = localPath.replace(/[/\\]+$/, '')
   // 移除目录路径开头的斜杠并规范化路径分隔符
   const cleanDirPath = dirPath.replace(/^[/\\]+/, '').replace(/\//g, '\\')
+  // 如果cleanLocalPath以字母开头则用\分隔，如果以/开头则用/分隔
+  const pathSeparator = cleanLocalPath.startsWith('/') ? '/' : '\\'
 
-  return cleanDirPath ? `${cleanLocalPath}/${cleanDirPath}` : cleanLocalPath
+  return cleanDirPath ? `${cleanLocalPath}${pathSeparator}${cleanDirPath}` : cleanLocalPath
 }
 
 // 更新添加表单的STRM路径

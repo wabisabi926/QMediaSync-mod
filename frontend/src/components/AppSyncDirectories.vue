@@ -41,7 +41,7 @@
                   :content="'目录ID：' + row.base_cid"
                   placement="bottom"
                 >
-                  #{{ index + 1 }} {{ row.remote_path }}
+                  #{{ row.id }} {{ row.remote_path }}
                 </el-tooltip>
               </div>
               <div>
@@ -456,11 +456,10 @@
               v-for="dir in dirTreeData"
               :key="dir.id"
               class="dir-item"
-              @click="selectTempDir(isSelectingLocalPath, dir)"
+              @click="selectTempDir(dir)"
             >
               <el-icon><Folder /></el-icon>
               <span class="dir-name">{{ dir.name }}</span>
-              <el-icon class="enter-icon"><ArrowRight /></el-icon>
             </div>
           </div>
         </el-scrollbar>
@@ -490,16 +489,7 @@ import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { inject, onMounted, onUnmounted, ref, reactive, watch, type Ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import {
-  Plus,
-  Loading,
-  Folder,
-  ArrowRight,
-  VideoPlay,
-  Edit,
-  Delete,
-  Warning,
-} from '@element-plus/icons-vue'
+import { Plus, Loading, Folder, VideoPlay, Edit, Delete, Warning } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { formatTime } from '@/utils/timeUtils'
 import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
@@ -530,7 +520,7 @@ interface SyncDirectory {
 interface DirInfo {
   id: string
   name: string
-  path?: string
+  path: string
 }
 
 // 账户信息接口
@@ -660,7 +650,7 @@ const GetFullPath = (row: SyncDirectory) => {
   // 如果cleanLocalPath以字母开头则用\分隔，如果以/开头则用/分隔
   const pathSeparator = row.local_path.startsWith('/') ? '/' : '\\'
   if (row.source_type == 'local') {
-    return row.remote_path
+    return row.local_path
   }
   let remotePath = row.remote_path
   if (pathSeparator === '/') {
@@ -762,6 +752,7 @@ const handleEdit = async (row: SyncDirectory) => {
   editForm.video_ext = row.video_ext_arr || []
   editForm.meta_ext = row.meta_ext_arr || []
   editForm.exclude_name = row.exclude_name_arr || []
+  editForm.remote_path = row.remote_path || ''
   editSelectedDirPath.value = row.remote_path || ''
 
   // 初始化STRM路径
@@ -947,6 +938,7 @@ const loadDirTree = async (sourceType: string, dirId: string) => {
         source_type: sourceType,
         account_id: accountIdToUse,
       },
+      timeout: 60000, // 设置超时时间为1分钟
     })
 
     if (response?.data.code === 200) {
@@ -960,12 +952,12 @@ const loadDirTree = async (sourceType: string, dirId: string) => {
 }
 
 // 临时选择目录（点击目录时）
-const selectTempDir = async (isLocal: boolean, dir: DirInfo) => {
+const selectTempDir = async (dir: DirInfo) => {
   tempSelectedDir.value = dir
   currentDir.value = dir
 
-  // 加载该目录的子目
-  await loadDirTree(selectedSourceType.value, dir.id)
+  // 加载该目录的子目录
+  await loadDirTree(selectedSourceType.value, dir.path)
 }
 
 // 计算STRM存放目录
@@ -1050,7 +1042,7 @@ const openEditDirSelector = async (isLocalPath: boolean = false) => {
 
   await loadDirTree(
     isLocalPath ? 'local' : editForm.source_type,
-    isLocalPath ? editForm.local_path : editForm.base_cid,
+    isLocalPath ? editForm.local_path : editForm.remote_path,
   )
 }
 

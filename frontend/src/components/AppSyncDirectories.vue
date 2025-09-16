@@ -965,7 +965,7 @@ const calculateStrmPath = (localPath: string, dirPath: string): string => {
   if (!localPath || !dirPath) return ''
 
   // 移除本地路径末尾的斜杠
-  const cleanLocalPath = localPath.replace(/[/\\]+$/, '')
+  const cleanLocalPath = localPath
   // 移除目录路径开头的斜杠并规范化路径分隔符
   const cleanDirPath = dirPath.replace(/^[/\\]+/, '').replace(/\//g, '\\')
   // 如果cleanLocalPath以字母开头则用\分隔，如果以/开头则用/分隔

@@ -146,9 +146,9 @@ const testBot = async () => {
       testStatus.value = {
         title: '机器人测试失败',
         type: 'error',
-        description: response?.data.msg || '无法发送测试消息，请检查Token和用户ID是否正确',
+        description: response?.data.message || '无法发送测试消息，请检查Token和用户ID是否正确',
       }
-      ElMessage.error(response?.data.msg || '机器人测试失败')
+      ElMessage.error(response?.data.message || '机器人测试失败')
     }
   } catch (error) {
     console.error('机器人测试错误:', error)
@@ -192,7 +192,7 @@ const saveSettings = async () => {
           : 'Telegram通知功能已禁用，不会发送任何通知',
       }
     } else {
-      ElMessage.error(response?.data.msg || '保存设置失败，请重试')
+      ElMessage.error(response?.data.message || '保存设置失败，请重试')
     }
   } catch (error) {
     console.error('保存设置错误:', error)

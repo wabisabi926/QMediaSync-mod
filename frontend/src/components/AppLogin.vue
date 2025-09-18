@@ -119,16 +119,16 @@ const handleLogin = async () => {
       const redirect = router.currentRoute.value.query.redirect as string
       router.push(redirect || '/')
     } else {
-      ElMessage.error(response?.data.msg || '登录失败')
+      ElMessage.error(response?.data.message || '登录失败')
     }
   } catch (error: unknown) {
     console.error('登录错误:', error)
     let errorMsg = '登录失败，请检查网络连接'
 
     if (error && typeof error === 'object' && 'response' in error) {
-      const response = (error as { response?: { data?: { msg?: string } } }).response
-      if (response?.data?.msg) {
-        errorMsg = response.data.msg
+      const response = (error as { response?: { data?: { message?: string } } }).response
+      if (response?.data?.message) {
+        errorMsg = response.data.message
       }
     }
 

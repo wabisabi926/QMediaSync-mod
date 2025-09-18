@@ -171,12 +171,12 @@ const saveSettings = async () => {
         router.push('/login')
       }
     } else {
-      ElMessage.error(response?.data.msg || '保存设置失败，请重试')
+      ElMessage.error(response?.data.message || '保存设置失败，请重试')
 
       saveStatus.value = {
         title: '保存设置失败',
         type: 'error',
-        description: response?.data.msg || '无法保存用户设置，请检查网络连接后重试',
+        description: response?.data.message || '无法保存用户设置，请检查网络连接后重试',
       }
     }
   } catch (error) {

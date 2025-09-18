@@ -353,7 +353,7 @@ const saveStrmConfig = async () => {
       strmStatus.value = {
         title: '保存STRM配置失败',
         type: 'error',
-        description: response?.data.msg || '保存设置失败，请重试',
+        description: response?.data.message || '保存设置失败，请重试',
       }
     }
   } catch (error) {

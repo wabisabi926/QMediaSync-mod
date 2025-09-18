@@ -73,8 +73,8 @@
             </div>
 
             <div class="info-item">
-              <span class="info-label">修改时间:</span>
-              <span class="info-value">{{ formatTime(row.updated_at) }}</span>
+              <span class="info-label">最后同步时间:</span>
+              <span class="info-value">{{ formatTime(row.last_sync_at) }}</span>
             </div>
 
             <div class="info-item">
@@ -504,6 +504,7 @@ interface SyncDirectory {
   dir_depth?: number
   created_at: number
   updated_at: number
+  last_sync_at: number
   deleting?: boolean
   editing?: boolean
   starting?: boolean
@@ -676,7 +677,7 @@ const loadDirectories = async () => {
       directories.value = response.data.data.list || []
       total.value = response.data.data.total || 0
     } else {
-      ElMessage.error(response?.data.msg || '加载同步目录失败')
+      ElMessage.error(response?.data.message || '加载同步目录失败')
       directories.value = []
       total.value = 0
     }
@@ -730,7 +731,7 @@ const handleAdd = async () => {
       selectedDirPath.value = ''
       loadDirectories()
     } else {
-      ElMessage.error(response?.data.msg || '添加同步目录失败')
+      ElMessage.error(response?.data.message || '添加同步目录失败')
     }
   } catch {
     console.error('添加同步目录错误')
@@ -803,7 +804,7 @@ const handleEditSave = async () => {
       editSelectedDirPath.value = ''
       loadDirectories()
     } else {
-      ElMessage.error(response?.data.msg || '编辑同步目录失败')
+      ElMessage.error(response?.data.message || '编辑同步目录失败')
     }
   } catch {
     console.error('编辑同步目录错误')
@@ -874,7 +875,7 @@ const handleStart = async (row: SyncDirectory, index: number) => {
     if (response?.data.code === 200) {
       ElMessage.success(`同步目录 "${row.local_path}" 启动成功`)
     } else {
-      ElMessage.error(response?.data.msg || '启动同步目录失败')
+      ElMessage.error(response?.data.message || '启动同步目录失败')
     }
   } catch {
     console.error('启动同步目录错误')
@@ -904,7 +905,7 @@ const toggleCron = async (row: SyncDirectory) => {
     } else {
       // 如果失败，恢复原来的状态
       row.enable_cron = !row.enable_cron
-      ElMessage.error(response?.data.msg || '切换定时同步状态失败')
+      ElMessage.error(response?.data.message || '切换定时同步状态失败')
     }
   } catch {
     console.error('切换定时同步状态错误')
@@ -943,9 +944,14 @@ const loadDirTree = async (sourceType: string, dirId: string) => {
 
     if (response?.data.code === 200) {
       dirTreeData.value = response.data.data || []
+      return true
+    } else {
+      ElMessage.error(response?.data.message || '加载目录树失败')
+      return false
     }
   } catch (error) {
     console.error('加载目录树错误:', error)
+    return false
   } finally {
     dirTreeLoading.value = false
   }
@@ -953,11 +959,12 @@ const loadDirTree = async (sourceType: string, dirId: string) => {
 
 // 临时选择目录（点击目录时）
 const selectTempDir = async (dir: DirInfo) => {
-  tempSelectedDir.value = dir
-  currentDir.value = dir
-
   // 加载该目录的子目录
-  await loadDirTree(selectedSourceType.value, dir.path)
+  if (await loadDirTree(selectedSourceType.value, dir.path)) {
+    tempSelectedDir.value = dir
+    currentDir.value = dir
+    return
+  }
 }
 
 // 计算STRM存放目录
@@ -1081,7 +1088,7 @@ const loadAccounts = async () => {
         accounts.value.push(account)
       }
     } else {
-      console.error('加载账号列表失败:', response?.data.msg || '未知错误')
+      console.error('加载账号列表失败:', response?.data.message || '未知错误')
       accounts.value = []
     }
   } catch (error) {

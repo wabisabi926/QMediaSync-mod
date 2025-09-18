@@ -279,7 +279,7 @@ const uploadBatchFiles = async () => {
     const requestData = {
       file_list: urlArray,
       root_dir_id: selectedDirId.value,
-      root_dir_path: selectedDirPath.value
+      root_dir_path: selectedDirPath.value,
     }
 
     uploadProgress.value.percentage = 50
@@ -315,7 +315,7 @@ const uploadBatchFiles = async () => {
       uploadStatus.value = {
         title: '批量秒传失败',
         type: 'error',
-        description: response?.data.msg || '批量秒传过程中发生错误，请检查文件列表格式',
+        description: response?.data.message || '批量秒传过程中发生错误，请检查文件列表格式',
       }
     }
   } catch (error) {

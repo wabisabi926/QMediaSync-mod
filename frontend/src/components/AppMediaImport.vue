@@ -190,7 +190,7 @@ const startImport = async () => {
     const requestData = {
       library_path: importData.library_path,
       file_types: importData.file_types.join(','),
-      target_dir: importData.target_dir || '/'
+      target_dir: importData.target_dir || '/',
     }
 
     importProgress.value.percentage = 30
@@ -224,7 +224,7 @@ const startImport = async () => {
       importStatus.value = {
         title: '媒体库导入失败',
         type: 'error',
-        description: response?.data.msg || '导入过程中发生错误，请检查媒体库路径',
+        description: response?.data.message || '导入过程中发生错误，请检查媒体库路径',
       }
     }
   } catch (error) {

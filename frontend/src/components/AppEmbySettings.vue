@@ -173,9 +173,9 @@ const saveEmbyConfig = async () => {
       embyStatus.value = {
         title: '保存失败',
         type: 'error',
-        description: response?.data.msg || '保存Emby服务器设置失败',
+        description: response?.data.message || '保存Emby服务器设置失败',
       }
-      ElMessage.error(response?.data.msg || '保存失败')
+      ElMessage.error(response?.data.message || '保存失败')
     }
 
     // 3秒后隐藏状态提示

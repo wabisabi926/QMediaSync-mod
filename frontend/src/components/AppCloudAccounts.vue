@@ -44,8 +44,10 @@
             </div>
           </template>
           <div class="account-card-body">
-            <el-row justify="space-between" v-if="account.token">
-              <el-col :span="12"> <strong>用户ID:</strong> {{ account.user_id }} </el-col>
+            <el-row justify="space-between">
+              <el-col :span="12" v-if="account.source_type !== 'openlist'">
+                <strong>用户ID:</strong> {{ account.user_id }}
+              </el-col>
               <el-col :span="12"> <strong>用户名:</strong> {{ account.username }} </el-col>
             </el-row>
             <el-row>
@@ -111,7 +113,9 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="showAddAccountDialog = false">取消</el-button>
-          <el-button type="primary" @click="handleAddAccount">确定</el-button>
+          <el-button type="primary" @click="handleAddAccount" :loading="addAccountLoading"
+            >确定</el-button
+          >
         </span>
       </template>
     </el-dialog>
@@ -281,6 +285,9 @@ const loading = ref(false)
 // 添加账号对话框显示状态
 const showAddAccountDialog = ref(false)
 
+// 添加账号loading状态
+const addAccountLoading = ref(false)
+
 // 新账号表单数据
 const newAccountForm = ref({
   type: '',
@@ -336,7 +343,7 @@ const loadAccounts = async () => {
         password: item.password,
       }))
     } else {
-      console.error('加载账号列表失败:', response?.data.msg || '未知错误')
+      console.error('加载账号列表失败:', response?.data.message || '未知错误')
       accounts.value = []
     }
   } catch (error) {
@@ -371,7 +378,7 @@ const handleDelete = async (row: CloudAccount) => {
       ElMessage.success('账号删除成功')
       loadAccounts() // 刷新账号列表
     } else {
-      ElMessage.error(response?.data.msg || '删除账号失败')
+      ElMessage.error(response?.data.message || '删除账号失败')
     }
   } catch (error) {
     // 用户取消删除或请求失败
@@ -424,8 +431,8 @@ const handleUpdateAccount = async () => {
       loadAccounts() // 刷新账号列表
       ElMessage.success('账号更新成功')
     } else {
-      console.error('更新账号失败:', response?.data.msg || '未知错误')
-      ElMessage.error(response?.data.msg || '更新账号失败')
+      console.error('更新账号失败:', response?.data.message || '未知错误')
+      ElMessage.error(response?.data.message || '更新账号失败')
     }
   } catch (error) {
     console.error('更新账号错误:', error)
@@ -496,10 +503,14 @@ const handleAddAccount = async () => {
       loadAccounts() // 刷新账号列表
       console.log('账号添加成功')
     } else {
-      console.error('添加账号失败:', response?.data.msg || '未知错误')
+      console.error('添加账号失败:', response?.data.message || '未知错误')
+      ElMessage.error(response?.data.message || '添加账号失败')
     }
   } catch (error) {
     console.error('添加账号错误:', error)
+    ElMessage.error('添加账号错误')
+  } finally {
+    addAccountLoading.value = false
   }
 }
 
@@ -550,7 +561,7 @@ const handle115Login = async (accountId?: number) => {
       // 开始轮询二维码状态，传递account_id
       startPolling(accountId)
     } else {
-      console.error('获取二维码失败:', response?.data.msg || '未知错误')
+      console.error('获取二维码失败:', response?.data.message || '未知错误')
     }
   } catch (error) {
     console.error('115登录错误:', error)

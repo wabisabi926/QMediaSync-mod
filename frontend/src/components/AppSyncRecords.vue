@@ -372,7 +372,7 @@ const startManualSync = async () => {
       syncStatus.value = {
         title: '启动同步失败',
         type: 'error',
-        description: response?.data.msg || '启动同步任务失败，请重试',
+        description: response?.data.message || '启动同步任务失败，请重试',
       }
     }
   } catch (error) {
@@ -442,7 +442,7 @@ const deleteRecord = async (id: number) => {
       ElMessage.success('删除成功')
       await loadSyncRecords()
     } else {
-      ElMessage.error(response?.data.msg || '删除失败')
+      ElMessage.error(response?.data.message || '删除失败')
     }
   } catch {
     ElMessage.error('删除出错')
@@ -484,7 +484,7 @@ const batchDeleteRecords = async () => {
       selectedIds.value = []
       await loadSyncRecords()
     } else {
-      ElMessage.error(response?.data.msg || '批量删除失败')
+      ElMessage.error(response?.data.message || '批量删除失败')
     }
   } catch (error) {
     if (error !== 'cancel') {

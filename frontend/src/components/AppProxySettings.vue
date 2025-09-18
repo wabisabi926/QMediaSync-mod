@@ -119,7 +119,7 @@ const testProxy = async () => {
       proxyStatus.value = {
         title: '代理测试失败',
         type: 'error',
-        description: response?.data.msg || '无法连接到代理服务器，请检查配置',
+        description: response?.data.message || '无法连接到代理服务器，请检查配置',
       }
     }
   } catch (error) {
@@ -162,7 +162,7 @@ const saveProxy = async () => {
       proxyStatus.value = {
         title: '保存代理设置失败',
         type: 'error',
-        description: response?.data.msg || '保存设置失败，请重试',
+        description: response?.data.message || '保存设置失败，请重试',
       }
     }
   } catch (error) {

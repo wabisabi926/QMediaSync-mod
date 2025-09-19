@@ -9,7 +9,7 @@
             <p class="card-subtitle">查看STRM文件同步历史记录和状态</p>
           </div>
           <div class="header-right">
-            <el-button
+            <!-- <el-button
               type="primary"
               @click="startManualSync"
               :loading="syncLoading"
@@ -18,7 +18,7 @@
             >
               <el-icon><Refresh /></el-icon>
               手动同步
-            </el-button>
+            </el-button> -->
           </div>
         </div>
       </template>
@@ -162,7 +162,6 @@
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
-import { Refresh } from '@element-plus/icons-vue'
 import { inject, onMounted, onUnmounted, ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -208,7 +207,6 @@ const router = useRouter()
 // 数据状态
 const syncRecords = ref<SyncRecord[]>([])
 const tableLoading = ref(false)
-const syncLoading = ref(false)
 const syncStatus = ref<SyncStatus | null>(null)
 
 // 批量删除相关状态
@@ -350,42 +348,42 @@ const loadSyncRecords = async () => {
   }
 }
 
-// 手动开始同步
-const startManualSync = async () => {
-  try {
-    syncLoading.value = true
-    syncStatus.value = null
+// // 手动开始同步
+// const startManualSync = async () => {
+//   try {
+//     syncLoading.value = true
+//     syncStatus.value = null
 
-    const response = await http?.post(`${SERVER_URL}/sync/start`)
+//     const response = await http?.post(`${SERVER_URL}/sync/start`)
 
-    if (response?.data.code === 200) {
-      syncStatus.value = {
-        title: '同步任务已启动',
-        type: 'success',
-        description: '手动同步任务已成功启动，请稍后查看同步记录',
-      }
-      // 重新加载记录
-      await loadSyncRecords()
-      // 启动自动刷新
-      startAutoRefresh()
-    } else {
-      syncStatus.value = {
-        title: '启动同步失败',
-        type: 'error',
-        description: response?.data.message || '启动同步任务失败，请重试',
-      }
-    }
-  } catch (error) {
-    console.error('启动同步错误:', error)
-    syncStatus.value = {
-      title: '启动同步出错',
-      type: 'error',
-      description: '启动同步过程中发生错误，请检查网络连接',
-    }
-  } finally {
-    syncLoading.value = false
-  }
-}
+//     if (response?.data.code === 200) {
+//       syncStatus.value = {
+//         title: '同步任务已启动',
+//         type: 'success',
+//         description: '手动同步任务已成功启动，请稍后查看同步记录',
+//       }
+//       // 重新加载记录
+//       await loadSyncRecords()
+//       // 启动自动刷新
+//       startAutoRefresh()
+//     } else {
+//       syncStatus.value = {
+//         title: '启动同步失败',
+//         type: 'error',
+//         description: response?.data.message || '启动同步任务失败，请重试',
+//       }
+//     }
+//   } catch (error) {
+//     console.error('启动同步错误:', error)
+//     syncStatus.value = {
+//       title: '启动同步出错',
+//       type: 'error',
+//       description: '启动同步过程中发生错误，请检查网络连接',
+//     }
+//   } finally {
+//     syncLoading.value = false
+//   }
+// }
 
 // 查看任务详情
 const viewTaskDetail = (taskId: number) => {

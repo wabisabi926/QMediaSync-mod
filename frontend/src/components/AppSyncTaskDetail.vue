@@ -155,8 +155,6 @@ import {
   Clock,
   Loading,
   Document,
-  Folder,
-  Connection,
   Download,
   SuccessFilled,
 } from '@element-plus/icons-vue'
@@ -170,7 +168,7 @@ interface TaskInfo {
   start_time: number
   end_time: number | null
   status: 0 | 1 | 2 | 3 // 0-待开始，1-运行中，2-完成，3-失败
-  sub_status: 0 | 1 | 2 | 3 | 4 // 0-待开始，1-正在收集目录结构，2-正在收集文件列表，3-正在比对文件结构，4-正在生成或下载文件
+  sub_status: 0 | 1 | 2 // 0-待开始，1-正在收集文件列表，2-正在生成或下载文件
   processed_files: number
   created_strm: number
   downloaded_meta: number
@@ -285,10 +283,8 @@ const getSubStatusText = (subStatus: number) => {
     case 0:
       return '待开始'
     case 1:
-      return '正在收集目录结构'
-    case 2:
       return '正在收集文件列表'
-    case 4:
+    case 2:
       return '正在生成或下载文件'
     default:
       return '未知'
@@ -378,12 +374,6 @@ const getTimelineItems = () => {
       timeField: 'start_time',
     },
     {
-      key: 'fetch_dir',
-      title: '收集目录结构',
-      icon: Folder,
-      timeField: 'fetch_dir_finish_at',
-    },
-    {
       key: 'fetch_file',
       title: '收集文件列表',
       icon: Document,
@@ -421,12 +411,10 @@ const getTimelineItems = () => {
       // 任务运行中
       if (step.key === 'start') {
         current = taskInfo.value.sub_status === 0
-      } else if (step.key === 'fetch_dir') {
-        current = taskInfo.value.sub_status === 1
       } else if (step.key === 'fetch_file') {
-        current = taskInfo.value.sub_status === 2
+        current = taskInfo.value.sub_status === 1
       } else if (step.key === 'generate') {
-        current = taskInfo.value.sub_status === 4
+        current = taskInfo.value.sub_status === 2
       }
     }
 
@@ -489,7 +477,7 @@ const loadTaskInfo = async () => {
         start_time: data.created_at,
         end_time: data.finish_at,
         status: data.status as 0 | 1 | 2 | 3,
-        sub_status: data.sub_status as 0 | 1 | 2 | 3 | 4,
+        sub_status: data.sub_status as 0 | 1 | 2,
         processed_files: data.total,
         created_strm: data.new_strm,
         downloaded_meta: data.new_meta || 0,
@@ -515,7 +503,7 @@ const loadCompareData = async () => {
     const response = await http?.get(`${SERVER_URL}/sync/task/compare?sync_id=${taskId.value}`, {
       params: {
         page: compareCurrentPage.value,
-        pageSize: comparePageSize.value,
+        page_size: comparePageSize.value,
       },
     })
 

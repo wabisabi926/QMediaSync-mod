@@ -3,16 +3,20 @@
     <el-card shadow="none" class="full-width-card">
       <template #header>
         <div class="card-header">
-          <div class="header-content">
-            <div class="header-info">
-              <h2 class="card-title">同步目录管理</h2>
-              <div class="header-actions">
-                <el-button type="primary" @click="showAddDialog = true">
-                  <el-icon><Plus /></el-icon>
-                  添加同步目录
-                </el-button>
-              </div>
-            </div>
+          <div class="header-left">
+            <h2 class="card-title">同步目录管理</h2>
+            <p class="card-subtitle">
+              115分为全量同步和增量同步，首次同步为全量，后续都为增量，其他类型不区分
+            </p>
+            <p class="card-subtitle">
+              115增量同步无法感知网盘的文件重命名等操作，如果发现文件夹名字不对可以手动点击全量同步
+            </p>
+          </div>
+          <div class="header-right">
+            <el-button type="primary" @click="showAddDialog = true">
+              <el-icon><Plus /></el-icon>
+              添加同步目录
+            </el-button>
           </div>
         </div>
       </template>
@@ -62,10 +66,10 @@
               <span class="info-value">{{ GetFullPath(row) }}</span>
             </div>
 
-            <div class="info-item" v-if="row.source_type === '115'">
+            <!-- <div class="info-item" v-if="row.source_type === '115'">
               <span class="info-label">缓存目录层级:</span>
               <span class="info-value">{{ row.dir_depth || '-' }}层</span>
-            </div>
+            </div> -->
 
             <div class="info-item">
               <span class="info-label">添加时间:</span>
@@ -101,12 +105,21 @@
           <template #footer>
             <div class="card-actions">
               <el-button
+                type="warning"
+                size="small"
+                @click="handleFullStart(row, index)"
+                :loading="row.starting"
+                :icon="VideoPlay"
+                v-if="row.source_type === '115'"
+                >全量同步</el-button
+              >
+              <el-button
                 type="success"
                 size="small"
                 @click="handleStart(row, index)"
                 :loading="row.starting"
                 :icon="VideoPlay"
-                >启动同步</el-button
+                >同步</el-button
               >
               <el-button
                 type="primary"
@@ -253,7 +266,7 @@
           <div class="form-tip">STRM和元数据实际存放目录（自动生成）</div>
         </el-form-item>
 
-        <el-form-item label="缓存目录层级" prop="dir_depth" v-if="addForm.source_type === '115'">
+        <!-- <el-form-item label="缓存目录层级" prop="dir_depth" v-if="addForm.source_type === '115'">
           <el-input-number
             v-model="addForm.dir_depth"
             :min="1"
@@ -271,7 +284,7 @@
               如果所选网盘目录是影视剧的根目录如Media，下面的子目录结构如：电影/动画电影/哪吒/哪吒.mkv，那就输入3；
             </p>
           </div>
-        </el-form-item>
+        </el-form-item> -->
 
         <el-form-item label="是否自定义设置" prop="custom_config">
           <el-switch
@@ -366,7 +379,7 @@
           </div>
           <div class="form-tip">选择本地目录作为STRM文件的存放位置</div>
         </el-form-item>
-        <el-form-item label="缓存目录层级" prop="dir_depth" v-if="editForm.source_type === '115'">
+        <!-- <el-form-item label="缓存目录层级" prop="dir_depth" v-if="editForm.source_type === '115'">
           <el-input-number
             v-model="editForm.dir_depth"
             :min="1"
@@ -376,7 +389,7 @@
             style="width: 100%"
           />
           <div class="form-tip">缓存目录层级，建议设置为 1-3 层（默认 2层）</div>
-        </el-form-item>
+        </el-form-item> -->
         <el-form-item label="STRM存放目录">
           <el-input
             v-model="editForm.strm_path"
@@ -856,7 +869,34 @@ const handleDelete = async (row: SyncDirectory, index: number) => {
     }
   }
 }
+const handleFullStart = async (row: SyncDirectory, index: number) => {
+  try {
+    directories.value[index].starting = true
 
+    const formData = {
+      id: row.id || '',
+    }
+
+    const response = await http?.post(`${SERVER_URL}/sync/path/full-start`, formData, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (response?.data.code === 200) {
+      ElMessage.success(`同步目录 "${row.local_path}" 启动成功`)
+    } else {
+      ElMessage.error(response?.data.message || '启动同步目录失败')
+    }
+  } catch {
+    console.error('启动同步目录错误')
+    ElMessage.error('启动同步目录失败')
+  } finally {
+    if (directories.value[index]) {
+      directories.value[index].starting = false
+    }
+  }
+}
 // 处理启动同步目录
 const handleStart = async (row: SyncDirectory, index: number) => {
   try {
@@ -975,9 +1015,10 @@ const calculateStrmPath = (localPath: string, dirPath: string): string => {
   const cleanLocalPath = localPath
   // 移除目录路径开头的斜杠并规范化路径分隔符
   const cleanDirPath = dirPath.replace(/^[/\\]+/, '').replace(/\//g, '\\')
-  // 如果cleanLocalPath以字母开头则用\分隔，如果以/开头则用/分隔
-  const pathSeparator = cleanLocalPath.startsWith('/') ? '/' : '\\'
-
+  let pathSeparator = '/'
+  if (versionInfo.value?.isWindows) {
+    pathSeparator = '\\'
+  }
   return cleanDirPath ? `${cleanLocalPath}${pathSeparator}${cleanDirPath}` : cleanLocalPath
 }
 
@@ -1098,11 +1139,33 @@ const loadAccounts = async () => {
     accountsLoading.value = false
   }
 }
+interface VersionInfo {
+  version: string
+  date: string
+  isWindows: boolean
+  isRelease: boolean
+}
+const versionInfo = ref<VersionInfo | null>(null)
+// 加载系统版本信息
+const loadVersionInfo = async () => {
+  try {
+    const response = await http?.get(`${SERVER_URL}/version`)
+    if (response && response.data) {
+      versionInfo.value = response.data
+    } else {
+      versionInfo.value = null
+    }
+  } catch (error) {
+    console.error('加载系统版本信息错误:', error)
+    versionInfo.value = null
+  }
+}
 
 // 组件挂载时加载数据
 let removeDeviceTypeListener: (() => void) | null = null
 
 onMounted(() => {
+  loadVersionInfo()
   checkMobile()
   removeDeviceTypeListener = onDeviceTypeChange((newIsMobile) => {
     checkIsMobile.value = newIsMobile

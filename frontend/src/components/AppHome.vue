@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
-import { inject, onMounted, ref } from 'vue'
+import { inject, onMounted, onUnmounted, ref, watch } from 'vue'
 import {} from '@/utils/timeUtils'
 
 interface VersionInfo {
@@ -23,6 +23,7 @@ const versionInfo = ref<VersionInfo | null>(null)
 const queueStatus = ref<QueueStatus | null>(null)
 const versionLoading = ref(true)
 const queueLoading = ref(true)
+const refreshTimer = ref<number | null>(null)
 
 // 获取队列状态文本
 const getQueueStatusText = (status: string): string => {
@@ -93,9 +94,46 @@ const loadQueueStatus = async () => {
   }
 }
 
+// 检查是否需要刷新队列状态
+const checkRefreshStatus = () => {
+  // 清除现有定时器
+  if (refreshTimer.value) {
+    clearInterval(refreshTimer.value)
+    refreshTimer.value = null
+  }
+  
+  // 检查是否有活跃或等待任务
+  const hasActiveTasks = queueStatus.value && (
+    queueStatus.value.download_active_len > 0 ||
+    queueStatus.value.download_wait_len > 0 ||
+    queueStatus.value.upload_active_len > 0 ||
+    queueStatus.value.upload_wait_len > 0
+  )
+  
+  // 如果有任务，启动每秒刷新
+  if (hasActiveTasks) {
+    refreshTimer.value = window.setInterval(() => {
+      loadQueueStatus()
+    }, 1000)
+  }
+}
+
+// 监听队列状态变化，检查是否需要刷新
+watch(queueStatus, () => {
+  checkRefreshStatus()
+})
+
 onMounted(() => {
   loadVersionInfo()
   loadQueueStatus()
+})
+
+// 组件卸载时清除定时器
+onUnmounted(() => {
+  if (refreshTimer.value) {
+    clearInterval(refreshTimer.value)
+    refreshTimer.value = null
+  }
 })
 </script>
 <template>

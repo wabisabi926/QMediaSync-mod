@@ -110,11 +110,30 @@
         </div>
       </el-form-item>
 
+      <el-form-item label="是否下载元数据" prop="download_meta">
+        <el-radio-group v-model="strmData.download_meta" @change="changeDownloadMeta">
+          <el-radio-button :label="1">是</el-radio-button>
+          <el-radio-button :label="0">否</el-radio-button>
+        </el-radio-group>
+        <div class="form-help">
+          <p>如果选择是，同步时会将本地不存在的元数据文件下载回来</p>
+          <p>
+            如果选择否，同步时不会下载，<strong stylle="color: black;"
+              >但是也同时跳过处理元数据，已存在的会保留，新增的不会上传</strong
+            >
+          </p>
+        </div>
+      </el-form-item>
+
       <!-- 同步完是否上传网盘不存在的元数据 -->
-      <el-form-item label="不存在的元数据" prop="upload_meta">
+      <el-form-item label="网盘不存在的元数据" prop="upload_meta">
         <el-radio-group v-model="strmData.upload_meta">
-          <el-radio-button :label="2">删除</el-radio-button>
-          <el-radio-button :label="1">上传</el-radio-button>
+          <el-radio-button :label="2" :disabled="strmData.download_meta === 0"
+            >删除</el-radio-button
+          >
+          <el-radio-button :label="1" :disabled="strmData.download_meta === 0"
+            >上传</el-radio-button
+          >
           <el-radio-button :label="0">保留</el-radio-button>
         </el-radio-group>
         <div class="form-help">
@@ -128,8 +147,8 @@
         </div>
       </el-form-item>
 
-      <!-- 同步完是否删除网盘不存在的STRM文件 -->
-      <el-form-item label="网盘不存在的STRM文件" prop="delete_strm">
+      <!-- 同步完是否删除网盘不存在的STRM文件, 必须删除因为没有网盘文件则不能播放 -->
+      <!-- <el-form-item label="网盘不存在的STRM文件" prop="delete_strm">
         <el-radio-group v-model="strmData.delete_strm">
           <el-radio-button :label="1">删除</el-radio-button>
           <el-radio-button :label="0">不删除</el-radio-button>
@@ -137,7 +156,7 @@
         <div class="form-help">
           <p>同步完成后是否删除本地存在但网盘不存在的STRM文件</p>
         </div>
-      </el-form-item>
+      </el-form-item> -->
 
       <!-- 同步完是否删除网盘不存在的空目录 -->
       <el-form-item label="网盘不存在的空目录" prop="delete_dir">
@@ -146,18 +165,18 @@
           <el-radio-button :label="0">不删除</el-radio-button>
         </el-radio-group>
         <div class="form-help">
-          <p>同步完成后是否删除本地存在但网盘不存在的空目录</p>
+          <p>同步完成后是否删除本地存在但网盘不存在的目录，该本地目录必须是空目录</p>
         </div>
       </el-form-item>
 
-      <el-form-item label="启用本地代理直链" prop="local_proxy">
+      <el-form-item label="启用本地代理播放" prop="local_proxy">
         <el-radio-group v-model="strmData.local_proxy">
           <el-radio-button :label="1">启用</el-radio-button>
           <el-radio-button :label="0">关闭</el-radio-button>
         </el-radio-group>
         <div class="form-help">
           <p>
-            开启后将使用本地代理访问直链，可以解决局域网其他设备因为UA问不同无法播放的问题，但是会禁用外网302播放。
+            开启后将使用本地代理访问网盘，可以解决局域网其他设备因为UA不同无法播放的问题，但是会禁用外网302播放（通过8095端口依然能播放，但是流量会走自己服务器）。
           </p>
         </div>
       </el-form-item>
@@ -203,6 +222,7 @@ interface StrmData {
   cron_expression: string
   direct_url: string
   upload_meta: 0 | 1 | 2
+  download_meta: 0 | 1
   delete_strm: 0 | 1
   delete_dir: 0 | 1
   local_proxy: 0 | 1
@@ -237,6 +257,7 @@ const defaultStrmData: StrmData = {
   cron_expression: '30 * * * *',
   direct_url: '',
   upload_meta: 0, // 默认保留
+  download_meta: 1, // 默认不下载元数据
   delete_strm: 1, // 默认删除
   delete_dir: 0, // 默认不删除
   local_proxy: 0, // 是否启用本地代理
@@ -331,6 +352,7 @@ const saveStrmConfig = async () => {
       cron: strmData.cron_expression,
       strm_base_url: strmData.direct_url,
       upload_meta: strmData.upload_meta,
+      download_meta: strmData.download_meta,
       delete_strm: strmData.delete_strm,
       delete_dir: strmData.delete_dir,
       local_proxy: strmData.local_proxy,
@@ -382,6 +404,7 @@ const loadStrmConfig = async () => {
       strmData.cron_expression = config.cron || defaultStrmData.cron_expression
       strmData.direct_url = config.strm_base_url || ''
       strmData.upload_meta = config.upload_meta !== undefined ? config.upload_meta : 0
+      strmData.download_meta = config.download_meta !== undefined ? config.download_meta : 1
       strmData.delete_strm = config.delete_strm !== undefined ? config.delete_strm : 1
       strmData.delete_dir = config.delete_dir !== undefined ? config.delete_dir : 0
       strmData.local_proxy = config.local_proxy !== undefined ? config.local_proxy : 0
@@ -421,6 +444,13 @@ const loadCronTimes = async () => {
     cronTimes.value = []
   } finally {
     cronTimesLoading.value = false
+  }
+}
+
+const changeDownloadMeta = () => {
+  console.log('改变是否下载元数据')
+  if (strmData.download_meta === 0) {
+    strmData.upload_meta = 0
   }
 }
 

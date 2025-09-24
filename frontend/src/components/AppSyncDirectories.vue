@@ -1011,15 +1011,13 @@ const selectTempDir = async (dir: DirInfo) => {
 const calculateStrmPath = (localPath: string, dirPath: string): string => {
   if (!localPath || !dirPath) return ''
 
-  // 移除本地路径末尾的斜杠
-  const cleanLocalPath = localPath
   // 移除目录路径开头的斜杠并规范化路径分隔符
-  const cleanDirPath = dirPath.replace(/^[/\\]+/, '').replace(/\//g, '\\')
+  // const cleanDirPath = dirPath.replace(/^[/\\]+/, '').replace(/\//g, '\\')
   let pathSeparator = '/'
   if (versionInfo.value?.isWindows) {
     pathSeparator = '\\'
   }
-  return cleanDirPath ? `${cleanLocalPath}${pathSeparator}${cleanDirPath}` : cleanLocalPath
+  return dirPath ? `${localPath}${pathSeparator}${dirPath}` : localPath
 }
 
 // 更新添加表单的STRM路径

@@ -44,13 +44,9 @@
               <el-icon><Setting /></el-icon>
               <span>系统设置</span>
             </template>
-            <el-menu-item index="/accounts">
-              <el-icon><Link /></el-icon>
-              <span>网盘账号管理</span>
-            </el-menu-item>
             <el-menu-item index="/settings/strm">
               <el-icon><VideoPlay /></el-icon>
-              <span>STRM配置</span>
+              <span>STRM</span>
             </el-menu-item>
             <el-menu-item index="/settings/emby">
               <el-icon><VideoPlay /></el-icon>
@@ -60,15 +56,31 @@
               <el-icon><Link /></el-icon>
               <span>网络代理</span>
             </el-menu-item>
-            <el-menu-item index="/settings/user">
-              <el-icon><UserFilled /></el-icon>
-              <span>用户账号设置</span>
-            </el-menu-item>
             <el-menu-item index="/settings/telegram">
-              <el-icon><ChatLineRound /></el-icon>
+              <el-icon><Promotion /></el-icon>
               <span>Telegram通知</span>
             </el-menu-item>
+            <el-menu-item index="/settings/threads">
+              <el-icon><VideoPlay /></el-icon>
+              <span>115 qps</span>
+            </el-menu-item>
+            <el-menu-item index="/settings/tmdb">
+              <el-icon><Film /></el-icon>
+              <span>TMDB</span>
+            </el-menu-item>
+            <el-menu-item index="/settings/ai">
+              <el-icon><View /></el-icon>
+              <span>AI识别</span>
+            </el-menu-item>
+            <el-menu-item index="/settings/category-strategy">
+              <el-icon><Operation /></el-icon>
+              <span>二级分类策略</span>
+            </el-menu-item>
           </el-sub-menu>
+          <el-menu-item index="/accounts">
+            <el-icon><Link /></el-icon>
+            <span>网盘账号</span>
+          </el-menu-item>
 
           <el-sub-menu index="/sync">
             <template #title>
@@ -80,25 +92,33 @@
               <span>同步记录</span>
             </el-menu-item>
             <el-menu-item index="/sync-directories">
-              <el-icon><FolderOpened /></el-icon>
-              <span>同步目录</span>
-            </el-menu-item>
+            <el-icon><FolderOpened /></el-icon>
+            <span>同步目录</span>
+          </el-menu-item>
+          <el-menu-item index="/scrape-pathes">
+            <el-icon><Film /></el-icon>
+            <span>刮削目录</span>
+          </el-menu-item>
           </el-sub-menu>
 
-          <el-sub-menu index="/instant" v-if="false">
+          <el-sub-menu index="/scrape">
             <template #title>
-              <el-icon><Upload /></el-icon>
-              <span>秒传</span>
+              <el-icon><Film /></el-icon>
+              <span>刮削 & 整理</span>
             </template>
-            <el-menu-item index="/instant-upload">
-              <el-icon><Link /></el-icon>
-              <span>URL秒传</span>
+            <el-menu-item index="/scrape-pathes">
+              <el-icon><FolderOpened /></el-icon>
+              <span>刮削目录</span>
             </el-menu-item>
             <el-menu-item index="/media-import">
-              <el-icon><FolderOpened /></el-icon>
-              <span>媒体库导入</span>
+              <el-icon><List /></el-icon>
+              <span>刮削记录</span>
             </el-menu-item>
           </el-sub-menu>
+           <el-menu-item index="/settings/user">
+              <el-icon><UserFilled /></el-icon>
+              <span>用户管理</span>
+            </el-menu-item>
         </el-menu>
       </el-aside>
 
@@ -137,14 +157,16 @@ import {
   User,
   Setting,
   Menu,
-  Upload,
-  ChatLineRound,
   UserFilled,
   VideoPlay,
   DocumentCopy,
   Link,
   FolderOpened,
   List,
+  Film,
+  View,
+  Operation,
+  Promotion,
 } from '@element-plus/icons-vue'
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'

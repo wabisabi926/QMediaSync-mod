@@ -1012,12 +1012,15 @@ const calculateStrmPath = (localPath: string, dirPath: string): string => {
   if (!localPath || !dirPath) return ''
 
   // 移除目录路径开头的斜杠并规范化路径分隔符
-  // const cleanDirPath = dirPath.replace(/^[/\\]+/, '').replace(/\//g, '\\')
+  let cleanDirPath = dirPath
+  if (versionInfo.value?.isWindows) {
+    cleanDirPath = dirPath.replace(/^[/\\]+/, '').replace(/\//g, '\\')
+  }
   let pathSeparator = '/'
   if (versionInfo.value?.isWindows) {
     pathSeparator = '\\'
   }
-  return dirPath ? `${localPath}${pathSeparator}${dirPath}` : localPath
+  return dirPath ? `${localPath}${pathSeparator}${cleanDirPath}` : localPath
 }
 
 // 更新添加表单的STRM路径

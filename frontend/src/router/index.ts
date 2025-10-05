@@ -8,6 +8,11 @@ import AppSyncRecords from '@/components/AppSyncRecords.vue'
 import AppSyncTaskDetail from '@/components/AppSyncTaskDetail.vue'
 import AppSyncDirectories from '@/components/AppSyncDirectories.vue'
 import AppCloudAccounts from '@/components/AppCloudAccounts.vue'
+import AppThreadSettings from '@/components/AppThreadSettings.vue'
+import AppTmdbSettings from '@/components/AppTmdbSettings.vue'
+import AppAiSettings from '@/components/AppAiSettings.vue'
+import AppCategoryStrategy from '@/components/AppCategoryStrategy.vue'
+import AppScrapePathes from '@/components/AppScrapePathes.vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
@@ -87,6 +92,15 @@ const routes = [
     },
   },
   {
+    path: '/scrape-pathes',
+    name: 'scrape-pathes',
+    component: AppScrapePathes,
+    meta: {
+      title: '刮削目录',
+      requiresAuth: true,
+    },
+  },
+  {
     path: '/settings/telegram',
     name: 'settings-telegram',
     component: AppTelegramSettings,
@@ -101,7 +115,47 @@ const routes = [
     name: 'settings-emby',
     component: AppEmbySettings,
     meta: {
-      title: 'Emby外网302',
+      title: 'Emby配置',
+      requiresAuth: true,
+      parent: 'settings',
+    },
+  },
+  {
+    path: '/settings/threads',
+    name: 'settings-threads',
+    component: AppThreadSettings,
+    meta: {
+      title: '115并发线程设置',
+      requiresAuth: true,
+      parent: 'settings',
+    },
+  },
+  {
+    path: '/settings/tmdb',
+    name: 'settings-tmdb',
+    component: AppTmdbSettings,
+    meta: {
+      title: 'TMDB设置',
+      requiresAuth: true,
+      parent: 'settings',
+    },
+  },
+    {
+      path: '/settings/ai',
+      name: 'settings-ai',
+      component: AppAiSettings,
+      meta: {
+        title: 'AI识别设置',
+        requiresAuth: true,
+        parent: 'settings',
+      },
+    },
+  {
+    path: '/settings/category-strategy',
+    name: 'settings-category-strategy',
+    component: AppCategoryStrategy,
+    meta: {
+      title: '二级分类策略',
       requiresAuth: true,
       parent: 'settings',
     },

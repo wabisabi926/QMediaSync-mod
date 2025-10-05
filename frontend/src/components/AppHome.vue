@@ -12,8 +12,6 @@ interface VersionInfo {
 interface QueueStatus {
   download_status: string
   upload_status: string
-  download_active_len: number
-  upload_active_len: number
   download_wait_len: number
   upload_wait_len: number
 }
@@ -101,15 +99,13 @@ const checkRefreshStatus = () => {
     clearInterval(refreshTimer.value)
     refreshTimer.value = null
   }
-  
+
   // 检查是否有活跃或等待任务
   const hasActiveTasks = queueStatus.value && (
-    queueStatus.value.download_active_len > 0 ||
     queueStatus.value.download_wait_len > 0 ||
-    queueStatus.value.upload_active_len > 0 ||
     queueStatus.value.upload_wait_len > 0
   )
-  
+
   // 如果有任务，启动每秒刷新
   if (hasActiveTasks) {
     refreshTimer.value = window.setInterval(() => {
@@ -189,12 +185,6 @@ onUnmounted(() => {
                       </span>
                     </div>
                     <div class="stat-item">
-                      <span class="stat-label">活跃任务:</span>
-                      <span class="stat-value active-count">{{
-                        queueStatus.download_active_len
-                      }}</span>
-                    </div>
-                    <div class="stat-item">
                       <span class="stat-label">等待任务:</span>
                       <span class="stat-value wait-count">{{ queueStatus.download_wait_len }}</span>
                     </div>
@@ -213,12 +203,6 @@ onUnmounted(() => {
                       >
                         {{ getQueueStatusText(queueStatus.upload_status) }}
                       </span>
-                    </div>
-                    <div class="stat-item">
-                      <span class="stat-label">活跃任务:</span>
-                      <span class="stat-value active-count">{{
-                        queueStatus.upload_active_len
-                      }}</span>
                     </div>
                     <div class="stat-item">
                       <span class="stat-label">等待任务:</span>

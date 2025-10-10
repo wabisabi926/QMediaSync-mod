@@ -43,18 +43,25 @@
               </div>
             </div>
           </template>
-          <div class="account-card-body">
-            <el-row justify="space-between">
-              <el-col :span="12" v-if="account.source_type !== 'openlist'">
-                <strong>用户ID:</strong> {{ account.user_id }}
-              </el-col>
-              <el-col :span="12"> <strong>用户名:</strong> {{ account.username }} </el-col>
-            </el-row>
-            <el-row>
-              <el-col :span="24">
-                <strong>添加时间:</strong> {{ formatTimestamp(account.created_at) }}
-              </el-col>
-            </el-row>
+          <div class="card-body">
+            <template v-if="account.source_type === '115'">
+              <div class="info-item">
+                <span class="info-label">115账号:</span>
+                <span class="info-value">{{ account.username }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">115开放平台应用:</span>
+                <span class="info-value">{{ account.app_id_name }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">APP ID:</span>
+                <span class="info-value">{{ account.app_id || '-' }}</span>
+              </div>
+            </template>
+            <div class="info-item">
+                <span class="info-label">添加时间:</span>
+                <span class="info-value">{{ formatTimestamp(account.created_at) }}</span>
+              </div>
           </div>
           <template #footer>
             <div class="account-card-footer">
@@ -82,7 +89,7 @@
     </div>
     <!-- 添加账号对话框 -->
     <el-dialog v-model="showAddAccountDialog" title="添加账号" :width="isMobile ? '90%' : '500px'">
-      <el-form :model="newAccountForm" label-width="80px">
+      <el-form :model="newAccountForm" label-width="120px">
         <el-form-item label="网盘类型">
           <el-select v-model="newAccountForm.type" placeholder="请选择网盘类型">
             <template v-for="typeItem in sourceTypeOptions" :key="typeItem.value">
@@ -108,6 +115,16 @@
         </el-form-item>
         <el-form-item label="密码" v-if="newAccountForm.type === 'openlist'">
           <el-input type="password" v-model="newAccountForm.password" placeholder="请输入密码" />
+        </el-form-item>
+        <el-form-item label="115开放平台应用" v-if="newAccountForm.type === '115'">
+          <el-select v-model="newAccountForm.app_id_name" placeholder="请选择APP ID">
+            <el-option label="Q115-STRM" value="Q115-STRM"></el-option>
+            <el-option label="MQ的媒体库" value="MQ的媒体库"></el-option>
+            <el-option label="自定义" value="自定义"></el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="APP ID" v-if="newAccountForm.type === '115' && newAccountForm.app_id_name === '自定义'">
+          <el-input v-model="newAccountForm.app_id" placeholder="请输入自定义APP ID" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -271,6 +288,8 @@ interface CloudAccount {
   base_url: string
   created_at: number
   token: string
+  app_id_name?: string
+  app_id?: string
 }
 
 // 获取HTTP客户端
@@ -295,6 +314,8 @@ const newAccountForm = ref({
   base_url: '',
   username: '',
   password: '',
+  app_id_name: 'Q115-STRM', // 默认值
+  app_id: ''
 })
 
 // 编辑账号相关状态
@@ -341,6 +362,8 @@ const loadAccounts = async () => {
         token: item.token,
         base_url: item.base_url,
         password: item.password,
+        app_id_name: item.app_id_name,
+        app_id: item.app_id
       }))
     } else {
       console.error('加载账号列表失败:', response?.data.message || '未知错误')
@@ -465,52 +488,56 @@ const proceed123Auth = () => {
 }
 
 // 处理添加账号
+// 重置表单
+const resetForm = () => {
+  newAccountForm.value = {
+    type: '',
+    name: '',
+    base_url: '',
+    username: '',
+    password: '',
+    app_id_name: 'Q115-STRM',
+    app_id: ''
+  }
+}
+
+// 添加账号
 const handleAddAccount = async () => {
   try {
-    let requestData = {}
-    let url = `${SERVER_URL}/account/add`
-    if (newAccountForm.value.type === 'openlist') {
-      requestData = {
-        source_type: newAccountForm.value.type,
+    const data = {
+      source_type: newAccountForm.value.type,
+      name: newAccountForm.value.name,
+    }
+
+    if (newAccountForm.value.type === '115') {
+      Object.assign(data, {
         base_url: newAccountForm.value.base_url,
         username: newAccountForm.value.username,
         password: newAccountForm.value.password,
-      }
-      url = `${SERVER_URL}/account/openlist`
-    } else {
-      // 准备请求数据
-      requestData = {
-        source_type: newAccountForm.value.type,
-        name: newAccountForm.value.name,
-      }
+        app_id_name: newAccountForm.value.app_id_name,
+        app_id: newAccountForm.value.app_id
+      })
+    } else if (newAccountForm.value.type === '123') {
+      Object.assign(data, {
+        base_url: newAccountForm.value.base_url,
+        username: newAccountForm.value.username,
+        password: newAccountForm.value.password
+      })
     }
 
-    // 调用API添加账号
-    const response = await http?.post(url, requestData, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
+    const response = await http?.post(`${SERVER_URL}/account/add`, data)
 
     if (response?.data.code === 200) {
-      // 添加成功，关闭对话框，重置表单，刷新账号列表
+      ElMessage.success('添加账号成功')
       showAddAccountDialog.value = false
-      newAccountForm.value.type = ''
-      newAccountForm.value.name = ''
-      newAccountForm.value.base_url = ''
-      newAccountForm.value.username = ''
-      newAccountForm.value.password = ''
-      loadAccounts() // 刷新账号列表
-      console.log('账号添加成功')
+      loadAccounts()
+      resetForm()
     } else {
-      console.error('添加账号失败:', response?.data.message || '未知错误')
-      ElMessage.error(response?.data.message || '添加账号失败')
+      ElMessage.error(`添加账号失败: ${response?.data.message || '未知错误'}`)
     }
   } catch (error) {
-    console.error('添加账号错误:', error)
-    ElMessage.error('添加账号错误')
-  } finally {
-    addAccountLoading.value = false
+    console.error('添加账号失败:', error)
+    ElMessage.error('添加账号失败: 网络错误')
   }
 }
 
@@ -538,9 +565,14 @@ const generateQRCode = async (content: string): Promise<string> => {
 // 处理115开放平台授权
 const handle115Login = async (accountId?: number) => {
   try {
+    // 查找当前账号
+    const account = accounts.value.find(acc => acc.id === accountId)
+
     // 获取二维码
     const requestData = {
       account_id: accountId, // 添加account_id参数
+      app_id_name: account?.app_id_name || 'Q115-STRM', // 添加app_id_name参数
+      app_id: account?.app_id || '' // 添加app_id参数
     }
 
     const response = await http?.post(`${SERVER_URL}/auth/115-qrcode-open`, requestData, {
@@ -896,11 +928,6 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: flex-start;
   flex-wrap: nowrap;
-}
-
-.account-info {
-  display: flex;
-  flex-direction: column;
 }
 
 .account-name {

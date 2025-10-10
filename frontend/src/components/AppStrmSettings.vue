@@ -141,22 +141,11 @@
           <p>
             上传: 本地存在且网盘不存在，分两种情况: <br />
             &nbsp;&nbsp;&nbsp;&nbsp;1. 父目录在网盘存在则上传<br />
-            &nbsp;&nbsp;&nbsp;&nbsp;2. 父目录在网盘不存在（网盘已删除）责删除本地文件
+            &nbsp;&nbsp;&nbsp;&nbsp;2. 父目录在网盘不存在（网盘已删除）则删除本地文件
           </p>
           <p>保留：不会删除本地文件，不管网盘有没有删除它</p>
         </div>
       </el-form-item>
-
-      <!-- 同步完是否删除网盘不存在的STRM文件, 必须删除因为没有网盘文件则不能播放 -->
-      <!-- <el-form-item label="网盘不存在的STRM文件" prop="delete_strm">
-        <el-radio-group v-model="strmData.delete_strm">
-          <el-radio-button :label="1">删除</el-radio-button>
-          <el-radio-button :label="0">不删除</el-radio-button>
-        </el-radio-group>
-        <div class="form-help">
-          <p>同步完成后是否删除本地存在但网盘不存在的STRM文件</p>
-        </div>
-      </el-form-item> -->
 
       <!-- 同步完是否删除网盘不存在的空目录 -->
       <el-form-item label="网盘不存在的空目录" prop="delete_dir">

@@ -64,18 +64,18 @@
               <el-icon><VideoPlay /></el-icon>
               <span>115 qps</span>
             </el-menu-item>
-            <el-menu-item index="/settings/tmdb">
+            <!-- <el-menu-item index="/settings/tmdb">
               <el-icon><Film /></el-icon>
               <span>TMDB</span>
-            </el-menu-item>
-            <el-menu-item index="/settings/ai">
+            </el-menu-item> -->
+            <!-- <el-menu-item index="/settings/ai">
               <el-icon><View /></el-icon>
               <span>AI识别</span>
-            </el-menu-item>
-            <el-menu-item index="/settings/category-strategy">
+            </el-menu-item> -->
+            <!-- <el-menu-item index="/settings/category-strategy">
               <el-icon><Operation /></el-icon>
               <span>二级分类策略</span>
-            </el-menu-item>
+            </el-menu-item> -->
           </el-sub-menu>
           <el-menu-item index="/accounts">
             <el-icon><Link /></el-icon>
@@ -85,19 +85,19 @@
           <el-sub-menu index="/sync">
             <template #title>
               <el-icon><DocumentCopy /></el-icon>
-              <span>同步</span>
+              <span>STRM同步</span>
             </template>
             <el-menu-item index="/sync-records">
               <el-icon><List /></el-icon>
-              <span>同步记录</span>
+              <span>STRM同步记录</span>
             </el-menu-item>
             <el-menu-item index="/sync-directories">
               <el-icon><FolderOpened /></el-icon>
-              <span>同步目录</span>
+              <span>STRM同步目录</span>
             </el-menu-item>
           </el-sub-menu>
 
-          <el-sub-menu index="/scrape">
+          <!-- <el-sub-menu index="/scrape">
             <template #title>
               <el-icon><Film /></el-icon>
               <span>刮削 & 整理</span>
@@ -110,7 +110,7 @@
               <el-icon><List /></el-icon>
               <span>刮削记录</span>
             </el-menu-item>
-          </el-sub-menu>
+          </el-sub-menu> -->
            <el-menu-item index="/settings/user">
               <el-icon><UserFilled /></el-icon>
               <span>用户管理</span>
@@ -159,9 +159,9 @@ import {
   Link,
   FolderOpened,
   List,
-  Film,
-  View,
-  Operation,
+  // Film,
+  // View,
+  // Operation,
   Promotion,
 } from '@element-plus/icons-vue'
 import { ref, onMounted, onUnmounted } from 'vue'

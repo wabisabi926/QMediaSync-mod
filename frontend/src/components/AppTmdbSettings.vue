@@ -47,7 +47,7 @@
         <div class="form-help">如果您没有申请TMDB API KEY则留空</div>
       </el-form-item>
 
-      <el-form-item label="首选语言" prop="tmdbLanguage">
+      <el-form-item label="首选元数据语言" prop="tmdbLanguage">
         <el-radio-group
           v-model="formData.tmdbLanguage"
           :disabled="loading"
@@ -56,7 +56,18 @@
           <el-radio-button label="zh-CN" >中文</el-radio-button>
           <el-radio-button label="en-US" >英文</el-radio-button>
         </el-radio-group>
-        <div class="form-help">选择TMDB数据的首选语言</div>
+        <div class="form-help">如果首选语言没有数据，则获取英文数据</div>
+      </el-form-item>
+      <el-form-item label="首选图片语言" prop="tmdbImageLanguage">
+        <el-radio-group
+          v-model="formData.tmdbImageLanguage"
+          :disabled="loading"
+          size="large"
+        >
+          <el-radio-button label="zh-CN" >中文</el-radio-button>
+          <el-radio-button label="en-US" >英文</el-radio-button>
+        </el-radio-group>
+        <div class="form-help">如果首选语言没有数据，则获取英文图片</div>
       </el-form-item>
 
       <div class="form-actions">
@@ -134,6 +145,7 @@ interface TmdbSettings {
   tmdbApiKey: string
   tmdbAccessToken: string
   tmdbLanguage: string
+  tmdbImageLanguage: string
 }
 
 interface SaveStatus {
@@ -156,7 +168,8 @@ const formData = reactive<TmdbSettings>({
   tmdbEnableProxy: false,
   tmdbApiKey: '',
   tmdbAccessToken: '',
-  tmdbLanguage: 'zh-CN'
+  tmdbLanguage: 'zh-CN',
+  tmdbImageLanguage: 'en-US'
 })
 
 // 页面挂载时获取当前设置
@@ -181,6 +194,7 @@ async function fetchTmdbSettings() {
     formData.tmdbApiKey = response?.data.data.tmdb_api_key || ''
     formData.tmdbAccessToken = response?.data.data.tmdb_access_token || ''
     formData.tmdbLanguage = response?.data.data.tmdb_language || 'zh-CN'
+    formData.tmdbImageLanguage = response?.data.data.tmdb_image_language || 'en-US'
   } catch (error) {
     console.error('获取TMDB设置失败:', error)
     ElMessage.error('获取TMDB设置失败，请稍后重试')
@@ -200,7 +214,8 @@ async function saveSettings() {
       tmdb_enable_proxy: formData.tmdbEnableProxy,
       tmdb_api_key: formData.tmdbApiKey,
       tmdb_access_token: formData.tmdbAccessToken,
-      tmdb_language: formData.tmdbLanguage
+      tmdb_language: formData.tmdbLanguage,
+      tmdb_image_language: formData.tmdbImageLanguage
     }
 
     await http?.post(`${SERVER_URL}/scrape/tmdb`, payload, {
@@ -244,7 +259,8 @@ async function testConnection() {
       tmdb_enable_proxy: formData.tmdbEnableProxy,
       tmdb_api_key: formData.tmdbApiKey,
       tmdb_access_token: formData.tmdbAccessToken,
-      tmdb_language: formData.tmdbLanguage
+      tmdb_language: formData.tmdbLanguage,
+      tmdb_image_language: formData.tmdbImageLanguage
     }
 
     const response = await http?.post(`${SERVER_URL}/scrape/tmdb-test`, payload, {

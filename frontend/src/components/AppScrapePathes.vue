@@ -83,6 +83,14 @@
         <template #footer>
           <div class="card-actions">
             <el-button
+              type="success"
+              size="small"
+              @click="handleScan(row)"
+              :loading="row.scanning"
+              :icon="Refresh"
+              >扫描</el-button
+            >
+            <el-button
               type="primary"
               size="small"
               @click="handleEdit(row)"
@@ -110,7 +118,7 @@
           </div>
         </el-card>
       </el-col>
-    </div>f
+    </div>
 
     <!-- 添加刮削目录对话框 -->
     <el-dialog
@@ -170,6 +178,34 @@
           </el-radio-group>
           <div class="form-tip">其他：只能整理不能刮削</div>
         </el-form-item>
+               <el-form-item label="操作方式" prop="scrape_type">
+            <el-radio-group v-model="addForm.scrape_type">
+              <el-radio-button value="only_scrape" :disabled="addForm.media_type === 'other'">仅刮削</el-radio-button>
+              <el-radio-button value="scrape_and_rename" :disabled="addForm.media_type === 'other'">刮削和整理</el-radio-button>
+              <el-radio-button value="only_rename">仅整理</el-radio-button>
+            </el-radio-group>
+            <div class="form-tip">
+              仅刮削：不改变文件路径和重命名，生成对应视频文件的nfo和下载封面等，不需要选择目标路径<br />
+              刮削和整理：会根据刮削结果，改变文件路径和重命名，生成对应视频文件的nfo和下载封面等，需要选择目标路径<br />
+              仅整理：默认来源路径内都是刮削好的，然后根据nfo中的内容将视频、封面、字幕等整理到目标路径
+            </div>
+          </el-form-item>
+        <el-form-item label="整理方式" prop="rename_type" v-if="addForm.scrape_type !== 'only_scrape'">
+          <el-radio-group v-model="addForm.rename_type">
+            <el-radio-button value="same">原地整理</el-radio-button>
+            <el-radio-button value="move">移动</el-radio-button>
+            <el-radio-button value="copy">复制</el-radio-button>
+            <el-radio-button value="soft_symlink" :disabled="addForm.source_type !== 'local'">软链接</el-radio-button>
+            <el-radio-button value="hard_symlink" :disabled="addForm.source_type !== 'local'">硬链接</el-radio-button>
+          </el-radio-group>
+          <div class="form-tip">
+            原地整理：不改变文件路径和重命名，等同仅刮削<br />
+            移动：将视频文件移动到目标路径，元数据（nfo、字幕等）也会直接生成或移动到目标路径<br />
+            复制：将文件复制到目标路径，元数据（nfo、字幕等）也会直接生成或复制到目标路径<br />
+            软链接：创建文件的软链接到目标路径，元数据（nfo、字幕等）也会直接生成或复制到目标路径<br />
+            硬链接：创建文件的硬链接到目标路径，元数据（nfo、字幕等）也会直接生成或复制到目标路径
+          </div>
+        </el-form-item>
         <el-form-item
           label="来源路径"
           prop="source_path"
@@ -207,10 +243,10 @@
             <el-input
               v-model="addForm.dest_path"
               placeholder="点击选择按钮选择目标目录"
-              :disabled="addLoading"
+              :disabled="addLoading || addForm.scrape_type === 'only_scrape' || addForm.rename_type === 'same'"
               readonly
             />
-            <el-button type="primary" @click="openDirSelector(false)" :disabled="addLoading">
+            <el-button type="primary" @click="openDirSelector(false)" :disabled="addLoading || addForm.scrape_type === 'only_scrape' || addForm.rename_type === 'same'">
               选择目录
             </el-button>
           </div>
@@ -219,24 +255,6 @@
             <code class="path-url">{{ addForm.dest_path }}</code>
           </div>
           <div class="form-tip">选择刮削后文件的存放位置</div>
-        </el-form-item>
-        <el-form-item label="操作方式" prop="scrape_type">
-            <el-radio-group v-model="addForm.scrape_type">
-              <el-radio-button value="only_scrape" :disabled="addForm.media_type === 'other'">仅刮削</el-radio-button>
-              <el-radio-button value="scrape_and_rename" :disabled="addForm.media_type === 'other'">刮削和整理</el-radio-button>
-              <el-radio-button value="only_rename">仅整理</el-radio-button>
-            </el-radio-group>
-            <div class="form-tip">选择要执行的操作类型</div>
-          </el-form-item>
-        <el-form-item label="整理方式" prop="rename_type" v-if="addForm.scrape_type !== 'only_scrape'">
-          <el-radio-group v-model="addForm.rename_type">
-            <el-radio-button value="same">原地整理</el-radio-button>
-            <el-radio-button value="move">移动</el-radio-button>
-            <el-radio-button value="copy">复制</el-radio-button>
-            <el-radio-button value="soft_symlink" :disabled="addForm.source_type !== 'local'">软链接</el-radio-button>
-            <el-radio-button value="hard_symlink" :disabled="addForm.source_type !== 'local'">硬链接</el-radio-button>
-          </el-radio-group>
-          <div class="form-tip">选择文件整理的方式</div>
         </el-form-item>
         <el-form-item label="开启二级分类" prop="enable_category">
           <el-switch
@@ -253,7 +271,7 @@
             placeholder="留空使用默认模板"
             :disabled="addLoading"
           />
-          <div class="form-tip">文件夹重命名的模板格式</div>
+          <div class="form-tip">详细请参考：<a href="https://gitee.com/qicfan/qmediasync/wikis/%E6%95%B4%E7%90%86%E6%96%87%E4%BB%B6%EF%BC%88%E5%A4%B9%EF%BC%89%E6%A8%A1%E6%9D%BF%E5%8F%98%E9%87%8F?sort_id=14684690" target="_blank">文件夹重命名模板</a></div>
         </el-form-item>
         <el-form-item label="文件重命名模板" prop="file_name_template">
           <el-input
@@ -261,7 +279,7 @@
             placeholder="留空使用默认模板"
             :disabled="addLoading"
           />
-          <div class="form-tip">文件重命名的模板格式</div>
+          <div class="form-tip">详细请参考：<a href="https://gitee.com/qicfan/qmediasync/wikis/%E6%95%B4%E7%90%86%E6%96%87%E4%BB%B6%EF%BC%88%E6%96%87%E4%BB%B6%EF%BC%89%E6%A8%A1%E6%9D%BF%E5%8F%98%E9%87%8F?sort_id=14684691" target="_blank">文件重命名模板</a></div>
         </el-form-item>
         <el-form-item label="要删除的关键词" prop="delete_keyword">
             <el-input-tag
@@ -566,7 +584,7 @@ import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { inject, onMounted, ref, reactive, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Loading, Folder, Edit, Delete } from '@element-plus/icons-vue'
+import { Plus, Loading, Folder, Edit, Delete, Refresh } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { formatTime } from '@/utils/timeUtils'
 import { isMobile } from '@/utils/deviceUtils'
@@ -593,6 +611,7 @@ interface ScrapePath {
   updated_at?: number
   deleting?: boolean
   editing?: boolean
+  scanning?: boolean
 }
 
 interface DirInfo {
@@ -658,7 +677,7 @@ const addForm = reactive({
   file_name_template: '{title} ({year})',
   delete_keyword: [] as string[],
   min_video_file_size: 0, // 最小视频文件大小，单位MB
-  video_ext_list: ['mp4', 'mkv', 'avi', 'wmv', 'flv', 'mov', 'webm'] // 视频文件扩展名列表
+  video_ext_list: [".mp4",".mkv",".avi",".mov",".wmv",".webm",".flv",".avi",".ts",".m4v",".iso"] // 视频文件扩展名列表
 })
 
 // 编辑对话框状态
@@ -747,7 +766,10 @@ watch(() => addForm.media_type, (newType) => {
     addForm.file_name_template = '{title} ({year})'
   } else if (newType === 'tvshow') {
     addForm.folder_name_template = '{title} ({year})'
-    addForm.file_name_template = '{title} - {season_episode}'
+    addForm.file_name_template = '{title} - S{season_number}E{episode_number} - 第 {episode_number} 集'
+  } else if (newType === "other") {
+    addForm.folder_name_template = '{actors}/{num}'
+    addForm.file_name_template = '{num} {title}'
   }
 })
 
@@ -1040,6 +1062,22 @@ const handleDelete = async (row: ScrapePath, index: number) => {
     if (pathes.value[index]) {
       pathes.value[index].deleting = false
     }
+  }
+}
+
+// 处理扫描操作
+const handleScan = async (row: ScrapePath) => {
+  if (!http) return
+
+  try {
+    row.scanning = true
+    await http.post(`${SERVER_URL}/scrape/pathes/start`, { id: row.id })
+    ElMessage.success('扫描已开始')
+  } catch (error) {
+    ElMessage.error('扫描启动失败')
+    console.error('Scan error:', error)
+  } finally {
+    row.scanning = false
   }
 }
 

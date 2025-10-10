@@ -92,13 +92,9 @@
               <span>同步记录</span>
             </el-menu-item>
             <el-menu-item index="/sync-directories">
-            <el-icon><FolderOpened /></el-icon>
-            <span>同步目录</span>
-          </el-menu-item>
-          <el-menu-item index="/scrape-pathes">
-            <el-icon><Film /></el-icon>
-            <span>刮削目录</span>
-          </el-menu-item>
+              <el-icon><FolderOpened /></el-icon>
+              <span>同步目录</span>
+            </el-menu-item>
           </el-sub-menu>
 
           <el-sub-menu index="/scrape">

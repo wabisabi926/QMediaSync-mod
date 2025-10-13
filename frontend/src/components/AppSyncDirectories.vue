@@ -964,18 +964,19 @@ const openDirSelector = async (isLocalPath: boolean = false) => {
   isSelectingLocalPath.value = isLocalPath
   selectedAccountId.value = addForm.account_id
 
-  await loadDirTree(isLocalPath ? 'local' : addForm.source_type, '')
+  await loadDirTree(isLocalPath ? 'local' : addForm.source_type, null)
 }
 
 // 加载目录树
-const loadDirTree = async (sourceType: string, dirId: string) => {
+const loadDirTree = async (sourceType: string, dir: DirInfo | null) => {
   try {
     dirTreeLoading.value = true
     // 加载网盘目录树
     const accountIdToUse = selectedAccountId.value
     const response = await http?.get(`${SERVER_URL}/path/list`, {
       params: {
-        parent_id: dirId,
+        parent_id: dir?.id || "",
+        parent_path: dir?.path || "",
         source_type: sourceType,
         account_id: accountIdToUse,
       },
@@ -1000,7 +1001,7 @@ const loadDirTree = async (sourceType: string, dirId: string) => {
 // 临时选择目录（点击目录时）
 const selectTempDir = async (dir: DirInfo) => {
   // 加载该目录的子目录
-  if (await loadDirTree(selectedSourceType.value, dir.path)) {
+  if (await loadDirTree(selectedSourceType.value, dir)) {
     tempSelectedDir.value = dir
     currentDir.value = dir
     return
@@ -1088,10 +1089,19 @@ const openEditDirSelector = async (isLocalPath: boolean = false) => {
   currentDir.value = null
   selectedSourceType.value = isLocalPath ? 'local' : editForm.source_type
   selectedAccountId.value = editForm.account_id
-
+  // 构造一个DirInfo对象
+  const  dir = {
+    id: editForm.local_path,
+    path: editForm.local_path,
+    name: editForm.local_path
+  }
+  if (!isLocalPath) {
+    dir.path = editForm.remote_path
+    dir.id = editForm.base_cid
+  }
   await loadDirTree(
     isLocalPath ? 'local' : editForm.source_type,
-    isLocalPath ? editForm.local_path : editForm.remote_path,
+    dir,
   )
 }
 

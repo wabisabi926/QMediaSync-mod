@@ -6,6 +6,7 @@
         <p class="card-subtitle">
           设置媒体文件的刮削和整理规则，支持电影、电视剧和其他媒体类型
         </p>
+        <el-alert title="提目前刮削功能仅供测试识别效果和刮削效率，不会对网盘做任何改动" type="warning" />
       </div>
       <div class="header-right">
         <el-button type="primary" @click="showAddDialog = true">
@@ -138,6 +139,7 @@
           <el-radio-group
             v-model="addForm.source_type"
             placeholder="请选择同步源类型"
+            @change="handleSourceTypeChange"
           >
             <el-radio-button
               v-for="typeItem in sourceTypeOptions"
@@ -161,7 +163,7 @@
           >
           <template v-for="account in accounts">
             <el-option
-              v-if="account.source_type === addForm.source_type"
+              v-if="account.source_type === addForm.source_type && account.token !== ''"
               :key="account.id"
               :label="account.name"
               :value="account.id"
@@ -192,14 +194,12 @@
           </el-form-item>
         <el-form-item label="整理方式" prop="rename_type" v-if="addForm.scrape_type !== 'only_scrape'">
           <el-radio-group v-model="addForm.rename_type">
-            <el-radio-button value="same">原地整理</el-radio-button>
             <el-radio-button value="move">移动</el-radio-button>
             <el-radio-button value="copy">复制</el-radio-button>
             <el-radio-button value="soft_symlink" :disabled="addForm.source_type !== 'local'">软链接</el-radio-button>
             <el-radio-button value="hard_symlink" :disabled="addForm.source_type !== 'local'">硬链接</el-radio-button>
           </el-radio-group>
           <div class="form-tip">
-            原地整理：不改变文件路径和重命名，等同仅刮削<br />
             移动：将视频文件移动到目标路径，元数据（nfo、字幕等）也会直接生成或移动到目标路径<br />
             复制：将文件复制到目标路径，元数据（nfo、字幕等）也会直接生成或复制到目标路径<br />
             软链接：创建文件的软链接到目标路径，元数据（nfo、字幕等）也会直接生成或复制到目标路径<br />
@@ -271,7 +271,7 @@
             placeholder="留空使用默认模板"
             :disabled="addLoading"
           />
-          <div class="form-tip">详细请参考：<a href="https://gitee.com/qicfan/qmediasync/wikis/%E6%95%B4%E7%90%86%E6%96%87%E4%BB%B6%EF%BC%88%E5%A4%B9%EF%BC%89%E6%A8%A1%E6%9D%BF%E5%8F%98%E9%87%8F?sort_id=14684690" target="_blank">文件夹重命名模板</a></div>
+          <div class="form-tip">详细请参考：<a href="https://github.com/qicfan/qmediasync/wiki/%E6%95%B4%E7%90%86%E6%96%87%E4%BB%B6%EF%BC%88%E5%A4%B9%EF%BC%89%E6%A8%A1%E6%9D%BF%E5%8F%AF%E7%94%A8%E5%8F%98%E9%87%8F" target="_blank">文件夹重命名模板</a></div>
         </el-form-item>
         <el-form-item label="文件重命名模板" prop="file_name_template">
           <el-input
@@ -279,7 +279,7 @@
             placeholder="留空使用默认模板"
             :disabled="addLoading"
           />
-          <div class="form-tip">详细请参考：<a href="https://gitee.com/qicfan/qmediasync/wikis/%E6%95%B4%E7%90%86%E6%96%87%E4%BB%B6%EF%BC%88%E6%96%87%E4%BB%B6%EF%BC%89%E6%A8%A1%E6%9D%BF%E5%8F%98%E9%87%8F?sort_id=14684691" target="_blank">文件重命名模板</a></div>
+          <div class="form-tip">详细请参考：<a href="https://github.com/qicfan/qmediasync/wiki/%E6%95%B4%E7%90%86%E6%96%87%E4%BB%B6%EF%BC%88%E5%A4%B9%EF%BC%89%E6%A8%A1%E6%9D%BF%E5%8F%AF%E7%94%A8%E5%8F%98%E9%87%8F" target="_blank">文件重命名模板</a></div>
         </el-form-item>
         <el-form-item label="要删除的关键词" prop="delete_keyword">
             <el-input-tag
@@ -444,7 +444,6 @@
           </el-form-item>
         <el-form-item label="整理方式" prop="rename_type" v-if="editForm.scrape_type !== 'only_scrape'">
           <el-radio-group v-model="editForm.rename_type">
-            <el-radio-button label="same">原地整理</el-radio-button>
             <el-radio-button label="move">移动</el-radio-button>
             <el-radio-button label="copy">复制</el-radio-button>
             <el-radio-button label="soft_symlink" :disabled="editForm.source_type !== 'local'">软链接</el-radio-button>
@@ -671,7 +670,7 @@ const addForm = reactive({
   dest_path: '',
   dest_path_id: '',
   scrape_type: 'scrape_and_rename', // 默认选择刮削和整理
-  rename_type: 'same',
+  rename_type: 'move', // 默认移动
   enable_category: false,
   folder_name_template: '{title} ({year})',
   file_name_template: '{title} ({year})',
@@ -694,7 +693,7 @@ const editForm = reactive({
   dest_path: '',
   dest_path_id: '',
   scrape_type: 'scrape_and_rename', // 默认选择刮削和整理
-  rename_type: 'same',
+  rename_type: 'move', // 默认移动
   enable_category: false,
   folder_name_template: '',
   file_name_template: '',
@@ -766,10 +765,10 @@ watch(() => addForm.media_type, (newType) => {
     addForm.file_name_template = '{title} ({year})'
   } else if (newType === 'tvshow') {
     addForm.folder_name_template = '{title} ({year})'
-    addForm.file_name_template = '{title} - S{season_number}E{episode_number} - 第 {episode_number} 集'
+    addForm.file_name_template = '{title} - {season_episode} - 第 {episode_number} 集'
   } else if (newType === "other") {
     addForm.folder_name_template = '{actors}/{num}'
-    addForm.file_name_template = '{num} {title}'
+    addForm.file_name_template = '{num}'
   }
 })
 
@@ -824,7 +823,6 @@ const getScrapeTypeText = (scrapeType: string): string => {
 // 获取整理方式文本
 const getRenameTypeText = (renameType: string): string => {
   const typeMap: Record<string, string> = {
-    same: '原地整理',
     move: '移动',
     copy: '复制',
     soft_symlink: '软链接',
@@ -956,8 +954,6 @@ const resetAddForm = () => {
   addForm.rename_type = 'same'
   addForm.enable_category = false
   // 根据默认媒体类型设置默认模板
-  addForm.folder_name_template = '{title} ({year})'
-  addForm.file_name_template = '{title} ({year})'
   addForm.delete_keyword = []
   addForm.min_video_file_size = 0
   addForm.video_ext_list = ['mp4', 'mkv', 'avi', 'wmv', 'flv', 'mov', 'webm']
@@ -1091,7 +1087,7 @@ const openDirSelector = async (isSource: boolean = false) => {
   isEditMode.value = false
   isSelectSource.value = isSource
 
-  await loadDirTree("")
+  await loadDirTree(null)
 }
 
 // 打开编辑模式的目录选择器
@@ -1104,11 +1100,11 @@ const openEditDirSelector = async (isSource: boolean = false) => {
   isEditMode.value = true
   isSelectSource.value = isSource
 
-  await loadDirTree('')
+  await loadDirTree(null)
 }
 
 // 加载目录树 - 复用同步目录的接口逻辑
-const loadDirTree = async (dirId: string) => {
+const loadDirTree = async ( dir: DirInfo | null) => {
   try {
     dirTreeLoading.value = true
     const response = await http?.get(`${SERVER_URL}/path/list`, {
@@ -1116,7 +1112,8 @@ const loadDirTree = async (dirId: string) => {
         params: {
           source_type: selectedSourceType.value,
           account_id: selectedAccountId.value,
-          parent_id: dirId || '',
+          parent_id: dir?.id || "",
+          parent_path: dir?.path || "",
         },
       })
     if (response?.data.code === 200) {
@@ -1138,7 +1135,7 @@ const loadDirTree = async (dirId: string) => {
 const selectTempDir = async (dir: DirInfo) => {
   tempSelectedDir.value = dir
   // 如果选择了目录且不是本地路径，加载子目录
-  await loadDirTree(dir.path)
+  await loadDirTree(dir)
 }
 
 // 确认选择目录 - 复用同步目录的来源路径逻辑
@@ -1165,6 +1162,22 @@ const confirmSelectDir = () => {
 
   showDirDialog.value = false
 }
+
+// 处理同步源类型变更
+const handleSourceTypeChange = () => {
+  // 重置网盘账号选择
+  addForm.account_id = '';
+  // 重置路径信息
+  addForm.source_path = '';
+  addForm.source_path_id = '';
+  selectedDirPath.value = '';
+  // 清除表单验证
+  if (addFormRef.value) {
+    addFormRef.value.clearValidate(['account_id', 'source_path', 'source_path_id']);
+  }
+  // 根据新的源类型加载对应的账号列表
+  loadAccounts(addForm.source_type);
+};
 
 // 组件挂载时加载数据
 onMounted(async () => {
@@ -1200,195 +1213,5 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   margin: 0 !important;
-}
-
-.header-left {
-  flex: 1;
-}
-
-.card-title {
-  font-size: 18px;
-  font-weight: 600;
-  /* margin: 0 0 8px 0; */
-}
-
-.card-subtitle {
-  font-size: 14px;
-  color: #606266;
-  margin: 0 0 4px 0;
-}
-
-.header-right {
-  margin-left: 20px;
-}
-
-.card-body {
-  padding: 10px 0;
-}
-
-.info-item {
-  display: flex;
-  align-items: center;
-  margin-bottom: 8px;
-  font-size: 14px;
-}
-
-.info-item:last-child {
-  margin-bottom: 0;
-}
-
-.info-label {
-  font-weight: 500;
-  margin-right: 8px;
-  min-width: 80px;
-  color: #606266;
-  flex-shrink: 0;
-}
-
-.info-value {
-  flex: 1;
-  color: #303133;
-  word-break: break-word;
-}
-
-.card-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  /* margin-top: 16px; */
-}
-
-.empty-card-col {
-  width: 100%;
-}
-
-.empty-card {
-  height: 200px;
-  border: 1px dashed #dcdfe6;
-  background-color: #f5f7fa;
-}
-
-.empty-content {
-  text-align: center;
-  color: #909399;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 200px !important;
-  height: 200px !important;
-}
-
-.empty-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
-}
-
-.empty-text {
-  font-size: 14px;
-}
-
-.pan-dir-input {
-  display: flex;
-  gap: 8px;
-}
-
-.pan-dir-input .el-input {
-  flex: 1;
-}
-
-.selected-path-inline {
-  margin-top: 8px;
-  font-size: 12px;
-}
-
-.path-label {
-  color: #606266;
-  margin-right: 4px;
-}
-
-.path-url {
-  background-color: #f5f7fa;
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-family: 'Courier New', monospace;
-  color: #303133;
-}
-
-.form-tip {
-  font-size: 12px;
-  color: #909399;
-  margin-top: 4px;
-}
-
-.dir-selector {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.dir-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.dir-item {
-  display: flex;
-  align-items: center;
-  padding: 8px 12px;
-  cursor: pointer;
-  border-radius: 4px;
-  transition: background-color 0.2s;
-}
-
-.dir-item:hover {
-  background-color: #ecf5ff;
-}
-
-.dir-name {
-  margin-left: 8px;
-}
-
-.selected-dir-section {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #ebeef5;
-}
-
-.selected-dir-info {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.selected-dir-label {
-  font-weight: 500;
-  margin-right: 8px;
-  color: #606266;
-}
-
-.selected-dir-path {
-  flex: 1;
-  background-color: #f5f7fa;
-  padding: 6px 12px;
-  border-radius: 4px;
-  font-family: 'Courier New', monospace;
-  color: #303133;
-  word-break: break-all;
-}
-
-.loading-container,
-.empty-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 0;
-  color: #909399;
-}
-
-.loading-container .el-icon {
-  font-size: 32px;
-  margin-bottom: 16px;
 }
 </style>

@@ -13,6 +13,7 @@ import AppTmdbSettings from '@/components/AppTmdbSettings.vue'
 import AppAiSettings from '@/components/AppAiSettings.vue'
 import AppCategoryStrategy from '@/components/AppCategoryStrategy.vue'
 import AppScrapePathes from '@/components/AppScrapePathes.vue'
+import AppScrapeRecords from '@/components/AppScrapeRecords.vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
@@ -97,6 +98,15 @@ const routes = [
     component: AppScrapePathes,
     meta: {
       title: '刮削目录',
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/scrape-records',
+    name: 'scrape-records',
+    component: AppScrapeRecords,
+    meta: {
+      title: '刮削记录',
       requiresAuth: true,
     },
   },

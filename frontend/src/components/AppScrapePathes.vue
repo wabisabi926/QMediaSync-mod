@@ -6,7 +6,6 @@
         <p class="card-subtitle">
           设置媒体文件的刮削和整理规则，支持电影、电视剧和其他媒体类型
         </p>
-        <el-alert title="提目前刮削功能仅供测试识别效果和刮削效率，不会对网盘做任何改动" type="warning" />
       </div>
       <div class="header-right">
         <el-button type="primary" @click="showAddDialog = true">
@@ -176,26 +175,26 @@
           <el-radio-group v-model="addForm.media_type" placeholder="请选择媒体类型">
             <el-radio-button value="movie">电影</el-radio-button>
             <el-radio-button value="tvshow">电视剧</el-radio-button>
-            <el-radio-button value="other">其他</el-radio-button>
+            <el-radio-button value="other" disabled>其他</el-radio-button>
           </el-radio-group>
           <div class="form-tip">其他：只能整理不能刮削</div>
         </el-form-item>
-               <el-form-item label="操作方式" prop="scrape_type">
-            <el-radio-group v-model="addForm.scrape_type">
-              <el-radio-button value="only_scrape" :disabled="addForm.media_type === 'other'">仅刮削</el-radio-button>
-              <el-radio-button value="scrape_and_rename" :disabled="addForm.media_type === 'other'">刮削和整理</el-radio-button>
-              <el-radio-button value="only_rename">仅整理</el-radio-button>
-            </el-radio-group>
-            <div class="form-tip">
-              仅刮削：不改变文件路径和重命名，生成对应视频文件的nfo和下载封面等，不需要选择目标路径<br />
-              刮削和整理：会根据刮削结果，改变文件路径和重命名，生成对应视频文件的nfo和下载封面等，需要选择目标路径<br />
-              仅整理：默认来源路径内都是刮削好的，然后根据nfo中的内容将视频、封面、字幕等整理到目标路径
-            </div>
-          </el-form-item>
+        <el-form-item label="操作方式" prop="scrape_type">
+          <el-radio-group v-model="addForm.scrape_type">
+            <el-radio-button value="only_scrape" :disabled="addForm.media_type === 'other'">仅刮削</el-radio-button>
+            <el-radio-button value="scrape_and_rename" :disabled="addForm.media_type === 'other'">刮削和整理</el-radio-button>
+            <el-radio-button value="only_rename" disabled>仅整理</el-radio-button>
+          </el-radio-group>
+          <div class="form-tip">
+            仅刮削：不改变文件路径和重命名，生成对应视频文件的nfo和下载封面等，不需要选择目标路径<br />
+            刮削和整理：会根据刮削结果，改变文件路径和重命名，生成对应视频文件的nfo和下载封面等，需要选择目标路径<br />
+            仅整理：默认来源路径内都是刮削好的，然后根据nfo中的内容将视频、封面、字幕等整理到目标路径
+          </div>
+        </el-form-item>
         <el-form-item label="整理方式" prop="rename_type" v-if="addForm.scrape_type !== 'only_scrape'">
           <el-radio-group v-model="addForm.rename_type">
             <el-radio-button value="move">移动</el-radio-button>
-            <el-radio-button value="copy">复制</el-radio-button>
+            <el-radio-button value="copy" :disabled="addForm.source_type === 'local'">复制</el-radio-button>
             <el-radio-button value="soft_symlink" :disabled="addForm.source_type !== 'local'">软链接</el-radio-button>
             <el-radio-button value="hard_symlink" :disabled="addForm.source_type !== 'local'">硬链接</el-radio-button>
           </el-radio-group>
@@ -256,7 +255,7 @@
           </div>
           <div class="form-tip">选择刮削后文件的存放位置</div>
         </el-form-item>
-        <el-form-item label="开启二级分类" prop="enable_category">
+        <el-form-item label="开启二级分类" prop="enable_category" v-if="addForm.scrape_type !== 'only_scrape'">
           <el-switch
             v-model="addForm.enable_category"
             :active-value="true"
@@ -288,51 +287,85 @@
               :disabled="addLoading"
             />
             <div class="form-tip">从视频文件名中提取影视剧标题时先删除这些关键词，添加的越多识别准确率越高</div>
-          </el-form-item>
-
-          <el-form-item label="最小视频文件大小" prop="min_video_file_size">
-            <el-input-number
-              v-model="addForm.min_video_file_size"
-              :min="0"
-              :step="1"
-              style="width: 100%"
-              placeholder="请输入最小视频文件大小"
-              :disabled="addLoading"
-            ></el-input-number>
-            <div class="form-tip">单位：MB，小于此值的视频文件将被忽略</div>
-          </el-form-item>
-
-          <el-form-item label="视频文件扩展名" prop="video_ext_list">
-            <el-tag
-              v-for="(tag, index) in addForm.video_ext_list"
-              :key="index"
-              closable
-              @close="removeVideoExt(index, 'add')"
-              class="mr-2 mb-2"
-              :disabled="addLoading"
-            >
-              {{ tag }}
-            </el-tag>
-            <el-input
-              v-model="tempVideoExt"
-              class="mt-2"
-              placeholder="请输入视频文件扩展名，回车添加"
-              @keyup.enter="addVideoExt('add')"
-              clearable
-              :disabled="addLoading"
-              style="width: 100%"
-            ></el-input>
-            <div class="form-tip">支持的视频文件扩展名，用于筛选视频文件</div>
-          </el-form-item>
+        </el-form-item>
+        <el-form-item label="最小视频文件大小" prop="min_video_file_size">
+          <el-input-number
+            v-model="addForm.min_video_file_size"
+            :min="0"
+            :step="1"
+            style="width: 100%"
+            placeholder="请输入最小视频文件大小"
+            :disabled="addLoading"
+          ></el-input-number>
+          <div class="form-tip">单位：MB，小于此值的视频文件将被忽略</div>
+        </el-form-item>
+        <el-form-item label="视频文件扩展名" prop="video_ext_list">
+          <el-tag
+            v-for="(tag, index) in addForm.video_ext_list"
+            :key="index"
+            closable
+            @close="removeVideoExt(index, 'add')"
+            class="mr-2 mb-2"
+            :disabled="addLoading"
+          >
+            {{ tag }}
+          </el-tag>
+          <el-input
+            v-model="tempVideoExt"
+            class="mt-2"
+            placeholder="请输入视频文件扩展名，回车添加"
+            @keyup.enter="addVideoExt('add')"
+            clearable
+            :disabled="addLoading"
+            style="width: 100%"
+          ></el-input>
+          <div class="form-tip">支持的视频文件扩展名，用于筛选视频文件</div>
+        </el-form-item>
+        <el-form-item label="过滤无头像演员" prop="exclude_no_image_actor">
+          <el-switch
+            v-model="addForm.exclude_no_image_actor"
+            :active-value="true"
+            :inactive-value="false"
+            :disabled="addLoading"
+          />
+          <div class="form-tip">没有头像的演员不会加入到nfo文件中</div>
+        </el-form-item>
+        <el-form-item label="是否启用AI识别" prop="enable_ai">
+        <el-radio-group
+          v-model="addForm.enable_ai"
+          placeholder="请选择AI识别模式"
+          :disabled="addLoading"
+          size="large"
+        >
+          <el-radio-button label="off" >禁用</el-radio-button>
+          <el-radio-button label="assist" >辅助识别</el-radio-button>
+          <el-radio-button label="enforce" >强制使用</el-radio-button>
+        </el-radio-group>
+        <div class="form-help">
+          辅助识别：仅在无法通过其他方式识别时使用AI。每天会限额使用1000次，如果想要一直使用请申请自己的API Key。 <br />
+          强制使用：只使用AI识别，必须使用自己的API Key。
+        </div>
+        </el-form-item>
+        <el-form-item label="提示词" prop="ai_prompt">
+          <el-input
+            v-model="addForm.ai_prompt"
+            type="textarea"
+            placeholder="请输入AI提示词"
+            :disabled="addLoading || addForm.enable_ai === 'off'"
+            :rows="4"
+            maxlength="1000"
+          />
+          <div class="form-help">用于指导AI进行媒体识别的提示词，如果不清楚如何设置请留空。<br />文件名变量为{filename}</div>
+        </el-form-item>
       </el-form>
 
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button @click="showAddDialog = false">取消</el-button>
-          <el-button type="primary" @click="handleAdd" :loading="addLoading"> 确定 </el-button>
-        </div>
-      </template>
-    </el-dialog>
+    <template #footer>
+      <div class="dialog-footer">
+        <el-button @click="showAddDialog = false">取消</el-button>
+        <el-button type="primary" @click="handleAdd" :loading="addLoading"> 确定 </el-button>
+      </div>
+    </template>
+  </el-dialog>
 
     <!-- 编辑刮削目录对话框 -->
     <el-dialog
@@ -380,7 +413,7 @@
             <el-select v-model="editForm.media_type" placeholder="请选择媒体类型" disabled>
               <el-option label="电影" value="movie"></el-option>
               <el-option label="电视剧" value="tvshow"></el-option>
-              <el-option label="其他" value="other"></el-option>
+              <el-option label="其他" value="other" disabled></el-option>
             </el-select>
             <div class="form-tip">其他类型只能整理不能刮削</div>
           </el-form-item>
@@ -438,20 +471,20 @@
             <el-radio-group v-model="editForm.scrape_type">
               <el-radio-button label="only_scrape" :disabled="editForm.media_type === 'other'">仅刮削</el-radio-button>
               <el-radio-button label="scrape_and_rename" :disabled="editForm.media_type === 'other'">刮削和整理</el-radio-button>
-              <el-radio-button label="only_rename">仅整理</el-radio-button>
+              <el-radio-button label="only_rename" disabled>仅整理</el-radio-button>
             </el-radio-group>
             <div class="form-tip">选择要执行的操作类型</div>
           </el-form-item>
         <el-form-item label="整理方式" prop="rename_type" v-if="editForm.scrape_type !== 'only_scrape'">
           <el-radio-group v-model="editForm.rename_type">
             <el-radio-button label="move">移动</el-radio-button>
-            <el-radio-button label="copy">复制</el-radio-button>
+            <el-radio-button label="copy" :disabled="editForm.source_type === 'local'">复制</el-radio-button>
             <el-radio-button label="soft_symlink" :disabled="editForm.source_type !== 'local'">软链接</el-radio-button>
             <el-radio-button label="hard_symlink" :disabled="editForm.source_type !== 'local'">硬链接</el-radio-button>
           </el-radio-group>
           <div class="form-tip">选择文件整理的方式</div>
         </el-form-item>
-        <el-form-item label="开启二级分类" prop="enable_category">
+        <el-form-item label="开启二级分类" prop="enable_category"  v-if="editForm.scrape_type !== 'only_scrape'">
           <el-switch
             v-model="editForm.enable_category"
             :active-value="true"
@@ -483,42 +516,73 @@
               :disabled="editLoading"
             />
             <div class="form-tip">从视频文件名中提取影视剧标题时先删除这些关键词，添加的越多识别准确率越高</div>
-          </el-form-item>
-
-          <el-form-item label="最小视频文件大小" prop="min_video_file_size">
-            <el-input-number
-              v-model="editForm.min_video_file_size"
-              :min="0"
-              :step="1"
-              style="width: 100%"
-              placeholder="请输入最小视频文件大小"
-              :disabled="editLoading"
-            ></el-input-number>
-            <div class="form-tip">单位：MB，小于此值的视频文件将被忽略</div>
-          </el-form-item>
-
-          <el-form-item label="视频文件扩展名" prop="video_ext_list">
-            <el-tag
-              v-for="(tag, index) in editForm.video_ext_list"
-              :key="index"
-              closable
-              @close="removeVideoExt(index, 'edit')"
-              class="mr-2 mb-2"
-              :disabled="editLoading"
-            >
-              {{ tag }}
-            </el-tag>
-            <el-input
-              v-model="tempVideoExt"
-              class="mt-2"
-              placeholder="请输入视频文件扩展名，回车添加"
-              @keyup.enter="addVideoExt('edit')"
-              clearable
-              :disabled="editLoading"
-              style="width: 100%"
-            ></el-input>
-            <div class="form-tip">支持的视频文件扩展名，用于筛选视频文件</div>
-          </el-form-item>
+        </el-form-item>
+        <el-form-item label="最小视频文件大小" prop="min_video_file_size">
+          <el-input-number
+            v-model="editForm.min_video_file_size"
+            :min="0"
+            :step="1"
+            style="width: 100%"
+            placeholder="请输入最小视频文件大小"
+            :disabled="editLoading"
+          ></el-input-number>
+          <div class="form-tip">单位：MB，小于此值的视频文件将被忽略</div>
+        </el-form-item>
+        <el-form-item label="视频文件扩展名" prop="video_ext_list">
+          <el-tag
+            v-for="(tag, index) in editForm.video_ext_list"
+            :key="index"
+            closable
+            @close="removeVideoExt(index, 'edit')"
+            class="mr-2 mb-2"
+            :disabled="editLoading"
+          >
+            {{ tag }}
+          </el-tag>
+          <el-input
+            v-model="tempVideoExt"
+            class="mt-2"
+            placeholder="请输入视频文件扩展名，回车添加"
+            @keyup.enter="addVideoExt('edit')"
+            clearable
+            :disabled="editLoading"
+            style="width: 100%"
+          ></el-input>
+          <div class="form-tip">支持的视频文件扩展名，用于筛选视频文件</div>
+        </el-form-item>
+        <el-form-item label="排除无头像演员" prop="exclude_no_image_actor">
+          <el-switch
+            v-model="editForm.exclude_no_image_actor"
+            :active-value="true"
+            :inactive-value="false"
+            :disabled="editLoading"
+          />
+          <div class="form-tip">是否排除无头像演员的影视剧</div>
+        </el-form-item>
+        <el-form-item label="开启AI识别" prop="enable_ai">
+          <el-radio-group
+            v-model="editForm.enable_ai"
+            placeholder="请选择AI识别模式"
+            :disabled="editLoading"
+            size="large"
+          >
+            <el-radio-button label="off" >禁用</el-radio-button>
+            <el-radio-button label="assist" >辅助识别</el-radio-button>
+            <el-radio-button label="enforce" >强制使用</el-radio-button>
+          </el-radio-group>
+          <div class="form-tip">是否开启AI识别，开启后会根据AI提示识别影视剧标题</div>
+        </el-form-item>
+        <el-form-item label="提示词" prop="ai_prompt">
+          <el-input
+            v-model="editForm.ai_prompt"
+            type="textarea"
+            placeholder="请输入AI提示词"
+            :disabled="editLoading || editForm.enable_ai === 'off'"
+            :rows="4"
+            maxlength="1000"
+          />
+          <div class="form-help">用于指导AI进行媒体识别的提示词，如果不清楚如何设置请留空。<br />文件名变量为{filename}</div>
+        </el-form-item>
       </el-form>
 
       <template #footer>
@@ -611,6 +675,9 @@ interface ScrapePath {
   deleting?: boolean
   editing?: boolean
   scanning?: boolean
+  enable_ai?: string
+  ai_prompt?: string
+  exclude_no_image_actor?: boolean
 }
 
 interface DirInfo {
@@ -676,7 +743,10 @@ const addForm = reactive({
   file_name_template: '{title} ({year})',
   delete_keyword: [] as string[],
   min_video_file_size: 0, // 最小视频文件大小，单位MB
-  video_ext_list: [".mp4",".mkv",".avi",".mov",".wmv",".webm",".flv",".avi",".ts",".m4v",".iso"] // 视频文件扩展名列表
+  video_ext_list: [".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".flv", ".avi", ".ts", ".m4v", ".iso"], // 视频文件扩展名列表
+  exclude_no_image_actor: false, // 默认不排除无头像演员
+  enable_ai: 'off', // 默认禁用AI识别
+  ai_prompt: '', // 默认AI提示
 })
 
 // 编辑对话框状态
@@ -699,7 +769,10 @@ const editForm = reactive({
   file_name_template: '',
   delete_keyword: [] as string[],
   min_video_file_size: 0, // 最小视频文件大小，单位MB
-  video_ext_list: ['mp4', 'mkv', 'avi', 'wmv', 'flv', 'mov', 'webm'] // 视频文件扩展名列表
+  video_ext_list: ['mp4', 'mkv', 'avi', 'wmv', 'flv', 'mov', 'webm'], // 视频文件扩展名列表
+  exclude_no_image_actor: false, // 默认不排除无头像演员
+  enable_ai: 'off', // 默认禁用AI识别
+  ai_prompt: '', // 默认AI提示
 })
 
 // 表单验证规则
@@ -749,8 +822,6 @@ const editFormRules: FormRules = {
     }
   ],
   min_video_file_size: [{ type: 'number', min: 0, message: '最小视频文件大小必须大于等于0', trigger: 'change' }],
-  video_ext_list: [{ type: 'array', required: true, message: '请至少添加一个视频文件扩展名', trigger: 'change' }],
-  delete_keyword: [{ type: 'array', required: true, message: '请至少添加一个要删除的关键词', trigger: 'change' }]
 }
 
 // 监听添加表单媒体类型变化
@@ -776,6 +847,7 @@ watch(() => addForm.media_type, (newType) => {
 watch(() => addForm.scrape_type, (newType) => {
   if (newType === 'only_scrape') {
     addForm.rename_type = 'same' // 当操作方式为'only_scrape'时，整理方式固定为'same'
+    addForm.enable_category = false // 当操作方式为'only_scrape'时，二级分类固定为false
   }
 })
 
@@ -790,6 +862,7 @@ watch(() => editForm.media_type, (newType) => {
 watch(() => editForm.scrape_type, (newType) => {
   if (newType === 'only_scrape') {
     editForm.rename_type = 'same' // 当操作方式为'only_scrape'时，整理方式固定为'same'
+    editForm.enable_category = false // 当操作方式为'only_scrape'时，二级分类固定为false
   }
 })
 
@@ -827,6 +900,7 @@ const getRenameTypeText = (renameType: string): string => {
     copy: '复制',
     soft_symlink: '软链接',
     hard_symlink: '硬链接',
+    same: "-"
   }
   return typeMap[renameType] || renameType
 }
@@ -922,7 +996,10 @@ const handleAdd = async () => {
       file_name_template: addForm.file_name_template,
       delete_keyword: addForm.delete_keyword,
       min_video_file_size: addForm.min_video_file_size,
-      video_ext_list: addForm.video_ext_list
+      video_ext_list: addForm.video_ext_list,
+      exclude_no_image_actor: addForm.exclude_no_image_actor,
+      enable_ai: addForm.enable_ai,
+      ai_prompt: addForm.ai_prompt,
     })
 
     if (response?.data.code === 200) {
@@ -959,6 +1036,9 @@ const resetAddForm = () => {
   addForm.video_ext_list = ['mp4', 'mkv', 'avi', 'wmv', 'flv', 'mov', 'webm']
   tempVideoExt.value = ''
   selectedDirPath.value = ''
+  addForm.exclude_no_image_actor = false
+  addForm.enable_ai = 'off'
+  addForm.ai_prompt = ''
 
   if (addFormRef.value) {
     addFormRef.value.clearValidate()
@@ -986,6 +1066,9 @@ const handleEdit = (row: ScrapePath) => {
   editForm.video_ext_list = [...(row.video_ext_list || ['mp4', 'mkv', 'avi', 'wmv', 'flv', 'mov', 'webm'])]
   editSelectedDirPath.value = row.source_path
   tempVideoExt.value = ''
+  editForm.exclude_no_image_actor = row.exclude_no_image_actor || false
+  editForm.enable_ai = row.enable_ai || 'off'
+  editForm.ai_prompt = row.ai_prompt || ''
   showEditDialog.value = true
 }
 
@@ -1010,7 +1093,10 @@ const handleEditSave = async () => {
       file_name_template: editForm.file_name_template,
       delete_keyword: editForm.delete_keyword,
       min_video_file_size: editForm.min_video_file_size,
-      video_ext_list: editForm.video_ext_list
+      video_ext_list: editForm.video_ext_list,
+      exclude_no_image_actor: editForm.exclude_no_image_actor,
+      enable_ai: editForm.enable_ai,
+      ai_prompt: editForm.ai_prompt,
     })
 
     if (response?.data.code === 200) {

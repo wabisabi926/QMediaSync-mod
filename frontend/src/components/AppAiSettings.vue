@@ -13,28 +13,11 @@
       ref="formRef"
       class="ai-form"
     >
-      <el-form-item label="是否启用AI识别" prop="enableAi">
-        <el-radio-group
-          v-model="formData.enableAi"
-          placeholder="请选择AI识别模式"
-          :disabled="loading"
-          size="large"
-        >
-          <el-radio-button label="off" >禁用</el-radio-button>
-          <el-radio-button label="assist" >辅助识别</el-radio-button>
-          <el-radio-button label="enforce" >强制使用</el-radio-button>
-        </el-radio-group>
-        <div class="form-help">
-          辅助识别：仅在无法通过其他方式识别时使用AI。每天会限额使用1000次，如果想要一直使用请申请自己的API Key。 <br />
-          强制使用：只使用AI识别，必须使用自己的API Key。
-        </div>
-      </el-form-item>
-
       <el-form-item label="API接口地址" prop="aiBaseUrl">
         <el-input
           v-model="formData.aiBaseUrl"
           placeholder="请输入AI接口地址"
-          :disabled="loading || formData.enableAi === 'off'"
+          :disabled="loading"
           maxlength="255"
         />
         <div class="form-help">例如：https://api.deepseek.com</div>
@@ -45,7 +28,7 @@
           v-model="formData.aiApiKey"
           placeholder="请输入API Key"
           type="password"
-          :disabled="loading || formData.enableAi === 'off'"
+          :disabled="loading"
           show-password
           maxlength="255"
         />
@@ -56,22 +39,10 @@
         <el-input
           v-model="formData.aiModelName"
           placeholder="请输入模型名称"
-          :disabled="loading || formData.enableAi === 'off'"
+          :disabled="loading"
           maxlength="100"
         />
         <div class="form-help">例如：deepseek-chat, gpt-4o, claude-3, llama3等</div>
-      </el-form-item>
-
-      <el-form-item label="提示词" prop="aiPrompt">
-        <el-input
-          v-model="formData.aiPrompt"
-          type="textarea"
-          placeholder="请输入AI提示词"
-          :disabled="loading || formData.enableAi === 'off'"
-          :rows="4"
-          maxlength="1000"
-        />
-        <div class="form-help">用于指导AI进行媒体识别的提示词，如果不清楚如何设置请留空。<br />文件名变量为{filename}</div>
       </el-form-item>
 
       <div class="form-actions">
@@ -79,7 +50,7 @@
           type="primary"
           @click="testConnection"
           :loading="testing"
-          :disabled="formData.enableAi === 'off'"
+          :disabled="loading"
           size="large"
           :icon="Refresh"
           style="margin-right: 15px"
@@ -145,11 +116,9 @@ import { isMobile } from '@/utils/deviceUtils'
 import { useAuthStore } from '@/stores/auth'
 
 interface AiSettings {
-  enableAi: string
   aiBaseUrl: string
   aiApiKey: string
   aiModelName: string
-  aiPrompt: string
 }
 
 interface SaveStatus {
@@ -168,34 +137,28 @@ const formRef = ref<FormInstance>()
 
 // 表单数据
 const formData = reactive<AiSettings>({
-  enableAi: 'off',
   aiBaseUrl: '',
   aiApiKey: '',
   aiModelName: '',
-  aiPrompt: ''
 })
 
 // 动态表单验证规则
 const formRules = computed(() => {
-  const isEnabled = formData.enableAi === 'enforce'
   return {
     aiBaseUrl: [
       {
-        required: isEnabled,
         message: '请输入API接口地址',
         trigger: 'blur'
       }
     ],
     aiApiKey: [
       {
-        required: isEnabled,
         message: '请输入API Key',
         trigger: 'blur'
       }
     ],
     aiModelName: [
       {
-        required: isEnabled,
         message: '请输入模型名称',
         trigger: 'blur'
       }
@@ -217,12 +180,9 @@ async function fetchAiSettings() {
         Authorization: `Bearer ${authStore.token}`
       }
     })
-
-    formData.enableAi = response?.data.data.enable_ai || 'assist'
     formData.aiBaseUrl = response?.data.data.ai_base_url || ''
     formData.aiApiKey = response?.data.data.ai_api_key || ''
     formData.aiModelName = response?.data.data.ai_model_name || ''
-    formData.aiPrompt = response?.data.data.ai_prompt || ''
   } catch (error) {
     console.error('获取AI设置失败:', error)
     ElMessage.error('获取AI设置失败，请稍后重试')
@@ -240,11 +200,9 @@ async function saveSettings() {
     loading.value = true
 
     const payload = {
-      enable_ai: formData.enableAi,
       ai_base_url: formData.aiBaseUrl,
       ai_api_key: formData.aiApiKey,
       ai_model_name: formData.aiModelName,
-      ai_prompt: formData.aiPrompt
     }
 
     await http?.post(`${SERVER_URL}/scrape/ai-settings`, payload, {
@@ -289,11 +247,9 @@ async function testConnection() {
     testStatus.value = null
 
     const payload = {
-      enable_ai: formData.enableAi,
       ai_base_url: formData.aiBaseUrl,
       ai_api_key: formData.aiApiKey,
       ai_model_name: formData.aiModelName,
-      ai_prompt: formData.aiPrompt
     }
 
     const response = await http?.post(`${SERVER_URL}/scrape/ai-test`, payload, {

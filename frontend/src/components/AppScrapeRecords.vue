@@ -1,7 +1,7 @@
 <template>
   <div class="scrape-records-container">
     <h2 class="page-title">刮削记录</h2>
-    <p  class="card-subtitle" style="margin-bottom:16px;">当前刮削产生的临时文件存放在 <span style="color:#000; font-weight:bold;">config/tmp/刮削临时文件/</span> 目录下,可以观察是否存在异常情况</p>
+    <p  class="card-subtitle" style="margin-bottom:16px;">当前刮削产生的临时文件存放在 <span style="color:#000; font-weight:bold;">config/tmp/刮削临时文件/</span> 目录下,可以观察是否存在异常情况，刮削完成的文件会删除临时文件</p>
     <!-- 多选操作栏 -->
     <div v-if="selectedRecords.length > 0" class="batch-operations">
       <el-button type="primary" @click="handleExportErrors">导出识别错误文件</el-button>
@@ -9,6 +9,11 @@
     </div>
 
     <!-- 搜索和过滤区域 -->
+    <div style="margin-bottom: 16px;">
+      <el-button type="primary" @click="toggleMergeEpisodes">
+        {{ isMerged ? '显示电视剧集' : '合并电视剧集' }}
+      </el-button>
+    </div>
     <div class="search-filter-section">
       <el-select v-model="statusFilter" placeholder="筛选状态" style="margin-left: 12px; width: 150px;">
         <el-option label="全部" value=""></el-option>
@@ -87,7 +92,7 @@
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
             <el-button type="text" @click="handleDetail(row)">详情</el-button>
-            <el-button type="danger" size="small" @click="reScrape(row)" v-if="row.status == 'scrape_failed'">重新识别</el-button>
+            <el-button type="warning" size="small" @click="reScrape(row)" v-if="row.status == 'scrape_failed' || row.status == 'scanned'">重新识别</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -232,6 +237,8 @@ interface ScrapeRecord {
 
 // 状态变量
 const records = ref<ScrapeRecord[]>([])
+const originalRecords = ref<ScrapeRecord[]>([])
+const isMerged = ref(false)
 const loading = ref(false)
 const selectedRecords = ref<ScrapeRecord[]>([])
 const statusFilter = ref('')
@@ -260,7 +267,7 @@ const loadRecords = async () => {
 
     // 根据需求，将statusFilter映射到media_type参数
     if (statusFilter.value) {
-      params.media_type = statusFilter.value
+      params.status = statusFilter.value
     }
 
     // 添加类型筛选参数
@@ -272,6 +279,7 @@ const loadRecords = async () => {
 
     if (response?.data.code === 200) {
       records.value = response.data.data.list
+      originalRecords.value = JSON.parse(JSON.stringify(response.data.data.list)) // 深拷贝保存原始记录
       total.value = response.data.data.total
       console.log(total, response.data.data.total)
 
@@ -285,6 +293,33 @@ const loadRecords = async () => {
     ElMessage.error('加载刮削记录失败: 网络错误')
   } finally {
     loading.value = false
+  }
+}
+
+// 合并/显示电视剧集
+const toggleMergeEpisodes = () => {
+  if (!isMerged.value) {
+    // 合并电视剧集：根据tmdb_id和season_number分组，相同值只保留一份
+    const mergedMap = new Map<string, ScrapeRecord>()
+
+    records.value.forEach(record => {
+      if (record.type === 'tvshow' && record.tmdb_id && record.season_number) {
+        const key = `${record.tmdb_id}-${record.season_number}`
+        if (!mergedMap.has(key)) {
+          mergedMap.set(key, record)
+        }
+      } else {
+        // 非电视剧或信息不完整的记录直接保留
+        mergedMap.set(`unique-${record.id}`, record)
+      }
+    })
+
+    records.value = Array.from(mergedMap.values())
+    isMerged.value = true
+  } else {
+    // 还原回原始列表
+    records.value = JSON.parse(JSON.stringify(originalRecords.value))
+    isMerged.value = false
   }
 }
 
@@ -303,7 +338,7 @@ const checkAndSetAutoRefresh = () => {
     // 设置定时器，每隔1秒刷新一次
     autoRefreshTimer.value = window.setInterval(() => {
       loadRecords()
-    }, 1000)
+    },5000)
   }
 }
 
@@ -318,7 +353,38 @@ onUnmounted(() => {
 const applyFilter = () => {
   pagination.value.currentPage = 1 // 重置为第一页
   loadRecords() // 重新加载数据
+  // 重置合并状态
+  if (isMerged.value) {
+    isMerged.value = false
+  }
 }
+
+// // 处理搜索
+// const handleSearch = () => {
+//   // 搜索逻辑
+//   if (searchKeyword.value) {
+//     // 如果有搜索关键词，使用本地过滤
+//     if (isMerged.value) {
+//       // 如果处于合并状态，先还原再过滤
+//       records.value = JSON.parse(JSON.stringify(originalRecords.value))
+//     }
+
+//     const keyword = searchKeyword.value.toLowerCase()
+//     records.value = originalRecords.value.filter(record =>
+//       (record.file_name && record.file_name.toLowerCase().includes(keyword)) ||
+//       (record.path && record.path.toLowerCase().includes(keyword))
+//     )
+//   } else {
+//     // 如果没有搜索关键词，重新加载
+//     if (isMerged.value) {
+//       // 如果处于合并状态，保持合并状态
+//       toggleMergeEpisodes()
+//       toggleMergeEpisodes()
+//     } else {
+//       loadRecords()
+//     }
+//   }
+// }
 
 // 重置筛选
 const resetFilter = () => {

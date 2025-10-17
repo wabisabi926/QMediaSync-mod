@@ -30,6 +30,19 @@
           <p>例如：http://192.168.1.100:8096 或 http://emby-server.local:8096</p>
         </div>
       </el-form-item>
+      <el-form-item label="Emby API密钥" prop="emby_api_key">
+        <el-input
+          v-model="embyData.emby_api_key"
+          placeholder="请输入Emby API密钥"
+          :disabled="embyLoading"
+          class="limited-width-input"
+          @input="updateEmbyExample"
+        />
+        <div>
+          <p>API密钥用来提取strm的视频、音频、内封字幕信息，如果不需要该功能，可以不填 </p>
+          <p>Strm信息提取功能由<a href="https://github.com/truewhile" target="_blank">@truewhile</a> 提供，感谢其无私的分享。</p>
+        </div>
+      </el-form-item>
       <el-form-item>
         <!-- 保存和重置按钮 -->
         <div class="emby-actions">
@@ -42,11 +55,18 @@
           >
             保存设置
           </el-button>
-        </div>
-      </el-form-item>
 
-      <el-form-item>
-        <div>如果要启用外网302，需在 STRM设置 中将 启用本地代理直链 设置为 关闭</div>
+          <el-button
+            type="warning"
+            @click="praseEmby"
+            :loading="embyLoading"
+            size="large"
+            :icon="Refresh"
+            :disabled="!embyData.emby_url || !embyData.emby_api_key"
+          >
+            全量提取媒体信息
+          </el-button>
+        </div>
       </el-form-item>
     </el-form>
 
@@ -60,13 +80,24 @@
       show-icon
       class="emby-status"
     />
+    <div class="security-content">
+      <div class="warning-section">
+        <el-alert title="使用提示" type="warning" :closable="false" show-icon>
+          <template #default>
+            只要填写了Emby服务器地址和API密钥，就可以触发提取媒体信息，提取完成后Emby可以显示出来音视频和内封字幕信息，可以切换字幕<br />
+            每次STRM同步时如果有新增的STRM文件会自动触发提取媒体信息 <br />
+            如果需要全量同步，可以点击上方的 "全量提取媒体信息" 按钮
+          </template>
+        </el-alert>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
-import { Check } from '@element-plus/icons-vue'
+import { Check, Refresh } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { inject, onMounted, ref, reactive } from 'vue'
 import { isMobile as checkIsMobile } from '@/utils/deviceUtils'
@@ -86,6 +117,7 @@ const embyLoading = ref(false)
 // Emby设置数据
 const embyData = reactive({
   emby_url: '',
+  emby_api_key: '',
 })
 
 // 示例显示
@@ -117,6 +149,7 @@ const formRules: FormRules = {
 // 默认配置
 const defaultConfig = {
   emby_url: '',
+  emby_api_key: '',
 }
 
 // 加载Emby配置
@@ -128,6 +161,7 @@ const loadEmbyConfig = async () => {
     if (response?.data.code === 200) {
       // 填充数据到表单
       embyData.emby_url = response.data.data?.emby_url || ''
+      embyData.emby_api_key = response.data.data?.emby_api_key || ''
     } else {
       // 使用默认配置
       Object.assign(embyData, defaultConfig)
@@ -154,6 +188,7 @@ const saveEmbyConfig = async () => {
       `${SERVER_URL}/setting/emby`,
       {
         emby_url: embyData.emby_url.trim(),
+        emby_api_key: embyData.emby_api_key.trim(),
       },
       {
         headers: {
@@ -190,6 +225,50 @@ const saveEmbyConfig = async () => {
       description: '保存Emby服务器设置时出现错误',
     }
     ElMessage.error('保存失败')
+  } finally {
+    embyLoading.value = false
+  }
+}
+
+const praseEmby = async () => {
+  try {
+    embyLoading.value = true
+    const response = await http?.post(
+      `${SERVER_URL}/setting/emby/parse`,
+      {
+        emby_url: embyData.emby_url.trim(),
+        emby_api_key: embyData.emby_api_key.trim(),
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    )
+
+    if (response?.data.code === 200) {
+      embyStatus.value = {
+        title: '触发提取媒体信息成功',
+        type: 'success',
+        description: '已成功触发提取媒体信息',
+      }
+      ElMessage.success('已成功触发提取媒体信息')
+    } else {
+      embyStatus.value = {
+        title: '触发提取媒体信息失败',
+        type: 'error',
+        description: response?.data.message || '触发提取媒体信息失败',
+      }
+      ElMessage.error(response?.data.message || '触发提取媒体信息失败')
+    }
+  } catch (error) {
+    console.error('触发提取媒体信息错误:', error)
+    embyStatus.value = {
+      title: '触发提取媒体信息失败',
+      type: 'error',
+      description: '触发提取媒体信息时出现错误',
+    }
+    ElMessage.error('触发提取媒体信息失败')
   } finally {
     embyLoading.value = false
   }

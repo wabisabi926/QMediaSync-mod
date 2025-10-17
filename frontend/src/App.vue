@@ -65,7 +65,7 @@
               <span>Telegram通知</span>
             </el-menu-item>
             <el-menu-item index="/settings/threads">
-              <el-icon><VideoPlay /></el-icon>
+              <el-icon><Operation /></el-icon>
               <span>115 qps</span>
             </el-menu-item>
             <el-menu-item index="/settings/tmdb">

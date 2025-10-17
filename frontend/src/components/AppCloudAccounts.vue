@@ -508,7 +508,7 @@ const handleAddAccount = async () => {
       source_type: newAccountForm.value.type,
       name: newAccountForm.value.name,
     }
-
+    let url = `${SERVER_URL}/account/add`
     if (newAccountForm.value.type === '115') {
       Object.assign(data, {
         base_url: newAccountForm.value.base_url,
@@ -517,7 +517,8 @@ const handleAddAccount = async () => {
         app_id_name: newAccountForm.value.app_id_name,
         app_id: newAccountForm.value.app_id
       })
-    } else if (newAccountForm.value.type === '123') {
+    } else if (newAccountForm.value.type === 'openlist') {
+      url = `${SERVER_URL}/account/openlist`
       Object.assign(data, {
         base_url: newAccountForm.value.base_url,
         username: newAccountForm.value.username,
@@ -525,7 +526,7 @@ const handleAddAccount = async () => {
       })
     }
 
-    const response = await http?.post(`${SERVER_URL}/account/add`, data)
+    const response = await http?.post(url, data)
 
     if (response?.data.code === 200) {
       ElMessage.success('添加账号成功')

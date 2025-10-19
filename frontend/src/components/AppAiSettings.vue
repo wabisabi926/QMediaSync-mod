@@ -16,7 +16,7 @@
       <el-form-item label="API接口地址" prop="aiBaseUrl">
         <el-input
           v-model="formData.aiBaseUrl"
-          placeholder="请输入AI接口地址"
+          placeholder="不填取默认值：https://api.siliconflow.cn"
           :disabled="loading"
           maxlength="255"
         />
@@ -26,7 +26,7 @@
       <el-form-item label="API Key" prop="aiApiKey">
         <el-input
           v-model="formData.aiApiKey"
-          placeholder="请输入API Key"
+          placeholder="不填用作者的，但可能失败；填了更稳定"
           type="password"
           :disabled="loading"
           show-password
@@ -38,11 +38,11 @@
       <el-form-item label="模型名称" prop="aiModelName">
         <el-input
           v-model="formData.aiModelName"
-          placeholder="请输入模型名称"
+          placeholder="不填取默认值：deepseek-ai/DeepSeek-R1"
           :disabled="loading"
           maxlength="100"
         />
-        <div class="form-help">例如：deepseek-chat, gpt-4o, claude-3, llama3等</div>
+        <div class="form-help">从硅基流动的模型广场找或者模型提供商的API文档中找</div>
       </el-form-item>
 
       <div class="form-actions">
@@ -97,7 +97,7 @@
         <el-alert title="使用提示" type="warning" :closable="false" show-icon>
           <template #default>
             可以支持所有OpenAI Api兼容的模型。<br />
-            项目内置硅基流动的访问权限，每天限用1000次，如果使用强度不高，建议上面所有输入框留空来使用系统默认值<br />
+            项目内置硅基流动的访问权限，如果使用强度不高，建议上面所有输入框留空来使用系统默认值<br />
             使用AI识别会消耗tokens额度, 请合理配置。
           </template>
         </el-alert>
@@ -196,7 +196,14 @@ async function saveSettings() {
   try {
     // 执行表单验证
     await formRef.value?.validate()
-
+    if (formData.aiModelName && !formData.aiApiKey) {
+      ElMessage.error('如果填写了模型名称，必须填写API Key')
+      return
+    }
+    if (formData.aiBaseUrl && (!formData.aiApiKey || !formData.aiModelName)) {
+      ElMessage.error('如果填写了API接口地址，必须填写模型名称和API Key')
+      return
+    }
     loading.value = true
 
     const payload = {

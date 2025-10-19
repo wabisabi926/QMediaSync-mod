@@ -9,7 +9,7 @@
       <el-form-item label="TMDB接口地址" prop="tmdbUrl">
         <el-input
           v-model="formData.tmdbUrl"
-          placeholder="请输入TMDB接口地址"
+          placeholder="不填取默认值：https://api.tmdb.org"
           :disabled="loading"
           maxlength="255"
         />
@@ -19,7 +19,7 @@
       <el-form-item label="TMDB图片地址" prop="tmdbImageUrl">
         <el-input
           v-model="formData.tmdbImageUrl"
-          placeholder="请输入TMDB图片地址"
+          placeholder="不填取默认值：https://image.tmdb.org"
           :disabled="loading"
           maxlength="255"
         />
@@ -33,12 +33,13 @@
           inactive-text="禁用"
           :disabled="loading"
         />
+         <div class="form-help">如果https://api.tmdb.org可以直连就禁用</div>
       </el-form-item>
 
       <el-form-item label="API密钥" prop="tmdbApiKey">
         <el-input
           v-model="formData.tmdbApiKey"
-          placeholder="请输入TMDB API密钥"
+          placeholder="系统内置，不填也可用，填自己的更稳定"
           type="password"
           :disabled="loading"
           show-password
@@ -120,7 +121,7 @@
       <div class="warning-section">
         <el-alert title="使用提示" type="warning" :closable="false" show-icon>
           <template #default>
-            如果没有不了解如何设置，请全部留空，会使用默认配置。默认配置需要代理才可以访问。<br />
+            如果不了解如何设置，请全部留空，会使用默认配置。默认配置可能需要代理才可以访问。<br />
             如果TMDB无法直接访问，请开启使用代理，确保代理配置正确。<br />
           </template>
         </el-alert>

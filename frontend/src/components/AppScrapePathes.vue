@@ -61,7 +61,7 @@
           </div>
           <div class="info-item">
             <span class="info-label">目标路径:</span>
-            <span class="info-value">{{ row.dest_path }}</span>
+            <span class="info-value">{{ row.scrape_type === "only_scrape" ? "-" : row.dest_path }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">操作方式:</span>
@@ -74,6 +74,19 @@
           <div class="info-item">
             <span class="info-label">二级分类:</span>
             <span class="info-value">{{ row.enable_category ? '开启' : '关闭' }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">定时同步:</span>
+            <span class="info-value">
+              <el-switch
+              v-model="row.enable_cron"
+              @change="toggleCron(row)"
+              inline-prompt
+              active-text="开启"
+              inactive-text="关闭"
+              style="--el-switch-on-color: #13ce66; --el-switch-off-color: #ff4949"
+            />
+            </span>
           </div>
           <div class="info-item">
             <span class="info-label">创建时间:</span>
@@ -234,18 +247,17 @@
           label="目标路径"
           prop="dest_path"
           v-if="
-            (addForm.source_type !== 'local' && addForm.account_id) ||
-            addForm.source_type === 'local'
+            ((addForm.source_type !== 'local' && addForm.account_id) || addForm.source_type === 'local') && addForm.scrape_type !== 'only_scrape'
           "
         >
           <div class="pan-dir-input">
             <el-input
               v-model="addForm.dest_path"
               placeholder="点击选择按钮选择目标目录"
-              :disabled="addLoading || addForm.scrape_type === 'only_scrape' || addForm.rename_type === 'same'"
+              :disabled="addLoading"
               readonly
             />
-            <el-button type="primary" @click="openDirSelector(false)" :disabled="addLoading || addForm.scrape_type === 'only_scrape' || addForm.rename_type === 'same'">
+            <el-button type="primary" @click="openDirSelector(false)" :disabled="addLoading">
               选择目录
             </el-button>
           </div>
@@ -264,18 +276,16 @@
           />
           <div class="form-tip">是否按照二级分类策略组织文件，开启后会在目标路径先创建二级分类目录</div>
         </el-form-item>
-        <el-form-item label="文件夹重命名模板" prop="folder_name_template">
+        <el-form-item label="文件夹重命名模板" prop="folder_name_template" v-if="addForm.scrape_type !== 'only_scrape'">
           <el-input
             v-model="addForm.folder_name_template"
-            placeholder="留空使用默认模板"
             :disabled="addLoading"
           />
           <div class="form-tip">详细请参考：<a href="https://github.com/qicfan/qmediasync/wiki/%E6%95%B4%E7%90%86%E6%96%87%E4%BB%B6%EF%BC%88%E5%A4%B9%EF%BC%89%E6%A8%A1%E6%9D%BF%E5%8F%AF%E7%94%A8%E5%8F%98%E9%87%8F" target="_blank">文件夹重命名模板</a></div>
         </el-form-item>
-        <el-form-item label="文件重命名模板" prop="file_name_template">
+        <el-form-item label="文件重命名模板" prop="file_name_template" v-if="addForm.scrape_type !== 'only_scrape'">
           <el-input
             v-model="addForm.file_name_template"
-            placeholder="留空使用默认模板"
             :disabled="addLoading"
           />
           <div class="form-tip">详细请参考：<a href="https://github.com/qicfan/qmediasync/wiki/%E6%95%B4%E7%90%86%E6%96%87%E4%BB%B6%EF%BC%88%E5%A4%B9%EF%BC%89%E6%A8%A1%E6%9D%BF%E5%8F%AF%E7%94%A8%E5%8F%98%E9%87%8F" target="_blank">文件重命名模板</a></div>
@@ -330,6 +340,15 @@
           />
           <div class="form-tip">没有头像的演员不会加入到nfo文件中</div>
         </el-form-item>
+         <el-form-item label="删除整理完的非空路径" prop="exclude_no_image_actor">
+          <el-switch
+            v-model="editForm.force_delete_source_path"
+            :active-value="true"
+            :inactive-value="false"
+            :disabled="editLoading"
+          />
+          <div class="form-tip">整理完成是否强制删除源文件所在路径（一般会遗留广告垃圾文件），如果禁用只会删除空目录</div>
+        </el-form-item>
         <el-form-item label="是否启用AI识别" prop="enable_ai">
         <el-radio-group
           v-model="addForm.enable_ai"
@@ -356,6 +375,15 @@
             maxlength="1000"
           />
           <div class="form-help">用于指导AI进行媒体识别的提示词，如果不清楚如何设置请留空。<br />文件名变量为{filename}</div>
+        </el-form-item>
+        <el-form-item label="定时同步" prop="enable_cron">
+          <el-switch
+            v-model="addForm.enable_cron"
+            :active-value="true"
+            :inactive-value="false"
+            :disabled="addLoading"
+          />
+          <div class="form-tip">是否启用定时同步功能</div>
         </el-form-item>
       </el-form>
 
@@ -446,8 +474,7 @@
           label="目标路径"
           prop="dest_path_id"
           v-if="
-            (editForm.source_type !== 'local' && editForm.account_id) ||
-            editForm.source_type === 'local'
+            ((editForm.source_type !== 'local' && editForm.account_id) || editForm.source_type === 'local') && editForm.scrape_type !== 'only_scrape'
           "
         >
           <div class="pan-dir-input">
@@ -493,18 +520,16 @@
           />
           <div class="form-tip">是否按照二级分类策略组织文件</div>
         </el-form-item>
-        <el-form-item label="文件夹重命名模板" prop="folder_name_template">
+        <el-form-item label="文件夹重命名模板" prop="folder_name_template" v-if="editForm.scrape_type !== 'only_scrape'">
           <el-input
             v-model="editForm.folder_name_template"
-            placeholder="留空使用默认模板"
             :disabled="editLoading"
           />
           <div class="form-tip">文件夹重命名的模板格式</div>
         </el-form-item>
-        <el-form-item label="文件重命名模板" prop="file_name_template">
+        <el-form-item label="文件重命名模板" prop="file_name_template" v-if="editForm.scrape_type !== 'only_scrape'">
           <el-input
             v-model="editForm.file_name_template"
-            placeholder="留空使用默认模板"
             :disabled="editLoading"
           />
           <div class="form-tip">文件重命名的模板格式</div>
@@ -559,6 +584,15 @@
           />
           <div class="form-tip">是否排除无头像演员的影视剧</div>
         </el-form-item>
+        <el-form-item label="删除整理完的非空路径" prop="exclude_no_image_actor">
+          <el-switch
+            v-model="editForm.force_delete_source_path"
+            :active-value="true"
+            :inactive-value="false"
+            :disabled="editLoading"
+          />
+          <div class="form-tip">整理完成是否强制删除源文件所在路径（一般会遗留广告垃圾文件）</div>
+        </el-form-item>
         <el-form-item label="开启AI识别" prop="enable_ai">
           <el-radio-group
             v-model="editForm.enable_ai"
@@ -582,6 +616,15 @@
             maxlength="1000"
           />
           <div class="form-help">用于指导AI进行媒体识别的提示词，如果不清楚如何设置请留空。<br />文件名变量为{filename}</div>
+        </el-form-item>
+        <el-form-item label="定时同步" prop="enable_cron">
+          <el-switch
+            v-model="editForm.enable_cron"
+            :active-value="true"
+            :inactive-value="false"
+            :disabled="editLoading"
+          />
+          <div class="form-tip">是否启用定时同步功能</div>
         </el-form-item>
       </el-form>
 
@@ -678,6 +721,8 @@ interface ScrapePath {
   enable_ai?: string
   ai_prompt?: string
   exclude_no_image_actor?: boolean
+  force_delete_source_path?: boolean
+  enable_cron?: boolean
 }
 
 interface DirInfo {
@@ -747,6 +792,8 @@ const addForm = reactive({
   exclude_no_image_actor: false, // 默认不排除无头像演员
   enable_ai: 'off', // 默认禁用AI识别
   ai_prompt: '', // 默认AI提示
+  force_delete_source_path: false, // 默认强制删除来源路径
+  enable_cron: false // 默认不启用定时同步
 })
 
 // 编辑对话框状态
@@ -773,6 +820,8 @@ const editForm = reactive({
   exclude_no_image_actor: false, // 默认不排除无头像演员
   enable_ai: 'off', // 默认禁用AI识别
   ai_prompt: '', // 默认AI提示
+  force_delete_source_path: false, // 默认强制删除来源路径
+  enable_cron: false // 默认不启用定时同步
 })
 
 // 表单验证规则
@@ -785,10 +834,6 @@ const addFormRules: FormRules = {
     { min: 1, max: 500, message: '长度在 1 到 500 个字符', trigger: 'blur' },
   ],
   source_path_id: [{ required: true, message: '请选择来源目录ID', trigger: 'blur' }],
-  dest_path: [
-    { required: true, message: '请选择目标目录', trigger: 'blur' },
-    { min: 1, max: 500, message: '长度在 1 到 500 个字符', trigger: 'blur' },
-  ],
   dest_path_id: [{ required: true, message: '请选择目标目录ID', trigger: 'blur' }],
   scrape_type: [{ required: true, message: '请选择操作方式', trigger: 'change' }],
   rename_type: [
@@ -807,10 +852,6 @@ const editFormRules: FormRules = {
   media_type: [{ required: true, message: '请选择媒体类型', trigger: 'change' }],
   source_path: [
     { required: true, message: '请选择来源目录', trigger: 'blur' },
-    { min: 1, max: 500, message: '长度在 1 到 500 个字符', trigger: 'blur' },
-  ],
-  dest_path: [
-    { required: true, message: '请选择目标目录', trigger: 'blur' },
     { min: 1, max: 500, message: '长度在 1 到 500 个字符', trigger: 'blur' },
   ],
   scrape_type: [{ required: true, message: '请选择操作方式', trigger: 'change' }],
@@ -975,7 +1016,10 @@ const loadAccounts = async (sourceType?: string) => {
 // 处理添加刮削目录
 const handleAdd = async () => {
   if (!addFormRef.value) return
-
+  if (addForm.scrape_type !== 'only_scrape' && (addForm.dest_path_id == '' || addForm.folder_name_template == '' || addForm.file_name_template == '')) {
+    ElMessage.error('请选择目标路径且填写文件夹重命名模板和文件重命名模板')
+    return
+  }
   try {
     await addFormRef.value.validate()
     addLoading.value = true
@@ -1000,6 +1044,8 @@ const handleAdd = async () => {
       exclude_no_image_actor: addForm.exclude_no_image_actor,
       enable_ai: addForm.enable_ai,
       ai_prompt: addForm.ai_prompt,
+      force_delete_source_path: addForm.force_delete_source_path,
+      enable_cron: addForm.enable_cron,
     })
 
     if (response?.data.code === 200) {
@@ -1069,13 +1115,17 @@ const handleEdit = (row: ScrapePath) => {
   editForm.exclude_no_image_actor = row.exclude_no_image_actor || false
   editForm.enable_ai = row.enable_ai || 'off'
   editForm.ai_prompt = row.ai_prompt || ''
+  editForm.enable_cron = row.enable_cron || false
   showEditDialog.value = true
 }
 
 // 处理保存编辑
 const handleEditSave = async () => {
   if (!editFormRef.value) return
-
+  if (editForm.scrape_type !== 'only_scrape' && (editForm.dest_path_id == '' || editForm.folder_name_template == '' || editForm.file_name_template == '')) {
+    ElMessage.error('请选择目标路径且填写文件夹重命名模板和文件重命名模板')
+    return
+  }
   try {
     await editFormRef.value.validate()
     editLoading.value = true
@@ -1097,6 +1147,8 @@ const handleEditSave = async () => {
       exclude_no_image_actor: editForm.exclude_no_image_actor,
       enable_ai: editForm.enable_ai,
       ai_prompt: editForm.ai_prompt,
+      force_delete_source_path: editForm.force_delete_source_path,
+      enable_cron: editForm.enable_cron,
     })
 
     if (response?.data.code === 200) {
@@ -1160,6 +1212,34 @@ const handleScan = async (row: ScrapePath) => {
     console.error('Scan error:', error)
   } finally {
     row.scanning = false
+  }
+}
+
+// 处理定时同步开关切换
+const toggleCron = async (row: ScrapePath) => {
+  try {
+    const formData = {
+      id: row.id || 0,
+    }
+
+    const response = await http?.post(`${SERVER_URL}/scrape/pathes/toggle-cron`, formData, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (response?.data.code === 200) {
+      ElMessage.success(row.enable_cron ? '开启定时同步成功' : '关闭定时同步成功')
+    } else {
+      // 如果失败，恢复原来的状态
+      row.enable_cron = !row.enable_cron
+      ElMessage.error(response?.data.message || '切换定时同步状态失败')
+    }
+  } catch {
+    console.error('切换定时同步状态错误')
+    // 如果失败，恢复原来的状态
+    row.enable_cron = !row.enable_cron
+    ElMessage.error('切换定时同步状态失败')
   }
 }
 
@@ -1299,5 +1379,8 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   margin: 0 !important;
+}
+.card-body {
+  min-height: 279px;
 }
 </style>

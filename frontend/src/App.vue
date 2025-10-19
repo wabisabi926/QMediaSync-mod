@@ -48,13 +48,9 @@
               <el-icon><Setting /></el-icon>
               <span>系统设置</span>
             </template>
-            <el-menu-item index="/settings/strm">
-              <el-icon><VideoPlay /></el-icon>
-              <span>STRM</span>
-            </el-menu-item>
             <el-menu-item index="/settings/emby">
               <el-icon><VideoPlay /></el-icon>
-              <span>Emby外网302</span>
+              <span>Emby</span>
             </el-menu-item>
             <el-menu-item index="/proxy">
               <el-icon><Link /></el-icon>
@@ -66,21 +62,23 @@
             </el-menu-item>
             <el-menu-item index="/settings/threads">
               <el-icon><Operation /></el-icon>
-              <span>115 qps</span>
-            </el-menu-item>
-            <el-menu-item index="/settings/tmdb">
-              <el-icon><Film /></el-icon>
-              <span>TMDB</span>
-            </el-menu-item>
-            <el-menu-item index="/settings/ai">
-              <el-icon><View /></el-icon>
-              <span>AI识别</span>
-            </el-menu-item>
-            <el-menu-item index="/settings/category-strategy">
-              <el-icon><Operation /></el-icon>
-              <span>二级分类策略</span>
+              <span>115 接口速率</span>
             </el-menu-item>
           </el-sub-menu>
+          <!-- <el-sub-menu index="/upload-queue">
+            <template #title>
+              <el-icon><Download /></el-icon>
+              <span>上传下载</span>
+            </template>
+            <el-menu-item index="/upload-queue">
+              <el-icon><Upload /></el-icon>
+              <span>上传队列</span>
+            </el-menu-item>
+            <el-menu-item index="/download-queue">
+              <el-icon><Download /></el-icon>
+              <span>下载队列</span>
+            </el-menu-item>
+          </el-sub-menu> -->
           <el-sub-menu index="/sync">
             <template #title>
               <el-icon><DocumentCopy /></el-icon>
@@ -93,6 +91,10 @@
             <el-menu-item index="/sync-directories">
               <el-icon><FolderOpened /></el-icon>
               <span>STRM同步目录</span>
+            </el-menu-item>
+            <el-menu-item index="/settings/strm">
+              <el-icon><Setting /></el-icon>
+              <span>STRM设置</span>
             </el-menu-item>
           </el-sub-menu>
 
@@ -108,6 +110,18 @@
             <el-menu-item index="/scrape-records">
               <el-icon><List /></el-icon>
               <span>刮削记录</span>
+            </el-menu-item>
+             <el-menu-item index="/settings/tmdb">
+              <el-icon><Film /></el-icon>
+              <span>TMDB设置</span>
+            </el-menu-item>
+            <el-menu-item index="/settings/ai">
+              <el-icon><View /></el-icon>
+              <span>AI识别设置</span>
+            </el-menu-item>
+            <el-menu-item index="/settings/category-strategy">
+              <el-icon><Operation /></el-icon>
+              <span>二级分类设置</span>
             </el-menu-item>
           </el-sub-menu>
 

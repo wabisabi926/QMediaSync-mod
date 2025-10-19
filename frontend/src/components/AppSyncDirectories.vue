@@ -265,27 +265,6 @@
           />
           <div class="form-tip">STRM和元数据实际存放目录（自动生成）</div>
         </el-form-item>
-
-        <!-- <el-form-item label="缓存目录层级" prop="dir_depth" v-if="addForm.source_type === '115'">
-          <el-input-number
-            v-model="addForm.dir_depth"
-            :min="1"
-            :max="10"
-            :step="1"
-            :disabled="addLoading"
-            style="width: 100%"
-          />
-          <p>该设置会严重影响全量同步所需时间，建议认真设置；如果不是很清楚，建议设置成2</p>
-          <div class="form-tip">
-            <p>
-              如果所选网盘目录是AV类型的根目录，下面的目录结构如：小姐姐名/番号/番号.mkv，那就输入2。
-            </p>
-            <p>
-              如果所选网盘目录是影视剧的根目录如Media，下面的子目录结构如：电影/动画电影/哪吒/哪吒.mkv，那就输入3；
-            </p>
-          </div>
-        </el-form-item> -->
-
         <el-form-item label="是否自定义设置" prop="custom_config">
           <el-switch
             v-model="addForm.custom_config"
@@ -321,7 +300,7 @@
             placeholder="输入文件名后按回车添加，如：.nfo"
             :disabled="addLoading"
           />
-          <div class="form-tip">指定需要同步的元数据文件扩展名</div>
+          <div class="form-tip">指定需要排除同步的名称，必须输入完整，可以是文件夹名字或者文件名字</div>
         </el-form-item>
       </el-form>
 
@@ -379,17 +358,6 @@
           </div>
           <div class="form-tip">选择本地目录作为STRM文件的存放位置</div>
         </el-form-item>
-        <!-- <el-form-item label="缓存目录层级" prop="dir_depth" v-if="editForm.source_type === '115'">
-          <el-input-number
-            v-model="editForm.dir_depth"
-            :min="1"
-            :max="10"
-            :step="1"
-            :disabled="editLoading"
-            style="width: 100%"
-          />
-          <div class="form-tip">缓存目录层级，建议设置为 1-3 层（默认 2层）</div>
-        </el-form-item> -->
         <el-form-item label="STRM存放目录">
           <el-input
             v-model="editForm.strm_path"
@@ -434,7 +402,7 @@
             placeholder="输入文件名后按回车添加，如：.nfo"
             :disabled="editLoading"
           />
-          <div class="form-tip">指定需要同步的元数据文件扩展名</div>
+          <div class="form-tip">指定需要排除同步的名称，必须输入完整，可以是文件夹名字或者文件名字</div>
         </el-form-item>
       </el-form>
 
@@ -680,6 +648,7 @@ const loadDirectories = async () => {
   try {
     loading.value = true
     const response = await http?.get(`${SERVER_URL}/sync/path-list`, {
+      timeout: 5000,
       params: {
         page: currentPage.value,
         page_size: pageSize.value,

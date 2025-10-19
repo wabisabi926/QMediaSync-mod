@@ -14,6 +14,8 @@ import AppAiSettings from '@/components/AppAiSettings.vue'
 import AppCategoryStrategy from '@/components/AppCategoryStrategy.vue'
 import AppScrapePathes from '@/components/AppScrapePathes.vue'
 import AppScrapeRecords from '@/components/AppScrapeRecords.vue'
+import AppUploadQueue from '@/components/AppUploadQueue.vue'
+import AppDownloadQueue from '@/components/AppDownloadQueue.vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
@@ -194,6 +196,24 @@ const routes = [
     component: () => import('@/components/AppProxySettings.vue'),
     meta: {
       title: '网络代理',
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/upload-queue',
+    name: 'upload-queue',
+    component: AppUploadQueue,
+    meta: {
+      title: '上传队列',
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/download-queue',
+    name: 'download-queue',
+    component: AppDownloadQueue,
+    meta: {
+      title: '下载队列',
       requiresAuth: true,
     },
   },

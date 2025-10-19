@@ -25,9 +25,8 @@
           <span class="example-label">示例格式：</span>
           <code class="example-url">{{ embyExample }}</code>
         </div>
-        <div class="form-help">
-          <p>请输入Emby服务器的完整地址，包含协议、IP地址和端口号</p>
-          <p>例如：http://192.168.1.100:8096 或 http://emby-server.local:8096</p>
+        <div>
+          <p>想使用Emby外网302必须输入Emby服务器地址，不要以/结尾</p>
         </div>
       </el-form-item>
       <el-form-item label="Emby API密钥" prop="emby_api_key">
@@ -134,7 +133,6 @@ const embyStatus = ref<{
 const formRules: FormRules = {
   emby_url: [
     {
-      required: true,
       message: '请输入Emby服务器地址',
       trigger: 'blur',
     },

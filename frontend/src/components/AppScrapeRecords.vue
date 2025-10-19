@@ -5,6 +5,7 @@
     <!-- 多选操作栏 -->
     <div v-if="selectedRecords.length > 0" class="batch-operations">
       <el-button type="primary" @click="handleExportErrors">导出识别错误文件</el-button>
+      <el-button type="danger" @click="handleDeleteSelectedRecords">删除所选刮削记录</el-button>
       <span class="selected-count">已选择 {{ selectedRecords.length }} 条记录</span>
     </div>
 
@@ -13,6 +14,8 @@
       <el-button type="primary" @click="toggleMergeEpisodes">
         {{ isMerged ? '显示电视剧集' : '合并电视剧集' }}
       </el-button>
+
+      <el-button type="warning" @click="handleDeleteFailedRecords">清除所有刮削失败的记录</el-button>
     </div>
     <div class="search-filter-section">
       <el-select v-model="statusFilter" placeholder="筛选状态" style="margin-left: 12px; width: 150px;">
@@ -77,13 +80,13 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="error_reason" label="失败原因" min-width="200">
+        <el-table-column prop="failed_reason" label="失败原因" min-width="200">
           <template #default="{ row }">
-            <el-popover placement="top" :width="400" trigger="hover" v-if="row.error_reason">
+            <el-popover placement="top" :width="400" trigger="hover" v-if="row.failed_reason">
               <template #reference>
-                <span class="error-reason-text">{{ truncateText(row.error_reason, 20) }}</span>
+                <span class="error-reason-text">{{ truncateText(row.failed_reason, 20) }}</span>
               </template>
-              <pre style="margin: 0; white-space: pre-wrap; word-break: break-all;">{{ row.error_reason }}</pre>
+              <pre style="margin: 0; white-space: pre-wrap; word-break: break-all;">{{ row.failed_reason }}</pre>
             </el-popover>
             <span v-else>-</span>
           </template>
@@ -93,6 +96,7 @@
           <template #default="{ row }">
             <el-button type="text" @click="handleDetail(row)">详情</el-button>
             <el-button type="warning" size="small" @click="reScrape(row)" v-if="row.status == 'scrape_failed' || row.status == 'scanned'">重新识别</el-button>
+            <el-button type="success" size="small" @click="markAsFinished(row)" v-if="row.status == 'renaming' || row.status == 'scraped'">标记为已整理</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -154,7 +158,7 @@
           <el-descriptions-item label="识别时间">{{ formatTimestamp(selectedRecord.scanned_at) }}</el-descriptions-item>
           <el-descriptions-item label="刮削时间">{{ formatTimestamp(selectedRecord.scraped_at) }}</el-descriptions-item>
           <el-descriptions-item label="失败原因">
-            <pre v-if="selectedRecord.error_reason" style="margin: 0; white-space: pre-wrap; word-break: break-all; max-height: 100px; overflow: auto;">{{ selectedRecord.error_reason }}</pre>
+            <pre v-if="selectedRecord.failed_reason" style="margin: 0; white-space: pre-wrap; word-break: break-all; max-height: 100px; overflow: auto;">{{ selectedRecord.failed_reason }}</pre>
             <span v-else>-</span>
           </el-descriptions-item>
 
@@ -196,7 +200,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { inject } from 'vue'
@@ -218,7 +222,7 @@ interface ScrapeRecord {
   episode_number?: string
   episode_name?: string
   status: 'scanned' | 'scraping' | 'scraped' | 'scrape_failed' | 'renaming' | 'renamed'
-  error_reason?: string
+  failed_reason?: string
   created_at: number
   updated_at: number
   scanned_at: number
@@ -433,6 +437,40 @@ const handleExportErrors = async () => {
   }
 }
 
+// 删除所选刮削记录
+const handleDeleteSelectedRecords = async () => {
+  try {
+    if (selectedRecords.value.length === 0) {
+      ElMessage.warning('请选择记录')
+      return
+    }
+
+    // 确认删除操作
+    if (!confirm(`确定要删除选中的 ${selectedRecords.value.length} 条记录吗？`)) {
+      return
+    }
+
+    const ids = selectedRecords.value.map(record => record.id)
+    // 发送DELETE请求，参数与导出识别错误文件接口一致
+    // 构造URL，将ids作为GET参数传递
+    const idsQuery = ids.join(',')
+    const response = await http?.delete(`${SERVER_URL}/scrape/records?ids=${idsQuery}`)
+
+    if (response?.data.code === 200) {
+      ElMessage.success('删除成功')
+      // 清空选择
+      selectedRecords.value = []
+      // 刷新记录列表
+      loadRecords()
+    } else {
+      ElMessage.error(`删除失败: ${response?.data.message || '未知错误'}`)
+    }
+  } catch (error) {
+    console.error('删除失败:', error)
+    ElMessage.error('删除失败: 网络错误')
+  }
+}
+
 // 查看详情
 const handleDetail = (record: ScrapeRecord) => {
   selectedRecord.value = record
@@ -493,6 +531,54 @@ const submitReScrape = async () => {
   }
 }
 
+const handleDeleteFailedRecords = async () => {
+  try {
+    const response = await http?.post(`${SERVER_URL}/scrape/clear-failed`)
+
+    if (response?.data.code === 200) {
+      ElMessage.success('清除所有刮削失败的记录成功')
+      loadRecords()
+    } else {
+      ElMessage.error(`清除所有刮削失败的记录失败: ${response?.data.message || '未知错误'}`)
+    }
+  } catch (error) {
+    console.error('清除所有刮削失败的记录失败:', error)
+    ElMessage.error('清除所有刮削失败的记录失败: 网络错误')
+  }
+}
+
+const markAsFinished = async (record: ScrapeRecord) => {
+  try {
+    // 显示确认对话框
+    await ElMessageBox.confirm(
+      '请确保文件已在目标位置存在，变为已整理的文件不会继续整理',
+      '确认操作',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+
+    // 发送POST请求到/scrape/finish接口
+    const response = await http?.post(`${SERVER_URL}/scrape/finish`, { id: record.id })
+
+    if (response?.data.code === 200) {
+      ElMessage.success('标记为已整理成功')
+      // 刷新记录列表
+      loadRecords()
+    } else {
+      ElMessage.error(`标记为已整理失败: ${response?.data.message || '未知错误'}`)
+    }
+  } catch (error) {
+    // 如果用户取消操作，不显示错误消息
+    if (!(error as Error).message.includes('用户取消操作')) {
+      console.error('标记为已整理失败:', error)
+      ElMessage.error('标记为已整理失败: 网络错误')
+    }
+  }
+}
+
 const truncateText = (text: string, maxLength: number): string => {
   return text.length > maxLength ? text.substring(0, maxLength) + '...' : text
 }
@@ -527,13 +613,13 @@ const getStatusTagType = (status: string): string => {
     case 'scanned':
       return 'info'
     case 'scraping':
-      return 'warning'
+      return 'info'
     case 'scraped':
-      return 'success'
+      return 'primary'
     case 'scrape_failed':
       return 'danger'
     case 'renaming':
-      return 'warning'
+      return 'primary'
     case 'renamed':
       return 'success'
     default:

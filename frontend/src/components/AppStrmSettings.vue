@@ -158,18 +158,6 @@
         </div>
       </el-form-item>
 
-      <el-form-item label="启用本地代理播放" prop="local_proxy">
-        <el-radio-group v-model="strmData.local_proxy">
-          <el-radio-button :label="1">启用</el-radio-button>
-          <el-radio-button :label="0">关闭</el-radio-button>
-        </el-radio-group>
-        <div class="form-help">
-          <p>
-            开启后将使用本地代理访问网盘，可以解决局域网其他设备因为UA不同无法播放的问题，但是会禁用外网302播放（通过8095端口依然能播放，但是流量会走自己服务器）。
-          </p>
-        </div>
-      </el-form-item>
-
       <!-- 保存和重置按钮 -->
       <div class="strm-actions">
         <el-button

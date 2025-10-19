@@ -6,7 +6,6 @@
           <h2>下载队列</h2>
           <div class="header-actions">
             <el-button type="primary" @click="refreshQueue">刷新</el-button>
-            <el-button type="danger" @click="clearQueue" :disabled="queueData.length === 0">清空队列</el-button>
           </div>
         </div>
       </template>
@@ -79,7 +78,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { inject } from 'vue'
@@ -189,26 +188,26 @@ const refreshQueue = () => {
 }
 
 // 清空队列
-const clearQueue = async () => {
-  try {
-    await ElMessageBox.confirm('确定要清空所有下载任务吗？此操作不可恢复。', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
+// const clearQueue = async () => {
+//   try {
+//     await ElMessageBox.confirm('确定要清空所有下载任务吗？此操作不可恢复。', '提示', {
+//       confirmButtonText: '确定',
+//       cancelButtonText: '取消',
+//       type: 'warning'
+//     })
 
-    const response = await http?.post(`${SERVER_URL}/download/queue/clear`)
+//     const response = await http?.post(`${SERVER_URL}/download/queue/clear`)
 
-    if (response?.data.code === 200) {
-      ElMessage.success('队列已清空')
-      loadQueueData()
-    } else {
-      ElMessage.error('清空队列失败')
-    }
-  } catch {
-    // 用户取消或请求失败
-  }
-}
+//     if (response?.data.code === 200) {
+//       ElMessage.success('队列已清空')
+//       loadQueueData()
+//     } else {
+//       ElMessage.error('清空队列失败')
+//     }
+//   } catch {
+//     // 用户取消或请求失败
+//   }
+// }
 
 // // 暂停/继续任务
 // const pauseTask = async (task: DownloadTask) => {

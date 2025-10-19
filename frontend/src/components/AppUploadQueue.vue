@@ -6,14 +6,13 @@
           <h2>上传队列</h2>
           <div class="header-actions">
             <el-button type="primary" @click="refreshQueue">刷新</el-button>
-            <el-button type="danger" @click="clearQueue" :disabled="queueData.length === 0">清空队列</el-button>
           </div>
         </div>
       </template>
 
-      <el-table 
-        :data="queueData" 
-        style="width: 100%" 
+      <el-table
+        :data="queueData"
+        style="width: 100%"
         v-loading="loading"
         empty-text="暂无上传任务"
         :row-class-name="tableRowClassName"
@@ -33,40 +32,34 @@
         </el-table-column>
         <el-table-column prop="progress" label="进度" width="150">
           <template #default="scope">
-            <el-progress 
-              :percentage="scope.row.progress" 
+            <el-progress
+              :percentage="scope.row.progress"
               :status="getProgressStatus(scope.row.status)"
               :show-text="true"
             />
-          </template>
-        </el-table-column>
-        <el-table-column prop="speed" label="速度" width="120">
-          <template #default="scope">
-            <span v-if="scope.row.speed">{{ scope.row.speed }}</span>
-            <span v-else>-</span>
           </template>
         </el-table-column>
         <el-table-column prop="size" label="文件大小" width="120" />
         <el-table-column prop="uploaded" label="已上传" width="120" />
         <el-table-column prop="created_at" label="创建时间" width="180" />
         <el-table-column label="操作" width="150" fixed="right">
-          <template #default="scope">
-            <el-button 
-              size="small" 
-              type="primary" 
+          <!-- <template #default="scope">
+            <el-button
+              size="small"
+              type="primary"
               @click="pauseTask(scope.row)"
               :disabled="scope.row.status !== 'uploading' && scope.row.status !== 'waiting'"
             >
               {{ scope.row.status === 'paused' ? '继续' : '暂停' }}
             </el-button>
-            <el-button 
-              size="small" 
-              type="danger" 
+            <el-button
+              size="small"
+              type="danger"
               @click="cancelTask(scope.row)"
             >
               取消
             </el-button>
-          </template>
+          </template> -->
         </el-table-column>
       </el-table>
 
@@ -87,7 +80,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { inject } from 'vue'
@@ -213,67 +206,67 @@ const refreshQueue = () => {
   loadQueueData()
 }
 
-// 清空队列
-const clearQueue = async () => {
-  try {
-    await ElMessageBox.confirm('确定要清空所有上传任务吗？此操作不可恢复。', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
+// // 清空队列
+// const clearQueue = async () => {
+//   try {
+//     await ElMessageBox.confirm('确定要清空所有上传任务吗？此操作不可恢复。', '提示', {
+//       confirmButtonText: '确定',
+//       cancelButtonText: '取消',
+//       type: 'warning'
+//     })
 
-    const response = await http?.post(`${SERVER_URL}/upload/queue/clear`)
-    
-    if (response?.data.code === 200) {
-      ElMessage.success('队列已清空')
-      loadQueueData()
-    } else {
-      ElMessage.error('清空队列失败')
-    }
-  } catch {
-    // 用户取消或请求失败
-  }
-}
+//     const response = await http?.post(`${SERVER_URL}/upload/queue/clear`)
 
-// 暂停/继续任务
-const pauseTask = async (task: UploadTask) => {
-  try {
-    const action = task.status === 'paused' ? 'resume' : 'pause'
-    const response = await http?.post(`${SERVER_URL}/upload/task/${task.id}/${action}`)
-    
-    if (response?.data.code === 200) {
-      ElMessage.success(`${task.status === 'paused' ? '继续' : '暂停'}任务成功`)
-      loadQueueData()
-    } else {
-      ElMessage.error(`${task.status === 'paused' ? '继续' : '暂停'}任务失败`)
-    }
-  } catch (error) {
-    console.error('操作任务失败:', error)
-    ElMessage.error(`${task.status === 'paused' ? '继续' : '暂停'}任务失败`)
-  }
-}
+//     if (response?.data.code === 200) {
+//       ElMessage.success('队列已清空')
+//       loadQueueData()
+//     } else {
+//       ElMessage.error('清空队列失败')
+//     }
+//   } catch {
+//     // 用户取消或请求失败
+//   }
+// }
 
-// 取消任务
-const cancelTask = async (task: UploadTask) => {
-  try {
-    await ElMessageBox.confirm(`确定要取消上传任务 "${task.filename}" 吗？`, '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
+// // 暂停/继续任务
+// const pauseTask = async (task: UploadTask) => {
+//   try {
+//     const action = task.status === 'paused' ? 'resume' : 'pause'
+//     const response = await http?.post(`${SERVER_URL}/upload/task/${task.id}/${action}`)
 
-    const response = await http?.post(`${SERVER_URL}/upload/task/${task.id}/cancel`)
-    
-    if (response?.data.code === 200) {
-      ElMessage.success('任务已取消')
-      loadQueueData()
-    } else {
-      ElMessage.error('取消任务失败')
-    }
-  } catch {
-    // 用户取消或请求失败
-  }
-}
+//     if (response?.data.code === 200) {
+//       ElMessage.success(`${task.status === 'paused' ? '继续' : '暂停'}任务成功`)
+//       loadQueueData()
+//     } else {
+//       ElMessage.error(`${task.status === 'paused' ? '继续' : '暂停'}任务失败`)
+//     }
+//   } catch (error) {
+//     console.error('操作任务失败:', error)
+//     ElMessage.error(`${task.status === 'paused' ? '继续' : '暂停'}任务失败`)
+//   }
+// }
+
+// // 取消任务
+// const cancelTask = async (task: UploadTask) => {
+//   try {
+//     await ElMessageBox.confirm(`确定要取消上传任务 "${task.filename}" 吗？`, '提示', {
+//       confirmButtonText: '确定',
+//       cancelButtonText: '取消',
+//       type: 'warning'
+//     })
+
+//     const response = await http?.post(`${SERVER_URL}/upload/task/${task.id}/cancel`)
+
+//     if (response?.data.code === 200) {
+//       ElMessage.success('任务已取消')
+//       loadQueueData()
+//     } else {
+//       ElMessage.error('取消任务失败')
+//     }
+//   } catch {
+//     // 用户取消或请求失败
+//   }
+// }
 
 // 分页处理
 const handleSizeChange = (val: number) => {
@@ -291,7 +284,7 @@ const startAutoRefresh = () => {
   if (refreshTimer.value) {
     clearInterval(refreshTimer.value)
   }
-  
+
   refreshTimer.value = window.setInterval(() => {
     // 只有在页面可见时才刷新
     if (!document.hidden) {
@@ -379,26 +372,26 @@ onUnmounted(() => {
   .upload-queue-container {
     padding: 12px;
   }
-  
+
   .card-header {
     flex-direction: column;
     gap: 12px;
     align-items: flex-start;
   }
-  
+
   .header-actions {
     width: 100%;
     justify-content: space-between;
   }
-  
+
   :deep(.el-table) {
     font-size: 12px;
   }
-  
+
   :deep(.el-table th) {
     padding: 8px 0;
   }
-  
+
   :deep(.el-table td) {
     padding: 6px 0;
   }

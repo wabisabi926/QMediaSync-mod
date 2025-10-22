@@ -1,21 +1,12 @@
 <template>
   <!-- STRM设置卡片 -->
   <div class="main-content-container strm-content">
-    <el-form
-      :model="strmData"
-      :rules="formRules"
-      :label-position="checkIsMobile ? 'top' : 'left'"
-      :label-width="180"
-      class="strm-form"
-      ref="formRef"
-    >
+    <el-form :model="strmData" :rules="formRules" :label-position="checkIsMobile ? 'top' : 'left'" :label-width="180"
+      class="strm-form" ref="formRef">
       <!-- 排除的名称 -->
       <el-form-item label="排除的名称" prop="exclude_names">
-        <el-input-tag
-          v-model="strmData.exclude_name"
-          placeholder="输入名称后按回车添加"
-          class="meta-ext-input limited-width-input"
-        />
+        <el-input-tag v-model="strmData.exclude_name" placeholder="输入名称后按回车添加"
+          class="meta-ext-input limited-width-input" />
         <div class="form-help">
           <p>指定需要排除的文件名或目录名，完整匹配不支持正则表达式。</p>
           <p>被排除的文件或目录将不会同步，其下的所有内容也都不会同步</p>
@@ -23,11 +14,8 @@
       </el-form-item>
       <!-- 视频文件扩展名 -->
       <el-form-item label="视频文件扩展名" prop="video_ext">
-        <el-input-tag
-          v-model="strmData.video_ext"
-          placeholder="输入扩展名后按回车添加，如：.mp4"
-          class="meta-ext-input limited-width-input"
-        />
+        <el-input-tag v-model="strmData.video_ext" placeholder="输入扩展名后按回车添加，如：.mp4"
+          class="meta-ext-input limited-width-input" />
         <div class="form-help">
           <p>指定需要生成STRM文件的视频文件扩展名，如：.mp4, .mkv, .avi, .mov 等</p>
         </div>
@@ -35,15 +23,8 @@
 
       <!-- 最小文件大小 -->
       <el-form-item label="最小文件大小 (MB)" prop="min_file_size">
-        <el-input-number
-          v-model="strmData.min_file_size"
-          :min="0"
-          :step="1"
-          :precision="0"
-          placeholder="输入最小文件大小"
-          :disabled="strmLoading"
-          class="limited-width-input"
-        />
+        <el-input-number v-model="strmData.min_file_size" :min="0" :step="1" :precision="0" placeholder="输入最小文件大小"
+          :disabled="strmLoading" class="limited-width-input" />
         <div class="form-help">
           <p>小于此大小的视频文件将不会生成STRM文件，单位为MB。设置为0表示不限制文件大小</p>
         </div>
@@ -51,11 +32,8 @@
 
       <!-- 元数据扩展名 -->
       <el-form-item label="元数据扩展名" prop="meta_ext">
-        <el-input-tag
-          v-model="strmData.meta_ext"
-          placeholder="输入扩展名后按回车添加，如：.jpg"
-          class="meta-ext-input limited-width-input"
-        />
+        <el-input-tag v-model="strmData.meta_ext" placeholder="输入扩展名后按回车添加，如：.jpg"
+          class="meta-ext-input limited-width-input" />
         <div class="form-help">
           <p>指定需要处理的元数据文件扩展名，如：.jpg, .nfo, .srt, .ass 等</p>
         </div>
@@ -63,13 +41,8 @@
 
       <!-- 定时同步表达式 -->
       <el-form-item label="定时同步表达式" prop="cron_expression">
-        <el-input
-          v-model="strmData.cron_expression"
-          placeholder="输入Cron表达式，如：0 2 * * *"
-          :disabled="strmLoading"
-          class="limited-width-input"
-          @blur="loadCronTimes"
-        />
+        <el-input v-model="strmData.cron_expression" placeholder="输入Cron表达式，如：0 2 * * *" :disabled="strmLoading"
+          class="limited-width-input" @blur="loadCronTimes" />
         <div class="form-help">
           <p><strong>常用示例：</strong></p>
           <ul class="cron-examples">
@@ -93,13 +66,8 @@
 
       <!-- STRM直连地址 -->
       <el-form-item label="STRM直连地址" prop="direct_url">
-        <el-input
-          v-model="strmData.direct_url"
-          placeholder="输入HTTP地址，如：http://192.168.1.100:8080"
-          :disabled="strmLoading"
-          @input="updateStrmExample"
-          class="limited-width-input"
-        />
+        <el-input v-model="strmData.direct_url" placeholder="输入HTTP地址，如：http://192.168.1.100:8080"
+          :disabled="strmLoading" @input="updateStrmExample" class="limited-width-input" />
         <div v-if="strmExample" class="strm-example-inline">
           <span class="example-label">示例：</span>
           <code class="example-url">{{ strmExample }}</code>
@@ -118,9 +86,7 @@
         <div class="form-help">
           <p>如果选择是，同步时会将本地不存在的元数据文件下载回来</p>
           <p>
-            如果选择否，同步时不会下载，<strong stylle="color: black;"
-              >但是也同时跳过处理元数据，已存在的会保留，新增的不会上传</strong
-            >
+            如果选择否，同步时不会下载，<strong stylle="color: black;">但是也同时跳过处理元数据，已存在的会保留，新增的不会上传</strong>
           </p>
         </div>
       </el-form-item>
@@ -128,12 +94,8 @@
       <!-- 同步完是否上传网盘不存在的元数据 -->
       <el-form-item label="网盘不存在的元数据" prop="upload_meta">
         <el-radio-group v-model="strmData.upload_meta">
-          <el-radio-button :label="2" :disabled="strmData.download_meta === 0"
-            >删除</el-radio-button
-          >
-          <el-radio-button :label="1" :disabled="strmData.download_meta === 0"
-            >上传</el-radio-button
-          >
+          <el-radio-button :label="2" :disabled="strmData.download_meta === 0">删除</el-radio-button>
+          <el-radio-button :label="1" :disabled="strmData.download_meta === 0">上传</el-radio-button>
           <el-radio-button :label="0">保留</el-radio-button>
         </el-radio-group>
         <div class="form-help">
@@ -166,34 +128,24 @@
         </el-radio-group>
         <div class="form-help">
           <p>
-            开启后将使用本地代理访问网盘，可以解决局域网其他设备因为UA不同无法播放的问题，但是会禁用外网302播放（通过8095端口依然能播放，但是流量会走自己服务器）。
+            开启后将使用本地代理访问网盘，可以解决局域网其他设备因为UA不同无法播放的问题。
+          </p>
+          <p>
+            启用和关闭都不影响Emby 外网302的使用，外网302强制302跳转到直链。
           </p>
         </div>
       </el-form-item>
       <!-- 保存和重置按钮 -->
       <div class="strm-actions">
-        <el-button
-          type="success"
-          @click="saveStrmConfig"
-          :loading="strmLoading"
-          size="large"
-          :icon="Check"
-        >
+        <el-button type="success" @click="saveStrmConfig" :loading="strmLoading" size="large" :icon="Check">
           保存STRM配置
         </el-button>
       </div>
     </el-form>
 
     <!-- STRM配置状态显示 -->
-    <el-alert
-      v-if="strmStatus"
-      :title="strmStatus.title"
-      :type="strmStatus.type"
-      :description="strmStatus.description"
-      :closable="false"
-      show-icon
-      class="strm-status"
-    />
+    <el-alert v-if="strmStatus" :title="strmStatus.title" :type="strmStatus.type" :description="strmStatus.description"
+      :closable="false" show-icon class="strm-status" />
   </div>
 </template>
 

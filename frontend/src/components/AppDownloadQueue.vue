@@ -1,87 +1,75 @@
 <template>
   <div class="download-queue-container">
-    <el-card class="download-queue-card" shadow="never">
-      <template #header>
-        <div class="card-header">
-          <h2>下载队列</h2>
-          <div class="header-actions">
-            <el-button type="primary" @click="refreshQueue">刷新</el-button>
-          </div>
-        </div>
-      </template>
-
-      <el-table
-        :data="queueData"
-        style="width: 100%"
-        v-loading="loading"
-        empty-text="暂无下载任务"
-        :row-class-name="tableRowClassName"
-      >
-        <el-table-column prop="ID" label="任务ID" width="180" />
-        <el-table-column prop="source_type" label="下载来源" width="80" />
-        <el-table-column prop="status" label="状态" width="120">
-          <template #default="scope">
-            <el-tag :type="getStatusTagType(scope.row.status)">
-              {{ getStatusText(scope.row.status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="file_size" label="文件大小" width="120" />
-        <el-table-column prop="file_name" label="文件名">
-          <template #default="scope">
-            <span class="filename">{{ scope.row.file_name }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="speed" label="下载链接">
-          <template #default="scope">
-            <span>{{ scope.row.url }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="dest_path" label="保存路径" />
-        <!-- <el-table-column label="操作" width="150" fixed="right"> -->
-          <!-- <template #default="scope">
-            <el-button
-              size="small"
-              type="primary"
-              @click="pauseTask(scope.row)"
-              :disabled="scope.row.status !== 'downloading' && scope.row.status !== 'waiting'"
-            >
-              {{ scope.row.status === 'paused' ? '继续' : '暂停' }}
-            </el-button>
-            <el-button
-              size="small"
-              type="danger"
-              @click="cancelTask(scope.row)"
-            >
-              取消
-            </el-button>
-          </template> -->
-        <!-- </el-table-column> -->
-      </el-table>
-
-      <div class="pagination-container">
-        <el-pagination
-          v-model:current-page="currentPage"
-          v-model:page-size="pageSize"
-          :page-sizes="[10, 20, 50, 100]"
-          :total="total"
-          layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleSizeChange"
-          @current-change="handleCurrentChange"
-        />
+    <div class="card-header">
+      <div>
+        <h2>下载队列</h2>
+        <p>strm同步时会下载元数据，这里是下载队列，可以观察下载进度或者清空下载队列（下次同步会继续未完成的下载，除非关闭元数据下载）</p>
+        <p>列表中只有待下载的记录，如果记录变为下载中，这里就看不见了。</p>
+        <p>来源是"Emby媒体信息提取"的记录不会真正下载，只是触发Emby媒体信息提取，提取完成后会自动删除队列中的记录。</p>
       </div>
-    </el-card>
+      <div class="header-actions">
+        <el-button type="primary" @click="refreshQueue">刷新</el-button>
+        <el-button type="danger" @click="clearQueue">清空队列</el-button>
+      </div>
+    </div>
+
+    <div class="queue-stats">
+      <el-statistic :value="total">
+        <template #title>
+          <div style="display: inline-flex; align-items: center">
+            <el-text class="mx-1" type="primary">下载队列中的任务总数</el-text>
+          </div>
+        </template>
+      </el-statistic>
+      <el-statistic :value="downloading">
+        <template #title>
+          <div style="display: inline-flex; align-items: center">
+            <el-text class="mx-1" type="info">正在下载的任务总数</el-text>
+          </div>
+        </template>
+      </el-statistic>
+    </div>
+
+    <el-table :data="queueData" style="width: 100%" v-loading="loading" empty-text="暂无下载任务"
+      :row-class-name="tableRowClassName">
+      <el-table-column prop="ID" label="任务ID" width="180" />
+      <el-table-column prop="source_type" label="下载来源" width="80" />
+      <el-table-column prop="status" label="状态" width="120">
+        <template #default="scope">
+          <el-tag :type="getStatusTagType(scope.row.status)">
+            {{ getStatusText(scope.row.status) }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column prop="file_size" label="文件大小" width="120">
+        <template #default="scope">
+          {{ formatFileSize(scope.row.file_size) }}
+        </template>
+      </el-table-column>
+      <el-table-column prop="file_name" label="文件名" width="200">
+        <template #default="scope">
+          <span class="filename">{{ scope.row.file_name }}</span>
+        </template>
+      </el-table-column>
+
+      <el-table-column prop="speed" label="下载链接" width="180">
+        <template #default="scope">
+          <span>{{ scope.row.url }}</span>
+        </template>
+      </el-table-column>
+
+      <el-table-column prop="dest_path" label="保存路径" />
+    </el-table>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { inject } from 'vue'
+import { formatFileSize } from '@/utils/fileSizeUtils'
 
 interface DownloadTask {
   ID: string
@@ -100,9 +88,8 @@ const http: AxiosStatic | undefined = inject('$http')
 // 数据状态
 const queueData = ref<DownloadTask[]>([])
 const loading = ref(false)
-const currentPage = ref(1)
-const pageSize = ref(20)
 const total = ref(0)
+const downloading = ref(0)
 
 // 定时器
 const refreshTimer = ref<number | null>(null)
@@ -161,16 +148,13 @@ const tableRowClassName = ({ row }: { row: DownloadTask }) => {
 const loadQueueData = async () => {
   try {
     loading.value = true
-    const response = await http?.get(`${SERVER_URL}/download/queue`, {
-      params: {
-        page: currentPage.value,
-        size: pageSize.value
-      }
-    })
+    const response = await http?.get(`${SERVER_URL}/download/queue`, {})
 
     if (response?.data.code === 200) {
-      queueData.value = response.data.data
-      total.value = response.data.data.length
+      console.log(response.data.data)
+      queueData.value = response.data.data.list
+      total.value = response.data.data.total
+      downloading.value = response.data.data.downloading
     } else {
       ElMessage.error('获取下载队列数据失败')
     }
@@ -188,26 +172,26 @@ const refreshQueue = () => {
 }
 
 // 清空队列
-// const clearQueue = async () => {
-//   try {
-//     await ElMessageBox.confirm('确定要清空所有下载任务吗？此操作不可恢复。', '提示', {
-//       confirmButtonText: '确定',
-//       cancelButtonText: '取消',
-//       type: 'warning'
-//     })
+const clearQueue = async () => {
+  try {
+    await ElMessageBox.confirm('只能清空所有等待下载的数据，下载中的无法清空，此操作不可恢复，是否继续？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
 
-//     const response = await http?.post(`${SERVER_URL}/download/queue/clear`)
+    const response = await http?.post(`${SERVER_URL}/download/queue/clear-pending`)
 
-//     if (response?.data.code === 200) {
-//       ElMessage.success('队列已清空')
-//       loadQueueData()
-//     } else {
-//       ElMessage.error('清空队列失败')
-//     }
-//   } catch {
-//     // 用户取消或请求失败
-//   }
-// }
+    if (response?.data.code === 200) {
+      ElMessage.success('队列已清空')
+      loadQueueData()
+    } else {
+      ElMessage.error('清空队列失败')
+    }
+  } catch {
+    // 用户取消或请求失败
+  }
+}
 
 // // 暂停/继续任务
 // const pauseTask = async (task: DownloadTask) => {
@@ -249,17 +233,6 @@ const refreshQueue = () => {
 //   }
 // }
 
-// 分页处理
-const handleSizeChange = (val: number) => {
-  pageSize.value = val
-  loadQueueData()
-}
-
-const handleCurrentChange = (val: number) => {
-  currentPage.value = val
-  loadQueueData()
-}
-
 // 启动定时刷新
 const startAutoRefresh = () => {
   if (refreshTimer.value) {
@@ -294,6 +267,10 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.el-statistic {
+  --el-statistic-content-font-size: 28px;
+}
+
 .download-queue-container {
   width: 100%;
   height: 100%;
@@ -323,6 +300,13 @@ onUnmounted(() => {
 .header-actions {
   display: flex;
   gap: 12px;
+}
+
+.queue-stats {
+  display: flex;
+  gap: 16px;
+  margin: 16px 0;
+  flex-wrap: wrap;
 }
 
 .filename {
@@ -363,6 +347,10 @@ onUnmounted(() => {
   .header-actions {
     width: 100%;
     justify-content: space-between;
+  }
+
+  .queue-stats {
+    gap: 12px;
   }
 
   :deep(.el-table) {

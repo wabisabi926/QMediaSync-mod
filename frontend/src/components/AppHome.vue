@@ -1,60 +1,19 @@
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
-import { inject, onMounted, onUnmounted, ref, watch } from 'vue'
-import {} from '@/utils/timeUtils'
+import { inject, onMounted, onUnmounted, ref } from 'vue'
+import { } from '@/utils/timeUtils'
 
 interface VersionInfo {
   version: string
   date: string
 }
 
-interface QueueStatus {
-  download_status: string
-  upload_status: string
-  download_wait_len: number
-  upload_wait_len: number
-}
 
 const http: AxiosStatic | undefined = inject('$http')
 const versionInfo = ref<VersionInfo | null>(null)
-const queueStatus = ref<QueueStatus | null>(null)
 const versionLoading = ref(true)
-const queueLoading = ref(true)
 const refreshTimer = ref<number | null>(null)
-
-// 获取队列状态文本
-const getQueueStatusText = (status: string): string => {
-  switch (status) {
-    case 'active':
-      return '运行中'
-    case 'idle':
-      return '等待中'
-    case 'paused':
-      return '暂停'
-    case 'error':
-      return '错误'
-    default:
-      return status || '未知'
-  }
-}
-
-// 获取队列状态样式类
-const getQueueStatusClass = (status: string): string => {
-  switch (status) {
-    case 'active':
-      return 'status-running'
-    case 'idle':
-      return 'status-idle'
-    case 'paused':
-      return 'status-paused'
-    case 'error':
-      return 'status-error'
-    default:
-      return 'status-unknown'
-  }
-}
-
 // 加载系统版本信息
 const loadVersionInfo = async () => {
   try {
@@ -73,55 +32,8 @@ const loadVersionInfo = async () => {
   }
 }
 
-// 加载上传下载队列状态
-const loadQueueStatus = async () => {
-  try {
-    queueLoading.value = true
-    const response = await http?.get(`${SERVER_URL}/sync/status`)
-
-    if (response?.data.code === 200 && response.data.data) {
-      queueStatus.value = response.data.data
-    } else {
-      queueStatus.value = null
-    }
-  } catch (error) {
-    console.error('加载队列状态错误:', error)
-    queueStatus.value = null
-  } finally {
-    queueLoading.value = false
-  }
-}
-
-// 检查是否需要刷新队列状态
-const checkRefreshStatus = () => {
-  // 清除现有定时器
-  if (refreshTimer.value) {
-    clearInterval(refreshTimer.value)
-    refreshTimer.value = null
-  }
-
-  // 检查是否有活跃或等待任务
-  const hasActiveTasks = queueStatus.value && (
-    queueStatus.value.download_wait_len > 0 ||
-    queueStatus.value.upload_wait_len > 0
-  )
-
-  // 如果有任务，启动每秒刷新
-  if (hasActiveTasks) {
-    refreshTimer.value = window.setInterval(() => {
-      loadQueueStatus()
-    }, 1000)
-  }
-}
-
-// 监听队列状态变化，检查是否需要刷新
-watch(queueStatus, () => {
-  checkRefreshStatus()
-})
-
 onMounted(() => {
   loadVersionInfo()
-  loadQueueStatus()
 })
 
 // 组件卸载时清除定时器
@@ -136,7 +48,48 @@ onUnmounted(() => {
   <div class="home-container">
     <!-- 账号信息和队列状态行 -->
     <el-row :gutter="20" class="top-row">
-      <el-col :xs="24" :sm="24" :md="12" :lg="12" :xl="12">
+      <el-col :xs="24" :sm="24" :md="24" :lg="24" :xl="24">
+
+        <el-card class="version-card" shadow="hover" v-loading="versionLoading">
+          <template #header>
+            <h2 class="card-title">使用注意事项：</h2>
+          </template>
+          <div class="notice-content">
+            <p class="notice-item">
+              <el-text class="mx-1" size="large" type="danger">
+                1. 本项目使用115开放平台，所以各方面受限颇多，QPS也不能太高，介意勿用。
+              </el-text>
+            </p>
+            <p class="notice-item">
+              <el-text class="mx-1" size="large">
+                2. 影片播放、元数据下载、神医助手、本项目的媒体信息提取等全部占用下载额度，请去报这些东西相加不要大于5，否则115会报403错误。
+              </el-text>
+            </p>
+            <p class="notice-item">
+              <el-text class="mx-1" size="large">
+                3. 请将神医助手的线程数调整到2或者1，如果使用的话。
+              </el-text>
+            </p>
+            <p class="notice-item">
+              <el-text class="mx-1" size="large">
+                4. 刮削和STRM同步是两个独立的功能，不会联动。刮削可以处理网盘，也可以处理本地文件。
+              </el-text>
+            </p>
+            <p class="notice-item">
+              <el-text class="mx-1" size="large">
+                5. 有问题请在github提交issue，带上截图或日志，日志请将config/logs目录打包压缩后上传。
+              </el-text>
+            </p>
+            <p class="notice-item">
+              <el-text class="mx-1" size="large">
+                6. 仓库地址：<a href="https://github.com/qicfan/qmediasync"
+                  target="_blank">https://github.com/qicfan/qmediasync</a>
+              </el-text>
+            </p>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :sm="24" :md="8" :lg="8" :xl="8">
         <!-- 系统版本信息卡片 -->
         <el-card class="version-card" shadow="hover" v-loading="versionLoading">
           <template #header>
@@ -161,62 +114,13 @@ onUnmounted(() => {
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :sm="24" :md="12" :lg="12" :xl="12">
-        <!-- 上传下载状态卡片 -->
-        <el-card class="queue-card" shadow="hover" v-loading="queueLoading">
+      <el-col :xs="24" :sm="24" :md="16" :lg="16" :xl="16">
+        <!-- 赞助版块 -->
+        <el-card class="version-card" shadow="hover">
           <template #header>
-            <h2 class="card-title">上传下载状态</h2>
-            <p class="card-subtitle">当前队列和任务状态</p>
+            <h2 class="card-title">请作者喝杯咖啡</h2>
           </template>
-
-          <div v-if="queueStatus" class="queue-info">
-            <el-row :gutter="20">
-              <el-col :span="12">
-                <div class="queue-section">
-                  <h3 class="queue-section-title">下载状态</h3>
-                  <div class="queue-stats">
-                    <div class="stat-item">
-                      <span class="stat-label">当前状态:</span>
-                      <span
-                        class="stat-value"
-                        :class="getQueueStatusClass(queueStatus.download_status)"
-                      >
-                        {{ getQueueStatusText(queueStatus.download_status) }}
-                      </span>
-                    </div>
-                    <div class="stat-item">
-                      <span class="stat-label">等待任务:</span>
-                      <span class="stat-value wait-count">{{ queueStatus.download_wait_len }}</span>
-                    </div>
-                  </div>
-                </div>
-              </el-col>
-              <el-col :span="12">
-                <div class="queue-section">
-                  <h3 class="queue-section-title">上传状态</h3>
-                  <div class="queue-stats">
-                    <div class="stat-item">
-                      <span class="stat-label">当前状态:</span>
-                      <span
-                        class="stat-value"
-                        :class="getQueueStatusClass(queueStatus.upload_status)"
-                      >
-                        {{ getQueueStatusText(queueStatus.upload_status) }}
-                      </span>
-                    </div>
-                    <div class="stat-item">
-                      <span class="stat-label">等待任务:</span>
-                      <span class="stat-value wait-count">{{ queueStatus.upload_wait_len }}</span>
-                    </div>
-                  </div>
-                </div>
-              </el-col>
-            </el-row>
-          </div>
-
-          <div v-else class="no-queue">
-            <el-empty description="暂未获取到队列状态信息" />
-          </div>
+          <img src="/alipay_wechat.jpg" alt="请作者喝杯咖啡" class="coffee-image" />
         </el-card>
       </el-col>
     </el-row>

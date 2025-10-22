@@ -65,7 +65,7 @@
               <span>115 接口速率</span>
             </el-menu-item>
           </el-sub-menu>
-          <!-- <el-sub-menu index="/upload-queue">
+          <el-sub-menu index="/upload-queue">
             <template #title>
               <el-icon><Download /></el-icon>
               <span>上传下载</span>
@@ -78,7 +78,7 @@
               <el-icon><Download /></el-icon>
               <span>下载队列</span>
             </el-menu-item>
-          </el-sub-menu> -->
+          </el-sub-menu>
           <el-sub-menu index="/sync">
             <template #title>
               <el-icon><DocumentCopy /></el-icon>

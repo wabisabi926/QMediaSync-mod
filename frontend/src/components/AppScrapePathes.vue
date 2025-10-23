@@ -4,7 +4,8 @@
       <div class="header-left">
         <h2 class="card-title">刮削目录管理</h2>
         <p class="card-subtitle">
-          设置媒体文件的刮削和整理规则，支持电影、电视剧和其他媒体类型
+          设置媒体文件的刮削和整理规则，支持电影、电视剧和其他媒体类型 <br />
+          当前字幕等其他文件的处理方式都是移动到目标位置，不受整理方式的影响，请特别注意
         </p>
       </div>
       <div class="header-right">
@@ -76,6 +77,26 @@
           <div class="info-item">
             <span class="info-label">创建时间:</span>
             <span class="info-value">{{ formatTime(row.created_at || 0) }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">刮削状态:</span>
+            <span class="info-value" v-if="row.is_scraping">
+              <el-icon class="is-loading">
+                <Loading />
+              </el-icon>
+              <el-text class="mx-1" type="primary">刮削中...</el-text>
+            </span>
+            <span class="info-value" v-else>未执行</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">整理状态:</span>
+            <span class="info-value" v-if="row.is_renaming">
+              <el-icon class="is-loading">
+                <Loading />ddd
+              </el-icon>
+              <el-text class="mx-1" type="primary">整理中...</el-text>
+            </span>
+            <span class="info-value" v-else>未执行</span>
           </div>
         </div>
         <template #footer>
@@ -152,7 +173,7 @@
         <el-form-item label="整理方式" prop="rename_type" v-if="addForm.scrape_type !== 'only_scrape'">
           <el-radio-group v-model="addForm.rename_type">
             <el-radio-button value="move">移动</el-radio-button>
-            <el-radio-button value="copy" :disabled="addForm.source_type === 'local'">复制</el-radio-button>
+            <el-radio-button value="copy">复制</el-radio-button>
             <el-radio-button value="soft_symlink" :disabled="addForm.source_type !== 'local'">软链接</el-radio-button>
             <el-radio-button value="hard_symlink" :disabled="addForm.source_type !== 'local'">硬链接</el-radio-button>
           </el-radio-group>
@@ -260,6 +281,11 @@
             :disabled="addLoading" />
           <div class="form-tip">是否启用定时同步功能</div>
         </el-form-item>
+        <el-form-item label="启用fanart.tv" prop="enable_fanart_tv" v-if="editForm.media_type == 'movie'">
+          <el-switch v-model="addForm.enable_fanart_tv" :active-value="true" :inactive-value="false"
+            :disabled="addLoading" />
+          <div class="form-tip">是否启用fanart.tv的高清图下载，下载很慢会降低刮削效率。</div>
+        </el-form-item>
       </el-form>
 
       <template #footer>
@@ -341,7 +367,7 @@
         <el-form-item label="整理方式" prop="rename_type" v-if="editForm.scrape_type !== 'only_scrape'">
           <el-radio-group v-model="editForm.rename_type">
             <el-radio-button label="move">移动</el-radio-button>
-            <el-radio-button label="copy" :disabled="editForm.source_type === 'local'">复制</el-radio-button>
+            <el-radio-button label="copy">复制</el-radio-button>
             <el-radio-button label="soft_symlink" :disabled="editForm.source_type !== 'local'">软链接</el-radio-button>
             <el-radio-button label="hard_symlink" :disabled="editForm.source_type !== 'local'">硬链接</el-radio-button>
           </el-radio-group>
@@ -405,6 +431,11 @@
           <el-switch v-model="editForm.enable_cron" :active-value="true" :inactive-value="false"
             :disabled="editLoading" />
           <div class="form-tip">是否启用定时同步功能</div>
+        </el-form-item>
+        <el-form-item label="启用fanart.tv" prop="enable_fanart_tv" v-if="editForm.media_type == 'movie'">
+          <el-switch v-model="editForm.enable_fanart_tv" :active-value="true" :inactive-value="false"
+            :disabled="editLoading" />
+          <div class="form-tip">是否启用fanart.tv的高清图下载，下载很慢会降低刮削效率。</div>
         </el-form-item>
       </el-form>
 
@@ -493,11 +524,14 @@ interface ScrapePath {
   deleting?: boolean
   editing?: boolean
   scanning?: boolean
-  enable_ai?: string
-  ai_prompt?: string
-  exclude_no_image_actor?: boolean
-  force_delete_source_path?: boolean
+  enable_ai: string
+  ai_prompt: string
+  exclude_no_image_actor: boolean
+  force_delete_source_path: boolean
   enable_cron?: boolean
+  enable_fanart_tv: boolean
+  is_scraping: boolean
+  is_renaming: boolean
 }
 
 interface DirInfo {
@@ -563,12 +597,13 @@ const addForm = reactive({
   file_name_template: '{title} ({year})',
   delete_keyword: [] as string[],
   min_video_file_size: 0, // 最小视频文件大小，单位MB
-  video_ext_list: [".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".flv", ".avi", ".ts", ".m4v", ".iso"], // 视频文件扩展名列表
+  video_ext_list: [".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".flv", ".avi", ".ts", ".m4v", ".iso", ".strm"], // 视频文件扩展名列表
   exclude_no_image_actor: false, // 默认不排除无头像演员
   enable_ai: 'off', // 默认禁用AI识别
   ai_prompt: '', // 默认AI提示
   force_delete_source_path: false, // 默认强制删除来源路径
-  enable_cron: false // 默认不启用定时同步
+  enable_cron: false, // 默认不启用定时同步
+  enable_fanart_tv: false // 默认不启用fanart.tv
 })
 
 // 编辑对话框状态
@@ -591,12 +626,13 @@ const editForm = reactive({
   file_name_template: '',
   delete_keyword: [] as string[],
   min_video_file_size: 0, // 最小视频文件大小，单位MB
-  video_ext_list: ['mp4', 'mkv', 'avi', 'wmv', 'flv', 'mov', 'webm'], // 视频文件扩展名列表
+  video_ext_list: [".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".flv", ".avi", ".ts", ".m4v", ".iso", ".strm"], // 视频文件扩展名列表
   exclude_no_image_actor: false, // 默认不排除无头像演员
   enable_ai: 'off', // 默认禁用AI识别
   ai_prompt: '', // 默认AI提示
   force_delete_source_path: false, // 默认强制删除来源路径
-  enable_cron: false // 默认不启用定时同步
+  enable_cron: false, // 默认不启用定时同步
+  enable_fanart_tv: false // 默认不启用fanart.tv
 })
 
 // 表单验证规则
@@ -821,6 +857,7 @@ const handleAdd = async () => {
       ai_prompt: addForm.ai_prompt,
       force_delete_source_path: addForm.force_delete_source_path,
       enable_cron: addForm.enable_cron,
+      enable_fanart_tv: addForm.enable_fanart_tv,
     })
 
     if (response?.data.code === 200) {
@@ -891,6 +928,7 @@ const handleEdit = (row: ScrapePath) => {
   editForm.enable_ai = row.enable_ai || 'off'
   editForm.ai_prompt = row.ai_prompt || ''
   editForm.enable_cron = row.enable_cron || false
+  editForm.enable_fanart_tv = row.enable_fanart_tv || false
   showEditDialog.value = true
 }
 
@@ -924,6 +962,7 @@ const handleEditSave = async () => {
       ai_prompt: editForm.ai_prompt,
       force_delete_source_path: editForm.force_delete_source_path,
       enable_cron: editForm.enable_cron,
+      enable_fanart_tv: editForm.enable_fanart_tv,
     })
 
     if (response?.data.code === 200) {
@@ -1040,6 +1079,7 @@ const openEditDirSelector = async (isSource: boolean = false) => {
   selectedAccountId.value = editForm.account_id
   isEditMode.value = true
   isSelectSource.value = isSource
+  isSelectingLocalPath.value = !isSource
 
   await loadDirTree(null)
 }
@@ -1158,5 +1198,10 @@ onMounted(async () => {
 
 .card-body {
   min-height: 279px;
+}
+
+.info-value {
+  display: flex;
+  align-items: center;
 }
 </style>

@@ -1,8 +1,12 @@
 <template>
   <div class="scrape-records-container">
     <h2 class="page-title">刮削记录</h2>
-    <p class="card-subtitle" style="margin-bottom:16px;">当前刮削产生的临时文件存放在 <span
-        style="color:#000; font-weight:bold;">config/tmp/刮削临时文件/</span> 目录下,可以观察是否存在异常情况，刮削完成的文件会删除临时文件</p>
+    <p class="card-subtitle" style="margin-bottom:16px;">
+      当前刮削产生的临时文件存放在 <span style="color:#000; font-weight:bold;">config/tmp/刮削临时文件/</span>
+      目录下,可以观察是否存在异常情况，刮削完成的文件会删除临时文件 <br />
+      表格中的刮削状态是指刮削目录的运行状态，任务执行逻辑是先把收集待处理的文件，然后刮削<br />
+      表格中的整理状态是指刮削目录的运行状态，任务执行逻辑是将刮削完成的文件进行整理。
+    </p>
     <!-- 多选操作栏 -->
     <div v-if="selectedRecords.length > 0" class="batch-operations">
       <el-button type="primary" @click="handleExportErrors">导出识别错误文件</el-button>
@@ -69,13 +73,41 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="status" label="文件状态" width="100">
           <template #default="{ row }">
             <el-tag :type="getStatusTagType(row.status)">
               {{ getStatusName(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column prop="path_is_scraping" label="刮削状态" width="100">
+          <template #default="{ row }">
+            <span class="info-value" v-if="row.is_scraping">
+              <el-icon class="is-loading">
+                <Loading />
+              </el-icon>
+              <el-text class="mx-1" type="primary">刮削中...</el-text>
+            </span>
+            <span class="info-value" v-else>
+              <el-text class="mx-1" type="info" size="small">未执行</el-text>
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="path_is_renaming" label="整理状态" width="100">
+          <template #default="{ row }">
+            <span class="info-value" v-if="row.is_scraping">
+              <el-icon class="is-loading">
+                <Loading />
+              </el-icon>
+              <el-text class="mx-1" type="primary">整理中...</el-text>
+            </span>
+            <span class="info-value" v-else>
+              <el-text class="mx-1" type="info" size="small">未执行</el-text>
+            </span>
+          </template>
+        </el-table-column>
+
+
 
         <el-table-column prop="failed_reason" label="失败原因" min-width="200">
           <template #default="{ row }">
@@ -209,7 +241,7 @@ interface ScrapeRecord {
   file_name: string
   media_name: string
   year: number
-  tmdb_id: string
+  tmdb_id: number
   season_number: number
   episode_number: number
   episode_name?: string
@@ -227,6 +259,8 @@ interface ScrapeRecord {
   category_name: string
   new_dest_path: string
   new_dest_name: string
+  path_is_scraping: boolean
+  path_is_renaming: boolean
 }
 
 // 状态变量
@@ -472,7 +506,7 @@ const showReScrapeDialog = ref(false)
 const reScrapeForm = ref({
   type: '',
   id: 0,
-  tmdb_id: '',
+  tmdb_id: 0,
   name: '',
   year: '',
   originalFileName: '',
@@ -487,7 +521,7 @@ const reScrape = (record: ScrapeRecord) => {
   reScrapeForm.value = {
     type: record.type,
     id: record.id,
-    tmdb_id: record.tmdb_id || '',
+    tmdb_id: record.tmdb_id || 0,
     name: record.media_name || '',
     year: record.year?.toString() || '',
     originalFileName: record.file_name || '',
@@ -506,17 +540,26 @@ const submitReScrape = async () => {
       ElMessage.error('请选择要重新识别的记录')
       return
     }
-    if (!reScrapeForm.value.tmdb_id || (!reScrapeForm.value.name && !reScrapeForm.value.year)) {
+    if (!reScrapeForm.value.tmdb_id && !reScrapeForm.value.name && !reScrapeForm.value.year) {
       ElMessage.error('请输入TMDB ID或影视剧名称+年份')
       return
     }
+    if (reScrapeForm.value.name && !reScrapeForm.value.year) {
+      ElMessage.error('使用名称查找必须输入年份')
+      return
+    }
+    if (reScrapeForm.value.year && !reScrapeForm.value.name) {
+      ElMessage.error('使用年份查找必须输入名称')
+      return
+    }
+
     reScrapeLoading.value = true
 
 
     // 准备请求参数
     const params = {
       id: reScrapeForm.value.id,
-      tmdb_id: reScrapeForm.value.tmdb_id,
+      tmdb_id: Number(reScrapeForm.value.tmdb_id) || 0,
       name: reScrapeForm.value.name,
       year: reScrapeForm.value.year ? parseInt(reScrapeForm.value.year) : undefined,
       season: reScrapeForm.value.season,

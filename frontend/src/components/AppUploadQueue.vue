@@ -5,6 +5,7 @@
         <h2>上传队列</h2>
         <p>这里包含strm同步时产生的元数据的上传和刮削产生的上传任务。</p>
         <p>列表中只有待上传的记录，如果记录变为上传中，这里就看不见了。</p>
+        <p>最多显示100条记录</p>
       </div>
       <div class="header-actions">
         <el-button type="primary" @click="refreshQueue">刷新</el-button>
@@ -31,8 +32,8 @@
 
     <el-table :data="queueData" style="width: 100%" v-loading="loading" empty-text="暂无上传任务"
       :row-class-name="tableRowClassName">
-      <el-table-column prop="ID" label="任务ID" width="80" />
-      <el-table-column prop="file_name" label="文件名" min-width="120"></el-table-column>
+      <!-- <el-table-column prop="ID" label="任务ID" width="80" /> -->
+      <el-table-column prop="file_name" label="文件名" min-width="100"></el-table-column>
       <el-table-column prop="status" label="状态" width="80">
         <template #default="scope">
           <el-tag :type="getStatusTagType(scope.row.status)">

@@ -6,6 +6,7 @@
         <p>strm同步时会下载元数据，这里是下载队列，可以观察下载进度或者清空下载队列（下次同步会继续未完成的下载，除非关闭元数据下载）</p>
         <p>列表中只有待下载的记录，如果记录变为下载中，这里就看不见了。</p>
         <p>来源是"Emby媒体信息提取"的记录不会真正下载，只是触发Emby媒体信息提取，提取完成后会自动删除队列中的记录。</p>
+        <p>最多显示100条记录</p>
       </div>
       <div class="header-actions">
         <el-button type="primary" @click="refreshQueue">刷新</el-button>
@@ -52,7 +53,7 @@
         </template>
       </el-table-column>
 
-      <el-table-column prop="speed" label="下载链接" width="180">
+      <el-table-column prop="speed" label="下载链接" width="240">
         <template #default="scope">
           <span>{{ scope.row.url }}</span>
         </template>

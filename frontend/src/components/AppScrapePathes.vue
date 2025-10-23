@@ -494,7 +494,7 @@
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
-import { inject, onMounted, ref, reactive, watch } from 'vue'
+import { inject, onMounted, ref, reactive, watch, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Loading, Folder, Edit, Delete, Refresh } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -798,6 +798,21 @@ const loadPathes = async () => {
     pathes.value = []
   } finally {
     loading.value = false
+  }
+}
+
+const updatePathesStatus = async () => {
+  loading.value = true
+  const response = await http?.get(`${SERVER_URL}/scrape/pathes`)
+
+  if (response?.data.code === 200) {
+    for (const p of response?.data?.data || []) {
+      const path = pathes.value.find(pa => pa.id === p.id)
+      if (path) {
+        path.is_renaming = p.is_renaming
+        path.is_scraping = p.is_scraping
+      }
+    }
   }
 }
 
@@ -1160,9 +1175,27 @@ const handleSourceTypeChange = () => {
   loadAccounts(addForm.source_type);
 };
 
+// 添加自动刷新相关变量
+const autoRefreshTimer = ref<number | null>(null)
+// 检查并设置自动刷新
+const checkAndSetAutoRefresh = () => {
+  // 清除已存在的定时器
+  if (autoRefreshTimer.value) {
+    clearInterval(autoRefreshTimer.value)
+    autoRefreshTimer.value = null
+  }
+
+  // 设置定时器，每隔2秒刷新一次
+  autoRefreshTimer.value = window.setInterval(() => {
+    // 只改状态
+    updatePathesStatus()
+  }, 2000)
+}
+
 // 组件挂载时加载数据
 onMounted(async () => {
   await loadPathes()
+  checkAndSetAutoRefresh()
   // 加载默认同步源类型的账号，确保网盘账号的source_type和所选的同步源类型一致
   await loadAccounts(addForm.source_type !== 'local' ? addForm.source_type : undefined)
 
@@ -1172,6 +1205,14 @@ onMounted(async () => {
   }
 
   window.addEventListener('resize', handleResize)
+})
+
+onUnmounted(() => {
+  // 组件卸载时清除定时器
+  if (autoRefreshTimer.value) {
+    clearInterval(autoRefreshTimer.value)
+    autoRefreshTimer.value = null
+  }
 })
 </script>
 

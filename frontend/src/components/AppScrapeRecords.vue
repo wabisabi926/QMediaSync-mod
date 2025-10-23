@@ -82,7 +82,7 @@
         </el-table-column>
         <el-table-column prop="path_is_scraping" label="刮削状态" width="100">
           <template #default="{ row }">
-            <span class="info-value" v-if="row.is_scraping">
+            <span class="info-value" v-if="row.path_is_scraping">
               <el-icon class="is-loading">
                 <Loading />
               </el-icon>
@@ -95,7 +95,7 @@
         </el-table-column>
         <el-table-column prop="path_is_renaming" label="整理状态" width="100">
           <template #default="{ row }">
-            <span class="info-value" v-if="row.is_scraping">
+            <span class="info-value" v-if="row.path_is_renaming">
               <el-icon class="is-loading">
                 <Loading />
               </el-icon>

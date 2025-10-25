@@ -11,14 +11,14 @@
       <div v-if="isMobile && isMenuOpen" class="mobile-overlay" @click="toggleMenu"></div>
 
       <!-- 侧边栏 -->
-      <el-aside
-        :width="isMobile ? '250px' : '200px'"
-        :class="{ 'mobile-aside': isMobile, 'mobile-aside-open': isMobile && isMenuOpen }"
-      >
+      <el-aside :width="isMobile ? '250px' : '200px'"
+        :class="{ 'mobile-aside': isMobile, 'mobile-aside-open': isMobile && isMenuOpen }">
         <!-- 用户信息 -->
         <div class="user-info">
           <div class="user-avatar">
-            <el-icon size="24"><User /></el-icon>
+            <el-icon size="24">
+              <User />
+            </el-icon>
           </div>
           <div class="user-details">
             <div class="username">{{ authStore.user?.username || '用户' }}</div>
@@ -28,99 +28,134 @@
           </div>
         </div>
 
-        <el-menu
-          :default-active="$route.path"
-          :default-openeds="getDefaultOpeneds()"
-          router
-          class="el-menu-vertical"
-          @select="handleMenuSelect"
-        >
+        <el-menu :default-active="$route.path" :default-openeds="getDefaultOpeneds()" router class="el-menu-vertical"
+          @select="handleMenuSelect">
           <el-menu-item index="/">
-            <el-icon><House /></el-icon>
+            <el-icon>
+              <House />
+            </el-icon>
             <span>首页</span>
           </el-menu-item>
           <el-menu-item index="/accounts">
-            <el-icon><User /></el-icon>
+            <el-icon>
+              <User />
+            </el-icon>
             <span>网盘账号</span>
           </el-menu-item>
           <el-sub-menu index="/settings">
             <template #title>
-              <el-icon><Setting /></el-icon>
+              <el-icon>
+                <Setting />
+              </el-icon>
               <span>系统设置</span>
             </template>
             <el-menu-item index="/settings/emby">
-              <el-icon><VideoPlay /></el-icon>
+              <el-icon>
+                <VideoPlay />
+              </el-icon>
               <span>Emby</span>
             </el-menu-item>
             <el-menu-item index="/proxy">
-              <el-icon><Link /></el-icon>
+              <el-icon>
+                <Link />
+              </el-icon>
               <span>网络代理</span>
             </el-menu-item>
             <el-menu-item index="/settings/telegram">
-              <el-icon><Promotion /></el-icon>
+              <el-icon>
+                <Promotion />
+              </el-icon>
               <span>Telegram通知</span>
             </el-menu-item>
             <el-menu-item index="/settings/threads">
-              <el-icon><Operation /></el-icon>
-              <span>115 接口速率</span>
+              <el-icon>
+                <Operation />
+              </el-icon>
+              <span>接口速率</span>
             </el-menu-item>
           </el-sub-menu>
           <el-sub-menu index="/upload-queue">
             <template #title>
-              <el-icon><Download /></el-icon>
+              <el-icon>
+                <Download />
+              </el-icon>
               <span>上传下载</span>
             </template>
             <el-menu-item index="/upload-queue">
-              <el-icon><Upload /></el-icon>
+              <el-icon>
+                <Upload />
+              </el-icon>
               <span>上传队列</span>
             </el-menu-item>
             <el-menu-item index="/download-queue">
-              <el-icon><Download /></el-icon>
+              <el-icon>
+                <Download />
+              </el-icon>
               <span>下载队列</span>
             </el-menu-item>
           </el-sub-menu>
           <el-sub-menu index="/sync">
             <template #title>
-              <el-icon><DocumentCopy /></el-icon>
+              <el-icon>
+                <DocumentCopy />
+              </el-icon>
               <span>STRM同步</span>
             </template>
             <el-menu-item index="/sync-records">
-              <el-icon><List /></el-icon>
+              <el-icon>
+                <List />
+              </el-icon>
               <span>STRM同步记录</span>
             </el-menu-item>
             <el-menu-item index="/sync-directories">
-              <el-icon><FolderOpened /></el-icon>
+              <el-icon>
+                <FolderOpened />
+              </el-icon>
               <span>STRM同步目录</span>
             </el-menu-item>
             <el-menu-item index="/settings/strm">
-              <el-icon><Setting /></el-icon>
+              <el-icon>
+                <Setting />
+              </el-icon>
               <span>STRM设置</span>
             </el-menu-item>
           </el-sub-menu>
 
           <el-sub-menu index="/scrape">
             <template #title>
-              <el-icon><Film /></el-icon>
+              <el-icon>
+                <Film />
+              </el-icon>
               <span>刮削 & 整理</span>
             </template>
             <el-menu-item index="/scrape-pathes">
-              <el-icon><FolderOpened /></el-icon>
+              <el-icon>
+                <FolderOpened />
+              </el-icon>
               <span>刮削目录</span>
             </el-menu-item>
             <el-menu-item index="/scrape-records">
-              <el-icon><List /></el-icon>
+              <el-icon>
+                <List />
+              </el-icon>
               <span>刮削记录</span>
             </el-menu-item>
-             <el-menu-item index="/settings/tmdb">
-              <el-icon><Film /></el-icon>
+            <el-menu-item index="/settings/tmdb">
+              <el-icon>
+                <Film />
+              </el-icon>
               <span>TMDB设置</span>
             </el-menu-item>
             <el-menu-item index="/settings/ai">
-              <el-icon><View /></el-icon>
+              <el-icon>
+                <View />
+              </el-icon>
               <span>AI识别设置</span>
             </el-menu-item>
             <el-menu-item index="/settings/category-strategy">
-              <el-icon><Operation /></el-icon>
+              <el-icon>
+                <Operation />
+              </el-icon>
               <span>二级分类设置</span>
             </el-menu-item>
           </el-sub-menu>
@@ -140,7 +175,9 @@
             </el-menu-item>
           </el-sub-menu> -->
           <el-menu-item index="/settings/user">
-            <el-icon><UserFilled /></el-icon>
+            <el-icon>
+              <UserFilled />
+            </el-icon>
             <span>用户管理</span>
           </el-menu-item>
         </el-menu>
@@ -152,13 +189,17 @@
         <div v-if="isMobile" class="mobile-header">
           <div class="left-section">
             <el-button type="text" class="menu-toggle" @click="toggleMenu">
-              <el-icon size="20"><Menu /></el-icon>
+              <el-icon size="20">
+                <Menu />
+              </el-icon>
             </el-button>
             <h2 class="page-title">{{ getCurrentPageTitle() }}</h2>
           </div>
           <el-dropdown class="user-dropdown">
             <el-button type="text" class="user-btn">
-              <el-icon><User /></el-icon>
+              <el-icon>
+                <User />
+              </el-icon>
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>

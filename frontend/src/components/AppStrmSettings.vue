@@ -101,9 +101,20 @@
         <div class="form-help">
           <p>删除: 本地存在且网盘不存在则删除本地文件</p>
           <p>
-            上传: 本地存在且网盘不存在，分两种情况: <br />
+            上传: 本地存在且网盘不存在，分三种情况: <br />
             &nbsp;&nbsp;&nbsp;&nbsp;1. 父目录在网盘存在则上传<br />
-            &nbsp;&nbsp;&nbsp;&nbsp;2. 父目录在网盘不存在（网盘已删除）则删除本地文件
+            &nbsp;&nbsp;&nbsp;&nbsp;2. 父目录在网盘不存在（网盘已删除）则删除本地文件<br />
+            &nbsp;&nbsp;&nbsp;&nbsp;3. 父目录是特定名字，则创建父目录并上传，特定名字包括："extrafanart",
+            "exfanarts",
+            "extrafanarts",
+            "extras",
+            "specials",
+            "shorts",
+            "scenes",
+            "featurettes",
+            "behind the scenes",
+            "trailers",
+            "interviews",
           </p>
           <p>保留：不会删除本地文件，不管网盘有没有删除它</p>
         </div>

@@ -5,8 +5,14 @@
         <h2 class="card-title">刮削目录管理</h2>
         <p class="card-subtitle">
           设置媒体文件的刮削和整理规则，支持电影、电视剧和其他媒体类型 <br />
-          当前字幕等其他文件的处理方式都是移动到目标位置，不受整理方式的影响，请特别注意
+          当前字幕等其他文件的处理方式都是移动到目标位置，不受整理方式的影响，请特别注意 <br />
+          刮削和整理是分离的，刮削如果开启了定时任务则是每13分钟一次，整理是每3分钟一次 <br />
+          刮削默认并发数为5，并发数越高越快，但是也会增加TMDB或者网盘限制的概率。<br />
+          如果在tmdb设置中修改了刮削本地文件线程数，那么strm文件不会提取视频信息如分辨率、是否HDR等（因为从strm提取实际也会触发网盘下载，频率太高会被网盘限制）
         </p>
+        <el-alert type="warning" :show-icon="true" style="margin-top: 12px">
+          来源路径请按照电影和电视剧区分，不要设置成同一个文件夹。
+        </el-alert>
       </div>
       <div class="header-right">
         <el-button type="primary" @click="showAddDialog = true">
@@ -14,6 +20,9 @@
             <Plus />
           </el-icon>
           添加刮削目录
+        </el-button>
+        <el-button type="warning" @click="startRenaming()">
+          触发一次整理
         </el-button>
       </div>
     </div>
@@ -92,7 +101,7 @@
             <span class="info-label">整理状态:</span>
             <span class="info-value" v-if="row.is_renaming">
               <el-icon class="is-loading">
-                <Loading />ddd
+                <Loading />
               </el-icon>
               <el-text class="mx-1" type="primary">整理中...</el-text>
             </span>
@@ -274,7 +283,12 @@
         <el-form-item label="提示词" prop="ai_prompt">
           <el-input v-model="addForm.ai_prompt" type="textarea" placeholder="请输入AI提示词"
             :disabled="addLoading || addForm.enable_ai === 'off'" :rows="4" maxlength="1000" />
-          <div class="form-help">用于指导AI进行媒体识别的提示词，如果不清楚如何设置请留空。<br />文件名变量为{filename}</div>
+          <div class="form-help">
+            用于指导AI进行媒体识别的提示词，如果不清楚如何设置请留空。<br />
+            <span v-if="addForm.ai_prompt == ''">
+              默认提示词：{{ defaultAiPrompt }}{{ addForm.ai_prompt }}{{ defaultAiPrompSuffix }}
+            </span>
+          </div>
         </el-form-item>
         <el-form-item label="定时同步" prop="enable_cron">
           <el-switch v-model="addForm.enable_cron" :active-value="true" :inactive-value="false"
@@ -501,7 +515,8 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { formatTime } from '@/utils/timeUtils'
 import { isMobile } from '@/utils/deviceUtils'
 import { sourceTypeOptions, sourceTypeTagMap, sourceTypeMap } from '@/utils/sourceTypeUtils'
-
+const defaultAiPrompt = "从文件名中提取出电影名称、年份; 名称中不能有特殊字符如点、下划线、横杠、斜杠等; 如果文件中有tmdbid（格式{tmdbid-123455}）也返回tmdbid\n"
+const defaultAiPrompSuffix = '\n输出格式：请严格按照以下JSON格式输出，不要添加任何其他内容：{"name": "提取的影视剧名称", "year": 年份或0}\n现在请处理文件名：{{filename}}'
 interface ScrapePath {
   id?: number
   source_type: string
@@ -1175,6 +1190,16 @@ const handleSourceTypeChange = () => {
   loadAccounts(addForm.source_type);
 };
 
+const startRenaming = async () => {
+  try {
+    await http?.post(`${SERVER_URL}/scrape/rename`)
+    ElMessage.success('整理已触发')
+  } catch (error) {
+    ElMessage.error('整理触发失败')
+    console.error('Rename error:', error)
+  }
+}
+
 // 添加自动刷新相关变量
 const autoRefreshTimer = ref<number | null>(null)
 // 检查并设置自动刷新
@@ -1191,6 +1216,7 @@ const checkAndSetAutoRefresh = () => {
     updatePathesStatus()
   }, 2000)
 }
+
 
 // 组件挂载时加载数据
 onMounted(async () => {

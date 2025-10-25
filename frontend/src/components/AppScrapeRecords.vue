@@ -7,24 +7,37 @@
       表格中的刮削状态是指刮削目录的运行状态，任务执行逻辑是先把收集待处理的文件，然后刮削<br />
       表格中的整理状态是指刮削目录的运行状态，任务执行逻辑是将刮削完成的文件进行整理。
     </p>
-    <!-- 多选操作栏 -->
-    <div v-if="selectedRecords.length > 0" class="batch-operations">
-      <el-button type="primary" @click="handleExportErrors">导出识别错误文件</el-button>
-      <el-button type="danger" @click="handleDeleteSelectedRecords">删除所选刮削记录</el-button>
-      <span class="selected-count">已选择 {{ selectedRecords.length }} 条记录</span>
-    </div>
 
+    <div style="margin-bottom: 16px; display: flex; justify-content: space-between;">
+      <!-- 多选操作栏 -->
+      <div>
+        <el-tooltip content="将所选的识别错误的记录导出成一个文件，可以发送给作者" placement="top">
+          <el-button type="primary" @click="handleExportErrors"
+            :disabled="selectedRecords.length === 0">导出识别错误文件</el-button>
+        </el-tooltip>
+        <el-tooltip content="将刮削记录删除后，对应的文件在下次扫描时会再次识别和刮削。" placement="top">
+          <el-button type="danger" @click="handleDeleteSelectedRecords"
+            :disabled="selectedRecords.length === 0">删除所选刮削记录</el-button>
+        </el-tooltip>
+        <el-tooltip content="请选择整理失败的记录，该操作会将所选记录标记为待整理，下次整理时重试。" placement="top">
+          <el-button type="warning" @click="handleRename"
+            :disabled="selectedRecords.length === 0">重新整理所选的刮削记录</el-button>
+        </el-tooltip>
+        <span class="selected-count">已选择 {{ selectedRecords.length }} 条记录</span>
+      </div>
+      <div>
+        <el-tooltip content="会将列表中属于同一个电视剧的所有集合并成一条数据，方便查看" placement="top">
+          <el-button type="primary" @click="toggleMergeEpisodes">
+            {{ isMerged ? '显示电视剧集' : '合并电视剧集' }}
+          </el-button>
+        </el-tooltip>
+
+        <el-button type="warning" @click="handleDeleteFailedRecords">清除所有刮削失败的记录</el-button>
+      </div>
+    </div>
     <!-- 搜索和过滤区域 -->
-    <div style="margin-bottom: 16px;">
-      <el-tooltip content="会将列表中属于同一个电视剧的所有集合并成一条数据，方便查看" placement="top">
-        <el-button type="primary" @click="toggleMergeEpisodes">
-          {{ isMerged ? '显示电视剧集' : '合并电视剧集' }}
-        </el-button>
-      </el-tooltip>
-
-      <el-button type="warning" @click="handleDeleteFailedRecords">清除所有刮削失败的记录</el-button>
-    </div>
     <div class="search-filter-section">
+      <el-input v-model="nameFilter" placeholder="按文件名模糊搜索" style="width: 200px;" @keyup.enter="applyFilter" />
       <el-select v-model="statusFilter" placeholder="筛选状态" style="margin-left: 12px; width: 150px;">
         <el-option label="全部" value=""></el-option>
         <el-option label="未刮削" value="scanned"></el-option>
@@ -33,6 +46,7 @@
         <el-option label="刮削失败" value="scrape_failed"></el-option>
         <el-option label="整理中" value="renaming"></el-option>
         <el-option label="已整理" value="renamed"></el-option>
+        <el-option label="整理失败" value="rename_failed"></el-option>
       </el-select>
       <el-select v-model="typeFilter" placeholder="筛选类型" style="margin-left: 12px; width: 120px;">
         <el-option label="全部" value=""></el-option>
@@ -51,7 +65,7 @@
     <!-- 表格 -->
     <div class="table-container">
       <el-table v-loading="loading" :data="records" style="width: 100%" @selection-change="handleSelectionChange"
-        :row-key="(row: ScrapeRecord) => row.id" height="calc(100vh - 300px)">
+        :row-key="(row: ScrapeRecord) => row.id" height="calc(100vh - 400px)">
         <el-table-column type="selection" width="55" />
         <el-table-column prop="type" label="类型" width="80">
           <template #default="{ row }">
@@ -106,9 +120,6 @@
             </span>
           </template>
         </el-table-column>
-
-
-
         <el-table-column prop="failed_reason" label="失败原因" min-width="200">
           <template #default="{ row }">
             <el-popover placement="top" :width="400" trigger="hover" v-if="row.failed_reason">
@@ -245,7 +256,7 @@ interface ScrapeRecord {
   season_number: number
   episode_number: number
   episode_name?: string
-  status: 'scanned' | 'scraping' | 'scraped' | 'scrape_failed' | 'renaming' | 'renamed'
+  status: 'scanned' | 'scraping' | 'scraped' | 'scrape_failed' | 'renaming' | 'renamed' | 'rename_failed'
   failed_reason: string
   created_at: number
   updated_at: number
@@ -271,6 +282,7 @@ const loading = ref(false)
 const selectedRecords = ref<ScrapeRecord[]>([])
 const statusFilter = ref('')
 const typeFilter = ref('')
+const nameFilter = ref('') // 添加名称搜索变量
 const showDetailDialog = ref(false)
 const selectedRecord = ref<ScrapeRecord | null>(null)
 // 添加自动刷新相关变量
@@ -301,6 +313,11 @@ const loadRecords = async () => {
     // 添加类型筛选参数
     if (typeFilter.value) {
       params.type = typeFilter.value
+    }
+
+    // 添加名称搜索参数
+    if (nameFilter.value) {
+      params.name = nameFilter.value
     }
 
     const response = await http?.get(`${SERVER_URL}/scrape/records`, { params })
@@ -418,6 +435,7 @@ const applyFilter = () => {
 const resetFilter = () => {
   statusFilter.value = ''
   typeFilter.value = ''
+  nameFilter.value = '' // 重置名称搜索过滤器
   pagination.value.currentPage = 1
   loadRecords() // 重新加载数据
 }
@@ -492,6 +510,38 @@ const handleDeleteSelectedRecords = async () => {
   } catch (error) {
     console.error('删除失败:', error)
     ElMessage.error('删除失败: 网络错误')
+  }
+}
+
+const handleRename = async () => {
+  try {
+    if (selectedRecords.value.length === 0) {
+      ElMessage.warning('请选择记录')
+      return
+    }
+    // 确认删除操作
+    if (!confirm(`确定要重新整理选中的 ${selectedRecords.value.length} 条记录吗？`)) {
+      return
+    }
+
+    const ids = selectedRecords.value.map(record => record.id)
+    // 发送DELETE请求，参数与导出识别错误文件接口一致
+    // 构造URL，将ids作为GET参数传递
+    const idsQuery = ids.join(',')
+    const response = await http?.post(`${SERVER_URL}/scrape/rename-failed?ids=${idsQuery}`)
+
+    if (response?.data.code === 200) {
+      ElMessage.success('重新整理成功')
+      // 清空选择
+      selectedRecords.value = []
+      // 刷新记录列表
+      loadRecords()
+    } else {
+      ElMessage.error(`重新整理失败: ${response?.data.message || '未知错误'}`)
+    }
+  } catch (error) {
+    console.error('重新整理失败:', error)
+    ElMessage.error('重新整理失败: 网络错误')
   }
 }
 
@@ -676,6 +726,8 @@ const getStatusTagType = (status: string): string => {
       return 'primary'
     case 'renamed':
       return 'success'
+    case 'rename_failed':
+      return 'danger'
     default:
       return 'info'
   }
@@ -696,6 +748,8 @@ const getStatusName = (status: string): string => {
       return '整理中'
     case 'renamed':
       return '已整理'
+    case 'rename_failed':
+      return '整理失败'
     default:
       return '未知'
   }

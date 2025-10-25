@@ -1,61 +1,31 @@
 <template>
   <div class="main-content-container thread-settings-container">
     <el-alert title="重要提示" type="error" :closable="false" show-icon style="margin-bottom: 20px;">
-        <template #default>
-        修改完成后，请重启容器(docker部署)或者重启应用(非docker部署)，否则无法生效。
-        </template>
+      <template #default>
+        修改无法立即生效，请重启容器(docker部署)或者重启应用(非docker部署)，重启会丢失现在的下载队列，谨慎操作。
+      </template>
     </el-alert>
-    <el-form
-      :model="formData"
-      :label-position="checkIsMobile ? 'top' : 'left'"
-      :label-width="150"
-      class="thread-form"
-    >
+    <el-form :model="formData" :label-position="checkIsMobile ? 'top' : 'left'" :label-width="150" class="thread-form">
       <el-form-item label="下载QPS" prop="downloadThreads">
-        <el-input-number
-          v-model="formData.downloadThreads"
-          :min="1"
-          :max="100"
-          :disabled="loading"
-          size="large"
-        />
-        <div class="form-help">获取115下载文件的每秒请求数量，合理设置可提高下载速度，最大10，最小1</div>
+        <el-input-number v-model="formData.downloadThreads" :min="1" :max="100" :disabled="loading" size="large" />
+        <div class="form-help">下载队列的每秒处理数量，合理设置可提高下载速度，最大10，最小1</div>
       </el-form-item>
 
-      <el-form-item label="接口请求QPS" prop="fileDetailThreads">
-        <el-input-number
-          v-model="formData.fileDetailThreads"
-          :min="1"
-          :max="10"
-          :disabled="loading"
-          size="large"
-        />
+      <el-form-item label="115 接口请求QPS" prop="fileDetailThreads">
+        <el-input-number v-model="formData.fileDetailThreads" :min="1" :max="10" :disabled="loading" size="large" />
         <div class="form-help">115开放平台接口的每秒请求数量，影响同步速度，最大10，最小1</div>
       </el-form-item>
 
       <div class="form-actions">
-        <el-button
-          type="success"
-          @click="saveSettings"
-          :loading="loading"
-          size="large"
-          :icon="Check"
-        >
+        <el-button type="success" @click="saveSettings" :loading="loading" size="large" :icon="Check">
           保存设置
         </el-button>
       </div>
     </el-form>
 
     <!-- 保存状态显示 -->
-    <el-alert
-      v-if="saveStatus"
-      :title="saveStatus.title"
-      :type="saveStatus.type"
-      :description="saveStatus.description"
-      :closable="false"
-      show-icon
-      class="save-status"
-    />
+    <el-alert v-if="saveStatus" :title="saveStatus.title" :type="saveStatus.type" :description="saveStatus.description"
+      :closable="false" show-icon class="save-status" />
     <div class="security-content">
       <div class="warning-section">
         <el-alert title="使用提示" type="warning" :closable="false" show-icon>
@@ -175,7 +145,7 @@ async function saveSettings() {
 }
 
 /* .thread-form { */
-  /* background: #fff;
+/* background: #fff;
   padding: 20px;
   border-radius: 8px;
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1); */

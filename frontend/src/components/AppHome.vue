@@ -120,8 +120,8 @@ onUnmounted(() => {
           <template #header>
             <h2 class="card-title">请作者喝杯咖啡</h2>
           </template>
-          <img src="/alipay_wechat.jpg" alt="请作者喝杯咖啡" class="coffee-image" />
-        </el-card>
+          <img src="http://s.mqfamily.top/alipay_wechat.jpg" alt="请作者喝杯咖啡" class="coffee-image" />
+        </el-card>dd
       </el-col>
     </el-row>
   </div>

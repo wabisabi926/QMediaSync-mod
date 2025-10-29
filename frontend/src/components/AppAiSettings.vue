@@ -2,95 +2,55 @@
   <div class="main-content-container ai-settings-container">
     <el-alert title="" type="error" :closable="false" style="margin-bottom: 20px;">
       <template #default>
-        推荐 <a href="https://cloud.siliconflow.cn/i/fNSX73Tt" target="_blank">硅基流动</a> 的模型，新号输我的邀请码送2000万 Tokens: <b>fNSX73Tt</b>
+        推荐 <a href="https://cloud.siliconflow.cn/i/fNSX73Tt" target="_blank">硅基流动</a> 的模型，新号输我的邀请码送2000万 Tokens:
+        <b>fNSX73Tt</b>
       </template>
     </el-alert>
-    <el-form
-      :model="formData"
-      :label-position="checkIsMobile ? 'top' : 'left'"
-      :label-width="120"
-      :rules="formRules"
-      ref="formRef"
-      class="ai-form"
-    >
+    <el-form :model="formData" :label-position="checkIsMobile ? 'top' : 'left'" :label-width="120" :rules="formRules"
+      ref="formRef" class="ai-form">
       <el-form-item label="API接口地址" prop="aiBaseUrl">
-        <el-input
-          v-model="formData.aiBaseUrl"
-          placeholder="不填取默认值：https://api.siliconflow.cn"
-          :disabled="loading"
-          maxlength="255"
-        />
+        <el-input v-model="formData.aiBaseUrl" placeholder="不填取默认值：https://api.siliconflow.cn" :disabled="loading"
+          maxlength="255" />
         <div class="form-help">例如：https://api.deepseek.com</div>
       </el-form-item>
 
       <el-form-item label="API Key" prop="aiApiKey">
-        <el-input
-          v-model="formData.aiApiKey"
-          placeholder="不填用作者的，但可能失败；填了更稳定"
-          type="password"
-          :disabled="loading"
-          show-password
-          maxlength="255"
-        />
+        <el-input v-model="formData.aiApiKey" placeholder="不填用作者的，但可能失败；填了更稳定" type="password" :disabled="loading"
+          show-password maxlength="255" />
         <div class="form-help">API服务的访问密钥</div>
       </el-form-item>
 
       <el-form-item label="模型名称" prop="aiModelName">
-        <el-input
-          v-model="formData.aiModelName"
-          placeholder="不填取默认值：deepseek-ai/DeepSeek-R1"
-          :disabled="loading"
-          maxlength="100"
-        />
+        <el-input v-model="formData.aiModelName" placeholder="不填取默认值：deepseek-ai/DeepSeek-R1" :disabled="loading"
+          maxlength="100" />
         <div class="form-help">从硅基流动的模型广场找或者模型提供商的API文档中找</div>
       </el-form-item>
 
+      <el-form-item label="请求超时时间" prop="ai_timeout">
+        <el-input-number v-model="formData.ai_timeout" :disabled="loading || !formData.aiApiKey" min="5" max="120"
+          step="1" style="width: 100%" />
+        <div class="form-help">请求超时时间，单位秒，默认值为120秒，减少该值可以极大提高刮削速度，但可能会导致AI识别失败</div>
+      </el-form-item>
+
       <div class="form-actions">
-        <el-button
-          type="primary"
-          @click="testConnection"
-          :loading="testing"
-          :disabled="loading"
-          size="large"
-          :icon="Refresh"
-          style="margin-right: 15px"
-        >
+        <el-button type="primary" @click="testConnection" :loading="testing" :disabled="loading" size="large"
+          :icon="Refresh" style="margin-right: 15px">
           测试连通性
         </el-button>
 
-        <el-button
-          type="success"
-          @click="saveSettings"
-          :loading="loading"
-          size="large"
-          :icon="Check"
-        >
+        <el-button type="success" @click="saveSettings" :loading="loading" size="large" :icon="Check">
           保存设置
         </el-button>
       </div>
     </el-form>
 
     <!-- 保存状态显示 -->
-    <el-alert
-      v-if="saveStatus"
-      :title="saveStatus.title"
-      :type="saveStatus.type"
-      :description="saveStatus.description"
-      :closable="false"
-      show-icon
-      class="save-status"
-    />
+    <el-alert v-if="saveStatus" :title="saveStatus.title" :type="saveStatus.type" :description="saveStatus.description"
+      :closable="false" show-icon class="save-status" />
 
     <!-- 测试状态显示 -->
-    <el-alert
-      v-if="testStatus"
-      :title="testStatus.title"
-      :type="testStatus.type"
-      :description="testStatus.description"
-      :closable="false"
-      show-icon
-      class="test-status"
-    />
+    <el-alert v-if="testStatus" :title="testStatus.title" :type="testStatus.type" :description="testStatus.description"
+      :closable="false" show-icon class="test-status" />
 
     <div class="security-content">
       <div class="warning-section">
@@ -119,6 +79,7 @@ interface AiSettings {
   aiBaseUrl: string
   aiApiKey: string
   aiModelName: string
+  ai_timeout: number
 }
 
 interface SaveStatus {
@@ -140,6 +101,7 @@ const formData = reactive<AiSettings>({
   aiBaseUrl: '',
   aiApiKey: '',
   aiModelName: '',
+  ai_timeout: 120
 })
 
 // 动态表单验证规则
@@ -160,6 +122,12 @@ const formRules = computed(() => {
     aiModelName: [
       {
         message: '请输入模型名称',
+        trigger: 'blur'
+      }
+    ],
+    ai_timeout: [
+      {
+        message: '请输入请求超时时间',
         trigger: 'blur'
       }
     ]
@@ -183,6 +151,7 @@ async function fetchAiSettings() {
     formData.aiBaseUrl = response?.data.data.ai_base_url || ''
     formData.aiApiKey = response?.data.data.ai_api_key || ''
     formData.aiModelName = response?.data.data.ai_model_name || ''
+    formData.ai_timeout = response?.data.data.ai_timeout || 120
   } catch (error) {
     console.error('获取AI设置失败:', error)
     ElMessage.error('获取AI设置失败，请稍后重试')
@@ -210,6 +179,7 @@ async function saveSettings() {
       ai_base_url: formData.aiBaseUrl,
       ai_api_key: formData.aiApiKey,
       ai_model_name: formData.aiModelName,
+      ai_timeout: formData.ai_timeout
     }
 
     await http?.post(`${SERVER_URL}/scrape/ai-settings`, payload, {

@@ -7,8 +7,8 @@
     </el-alert>
     <el-form :model="formData" :label-position="checkIsMobile ? 'top' : 'left'" :label-width="150" class="thread-form">
       <el-form-item label="下载QPS" prop="downloadThreads">
-        <el-input-number v-model="formData.downloadThreads" :min="1" :max="100" :disabled="loading" size="large" />
-        <div class="form-help">下载队列的每秒处理数量，合理设置可提高下载速度，最大10，最小1</div>
+        <el-input-number v-model="formData.downloadThreads" :min="1" :max="3" :disabled="loading" size="large" />
+        <div class="form-help">下载队列的每秒处理数量，合理设置可提高下载速度，最大3，最小1，最大是因为要给播放和刮削留出空余。</div>
       </el-form-item>
 
       <el-form-item label="115 接口请求QPS" prop="fileDetailThreads">

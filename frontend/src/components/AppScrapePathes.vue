@@ -6,7 +6,7 @@
         <p class="card-subtitle">
           设置媒体文件的刮削和整理规则，支持电影、电视剧和其他媒体类型 <br />
           当前字幕等其他文件的处理方式都是移动到目标位置，不受整理方式的影响，请特别注意 <br />
-          刮削和整理是分离的，刮削如果开启了定时任务则是每13分钟一次，整理是每3分钟一次 <br />
+          刮削和整理是分离的，刮削如果开启了定时任务则是每13分钟一次<br />
           刮削默认并发数为5，并发数越高越快，但是也会增加TMDB或者网盘限制的概率。<br />
           如果在tmdb设置中修改了刮削本地文件线程数，那么strm文件不会提取视频信息如分辨率、是否HDR等（因为从strm提取实际也会触发网盘下载，频率太高会被网盘限制）
         </p>
@@ -20,9 +20,6 @@
             <Plus />
           </el-icon>
           添加刮削目录
-        </el-button>
-        <el-button type="warning" @click="startRenaming()">
-          触发一次整理
         </el-button>
       </div>
     </div>
@@ -88,30 +85,22 @@
             <span class="info-value">{{ formatTime(row.created_at || 0) }}</span>
           </div>
           <div class="info-item">
-            <span class="info-label">刮削状态:</span>
+            <span class="info-label">运行状态:</span>
             <span class="info-value" v-if="row.is_scraping">
               <el-icon class="is-loading">
                 <Loading />
               </el-icon>
-              <el-text class="mx-1" type="primary">刮削中...</el-text>
-            </span>
-            <span class="info-value" v-else>未执行</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">整理状态:</span>
-            <span class="info-value" v-if="row.is_renaming">
-              <el-icon class="is-loading">
-                <Loading />
-              </el-icon>
-              <el-text class="mx-1" type="primary">整理中...</el-text>
+              <el-text class="mx-1" type="primary">运行中...</el-text>
             </span>
             <span class="info-value" v-else>未执行</span>
           </div>
         </div>
         <template #footer>
           <div class="card-actions">
-            <el-button type="success" size="small" @click="handleScan(row)" :loading="row.scanning"
-              :icon="Refresh">扫描</el-button>
+            <el-button type="success" size="small" @click="handleScan(row)" :loading="row.scanning" :icon="Refresh"
+              v-if="row.is_scraping === false">启动</el-button>
+            <el-button type="warning" size="small" @click="handleStop(row)" :loading="row.scanning" :icon="VideoPause"
+              v-if="row.is_scraping === true">停止</el-button>
             <el-button type="primary" size="small" @click="handleEdit(row)" :loading="row.editing"
               :icon="Edit">编辑</el-button>
             <el-button type="danger" size="small" @click="handleDelete(row, index)" :loading="row.deleting"
@@ -138,7 +127,7 @@
       <el-form ref="addFormRef" :model="addForm" :rules="addFormRules" label-width="140px"
         :label-position="checkIsMobile ? 'top' : 'left'">
         <el-form-item label="同步源类型" prop="source_type">
-          <el-radio-group v-model="addForm.source_type" placeholder="请选择同步源类型" @change="handleSourceTypeChange">
+          <el-radio-group v-model="addForm.source_type" placeholder="请选择同步源类型">
             <el-radio-button v-for="typeItem in sourceTypeOptions" :key="typeItem.value" :value="typeItem.value">
               {{ typeItem.label }}
             </el-radio-button>
@@ -162,7 +151,7 @@
           <el-radio-group v-model="addForm.media_type" placeholder="请选择媒体类型">
             <el-radio-button value="movie">电影</el-radio-button>
             <el-radio-button value="tvshow">电视剧</el-radio-button>
-            <el-radio-button value="other" disabled>其他</el-radio-button>
+            <el-radio-button value="other">其他</el-radio-button>
           </el-radio-group>
           <div class="form-tip">其他：只能整理不能刮削</div>
         </el-form-item>
@@ -171,12 +160,12 @@
             <el-radio-button value="only_scrape" :disabled="addForm.media_type === 'other'">仅刮削</el-radio-button>
             <el-radio-button value="scrape_and_rename"
               :disabled="addForm.media_type === 'other'">刮削和整理</el-radio-button>
-            <el-radio-button value="only_rename" disabled>仅整理</el-radio-button>
+            <el-radio-button value="only_rename" :disabled="addForm.media_type === 'tvshow'">仅整理</el-radio-button>
           </el-radio-group>
           <div class="form-tip">
             仅刮削：不改变文件路径和重命名，生成对应视频文件的nfo和下载封面等，不需要选择目标路径<br />
             刮削和整理：会根据刮削结果，改变文件路径和重命名，生成对应视频文件的nfo和下载封面等，需要选择目标路径<br />
-            仅整理：默认来源路径内都是刮削好的，然后根据nfo中的内容将视频、封面、字幕等整理到目标路径
+            仅整理：默认来源路径内都是刮削好的，然后根据nfo中的内容将视频、封面、字幕等整理到目标路径（电视剧暂不支持）
           </div>
         </el-form-item>
         <el-form-item label="整理方式" prop="rename_type" v-if="addForm.scrape_type !== 'only_scrape'">
@@ -232,13 +221,13 @@
         <el-form-item label="文件夹重命名模板" prop="folder_name_template" v-if="addForm.scrape_type !== 'only_scrape'">
           <el-input v-model="addForm.folder_name_template" :disabled="addLoading" placeholder="留空保留原名称" />
           <div class="form-tip">详细请参考：<a
-              href="https://github.com/qicfan/qmediasync/wiki/%E6%95%B4%E7%90%86%E6%96%87%E4%BB%B6%EF%BC%88%E5%A4%B9%EF%BC%89%E6%A8%A1%E6%9D%BF%E5%8F%AF%E7%94%A8%E5%8F%98%E9%87%8F"
+              href="https://github.com/qicfan/qmediasync/wiki/%E6%95%B4%E7%90%86%E6%96%87%E4%BB%B6%EF%BC%88%E5%A4%B9%EF%BC%89%E6%A8%A1%E6%9D%BF%E5%8F%94%E7%94%A8%E5%8F%98%E9%87%8F"
               target="_blank">文件夹重命名模板</a></div>
         </el-form-item>
         <el-form-item label="文件重命名模板" prop="file_name_template" v-if="addForm.scrape_type !== 'only_scrape'">
           <el-input v-model="addForm.file_name_template" :disabled="addLoading" placeholder="留空保留原名称" />
           <div class="form-tip">详细请参考：<a
-              href="https://github.com/qicfan/qmediasync/wiki/%E6%95%B4%E7%90%86%E6%96%87%E4%BB%B6%EF%BC%88%E5%A4%B9%EF%BC%89%E6%A8%A1%E6%9D%BF%E5%8F%AF%E7%94%A8%E5%8F%98%E9%87%8F"
+              href="https://github.com/qicfan/qmediasync/wiki/%E6%95%B4%E7%90%86%E6%96%87%E4%BB%B6%EF%BC%88%E5%A4%B9%EF%BC%89%E6%A8%A1%E6%9D%BF%E5%8F%94%E7%94%A8%E5%8F%98%E9%87%8F"
               target="_blank">文件重命名模板</a></div>
         </el-form-item>
         <el-form-item label="要删除的关键词" prop="delete_keyword">
@@ -463,7 +452,7 @@
 
     <!-- 目录选择对话框 -->
     <el-dialog v-model="showDirDialog" :title="isSelectingLocalPath ? '选择目标目录' : '选择来源目录'"
-      :width="checkIsMobile ? '90%' : '600px'" :close-on-click-modal="false">
+      :width="checkIsMobile ? '90%' : '600px'" :close-on-click-modal="false" :before-close="handleCloseDirDialog">
       <div class="dir-selector">
         <el-scrollbar height="400px">
           <div v-if="dirTreeLoading" class="loading-container">
@@ -495,7 +484,7 @@
       </div>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="showDirDialog = false">取消</el-button>
+          <el-button @click="handleCancelDirDialog">取消</el-button>
           <el-button type="primary" @click="confirmSelectDir" :disabled="!tempSelectedDir">
             确定选择
           </el-button>
@@ -510,7 +499,7 @@ import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { inject, onMounted, ref, reactive, watch, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Loading, Folder, Edit, Delete, Refresh } from '@element-plus/icons-vue'
+import { Plus, Loading, Folder, Edit, Delete, Refresh, VideoPause } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { formatTime } from '@/utils/timeUtils'
 import { isMobile } from '@/utils/deviceUtils'
@@ -592,6 +581,7 @@ const selectedSourceType = ref('')
 const selectedAccountId = ref(0)
 const isSelectSource = ref(true)
 const editSelectedDirPath = ref('')
+const isDirDialogClosed = ref(false) // 标记目录选择对话框是否已关闭
 
 // 添加对话框状态
 const showAddDialog = ref(false)
@@ -612,7 +602,7 @@ const addForm = reactive({
   file_name_template: '{title} ({year})',
   delete_keyword: [] as string[],
   min_video_file_size: 0, // 最小视频文件大小，单位MB
-  video_ext_list: [".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".flv", ".avi", ".ts", ".m4v", ".iso", ".strm"], // 视频文件扩展名列表
+  video_ext_list: [".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".flv", ".avi", ".ts", ".m4v", ".iso", ".rmvb", ".strm"], // 视频文件扩展名列表
   exclude_no_image_actor: false, // 默认不排除无头像演员
   enable_ai: 'off', // 默认禁用AI识别
   ai_prompt: '', // 默认AI提示
@@ -641,7 +631,7 @@ const editForm = reactive({
   file_name_template: '',
   delete_keyword: [] as string[],
   min_video_file_size: 0, // 最小视频文件大小，单位MB
-  video_ext_list: [".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".flv", ".avi", ".ts", ".m4v", ".iso", ".strm"], // 视频文件扩展名列表
+  video_ext_list: [".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".flv", ".avi", ".ts", ".m4v", ".iso", ".rmvb", ".strm"], // 视频文件扩展名列表
   exclude_no_image_actor: false, // 默认不排除无头像演员
   enable_ai: 'off', // 默认禁用AI识别
   ai_prompt: '', // 默认AI提示
@@ -696,12 +686,14 @@ watch(() => addForm.media_type, (newType) => {
   if (newType === 'other') {
     addForm.scrape_type = 'only_rename' // 当媒体类型为'other'时，操作方式固定为'only_rename'
   }
-
   // 根据媒体类型设置默认的文件重命名模板
   if (newType === 'movie') {
     addForm.folder_name_template = '{title} ({year})'
     addForm.file_name_template = '{title} ({year})'
   } else if (newType === 'tvshow') {
+    if (addForm.scrape_type === 'only_rename') {
+      addForm.scrape_type = 'scrape_and_rename' // 当媒体类型为'tvshow'且操作方式为'only_rename'时，整理方式固定为'scrape_and_rename'
+    }
     addForm.folder_name_template = '{title} ({year})'
     addForm.file_name_template = '{title} - {season_episode} - 第 {episode_number} 集'
   } else if (newType === "other") {
@@ -921,7 +913,7 @@ const resetAddForm = () => {
   // 根据默认媒体类型设置默认模板
   addForm.delete_keyword = []
   addForm.min_video_file_size = 0
-  addForm.video_ext_list = ['mp4', 'mkv', 'avi', 'wmv', 'flv', 'mov', 'webm']
+  addForm.video_ext_list = [".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".flv", ".avi", ".ts", ".m4v", ".iso", ".rmvb", ".strm"]
   tempVideoExt.value = ''
   selectedDirPath.value = ''
   addForm.exclude_no_image_actor = false
@@ -1050,14 +1042,32 @@ const handleScan = async (row: ScrapePath) => {
   try {
     row.scanning = true
     await http.post(`${SERVER_URL}/scrape/pathes/start`, { id: row.id })
-    ElMessage.success('扫描已开始')
+    ElMessage.success('任务已开始')
   } catch (error) {
-    ElMessage.error('扫描启动失败')
+    ElMessage.error('任务启动失败')
     console.error('Scan error:', error)
   } finally {
     row.scanning = false
   }
 }
+
+// 处理停止操作
+const handleStop = async (row: ScrapePath) => {
+  if (!http) return
+
+  try {
+    row.scanning = true
+    await http.post(`${SERVER_URL}/scrape/pathes/stop`, { id: row.id })
+    ElMessage.success('任务已停止')
+  } catch (error) {
+    ElMessage.error('任务停止失败')
+    console.error('Stop error:', error)
+  } finally {
+    row.scanning = false
+  }
+}
+
+
 
 // 处理定时同步开关切换
 const toggleCron = async (row: ScrapePath) => {
@@ -1096,6 +1106,8 @@ const openDirSelector = async (isSource: boolean = false) => {
   selectedAccountId.value = parseInt(addForm.account_id as string) || 0
   isEditMode.value = false
   isSelectSource.value = isSource
+  // 重置目录选择对话框关闭状态
+  isDirDialogClosed.value = false;
 
   await loadDirTree(null)
 }
@@ -1110,6 +1122,8 @@ const openEditDirSelector = async (isSource: boolean = false) => {
   isEditMode.value = true
   isSelectSource.value = isSource
   isSelectingLocalPath.value = !isSource
+  // 重置目录选择对话框关闭状态
+  isDirDialogClosed.value = false;
 
   await loadDirTree(null)
 }
@@ -1127,6 +1141,10 @@ const loadDirTree = async (dir: DirInfo | null) => {
         parent_path: dir?.path || "",
       },
     })
+    // 检查目录选择对话框是否已关闭
+    if (isDirDialogClosed.value) {
+      return;
+    }
     if (response?.data.code === 200) {
       dirTreeData.value = response.data.data || []
     } else {
@@ -1138,12 +1156,21 @@ const loadDirTree = async (dir: DirInfo | null) => {
     ElMessage.error('加载目录失败')
     dirTreeData.value = []
   } finally {
+    // 检查目录选择对话框是否已关闭
+    if (isDirDialogClosed.value) {
+      return;
+    }
     dirTreeLoading.value = false
   }
 }
 
 // 选择临时目录
 const selectTempDir = async (dir: DirInfo) => {
+  // 检查目录选择对话框是否已关闭
+  if (isDirDialogClosed.value) {
+    return;
+  }
+
   tempSelectedDir.value = dir
   // 如果选择了目录且不是本地路径，加载子目录
   await loadDirTree(dir)
@@ -1151,6 +1178,9 @@ const selectTempDir = async (dir: DirInfo) => {
 
 // 确认选择目录 - 复用同步目录的来源路径逻辑
 const confirmSelectDir = () => {
+  // 标记目录选择对话框已关闭
+  isDirDialogClosed.value = true;
+
   if (!tempSelectedDir.value) return
 
   if (isEditMode.value) {
@@ -1174,31 +1204,29 @@ const confirmSelectDir = () => {
   showDirDialog.value = false
 }
 
-// 处理同步源类型变更
-const handleSourceTypeChange = () => {
-  // 重置网盘账号选择
-  addForm.account_id = '';
-  // 重置路径信息
-  addForm.source_path = '';
-  addForm.source_path_id = '';
-  selectedDirPath.value = '';
-  // 清除表单验证
-  if (addFormRef.value) {
-    addFormRef.value.clearValidate(['account_id', 'source_path', 'source_path_id']);
-  }
-  // 根据新的源类型加载对应的账号列表
-  loadAccounts(addForm.source_type);
-};
-
-const startRenaming = async () => {
-  try {
-    await http?.post(`${SERVER_URL}/scrape/rename`)
-    ElMessage.success('整理已触发')
-  } catch (error) {
-    ElMessage.error('整理触发失败')
-    console.error('Rename error:', error)
-  }
+// 目录选择对话框关闭事件处理
+const handleCloseDirDialog = () => {
+  // 标记目录选择对话框已关闭
+  isDirDialogClosed.value = true;
+  showDirDialog.value = false
 }
+
+// 目录选择对话框取消事件处理
+const handleCancelDirDialog = () => {
+  // 标记目录选择对话框已关闭
+  isDirDialogClosed.value = true;
+  showDirDialog.value = false
+}
+
+// const startRenaming = async () => {
+//   try {
+//     await http?.post(`${SERVER_URL}/scrape/rename`)
+//     ElMessage.success('整理已触发')
+//   } catch (error) {
+//     ElMessage.error('整理触发失败')
+//     console.error('Rename error:', error)
+//   }
+// }
 
 // 添加自动刷新相关变量
 const autoRefreshTimer = ref<number | null>(null)

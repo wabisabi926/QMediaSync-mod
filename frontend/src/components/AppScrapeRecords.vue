@@ -67,34 +67,7 @@
       <el-table v-loading="loading" :data="records" style="width: 100%" @selection-change="handleSelectionChange"
         :row-key="(row: ScrapeRecord) => row.id" height="calc(100vh - 400px)">
         <el-table-column type="selection" width="55" />
-        <el-table-column prop="type" label="类型" width="80">
-          <template #default="{ row }">
-            <el-tag :type="getTypeTagType(row.type)">
-              {{ getTypeName(row.type) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="path" label="文件路径" min-width="300" show-overflow-tooltip />
-        <el-table-column prop="file_name" label="文件名" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="media_name" label="识别名" width="180" />
-        <el-table-column prop="year" label="识别年" width="80" />
-        <el-table-column prop="tmdb_id" label="TMDB" width="80" />
-        <el-table-column prop="season_number" label="季集" width="80">
-          <template #default="{ row }">
-            <span v-if="row.type == 'tvshow'">
-              S{{ row.season_number }}E{{ row.episode_number }}
-            </span>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" label="文件状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="getStatusTagType(row.status)">
-              {{ getStatusName(row.status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="path_is_scraping" label="刮削状态" width="100">
+        <el-table-column prop="path_is_scraping" label="运行状态" width="80">
           <template #default="{ row }">
             <span class="info-value" v-if="row.path_is_scraping">
               <el-icon class="is-loading">
@@ -107,31 +80,66 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="path_is_renaming" label="整理状态" width="100">
+        <el-table-column prop="type" label="类型" width="80">
           <template #default="{ row }">
-            <span class="info-value" v-if="row.path_is_renaming">
-              <el-icon class="is-loading">
-                <Loading />
-              </el-icon>
-              <el-text class="mx-1" type="primary">整理中...</el-text>
-            </span>
-            <span class="info-value" v-else>
-              <el-text class="mx-1" type="info" size="small">未执行</el-text>
-            </span>
+            <el-tag :type="getTypeTagType(row.type)">
+              {{ getTypeName(row.type) }}
+            </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="failed_reason" label="失败原因" min-width="200">
+        <el-table-column prop="source_type" label="来源" width="80">
           <template #default="{ row }">
-            <el-popover placement="top" :width="400" trigger="hover" v-if="row.failed_reason">
-              <template #reference>
-                <span class="error-reason-text">{{ truncateText(row.failed_reason, 20) }}</span>
-              </template>
-              <pre style="margin: 0; white-space: pre-wrap; word-break: break-all;">{{ row.failed_reason }}</pre>
-            </el-popover>
-            <span v-else>-</span>
+            <el-tag :type="getSourceTypeTagType(row.source_type)">
+              {{ getSourceTypeName(row.source_type) }}
+            </el-tag>
           </template>
         </el-table-column>
-
+        <el-table-column prop="path" label="文件路径" width="580">
+          <template #default="{ row }">
+            <div>
+              <p class="path-text">{{ row.source_full_path }}</p>
+              <p style="margin: 10px 0; display: flex; align-items: center; flex-wrap: wrap;">
+                <el-tag :type="getRenameTypeTagType(row.rename_type)">
+                  {{ getRenameTypeName(row.rename_type) }}
+                </el-tag>
+                <span style="margin-left: 12px;">到</span>
+              </p>
+              <p class="path-text">{{ row.dest_full_path }}</p>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="识别信息">
+          <template #default="{ row }">
+            <div>
+              <p class="path-text">Tmdb ID: {{ row.tmdb_id }}</p>
+              <p class="path-text">识别名称: {{ row.media_name }} 年份：{{ row.year }}</p>
+              <p class="path-text">原始名称: {{ row.original_name }}</p>
+              <p class="path-text">流派: {{ row.genre }}</p>
+              <p class="path-text">国家: {{ row.country }}</p>
+              <p class="path-text">语言: {{ row.language }}</p>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="文件状态" width="200">
+          <template #default="{ row }">
+            <el-tooltip :content="getStatusTooltip(row.status)" placement="top">
+              <el-tag :type="getStatusTagType(row.status)">
+                <el-icon>
+                  <Warning />
+                </el-icon>
+                {{ getStatusName(row.status) }}
+              </el-tag>
+            </el-tooltip>
+            <p v-if="row.failed_reason" style="margin-top: 4px;">{{ row.failed_reason }}</p>
+          </template>
+        </el-table-column>
+        <el-table-column prop="rename_time" label="时间" width="250">
+          <template #default="{ row }">
+            <p>创建时间：{{ row.created_at ? formatTimestamp(row.created_at) : '-' }}</p>
+            <p>刮削时间：{{ row.scraped_at ? formatTimestamp(row.scraped_at) : '-' }}</p>
+            <p>整理时间：{{ row.renamed_at ? formatTimestamp(row.renamed_at) : '-' }}</p>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
             <el-button type="text" @click="handleDetail(row)">详情</el-button>
@@ -234,7 +242,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
@@ -251,6 +259,7 @@ interface ScrapeRecord {
   path: string
   file_name: string
   media_name: string
+  original_name: string
   year: number
   tmdb_id: number
   season_number: number
@@ -262,6 +271,7 @@ interface ScrapeRecord {
   updated_at: number
   scanned_at: number
   scraped_at: number
+  renamed_at: number
   audio_count: number
   subtitle_count: number
   resolution: string
@@ -272,6 +282,14 @@ interface ScrapeRecord {
   new_dest_name: string
   path_is_scraping: boolean
   path_is_renaming: boolean
+  source_full_path: string
+  dest_full_path: string
+  source_type: string
+  rename_type: string
+  scrape_type: string
+  genre: string
+  country: string
+  language: string
 }
 
 // 状态变量
@@ -285,8 +303,6 @@ const typeFilter = ref('')
 const nameFilter = ref('') // 添加名称搜索变量
 const showDetailDialog = ref(false)
 const selectedRecord = ref<ScrapeRecord | null>(null)
-// 添加自动刷新相关变量
-const autoRefreshTimer = ref<number | null>(null)
 
 // 分页相关
 const pagination = ref({
@@ -326,10 +342,6 @@ const loadRecords = async () => {
       records.value = response.data.data.list
       originalRecords.value = JSON.parse(JSON.stringify(response.data.data.list)) // 深拷贝保存原始记录
       total.value = response.data.data.total
-      console.log(total, response.data.data.total)
-
-      // 检查是否有刮削中的记录，如果有则启动自动刷新
-      checkAndSetAutoRefresh()
     } else {
       ElMessage.error(`加载刮削记录失败: ${response?.data.message || '未知错误'}`)
     }
@@ -367,32 +379,6 @@ const toggleMergeEpisodes = () => {
     isMerged.value = false
   }
 }
-
-// 检查并设置自动刷新
-const checkAndSetAutoRefresh = () => {
-  // 清除已存在的定时器
-  if (autoRefreshTimer.value) {
-    clearInterval(autoRefreshTimer.value)
-    autoRefreshTimer.value = null
-  }
-
-  // 检查是否有刮削中的记录
-  const hasScrapingRecords = records.value.some(record => record.status === 'scraping')
-
-  if (hasScrapingRecords) {
-    // 设置定时器，每隔1秒刷新一次
-    autoRefreshTimer.value = window.setInterval(() => {
-      loadRecords()
-    }, 5000)
-  }
-}
-
-// 组件卸载时清除定时器
-onUnmounted(() => {
-  if (autoRefreshTimer.value) {
-    clearInterval(autoRefreshTimer.value)
-  }
-})
 
 // 应用筛选
 const applyFilter = () => {
@@ -612,8 +598,8 @@ const submitReScrape = async () => {
       tmdb_id: Number(reScrapeForm.value.tmdb_id) || 0,
       name: reScrapeForm.value.name,
       year: reScrapeForm.value.year ? parseInt(reScrapeForm.value.year) : undefined,
-      season: reScrapeForm.value.season,
-      episode: reScrapeForm.value.episode
+      season: reScrapeForm.value.season >= 0 ? parseInt(reScrapeForm.value.season + "") : -1,
+      episode: reScrapeForm.value.episode >= 0 ? parseInt(reScrapeForm.value.episode + "") : -1
     }
 
     // 发送请求
@@ -683,8 +669,25 @@ const markAsFinished = async (record: ScrapeRecord) => {
   }
 }
 
-const truncateText = (text: string, maxLength: number): string => {
-  return text.length > maxLength ? text.substring(0, maxLength) + '...' : text
+const getStatusTooltip = (status: string): string => {
+  switch (status) {
+    case 'scanned':
+      return '文件已扫描入库，等待刮削'
+    case 'scraping':
+      return '正在刮削中...'
+    case 'scraped':
+      return '刮削成功，等待整理。如果本次没有成功，下次任务启动时会继续处理'
+    case 'scrape_failed':
+      return '刮削失败，需要重新识别。'
+    case 'renaming':
+      return '正在整理...'
+    case 'renamed':
+      return '整理成功，无需额外处理'
+    case 'rename_failed':
+      return '整理失败，请删除刮削记录或者标记为待整理后等待下次任务启动时重新整理。'
+    default:
+      return '未知状态'
+  }
 }
 
 // 获取类型标签类型
@@ -706,6 +709,68 @@ const getTypeName = (type: string): string => {
       return '电影'
     case 'tvshow':
       return '电视剧'
+    default:
+      return '其他'
+  }
+}
+
+const getSourceTypeName = (type: string): string => {
+  switch (type) {
+    case 'local':
+      return '本地文件'
+    case '115':
+      return '115云盘'
+    case 'openlist':
+      return 'OpenList'
+    case '123':
+      return '123云盘'
+    default:
+      return '其他'
+  }
+}
+
+// 获取类型标签类型
+const getSourceTypeTagType = (type: string): string => {
+  switch (type) {
+    case 'local':
+      return 'warning'
+    case '115':
+      return 'primary'
+    case 'openlist':
+      return 'success'
+    case '123':
+      return 'info'
+    default:
+      return 'info'
+  }
+}
+
+// 获取类型标签类型
+const getRenameTypeTagType = (type: string): string => {
+  switch (type) {
+    case 'move':
+      return 'warning'
+    case 'copy':
+      return 'primary'
+    case 'hard_symlink':
+      return 'success'
+    case 'soft_symlink':
+      return 'info'
+    default:
+      return 'info'
+  }
+}
+
+const getRenameTypeName = (type: string): string => {
+  switch (type) {
+    case 'move':
+      return '移动'
+    case 'copy':
+      return '复制'
+    case 'hard_symlink':
+      return '硬链接'
+    case 'soft_symlink':
+      return '软链接'
     default:
       return '其他'
   }

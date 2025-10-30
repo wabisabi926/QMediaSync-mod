@@ -27,8 +27,8 @@
       </el-form-item>
 
       <el-form-item label="请求超时时间" prop="ai_timeout">
-        <el-input-number v-model="formData.ai_timeout" :disabled="loading || !formData.aiApiKey" min="5" max="120"
-          step="1" style="width: 100%" />
+        <el-input-number v-model="formData.ai_timeout" :disabled="loading" :min="5" :max="120" step="1"
+          style="width: 100%" />
         <div class="form-help">请求超时时间，单位秒，默认值为120秒，减少该值可以极大提高刮削速度，但可能会导致AI识别失败</div>
       </el-form-item>
 
@@ -122,12 +122,6 @@ const formRules = computed(() => {
     aiModelName: [
       {
         message: '请输入模型名称',
-        trigger: 'blur'
-      }
-    ],
-    ai_timeout: [
-      {
-        message: '请输入请求超时时间',
         trigger: 'blur'
       }
     ]

@@ -498,12 +498,15 @@
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { inject, onMounted, ref, reactive, watch, onUnmounted } from 'vue'
+// import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Loading, Folder, Edit, Delete, Refresh, VideoPause } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { formatTime } from '@/utils/timeUtils'
 import { isMobile } from '@/utils/deviceUtils'
 import { sourceTypeOptions, sourceTypeTagMap, sourceTypeMap } from '@/utils/sourceTypeUtils'
+
+// const router = useRouter()
 const defaultAiPrompt = "从文件名中提取出电影名称、年份; 名称中不能有特殊字符如点、下划线、横杠、斜杠等; 如果文件中有tmdbid（格式{tmdbid-123455}）也返回tmdbid\n"
 const defaultAiPrompSuffix = '\n输出格式：请严格按照以下JSON格式输出，不要添加任何其他内容：{"name": "提取的影视剧名称", "year": 年份或0}\n现在请处理文件名：{{filename}}'
 interface ScrapePath {

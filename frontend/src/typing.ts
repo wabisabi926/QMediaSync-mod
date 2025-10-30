@@ -67,6 +67,23 @@ interface TelegramSetting {
   telegram_user_id: string
 }
 
+interface DirInfo {
+  id: string
+  name: string
+  path: string
+}
+
+// 账户信息接口
+interface CloudAccount {
+  id: number
+  name: string
+  source_type: string
+  user_id: string
+  username: string
+  created_at: number
+  token: string
+}
+
 export type {
   oo5Account,
   LibForm,
@@ -78,4 +95,6 @@ export type {
   Setting,
   BasicSetting,
   TelegramSetting,
+  DirInfo,
+  CloudAccount,
 }

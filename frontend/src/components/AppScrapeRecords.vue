@@ -114,9 +114,6 @@
               <p class="path-text">Tmdb ID: {{ row.tmdb_id }}</p>
               <p class="path-text">识别名称: {{ row.media_name }} 年份：{{ row.year }}</p>
               <p class="path-text">原始名称: {{ row.original_name }}</p>
-              <p class="path-text">流派: {{ row.genre }}</p>
-              <p class="path-text">国家: {{ row.country }}</p>
-              <p class="path-text">语言: {{ row.language }}</p>
             </div>
           </template>
         </el-table-column>
@@ -281,15 +278,11 @@ interface ScrapeRecord {
   new_dest_path: string
   new_dest_name: string
   path_is_scraping: boolean
-  path_is_renaming: boolean
   source_full_path: string
   dest_full_path: string
   source_type: string
   rename_type: string
   scrape_type: string
-  genre: string
-  country: string
-  language: string
 }
 
 // 状态变量

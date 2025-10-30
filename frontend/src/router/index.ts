@@ -16,6 +16,7 @@ import AppScrapePathes from '@/components/AppScrapePathes.vue'
 import AppScrapeRecords from '@/components/AppScrapeRecords.vue'
 import AppUploadQueue from '@/components/AppUploadQueue.vue'
 import AppDownloadQueue from '@/components/AppDownloadQueue.vue'
+import AppScrapePathAdd from '@/components/AppScrapePathAdd.vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
@@ -100,6 +101,15 @@ const routes = [
     component: AppScrapePathes,
     meta: {
       title: '刮削目录',
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/scrape-add',
+    name: 'scrape-add',
+    component: AppScrapePathAdd,
+    meta: {
+      title: '添加刮削目录',
       requiresAuth: true,
     },
   },

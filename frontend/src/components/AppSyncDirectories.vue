@@ -14,14 +14,15 @@
           </div>
           <div class="header-right">
             <el-button type="primary" @click="showAddDialog = true">
-              <el-icon><Plus /></el-icon>
+              <el-icon>
+                <Plus />
+              </el-icon>
               添加同步目录
             </el-button>
           </div>
         </div>
       </template>
-      <div
-        style="
+      <div style="
           width: 100%;
           height: 100%;
           display: flex;
@@ -29,22 +30,12 @@
           gap: 6px;
           justify-content: start;
           align-items: top;
-        "
-      >
-        <el-card
-          style="min-width: 320px"
-          shadow="hover"
-          v-for="(row, index) in directories"
-          :key="row.id || index"
-        >
+        ">
+        <el-card style="min-width: 320px" shadow="hover" v-for="(row, index) in directories" :key="row.id || index">
           <template #header>
             <div class="card-header">
               <div class="card-title">
-                <el-tooltip
-                  class="box-item"
-                  :content="'目录ID：' + row.base_cid"
-                  placement="bottom"
-                >
+                <el-tooltip class="box-item" :content="'目录ID：' + row.base_cid" placement="bottom">
                   #{{ row.id }} {{ row.remote_path }}
                 </el-tooltip>
               </div>
@@ -82,61 +73,28 @@
             </div>
 
             <div class="info-item">
-              <el-tooltip
-                class="box-item"
-                effect="dark"
-                content="开启后会根据strm设置中的cron表达式定时同步数据，如果该同步目录内的资源变动概率较小，建议关闭定时同步，然后有变动时手动同步"
-                placement="bottom"
-              >
+              <el-tooltip class="box-item" effect="dark"
+                content="开启后会根据strm设置中的cron表达式定时同步数据，如果该同步目录内的资源变动概率较小，建议关闭定时同步，然后有变动时手动同步" placement="bottom">
                 <span class="info-label">
-                  <el-icon><Warning /></el-icon> 定时同步:
+                  <el-icon>
+                    <Warning />
+                  </el-icon> 定时同步:
                 </span>
               </el-tooltip>
-              <el-switch
-                v-model="row.enable_cron"
-                :active-value="true"
-                :inactive-value="false"
-                @change="toggleCron(row)"
-                active-color="#13ce66"
-                inactive-color="#dcdfe6"
-              />
+              <el-switch v-model="row.enable_cron" :active-value="true" :inactive-value="false"
+                @change="toggleCron(row)" active-color="#13ce66" inactive-color="#dcdfe6" />
             </div>
           </div>
           <template #footer>
             <div class="card-actions">
-              <el-button
-                type="warning"
-                size="small"
-                @click="handleFullStart(row, index)"
-                :loading="row.starting"
-                :icon="VideoPlay"
-                v-if="row.source_type === '115'"
-                >全量同步</el-button
-              >
-              <el-button
-                type="success"
-                size="small"
-                @click="handleStart(row, index)"
-                :loading="row.starting"
-                :icon="VideoPlay"
-                >同步</el-button
-              >
-              <el-button
-                type="primary"
-                size="small"
-                @click="handleEdit(row)"
-                :loading="row.editing"
-                :icon="Edit"
-                >编辑</el-button
-              >
-              <el-button
-                type="danger"
-                size="small"
-                @click="handleDelete(row, index)"
-                :loading="row.deleting"
-                :icon="Delete"
-                >删除</el-button
-              >
+              <el-button type="warning" size="small" @click="handleFullStart(row, index)" :loading="row.starting"
+                :icon="VideoPlay" v-if="row.source_type === '115' && row.sync_full_path">全量同步</el-button>
+              <el-button type="success" size="small" @click="handleStart(row, index)" :loading="row.starting"
+                :icon="VideoPlay">同步</el-button>
+              <el-button type="primary" size="small" @click="handleEdit(row)" :loading="row.editing"
+                :icon="Edit">编辑</el-button>
+              <el-button type="danger" size="small" @click="handleDelete(row, index)" :loading="row.deleting"
+                :icon="Delete">删除</el-button>
             </div>
           </template>
         </el-card>
@@ -144,7 +102,9 @@
         <el-col v-if="directories.length === 0 && !loading" :span="24" class="empty-card-col">
           <el-card shadow="never" class="empty-card">
             <div class="empty-content">
-              <el-icon class="empty-icon"><Folder /></el-icon>
+              <el-icon class="empty-icon">
+                <Folder />
+              </el-icon>
               <p class="empty-text">暂无同步目录</p>
             </div>
           </el-card>
@@ -153,31 +113,14 @@
     </el-card>
 
     <!-- 添加同步目录对话框 -->
-    <el-dialog
-      v-model="showAddDialog"
-      title="添加同步目录"
-      :width="checkIsMobile ? '90%' : '600px'"
-      :close-on-click-modal="false"
-    >
-      <el-form
-        ref="addFormRef"
-        :model="addForm"
-        :rules="addFormRules"
-        label-width="120px"
-        :label-position="checkIsMobile ? 'top' : 'left'"
-      >
+    <el-dialog v-model="showAddDialog" title="添加同步目录" :width="checkIsMobile ? '90%' : '600px'"
+      :close-on-click-modal="false">
+      <el-form ref="addFormRef" :model="addForm" :rules="addFormRules" label-width="160px"
+        :label-position="checkIsMobile ? 'top' : 'left'">
         <el-form-item label="同步源类型" prop="source_type">
-          <el-select
-            v-model="addForm.source_type"
-            placeholder="请选择同步源类型"
-            @change="handleSourceTypeChange"
-          >
-            <el-option
-              v-for="typeItem in sourceTypeOptions"
-              :key="typeItem.value"
-              :label="typeItem.label"
-              :value="typeItem.value"
-            ></el-option>
+          <el-select v-model="addForm.source_type" placeholder="请选择同步源类型" @change="handleSourceTypeChange">
+            <el-option v-for="typeItem in sourceTypeOptions" :key="typeItem.value" :label="typeItem.label"
+              :value="typeItem.value"></el-option>
           </el-select>
           <div class="form-tip">
             <div v-if="addForm.source_type === 'local'">
@@ -188,36 +131,19 @@
           </div>
         </el-form-item>
         <el-form-item label="网盘账号" prop="account_id" v-if="addForm.source_type !== 'local'">
-          <el-select
-            v-model="addForm.account_id"
-            placeholder="请选择网盘账号"
-            :loading="accountsLoading"
-            :disabled="addLoading"
-          >
-            <el-option
-              v-for="account in accounts"
-              :key="account.id"
-              :label="account.name"
-              :value="account.id"
-            ></el-option>
+          <el-select v-model="addForm.account_id" placeholder="请选择网盘账号" :loading="accountsLoading"
+            :disabled="addLoading">
+            <el-option v-for="account in accounts" :key="account.id" :label="account.name"
+              :value="account.id"></el-option>
           </el-select>
           <div class="form-tip">选择用于同步的网盘账号</div>
         </el-form-item>
-        <el-form-item
-          label="来源路径"
-          prop="base_cid"
-          v-if="
-            (addForm.source_type !== 'local' && addForm.account_id) ||
-            addForm.source_type === 'local'
-          "
-        >
+        <el-form-item label="来源路径" prop="base_cid" v-if="
+          (addForm.source_type !== 'local' && addForm.account_id) ||
+          addForm.source_type === 'local'
+        ">
           <div class="pan-dir-input">
-            <el-input
-              v-model="addForm.base_cid"
-              placeholder="点击选择按钮选择网盘目录"
-              :disabled="addLoading"
-              readonly
-            />
+            <el-input v-model="addForm.base_cid" placeholder="点击选择按钮选择网盘目录" :disabled="addLoading" readonly />
             <el-button type="primary" @click="openDirSelector(false)" :disabled="addLoading">
               选择目录
             </el-button>
@@ -228,21 +154,12 @@
           </div>
           <div class="form-tip">选择网盘中要同步的目录</div>
         </el-form-item>
-        <el-form-item
-          label="目标路径"
-          prop="local_path"
-          v-if="
-            (addForm.source_type !== 'local' && addForm.account_id) ||
-            addForm.source_type === 'local'
-          "
-        >
+        <el-form-item label="目标路径" prop="local_path" v-if="
+          (addForm.source_type !== 'local' && addForm.account_id) ||
+          addForm.source_type === 'local'
+        ">
           <div class="pan-dir-input">
-            <el-input
-              v-model="addForm.local_path"
-              placeholder="点击选择按钮选择本地目录"
-              :disabled="addLoading"
-              readonly
-            />
+            <el-input v-model="addForm.local_path" placeholder="点击选择按钮选择本地目录" :disabled="addLoading" readonly />
             <el-button type="primary" @click="openDirSelector(true)" :disabled="addLoading">
               选择目录
             </el-button>
@@ -250,56 +167,41 @@
           <div class="form-tip">选择本地目录作为STRM文件的存放位置</div>
         </el-form-item>
 
-        <el-form-item
-          label="STRM存放目录"
-          v-if="
-            (addForm.source_type !== 'local' && addForm.account_id) ||
-            addForm.source_type === 'local'
-          "
-        >
-          <el-input
-            v-model="addForm.strm_path"
-            placeholder="自动计算：本地目录 + 选中目录路径"
-            :disabled="true"
-            readonly
-          />
+        <el-form-item label="STRM存放目录" v-if="
+          (addForm.source_type !== 'local' && addForm.account_id) ||
+          addForm.source_type === 'local'
+        ">
+          <el-input v-model="addForm.strm_path" placeholder="自动计算：本地目录 + 选中目录路径" :disabled="true" readonly />
           <div class="form-tip">STRM和元数据实际存放目录（自动生成）</div>
         </el-form-item>
+        <el-form-item label="是否同步完整路径" prop="sync_full_path" v-if="addForm.source_type == '115'">
+          <el-switch v-model="addForm.sync_full_path" :active-value="true" :inactive-value="false"
+            :disabled="addLoading" />
+          <div class="form-tip">
+            如果目录内的影视剧没有刮削或者目录内都是电视剧，请开启<br /><br />
+            如果关闭：将使用115文件ID作为文件夹名，这将极大提高同步速度，但是需要目录内的影视剧都是刮削好的 <br />
+            如果开启，将查询每一个文件的实际路径，然后创建对应结构的文件夹，这将极大降低同步速度
+          </div>
+        </el-form-item>
         <el-form-item label="是否自定义设置" prop="custom_config">
-          <el-switch
-            v-model="addForm.custom_config"
-            :active-value="true"
-            :inactive-value="false"
-            :disabled="addLoading"
-          />
+          <el-switch v-model="addForm.custom_config" :active-value="true" :inactive-value="false"
+            :disabled="addLoading" />
           <div class="form-tip">
             开启后可自定义视频扩展名和元数据扩展名配置，否则使用strm设置中的值
           </div>
         </el-form-item>
 
         <el-form-item label="视频扩展名" prop="video_ext" v-if="addForm.custom_config">
-          <el-input-tag
-            v-model="addForm.video_ext"
-            placeholder="输入扩展名后按回车添加，如：.mp4"
-            :disabled="addLoading"
-          />
+          <el-input-tag v-model="addForm.video_ext" placeholder="输入扩展名后按回车添加，如：.mp4" :disabled="addLoading" />
           <div class="form-tip">指定需要生成STRM文件的视频文件扩展名</div>
         </el-form-item>
 
         <el-form-item label="元数据扩展名" prop="meta_ext" v-if="addForm.custom_config">
-          <el-input-tag
-            v-model="addForm.meta_ext"
-            placeholder="输入扩展名后按回车添加，如：.nfo"
-            :disabled="addLoading"
-          />
+          <el-input-tag v-model="addForm.meta_ext" placeholder="输入扩展名后按回车添加，如：.nfo" :disabled="addLoading" />
           <div class="form-tip">指定需要同步的元数据文件扩展名</div>
         </el-form-item>
         <el-form-item label="排除文件名" prop="exclude_name" v-if="addForm.custom_config">
-          <el-input-tag
-            v-model="addForm.exclude_name"
-            placeholder="输入文件名后按回车添加，如：.nfo"
-            :disabled="addLoading"
-          />
+          <el-input-tag v-model="addForm.exclude_name" placeholder="输入文件名后按回车添加，如：.nfo" :disabled="addLoading" />
           <div class="form-tip">指定需要排除同步的名称，必须输入完整，可以是文件夹名字或者文件名字</div>
         </el-form-item>
       </el-form>
@@ -313,27 +215,13 @@
     </el-dialog>
 
     <!-- 编辑同步目录对话框 -->
-    <el-dialog
-      v-model="showEditDialog"
-      title="编辑同步目录"
-      :width="checkIsMobile ? '90%' : '600px'"
-      :close-on-click-modal="false"
-    >
-      <el-form
-        ref="editFormRef"
-        :model="editForm"
-        :rules="editFormRules"
-        label-width="120px"
-        :label-position="checkIsMobile ? 'top' : 'left'"
-      >
+    <el-dialog v-model="showEditDialog" title="编辑同步目录" :width="checkIsMobile ? '90%' : '600px'"
+      :close-on-click-modal="false">
+      <el-form ref="editFormRef" :model="editForm" :rules="editFormRules" label-width="160px"
+        :label-position="checkIsMobile ? 'top' : 'left'">
         <el-form-item label="来源路径" prop="base_cid">
           <div class="pan-dir-input">
-            <el-input
-              v-model="editForm.base_cid"
-              placeholder="点击选择按钮选择115网盘目录"
-              :disabled="editLoading"
-              readonly
-            />
+            <el-input v-model="editForm.base_cid" placeholder="点击选择按钮选择115网盘目录" :disabled="editLoading" readonly />
             <el-button type="primary" @click="openEditDirSelector(false)" :disabled="editLoading">
               选择目录
             </el-button>
@@ -346,12 +234,7 @@
         </el-form-item>
         <el-form-item label="目标路径" prop="local_path">
           <div class="pan-dir-input">
-            <el-input
-              v-model="editForm.local_path"
-              placeholder="点击选择按钮选择本地目录"
-              :disabled="editLoading"
-              readonly
-            />
+            <el-input v-model="editForm.local_path" placeholder="点击选择按钮选择本地目录" :disabled="editLoading" readonly />
             <el-button type="primary" @click="openEditDirSelector(true)" :disabled="editLoading">
               选择目录
             </el-button>
@@ -359,49 +242,28 @@
           <div class="form-tip">选择本地目录作为STRM文件的存放位置</div>
         </el-form-item>
         <el-form-item label="STRM存放目录">
-          <el-input
-            v-model="editForm.strm_path"
-            placeholder="自动计算：本地目录 + 选中目录路径"
-            :disabled="true"
-            readonly
-          />
+          <el-input v-model="editForm.strm_path" placeholder="自动计算：本地目录 + 选中目录路径" :disabled="true" readonly />
           <div class="form-tip">STRM和元数据实际存放目录（自动生成）</div>
         </el-form-item>
         <el-form-item label="是否自定义设置" prop="custom_config">
-          <el-switch
-            v-model="editForm.custom_config"
-            :active-value="true"
-            :inactive-value="false"
-            :disabled="editLoading"
-          />
+          <el-switch v-model="editForm.custom_config" :active-value="true" :inactive-value="false"
+            :disabled="editLoading" />
           <div class="form-tip">
             开启后可自定义视频扩展名和元数据扩展名配置，否则使用strm设置中的值
           </div>
         </el-form-item>
 
         <el-form-item label="视频扩展名" prop="video_ext" v-if="editForm.custom_config">
-          <el-input-tag
-            v-model="editForm.video_ext"
-            placeholder="输入扩展名后按回车添加，如：.mp4"
-            :disabled="editLoading"
-          />
+          <el-input-tag v-model="editForm.video_ext" placeholder="输入扩展名后按回车添加，如：.mp4" :disabled="editLoading" />
           <div class="form-tip">指定需要生成STRM文件的视频文件扩展名</div>
         </el-form-item>
 
         <el-form-item label="元数据扩展名" prop="meta_ext" v-if="editForm.custom_config">
-          <el-input-tag
-            v-model="editForm.meta_ext"
-            placeholder="输入扩展名后按回车添加，如：.nfo"
-            :disabled="editLoading"
-          />
+          <el-input-tag v-model="editForm.meta_ext" placeholder="输入扩展名后按回车添加，如：.nfo" :disabled="editLoading" />
           <div class="form-tip">指定需要同步的元数据文件扩展名</div>
         </el-form-item>
         <el-form-item label="排除文件名" prop="exclude_name" v-if="editForm.custom_config">
-          <el-input-tag
-            v-model="editForm.exclude_name"
-            placeholder="输入文件名后按回车添加，如：.nfo"
-            :disabled="editLoading"
-          />
+          <el-input-tag v-model="editForm.exclude_name" placeholder="输入文件名后按回车添加，如：.nfo" :disabled="editLoading" />
           <div class="form-tip">指定需要排除同步的名称，必须输入完整，可以是文件夹名字或者文件名字</div>
         </el-form-item>
       </el-form>
@@ -417,29 +279,24 @@
     </el-dialog>
 
     <!-- 目录选择对话框 -->
-    <el-dialog
-      v-model="showDirDialog"
-      :title="isSelectingLocalPath ? '选择目标目录' : '选择来源目录'"
-      :width="checkIsMobile ? '90%' : '600px'"
-      :close-on-click-modal="false"
-    >
+    <el-dialog v-model="showDirDialog" :title="isSelectingLocalPath ? '选择目标目录' : '选择来源目录'"
+      :width="checkIsMobile ? '90%' : '600px'" :close-on-click-modal="false">
       <div class="dir-selector">
         <el-scrollbar height="400px">
           <div v-if="dirTreeLoading" class="loading-container">
-            <el-icon class="is-loading"><Loading /></el-icon>
+            <el-icon class="is-loading">
+              <Loading />
+            </el-icon>
             <p>加载中...</p>
           </div>
           <div v-else-if="dirTreeData.length === 0" class="empty-container">
             <p>暂无目录</p>
           </div>
           <div v-else class="dir-list">
-            <div
-              v-for="dir in dirTreeData"
-              :key="dir.id"
-              class="dir-item"
-              @click="selectTempDir(dir)"
-            >
-              <el-icon><Folder /></el-icon>
+            <div v-for="dir in dirTreeData" :key="dir.id" class="dir-item" @click="selectTempDir(dir)">
+              <el-icon>
+                <Folder />
+              </el-icon>
               <span class="dir-name">{{ dir.name }}</span>
             </div>
           </div>
@@ -497,6 +354,7 @@ interface SyncDirectory {
   meta_ext_arr?: string[]
   exclude_name_arr?: string[]
   enable_cron?: boolean
+  sync_full_path?: boolean
 }
 
 interface DirInfo {
@@ -565,6 +423,7 @@ const addForm = reactive({
   meta_ext: [] as string[],
   exclude_name: [] as string[],
   remote_path: '',
+  sync_full_path: false,
 })
 
 // 编辑对话框状态
@@ -692,6 +551,7 @@ const handleAdd = async () => {
       video_ext: addForm.video_ext,
       meta_ext: addForm.meta_ext,
       exclude_name: addForm.exclude_name,
+      sync_full_path: addForm.sync_full_path,
     }
 
     const response = await http?.post(`${SERVER_URL}/sync/path-add`, formData, {
@@ -1059,7 +919,7 @@ const openEditDirSelector = async (isLocalPath: boolean = false) => {
   selectedSourceType.value = isLocalPath ? 'local' : editForm.source_type
   selectedAccountId.value = editForm.account_id
   // 构造一个DirInfo对象
-  const  dir = {
+  const dir = {
     id: editForm.local_path,
     path: editForm.local_path,
     name: editForm.local_path
@@ -1181,6 +1041,7 @@ onUnmounted(() => {
   max-width: 100%;
   border: 0;
 }
+
 .full-width-card .el-card__header {
   padding: 0 !important;
 }

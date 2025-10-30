@@ -294,6 +294,7 @@ const getCurrentPageTitle = (): string => {
     '/proxy': '网络代理',
     '/sync-records': '同步记录',
     '/sync-directories': '同步目录',
+    '/scrape-pathes': '刮削目录',
   }
   return titleMap[route.path] || '首页'
 }
@@ -309,6 +310,9 @@ const getDefaultOpeneds = () => {
   }
   if (route.path.startsWith('/sync')) {
     openeds.push('/sync')
+  }
+  if (route.path.startsWith('/scrape')) {
+    openeds.push('/scrape')
   }
   return openeds
 }

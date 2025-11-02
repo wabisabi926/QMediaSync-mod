@@ -6,7 +6,9 @@
         <div class="card-header">
           <div class="header-left">
             <el-button type="primary" @click="goBack" size="small" link>
-              <el-icon><ArrowLeft /></el-icon>
+              <el-icon>
+                <ArrowLeft />
+              </el-icon>
               返回同步记录
             </el-button>
             <h2 class="card-title">同步任务详情 #{{ taskId }}</h2>
@@ -28,12 +30,7 @@
               <span v-else>-</span>
             </el-descriptions-item>
             <el-descriptions-item label="子状态">
-              <el-tag
-                v-if="taskInfo && taskInfo.status === 1"
-                type="primary"
-                size="small"
-                effect="light"
-              >
+              <el-tag v-if="taskInfo && taskInfo.status === 1" type="primary" size="small" effect="light">
                 {{ getSubStatusText(taskInfo.sub_status) }}
               </el-tag>
               <span v-else>-</span>
@@ -63,12 +60,8 @@
         <div class="execution-timeline" v-if="taskInfo">
           <h3>执行时间线</h3>
           <div class="horizontal-timeline">
-            <div
-              v-for="(item, index) in getTimelineItems()"
-              :key="index"
-              class="timeline-step"
-              :class="{ completed: item.completed, current: item.current }"
-            >
+            <div v-for="(item, index) in getTimelineItems()" :key="index" class="timeline-step"
+              :class="{ completed: item.completed, current: item.current }">
               <div class="step-icon">
                 <el-icon :class="{ loading: item.current && !item.completed }">
                   <component :is="item.icon" />
@@ -76,70 +69,16 @@
               </div>
               <div class="step-content">
                 <div class="step-title">{{ item.title }}</div>
-                <div class="step-time" v-if="item.time !== '进行中...'">{{ item.time }}</div>
-                <div class="step-duration" v-if="item.duration && item.completed">
+                <div class="step-time" v-if="item.time && item.time !== '进行中...'">{{ item.time }}</div>
+                <div class="step-time" v-else-if="item.time === '进行中...'">进行中...</div>
+                <div class="step-duration" v-if="item.duration">
                   耗时: {{ item.duration }}
                 </div>
               </div>
-              <div
-                v-if="index < getTimelineItems().length - 1"
-                class="step-connector"
-                :class="{ active: item.completed }"
-              ></div>
+              <div v-if="index < getTimelineItems().length - 1" class="step-connector"
+                :class="{ active: item.completed }">
+              </div>
             </div>
-          </div>
-        </div>
-
-        <!-- 文件对比表格 -->
-        <div class="file-compare-table">
-          <h3>文件对比</h3>
-          <div class="table-container" v-loading="logsLoading">
-            <el-table
-              :data="compareData"
-              stripe
-              class="compare-table"
-              empty-text="暂无对比数据"
-              max-height="500"
-            >
-              <el-table-column prop="left" label="网盘文件" min-width="300">
-                <template #default="scope">
-                  <div class="file-paths">
-                    <div class="file-path">
-                      {{ scope.row.left }}
-                    </div>
-                  </div>
-                </template>
-              </el-table-column>
-              <el-table-column prop="right" label="本地文件" min-width="300">
-                <template #default="scope">
-                  <div class="file-paths">
-                    <div class="file-path">
-                      {{ scope.row.right }}
-                    </div>
-                  </div>
-                </template>
-              </el-table-column>
-              <el-table-column prop="status" label="状态" width="120" align="center">
-                <template #default="scope">
-                  <el-tag :type="getCompareStatusType(scope.row.status)" size="small">
-                    {{ getCompareStatusText(scope.row.status) }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-            </el-table>
-
-            <!-- 分页器 -->
-            <el-pagination
-              v-if="compareTotal > 0"
-              v-model:current-page="compareCurrentPage"
-              v-model:page-size="comparePageSize"
-              :total="compareTotal"
-              :page-sizes="[50, 100, 200]"
-              layout="total, sizes, prev, pager, next, jumper"
-              class="compare-pagination"
-              @size-change="handleComparePageSizeChange"
-              @current-change="handleComparePageChange"
-            />
           </div>
         </div>
       </div>
@@ -168,22 +107,15 @@ interface TaskInfo {
   start_time: number
   end_time: number | null
   status: 0 | 1 | 2 | 3 // 0-待开始，1-运行中，2-完成，3-失败
-  sub_status: 0 | 1 | 2 // 0-待开始，1-正在收集文件列表，2-正在生成或下载文件
+  sub_status: 0 | 1 | 2 // 0-待开始，1-正在处理网盘文件列表，2-正在处理本地文件列表
   processed_files: number
   created_strm: number
   downloaded_meta: number
   // 时间线相关字段
-  fetch_file_finish_at: number | null
-  fetch_dir_finish_at: number | null
-  compare_finish_at: number | null
-  new_finish_at: number | null
-}
-
-// 定义文件对比项接口
-interface CompareItem {
-  left: string
-  right: string
-  status: 'same' | 'create' | 'update' | 'delete' | 'upload' | 'download'
+  net_file_start_at: number | null
+  net_file_finish_at: number | null
+  local_file_start_at: number | null
+  local_file_finish_at: number | null
 }
 
 const http: AxiosStatic | undefined = inject('$http')
@@ -195,14 +127,7 @@ const taskId = ref(route.params.id as string)
 
 // 数据状态
 const taskInfo = ref<TaskInfo | null>(null)
-const compareData = ref<CompareItem[]>([])
 const infoLoading = ref(false)
-const logsLoading = ref(false)
-
-// 对比数据分页
-const compareCurrentPage = ref(1)
-const comparePageSize = ref(100)
-const compareTotal = ref(0)
 
 // 定时器相关
 const refreshTimer = ref<number | null>(null)
@@ -283,9 +208,9 @@ const getSubStatusText = (subStatus: number) => {
     case 0:
       return '待开始'
     case 1:
-      return '正在收集文件列表'
+      return '正在处理网盘文件'
     case 2:
-      return '正在生成或下载文件'
+      return '正在处理本地文件'
     default:
       return '未知'
   }
@@ -322,144 +247,77 @@ const formatDuration = (duration: number) => {
   }
 }
 
-// 获取对比状态标签类型
-const getCompareStatusType = (status: string) => {
-  switch (status) {
-    case 'create':
-      return 'success' // 新增
-    case 'download':
-      return 'success' // 下载
-    case 'upload':
-      return 'success' // 上传
-    case 'update':
-      return 'warning' // 更新
-    case 'delete':
-      return 'danger' // 删除
-    case 'same':
-      return 'info' // 不处理
-    default:
-      return 'info'
-  }
-}
-
-// 获取对比状态文本
-const getCompareStatusText = (status: string) => {
-  switch (status) {
-    case 'create':
-      return '新增'
-    case 'update':
-      return '更新'
-    case 'delete':
-      return '删除'
-    case 'same':
-      return '不处理'
-    case 'download':
-      return '下载'
-    case 'upload':
-      return '上传'
-    default:
-      return '未知'
-  }
-}
-
 // 获取时间线项目
 const getTimelineItems = () => {
   if (!taskInfo.value) return []
 
-  const allSteps = [
-    {
-      key: 'start',
-      title: '开始任务',
-      icon: Clock,
-      timeField: 'start_time',
-    },
-    {
-      key: 'fetch_file',
-      title: '收集文件列表',
-      icon: Document,
-      timeField: 'fetch_file_finish_at',
-    },
-    {
-      key: 'generate',
-      title: '生成或下载文件',
-      icon: Download,
-      timeField: 'new_finish_at',
-    },
-    {
-      key: 'finish',
-      title: '完成任务',
-      icon: SuccessFilled,
-      timeField: 'end_time',
-    },
-  ]
-
   const items = []
-  let previousTime = 0
 
-  for (let i = 0; i < allSteps.length; i++) {
-    const step = allSteps[i]
-    const currentTime =
-      step.timeField === 'start_time'
-        ? taskInfo.value.start_time
-        : (taskInfo.value[step.timeField as keyof TaskInfo] as number | null)
+  // 阶段1: 开始
+  const startTime = taskInfo.value.start_time
+  items.push({
+    title: '开始任务',
+    time: startTime ? formatDateTime(startTime) : '未开始',
+    icon: Clock,
+    duration: null, // 不计算时长
+    completed: !!startTime,
+    current: taskInfo.value.status === 1 && taskInfo.value.sub_status === 0 && !taskInfo.value.net_file_start_at
+  })
 
-    const completed = currentTime !== null && currentTime > 0
+  // 阶段2: 处理网盘文件
+  const netFileStartAt = taskInfo.value.net_file_start_at
+  const netFileFinishAt = taskInfo.value.net_file_finish_at
+  const netFileCompleted = netFileStartAt && netFileFinishAt
+  const netFileCurrent = taskInfo.value.status === 1 && taskInfo.value.sub_status === 1
 
-    // 判断是否为当前正在执行的步骤
-    let current = false
-    if (taskInfo.value.status === 1) {
-      // 任务运行中
-      if (step.key === 'start') {
-        current = taskInfo.value.sub_status === 0
-      } else if (step.key === 'fetch_file') {
-        current = taskInfo.value.sub_status === 1
-      } else if (step.key === 'generate') {
-        current = taskInfo.value.sub_status === 2
-      }
-    }
-
-    // 检查前一个节点是否已完成，如果是且当前节点未开始，则设为进行中
-    if (!completed && !current && i > 0) {
-      const prevItem = items[i - 1]
-      if (prevItem && prevItem.completed) {
-        current = true
-      }
-    }
-
-    let duration = null
-    if (completed && previousTime > 0) {
-      duration = formatDuration(currentTime! - previousTime)
-    }
-
-    let title = step.title
-    let time = '未开始'
-
-    if (completed) {
-      // 对开始任务和完成任务进行特殊处理
-      if (step.key === 'start' || step.key === 'finish') {
-        title = step.title
-      } else {
-        title = `已完成${step.title}`
-      }
-      time = formatDateTime(currentTime!)
-    } else if (current) {
-      title = `正在${step.title}`
-      time = '进行中...'
-    }
-
-    items.push({
-      title,
-      time,
-      icon: current ? Loading : step.icon,
-      duration,
-      completed,
-      current,
-    })
-
-    if (completed) {
-      previousTime = currentTime!
-    }
+  let netFileDuration = null
+  if (netFileCompleted) {
+    netFileDuration = formatDuration(netFileFinishAt! - netFileStartAt!)
   }
+
+  items.push({
+    title: netFileCompleted ? '已完成处理网盘文件' : (netFileCurrent ? '正在处理网盘文件' : '处理网盘文件'),
+    time: netFileStartAt ?
+      (netFileFinishAt ? formatDateTime(netFileStartAt) : '进行中...') :
+      '未开始',
+    icon: netFileCurrent ? Loading : Document,
+    duration: netFileDuration,
+    completed: !!netFileCompleted,
+    current: netFileCurrent
+  })
+
+  // 阶段3: 处理本地文件
+  const localFileStartAt = taskInfo.value.local_file_start_at
+  const localFileFinishAt = taskInfo.value.local_file_finish_at
+  const localFileCompleted = localFileStartAt && localFileFinishAt
+  const localFileCurrent = taskInfo.value.status === 1 && taskInfo.value.sub_status === 2
+
+  let localFileDuration = null
+  if (localFileCompleted) {
+    localFileDuration = formatDuration(localFileFinishAt! - localFileStartAt!)
+  }
+
+  items.push({
+    title: localFileCompleted ? '已完成处理本地文件' : (localFileCurrent ? '正在处理本地文件' : '处理本地文件'),
+    time: localFileStartAt ?
+      (localFileFinishAt ? formatDateTime(localFileStartAt) : '进行中...') :
+      '未开始',
+    icon: localFileCurrent ? Loading : Download,
+    duration: localFileDuration,
+    completed: !!localFileCompleted,
+    current: localFileCurrent
+  })
+
+  // 阶段4: 结束
+  const endTime = taskInfo.value.end_time
+  items.push({
+    title: '完成任务',
+    time: endTime ? formatDateTime(endTime) : '未完成',
+    icon: SuccessFilled,
+    duration: null, // 不计算时长
+    completed: !!endTime,
+    current: false
+  })
 
   return items
 }
@@ -481,10 +339,10 @@ const loadTaskInfo = async () => {
         processed_files: data.total,
         created_strm: data.new_strm,
         downloaded_meta: data.new_meta || 0,
-        fetch_file_finish_at: data.fetch_file_finish_at || null,
-        fetch_dir_finish_at: data.fetch_dir_finish_at || null,
-        compare_finish_at: data.compare_finish_at || null,
-        new_finish_at: data.new_finish_at || null,
+        net_file_start_at: data.net_file_start_at || null,
+        net_file_finish_at: data.net_file_finish_at || null,
+        local_file_start_at: data.local_file_start_at || null,
+        local_file_finish_at: data.local_file_finish_at || null,
       }
     }
   } catch (error) {
@@ -496,50 +354,9 @@ const loadTaskInfo = async () => {
   }
 }
 
-// 加载文件对比数据
-const loadCompareData = async () => {
-  try {
-    logsLoading.value = true
-    const response = await http?.get(`${SERVER_URL}/sync/task/compare?sync_id=${taskId.value}`, {
-      params: {
-        page: compareCurrentPage.value,
-        page_size: comparePageSize.value,
-      },
-    })
-
-    if (response?.data.code === 200) {
-      const data = response.data.data
-      compareData.value = data.list || []
-      compareTotal.value = data.total || 0
-    } else {
-      compareData.value = []
-      compareTotal.value = 0
-    }
-  } catch (error) {
-    console.error('加载文件对比数据错误:', error)
-    compareData.value = []
-    compareTotal.value = 0
-  } finally {
-    logsLoading.value = false
-  }
-}
-
-// 对比数据分页处理
-const handleComparePageSizeChange = (newSize: number) => {
-  comparePageSize.value = newSize
-  compareCurrentPage.value = 1
-  loadCompareData()
-}
-
-const handleComparePageChange = (newPage: number) => {
-  compareCurrentPage.value = newPage
-  loadCompareData()
-}
-
 // 页面挂载时加载数据
 onMounted(() => {
   loadTaskInfo()
-  loadCompareData()
 })
 
 // 页面卸载时清理定时器
@@ -728,9 +545,11 @@ onUnmounted(() => {
   0% {
     box-shadow: 0 0 0 0 rgba(64, 158, 255, 0.4);
   }
+
   70% {
     box-shadow: 0 0 0 10px rgba(64, 158, 255, 0);
   }
+
   100% {
     box-shadow: 0 0 0 0 rgba(64, 158, 255, 0);
   }
@@ -740,6 +559,7 @@ onUnmounted(() => {
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }

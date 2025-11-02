@@ -86,21 +86,27 @@
           </div>
           <div class="info-item">
             <span class="info-label">运行状态:</span>
-            <span class="info-value" v-if="row.is_scraping">
+            <span class="info-value" v-if="row.is_running === 2">
               <el-icon class="is-loading">
                 <Loading />
               </el-icon>
               <el-text class="mx-1" type="primary">运行中...</el-text>
             </span>
-            <span class="info-value" v-else>未执行</span>
+            <span class="info-value" v-if="row.is_running === 1">
+              <el-icon class="is-loading">
+                <Star />
+              </el-icon>
+              <el-text class="mx-1" type="primary">等待运行...</el-text>
+            </span>
+            <span class="info-value" v-if="row.is_running === 0">未执行</span>
           </div>
         </div>
         <template #footer>
           <div class="card-actions">
             <el-button type="success" size="small" @click="handleScan(row)" :loading="row.scanning" :icon="Refresh"
-              v-if="row.is_scraping === false">启动</el-button>
+              v-if="row.is_running === 0">启动</el-button>
             <el-button type="warning" size="small" @click="handleStop(row)" :loading="row.scanning" :icon="VideoPause"
-              v-if="row.is_scraping === true">停止</el-button>
+              v-if="row.is_running !== 0">停止</el-button>
             <el-button type="primary" size="small" @click="handleEdit(row)" :loading="row.editing"
               :icon="Edit">编辑</el-button>
             <el-button type="danger" size="small" @click="handleDelete(row, index)" :loading="row.deleting"
@@ -255,8 +261,13 @@
         </el-form-item>
         <el-form-item label="删除整理完的非空路径" prop="exclude_no_image_actor">
           <el-switch v-model="editForm.force_delete_source_path" :active-value="true" :inactive-value="false"
-            :disabled="editLoading" />
+            :disabled="addLoading" />
           <div class="form-tip">整理完成是否强制删除源文件所在路径（一般会遗留广告垃圾文件），如果禁用只会删除空目录</div>
+        </el-form-item>
+        <el-form-item label="刮削线程数" prop="max_threads">
+          <el-input-number v-model="addForm.max_threads" :disabled="addLoading" min="1"
+            :max="addForm.source_type === 'local' ? 20 : 5" step="1" style="width: 100%" />
+          <div class="form-help">刮削本地文件时的最大并发线程数，越高越快, 刮削网盘该值无效。默认值为5</div>
         </el-form-item>
         <el-form-item label="是否启用AI识别" prop="enable_ai">
           <el-radio-group v-model="addForm.enable_ai" placeholder="请选择AI识别模式" :disabled="addLoading" size="large">
@@ -417,6 +428,11 @@
             :disabled="editLoading" />
           <div class="form-tip">整理完成是否强制删除源文件所在路径（一般会遗留广告垃圾文件）</div>
         </el-form-item>
+        <el-form-item label="刮削线程数" prop="max_threads">
+          <el-input-number v-model="editForm.max_threads" :disabled="editLoading" min="1"
+            :max="editForm.source_type === 'local' ? 20 : 5" step="1" style="width: 100%" />
+          <div class="form-help">刮削本地文件时的最大并发线程数，越高越快, 刮削网盘该值无效。默认值为5</div>
+        </el-form-item>
         <el-form-item label="开启AI识别" prop="enable_ai">
           <el-radio-group v-model="editForm.enable_ai" placeholder="请选择AI识别模式" :disabled="editLoading" size="large">
             <el-radio-button label="off">禁用</el-radio-button>
@@ -500,7 +516,7 @@ import type { AxiosStatic } from 'axios'
 import { inject, onMounted, ref, reactive, watch, onUnmounted } from 'vue'
 // import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Loading, Folder, Edit, Delete, Refresh, VideoPause } from '@element-plus/icons-vue'
+import { Plus, Loading, Folder, Edit, Delete, Refresh, Star, VideoPause } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { formatTime } from '@/utils/timeUtils'
 import { isMobile } from '@/utils/deviceUtils'
@@ -538,7 +554,8 @@ interface ScrapePath {
   enable_cron?: boolean
   enable_fanart_tv: boolean
   is_scraping: boolean
-  is_renaming: boolean
+  is_running: number
+  max_threads: number
 }
 
 interface DirInfo {
@@ -611,7 +628,8 @@ const addForm = reactive({
   ai_prompt: '', // 默认AI提示
   force_delete_source_path: false, // 默认强制删除来源路径
   enable_cron: false, // 默认不启用定时同步
-  enable_fanart_tv: false // 默认不启用fanart.tv
+  enable_fanart_tv: false, // 默认不启用fanart.tv
+  max_threads: 5 // 默认5个线程
 })
 
 // 编辑对话框状态
@@ -640,7 +658,8 @@ const editForm = reactive({
   ai_prompt: '', // 默认AI提示
   force_delete_source_path: false, // 默认强制删除来源路径
   enable_cron: false, // 默认不启用定时同步
-  enable_fanart_tv: false // 默认不启用fanart.tv
+  enable_fanart_tv: false, // 默认不启用fanart.tv
+  max_threads: 5 // 默认5个线程
 })
 
 // 表单验证规则
@@ -819,8 +838,7 @@ const updatePathesStatus = async () => {
     for (const p of response?.data?.data || []) {
       const path = pathes.value.find(pa => pa.id === p.id)
       if (path) {
-        path.is_renaming = p.is_renaming
-        path.is_scraping = p.is_scraping
+        path.is_running = p.is_running
       }
     }
   }

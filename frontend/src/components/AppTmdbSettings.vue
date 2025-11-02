@@ -23,11 +23,6 @@
           show-password maxlength="255" />
         <div class="form-help">如果您没有申请TMDB API KEY则留空</div>
       </el-form-item>
-      <el-form-item label="刮削本地文件线程数" prop="local_max_threads">
-        <el-input-number v-model="formData.local_max_threads" :disabled="loading || !formData.tmdbApiKey" min="1"
-          max="100" step="1" style="width: 100%" />
-        <div class="form-help">刮削本地文件时的最大并发线程数，越高越快, 刮削网盘该值无效。默认值为5，只有输入自己的tmdb api key时才能调整该值</div>
-      </el-form-item>
 
       <el-form-item label="首选元数据语言" prop="tmdbLanguage">
         <el-radio-group v-model="formData.tmdbLanguage" :disabled="loading" size="large">

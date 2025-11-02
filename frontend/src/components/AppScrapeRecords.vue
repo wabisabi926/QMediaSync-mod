@@ -300,7 +300,7 @@ const selectedRecord = ref<ScrapeRecord | null>(null)
 // 分页相关
 const pagination = ref({
   currentPage: 1,
-  pageSize: 100
+  pageSize: 20
 })
 const total = ref(0)
 

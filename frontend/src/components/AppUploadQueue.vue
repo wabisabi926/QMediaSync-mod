@@ -4,51 +4,92 @@
       <div>
         <h2>上传队列</h2>
         <p>这里包含strm同步时产生的元数据的上传和刮削产生的上传任务。</p>
-        <p>列表中只有待上传的记录，如果记录变为上传中，这里就看不见了。</p>
-        <p>最多显示100条记录</p>
       </div>
       <div class="header-actions">
+        <el-button type="warning" @click="pauseAllTasks" :disabled="queueStatus === 0">全部暂停</el-button>
+        <el-button type="success" @click="resumeAllTasks" :disabled="queueStatus === 1">全部开始</el-button>
         <el-button type="primary" @click="refreshQueue">刷新</el-button>
         <el-button type="danger" @click="clearQueue">清空队列</el-button>
       </div>
     </div>
 
-    <div class="queue-stats">
-      <el-statistic :value="total">
-        <template #title>
-          <div style="display: inline-flex; align-items: center">
-            <el-text class="mx-1" type="primary">上传队列中的任务总数</el-text>
-          </div>
-        </template>
-      </el-statistic>
-      <el-statistic :value="uploading">
-        <template #title>
-          <div style="display: inline-flex; align-items: center">
-            <el-text class="mx-1" type="info">正在上传的任务总数</el-text>
-          </div>
-        </template>
-      </el-statistic>
+    <div style="display:flex; gap: 20px; align-items: center;">
+      <div class="filter-container" style="width: 120px;">
+        <el-select v-model="statusFilter" placeholder="请选择状态" @change="handleStatusChange">
+          <el-option label="全部状态" :value="-1"></el-option>
+          <el-option label="等待中" :value="0"></el-option>
+          <el-option label="下载中" :value="1"></el-option>
+          <el-option label="已完成" :value="2"></el-option>
+          <el-option label="失败" :value="3"></el-option>
+          <el-option label="已取消" :value="4"></el-option>
+        </el-select>
+      </div>
+
+
+      <div class="queue-stats">
+        <el-statistic :value="uploading">
+          <template #title>
+            <div style="display: inline-flex; align-items: center">
+              <el-text class="mx-1" type="primary">正在上传的任务总数</el-text>
+            </div>
+          </template>
+        </el-statistic>
+      </div>
     </div>
 
     <el-table :data="queueData" style="width: 100%" v-loading="loading" empty-text="暂无上传任务"
       :row-class-name="tableRowClassName">
-      <!-- <el-table-column prop="ID" label="任务ID" width="80" /> -->
-      <el-table-column prop="file_name" label="文件名" min-width="100"></el-table-column>
-      <el-table-column prop="status" label="状态" width="80">
+      <el-table-column prop="id" label="任务ID" width="80" />
+      <el-table-column prop="source" label="来源类型" width="80" />
+      <el-table-column prop="status" label="状态" width="120">
         <template #default="scope">
-          <el-tag :type="getStatusTagType(scope.row.status)">
-            {{ getStatusText(scope.row.status) }}
+          <div v-if="scope.row.error">
+            <el-tooltip :content="scope.row.error" placement="top">
+              <el-tag :type="getStatusTagType(scope.row.status)">
+                <el-icon>
+                  <WarningFilled />
+                </el-icon>
+                {{ getStatusText(scope.row.status) }}
+              </el-tag>
+            </el-tooltip>
+          </div>
+          <div v-else>
+            <el-tag :type="getStatusTagType(scope.row.status)">
+              {{ getStatusText(scope.row.status) }}
+            </el-tag>
+          </div>
+        </template>
+      </el-table-column>
+      <el-table-column prop="file_size" label="文件大小" width="100">
+        <template #default="scope">
+          {{ formatFileSize(scope.row.file_size) }}
+        </template>
+      </el-table-column>
+      <el-table-column prop="file_name" label="文件名" width="280">
+        <template #default="scope">
+          <span class="filename">{{ scope.row.file_name }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column prop="start_time" label="时间" width="260">
+        <template #default="scope">
+          开始时间：{{ scope.row.start_time ? formatDateTime(scope.row.start_time) : '-' }} <br />
+          完成时间：{{ scope.row.end_time ? formatDateTime(scope.row.end_time) : '-' }} <br />
+        </template>
+      </el-table-column>
+      <el-table-column prop="source_type" label="类型" width="80">
+        <template #default="scope">
+          <el-tag :type="getSourceTypeTagType(scope.row.source_type)">
+            {{ getSourceTypeName(scope.row.source_type) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="size" label="文件大小" width="100">
+      <el-table-column prop="speed" label="上传文件">
         <template #default="scope">
-          {{ formatFileSize(scope.row.size) }}
+          <span>{{ scope.row.local_full_path }}</span> <br />
+          => <br />
+          <span>{{ scope.row.remote_file_id }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="start_time" label="开始时间" width="140" />
-      <el-table-column prop="local_path" label="本地文件"></el-table-column>
-      <el-table-column prop="remote_path" label="目标文件"></el-table-column>
 
       <el-table-column label="操作" width="150" fixed="right">
         <!-- <template #default="scope">
@@ -70,6 +111,10 @@
           </template> -->
       </el-table-column>
     </el-table>
+    <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :page-sizes="[10, 20, 50, 100]"
+      :small="false" :disabled="false" :background="true" layout="total, sizes, prev, pager, next, jumper"
+      :total="total" @size-change="handleSizeChange" @current-change="handleCurrentChange"
+      class="pagination-container" />
   </div>
 </template>
 
@@ -80,15 +125,22 @@ import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { inject } from 'vue'
 import { formatFileSize } from '@/utils/fileSizeUtils'
+import { formatDateTime } from '@/utils/timeUtils'
 
 interface UploadTask {
   id: string
+  source: string
+  source_type: string
   file_name: string
-  local_path: string
+  local_full_path: string
   remote_path: string
-  status: number
-  size: string
-  start_time: string
+  status: 0 | 1 | 2 | 3 | 4
+  file_size: number
+  start_time: number
+  end_time: number
+  remote_file_id: string
+  error: string
+  is_season_or_tvshow_file: boolean
 }
 
 const http: AxiosStatic | undefined = inject('$http')
@@ -96,10 +148,12 @@ const http: AxiosStatic | undefined = inject('$http')
 // 数据状态
 const queueData = ref<UploadTask[]>([])
 const loading = ref(false)
-const currentPage = ref(1)
-const pageSize = ref(20)
 const total = ref(0)
 const uploading = ref(0)
+const currentPage = ref(1)
+const pageSize = ref(20)
+const statusFilter = ref(-1)
+const queueStatus = ref<0 | 1>(1) // 0-停止，1-运行中
 
 // 定时器
 const refreshTimer = ref<number | null>(null)
@@ -156,6 +210,37 @@ const tableRowClassName = ({ row }: { row: UploadTask }) => {
   }
 }
 
+const getSourceTypeName = (type: string): string => {
+  switch (type) {
+    case 'local':
+      return '本地文件'
+    case '115':
+      return '115云盘'
+    case 'openlist':
+      return 'OpenList'
+    case '123':
+      return '123云盘'
+    default:
+      return '其他'
+  }
+}
+
+// 获取类型标签类型
+const getSourceTypeTagType = (type: string): string => {
+  switch (type) {
+    case 'local':
+      return 'warning'
+    case '115':
+      return 'primary'
+    case 'openlist':
+      return 'success'
+    case '123':
+      return 'info'
+    default:
+      return 'info'
+  }
+}
+
 // 加载队列数据
 const loadQueueData = async () => {
   try {
@@ -163,7 +248,8 @@ const loadQueueData = async () => {
     const response = await http?.get(`${SERVER_URL}/upload/queue`, {
       params: {
         page: currentPage.value,
-        size: pageSize.value,
+        page_size: pageSize.value,
+        status: statusFilter.value
       },
     })
 
@@ -209,6 +295,70 @@ const clearQueue = async () => {
   }
 }
 
+
+// 全局暂停所有任务
+const pauseAllTasks = async () => {
+  try {
+    const response = await http?.post(`${SERVER_URL}/upload/queue/stop`)
+
+    if (response?.data.code === 200) {
+      ElMessage.success('已暂停所有任务')
+      loadQueueData()
+    } else {
+      ElMessage.error(`暂停所有任务失败: ${response?.data.message || ''}`)
+    }
+  } catch (error) {
+    console.error('暂停所有任务失败:', error)
+    ElMessage.error('暂停所有任务失败')
+  }
+}
+
+// 全局继续所有任务
+const resumeAllTasks = async () => {
+  try {
+    const response = await http?.post(`${SERVER_URL}/upload/queue/start`)
+
+    if (response?.data.code === 200) {
+      ElMessage.success('已开始所有任务')
+      loadQueueData()
+    } else {
+      ElMessage.error(`开始所有任务失败: ${response?.data.message || ''}`)
+    }
+  } catch (error) {
+    console.error('开始所有任务失败:', error)
+    ElMessage.error('开始所有任务失败')
+  }
+}
+
+// 获取队列状态
+const loadQueueStatus = async () => {
+  try {
+    const response = await http?.get(`${SERVER_URL}/download/queue/status`)
+
+    if (response?.data.code === 200) {
+      // 0-停止，1-运行中
+      queueStatus.value = response.data.data ? 1 : 0
+    } else {
+      console.error('获取队列状态失败:', response?.data.message)
+    }
+  } catch (error) {
+    console.error('获取队列状态错误:', error)
+  }
+}
+
+// 处理每页数量变更
+const handleSizeChange = (val: number) => {
+  pageSize.value = val
+  currentPage.value = 1
+  loadQueueData()
+}
+
+// 处理当前页变更
+const handleCurrentChange = (val: number) => {
+  currentPage.value = val
+  loadQueueData()
+}
+
 // 启动定时刷新
 const startAutoRefresh = () => {
   if (refreshTimer.value) {
@@ -219,6 +369,7 @@ const startAutoRefresh = () => {
     // 只有在页面可见时才刷新
     if (!document.hidden) {
       loadQueueData()
+      loadQueueStatus()
     }
   }, 5000)
 }
@@ -231,8 +382,16 @@ const stopAutoRefresh = () => {
   }
 }
 
+// 处理状态筛选变更
+const handleStatusChange = (val: number) => {
+  statusFilter.value = val
+  currentPage.value = 1
+  loadQueueData()
+}
+
 // 页面生命周期
 onMounted(() => {
+  loadQueueStatus()
   loadQueueData()
   startAutoRefresh()
 })

@@ -84,13 +84,31 @@
               <el-switch v-model="row.enable_cron" :active-value="true" :inactive-value="false"
                 @change="toggleCron(row)" active-color="#13ce66" inactive-color="#dcdfe6" />
             </div>
+            <div class="info-item">
+              <span class="info-label">运行状态:</span>
+              <span class="info-value" v-if="row.is_running === 2">
+                <el-icon class="is-loading">
+                  <Loading />
+                </el-icon>
+                <el-text class="mx-1" type="primary">运行中...</el-text>
+              </span>
+              <span class="info-value" v-if="row.is_running === 1">
+                <el-icon class="is-loading">
+                  <Star />
+                </el-icon>
+                <el-text class="mx-1" type="warning">等待运行...</el-text>
+              </span>
+              <span class="info-value" v-elseif="row.is_running === 0">未执行</span>
+            </div>
           </div>
           <template #footer>
             <div class="card-actions">
               <el-button type="warning" size="small" @click="handleFullStart(row, index)" :loading="row.starting"
-                :icon="VideoPlay" v-if="row.source_type === '115' && row.sync_full_path">全量同步</el-button>
+                :icon="VideoPlay" v-if="row.source_type === '115' && row.is_running === 0">全量同步</el-button>
               <el-button type="success" size="small" @click="handleStart(row, index)" :loading="row.starting"
-                :icon="VideoPlay">同步</el-button>
+                v-if="row.is_running === 0" :icon="VideoPlay">同步</el-button>
+              <el-button type="info" size="small" @click="handleStop(row, index)" :loading="row.stopping"
+                :icon="VideoPause" v-if="row.is_running != 0">停止</el-button>
               <el-button type="primary" size="small" @click="handleEdit(row)" :loading="row.editing"
                 :icon="Edit">编辑</el-button>
               <el-button type="danger" size="small" @click="handleDelete(row, index)" :loading="row.deleting"
@@ -174,7 +192,7 @@
           <el-input v-model="addForm.strm_path" placeholder="自动计算：本地目录 + 选中目录路径" :disabled="true" readonly />
           <div class="form-tip">STRM和元数据实际存放目录（自动生成）</div>
         </el-form-item>
-        <el-form-item label="是否同步完整路径" prop="sync_full_path" v-if="addForm.source_type == '115'">
+        <!-- <el-form-item label="是否同步完整路径" prop="sync_full_path" v-if="addForm.source_type == '115'">
           <el-switch v-model="addForm.sync_full_path" :active-value="true" :inactive-value="false"
             :disabled="addLoading" />
           <div class="form-tip">
@@ -182,7 +200,7 @@
             如果关闭：将使用115文件ID作为文件夹名，这将极大提高同步速度，但是需要目录内的影视剧都是刮削好的 <br />
             如果开启，将查询每一个文件的实际路径，然后创建对应结构的文件夹，这将极大降低同步速度
           </div>
-        </el-form-item>
+        </el-form-item> -->
         <el-form-item label="是否自定义设置" prop="custom_config">
           <el-switch v-model="addForm.custom_config" :active-value="true" :inactive-value="false"
             :disabled="addLoading" />
@@ -327,7 +345,7 @@ import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { inject, onMounted, onUnmounted, ref, reactive, watch, type Ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Loading, Folder, VideoPlay, Edit, Delete, Warning } from '@element-plus/icons-vue'
+import { Plus, Loading, Folder, VideoPlay, Edit, Delete, Warning, Star, VideoPause } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { formatTime } from '@/utils/timeUtils'
 import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
@@ -355,6 +373,8 @@ interface SyncDirectory {
   exclude_name_arr?: string[]
   enable_cron?: boolean
   sync_full_path?: boolean
+  is_running: number
+  stopping?: boolean
 }
 
 interface DirInfo {
@@ -532,6 +552,21 @@ const loadDirectories = async () => {
   }
 }
 
+const updatePathesStatus = async () => {
+  const response = await http?.get(`${SERVER_URL}/sync/path-list`)
+
+  if (response?.data.code === 200) {
+    for (const p of response.data.data.list || []) {
+      const path = directories.value.find(pa => pa.id === p.id)
+      if (path) {
+        path.is_running = p.is_running
+        console.log(`更新路径状态: ${path.id}, 运行状态: ${path.is_running}`)
+      }
+    }
+  }
+  autoRefreshEnabled = true
+}
+
 // 处理添加同步目录
 const handleAdd = async () => {
   if (!addFormRef.value) return
@@ -551,7 +586,7 @@ const handleAdd = async () => {
       video_ext: addForm.video_ext,
       meta_ext: addForm.meta_ext,
       exclude_name: addForm.exclude_name,
-      sync_full_path: addForm.sync_full_path,
+      sync_full_path: true,
     }
 
     const response = await http?.post(`${SERVER_URL}/sync/path-add`, formData, {
@@ -749,6 +784,36 @@ const handleStart = async (row: SyncDirectory, index: number) => {
   } catch {
     console.error('启动同步目录错误')
     ElMessage.error('启动同步目录失败')
+  } finally {
+    if (directories.value[index]) {
+      directories.value[index].starting = false
+    }
+  }
+}
+
+// 处理停止同步
+const handleStop = async (row: SyncDirectory, index: number) => {
+  try {
+    directories.value[index].starting = true
+
+    const formData = {
+      id: row.id || '',
+    }
+
+    const response = await http?.post(`${SERVER_URL}/sync/path/stop`, formData, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (response?.data.code === 200) {
+      ElMessage.success(`同步目录 "${row.local_path}" 启动成功`)
+    } else {
+      ElMessage.error(response?.data.message || '停止同步目录失败')
+    }
+  } catch {
+    console.error('停止同步目录错误')
+    ElMessage.error('停止同步目录失败')
   } finally {
     if (directories.value[index]) {
       directories.value[index].starting = false
@@ -1000,7 +1065,27 @@ const loadVersionInfo = async () => {
     versionInfo.value = null
   }
 }
+// 添加自动刷新相关变量
+const autoRefreshTimer = ref<number | null>(null)
+let autoRefreshEnabled = true
+// 检查并设置自动刷新
+const checkAndSetAutoRefresh = () => {
+  // 清除已存在的定时器
+  if (autoRefreshTimer.value) {
+    clearInterval(autoRefreshTimer.value)
+    autoRefreshTimer.value = null
+  }
 
+  // 设置定时器，每隔2秒刷新一次
+  autoRefreshTimer.value = window.setInterval(() => {
+    // 只改状态
+    if (!autoRefreshEnabled) {
+      return
+    }
+    autoRefreshEnabled = false
+    updatePathesStatus()
+  }, 2000)
+}
 // 组件挂载时加载数据
 let removeDeviceTypeListener: (() => void) | null = null
 
@@ -1011,6 +1096,7 @@ onMounted(() => {
     checkIsMobile.value = newIsMobile
   })
   loadDirectories()
+  checkAndSetAutoRefresh()
 })
 
 onUnmounted(() => {

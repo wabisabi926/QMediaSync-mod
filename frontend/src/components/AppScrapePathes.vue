@@ -3,13 +3,16 @@
     <div class="card-header">
       <div class="header-left">
         <h2 class="card-title">刮削目录管理</h2>
-        <p class="card-subtitle">
-          设置媒体文件的刮削和整理规则，支持电影、电视剧和其他媒体类型 <br />
-          当前字幕等其他文件的处理方式都是移动到目标位置，不受整理方式的影响，请特别注意 <br />
-          刮削和整理是分离的，刮削如果开启了定时任务则是每13分钟一次<br />
+        <div class="card-subtitle">
+          设置媒体文件的刮削和整理规则，支持电影、电视剧和其他媒体类型
+        </div>
+        <div class="card-subtitle">
+          当前字幕等其他文件的处理方式都是移动到目标位置，不受整理方式的影响，请特别注意
+        </div>
+        <div class="card-subtitle">
+          如果开启了定时任务则是每13分钟运行一次<br />
           刮削默认并发数为5，并发数越高越快，但是也会增加TMDB或者网盘限制的概率。<br />
-          如果在tmdb设置中修改了刮削本地文件线程数，那么strm文件不会提取视频信息如分辨率、是否HDR等（因为从strm提取实际也会触发网盘下载，频率太高会被网盘限制）
-        </p>
+        </div>
         <el-alert type="warning" :show-icon="true" style="margin-top: 12px">
           来源路径请按照电影和电视剧区分，不要设置成同一个文件夹。
         </el-alert>
@@ -171,7 +174,7 @@
           <div class="form-tip">
             仅刮削：不改变文件路径和重命名，生成对应视频文件的nfo和下载封面等，不需要选择目标路径<br />
             刮削和整理：会根据刮削结果，改变文件路径和重命名，生成对应视频文件的nfo和下载封面等，需要选择目标路径<br />
-            仅整理：默认来源路径内都是刮削好的，然后根据nfo中的内容将视频、封面、字幕等整理到目标路径（电视剧暂不支持）
+            仅整理：不刮削元数据，仅通过查询到的信息进行整理（重命名方式根据整理方式决定）；其他类型必须有nfo(因为没地方查询信息)
           </div>
         </el-form-item>
         <el-form-item label="整理方式" prop="rename_type" v-if="addForm.scrape_type !== 'only_scrape'">
@@ -237,7 +240,8 @@
               target="_blank">文件重命名模板</a></div>
         </el-form-item>
         <el-form-item label="要删除的关键词" prop="delete_keyword">
-          <el-input-tag v-model="addForm.delete_keyword" placeholder="输入关键词后按回车添加" :disabled="addLoading" />
+          <MetadataExtInput v-model="addForm.delete_keyword" placeholder="输入关键词后按回车添加"
+            class="meta-ext-input limited-width-input" :autoAddDot="false" />
           <div class="form-tip">从视频文件名中提取影视剧标题时先删除这些关键词，添加的越多识别准确率越高</div>
         </el-form-item>
         <el-form-item label="最小视频文件大小" prop="min_video_file_size">
@@ -246,12 +250,8 @@
           <div class="form-tip">单位：MB，小于此值的视频文件将被忽略</div>
         </el-form-item>
         <el-form-item label="视频文件扩展名" prop="video_ext_list">
-          <el-tag v-for="(tag, index) in addForm.video_ext_list" :key="index" closable
-            @close="removeVideoExt(index, 'add')" class="mr-2 mb-2" :disabled="addLoading">
-            {{ tag }}
-          </el-tag>
-          <el-input v-model="tempVideoExt" class="mt-2" placeholder="请输入视频文件扩展名，回车添加" @keyup.enter="addVideoExt('add')"
-            clearable :disabled="addLoading" style="width: 100%"></el-input>
+          <MetadataExtInput v-model="addForm.video_ext_list" placeholder="输入视频文件扩展名，回车添加"
+            class="meta-ext-input limited-width-input" />
           <div class="form-tip">支持的视频文件扩展名，用于筛选视频文件</div>
         </el-form-item>
         <el-form-item label="过滤无头像演员" prop="exclude_no_image_actor">
@@ -267,7 +267,7 @@
         <el-form-item label="刮削线程数" prop="max_threads">
           <el-input-number v-model="addForm.max_threads" :disabled="addLoading" min="1"
             :max="addForm.source_type === 'local' ? 20 : 5" step="1" style="width: 100%" />
-          <div class="form-help">刮削本地文件时的最大并发线程数，越高越快, 刮削网盘该值无效。默认值为5</div>
+          <div class="form-help">刮削本地文件时的最大并发线程数，越高越快, 刮削网盘该值无效。默认值为5; 只有本地目录类型可以修改</div>
         </el-form-item>
         <el-form-item label="是否启用AI识别" prop="enable_ai">
           <el-radio-group v-model="addForm.enable_ai" placeholder="请选择AI识别模式" :disabled="addLoading" size="large">
@@ -374,7 +374,7 @@
             <el-radio-button label="only_scrape" :disabled="editForm.media_type === 'other'">仅刮削</el-radio-button>
             <el-radio-button label="scrape_and_rename"
               :disabled="editForm.media_type === 'other'">刮削和整理</el-radio-button>
-            <el-radio-button label="only_rename" disabled>仅整理</el-radio-button>
+            <el-radio-button label="only_rename">仅整理</el-radio-button>
           </el-radio-group>
           <div class="form-tip">选择要执行的操作类型</div>
         </el-form-item>
@@ -401,7 +401,8 @@
           <div class="form-tip">文件重命名的模板格式</div>
         </el-form-item>
         <el-form-item label="要删除的关键词" prop="delete_keyword">
-          <el-input-tag v-model="editForm.delete_keyword" placeholder="输入关键词后按回车添加" :disabled="editLoading" />
+          <MetadataExtInput v-model="editForm.delete_keyword" placeholder="输入关键词后按回车添加"
+            class="meta-ext-input limited-width-input" :autoAddDot="false" />
           <div class="form-tip">从视频文件名中提取影视剧标题时先删除这些关键词，添加的越多识别准确率越高</div>
         </el-form-item>
         <el-form-item label="最小视频文件大小" prop="min_video_file_size">
@@ -410,12 +411,8 @@
           <div class="form-tip">单位：MB，小于此值的视频文件将被忽略</div>
         </el-form-item>
         <el-form-item label="视频文件扩展名" prop="video_ext_list">
-          <el-tag v-for="(tag, index) in editForm.video_ext_list" :key="index" closable
-            @close="removeVideoExt(index, 'edit')" class="mr-2 mb-2" :disabled="editLoading">
-            {{ tag }}
-          </el-tag>
-          <el-input v-model="tempVideoExt" class="mt-2" placeholder="请输入视频文件扩展名，回车添加" @keyup.enter="addVideoExt('edit')"
-            clearable :disabled="editLoading" style="width: 100%"></el-input>
+          <MetadataExtInput v-model="editForm.video_ext_list" placeholder="输入视频文件扩展名，回车添加"
+            class="meta-ext-input limited-width-input" />
           <div class="form-tip">支持的视频文件扩展名，用于筛选视频文件</div>
         </el-form-item>
         <el-form-item label="排除无头像演员" prop="exclude_no_image_actor">
@@ -431,7 +428,7 @@
         <el-form-item label="刮削线程数" prop="max_threads">
           <el-input-number v-model="editForm.max_threads" :disabled="editLoading" min="1"
             :max="editForm.source_type === 'local' ? 20 : 5" step="1" style="width: 100%" />
-          <div class="form-help">刮削本地文件时的最大并发线程数，越高越快, 刮削网盘该值无效。默认值为5</div>
+          <div class="form-help">刮削本地文件时的最大并发线程数，越高越快, 刮削网盘该值无效。默认值为5; 只有本地目录类型可以修改</div>
         </el-form-item>
         <el-form-item label="开启AI识别" prop="enable_ai">
           <el-radio-group v-model="editForm.enable_ai" placeholder="请选择AI识别模式" :disabled="editLoading" size="large">
@@ -521,6 +518,7 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { formatTime } from '@/utils/timeUtils'
 import { isMobile } from '@/utils/deviceUtils'
 import { sourceTypeOptions, sourceTypeTagMap, sourceTypeMap } from '@/utils/sourceTypeUtils'
+import MetadataExtInput from './MetadataExtInput.vue'
 
 // const router = useRouter()
 const defaultAiPrompt = "从文件名中提取出电影名称、年份; 名称中不能有特殊字符如点、下划线、横杠、斜杠等; 如果文件中有tmdbid（格式{tmdbid-123455}）也返回tmdbid\n"
@@ -540,20 +538,19 @@ interface ScrapePath {
   folder_name_template: string
   file_name_template: string
   delete_keyword: string[]
-  min_video_file_size?: number
-  video_ext_list?: string[]
+  min_video_file_size: number
+  video_ext_list: string[]
   created_at?: number
   updated_at?: number
-  deleting?: boolean
-  editing?: boolean
-  scanning?: boolean
+  deleting: boolean
+  editing: boolean
+  scanning: boolean
   enable_ai: string
   ai_prompt: string
   exclude_no_image_actor: boolean
   force_delete_source_path: boolean
   enable_cron?: boolean
   enable_fanart_tv: boolean
-  is_scraping: boolean
   is_running: number
   max_threads: number
 }
@@ -789,26 +786,6 @@ const getRenameTypeText = (renameType: string): string => {
 // 视频扩展名相关
 const tempVideoExt = ref('')
 
-const addVideoExt = (formType: string) => {
-  if (!tempVideoExt.value.trim()) return
-
-  const ext = tempVideoExt.value.trim()
-  if (formType === 'add' && !addForm.video_ext_list.includes(ext)) {
-    addForm.video_ext_list.push(ext)
-  } else if (formType === 'edit' && !editForm.video_ext_list.includes(ext)) {
-    editForm.video_ext_list.push(ext)
-  }
-  tempVideoExt.value = ''
-}
-
-const removeVideoExt = (index: number, formType: string) => {
-  if (formType === 'add') {
-    addForm.video_ext_list.splice(index, 1)
-  } else {
-    editForm.video_ext_list.splice(index, 1)
-  }
-}
-
 // 加载刮削目录列表
 const loadPathes = async () => {
   try {
@@ -901,6 +878,7 @@ const handleAdd = async () => {
       force_delete_source_path: addForm.force_delete_source_path,
       enable_cron: addForm.enable_cron,
       enable_fanart_tv: addForm.enable_fanart_tv,
+      max_threads: addForm.max_threads,
     })
 
     if (response?.data.code === 200) {
@@ -940,6 +918,12 @@ const resetAddForm = () => {
   addForm.exclude_no_image_actor = false
   addForm.enable_ai = 'off'
   addForm.ai_prompt = ''
+  addForm.enable_cron = false
+  addForm.enable_fanart_tv = false
+  addForm.max_threads = 5
+  addForm.force_delete_source_path = false
+
+
 
   if (addFormRef.value) {
     addFormRef.value.clearValidate()
@@ -964,7 +948,7 @@ const handleEdit = (row: ScrapePath) => {
   editForm.file_name_template = row.file_name_template
   editForm.delete_keyword = [...row.delete_keyword]
   editForm.min_video_file_size = row.min_video_file_size || 0
-  editForm.video_ext_list = [...(row.video_ext_list || ['mp4', 'mkv', 'avi', 'wmv', 'flv', 'mov', 'webm'])]
+  editForm.video_ext_list = row.video_ext_list
   editSelectedDirPath.value = row.source_path
   tempVideoExt.value = ''
   editForm.exclude_no_image_actor = row.exclude_no_image_actor || false
@@ -972,6 +956,8 @@ const handleEdit = (row: ScrapePath) => {
   editForm.ai_prompt = row.ai_prompt || ''
   editForm.enable_cron = row.enable_cron || false
   editForm.enable_fanart_tv = row.enable_fanart_tv || false
+  editForm.max_threads = row.max_threads || 5
+  editForm.force_delete_source_path = row.force_delete_source_path || false
   showEditDialog.value = true
 }
 
@@ -1006,6 +992,7 @@ const handleEditSave = async () => {
       force_delete_source_path: editForm.force_delete_source_path,
       enable_cron: editForm.enable_cron,
       enable_fanart_tv: editForm.enable_fanart_tv,
+      max_threads: parseInt(editForm.max_threads + ""),
     })
 
     if (response?.data.code === 200) {
@@ -1310,6 +1297,11 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   margin: 0 !important;
+  flex-wrap: wrap;
+}
+
+.header-left {
+  margin-bottom: 12px;
 }
 
 .card-body {
@@ -1319,5 +1311,10 @@ onUnmounted(() => {
 .info-value {
   display: flex;
   align-items: center;
+}
+
+.card-subtitle {
+  font-size: 14px;
+  margin-bottom: 16px !important;
 }
 </style>

@@ -101,18 +101,19 @@
               </el-icon>
               <span>STRM同步</span>
             </template>
-            <el-menu-item index="/sync-records">
-              <el-icon>
-                <List />
-              </el-icon>
-              <span>STRM同步记录</span>
-            </el-menu-item>
             <el-menu-item index="/sync-directories">
               <el-icon>
                 <FolderOpened />
               </el-icon>
               <span>STRM同步目录</span>
             </el-menu-item>
+            <el-menu-item index="/sync-records">
+              <el-icon>
+                <List />
+              </el-icon>
+              <span>STRM同步记录</span>
+            </el-menu-item>
+
             <el-menu-item index="/settings/strm">
               <el-icon>
                 <Setting />

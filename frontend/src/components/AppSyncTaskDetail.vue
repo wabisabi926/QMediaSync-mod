@@ -21,7 +21,7 @@
         <!-- 任务基本信息 -->
         <div class="task-info" v-loading="infoLoading">
           <h3>任务信息</h3>
-          <el-descriptions :column="2" border>
+          <el-descriptions :column="1" border>
             <el-descriptions-item label="任务ID">{{ taskId }}</el-descriptions-item>
             <el-descriptions-item label="任务状态">
               <el-tag v-if="taskInfo" :type="getStatusType(taskInfo.status)">

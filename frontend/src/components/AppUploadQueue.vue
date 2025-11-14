@@ -6,10 +6,11 @@
         <p>这里包含strm同步时产生的元数据的上传和刮削产生的上传任务。</p>
       </div>
       <div class="header-actions">
-        <el-button type="warning" @click="pauseAllTasks" :disabled="queueStatus === 0">全部暂停</el-button>
-        <el-button type="success" @click="resumeAllTasks" :disabled="queueStatus === 1">全部开始</el-button>
-        <el-button type="primary" @click="refreshQueue">刷新</el-button>
-        <el-button type="danger" @click="clearQueue">清空队列</el-button>
+        <el-button type="info" @click="refreshQueue">刷新</el-button>
+        <el-button type="success" @click="pauseAllTasks" :disabled="queueStatus === 0">全部暂停</el-button>
+        <el-button type="primary" @click="resumeAllTasks" :disabled="queueStatus === 1">全部开始</el-button>
+        <el-button type="warning" @click="clearQueue">清空等待中的任务</el-button>
+        <el-button type="danger" @click="clearSuccessAndFailedTasks">清空成功和失败的任务</el-button>
       </div>
     </div>
 
@@ -18,7 +19,7 @@
         <el-select v-model="statusFilter" placeholder="请选择状态" @change="handleStatusChange">
           <el-option label="全部状态" :value="-1"></el-option>
           <el-option label="等待中" :value="0"></el-option>
-          <el-option label="下载中" :value="1"></el-option>
+          <el-option label="上传中" :value="1"></el-option>
           <el-option label="已完成" :value="2"></el-option>
           <el-option label="失败" :value="3"></el-option>
           <el-option label="已取消" :value="4"></el-option>
@@ -276,19 +277,42 @@ const refreshQueue = () => {
 // 清空队列
 const clearQueue = async () => {
   try {
-    await ElMessageBox.confirm('上传中的任务不会删除，只能清空待上传，是否继续？此操作不可恢复。', '提示', {
+    await ElMessageBox.confirm('只能清空等待中的记录，是否继续？此操作不可恢复。', '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
     })
 
-    const response = await http?.post(`${SERVER_URL}/upload/qudeue/clear-pending`)
+    const response = await http?.post(`${SERVER_URL}/upload/queue/clear-pending`)
 
     if (response?.data.code === 200) {
       ElMessage.success('队列已清空')
       loadQueueData()
     } else {
       ElMessage.error('清空队列失败')
+    }
+  } catch (error) {
+    // 用户取消或请求失败
+    console.error('清空队列错误:', error)
+    ElMessage.error('清空队列失败')
+  }
+}
+
+const clearSuccessAndFailedTasks = async () => {
+  try {
+    await ElMessageBox.confirm('只能清空所有已完成和失败的数据，此操作不可恢复，是否继续？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+
+    const response = await http?.post(`${SERVER_URL}/upload/queue/clear-success-failed`)
+
+    if (response?.data.code === 200) {
+      ElMessage.success('队列已清空')
+      loadQueueData()
+    } else {
+      ElMessage.error(`清空队列失败: ${response?.data.message || ''}`)
     }
   } catch {
     // 用户取消或请求失败
@@ -333,7 +357,7 @@ const resumeAllTasks = async () => {
 // 获取队列状态
 const loadQueueStatus = async () => {
   try {
-    const response = await http?.get(`${SERVER_URL}/download/queue/status`)
+    const response = await http?.get(`${SERVER_URL}/upload/queue/status`)
 
     if (response?.data.code === 200) {
       // 0-停止，1-运行中

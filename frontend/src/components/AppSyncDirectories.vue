@@ -11,6 +11,9 @@
             <p class="card-subtitle">
               115增量同步无法感知网盘的文件重命名等操作，如果发现文件夹名字不对可以手动点击全量同步
             </p>
+            <p class="card-subtitle">
+              115请按照电影和电视剧分开添加同步目录，电影的同步速度非常快，电视剧的同步速度较慢
+            </p>
           </div>
           <div class="header-right">
             <el-button type="primary" @click="showAddDialog = true">
@@ -98,7 +101,7 @@
                 </el-icon>
                 <el-text class="mx-1" type="warning">等待运行...</el-text>
               </span>
-              <span class="info-value" v-elseif="row.is_running === 0">未执行</span>
+              <span class="info-value" v-if="row.is_running === 0">未执行</span>
             </div>
           </div>
           <template #footer>
@@ -106,7 +109,8 @@
               <el-button type="warning" size="small" @click="handleFullStart(row, index)" :loading="row.starting"
                 :icon="VideoPlay" v-if="row.source_type === '115' && row.is_running === 0">全量同步</el-button>
               <el-button type="success" size="small" @click="handleStart(row, index)" :loading="row.starting"
-                v-if="row.is_running === 0" :icon="VideoPlay">同步</el-button>
+                v-if="row.is_running === 0" :icon="VideoPlay">{{ row.source_type !== '115' ? "同步" : "增量同步"
+                }}</el-button>
               <el-button type="info" size="small" @click="handleStop(row, index)" :loading="row.stopping"
                 :icon="VideoPause" v-if="row.is_running != 0">停止</el-button>
               <el-button type="primary" size="small" @click="handleEdit(row)" :loading="row.editing"
@@ -192,15 +196,6 @@
           <el-input v-model="addForm.strm_path" placeholder="自动计算：本地目录 + 选中目录路径" :disabled="true" readonly />
           <div class="form-tip">STRM和元数据实际存放目录（自动生成）</div>
         </el-form-item>
-        <!-- <el-form-item label="是否同步完整路径" prop="sync_full_path" v-if="addForm.source_type == '115'">
-          <el-switch v-model="addForm.sync_full_path" :active-value="true" :inactive-value="false"
-            :disabled="addLoading" />
-          <div class="form-tip">
-            如果目录内的影视剧没有刮削或者目录内都是电视剧，请开启<br /><br />
-            如果关闭：将使用115文件ID作为文件夹名，这将极大提高同步速度，但是需要目录内的影视剧都是刮削好的 <br />
-            如果开启，将查询每一个文件的实际路径，然后创建对应结构的文件夹，这将极大降低同步速度
-          </div>
-        </el-form-item> -->
         <el-form-item label="是否自定义设置" prop="custom_config">
           <el-switch v-model="addForm.custom_config" :active-value="true" :inactive-value="false"
             :disabled="addLoading" />
@@ -210,16 +205,19 @@
         </el-form-item>
 
         <el-form-item label="视频扩展名" prop="video_ext" v-if="addForm.custom_config">
-          <el-input-tag v-model="addForm.video_ext" placeholder="输入扩展名后按回车添加，如：.mp4" :disabled="addLoading" />
+          <MetadataExtInput v-model="addForm.video_ext" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
+            class="meta-ext-input limited-width-input" />
           <div class="form-tip">指定需要生成STRM文件的视频文件扩展名</div>
         </el-form-item>
 
         <el-form-item label="元数据扩展名" prop="meta_ext" v-if="addForm.custom_config">
-          <el-input-tag v-model="addForm.meta_ext" placeholder="输入扩展名后按回车添加，如：.nfo" :disabled="addLoading" />
+          <MetadataExtInput v-model="addForm.meta_ext" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
+            class="meta-ext-input limited-width-input" />
           <div class="form-tip">指定需要同步的元数据文件扩展名</div>
         </el-form-item>
         <el-form-item label="排除文件名" prop="exclude_name" v-if="addForm.custom_config">
-          <el-input-tag v-model="addForm.exclude_name" placeholder="输入文件名后按回车添加，如：.nfo" :disabled="addLoading" />
+          <MetadataExtInput v-model="addForm.exclude_name" placeholder="输入文件名后按回车添加，逗号或者分行分隔"
+            class="meta-ext-input limited-width-input" />
           <div class="form-tip">指定需要排除同步的名称，必须输入完整，可以是文件夹名字或者文件名字</div>
         </el-form-item>
       </el-form>
@@ -272,16 +270,19 @@
         </el-form-item>
 
         <el-form-item label="视频扩展名" prop="video_ext" v-if="editForm.custom_config">
-          <el-input-tag v-model="editForm.video_ext" placeholder="输入扩展名后按回车添加，如：.mp4" :disabled="editLoading" />
+          <MetadataExtInput v-model="editForm.video_ext" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
+            class="meta-ext-input limited-width-input" />
           <div class="form-tip">指定需要生成STRM文件的视频文件扩展名</div>
         </el-form-item>
 
         <el-form-item label="元数据扩展名" prop="meta_ext" v-if="editForm.custom_config">
-          <el-input-tag v-model="editForm.meta_ext" placeholder="输入扩展名后按回车添加，如：.nfo" :disabled="editLoading" />
+          <MetadataExtInput v-model="editForm.meta_ext" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
+            class="meta-ext-input limited-width-input" />
           <div class="form-tip">指定需要同步的元数据文件扩展名</div>
         </el-form-item>
         <el-form-item label="排除文件名" prop="exclude_name" v-if="editForm.custom_config">
-          <el-input-tag v-model="editForm.exclude_name" placeholder="输入文件名后按回车添加，如：.nfo" :disabled="editLoading" />
+          <MetadataExtInput v-model="editForm.exclude_name" placeholder="输入文件名后按回车添加，逗号或者分行分隔"
+            class="meta-ext-input limited-width-input" />
           <div class="form-tip">指定需要排除同步的名称，必须输入完整，可以是文件夹名字或者文件名字</div>
         </el-form-item>
       </el-form>
@@ -350,6 +351,7 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { formatTime } from '@/utils/timeUtils'
 import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 import { sourceTypeOptions, sourceTypeTagMap, sourceTypeMap } from '@/utils/sourceTypeUtils'
+import MetadataExtInput from './MetadataExtInput.vue'
 
 interface SyncDirectory {
   id?: number
@@ -807,7 +809,7 @@ const handleStop = async (row: SyncDirectory, index: number) => {
     })
 
     if (response?.data.code === 200) {
-      ElMessage.success(`同步目录 "${row.local_path}" 启动成功`)
+      ElMessage.success(`同步目录 "${row.local_path}" 停止成功`)
     } else {
       ElMessage.error(response?.data.message || '停止同步目录失败')
     }
@@ -1086,6 +1088,12 @@ const checkAndSetAutoRefresh = () => {
     updatePathesStatus()
   }, 2000)
 }
+const clearAutoRefreshTimer = () => {
+  if (autoRefreshTimer.value) {
+    clearInterval(autoRefreshTimer.value)
+    autoRefreshTimer.value = null
+  }
+}
 // 组件挂载时加载数据
 let removeDeviceTypeListener: (() => void) | null = null
 
@@ -1103,6 +1111,7 @@ onUnmounted(() => {
   if (removeDeviceTypeListener) {
     removeDeviceTypeListener()
   }
+  clearAutoRefreshTimer()
 })
 </script>
 
@@ -1137,6 +1146,7 @@ onUnmounted(() => {
   padding: 0;
   display: flex;
   justify-content: space-between;
+  flex-wrap: wrap;
 }
 
 .header-content {
@@ -1166,7 +1176,8 @@ onUnmounted(() => {
 .card-subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: #000;
+  margin-bottom: 16px;
 }
 
 .directories-table {

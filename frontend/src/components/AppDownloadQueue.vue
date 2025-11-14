@@ -4,13 +4,14 @@
       <div>
         <h2>下载队列</h2>
         <p>strm同步时会下载元数据，这里是下载队列，可以观察下载进度或者清空下载队列（下次同步会继续未完成的下载，除非关闭元数据下载）</p>
-        <p>来源是"Emby媒体信息提取"的记录不会真正下载，只是触发Emby媒体信息提取，提取完成后会自动删除队列中的记录。</p>
+        <p>来源是"Emby媒体信息提取"的记录不会真正下载，只是触发Emby媒体信息提取。</p>
       </div>
       <div class="header-actions">
-        <el-button type="warning" @click="pauseAllTasks" :disabled="queueStatus === 0">全部暂停</el-button>
-        <el-button type="success" @click="resumeAllTasks" :disabled="queueStatus === 1">全部开始</el-button>
-        <el-button type="primary" @click="refreshQueue">刷新</el-button>
-        <el-button type="danger" @click="clearQueue">清空队列</el-button>
+        <el-button type="info" @click="refreshQueue">刷新</el-button>
+        <el-button type="success" @click="pauseAllTasks" :disabled="queueStatus === 0">全部暂停</el-button>
+        <el-button type="primary" @click="resumeAllTasks" :disabled="queueStatus === 1">全部开始</el-button>
+        <el-button type="warning" @click="clearQueue">清空等待中的任务</el-button>
+        <el-button type="danger" @click="clearSuccessAndFailedTasks">清空成功和失败的任务</el-button>
       </div>
     </div>
 
@@ -268,6 +269,27 @@ const clearQueue = async () => {
       loadQueueData()
     } else {
       ElMessage.error('清空队列失败')
+    }
+  } catch {
+    // 用户取消或请求失败
+  }
+}
+
+const clearSuccessAndFailedTasks = async () => {
+  try {
+    await ElMessageBox.confirm('只能清空所有已完成和失败的数据，此操作不可恢复，是否继续？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+
+    const response = await http?.post(`${SERVER_URL}/download/queue/clear-success-failed`)
+
+    if (response?.data.code === 200) {
+      ElMessage.success('队列已清空')
+      loadQueueData()
+    } else {
+      ElMessage.error(`清空队列失败: ${response?.data.message || ''}`)
     }
   } catch {
     // 用户取消或请求失败

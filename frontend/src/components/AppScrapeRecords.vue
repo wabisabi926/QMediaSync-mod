@@ -141,7 +141,7 @@
           <template #default="{ row }">
             <el-button type="text" @click="handleDetail(row)">详情</el-button>
             <el-button type="warning" size="small" @click="reScrape(row)"
-              v-if="row.status == 'scrape_failed' || row.status == 'scanned'">重新识别</el-button>
+              v-if="row.status == 'scrape_failed' || row.status == 'scanned' || row.status == 'renamed'">重新识别</el-button>
             <el-button type="success" size="small" @click="markAsFinished(row)"
               v-if="row.status == 'renaming' || row.status == 'scraped'">标记为已整理</el-button>
           </template>
@@ -596,7 +596,7 @@ const submitReScrape = async () => {
     }
 
     // 发送请求
-    const response = await http?.post(`${SERVER_URL}/scrape/re-scrape`, params)
+    const response = await http?.post(`${SERVER_URL}/scrape/re-scrape`, params, { timeout: 60000 })
 
     if (response?.data.code === 200) {
       ElMessage.success('重新识别请求已发送')
@@ -678,6 +678,8 @@ const getStatusTooltip = (status: string): string => {
       return '整理成功，无需额外处理'
     case 'rename_failed':
       return '整理失败，请删除刮削记录或者标记为待整理后等待下次任务启动时重新整理。'
+    case 'rollbacking':
+      return '等待回滚任务执行时会将视频+字幕放回原目录，然后删除该刮削记录'
     default:
       return '未知状态'
   }
@@ -786,6 +788,8 @@ const getStatusTagType = (status: string): string => {
       return 'success'
     case 'rename_failed':
       return 'danger'
+    case 'rollbacking':
+      return 'danger'
     default:
       return 'info'
   }
@@ -808,6 +812,8 @@ const getStatusName = (status: string): string => {
       return '已整理'
     case 'rename_failed':
       return '整理失败'
+    case 'rollbacking':
+      return '回滚中'
     default:
       return '未知'
   }

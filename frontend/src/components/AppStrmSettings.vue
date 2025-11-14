@@ -5,8 +5,8 @@
       class="strm-form" ref="formRef">
       <!-- 排除的名称 -->
       <el-form-item label="排除的名称" prop="exclude_names">
-        <el-input-tag v-model="strmData.exclude_name" placeholder="输入名称后按回车添加"
-          class="meta-ext-input limited-width-input" />
+        <MetadataExtInput v-model="strmData.exclude_name" placeholder="输入名称后按回车添加"
+          class="meta-ext-input limited-width-input" :autoAddDot="false" />
         <div class="form-help">
           <p>指定需要排除的文件名或目录名，完整匹配不支持正则表达式。</p>
           <p>被排除的文件或目录将不会同步，其下的所有内容也都不会同步</p>
@@ -14,7 +14,7 @@
       </el-form-item>
       <!-- 视频文件扩展名 -->
       <el-form-item label="视频文件扩展名" prop="video_ext">
-        <el-input-tag v-model="strmData.video_ext" placeholder="输入扩展名后按回车添加，如：.mp4"
+        <MetadataExtInput v-model="strmData.video_ext" placeholder="输入扩展名后按回车添加,逗号或者分行分隔"
           class="meta-ext-input limited-width-input" />
         <div class="form-help">
           <p>指定需要生成STRM文件的视频文件扩展名，如：.mp4, .mkv, .avi, .mov 等</p>
@@ -32,7 +32,7 @@
 
       <!-- 元数据扩展名 -->
       <el-form-item label="元数据扩展名" prop="meta_ext">
-        <el-input-tag v-model="strmData.meta_ext" placeholder="输入扩展名后按回车添加，如：.jpg"
+        <MetadataExtInput v-model="strmData.meta_ext" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
           class="meta-ext-input limited-width-input" />
         <div class="form-help">
           <p>指定需要处理的元数据文件扩展名，如：.jpg, .nfo, .srt, .ass 等</p>
@@ -167,6 +167,7 @@ import { Check } from '@element-plus/icons-vue'
 import { inject, onMounted, reactive, ref, watch } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { isMobile } from '@/utils/deviceUtils'
+import MetadataExtInput from './MetadataExtInput.vue'
 interface StrmData {
   video_ext: string[]
   min_file_size: number
@@ -275,7 +276,7 @@ const updateStrmExample = () => {
   if (strmData.direct_url) {
     // 生成示例STRM文件内容
     const baseUrl = strmData.direct_url.replace(/\/$/, '') // 移除末尾斜杠
-    strmExample.value = `${baseUrl}/115/url?pick_code=d6tkyd62bmngxx5bg&sha1=xxxxxxx&name=哪吒.mkv&size=1024000`
+    strmExample.value = `${baseUrl}/115/newurl?pick_code=d6tkyd62bmngxx5bg`
   } else {
     strmExample.value = ''
   }

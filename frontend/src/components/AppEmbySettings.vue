@@ -49,8 +49,7 @@
         <el-alert title="使用提示" type="warning" :closable="false" show-icon>
           <template #default>
             只要填写了Emby服务器地址和API密钥，就可以触发提取媒体信息，提取完成后Emby可以显示出来音视频和内封字幕信息，可以切换字幕<br />
-            每次STRM同步时如果有新增的STRM文件会自动触发提取媒体信息（注意：这个提取也是全量的，只是会跳过已经有媒体信息的影视剧集） <br />
-            如果需要全量同步，可以点击上方的 "全量提取媒体信息" 按钮
+            如果需要同步，可以点击上方的 "全量提取媒体信息" 按钮
           </template>
         </el-alert>
       </div>

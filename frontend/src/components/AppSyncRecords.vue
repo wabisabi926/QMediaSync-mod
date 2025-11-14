@@ -38,6 +38,22 @@
           <el-table-column v-if="batchMode" type="selection" width="50" align="center"
             :selectable="isDeletableRecord" />
           <el-table-column prop="id" label="任务ID" width="80" />
+          <el-table-column prop="status" label="状态" width="90">
+            <template #default="scope">
+              <el-tag :type="getStatusType(scope.row.status)" :effect="scope.row.status === 1 ? 'dark' : 'light'">
+                {{ getStatusText(scope.row.status) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="sub_status" label="子状态" width="120" class-name="hidden-xs">
+            <template #default="scope">
+              <el-tag v-if="scope.row.status === 1" type="primary" size="small" effect="light">
+                {{ getSubStatusText(scope.row.sub_status) }}
+              </el-tag>
+              <span v-else>-</span>
+            </template>
+          </el-table-column>
+
           <el-table-column prop="start_time" label="开始时间" width="180">
             <template #default="scope">
               {{ formatDateTime(scope.row.start_time) }}
@@ -58,21 +74,7 @@
               {{ scope.row.remote_path || '-' }}
             </template>
           </el-table-column>
-          <el-table-column prop="status" label="状态" width="120">
-            <template #default="scope">
-              <el-tag :type="getStatusType(scope.row.status)" :effect="scope.row.status === 1 ? 'dark' : 'light'">
-                {{ getStatusText(scope.row.status) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="sub_status" label="子状态" width="180" class-name="hidden-xs">
-            <template #default="scope">
-              <el-tag v-if="scope.row.status === 1" type="primary" size="small" effect="light">
-                {{ getSubStatusText(scope.row.sub_status) }}
-              </el-tag>
-              <span v-else>-</span>
-            </template>
-          </el-table-column>
+
           <el-table-column prop="processed_files" label="总文件数" width="120" align="center" />
           <el-table-column prop="created_strm" label="新增STRM数" width="120" align="center" />
           <el-table-column prop="downloaded_meta" label="下载元数据数" width="140" align="center" class-name="hidden-xs" />

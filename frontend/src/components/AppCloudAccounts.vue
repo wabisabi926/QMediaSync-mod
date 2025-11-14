@@ -1,14 +1,8 @@
 <template>
   <div class="main-content-container accounts-content">
     <!-- 操作提示 -->
-    <el-alert
-      title="操作提示"
-      type="info"
-      description="先添加账号，然后点击列表中操作区域的授权按钮完成账号绑定"
-      :closable="false"
-      show-icon
-      class="operation-tip"
-    />
+    <el-alert title="操作提示" type="info" description="先添加账号，然后点击列表中操作区域的授权按钮完成账号绑定" :closable="false" show-icon
+      class="operation-tip" />
 
     <!-- 添加账号按钮 -->
     <div class="add-account-button">
@@ -17,8 +11,7 @@
 
     <!-- 账号卡片列表 -->
     <div v-loading="loading" element-loading-text="加载中..." class="accounts-loading-container">
-      <div
-        style="
+      <div style="
           width: 100%;
           height: 100%;
           display: flex;
@@ -26,8 +19,7 @@
           gap: 6px;
           justify-content: start;
           align-items: top;
-        "
-      >
+        ">
         <el-card class="account-card" shadow="hover" v-for="account in accounts" :key="account.id">
           <template #header>
             <div class="account-card-header">
@@ -39,7 +31,17 @@
               </div>
               <div>
                 <el-tag v-if="account.token" type="success" size="large">已授权</el-tag>
-                <el-tag v-else type="danger" size="large">未授权</el-tag>
+                <template v-if="account.token_failed_reason && !account.token">
+                  <el-tooltip :content="account.token_failed_reason" placement="top">
+                    <el-tag type="danger" size="large">
+                      <el-icon>
+                        <WarningFilled />
+                      </el-icon>
+                      凭证刷新失败
+                    </el-tag>
+                  </el-tooltip>
+                </template>
+                <el-tag v-if="!account.token_failed_reason && !account.token" type="danger" size="large">未授权</el-tag>
               </div>
             </div>
           </template>
@@ -59,27 +61,19 @@
               </div>
             </template>
             <div class="info-item">
-                <span class="info-label">添加时间:</span>
-                <span class="info-value">{{ formatTimestamp(account.created_at) }}</span>
-              </div>
+              <span class="info-label">添加时间:</span>
+              <span class="info-value">{{ formatTimestamp(account.created_at) }}</span>
+            </div>
           </div>
           <template #footer>
             <div class="account-card-footer">
               <el-button type="danger" @click="handleDelete(account)"> 删除 </el-button>
-              <el-button
-                type="warning"
-                @click="handleAuthorize(account)"
-                size="small"
-                v-if="account.source_type !== 'openlist'"
-              >
+              <el-button type="warning" @click="handleAuthorize(account)" size="small"
+                v-if="account.source_type !== 'openlist'">
                 授权
               </el-button>
-              <el-button
-                type="primary"
-                @click="handleEdit(account)"
-                size="small"
-                v-if="account.source_type === 'openlist'"
-              >
+              <el-button type="primary" @click="handleEdit(account)" size="small"
+                v-if="account.source_type === 'openlist'">
                 编辑
               </el-button>
             </div>
@@ -93,11 +87,7 @@
         <el-form-item label="网盘类型">
           <el-select v-model="newAccountForm.type" placeholder="请选择网盘类型">
             <template v-for="typeItem in sourceTypeOptions" :key="typeItem.value">
-              <el-option
-                v-if="typeItem.value !== 'local'"
-                :label="typeItem.label"
-                :value="typeItem.value"
-              ></el-option>
+              <el-option v-if="typeItem.value !== 'local'" :label="typeItem.label" :value="typeItem.value"></el-option>
             </template>
           </el-select>
         </el-form-item>
@@ -105,10 +95,7 @@
           <el-input v-model="newAccountForm.name" placeholder="请输入账号备注" />
         </el-form-item>
         <el-form-item label="访问地址" v-if="newAccountForm.type === 'openlist'">
-          <el-input
-            v-model="newAccountForm.base_url"
-            placeholder="请输入OpenList地址:http://ip:5244"
-          />
+          <el-input v-model="newAccountForm.base_url" placeholder="请输入OpenList地址:http://ip:5244" />
         </el-form-item>
         <el-form-item label="用户名" v-if="newAccountForm.type === 'openlist'">
           <el-input v-model="newAccountForm.username" placeholder="请输入用户名" />
@@ -130,52 +117,56 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="showAddAccountDialog = false">取消</el-button>
-          <el-button type="primary" @click="handleAddAccount" :loading="addAccountLoading"
-            >确定</el-button
-          >
+          <el-button type="primary" @click="handleAddAccount" :loading="addAccountLoading">确定</el-button>
         </span>
       </template>
     </el-dialog>
 
     <!-- 115网盘二维码授权对话框 -->
-    <el-dialog
-      v-model="showQRDialog"
-      title="115开放平台扫码授权"
-      width="400px"
-      :close-on-click-modal="false"
-      :close-on-press-escape="false"
-      @close="closeQRDialog"
-    >
+    <el-dialog v-model="showQRDialog" title="115开放平台扫码授权" width="400px" :close-on-click-modal="false"
+      :close-on-press-escape="false" @close="closeQRDialog">
       <div class="qr-login-container">
         <div class="qr-code-section">
           <div v-if="qrCodeUrl" class="qr-code-wrapper">
             <img :src="qrCodeUrl" alt="登录二维码" class="qr-code-image" />
           </div>
           <div v-else class="qr-loading">
-            <el-icon class="is-loading"><Loading /></el-icon>
+            <el-icon class="is-loading">
+              <Loading />
+            </el-icon>
             <p>正在生成二维码...</p>
           </div>
         </div>
 
         <div class="qr-status-section">
           <div v-if="qrStatus === 'waiting'" class="status-waiting">
-            <el-icon><Iphone /></el-icon>
+            <el-icon>
+              <Iphone />
+            </el-icon>
             <p>请使用115手机客户端扫描二维码</p>
           </div>
           <div v-else-if="qrStatus === 'scanned'" class="status-scanned">
-            <el-icon><SuccessFilled /></el-icon>
+            <el-icon>
+              <SuccessFilled />
+            </el-icon>
             <p>扫描成功，请在手机上确认授权</p>
           </div>
           <div v-else-if="qrStatus === 'confirmed'" class="status-confirmed">
-            <el-icon><CircleCheckFilled /></el-icon>
+            <el-icon>
+              <CircleCheckFilled />
+            </el-icon>
             <p>授权确认成功，正在获取账号信息...</p>
           </div>
           <div v-else-if="qrStatus === 'expired'" class="status-expired">
-            <el-icon><WarningFilled /></el-icon>
+            <el-icon>
+              <WarningFilled />
+            </el-icon>
             <p>二维码已过期，请重新获取</p>
           </div>
           <div v-else-if="qrStatus === 'error'" class="status-error">
-            <el-icon><CircleCloseFilled /></el-icon>
+            <el-icon>
+              <CircleCloseFilled />
+            </el-icon>
             <p>授权过程中出现错误，请重试</p>
           </div>
         </div>
@@ -184,11 +175,8 @@
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="closeQRDialog">取消</el-button>
-          <el-button
-            v-if="qrStatus === 'expired' || qrStatus === 'error'"
-            type="primary"
-            @click="refreshQRCode(currentAccountId)"
-          >
+          <el-button v-if="qrStatus === 'expired' || qrStatus === 'error'" type="primary"
+            @click="refreshQRCode(currentAccountId)">
             重新获取二维码
           </el-button>
         </div>
@@ -196,27 +184,16 @@
     </el-dialog>
 
     <!-- 编辑账号对话框 -->
-    <el-dialog
-      v-model="showEditAccountDialog"
-      title="编辑OpenList账号"
-      :width="isMobile ? '90%' : '500px'"
-    >
+    <el-dialog v-model="showEditAccountDialog" title="编辑OpenList账号" :width="isMobile ? '90%' : '500px'">
       <el-form :model="editAccountForm" label-width="80px">
         <el-form-item label="访问地址" prop="baseUrl">
-          <el-input
-            v-model="editAccountForm.base_url"
-            placeholder="请输入OpenList地址:http://ip:5244"
-          />
+          <el-input v-model="editAccountForm.base_url" placeholder="请输入OpenList地址:http://ip:5244" />
         </el-form-item>
         <el-form-item label="用户名" prop="username">
           <el-input v-model="editAccountForm.username" placeholder="请输入用户名" />
         </el-form-item>
         <el-form-item label="密码" prop="password">
-          <el-input
-            type="password"
-            v-model="editAccountForm.password"
-            placeholder="请输入密码（留空则不修改）"
-          />
+          <el-input type="password" v-model="editAccountForm.password" placeholder="请输入密码（留空则不修改）" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -228,13 +205,8 @@
     </el-dialog>
 
     <!-- 123云盘授权确认对话框 -->
-    <el-dialog
-      v-model="show123AuthDialog"
-      title="123云盘授权确认"
-      width="400px"
-      :close-on-click-modal="true"
-      :close-on-press-escape="true"
-    >
+    <el-dialog v-model="show123AuthDialog" title="123云盘授权确认" width="400px" :close-on-click-modal="true"
+      :close-on-press-escape="true">
       <div class="auth-123-container">
         <el-button type="primary" :icon="Link">打开123云盘授权页面</el-button>
         <p>授权成功后会返回本页面</p>
@@ -290,6 +262,7 @@ interface CloudAccount {
   token: string
   app_id_name?: string
   app_id?: string
+  token_failed_reason?: string
 }
 
 // 获取HTTP客户端
@@ -327,6 +300,7 @@ const editAccountForm = ref({
   base_url: '',
   username: '',
   password: '',
+  token_failed_reason: ''
 })
 
 // 二维码登录相关状态
@@ -363,7 +337,8 @@ const loadAccounts = async () => {
         base_url: item.base_url,
         password: item.password,
         app_id_name: item.app_id_name,
-        app_id: item.app_id
+        app_id: item.app_id,
+        token_failed_reason: item.token_failed_reason || ''
       }))
     } else {
       console.error('加载账号列表失败:', response?.data.message || '未知错误')
@@ -424,6 +399,7 @@ const handleEdit = (account: CloudAccount) => {
     base_url: account.base_url,
     username: account.username,
     password: account.password,
+    token_failed_reason: account.token_failed_reason || ''
   }
   console.log(editAccountForm.value)
   // 显示编辑对话框

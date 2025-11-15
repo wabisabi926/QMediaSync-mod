@@ -208,8 +208,8 @@
     <!-- 重新识别对话框 -->
     <el-dialog v-model="showReScrapeDialog" title="重新识别" width="500px">
       <el-form label-width="80px">
-        <el-form-item label="原始文件名">
-          <el-input v-model="reScrapeForm.originalFileName" placeholder="原始文件名" readonly />
+        <el-form-item label="文件名">
+          <el-text>{{ reScrapeForm.originalFileName }}</el-text>
         </el-form-item>
         <el-form-item label="TMDB ID">
           <el-input v-model="reScrapeForm.tmdb_id" placeholder="请输入TMDBID" />
@@ -232,6 +232,19 @@
         <div class="dialog-footer">
           <el-button @click="showReScrapeDialog = false">取消</el-button>
           <el-button type="primary" @click="submitReScrape" :loading="reScrapeLoading">确认重新识别</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <!-- 回滚对话框 -->
+    <el-dialog v-model="showRollbackDialog" title="注意" width="320px">
+      <p>确认回滚该刮削记录吗？回滚后视频+字幕会放回原目录并且根据查询到的tmdb信息重命名，刮削记录会被删除，后续扫描时会重新刮削该影片。</p>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="showRollbackDialog = false">取消</el-button>
+          <el-button type="primary" @click="showReScrapeDialog = true">
+            确认
+          </el-button>
         </div>
       </template>
     </el-dialog>
@@ -296,6 +309,7 @@ const typeFilter = ref('')
 const nameFilter = ref('') // 添加名称搜索变量
 const showDetailDialog = ref(false)
 const selectedRecord = ref<ScrapeRecord | null>(null)
+const showRollbackDialog = ref(false)
 
 // 分页相关
 const pagination = ref({
@@ -540,7 +554,8 @@ const reScrapeForm = ref({
   year: '',
   originalFileName: '',
   season: -1,
-  episode: -1
+  episode: -1,
+  status: ''
 })
 const reScrapeLoading = ref(false)
 
@@ -555,10 +570,15 @@ const reScrape = (record: ScrapeRecord) => {
     year: record.year?.toString() || '',
     originalFileName: record.file_name || '',
     season: record.season_number || -1,
-    episode: record.episode_number || -1
+    episode: record.episode_number || -1,
+    status: record.status || ''
   }
-  // 打开对话框
-  showReScrapeDialog.value = true
+  if (record.status == "renamed") {
+    showRollbackDialog.value = true
+  } else {
+    // 打开对话框
+    showReScrapeDialog.value = true
+  }
 }
 
 // 提交重新识别请求

@@ -285,19 +285,7 @@ const handleLogout = async () => {
 
 // 获取当前页面标题
 const getCurrentPageTitle = (): string => {
-  const titleMap: Record<string, string> = {
-    '/settings/emby': 'Emby外网302',
-    '/settings/strm': 'STRM配置',
-    '/settings/user': '用户账号设置',
-    '/settings/telegram': 'Telegram通知设置',
-    '/instant-upload': 'URL秒传',
-    '/media-import': '媒体库导入',
-    '/proxy': '网络代理',
-    '/sync-records': '同步记录',
-    '/sync-directories': '同步目录',
-    '/scrape-pathes': '刮削目录',
-  }
-  return titleMap[route.path] || '首页'
+  return route.meta.title as string || '首页'
 }
 
 // 获取默认展开的子菜单

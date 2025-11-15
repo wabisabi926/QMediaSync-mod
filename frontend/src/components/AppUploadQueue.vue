@@ -2,7 +2,7 @@
   <div class="upload-queue-container">
     <div class="card-header">
       <div>
-        <h2>上传队列</h2>
+        <h2 class="hidden-md-and-down">上传队列</h2>
         <p>这里包含strm同步时产生的元数据的上传和刮削产生的上传任务。</p>
       </div>
       <div class="header-actions">
@@ -39,10 +39,49 @@
     </div>
 
     <el-table :data="queueData" style="width: 100%" v-loading="loading" empty-text="暂无上传任务"
-      :row-class-name="tableRowClassName">
-      <el-table-column prop="id" label="任务ID" width="80" />
+      :row-class-name="tableRowClassName" height="calc(100vh - 420px)" class="hidden-md-and-up">
+      <el-table-column type="expand" width="30">
+        <template #default="scope">
+          <el-descriptions class="margin-top" :column="2" border size="small">
+            <el-descriptions-item label="来源">{{ scope.row.source }}</el-descriptions-item>
+            <el-descriptions-item label="类型">
+              <el-tag :type="getSourceTypeTagType(scope.row.source_type)">
+                {{ getSourceTypeName(scope.row.source_type) }}
+              </el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="状态">
+              <el-tag :type="getStatusTagType(scope.row.status)">
+                {{ getStatusText(scope.row.status) }}
+              </el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="文件大小">
+              {{ formatFileSize(scope.row.file_size) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="开始时间">
+              {{ scope.row.start_time ? formatDateTime(scope.row.start_time) : '-' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="完成时间">
+              {{ scope.row.end_time ? formatDateTime(scope.row.end_time) : '-' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="失败原因" v-if="scope.row.error" :span="2">
+              {{ scope.row.error ? scope.row.error : '-' }}
+            </el-descriptions-item>
+          </el-descriptions>
+        </template>
+      </el-table-column>
+
+      <el-table-column prop="speed" label="上传文件">
+        <template #default="scope">
+          <p><el-text type="primary"># {{ scope.row.id }}</el-text> {{ scope.row.local_full_path }}</p>
+          <p> => {{ scope.row.remote_file_id }}</p>
+        </template>
+      </el-table-column>
+    </el-table>
+    <el-table :data="queueData" style="width: 100%" v-loading="loading" empty-text="暂无上传任务"
+      :row-class-name="tableRowClassName" height="calc(100vh - 300px)" class="hidden-md-and-down">
+      <el-table-column prop="id" label="任务ID" width="60" />
       <el-table-column prop="source" label="来源类型" width="80" />
-      <el-table-column prop="status" label="状态" width="120">
+      <el-table-column prop="status" label="状态" width="100">
         <template #default="scope">
           <div v-if="scope.row.error">
             <el-tooltip :content="scope.row.error" placement="top">
@@ -66,11 +105,6 @@
           {{ formatFileSize(scope.row.file_size) }}
         </template>
       </el-table-column>
-      <el-table-column prop="file_name" label="文件名" width="280">
-        <template #default="scope">
-          <span class="filename">{{ scope.row.file_name }}</span>
-        </template>
-      </el-table-column>
       <el-table-column prop="start_time" label="时间" width="260">
         <template #default="scope">
           开始时间：{{ scope.row.start_time ? formatDateTime(scope.row.start_time) : '-' }} <br />
@@ -86,30 +120,9 @@
       </el-table-column>
       <el-table-column prop="speed" label="上传文件">
         <template #default="scope">
-          <span>{{ scope.row.local_full_path }}</span> <br />
-          => <br />
-          <span>{{ scope.row.remote_file_id }}</span>
+          <p>{{ scope.row.local_full_path }}</p>
+          <p> => {{ scope.row.remote_file_id }}</p>
         </template>
-      </el-table-column>
-
-      <el-table-column label="操作" width="150" fixed="right">
-        <!-- <template #default="scope">
-            <el-button
-              size="small"
-              type="primary"
-              @click="pauseTask(scope.row)"
-              :disabled="scope.row.status !== 'uploading' && scope.row.status !== 'waiting'"
-            >
-              {{ scope.row.status === 'paused' ? '继续' : '暂停' }}
-            </el-button>
-            <el-button
-              size="small"
-              type="danger"
-              @click="cancelTask(scope.row)"
-            >
-              取消
-            </el-button>
-          </template> -->
       </el-table-column>
     </el-table>
     <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :page-sizes="[10, 20, 50, 100]"
@@ -127,6 +140,7 @@ import type { AxiosStatic } from 'axios'
 import { inject } from 'vue'
 import { formatFileSize } from '@/utils/fileSizeUtils'
 import { formatDateTime } from '@/utils/timeUtils'
+import 'element-plus/theme-chalk/display.css'
 
 interface UploadTask {
   id: string
@@ -428,7 +442,6 @@ onUnmounted(() => {
 <style scoped>
 .upload-queue-container {
   width: 100%;
-  height: 100%;
   padding: 20px;
   box-sizing: border-box;
 }
@@ -454,6 +467,8 @@ onUnmounted(() => {
 
 .header-actions {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
   gap: 12px;
 }
 

@@ -33,14 +33,17 @@
       </el-form-item>
 
       <div class="form-actions">
-        <el-button type="primary" @click="testConnection" :loading="testing" :disabled="loading" size="large"
-          :icon="Refresh" style="margin-right: 15px">
-          测试连通性
-        </el-button>
-
-        <el-button type="success" @click="saveSettings" :loading="loading" size="large" :icon="Check">
-          保存设置
-        </el-button>
+        <div>
+          <el-button type="primary" @click="testConnection" :loading="testing" :disabled="loading" size="large"
+            :icon="Refresh" style="margin-right: 15px">
+            测试连通性
+          </el-button>
+        </div>
+        <div>
+          <el-button type="success" @click="saveSettings" :loading="loading" size="large" :icon="Check">
+            保存设置
+          </el-button>
+        </div>
       </div>
     </el-form>
 

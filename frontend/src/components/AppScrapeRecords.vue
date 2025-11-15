@@ -1,40 +1,50 @@
 <template>
   <div class="scrape-records-container">
-    <h2 class="page-title">刮削记录</h2>
+    <h2 class="page-title  hidden-md-and-down">刮削记录</h2>
     <p class="card-subtitle" style="margin-bottom:16px;">
       当前刮削产生的临时文件存放在 <span style="color:#000; font-weight:bold;">config/tmp/刮削临时文件/</span>
       目录下,可以观察是否存在异常情况，刮削完成的文件会删除临时文件 <br />
-      表格中的刮削状态是指刮削目录的运行状态，任务执行逻辑是先把收集待处理的文件，然后刮削<br />
-      表格中的整理状态是指刮削目录的运行状态，任务执行逻辑是将刮削完成的文件进行整理。
     </p>
 
     <div style="margin-bottom: 16px; display: flex; justify-content: space-between;">
-      <!-- 多选操作栏 -->
       <div>
-        <el-tooltip content="将所选的识别错误的记录导出成一个文件，可以发送给作者" placement="top">
-          <el-button type="primary" @click="handleExportErrors"
-            :disabled="selectedRecords.length === 0">导出识别错误文件</el-button>
-        </el-tooltip>
-        <el-tooltip content="将刮削记录删除后，对应的文件在下次扫描时会再次识别和刮削。" placement="top">
-          <el-button type="danger" @click="handleDeleteSelectedRecords"
-            :disabled="selectedRecords.length === 0">删除所选刮削记录</el-button>
-        </el-tooltip>
-        <el-tooltip content="请选择整理失败的记录，该操作会将所选记录标记为待整理，下次整理时重试。" placement="top">
-          <el-button type="warning" @click="handleRename"
-            :disabled="selectedRecords.length === 0">重新整理所选的刮削记录</el-button>
-        </el-tooltip>
-        <span class="selected-count">已选择 {{ selectedRecords.length }} 条记录</span>
+        <!-- 多选操作栏 -->
+        <div style="flex-wrap: wrap; display: flex; justify-content: flex-start; gap:12px; align-items: flex-start;">
+          <div>
+            <el-tooltip content="将所选的识别错误的记录导出成一个文件，可以发送给作者" placement="top">
+              <el-button type="primary" @click="handleExportErrors"
+                :disabled="selectedRecords.length === 0">导出识别错误文件</el-button>
+            </el-tooltip>
+          </div>
+          <div>
+            <el-tooltip content="将刮削记录删除后，对应的文件在下次扫描时会再次识别和刮削。" placement="top">
+              <el-button type="danger" @click="handleDeleteSelectedRecords"
+                :disabled="selectedRecords.length === 0">删除所选刮削记录</el-button>
+            </el-tooltip>
+          </div>
+          <div>
+            <el-tooltip content="请选择整理失败的记录，该操作会将所选记录标记为待整理，下次整理时重试。" placement="top">
+              <el-button type="warning" @click="handleRename"
+                :disabled="selectedRecords.length === 0">重新整理所选的刮削记录</el-button>
+            </el-tooltip>
+          </div>
+        </div>
+        <div class="selected-count">已选择 {{ selectedRecords.length }} 条记录</div>
       </div>
-      <div>
-        <el-tooltip content="会将列表中属于同一个电视剧的所有集合并成一条数据，方便查看" placement="top">
-          <el-button type="primary" @click="toggleMergeEpisodes">
-            {{ isMerged ? '显示电视剧集' : '合并电视剧集' }}
-          </el-button>
-        </el-tooltip>
-
-        <el-button type="warning" @click="handleDeleteFailedRecords">清除所有刮削失败的记录</el-button>
+      <div style="display: flex; justify-content: flex-end; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
+        <div>
+          <el-tooltip content="会将列表中属于同一个电视剧的所有集合并成一条数据，方便查看" placement="top">
+            <el-button type="primary" @click="toggleMergeEpisodes">
+              {{ isMerged ? '显示电视剧集' : '合并电视剧集' }}
+            </el-button>
+          </el-tooltip>
+        </div>
+        <div>
+          <el-button type="warning" @click="handleDeleteFailedRecords">清除所有刮削失败的记录</el-button>
+        </div>
       </div>
     </div>
+
     <!-- 搜索和过滤区域 -->
     <div class="search-filter-section">
       <el-input v-model="nameFilter" placeholder="按文件名模糊搜索" style="width: 200px;" @keyup.enter="applyFilter" />
@@ -64,8 +74,75 @@
 
     <!-- 表格 -->
     <div class="table-container">
+      <el-table v-loading="loading" :data="records" @selection-change="handleSelectionChange"
+        :row-key="(row: ScrapeRecord) => row.id" style="width: 100%" height="calc(100vh - 460px)"
+        class="hidden-md-and-up">
+        <el-table-column type="selection" width="30" />
+        <el-table-column type="expand" width="30">
+          <template #default="{ row }">
+            <el-descriptions class="margin-top" :column="2" border size="small" label-width="50px">
+              <el-descriptions-item label="类型">
+                <el-tag :type="getTypeTagType(row.type)">
+                  {{ getTypeName(row.type) }}
+                </el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="来源">
+                <el-tag :type="getSourceTypeTagType(row.source_type)">
+                  {{ getSourceTypeName(row.source_type) }}
+                </el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="状态">
+                <el-tag :type="getStatusTagType(row.status)">
+                  {{ getStatusName(row.status) }}
+                </el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="识别信息">
+                <div>
+                  <p class="path-text">Tmdb ID: {{ row.tmdb_id }}</p>
+                  <p class="path-text">识别名称: {{ row.media_name }} </p>
+                  <p>年份：{{ row.year }}</p>
+                  <p class="path-text">原始名称: {{ row.original_name }}</p>
+                </div>
+              </el-descriptions-item>
+              <el-descriptions-item label="时间" :span="2">
+                <div>
+                  <p>创建：<br />{{ row.created_at ? formatTimestamp(row.created_at) : '-' }}</p>
+                  <p>刮削：<br />{{ row.scraped_at ? formatTimestamp(row.scraped_at) : '-' }}</p>
+                  <p>整理：<br />{{ row.renamed_at ? formatTimestamp(row.renamed_at) : '-' }}</p>
+                </div>
+              </el-descriptions-item>
+              <el-descriptions-item label="失败原因" v-if="row.failed_reason" :span="2">
+                {{ row.failed_reason ? row.failed_reason : '-' }}
+              </el-descriptions-item>
+              <el-descriptions-item label="操作" :span="2">
+                <div>
+                  <el-button type="text" @click="handleDetail(row)">详情</el-button>
+                  <el-button type="warning" size="small" @click="reScrape(row)"
+                    v-if="row.status == 'scrape_failed' || row.status == 'scanned' || row.status == 'renamed'">重新识别</el-button>
+                  <el-button type="success" size="small" @click="markAsFinished(row)"
+                    v-if="row.status == 'renaming' || row.status == 'scraped'">标记为已整理</el-button>
+                </div>
+              </el-descriptions-item>
+            </el-descriptions>
+          </template>
+        </el-table-column>
+        <el-table-column prop="path" label="文件路径">
+          <template #default="{ row }">
+            <div>
+              <p class="path-text">{{ row.source_full_path }}</p>
+              <p style="margin: 10px 0; display: flex; align-items: center; flex-wrap: wrap;">
+                <el-tag :type="getRenameTypeTagType(row.rename_type)">
+                  {{ getRenameTypeName(row.rename_type) }}
+                </el-tag>
+                <span style="margin-left: 12px;">到</span>
+              </p>
+              <p class="path-text">{{ row.dest_full_path }}</p>
+            </div>
+          </template>
+        </el-table-column>
+      </el-table>
       <el-table v-loading="loading" :data="records" style="width: 100%" @selection-change="handleSelectionChange"
-        :row-key="(row: ScrapeRecord) => row.id" height="calc(100vh - 400px)">
+        :row-key="(row: ScrapeRecord) => row.id" height="calc(100vh - 400px)" class="hidden-md-and-down">
         <el-table-column type="selection" width="55" />
         <el-table-column prop="path_is_scraping" label="运行状态" width="80">
           <template #default="{ row }">
@@ -137,7 +214,7 @@
             <p>整理时间：{{ row.renamed_at ? formatTimestamp(row.renamed_at) : '-' }}</p>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="操作" width="140" fixed="right">
           <template #default="{ row }">
             <el-button type="text" @click="handleDetail(row)">详情</el-button>
             <el-button type="warning" size="small" @click="reScrape(row)"
@@ -258,6 +335,7 @@ import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { inject } from 'vue'
 import { formatTimestamp } from '@/utils/timeUtils'
+import 'element-plus/theme-chalk/display.css'
 
 // 获取HTTP客户端
 const http: AxiosStatic | undefined = inject('$http')

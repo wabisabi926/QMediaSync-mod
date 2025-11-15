@@ -1,9 +1,5 @@
 <template>
   <div class="main-content-container emby-content">
-    <div class="card-header">
-      <h2 class="card-title">Emby 外网302 配置</h2>
-    </div>
-
     <el-form :model="embyData" :rules="formRules" :label-position="isMobile ? 'top' : 'left'" :label-width="180"
       class="emby-form" ref="formRef">
       <!-- Emby服务器地址 -->
@@ -28,15 +24,18 @@
       </el-form-item>
       <el-form-item>
         <!-- 保存和重置按钮 -->
-        <div class="emby-actions">
-          <el-button type="success" @click="saveEmbyConfig" :loading="embyLoading" size="large" :icon="Check">
-            保存设置
-          </el-button>
-
-          <el-button type="warning" @click="praseEmby" :loading="embyLoading" size="large" :icon="Refresh"
-            :disabled="!embyData.emby_url || !embyData.emby_api_key">
-            全量提取媒体信息
-          </el-button>
+        <div class="form-actions">
+          <div>
+            <el-button type="success" @click="saveEmbyConfig" :loading="embyLoading" :icon="Check">
+              保存设置
+            </el-button>
+          </div>
+          <div>
+            <el-button type="warning" @click="praseEmby" :loading="embyLoading" :icon="Refresh"
+              :disabled="!embyData.emby_url || !embyData.emby_api_key">
+              提取媒体信息
+            </el-button>
+          </div>
         </div>
       </el-form-item>
     </el-form>

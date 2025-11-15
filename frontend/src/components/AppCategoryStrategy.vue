@@ -1,247 +1,204 @@
 <template>
   <div class="main-content-container category-strategy-container full-width-container">
-      <div class="card-header">
-        <div class="header-left">
-          <h2 class="card-title">二级分类策略</h2>
-           <p class="card-subtitle">
-              如果默认设置不符合要求再修改，确保您知道自己在做什么，添加或者修改只会影响后续的新文件，已有文件不会受到影响。
-            </p>
-        </div>
+    <div class="card-header">
+      <div class="header-left">
+        <p class="card-subtitle">
+          如果默认设置不符合要求再修改，确保您知道自己在做什么，添加或者修改只会影响后续的新文件，已有文件不会受到影响。
+        </p>
       </div>
+    </div>
 
-      <el-tabs v-model="activeTab" @tab-change="handleTabChange" type="card">
-        <!-- 电影分类tab -->
-        <el-tab-pane label="电影" name="movie">
-          <div class="tab-content">
-            <div class="card-actions-header">
-              <el-button type="primary" @click="handleAdd('movie')" class="add-button">
-                <el-icon><Plus /></el-icon>
-                添加分类
-              </el-button>
-            </div>
+    <el-tabs v-model="activeTab" @tab-change="handleTabChange" type="card">
+      <!-- 电影分类tab -->
+      <el-tab-pane label="电影" name="movie">
+        <div class="tab-content">
+          <div class="card-actions-header">
+            <el-button type="primary" @click="handleAdd('movie')" class="add-button">
+              <el-icon>
+                <Plus />
+              </el-icon>
+              添加分类
+            </el-button>
+          </div>
 
-            <div class="cards-container">
-              <el-card
-                shadow="hover"
-                v-for="row in movieCategories"
-                :key="row.id"
-              >
-                <template #header>
-                  <div class="card-header">
-                    <div class="card-title">
-                      <el-tooltip
-                        class="box-item"
-                        :content="'ID：' + row.id"
-                        placement="bottom"
-                      >
-                        #{{ row.id }} {{ row.name }}
-                      </el-tooltip>
-                    </div>
-                  </div>
-                </template>
-
-                <div class="card-body">
-                  <div class="info-item">
-                    <span class="info-label">语言:</span>
-                    <span class="info-value">
-                      {{ row.language_array && row.language_array.length > 0 ? row.language_array.map((l: string) => getLanguageName(l)).join(', ') : '全部语言' }}
-                    </span>
-                  </div>
-                  <div class="info-item">
-                    <span class="info-label">类别:</span>
-                    <span class="info-value">
-                      {{ row.genre_id_array && row.genre_id_array.length > 0 ? row.genre_id_array.map((g: number) => getMovieGenreName(g)).join(', ') : '全部分类' }}
-                    </span>
-                  </div>
-                  <div class="info-item">
-                    <span class="info-label">创建时间:</span>
-                    <span class="info-value">{{ formatDateTime(row.created_at ? row.created_at : 0) }}</span>
+          <div class="cards-container">
+            <el-card shadow="hover" v-for="row in movieCategories" :key="row.id">
+              <template #header>
+                <div class="card-header">
+                  <div class="card-title">
+                    <el-tooltip class="box-item" :content="'ID：' + row.id" placement="bottom">
+                      #{{ row.id }} {{ row.name }}
+                    </el-tooltip>
                   </div>
                 </div>
+              </template>
 
-                <template #footer>
-                  <div class="card-actions">
-                    <span v-if="row.id === 1" class="text-muted">系统预设</span>
-                    <template v-else>
-                      <el-button
-                        type="primary"
-                        size="small"
-                        @click="handleEdit('movie', row)"
-                      >
-                        <el-icon><Edit /></el-icon>
-                        编辑
-                      </el-button>
-                      <el-button
-                        type="danger"
-                        size="small"
-                        @click="handleDelete('movie', row.id)"
-                      >
-                        <el-icon><Delete /></el-icon>
-                        删除
-                      </el-button>
-                    </template>
-                  </div>
-                </template>
+              <div class="card-body">
+                <div class="info-item">
+                  <span class="info-label">语言:</span>
+                  <span class="info-value">
+                    {{row.language_array && row.language_array.length > 0 ? row.language_array.map((l: string) =>
+                      getLanguageName(l)).join(', ') : '全部语言' }}
+                  </span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">类别:</span>
+                  <span class="info-value">
+                    {{row.genre_id_array && row.genre_id_array.length > 0 ? row.genre_id_array.map((g: number) =>
+                      getMovieGenreName(g)).join(', ') : '全部分类' }}
+                  </span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">创建时间:</span>
+                  <span class="info-value">{{ formatDateTime(row.created_at ? row.created_at : 0) }}</span>
+                </div>
+              </div>
+
+              <template #footer>
+                <div class="card-actions">
+                  <span v-if="row.id === 1" class="text-muted">系统预设</span>
+                  <template v-else>
+                    <el-button type="primary" size="small" @click="handleEdit('movie', row)">
+                      <el-icon>
+                        <Edit />
+                      </el-icon>
+                      编辑
+                    </el-button>
+                    <el-button type="danger" size="small" @click="handleDelete('movie', row.id)">
+                      <el-icon>
+                        <Delete />
+                      </el-icon>
+                      删除
+                    </el-button>
+                  </template>
+                </div>
+              </template>
+            </el-card>
+
+            <el-col v-if="movieCategories.length === 0" :span="24" class="empty-card-col">
+              <el-card shadow="never" class="empty-card">
+                <div class="empty-content">
+                  <el-icon class="empty-icon">
+                    <Folder />
+                  </el-icon>
+                  <p class="empty-text">暂无电影分类策略</p>
+                </div>
               </el-card>
-
-              <el-col v-if="movieCategories.length === 0" :span="24" class="empty-card-col">
-                <el-card shadow="never" class="empty-card">
-                  <div class="empty-content">
-                    <el-icon class="empty-icon"><Folder /></el-icon>
-                    <p class="empty-text">暂无电影分类策略</p>
-                  </div>
-                </el-card>
-              </el-col>
-            </div>
+            </el-col>
           </div>
-        </el-tab-pane>
+        </div>
+      </el-tab-pane>
 
-        <!-- 电视剧分类tab -->
-        <el-tab-pane label="电视剧" name="tvshow">
-          <div class="tab-content">
-            <div class="card-actions-header">
-              <el-button type="primary" @click="handleAdd('tvshow')" class="add-button">
-                <el-icon><Plus /></el-icon>
-                添加分类
-              </el-button>
-            </div>
+      <!-- 电视剧分类tab -->
+      <el-tab-pane label="电视剧" name="tvshow">
+        <div class="tab-content">
+          <div class="card-actions-header">
+            <el-button type="primary" @click="handleAdd('tvshow')" class="add-button">
+              <el-icon>
+                <Plus />
+              </el-icon>
+              添加分类
+            </el-button>
+          </div>
 
-            <div class="cards-container">
-              <el-card
-                shadow="hover"
-                v-for="row in tvshowCategories"
-                :key="row.id"
-              >
-                <template #header>
-                  <div class="card-header">
-                    <div class="card-title">
-                      <el-tooltip
-                        class="box-item"
-                        :content="'ID：' + row.id"
-                        placement="bottom"
-                      >
-                        #{{ row.id }} {{ row.name }}
-                      </el-tooltip>
-                    </div>
-                  </div>
-                </template>
-
-                <div class="card-body">
-                  <div class="info-item">
-                    <span class="info-label">国家或地区:</span>
-                    <span class="info-value">
-                      {{ row.country_array && row.country_array.length > 0 ? row.country_array.map((c: string) => getCountryName(c)).join(', ') : '全部国家' }}
-                    </span>
-                  </div>
-                  <div class="info-item">
-                    <span class="info-label">类别:</span>
-                    <span class="info-value">
-                      {{ row.genre_id_array && row.genre_id_array.length > 0 ? row.genre_id_array.map((g: number) => getTvshowGenreName(g)).join(', ') : '全部分类' }}
-                    </span>
-                  </div>
-                  <div class="info-item">
-                    <span class="info-label">创建时间:</span>
-                    <span class="info-value">{{ formatDateTime(row.created_at ? row.created_at : 0) }}</span>
+          <div class="cards-container">
+            <el-card shadow="hover" v-for="row in tvshowCategories" :key="row.id">
+              <template #header>
+                <div class="card-header">
+                  <div class="card-title">
+                    <el-tooltip class="box-item" :content="'ID：' + row.id" placement="bottom">
+                      #{{ row.id }} {{ row.name }}
+                    </el-tooltip>
                   </div>
                 </div>
+              </template>
 
-                <template #footer>
-                  <div class="card-actions">
-                    <span v-if="row.id === 1" class="text-muted">系统预设</span>
-                    <template v-else>
-                      <el-button
-                        type="primary"
-                        size="small"
-                        @click="handleEdit('tvshow', row)"
-                      >
-                        <el-icon><Edit /></el-icon>
-                        编辑
-                      </el-button>
-                      <el-button
-                        type="danger"
-                        size="small"
-                        @click="handleDelete('tvshow', row.id)"
-                      >
-                        <el-icon><Delete /></el-icon>
-                        删除
-                      </el-button>
-                    </template>
-                  </div>
-                </template>
+              <div class="card-body">
+                <div class="info-item">
+                  <span class="info-label">国家或地区:</span>
+                  <span class="info-value">
+                    {{row.country_array && row.country_array.length > 0 ? row.country_array.map((c: string) =>
+                      getCountryName(c)).join(', ') : '全部国家' }}
+                  </span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">类别:</span>
+                  <span class="info-value">
+                    {{row.genre_id_array && row.genre_id_array.length > 0 ? row.genre_id_array.map((g: number) =>
+                      getTvshowGenreName(g)).join(', ') : '全部分类' }}
+                  </span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">创建时间:</span>
+                  <span class="info-value">{{ formatDateTime(row.created_at ? row.created_at : 0) }}</span>
+                </div>
+              </div>
+
+              <template #footer>
+                <div class="card-actions">
+                  <span v-if="row.id === 1" class="text-muted">系统预设</span>
+                  <template v-else>
+                    <el-button type="primary" size="small" @click="handleEdit('tvshow', row)">
+                      <el-icon>
+                        <Edit />
+                      </el-icon>
+                      编辑
+                    </el-button>
+                    <el-button type="danger" size="small" @click="handleDelete('tvshow', row.id)">
+                      <el-icon>
+                        <Delete />
+                      </el-icon>
+                      删除
+                    </el-button>
+                  </template>
+                </div>
+              </template>
+            </el-card>
+
+            <el-col v-if="tvshowCategories.length === 0" :span="24" class="empty-card-col">
+              <el-card shadow="never" class="empty-card">
+                <div class="empty-content">
+                  <el-icon class="empty-icon">
+                    <Folder />
+                  </el-icon>
+                  <p class="empty-text">暂无电视剧分类策略</p>
+                </div>
               </el-card>
-
-              <el-col v-if="tvshowCategories.length === 0" :span="24" class="empty-card-col">
-                <el-card shadow="never" class="empty-card">
-                  <div class="empty-content">
-                    <el-icon class="empty-icon"><Folder /></el-icon>
-                    <p class="empty-text">暂无电视剧分类策略</p>
-                  </div>
-                </el-card>
-              </el-col>
-            </div>
+            </el-col>
           </div>
-        </el-tab-pane>
-      </el-tabs>
+        </div>
+      </el-tab-pane>
+    </el-tabs>
 
-      <!-- 添加/编辑弹窗 -->
-      <el-dialog
-        v-model="dialogVisible"
-        :title="dialogType === 'add' ? '添加分类' : '编辑分类'"
-        width="500px"
-        @close="handleDialogClose"
-      >
-        <el-form
-          ref="formRef"
-          :model="formData"
-          :rules="formRules"
-          label-width="100px"
-        >
-          <el-form-item label="分类名称" prop="name">
-            <el-input v-model="formData.name" placeholder="请输入分类名称" />
-          </el-form-item>
+    <!-- 添加/编辑弹窗 -->
+    <el-dialog v-model="dialogVisible" :title="dialogType === 'add' ? '添加分类' : '编辑分类'" width="500px"
+      @close="handleDialogClose">
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
+        <el-form-item label="分类名称" prop="name">
+          <el-input v-model="formData.name" placeholder="请输入分类名称" />
+        </el-form-item>
 
-          <el-form-item :label="editingType === 'movie' ? '语言' : '国家'" prop="languages">
-            <el-select
-              v-model="formData.languages"
-              multiple
-              collapse-tags
-              filterable
-              :placeholder="editingType === 'movie' ? '请输入语言名称搜索或选择（多选）' : '请输入国家名称搜索或选择（多选）'"
-              style="width: 100%"
-            >
-              <el-option
-                v-for="item in (editingType === 'movie' ? languages : countries)"
-                :key="item.code"
-                :label="item.name"
-                :value="item.code"
-              />
-            </el-select>
-          </el-form-item>
+        <el-form-item :label="editingType === 'movie' ? '语言' : '国家'" prop="languages">
+          <el-select v-model="formData.languages" multiple collapse-tags filterable
+            :placeholder="editingType === 'movie' ? '请输入语言名称搜索或选择（多选）' : '请输入国家名称搜索或选择（多选）'" style="width: 100%">
+            <el-option v-for="item in (editingType === 'movie' ? languages : countries)" :key="item.code"
+              :label="item.name" :value="item.code" />
+          </el-select>
+        </el-form-item>
 
-          <el-form-item label="类别" prop="genres">
-            <el-select
-              v-model="formData.genres"
-              multiple
-              collapse-tags
-              filterable
-              placeholder="请输入类别名称搜索或选择（多选）"
-              style="width: 100%"
-            >
-              <el-option
-                v-for="genre in currentGenres"
-                :key="genre.id"
-                :label="genre.name"
-                :value="genre.id"
-              />
-            </el-select>
-          </el-form-item>
-        </el-form>
+        <el-form-item label="类别" prop="genres">
+          <el-select v-model="formData.genres" multiple collapse-tags filterable placeholder="请输入类别名称搜索或选择（多选）"
+            style="width: 100%">
+            <el-option v-for="genre in currentGenres" :key="genre.id" :label="genre.name" :value="genre.id" />
+          </el-select>
+        </el-form-item>
+      </el-form>
 
-        <template #footer>
-          <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="handleSubmit">确认</el-button>
-        </template>
-      </el-dialog>
+      <template #footer>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSubmit">确认</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -288,10 +245,10 @@ const movieCategories = ref<category[]>([])
 const tvshowCategories = ref<category[]>([])
 
 // 语言、国家和类别数据
-const languages = ref<{code: string; name: string}[]>([])
-const countries = ref<{code: string; name: string}[]>([])
-const movieGenres = ref<{id: number; name: string}[]>([])
-const tvshowGenres = ref<{id: number; name: string}[]>([])
+const languages = ref<{ code: string; name: string }[]>([])
+const countries = ref<{ code: string; name: string }[]>([])
+const movieGenres = ref<{ id: number; name: string }[]>([])
+const tvshowGenres = ref<{ id: number; name: string }[]>([])
 
 // 表单数据
 const formData = reactive({

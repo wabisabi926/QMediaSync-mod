@@ -2,7 +2,7 @@
   <div class="main-content-container scrape-pathes-container full-width-container">
     <div class="card-header">
       <div class="header-left">
-        <h2 class="card-title">刮削目录管理</h2>
+        <h2 class="card-title hidden-md-and-down">刮削目录管理</h2>
         <div class="card-subtitle">
           设置媒体文件的刮削和整理规则，支持电影、电视剧和其他媒体类型
         </div>
@@ -519,6 +519,7 @@ import { formatTime } from '@/utils/timeUtils'
 import { isMobile } from '@/utils/deviceUtils'
 import { sourceTypeOptions, sourceTypeTagMap, sourceTypeMap } from '@/utils/sourceTypeUtils'
 import MetadataExtInput from './MetadataExtInput.vue'
+import 'element-plus/theme-chalk/display.css'
 
 // const router = useRouter()
 const defaultAiPrompt = "从文件名中提取出电影名称、年份; 名称中不能有特殊字符如点、下划线、横杠、斜杠等; 如果文件中有tmdbid（格式{tmdbid-123455}）也返回tmdbid\n"

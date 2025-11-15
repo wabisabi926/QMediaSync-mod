@@ -4,7 +4,7 @@
       <template #header>
         <div class="card-header">
           <div class="header-left">
-            <h2 class="card-title">同步目录管理</h2>
+            <h2 class="card-title hidden-md-and-down">同步目录管理</h2>
             <p class="card-subtitle">
               115分为全量同步和增量同步，首次同步为全量，后续都为增量，其他类型不区分
             </p>
@@ -59,11 +59,6 @@
               <span class="info-label">目标路径:</span>
               <span class="info-value">{{ GetFullPath(row) }}</span>
             </div>
-
-            <!-- <div class="info-item" v-if="row.source_type === '115'">
-              <span class="info-label">缓存目录层级:</span>
-              <span class="info-value">{{ row.dir_depth || '-' }}层</span>
-            </div> -->
 
             <div class="info-item">
               <span class="info-label">添加时间:</span>
@@ -352,6 +347,7 @@ import { formatTime } from '@/utils/timeUtils'
 import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 import { sourceTypeOptions, sourceTypeTagMap, sourceTypeMap } from '@/utils/sourceTypeUtils'
 import MetadataExtInput from './MetadataExtInput.vue'
+import 'element-plus/theme-chalk/display.css'
 
 interface SyncDirectory {
   id?: number
@@ -1253,8 +1249,9 @@ onUnmounted(() => {
 
 .card-actions {
   display: flex;
-  justify-content: end;
-  gap: 8px;
+  justify-content: end !important;
+  flex-wrap: wrap;
+  /* gap: 8px; */
 }
 
 .card-body {

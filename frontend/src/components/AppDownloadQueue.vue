@@ -2,8 +2,8 @@
   <div class="download-queue-container">
     <div class="card-header">
       <div>
-        <h2>下载队列</h2>
-        <p>strm同步时会下载元数据，这里是下载队列，可以观察下载进度或者清空下载队列（下次同步会继续未完成的下载，除非关闭元数据下载）</p>
+        <h2 class="hidden-md-and-down">下载队列</h2>
+        <p>strm同步时会下载元数据，这里是下载队列，可以观察下载进度或者清空下载队列（每隔一段时间会继续未完成的下载，除非关闭元数据下载）</p>
         <p>来源是"Emby媒体信息提取"的记录不会真正下载，只是触发Emby媒体信息提取。</p>
       </div>
       <div class="header-actions">
@@ -37,9 +37,47 @@
         </el-statistic>
       </div>
     </div>
-
     <el-table :data="queueData" style="width: 100%" v-loading="loading" empty-text="暂无下载任务"
-      :row-class-name="tableRowClassName" height="calc(100vh - 400px)">
+      :row-class-name="tableRowClassName" height="calc(100vh - 500px)" class="hidden-md-and-up">
+      <el-table-column type="expand" width="30">
+        <template #default="scope">
+          <el-descriptions class="margin-top" :column="2" border size="small">
+            <el-descriptions-item label="来源">{{ scope.row.source }}</el-descriptions-item>
+            <el-descriptions-item label="类型">
+              <el-tag :type="getSourceTypeTagType(scope.row.source_type)">
+                {{ getSourceTypeName(scope.row.source_type) }}
+              </el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="状态">
+              <el-tag :type="getStatusTagType(scope.row.status)">
+                {{ getStatusText(scope.row.status) }}
+              </el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="文件大小">
+              {{ formatFileSize(scope.row.size) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="开始时间">
+              {{ scope.row.start_time ? formatDateTime(scope.row.start_time) : '-' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="完成时间">
+              {{ scope.row.end_time ? formatDateTime(scope.row.end_time) : '-' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="失败原因" v-if="scope.row.error" :span="2">
+              {{ scope.row.error ? scope.row.error : '-' }}
+            </el-descriptions-item>
+          </el-descriptions>
+        </template>
+      </el-table-column>
+      <el-table-column prop="speed" label="下载链接">
+        <template #default="scope">
+          <span>{{ scope.row.remote_file_id }}</span> <br />
+          => <br />
+          <span>{{ scope.row.local_full_path }}</span>
+        </template>
+      </el-table-column>
+    </el-table>
+    <el-table :data="queueData" style="width: 100%" v-loading="loading" empty-text="暂无下载任务"
+      :row-class-name="tableRowClassName" height="calc(100vh - 300px)" class="hidden-md-and-down">
       <el-table-column prop="id" label="ID" width="80" />
       <el-table-column prop="source" label="下载来源" width="80" />
       <el-table-column prop="status" label="状态" width="120">
@@ -109,6 +147,7 @@ import type { AxiosStatic } from 'axios'
 import { inject } from 'vue'
 import { formatFileSize } from '@/utils/fileSizeUtils'
 import { formatDateTime } from '@/utils/timeUtils'
+import 'element-plus/theme-chalk/display.css'
 
 interface DownloadTask {
   id: string
@@ -424,7 +463,6 @@ onUnmounted(() => {
 
 .download-queue-container {
   width: 100%;
-  height: 100%;
   padding: 20px;
   box-sizing: border-box;
 }
@@ -450,6 +488,8 @@ onUnmounted(() => {
 
 .header-actions {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
   gap: 12px;
 }
 

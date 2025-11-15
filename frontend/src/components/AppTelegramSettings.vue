@@ -28,14 +28,17 @@
 
         <el-form-item>
           <div class="form-actions">
-            <el-button type="primary" @click="testBot" :loading="testing" :disabled="loading || !formData.enabled"
-              :icon="Message">
-              测试机器人
-            </el-button>
-
-            <el-button type="success" @click="saveSettings" :loading="loading" :disabled="testing" :icon="Check">
-              保存设置
-            </el-button>
+            <div>
+              <el-button type="primary" @click="testBot" :loading="testing" :disabled="loading || !formData.enabled"
+                :icon="Message">
+                测试机器人
+              </el-button>
+            </div>
+            <div>
+              <el-button type="success" @click="saveSettings" :loading="loading" :disabled="testing" :icon="Check">
+                保存设置
+              </el-button>
+            </div>
           </div>
         </el-form-item>
       </el-form>

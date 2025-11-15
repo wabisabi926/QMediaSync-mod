@@ -1,15 +1,13 @@
 <template>
   <div class="sync-records-container">
     <!-- 同步记录卡片 -->
-    <el-card class="sync-records-card" shadow="hover">
-      <template #header>
-        <div class="card-header">
-          <div class="header-left">
-            <h2 class="card-title">同步记录</h2>
-            <p class="card-subtitle">查看STRM文件同步历史记录和状态</p>
-          </div>
-          <div class="header-right">
-            <!-- <el-button
+    <div class="sync-records-card">
+      <div class="header-left">
+        <h2 class="card-title hidden-md-and-down">同步记录</h2>
+        <p class="card-subtitle">只会保留7天的记录，每天0点会删除7天前的所有记录</p>
+      </div>
+      <div class="header-right">
+        <!-- <el-button
               type="primary"
               @click="startManualSync"
               :loading="syncLoading"
@@ -19,96 +17,139 @@
               <el-icon><Refresh /></el-icon>
               手动同步
             </el-button> -->
-          </div>
-        </div>
-      </template>
-
-      <div class="sync-content">
-        <!-- 批量删除控制 -->
-        <div style="display: flex; align-items: center; margin-bottom: 8px; gap: 12px">
-          <el-checkbox v-model="batchMode" size="large">批量删除</el-checkbox>
-          <el-button v-if="batchMode" type="danger" size="small" :disabled="selectedIds.length === 0"
-            :loading="batchDeleteLoading" @click="batchDeleteRecords">
-            批量删除
-          </el-button>
-        </div>
-        <!-- 同步记录表格 -->
-        <el-table :data="syncRecords" v-loading="tableLoading" stripe class="sync-table" empty-text="暂无同步记录"
-          :show-overflow-tooltip="true" @selection-change="handleSelectionChange">
-          <el-table-column v-if="batchMode" type="selection" width="50" align="center"
-            :selectable="isDeletableRecord" />
-          <el-table-column prop="id" label="任务ID" width="80" />
-          <el-table-column prop="status" label="状态" width="90">
-            <template #default="scope">
-              <el-tag :type="getStatusType(scope.row.status)" :effect="scope.row.status === 1 ? 'dark' : 'light'">
-                {{ getStatusText(scope.row.status) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="sub_status" label="子状态" width="120" class-name="hidden-xs">
-            <template #default="scope">
-              <el-tag v-if="scope.row.status === 1" type="primary" size="small" effect="light">
-                {{ getSubStatusText(scope.row.sub_status) }}
-              </el-tag>
-              <span v-else>-</span>
-            </template>
-          </el-table-column>
-
-          <el-table-column prop="start_time" label="开始时间" width="180">
-            <template #default="scope">
-              {{ formatDateTime(scope.row.start_time) }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="end_time" label="结束时间" width="180">
-            <template #default="scope">
-              {{ scope.row.end_time ? formatDateTime(scope.row.end_time) : '-' }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="local_path" label="本地路径" width="150" show-overflow-tooltip>
-            <template #default="scope">
-              {{ scope.row.local_path || '-' }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="remote_path" label="网盘路径" width="150" show-overflow-tooltip>
-            <template #default="scope">
-              {{ scope.row.remote_path || '-' }}
-            </template>
-          </el-table-column>
-
-          <el-table-column prop="processed_files" label="总文件数" width="120" align="center" />
-          <el-table-column prop="created_strm" label="新增STRM数" width="120" align="center" />
-          <el-table-column prop="downloaded_meta" label="下载元数据数" width="140" align="center" class-name="hidden-xs" />
-          <el-table-column prop="fail_reason" label="失败原因" width="200" show-overflow-tooltip>
-            <template #default="scope">
-              <span v-if="scope.row.status === 3 && scope.row.fail_reason" class="fail-reason-text">
-                {{ scope.row.fail_reason }}
-              </span>
-              <span v-else>-</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="120" align="center" fixed="right">
-            <template #default="scope">
-              <el-button type="primary" size="small" @click="viewTaskDetail(scope.row.id)" link>
-                查看
-              </el-button>
-              <el-button v-if="isDeletableRecord(scope.row) && !batchMode" type="danger" size="small"
-                style="margin-left: 4px" :loading="deleteLoading" @click="deleteRecord(scope.row.id)" link>
-                删除
-              </el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-
-        <!-- 分页器 -->
-        <el-pagination v-if="total > 0" v-model:current-page="currentPage" v-model:page-size="pageSize" :total="total"
-          :page-sizes="[10, 20, 50, 100]" layout="total, sizes, prev, pager, next, jumper" class="sync-pagination"
-          @size-change="handleSizeChange" @current-change="handleCurrentChange" />
       </div>
-    </el-card>
+    </div>
 
-    <!-- 同步状态提示 -->
-    <el-alert v-if="syncStatus" :title="syncStatus.title" :type="syncStatus.type" :description="syncStatus.description"
-      :closable="false" show-icon class="sync-status" />
+    <div class="sync-content">
+      <!-- 批量删除控制 -->
+      <div style="display: flex; align-items: center; margin-bottom: 8px; gap: 12px">
+        <el-checkbox v-model="batchMode" size="large">批量删除</el-checkbox>
+        <el-button v-if="batchMode" type="danger" size="small" :disabled="selectedIds.length === 0"
+          :loading="batchDeleteLoading" @click="batchDeleteRecords">
+          批量删除
+        </el-button>
+      </div>
+      <el-table :data="syncRecords" v-loading="tableLoading" stripe class="sync-table hidden-md-and-up"
+        empty-text="暂无同步记录" :show-overflow-tooltip="true" @selection-change="handleSelectionChange"
+        height="calc(100vh - 250px)" style="width: 100%">
+        <el-table-column v-if="batchMode" type="selection" width="30" align="center" :selectable="isDeletableRecord" />
+        <el-table-column type="expand" width="30">
+          <template #default="scope">
+            <el-descriptions class="margin-top" :column="2" border size="small">
+              <el-descriptions-item label="来源类型">{{ scope.row.source }}</el-descriptions-item>
+              <el-descriptions-item label="状态">
+                <el-tag :type="getStatusType(scope.row.status)" :effect="scope.row.status === 1 ? 'dark' : 'light'">
+                  {{ getStatusText(scope.row.status) }}
+                </el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="开始时间">
+                {{ scope.row.start_time ? formatDateTime(scope.row.start_time) : '-' }}
+              </el-descriptions-item>
+              <el-descriptions-item label="完成时间">
+                {{ scope.row.end_time ? formatDateTime(scope.row.end_time) : '-' }}
+              </el-descriptions-item>
+              <el-descriptions-item label="文件数" :span="2">
+                扫描的总文件数：{{ scope.row.processed_files }} <br />
+                生成strm数：{{ scope.row.created_strm }} <br />
+                需要下载的元数据数：{{ scope.row.downloaded_meta }}<br />
+                需要上传的元数据数：{{ scope.row.uploaded_meta }}
+              </el-descriptions-item>
+              <el-descriptions-item label="失败原因" v-if="scope.row.error" :span="2">
+                {{ scope.row.error ? scope.row.error : '-' }}
+              </el-descriptions-item>
+            </el-descriptions>
+          </template>
+        </el-table-column>
+        <el-table-column prop="local_path" label="同步路径" show-overflow-tooltip>
+          <template #default="scope">
+            <el-text type="primary" class="hidden-md-and-up"># {{ scope.row.id }}</el-text>
+            {{ scope.row.remote_path || '-' }} => {{ scope.row.local_path || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="120" align="center" fixed="right">
+          <template #default="scope">
+            <el-button type="primary" size="small" @click="viewTaskDetail(scope.row.id)" link>
+              查看
+            </el-button>
+            <el-button v-if="isDeletableRecord(scope.row) && !batchMode" type="danger" size="small"
+              style="margin-left: 4px" :loading="deleteLoading" @click="deleteRecord(scope.row.id)" link>
+              删除
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <!-- 同步记录表格 -->
+      <el-table :data="syncRecords" v-loading="tableLoading" stripe class="sync-table hidden-md-and-down"
+        empty-text="暂无同步记录" :show-overflow-tooltip="true" @selection-change="handleSelectionChange"
+        height="calc(100vh - 350px)">
+        <el-table-column v-if="batchMode" type="selection" width="50" align="center" :selectable="isDeletableRecord" />
+        <el-table-column prop="id" label="任务ID" width="80" />
+        <el-table-column prop="status" label="状态" width="90">
+          <template #default="scope">
+            <el-tag :type="getStatusType(scope.row.status)" :effect="scope.row.status === 1 ? 'dark' : 'light'">
+              {{ getStatusText(scope.row.status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="sub_status" label="子状态" width="120" class-name="hidden-xs">
+          <template #default="scope">
+            <el-tag v-if="scope.row.status === 1" type="primary" size="small" effect="light">
+              {{ getSubStatusText(scope.row.sub_status) }}
+            </el-tag>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="start_time" label="开始时间" width="180">
+          <template #default="scope">
+            {{ formatDateTime(scope.row.start_time) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="end_time" label="结束时间" width="180">
+          <template #default="scope">
+            {{ scope.row.end_time ? formatDateTime(scope.row.end_time) : '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="local_path" label="本地路径" width="150" show-overflow-tooltip>
+          <template #default="scope">
+            {{ scope.row.local_path || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="remote_path" label="网盘路径" width="150" show-overflow-tooltip>
+          <template #default="scope">
+            {{ scope.row.remote_path || '-' }}
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="processed_files" label="总文件数" width="120" align="center" />
+        <el-table-column prop="created_strm" label="新增STRM数" width="120" align="center" />
+        <el-table-column prop="downloaded_meta" label="下载元数据数" width="140" align="center" class-name="hidden-xs" />
+        <el-table-column prop="fail_reason" label="失败原因" width="200" show-overflow-tooltip>
+          <template #default="scope">
+            <span v-if="scope.row.status === 3 && scope.row.fail_reason" class="fail-reason-text">
+              {{ scope.row.fail_reason }}
+            </span>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="120" align="center" fixed="right">
+          <template #default="scope">
+            <el-button type="primary" size="small" @click="viewTaskDetail(scope.row.id)" link>
+              查看
+            </el-button>
+            <el-button v-if="isDeletableRecord(scope.row) && !batchMode" type="danger" size="small"
+              style="margin-left: 4px" :loading="deleteLoading" @click="deleteRecord(scope.row.id)" link>
+              删除
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <!-- 分页器 -->
+      <el-pagination v-if="total > 0" v-model:current-page="currentPage" v-model:page-size="pageSize" :total="total"
+        :page-sizes="[10, 20, 50, 100]" layout="total, sizes, prev, pager, next, jumper" class="sync-pagination"
+        @size-change="handleSizeChange" @current-change="handleCurrentChange" />
+    </div>
   </div>
 </template>
 
@@ -119,6 +160,7 @@ import { inject, onMounted, onUnmounted, ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { formatDateTime } from '@/utils/timeUtils'
+import 'element-plus/theme-chalk/display.css'
 
 interface SyncRecord {
   id: number
@@ -132,12 +174,6 @@ interface SyncRecord {
   local_path: string
   remote_path: string
   fail_reason: string
-}
-
-interface SyncStatus {
-  title: string
-  type: 'success' | 'warning' | 'error' | 'info'
-  description: string
 }
 
 interface ApiSyncRecord {
@@ -160,7 +196,6 @@ const router = useRouter()
 // 数据状态
 const syncRecords = ref<SyncRecord[]>([])
 const tableLoading = ref(false)
-const syncStatus = ref<SyncStatus | null>(null)
 
 // 批量删除相关状态
 const batchMode = ref(false)
@@ -467,13 +502,14 @@ watch(batchMode, (val) => {
   width: 100%;
   max-width: none;
   margin: 0;
+  border: 0;
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 20px;
+  gap: 12px;
 }
 
 .header-left {
@@ -498,7 +534,7 @@ watch(batchMode, (val) => {
 }
 
 .sync-content {
-  margin-top: 20px;
+  margin-top: 12px;
 }
 
 .sync-table {

@@ -198,13 +198,19 @@
             开启后可自定义视频扩展名和元数据扩展名配置，否则使用strm设置中的值
           </div>
         </el-form-item>
-
+        <!-- 最小视频文件大小 -->
+        <el-form-item label="最小视频文件大小 (MB)" prop="min_video_size" v-if="addForm.custom_config">
+          <el-slider v-model="addForm.min_video_size" :min="-1" :max="1000" :step="1" :precision="0"
+            :format-tooltip="formatTooltip" show-input />
+          <div class="form-help">
+            <p>小于此大小的视频文件将不会生成STRM文件，单位为MB。设置为0表示不限制文件大小</p>
+          </div>
+        </el-form-item>
         <el-form-item label="视频扩展名" prop="video_ext" v-if="addForm.custom_config">
           <MetadataExtInput v-model="addForm.video_ext" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
             class="meta-ext-input limited-width-input" />
           <div class="form-tip">指定需要生成STRM文件的视频文件扩展名</div>
         </el-form-item>
-
         <el-form-item label="元数据扩展名" prop="meta_ext" v-if="addForm.custom_config">
           <MetadataExtInput v-model="addForm.meta_ext" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
             class="meta-ext-input limited-width-input" />
@@ -214,6 +220,59 @@
           <MetadataExtInput v-model="addForm.exclude_name" placeholder="输入文件名后按回车添加，逗号或者分行分隔"
             class="meta-ext-input limited-width-input" />
           <div class="form-tip">指定需要排除同步的名称，必须输入完整，可以是文件夹名字或者文件名字</div>
+        </el-form-item>
+        <el-form-item label="是否下载元数据" prop="download_meta" v-if="addForm.custom_config">
+          <el-radio-group v-model="addForm.download_meta">
+            <el-radio-button :label="-1">使用STRM设置</el-radio-button>
+            <el-radio-button :label="1">是</el-radio-button>
+            <el-radio-button :label="0">否</el-radio-button>
+          </el-radio-group>
+          <div class="form-help">
+            <p>如果选择是，同步时会将本地不存在的元数据文件下载回来</p>
+            <p>
+              如果选择否，同步时不会下载，<strong stylle="color: black;">但是也同时跳过处理元数据，已存在的会保留，新增的不会上传</strong>
+            </p>
+          </div>
+        </el-form-item>
+        <!-- 同步完是否上传网盘不存在的元数据 -->
+        <el-form-item label="网盘不存在的元数据" prop="upload_meta" v-if="addForm.custom_config">
+          <el-radio-group v-model="addForm.upload_meta">
+            <el-radio-button :label="-1">使用STRM设置</el-radio-button>
+            <el-radio-button :label="2" :disabled="addForm.download_meta === 0">删除</el-radio-button>
+            <el-radio-button :label="1" :disabled="addForm.download_meta === 0">上传</el-radio-button>
+            <el-radio-button :label="0">保留</el-radio-button>
+          </el-radio-group>
+          <div class="form-help">
+            <p>删除: 本地存在且网盘不存在则删除本地文件</p>
+            <p>
+              上传: 本地存在且网盘不存在，分三种情况: <br />
+              &nbsp;&nbsp;&nbsp;&nbsp;1. 父目录在网盘存在则上传<br />
+              &nbsp;&nbsp;&nbsp;&nbsp;2. 父目录在网盘不存在（网盘已删除）则删除本地文件<br />
+              &nbsp;&nbsp;&nbsp;&nbsp;3. 父目录是特定名字，则创建父目录并上传，特定名字包括："extrafanart",
+              "exfanarts",
+              "extrafanarts",
+              "extras",
+              "specials",
+              "shorts",
+              "scenes",
+              "featurettes",
+              "behind the scenes",
+              "trailers",
+              "interviews",
+            </p>
+            <p>保留：不会删除本地文件，不管网盘有没有删除它</p>
+          </div>
+        </el-form-item>
+        <!-- 同步完是否删除网盘不存在的空目录 -->
+        <el-form-item label="网盘不存在的空目录" prop="delete_dir" v-if="addForm.custom_config">
+          <el-radio-group v-model="addForm.delete_dir">
+            <el-radio-button :label="-1">使用STRM设置</el-radio-button>
+            <el-radio-button :label="1">删除</el-radio-button>
+            <el-radio-button :label="0">不删除</el-radio-button>
+          </el-radio-group>
+          <div class="form-help">
+            <p>同步完成后是否删除本地存在但网盘不存在的目录，该本地目录必须是空目录</p>
+          </div>
         </el-form-item>
       </el-form>
 
@@ -263,13 +322,19 @@
             开启后可自定义视频扩展名和元数据扩展名配置，否则使用strm设置中的值
           </div>
         </el-form-item>
-
+        <!-- 最小视频文件大小 -->
+        <el-form-item label="最小视频文件大小 (MB)" prop="min_video_size" v-if="editForm.custom_config">
+          <el-slider v-model="editForm.min_video_size" :min="-1" :max="1000" :step="1" :precision="0"
+            :format-tooltip="formatTooltip" show-input />
+          <div class="form-help">
+            <p>小于此大小的视频文件将不会生成STRM文件，单位为MB。设置为0表示不限制文件大小</p>
+          </div>
+        </el-form-item>
         <el-form-item label="视频扩展名" prop="video_ext" v-if="editForm.custom_config">
           <MetadataExtInput v-model="editForm.video_ext" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
             class="meta-ext-input limited-width-input" />
           <div class="form-tip">指定需要生成STRM文件的视频文件扩展名</div>
         </el-form-item>
-
         <el-form-item label="元数据扩展名" prop="meta_ext" v-if="editForm.custom_config">
           <MetadataExtInput v-model="editForm.meta_ext" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
             class="meta-ext-input limited-width-input" />
@@ -279,6 +344,59 @@
           <MetadataExtInput v-model="editForm.exclude_name" placeholder="输入文件名后按回车添加，逗号或者分行分隔"
             class="meta-ext-input limited-width-input" />
           <div class="form-tip">指定需要排除同步的名称，必须输入完整，可以是文件夹名字或者文件名字</div>
+        </el-form-item>
+        <el-form-item label="是否下载元数据" prop="download_meta" v-if="editForm.custom_config">
+          <el-radio-group v-model="editForm.download_meta">
+            <el-radio-button :label="-1">使用STRM设置</el-radio-button>
+            <el-radio-button :label="1">是</el-radio-button>
+            <el-radio-button :label="0">否</el-radio-button>
+          </el-radio-group>
+          <div class="form-help">
+            <p>如果选择是，同步时会将本地不存在的元数据文件下载回来</p>
+            <p>
+              如果选择否，同步时不会下载，<strong stylle="color: black;">但是也同时跳过处理元数据，已存在的会保留，新增的不会上传</strong>
+            </p>
+          </div>
+        </el-form-item>
+        <!-- 同步完是否上传网盘不存在的元数据 -->
+        <el-form-item label="网盘不存在的元数据" prop="upload_meta" v-if="editForm.custom_config">
+          <el-radio-group v-model="editForm.upload_meta">
+            <el-radio-button :label="-1">使用STRM设置</el-radio-button>
+            <el-radio-button :label="2" :disabled="editForm.download_meta === 0">删除</el-radio-button>
+            <el-radio-button :label="1" :disabled="editForm.download_meta === 0">上传</el-radio-button>
+            <el-radio-button :label="0">保留</el-radio-button>
+          </el-radio-group>
+          <div class="form-help">
+            <p>删除: 本地存在且网盘不存在则删除本地文件</p>
+            <p>
+              上传: 本地存在且网盘不存在，分三种情况: <br />
+              &nbsp;&nbsp;&nbsp;&nbsp;1. 父目录在网盘存在则上传<br />
+              &nbsp;&nbsp;&nbsp;&nbsp;2. 父目录在网盘不存在（网盘已删除）则删除本地文件<br />
+              &nbsp;&nbsp;&nbsp;&nbsp;3. 父目录是特定名字，则创建父目录并上传，特定名字包括："extrafanart",
+              "exfanarts",
+              "extrafanarts",
+              "extras",
+              "specials",
+              "shorts",
+              "scenes",
+              "featurettes",
+              "behind the scenes",
+              "trailers",
+              "interviews",
+            </p>
+            <p>保留：不会删除本地文件，不管网盘有没有删除它</p>
+          </div>
+        </el-form-item>
+        <!-- 同步完是否删除网盘不存在的空目录 -->
+        <el-form-item label="网盘不存在的空目录" prop="delete_dir" v-if="editForm.custom_config">
+          <el-radio-group v-model="editForm.delete_dir">
+            <el-radio-button :label="-1">使用STRM设置</el-radio-button>
+            <el-radio-button :label="1">删除</el-radio-button>
+            <el-radio-button :label="0">不删除</el-radio-button>
+          </el-radio-group>
+          <div class="form-help">
+            <p>同步完成后是否删除本地存在但网盘不存在的目录，该本地目录必须是空目录</p>
+          </div>
         </el-form-item>
       </el-form>
 
@@ -355,7 +473,6 @@ interface SyncDirectory {
   local_path: string
   remote_path: string
   strm_path: string
-  dir_depth?: number
   created_at: number
   updated_at: number
   last_sync_at: number
@@ -363,14 +480,17 @@ interface SyncDirectory {
   editing?: boolean
   starting?: boolean
   source_type: string
-  account_id?: number
+  account_id: number
   account_name: string
-  custom_config?: boolean
-  video_ext_arr?: string[]
-  meta_ext_arr?: string[]
-  exclude_name_arr?: string[]
-  enable_cron?: boolean
-  sync_full_path?: boolean
+  custom_config: boolean
+  video_ext_arr: string[]
+  meta_ext_arr: string[]
+  exclude_name_arr: string[]
+  min_video_size: number
+  upload_meta: -1 | 0 | 1 | 2
+  download_meta: -1 | 0 | 1
+  delete_dir: -1 | 0 | 1
+  enable_cron: boolean
   is_running: number
   stopping?: boolean
 }
@@ -425,6 +545,13 @@ const checkMobile = () => {
   checkIsMobile.value = isMobile()
 }
 
+const formatTooltip = (value: number) => {
+  if (value === -1) {
+    return '使用STRM设置'
+  }
+  return `${value} MB`
+}
+
 // 添加对话框状态
 const showAddDialog = ref(false)
 const addLoading = ref(false)
@@ -433,7 +560,6 @@ const addForm = reactive({
   local_path: '',
   base_cid: '',
   strm_path: '',
-  dir_depth: 2,
   source_type: '',
   account_id: '',
   custom_config: false,
@@ -441,7 +567,10 @@ const addForm = reactive({
   meta_ext: [] as string[],
   exclude_name: [] as string[],
   remote_path: '',
-  sync_full_path: false,
+  min_video_size: -1,
+  upload_meta: -1,
+  download_meta: -1,
+  delete_dir: -1,
 })
 
 // 编辑对话框状态
@@ -453,7 +582,6 @@ const editForm = reactive({
   local_path: '',
   base_cid: '',
   strm_path: '',
-  dir_depth: 2,
   source_type: '',
   account_id: 0,
   custom_config: false,
@@ -461,6 +589,10 @@ const editForm = reactive({
   meta_ext: [] as string[],
   exclude_name: [] as string[],
   remote_path: '',
+  min_video_size: -1,
+  upload_meta: -1,
+  download_meta: -1,
+  delete_dir: -1,
 })
 const editSelectedDirPath = ref('')
 
@@ -497,10 +629,6 @@ const editFormRules: FormRules = {
   base_cid: [
     { required: true, message: '请选择来源目录', trigger: 'blur' },
     { min: 1, max: 100, message: '长度在 1 到 100 个字符', trigger: 'blur' },
-  ],
-  dir_depth: [
-    { required: true, message: '请输入目录深度', trigger: 'blur' },
-    { type: 'number', min: 1, max: 10, message: '目录深度必须在 1 到 10 之间', trigger: 'blur' },
   ],
   account_id: [{ required: true, message: '请选择网盘账号', trigger: 'change' }],
 }
@@ -577,14 +705,16 @@ const handleAdd = async () => {
       local_path: addForm.local_path.trim(),
       base_cid: addForm.base_cid.trim(),
       remote_path: selectedDirPath.value,
-      dir_depth: addForm.dir_depth,
       source_type: addForm.source_type.trim(),
       account_id: addForm.account_id ? addForm.account_id : 0,
       custom_config: addForm.custom_config,
       video_ext: addForm.video_ext,
       meta_ext: addForm.meta_ext,
       exclude_name: addForm.exclude_name,
-      sync_full_path: true,
+      min_video_size: addForm.min_video_size,
+      upload_meta: addForm.upload_meta,
+      download_meta: addForm.download_meta,
+      delete_dir: addForm.delete_dir,
     }
 
     const response = await http?.post(`${SERVER_URL}/sync/path-add`, formData, {
@@ -599,11 +729,15 @@ const handleAdd = async () => {
       addForm.local_path = ''
       addForm.base_cid = ''
       addForm.strm_path = ''
-      addForm.dir_depth = 2
       addForm.custom_config = false
       addForm.video_ext = []
       addForm.meta_ext = []
+      addForm.exclude_name = []
       selectedDirPath.value = ''
+      addForm.min_video_size = -1
+      addForm.upload_meta = -1
+      addForm.download_meta = -1
+      addForm.delete_dir = -1
       loadDirectories()
     } else {
       ElMessage.error(response?.data.message || '添加同步目录失败')
@@ -619,9 +753,9 @@ const handleAdd = async () => {
 // 处理编辑同步目录
 const handleEdit = async (row: SyncDirectory) => {
   editForm.id = row.id || 0
+  editForm.account_id = row.account_id
   editForm.local_path = row.local_path
   editForm.base_cid = row.base_cid
-  editForm.dir_depth = row.dir_depth || 2
   editForm.source_type = row.source_type || ''
   editForm.account_id = row.account_id || 0
   editForm.custom_config = row.custom_config || false
@@ -630,6 +764,10 @@ const handleEdit = async (row: SyncDirectory) => {
   editForm.exclude_name = row.exclude_name_arr || []
   editForm.remote_path = row.remote_path || ''
   editSelectedDirPath.value = row.remote_path || ''
+  editForm.min_video_size = row.min_video_size || -1
+  editForm.upload_meta = row.upload_meta || -1
+  editForm.download_meta = row.download_meta || -1
+  editForm.delete_dir = row.delete_dir || -1
 
   // 初始化STRM路径
   updateEditStrmPath()
@@ -647,16 +785,20 @@ const handleEditSave = async () => {
 
     const formData = {
       id: editForm.id,
+      account_id: editForm.account_id,
       local_path: editForm.local_path.trim(),
       base_cid: editForm.base_cid.trim(),
       strm_path: editForm.strm_path.trim(),
-      dir_depth: editForm.dir_depth,
       custom_config: editForm.custom_config,
       video_ext: editForm.video_ext,
       meta_ext: editForm.meta_ext,
       exclude_name: editForm.exclude_name,
       source_type: editForm.source_type.trim(),
       remote_path: editSelectedDirPath.value,
+      min_video_size: editForm.min_video_size,
+      upload_meta: editForm.upload_meta,
+      download_meta: editForm.download_meta,
+      delete_dir: editForm.delete_dir,
     }
 
     const response = await http?.post(`${SERVER_URL}/sync/path-update`, formData, {
@@ -672,11 +814,15 @@ const handleEditSave = async () => {
       editForm.local_path = ''
       editForm.base_cid = ''
       editForm.strm_path = ''
-      editForm.dir_depth = 2
       editForm.custom_config = false
       editForm.video_ext = []
       editForm.meta_ext = []
+      editForm.exclude_name = []
       editSelectedDirPath.value = ''
+      editForm.min_video_size = -1
+      editForm.upload_meta = -1
+      editForm.download_meta = -1
+      editForm.delete_dir = -1
       loadDirectories()
     } else {
       ElMessage.error(response?.data.message || '编辑同步目录失败')

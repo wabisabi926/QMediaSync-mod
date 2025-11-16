@@ -159,7 +159,7 @@
         <el-form-item label="媒体类型" prop="media_type">
           <el-radio-group v-model="addForm.media_type" placeholder="请选择媒体类型">
             <el-radio-button value="movie">电影</el-radio-button>
-            <el-radio-button value="tvshow">电视剧</el-radio-button>
+            <el-radio-button value="tvshow" disabled>电视剧</el-radio-button>
             <el-radio-button value="other">其他</el-radio-button>
           </el-radio-group>
           <div class="form-tip">其他：只能整理不能刮削</div>

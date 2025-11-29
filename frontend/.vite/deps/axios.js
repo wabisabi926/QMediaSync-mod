@@ -442,7 +442,7 @@ var descriptors = {};
   "ERR_CANCELED",
   "ERR_NOT_SUPPORT",
   "ERR_INVALID_URL"
-  // eslint-disable-next-line func-names
+   
 ].forEach((code) => {
   descriptors[code] = { value: code };
 });
@@ -530,7 +530,7 @@ function toFormData(obj, formData, options) {
         key = removeBrackets(key);
         arr.forEach(function each(el, index) {
           !(utils_default.isUndefined(el) || el === null) && formData.append(
-            // eslint-disable-next-line no-nested-ternary
+             
             indexes === true ? renderKey([key], index, dots) : indexes === null ? key : key + "[]",
             convertValue(el)
           );
@@ -746,7 +746,7 @@ var hasBrowserEnv = typeof window !== "undefined" && typeof document !== "undefi
 var _navigator = typeof navigator === "object" && navigator || void 0;
 var hasStandardBrowserEnv = hasBrowserEnv && (!_navigator || ["ReactNative", "NativeScript", "NS"].indexOf(_navigator.product) < 0);
 var hasStandardBrowserWebWorkerEnv = (() => {
-  return typeof WorkerGlobalScope !== "undefined" && // eslint-disable-next-line no-undef
+  return typeof WorkerGlobalScope !== "undefined" &&  
   self instanceof WorkerGlobalScope && typeof self.importScripts === "function";
 })();
 var origin = hasBrowserEnv && window.location.href || "http://localhost";

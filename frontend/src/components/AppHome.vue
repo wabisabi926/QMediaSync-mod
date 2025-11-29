@@ -7,7 +7,8 @@ import { formatFileSize } from '@/utils/fileSizeUtils'
 import MarkdownIt from 'markdown-it'
 import 'github-markdown-css'
 import { ElMessage } from 'element-plus'
-import { CircleCheck } from '@element-plus/icons-vue'
+import { CircleCheck, Document } from '@element-plus/icons-vue'
+import AppLogViewer from './AppLogViewer.vue'
 
 interface VersionInfo {
   version: string
@@ -43,6 +44,19 @@ const updateProgress = ref({
 const showUpdateCompleteDialog = ref(false) // 是否显示更新完成弹窗
 const countdown = ref(30) // 倒计时秒数
 let countdownTimer: NodeJS.Timeout | null = null
+
+// 日志弹窗相关
+const showLogDialog = ref(false) // 是否显示日志弹窗
+const logViewerRef = ref<InstanceType<typeof AppLogViewer> | null>(null) // 日志查看器引用
+
+// 处理日志弹窗关闭事件
+const handleLogDialogClose = () => {
+  // 断开日志连接
+  if (logViewerRef.value) {
+    // 调用日志查看器的disconnect方法
+    logViewerRef.value.disconnect()
+  }
+}
 
 // 创建markdown-it实例
 const md = new MarkdownIt({
@@ -414,6 +428,18 @@ onUnmounted(() => {
 </script>
 <template>
   <div class="home-container">
+    <!-- 顶部操作按钮 -->
+    <div class="top-actions">
+      <el-button
+        type="primary"
+        size="large"
+        @click="showLogDialog = true"
+        :icon="Document"
+      >
+        运行日志
+      </el-button>
+    </div>
+
     <!-- 账号信息和队列状态行 -->
     <el-row :gutter="20" class="top-row">
       <el-col :xs="24" :sm="24" :md="24" :lg="24" :xl="24">
@@ -593,6 +619,23 @@ onUnmounted(() => {
       </div>
     </template>
   </el-dialog>
+
+  <!-- 日志查看弹窗 -->
+  <el-dialog
+    v-model="showLogDialog"
+    title="运行日志"
+    class="log-dialog"
+    :fullscreen="true"
+    :close-on-click-modal="true"
+    :close-on-press-escape="true"
+    show-close="true"
+    :destroy-on-close="true"
+    @close="handleLogDialogClose"
+  >
+    <div class="log-dialog-content">
+      <AppLogViewer ref="logViewerRef" log-path="app.log" :is-real-time="true" />
+    </div>
+  </el-dialog>
 </template>
 
 <style scoped>
@@ -605,9 +648,58 @@ onUnmounted(() => {
   padding: 0;
 }
 
+/* 顶部操作按钮样式 */
+.top-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 0;
+}
+
 /* 顶部行样式 */
 .top-row {
   margin-bottom: 0;
+}
+
+/* 日志弹窗样式 */
+.log-dialog {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.log-dialog-content {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.log-dialog-content :deep(.el-dialog__body) {
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  height: calc(100% - 60px);
+}
+
+.log-dialog-content :deep(.el-dialog__header) {
+  padding: 10px 20px;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.log-dialog-content :deep(.el-dialog__title) {
+  font-size: 18px;
+  font-weight: 600;
 }
 
 .top-row .el-col {

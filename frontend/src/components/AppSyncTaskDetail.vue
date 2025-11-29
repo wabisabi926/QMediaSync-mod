@@ -81,6 +81,14 @@
             </div>
           </div>
         </div>
+
+     <!-- 同步日志 -->
+        <div class="task-logs">
+          <AppLogViewer
+            :log-path="`libs/sync_${taskId}.log`"
+            :is-real-time="taskInfo ? (taskInfo.status === 0 || taskInfo.status === 1) : false"
+          />
+        </div>
       </div>
     </el-card>
   </div>
@@ -98,6 +106,7 @@ import {
   SuccessFilled,
 } from '@element-plus/icons-vue'
 import { inject, onMounted, onUnmounted, ref } from 'vue'
+import AppLogViewer from './AppLogViewer.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { formatDateTime } from '@/utils/timeUtils'
 

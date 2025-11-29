@@ -1665,7 +1665,7 @@ var PiniaVuePlugin = function(_Vue) {
         this.$pinia = options.parent.$pinia;
       }
     },
-    destroyed() {
+    unmounted() {
       delete this._pStores;
     }
   });

@@ -312,7 +312,7 @@
           <div class="form-tip">选择本地目录作为STRM文件的存放位置</div>
         </el-form-item>
         <el-form-item label="STRM存放目录">
-          <el-input v-model="editForm.strm_path" placeholder="自动计算：本地目录 + 选中目录路径" :disabled="true" readonly />
+          <el-text type="danger" size="large" style="font-weight: bold">{{ editForm.strm_path }}</el-text>
           <div class="form-tip">STRM和元数据实际存放目录（自动生成）</div>
         </el-form-item>
         <el-form-item label="是否自定义设置" prop="custom_config">
@@ -468,7 +468,7 @@ import MetadataExtInput from './MetadataExtInput.vue'
 import 'element-plus/theme-chalk/display.css'
 
 interface SyncDirectory {
-  id?: number
+  id: number
   base_cid: string
   local_path: string
   remote_path: string
@@ -708,14 +708,15 @@ const handleAdd = async () => {
       source_type: addForm.source_type.trim(),
       account_id: addForm.account_id ? addForm.account_id : 0,
       custom_config: addForm.custom_config,
-      video_ext: addForm.video_ext,
-      meta_ext: addForm.meta_ext,
-      exclude_name: addForm.exclude_name,
+      video_ext_arr: addForm.video_ext,
+      meta_ext_arr: addForm.meta_ext,
+      exclude_name_arr: addForm.exclude_name,
       min_video_size: addForm.min_video_size,
       upload_meta: addForm.upload_meta,
       download_meta: addForm.download_meta,
       delete_dir: addForm.delete_dir,
     }
+    console.log(formData)
 
     const response = await http?.post(`${SERVER_URL}/sync/path-add`, formData, {
       headers: {
@@ -752,22 +753,22 @@ const handleAdd = async () => {
 
 // 处理编辑同步目录
 const handleEdit = async (row: SyncDirectory) => {
-  editForm.id = row.id || 0
+  editForm.id = row.id
   editForm.account_id = row.account_id
   editForm.local_path = row.local_path
   editForm.base_cid = row.base_cid
-  editForm.source_type = row.source_type || ''
-  editForm.account_id = row.account_id || 0
-  editForm.custom_config = row.custom_config || false
+  editForm.source_type = row.source_type
+  editForm.account_id = row.account_id
+  editForm.custom_config = row.custom_config
   editForm.video_ext = row.video_ext_arr || []
   editForm.meta_ext = row.meta_ext_arr || []
   editForm.exclude_name = row.exclude_name_arr || []
-  editForm.remote_path = row.remote_path || ''
-  editSelectedDirPath.value = row.remote_path || ''
-  editForm.min_video_size = row.min_video_size || -1
-  editForm.upload_meta = row.upload_meta || -1
-  editForm.download_meta = row.download_meta || -1
-  editForm.delete_dir = row.delete_dir || -1
+  editForm.remote_path = row.remote_path
+  editSelectedDirPath.value = row.remote_path
+  editForm.min_video_size = row.min_video_size
+  editForm.upload_meta = row.upload_meta
+  editForm.download_meta = row.download_meta
+  editForm.delete_dir = row.delete_dir
 
   // 初始化STRM路径
   updateEditStrmPath()
@@ -790,9 +791,9 @@ const handleEditSave = async () => {
       base_cid: editForm.base_cid.trim(),
       strm_path: editForm.strm_path.trim(),
       custom_config: editForm.custom_config,
-      video_ext: editForm.video_ext,
-      meta_ext: editForm.meta_ext,
-      exclude_name: editForm.exclude_name,
+      video_ext_arr: editForm.video_ext,
+      meta_ext_arr: editForm.meta_ext,
+      exclude_name_arr: editForm.exclude_name,
       source_type: editForm.source_type.trim(),
       remote_path: editSelectedDirPath.value,
       min_video_size: editForm.min_video_size,

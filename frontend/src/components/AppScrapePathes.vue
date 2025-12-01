@@ -52,9 +52,10 @@
         </template>
 
         <div class="card-body">
-          <div class="info-item" v-if="row.source_type !== 'local'">
+          <div class="info-item">
             <span class="info-label">账号:</span>
-            <span class="info-value">{{ getAccountName(row.account_id) }}</span>
+            <span class="info-value" v-if="row.source_type !== 'local'">{{ getAccountName(row.account_id) }}</span>
+            <span class="info-value" v-else>-</span>
           </div>
           <div class="info-item">
             <span class="info-label">媒体类型:</span>
@@ -295,7 +296,7 @@
             :disabled="addLoading" />
           <div class="form-tip">是否启用定时同步功能</div>
         </el-form-item>
-        <el-form-item label="启用fanart.tv" prop="enable_fanart_tv" v-if="editForm.media_type == 'movie'">
+        <el-form-item label="启用fanart.tv" prop="enable_fanart_tv" v-if="addForm.media_type == 'movie'">
           <el-switch v-model="addForm.enable_fanart_tv" :active-value="true" :inactive-value="false"
             :disabled="addLoading" />
           <div class="form-tip">是否启用fanart.tv的高清图下载，下载很慢会降低刮削效率。</div>

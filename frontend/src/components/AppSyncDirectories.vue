@@ -274,6 +274,17 @@
             <p>同步完成后是否删除本地存在但网盘不存在的目录，该本地目录必须是空目录</p>
           </div>
         </el-form-item>
+        <!-- 是否给strm链接添加路径 -->
+        <el-form-item label="给strm链接添加路径" prop="add_path" v-if="addForm.custom_config">
+          <el-radio-group v-model="addForm.add_path">
+            <el-radio-button :label="-1">使用STRM设置</el-radio-button>
+            <el-radio-button :label="1">添加</el-radio-button>
+            <el-radio-button :label="2">不添加</el-radio-button>
+          </el-radio-group>
+          <div class="form-help">
+            <p>是否给strm链接添加路径</p>
+          </div>
+        </el-form-item>
       </el-form>
 
       <template #footer>
@@ -398,6 +409,17 @@
             <p>同步完成后是否删除本地存在但网盘不存在的目录，该本地目录必须是空目录</p>
           </div>
         </el-form-item>
+        <!-- 是否给strm链接添加路径 -->
+        <el-form-item label="给strm链接添加路径" prop="add_path" v-if="editForm.custom_config">
+          <el-radio-group v-model="editForm.add_path">
+            <el-radio-button :label="-1">使用STRM设置</el-radio-button>
+            <el-radio-button :label="1">添加</el-radio-button>
+            <el-radio-button :label="2">不添加</el-radio-button>
+          </el-radio-group>
+          <div class="form-help">
+            <p>是否给strm链接添加路径</p>
+          </div>
+        </el-form-item>
       </el-form>
 
       <template #footer>
@@ -493,6 +515,7 @@ interface SyncDirectory {
   enable_cron: boolean
   is_running: number
   stopping?: boolean
+  add_path: -1 | 1 | 2
 }
 
 interface DirInfo {
@@ -571,6 +594,7 @@ const addForm = reactive({
   upload_meta: -1,
   download_meta: -1,
   delete_dir: -1,
+  add_path: -1,
 })
 
 // 编辑对话框状态
@@ -593,6 +617,7 @@ const editForm = reactive({
   upload_meta: -1,
   download_meta: -1,
   delete_dir: -1,
+  add_path: -1,
 })
 const editSelectedDirPath = ref('')
 
@@ -715,6 +740,7 @@ const handleAdd = async () => {
       upload_meta: addForm.upload_meta,
       download_meta: addForm.download_meta,
       delete_dir: addForm.delete_dir,
+      add_path: addForm.add_path,
     }
     console.log(formData)
 
@@ -739,6 +765,7 @@ const handleAdd = async () => {
       addForm.upload_meta = -1
       addForm.download_meta = -1
       addForm.delete_dir = -1
+      addForm.add_path = -1
       loadDirectories()
     } else {
       ElMessage.error(response?.data.message || '添加同步目录失败')
@@ -769,6 +796,7 @@ const handleEdit = async (row: SyncDirectory) => {
   editForm.upload_meta = row.upload_meta
   editForm.download_meta = row.download_meta
   editForm.delete_dir = row.delete_dir
+  editForm.add_path = row.add_path
 
   // 初始化STRM路径
   updateEditStrmPath()
@@ -800,6 +828,7 @@ const handleEditSave = async () => {
       upload_meta: editForm.upload_meta,
       download_meta: editForm.download_meta,
       delete_dir: editForm.delete_dir,
+      add_path: editForm.add_path,
     }
 
     const response = await http?.post(`${SERVER_URL}/sync/path-update`, formData, {
@@ -824,6 +853,7 @@ const handleEditSave = async () => {
       editForm.upload_meta = -1
       editForm.download_meta = -1
       editForm.delete_dir = -1
+      editForm.add_path = -1
       loadDirectories()
     } else {
       ElMessage.error(response?.data.message || '编辑同步目录失败')

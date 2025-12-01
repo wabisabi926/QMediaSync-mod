@@ -94,7 +94,7 @@ import { SERVER_URL } from '@/const'
 // 定义组件属性
 interface Props {
   logPath: string
-  isRealTime?: boolean
+  isRealTime: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -116,16 +116,18 @@ const loading = ref(false)
 const logsContainer = ref<HTMLElement | null>(null)
 
 // 日志配置
-const MAX_LOG_LINES = 1000
 let isLoadingOldLogs = false
 let currentOffset = 0
 let isAtTop = true
 let lastScrollTop = 0
 let isManualDisconnect = false
+let hasReachedEnd = false
 
 // WebSocket URL配置
-const WS_URL = `ws://localhost:12333/api/logs/ws`
-const HTTP_URL = `http://localhost:12333/api/logs/old`
+let wsUrl = SERVER_URL.replace('http', 'ws')
+wsUrl = wsUrl.replace('https', 'ws')
+const WS_URL = `${wsUrl}/logs/ws`
+const HTTP_URL = `${SERVER_URL}/logs/old`
 
 // 监听日志路径变化，自动重新连接
 watch(() => props.logPath, (newPath) => {
@@ -136,6 +138,7 @@ watch(() => props.logPath, (newPath) => {
 
 // 初始化
 onMounted(async () => {
+  console.log("isRealTime:", props.isRealTime)
   // 如果提供了日志路径，先加载历史日志
   if (props.logPath) {
     // 设置初始偏移量为0
@@ -162,15 +165,16 @@ const loadInitialLogs = async () => {
   loading.value = true
 
   // 构建HTTP请求URL，加载前1000条日志
-  const apiUrl = `${HTTP_URL}?path=${encodeURIComponent(logPath)}&offset=0&limit=1000`
+  const apiUrl = `${HTTP_URL}?path=${encodeURIComponent(logPath)}&pos=-1&direction=forward&limit=1000`
 
   try {
     const response = await fetch(apiUrl)
     if (!response.ok) {
       throw new Error('HTTP请求失败')
     }
-    const entries = await response.json()
-
+    const rs = await response.json()
+    const entries = rs.entries || []
+    currentOffset = rs.pos
     // 处理返回的旧日志条目
     if (Array.isArray(entries) && entries.length > 0) {
       // 处理每条日志的时间戳
@@ -183,9 +187,6 @@ const loadInitialLogs = async () => {
 
       // 添加到日志数组（旧日志在后面）
       logLines.value = [...processedEntries]
-
-      // 更新偏移量
-      currentOffset = entries.length
     }
   } catch (error) {
     console.error('加载初始日志失败:', error)
@@ -218,7 +219,7 @@ const handleScroll = () => {
   }
 
   // 检查是否滚动到底部，需要加载更多旧日志
-  if (scrollHeight - scrollTop - clientHeight < 50 && !isLoadingOldLogs) {
+  if (scrollHeight - scrollTop - clientHeight < 50 && !isLoadingOldLogs && !hasReachedEnd) {
     loadOldLogs()
   }
 
@@ -269,11 +270,6 @@ const addLogEntry = (entry: LogEntry) => {
 
   // 添加到日志数组前面（最新的日志在最前面）
   logLines.value = [processedEntry, ...logLines.value]
-
-  // 只保留前1000行，防止内存占用过高
-  if (logLines.value.length > MAX_LOG_LINES) {
-    logLines.value = logLines.value.slice(0, MAX_LOG_LINES)
-  }
 }
 
 // 添加系统日志
@@ -360,6 +356,7 @@ const disconnect = () => {
 
 // 重新连接WebSocket
 const reconnectWebSocket = () => {
+
   // 如果已经连接，不需要重新连接
   if (isWebSocketConnected()) {
     return
@@ -371,11 +368,11 @@ const reconnectWebSocket = () => {
     ws.value = null
   }
 
-  // 清空日志，只保留最新的100行
-  if (logLines.value.length > 100) {
-    logLines.value = logLines.value.slice(0, 100)
+  // 加载初始化日志
+  loadInitialLogs()
+  if (!props.isRealTime) {
+    return
   }
-
   // 重新连接
   setTimeout(() => {
     connect()
@@ -386,6 +383,11 @@ const reconnectWebSocket = () => {
 const loadOldLogs = () => {
   const logPath = props.logPath.trim()
   if (!logPath) {
+    return
+  }
+
+  // 如果已经到达日志文件末尾，不再加载
+  if (hasReachedEnd) {
     return
   }
 
@@ -400,7 +402,7 @@ const loadOldLogs = () => {
   }
 
   // 构建HTTP请求URL
-  const apiUrl = `${HTTP_URL}?path=${encodeURIComponent(logPath)}&offset=${currentOffset}&limit=100`
+  const apiUrl = `${HTTP_URL}?path=${encodeURIComponent(logPath)}&pos=${currentOffset}&direction=forward&limit=100`
 
   // 发送HTTP请求
   fetch(apiUrl)
@@ -410,7 +412,9 @@ const loadOldLogs = () => {
       }
       return response.json() // 解析为JSON格式
     })
-    .then(entries => {
+    .then(rs => {
+      const entries = rs.entries || []
+      currentOffset = rs.pos
       // 处理返回的旧日志条目
       if (Array.isArray(entries) && entries.length > 0) {
         // 处理每条日志的时间戳
@@ -421,16 +425,11 @@ const loadOldLogs = () => {
           timestamp: processTimestamp(entry.timestamp)
         }))
 
-        // 添加到日志数组末尾（旧日志在后面）
+          // 直接添加新日志
         logLines.value = [...logLines.value, ...processedEntries]
-
-        // 限制日志数量，最多保留1000条
-        if (logLines.value.length > MAX_LOG_LINES) {
-          logLines.value = logLines.value.slice(logLines.value.length - MAX_LOG_LINES)
-        }
-
-        // 更新偏移量
-        currentOffset += entries.length
+      } else {
+        // 返回数据为空，说明已经到达日志文件末尾
+        hasReachedEnd = true
       }
     })
     .catch(error => {

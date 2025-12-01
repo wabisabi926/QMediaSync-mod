@@ -132,6 +132,16 @@
         </div>
       </el-form-item>
 
+      <el-form-item label="给strm链接添加路径" prop="add_path">
+        <el-radio-group v-model="strmData.add_path">
+          <el-radio-button :label="1">添加</el-radio-button>
+          <el-radio-button :label="2">不添加</el-radio-button>
+        </el-radio-group>
+        <div class="form-help">
+          <p>是否给strm链接添加路径</p>
+        </div>
+      </el-form-item>
+
       <el-form-item label="启用本地代理播放" prop="local_proxy">
         <el-radio-group v-model="strmData.local_proxy">
           <el-radio-button :label="1">启用</el-radio-button>
@@ -180,6 +190,7 @@ interface StrmData {
   delete_dir: 0 | 1
   local_proxy: 0 | 1
   exclude_name: string[]
+  add_path: 1 | 2
 }
 
 interface StrmStatus {
@@ -215,6 +226,7 @@ const defaultStrmData: StrmData = {
   delete_dir: 0, // 默认不删除
   local_proxy: 0, // 是否启用本地代理
   exclude_name: [], // 排除的名称列表，默认为空
+  add_path: 2, // 默认不添加路径
 }
 
 const strmData = reactive<StrmData>({ ...defaultStrmData })
@@ -310,6 +322,7 @@ const saveStrmConfig = async () => {
       delete_dir: strmData.delete_dir,
       local_proxy: strmData.local_proxy,
       exclude_name: strmData.exclude_name,
+      add_path: strmData.add_path,
     }
 
     const response = await http?.post(`${SERVER_URL}/setting/strm-config`, requestData, {
@@ -362,6 +375,7 @@ const loadStrmConfig = async () => {
       strmData.delete_dir = config.delete_dir !== undefined ? config.delete_dir : 0
       strmData.local_proxy = config.local_proxy !== undefined ? config.local_proxy : 0
       strmData.exclude_name = config.exclude_name || []
+      strmData.add_path = config.add_path !== undefined ? config.add_path : 2
 
       // 更新示例
       updateStrmExample()

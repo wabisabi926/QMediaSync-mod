@@ -4,7 +4,7 @@
     <div class="sync-records-card">
       <div class="header-left">
         <h2 class="card-title hidden-md-and-down">同步记录</h2>
-        <p class="card-subtitle">只会保留7天的记录，每天0点会删除7天前的所有记录</p>
+        <p class="card-subtitle">只会保留3天的记录，每天0点会删除3天前的所有记录</p>
       </div>
       <div class="header-right">
         <!-- <el-button

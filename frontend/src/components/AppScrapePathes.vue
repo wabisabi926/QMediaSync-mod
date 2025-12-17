@@ -231,13 +231,13 @@
         <el-form-item label="文件夹重命名模板" prop="folder_name_template" v-if="addForm.scrape_type !== 'only_scrape'">
           <el-input v-model="addForm.folder_name_template" :disabled="addLoading" placeholder="留空保留原名称" />
           <div class="form-tip">详细请参考：<a
-              href="https://github.com/qicfan/qmediasync/wiki/%E6%95%B4%E7%90%86%E6%96%87%E4%BB%B6%EF%BC%88%E5%A4%B9%EF%BC%89%E6%A8%A1%E6%9D%BF%E5%8F%94%E7%94%A8%E5%8F%98%E9%87%8F"
+              href="https://github.com/qicfan/qmediasync/wiki/%E6%95%B4%E7%90%86%E6%96%87%E4%BB%B6%EF%BC%88%E5%A4%B9%EF%BC%89%E6%A8%A1%E6%9D%BF%E5%8F%AF%E7%94%A8%E5%8F%98%E9%87%8F"
               target="_blank">文件夹重命名模板</a></div>
         </el-form-item>
         <el-form-item label="文件重命名模板" prop="file_name_template" v-if="addForm.scrape_type !== 'only_scrape'">
           <el-input v-model="addForm.file_name_template" :disabled="addLoading" placeholder="留空保留原名称" />
           <div class="form-tip">详细请参考：<a
-              href="https://github.com/qicfan/qmediasync/wiki/%E6%95%B4%E7%90%86%E6%96%87%E4%BB%B6%EF%BC%88%E5%A4%B9%EF%BC%89%E6%A8%A1%E6%9D%BF%E5%8F%94%E7%94%A8%E5%8F%98%E9%87%8F"
+              href="https://github.com/qicfan/qmediasync/wiki/%E6%95%B4%E7%90%86%E6%96%87%E4%BB%B6%EF%BC%88%E5%A4%B9%EF%BC%89%E6%A8%A1%E6%9D%BF%E5%8F%AF%E7%94%A8%E5%8F%98%E9%87%8F"
               target="_blank">文件重命名模板</a></div>
         </el-form-item>
         <el-form-item label="要删除的关键词" prop="delete_keyword">
@@ -268,7 +268,7 @@
         <el-form-item label="刮削线程数" prop="max_threads">
           <el-input-number v-model="addForm.max_threads" :disabled="addLoading" min="1"
             :max="addForm.source_type === 'local' ? 20 : 5" step="1" style="width: 100%" />
-          <div class="form-help">刮削本地文件时的最大并发线程数，越高越快, 刮削网盘该值无效。默认值为5; 只有本地目录类型可以修改</div>
+          <div class="form-help">刮削本地文件时的最大并发线程数，越高越快, 刮削网盘该值无效。默认值为5; 只有本地目录类型可以修改（前提是添加了自己的TMDB API KEY）</div>
         </el-form-item>
         <el-form-item label="是否启用AI识别" prop="enable_ai">
           <el-radio-group v-model="addForm.enable_ai" placeholder="请选择AI识别模式" :disabled="addLoading" size="large">
@@ -429,7 +429,7 @@
         <el-form-item label="刮削线程数" prop="max_threads">
           <el-input-number v-model="editForm.max_threads" :disabled="editLoading" min="1"
             :max="editForm.source_type === 'local' ? 20 : 5" step="1" style="width: 100%" />
-          <div class="form-help">刮削本地文件时的最大并发线程数，越高越快, 刮削网盘该值无效。默认值为5; 只有本地目录类型可以修改</div>
+          <div class="form-help">刮削本地文件时的最大并发线程数，越高越快, 刮削网盘该值无效。默认值为5; 只有本地目录类型可以修改（前提是添加了自己的TMDB API KEY）</div>
         </el-form-item>
         <el-form-item label="开启AI识别" prop="enable_ai">
           <el-radio-group v-model="editForm.enable_ai" placeholder="请选择AI识别模式" :disabled="editLoading" size="large">
@@ -465,7 +465,7 @@
     </el-dialog>
 
     <!-- 目录选择对话框 -->
-    <el-dialog v-model="showDirDialog" :title="isSelectingLocalPath ? '选择目标目录' : '选择来源目录'"
+    <el-dialog v-model="showDirDialog" :title="!isSelectSource ? '选择目标目录' : '选择来源目录'"
       :width="checkIsMobile ? '90%' : '600px'" :close-on-click-modal="false" :before-close="handleCloseDirDialog">
       <div class="dir-selector">
         <el-scrollbar height="400px">

@@ -217,7 +217,7 @@
           <div class="form-tip">指定需要同步的元数据文件扩展名</div>
         </el-form-item>
         <el-form-item label="排除文件名" prop="exclude_name" v-if="addForm.custom_config">
-          <MetadataExtInput v-model="addForm.exclude_name" placeholder="输入文件名后按回车添加，逗号或者分行分隔"
+          <MetadataExtInput v-model="addForm.exclude_name" :autoAddDot="false" placeholder="输入文件名后按回车添加，逗号或者分行分隔"
             class="meta-ext-input limited-width-input" />
           <div class="form-tip">指定需要排除同步的名称，必须输入完整，可以是文件夹名字或者文件名字</div>
         </el-form-item>
@@ -352,7 +352,7 @@
           <div class="form-tip">指定需要同步的元数据文件扩展名</div>
         </el-form-item>
         <el-form-item label="排除文件名" prop="exclude_name" v-if="editForm.custom_config">
-          <MetadataExtInput v-model="editForm.exclude_name" placeholder="输入文件名后按回车添加，逗号或者分行分隔"
+          <MetadataExtInput v-model="editForm.exclude_name" :autoAddDot="false" placeholder="输入文件名后按回车添加，逗号或者分行分隔"
             class="meta-ext-input limited-width-input" />
           <div class="form-tip">指定需要排除同步的名称，必须输入完整，可以是文件夹名字或者文件名字</div>
         </el-form-item>

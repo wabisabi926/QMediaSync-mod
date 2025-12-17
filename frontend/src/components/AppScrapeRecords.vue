@@ -118,7 +118,7 @@
                 <div>
                   <el-button type="text" @click="handleDetail(row)">详情</el-button>
                   <el-button type="warning" size="small" @click="reScrape(row)"
-                    v-if="row.status == 'scrape_failed' || row.status == 'scanned' || row.status == 'renamed'">重新识别</el-button>
+                    v-if="(row.type == 'movie' && (row.status == 'scrape_failed' || row.status == 'scanned' || row.status == 'renamed')) || (row.type == 'tvshow' && row.status == 'scrape_failed')">重新识别</el-button>
                   <el-button type="success" size="small" @click="markAsFinished(row)"
                     v-if="row.status == 'renaming' || row.status == 'scraped'">标记为已整理</el-button>
                 </div>
@@ -218,7 +218,7 @@
           <template #default="{ row }">
             <el-button type="text" @click="handleDetail(row)">详情</el-button>
             <el-button type="warning" size="small" @click="reScrape(row)"
-              v-if="row.status == 'scrape_failed' || row.status == 'scanned' || row.status == 'renamed'">重新识别</el-button>
+              v-if="(row.type == 'movie' && (row.status == 'scrape_failed' || row.status == 'scanned' || row.status == 'renamed')) || (row.type == 'tvshow' && row.status == 'scrape_failed')">重新识别</el-button>
             <el-button type="success" size="small" @click="markAsFinished(row)"
               v-if="row.status == 'renaming' || row.status == 'scraped'">标记为已整理</el-button>
           </template>

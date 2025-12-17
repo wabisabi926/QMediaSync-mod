@@ -62,7 +62,7 @@
             class="log-line"
             :class="`log-level-${log.level}`"
           >
-            <span class="log-timestamp">{{ formatDateTime(log.timestamp) }}</span>
+            <span class="log-timestamp">{{ log.timestamp }}</span>
             <span class="log-level">{{ log.level.toUpperCase() }}</span>
             <span class="log-message">{{ log.message }}</span>
           </div>
@@ -87,7 +87,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { Connection, Close, Delete, Download } from '@element-plus/icons-vue'
-import { formatDateTime } from '@/utils/timeUtils'
 import { ElMessage } from 'element-plus'
 import { SERVER_URL } from '@/const'
 
@@ -105,7 +104,7 @@ const props = withDefaults(defineProps<Props>(), {
 interface LogEntry {
   level: 'info' | 'warn' | 'error' | 'debug'
   message: string
-  timestamp: number
+  timestamp: string
 }
 
 // 组件状态
@@ -177,16 +176,8 @@ const loadInitialLogs = async () => {
     currentOffset = rs.pos
     // 处理返回的旧日志条目
     if (Array.isArray(entries) && entries.length > 0) {
-      // 处理每条日志的时间戳
-      const processedEntries = entries.map((entry: { level: string; message: string; timestamp: number | string | Date }) => ({
-        ...entry,
-        level: entry.level as LogEntry['level'],
-        message: entry.message,
-        timestamp: processTimestamp(entry.timestamp)
-      }))
-
       // 添加到日志数组（旧日志在后面）
-      logLines.value = [...processedEntries]
+      logLines.value = [...entries]
     }
   } catch (error) {
     console.error('加载初始日志失败:', error)
@@ -226,50 +217,10 @@ const handleScroll = () => {
   lastScrollTop = scrollTop
 }
 
-
-
-// 处理时间戳，确保转换为秒级时间戳
-const processTimestamp = (timestamp: number | string | Date): number => {
-  if (typeof timestamp === 'number') {
-    // 如果是毫秒级时间戳（大于10位），转换为秒级
-    if (timestamp > 10000000000) {
-      return Math.floor(timestamp / 1000)
-    }
-    // 已经是秒级时间戳，直接返回
-    return Math.floor(timestamp)
-  } else if (typeof timestamp === 'string') {
-    // 如果是字符串，尝试解析为数字
-    const numericTimestamp = parseFloat(timestamp)
-    if (!isNaN(numericTimestamp)) {
-      // 如果是毫秒级时间戳，转换为秒级
-      if (numericTimestamp > 10000000000) {
-        return Math.floor(numericTimestamp / 1000)
-      }
-      return Math.floor(numericTimestamp)
-    }
-
-    // 字符串解析失败，使用当前时间
-    console.warn('无法解析时间戳字符串:', timestamp)
-    return Math.floor(Date.now() / 1000)
-  } else if (timestamp instanceof Date) {
-    // 如果是Date对象，转换为秒级时间戳
-    return Math.floor(timestamp.getTime() / 1000)
-  }
-
-  // 其他类型，使用当前时间
-  return Math.floor(Date.now() / 1000)
-}
-
 // 添加日志条目
 const addLogEntry = (entry: LogEntry) => {
-  // 处理时间戳，确保是秒级
-  const processedEntry = {
-    ...entry,
-    timestamp: processTimestamp(entry.timestamp)
-  }
-
   // 添加到日志数组前面（最新的日志在最前面）
-  logLines.value = [processedEntry, ...logLines.value]
+  logLines.value = [entry, ...logLines.value]
 }
 
 // 添加系统日志
@@ -277,7 +228,7 @@ const addSystemLog = (message: string, level: LogEntry['level'] = 'info') => {
   addLogEntry({
     level,
     message,
-    timestamp: Math.floor(Date.now() / 1000)
+    timestamp: new Date().toISOString(),
   })
 }
 
@@ -417,16 +368,8 @@ const loadOldLogs = () => {
       currentOffset = rs.pos
       // 处理返回的旧日志条目
       if (Array.isArray(entries) && entries.length > 0) {
-        // 处理每条日志的时间戳
-        const processedEntries = entries.map((entry: { level: string; message: string; timestamp: number | string | Date }) => ({
-          ...entry,
-          level: entry.level as LogEntry['level'],
-          message: entry.message,
-          timestamp: processTimestamp(entry.timestamp)
-        }))
-
           // 直接添加新日志
-        logLines.value = [...logLines.value, ...processedEntries]
+        logLines.value = [...logLines.value, ...entries]
       } else {
         // 返回数据为空，说明已经到达日志文件末尾
         hasReachedEnd = true

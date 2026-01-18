@@ -170,7 +170,7 @@
             <el-radio-button value="only_scrape" :disabled="addForm.media_type === 'other'">仅刮削</el-radio-button>
             <el-radio-button value="scrape_and_rename"
               :disabled="addForm.media_type === 'other'">刮削和整理</el-radio-button>
-            <el-radio-button value="only_rename" :disabled="addForm.media_type === 'tvshow'">仅整理</el-radio-button>
+            <el-radio-button value="only_rename">仅整理</el-radio-button>
           </el-radio-group>
           <div class="form-tip">
             仅刮削：不改变文件路径和重命名，生成对应视频文件的nfo和下载封面等，不需要选择目标路径<br />

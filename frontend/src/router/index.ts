@@ -17,6 +17,7 @@ import AppScrapeRecords from '@/components/AppScrapeRecords.vue'
 import AppUploadQueue from '@/components/AppUploadQueue.vue'
 import AppDownloadQueue from '@/components/AppDownloadQueue.vue'
 import AppScrapePathAdd from '@/components/AppScrapePathAdd.vue'
+import AppNotificationChannels from '@/components/AppNotificationChannels.vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
@@ -133,6 +134,16 @@ const routes = [
     },
   },
   {
+    path: '/settings/notification',
+    name: 'settings-notification',
+    component: AppNotificationChannels,
+    meta: {
+      title: '通知渠道管理',
+      requiresAuth: true,
+      parent: 'settings',
+    },
+  },
+  {
     path: '/settings/emby',
     name: 'settings-emby',
     component: AppEmbySettings,
@@ -225,6 +236,36 @@ const routes = [
     meta: {
       title: '下载队列',
       requiresAuth: true,
+    },
+  },
+  {
+    path: '/database/backup/settings',
+    name: 'database-backup-settings',
+    component: () => import('@/components/AppBackupSettings.vue'),
+    meta: {
+      title: '备份设置',
+      requiresAuth: true,
+      parent: 'database',
+    },
+  },
+  {
+    path: '/database/backup/records',
+    name: 'database-backup-records',
+    component: () => import('@/components/AppBackupRecords.vue'),
+    meta: {
+      title: '备份记录',
+      requiresAuth: true,
+      parent: 'database',
+    },
+  },
+  {
+    path: '/database/backup/restore',
+    name: 'database-backup-restore',
+    component: () => import('@/components/AppBackupRestore.vue'),
+    meta: {
+      title: '备份恢复',
+      requiresAuth: true,
+      parent: 'database',
     },
   },
 ]

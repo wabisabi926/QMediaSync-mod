@@ -17,6 +17,7 @@
     "@vue/cli-service": "^5.0.8",
     "@wooorm/starry-night": "^3.5.0",
     "axios": "^1.7.9",
+    "cron-parser": "^5.5.0",
     "element-plus": "^2.11.8",
     "github-markdown-css": "^5.8.1",
     "hast-util-to-html": "^9.0.3",

@@ -84,6 +84,81 @@ interface CloudAccount {
   token: string
 }
 
+// 备份相关类型定义
+type BackupTaskType = 'backup' | 'restore' | null
+type BackupStatus = 'running' | 'completed' | 'cancelled' | 'timeout' | 'failed'
+type BackupType = 'manual' | 'auto'
+
+// 备份配置接口
+interface BackupConfig {
+  id: number
+  backup_enabled: 0 | 1
+  backup_cron: string
+  backup_path: string
+  backup_retention: number
+  backup_max_count: number
+  backup_compress: 0 | 1
+  maintenance_mode: 0 | 1
+  maintenance_mode_time: number
+  created_at: number
+  updated_at: number
+}
+
+// 备份配置响应接口
+interface BackupConfigResponse {
+  exists: boolean
+  config?: BackupConfig
+}
+
+// 备份进度接口
+interface BackupProgress {
+  running: boolean
+  status?: BackupStatus
+  progress?: number
+  elapsed_seconds?: number
+  estimated_seconds?: number
+  current_step?: string
+  processed_tables?: number
+  total_tables?: number
+}
+
+// 备份文件接口
+interface BackupFile {
+  filename: string
+  file_size: number
+  modified_time: number
+  backup_type: BackupType
+  created_reason: string
+  table_count: number
+  database_size: number
+}
+
+// 备份记录接口
+interface BackupRecord {
+  id: number
+  task_id: number
+  status: BackupStatus
+  file_path: string
+  file_size: number
+  database_size: number
+  table_count: number
+  backup_duration: number
+  backup_type: BackupType
+  created_reason: string
+  failure_reason: string
+  compression_ratio: number
+  is_compressed: 0 | 1
+  completed_at: number
+  created_at: number
+  updated_at: number
+}
+
+// 备份记录分页响应接口
+interface BackupRecordsResponse {
+  total: number
+  records: BackupRecord[]
+}
+
 export type {
   oo5Account,
   LibForm,
@@ -97,4 +172,13 @@ export type {
   TelegramSetting,
   DirInfo,
   CloudAccount,
+  BackupTaskType,
+  BackupStatus,
+  BackupType,
+  BackupConfig,
+  BackupConfigResponse,
+  BackupProgress,
+  BackupFile,
+  BackupRecord,
+  BackupRecordsResponse,
 }

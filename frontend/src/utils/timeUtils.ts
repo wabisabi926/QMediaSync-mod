@@ -153,3 +153,23 @@ export const getExpireClass = (expireTime: string): string => {
 
   return 'expire-normal'
 }
+
+/**
+ * 格式化秒数为可读的时间段
+ * @param seconds 秒数
+ * @returns 格式化后的时间字符串
+ */
+export const formatDuration = (seconds: number): string => {
+  if (!seconds || seconds <= 0) return '0秒'
+
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  const secs = Math.floor(seconds % 60)
+
+  const parts: string[] = []
+  if (hours > 0) parts.push(`${hours}小时`)
+  if (minutes > 0) parts.push(`${minutes}分`)
+  if (secs > 0 || parts.length === 0) parts.push(`${secs}秒`)
+
+  return parts.join('')
+}

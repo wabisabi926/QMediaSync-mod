@@ -61,11 +61,11 @@
               </el-icon>
               <span>网络代理</span>
             </el-menu-item>
-            <el-menu-item index="/settings/telegram">
+            <el-menu-item index="/settings/notification">
               <el-icon>
                 <Promotion />
               </el-icon>
-              <span>Telegram通知</span>
+              <span>通知管理</span>
             </el-menu-item>
             <el-menu-item index="/settings/threads">
               <el-icon>
@@ -174,8 +174,32 @@
               <el-icon><List /></el-icon>
               <span>电视剧</span>
             </el-menu-item>
-          </el-sub-menu> -->
-          <el-menu-item index="/settings/user">
+          </el-sub-menu> -->          <el-sub-menu index="database">
+            <template #title>
+              <el-icon>
+                <DataAnalysis />
+              </el-icon>
+              <span>数据库备份</span>
+            </template>
+            <el-menu-item index="/database/backup/settings">
+              <el-icon>
+                <Setting />
+              </el-icon>
+              <span>备份设置</span>
+            </el-menu-item>
+            <el-menu-item index="/database/backup/records">
+              <el-icon>
+                <List />
+              </el-icon>
+              <span>备份记录</span>
+            </el-menu-item>
+            <el-menu-item index="/database/backup/restore">
+              <el-icon>
+                <RefreshLeft />
+              </el-icon>
+              <span>备份恢复</span>
+            </el-menu-item>
+          </el-sub-menu>          <el-menu-item index="/settings/user">
             <el-icon>
               <UserFilled />
             </el-icon>
@@ -215,6 +239,69 @@
       </el-main>
     </el-container>
   </div>
+
+  <!-- 全局备份/恢复进度弹窗 -->
+  <el-dialog
+    v-model="backupStore.showProgressDialog"
+    :title="backupStore.taskType === 'backup' ? '备份进行中' : '数据库恢复中'"
+    :width="isMobile ? '90%' : '600px'"
+    :close-on-click-modal="false"
+    :close-on-press-escape="false"
+    :show-close="false"
+    center
+  >
+    <div class="backup-progress-content">
+      <!-- 进度条 -->
+      <el-progress
+        :percentage="backupStore.progress?.progress || 0"
+        :status="getProgressStatus()"
+        :stroke-width="20"
+      />
+
+      <!-- 当前步骤 -->
+      <div v-if="backupStore.progress?.current_step" class="progress-step">
+        <el-icon class="is-loading"><Loading /></el-icon>
+        <span>{{ backupStore.progress.current_step }}</span>
+      </div>
+
+      <!-- 表处理进度 -->
+      <div v-if="backupStore.progress?.total_tables" class="progress-tables">
+        <span>已处理：{{ backupStore.progress.processed_tables || 0 }} / {{ backupStore.progress.total_tables }} 个表</span>
+      </div>
+
+      <!-- 时间信息 -->
+      <div v-if="backupStore.progress?.elapsed_seconds !== undefined" class="progress-time">
+        <div class="time-item">
+          <span class="label">已耗时：</span>
+          <span class="value">{{ formatDuration(backupStore.progress.elapsed_seconds) }}</span>
+        </div>
+        <div v-if="backupStore.progress.estimated_seconds" class="time-item">
+          <span class="label">预计剩余：</span>
+          <span class="value">{{ formatDuration(backupStore.progress.estimated_seconds - backupStore.progress.elapsed_seconds) }}</span>
+        </div>
+      </div>
+
+      <!-- 错误重试提示 -->
+      <el-alert
+        v-if="backupStore.errorRetryCount > 0"
+        :title="`网络异常，正在重试 (${backupStore.errorRetryCount}/${3})...`"
+        type="warning"
+        :closable="false"
+        style="margin-top: 16px"
+      />
+    </div>
+
+    <template #footer>
+      <!-- 仅备份任务且运行中时显示取消按钮 -->
+      <el-button
+        v-if="backupStore.canCancel"
+        type="danger"
+        @click="handleCancelBackup"
+      >
+        取消备份
+      </el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
@@ -233,16 +320,24 @@ import {
   View,
   Operation,
   Promotion,
+  Loading,
+  DataAnalysis,
+  RefreshLeft,
 } from '@element-plus/icons-vue'
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, inject } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useBackupStore } from '@/stores/backup'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { isMobile as checkIsMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
+import { formatDuration } from '@/utils/timeUtils'
+import type { AxiosStatic } from 'axios'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const backupStore = useBackupStore()
+const http = inject<AxiosStatic>('$http')
 const isMobile = ref(false)
 const isMenuOpen = ref(false)
 
@@ -291,7 +386,7 @@ const getCurrentPageTitle = (): string => {
 // 获取默认展开的子菜单
 const getDefaultOpeneds = () => {
   const openeds = []
-  if (route.path.startsWith('/settings')) {
+  if (route.path.startsWith('/settings') || route.path.startsWith('/proxy')) {
     openeds.push('/settings')
   }
   if (route.path.startsWith('/instant-upload') || route.path.startsWith('/media-import')) {
@@ -303,7 +398,46 @@ const getDefaultOpeneds = () => {
   if (route.path.startsWith('/scrape')) {
     openeds.push('/scrape')
   }
+  if (route.path.includes('upload-queue') || route.path.includes('download-queue')) {
+    openeds.push('/upload-queue')
+  }
+  if (route.path.startsWith('/database/backup')) {
+    openeds.push('database')
+  }
   return openeds
+}
+
+// 获取进度状态样式
+const getProgressStatus = () => {
+  if (!backupStore.progress?.status) return undefined
+  switch (backupStore.progress.status) {
+    case 'completed':
+      return 'success'
+    case 'failed':
+    case 'timeout':
+      return 'exception'
+    case 'cancelled':
+      return 'warning'
+    default:
+      return undefined
+  }
+}
+
+// 处理取消备份
+const handleCancelBackup = async () => {
+  try {
+    await ElMessageBox.confirm('确定要取消备份任务吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+
+    if (http) {
+      await backupStore.cancelBackupTask(http)
+    }
+  } catch {
+    // 用户取消
+  }
 }
 
 // 组件挂载时加载数据
@@ -317,12 +451,19 @@ onMounted(() => {
       isMenuOpen.value = false
     }
   })
+
+  // 检查备份状态
+  if (http) {
+    backupStore.checkBackupStatus(http)
+  }
 })
 
 onUnmounted(() => {
   if (removeDeviceTypeListener) {
     removeDeviceTypeListener()
   }
+  // 清理轮询定时器
+  backupStore.stopProgressPolling()
 })
 </script>
 
@@ -560,5 +701,53 @@ nav a.router-link-exact-active {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #a1a1a1;
+}
+
+/* 备份进度弹窗样式 */
+.backup-progress-content {
+  padding: 20px 0;
+}
+
+.progress-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+  font-size: 14px;
+  color: #606266;
+}
+
+.progress-tables {
+  margin-top: 12px;
+  font-size: 13px;
+  color: #909399;
+  text-align: center;
+}
+
+.progress-time {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 16px;
+  padding: 12px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+}
+
+.progress-time .time-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.progress-time .label {
+  font-size: 12px;
+  color: #909399;
+}
+
+.progress-time .value {
+  font-size: 16px;
+  font-weight: 600;
+  color: #409eff;
 }
 </style>

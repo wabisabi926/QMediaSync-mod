@@ -170,7 +170,7 @@ const syncInfo = ref<{
   sync_enabled: boolean
   sync_cron: string
   total_items: number
-  last_sync_time: string | null
+  last_sync_time: number | null
 } | null>(null)
 let syncPollTimer: number | null = null
 
@@ -440,11 +440,11 @@ const stopSyncPolling = () => {
 }
 
 // 格式化最后同步时间
-const formatLastSyncTime = (timestamp: string | null | undefined) => {
+const formatLastSyncTime = (timestamp: number | null | undefined) => {
   if (!timestamp) return '未同步'
 
   try {
-    const date = new Date(timestamp)
+    const date = new Date(timestamp * 1000)
     const now = new Date()
     const diffMs = now.getTime() - date.getTime()
     const diffMins = Math.floor(diffMs / 60000)

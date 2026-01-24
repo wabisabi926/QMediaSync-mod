@@ -118,6 +118,7 @@ export const useBackupStore = defineStore('backup', () => {
         if (res.data.code === 200) {
           progress.value = res.data.data
           errorRetryCount.value = 0 // 重置错误计数
+          taskId.value = res.data.data.task_id
 
           // 检查任务状态
           if (progress.value && !progress.value.running) {
@@ -126,14 +127,14 @@ export const useBackupStore = defineStore('backup', () => {
           }
         }
       } else if (taskType.value === 'restore') {
-        // 轮询维护模式状态
-        const res = await http.get(`${SERVER_URL}/database/backup-config`)
-        if (res.data.code === 200 && res.data.data.exists) {
-          const config: BackupConfig = res.data.data.config
+        // 轮询恢复进度
+        const res = await http.get(`${SERVER_URL}/database/restore/progress`)
+        if (res.data.code === 200) {
+          const restoreProgress = res.data.data
           errorRetryCount.value = 0 // 重置错误计数
 
-          if (config.maintenance_mode === 0) {
-            // 维护模式已解除，恢复完成
+          if (restoreProgress.running === false) {
+            // 无恢复任务
             stopProgressPolling()
             isMaintenanceMode.value = false
             showProgressDialog.value = false
@@ -142,11 +143,8 @@ export const useBackupStore = defineStore('backup', () => {
               location.reload()
             }, 1500)
           } else {
-            // 更新进度信息（如果有的话）
-            const progressRes = await http.get(`${SERVER_URL}/database/backup/progress`)
-            if (progressRes.data.code === 200 && progressRes.data.data.running) {
-              progress.value = progressRes.data.data
-            }
+            // 有恢复任务正在运行，更新进度信息
+            progress.value = restoreProgress
           }
         }
       }

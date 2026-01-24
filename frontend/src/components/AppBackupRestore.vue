@@ -165,10 +165,10 @@ const startRestore = async () => {
 
     // 准备 FormData
     const formData = new FormData()
-    formData.append('file', selectedFile.value)
+    formData.append('backup_file', selectedFile.value)
 
     // 上传并启动恢复
-    const res = await http.post(`${SERVER_URL}/database/restore/start`, formData, {
+    const res = await http.post(`${SERVER_URL}/database/restore`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -176,7 +176,7 @@ const startRestore = async () => {
 
     if (res.data.code === 200) {
       ElMessage.success('恢复任务已启动')
-      const taskId = res.data.data.task_id
+      const taskId = 1
       backupStore.startProgressPolling('restore', taskId, http)
 
       // 清除文件选择

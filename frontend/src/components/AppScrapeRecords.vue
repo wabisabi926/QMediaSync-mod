@@ -42,6 +42,11 @@
         <div>
           <el-button type="warning" @click="handleDeleteFailedRecords">清除所有刮削失败的记录</el-button>
         </div>
+        <div>
+          <el-tooltip content="删除所有刮削记录，慎用！" placement="top">
+            <el-button type="danger" @click="handleTruncateAll">清空记录</el-button>
+          </el-tooltip>
+        </div>
       </div>
     </div>
 
@@ -725,6 +730,51 @@ const handleDeleteFailedRecords = async () => {
   } catch (error) {
     console.error('清除所有刮削失败的记录失败:', error)
     ElMessage.error('清除所有刮削失败的记录失败: 网络错误')
+  }
+}
+
+const handleTruncateAll = async () => {
+  try {
+    // 第一次确认
+    await ElMessageBox.confirm(
+      '此操作将删除所有刮削记录，是否继续？',
+      '警告',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+
+    // 第二次确认
+    await ElMessageBox.confirm(
+      '确认要清空所有刮削记录吗？此操作不可恢复！',
+      '二次确认',
+      {
+        confirmButtonText: '确认清空',
+        cancelButtonText: '取消',
+        type: 'error',
+      }
+    )
+
+    // 发送请求
+    const response = await http?.post(`${SERVER_URL}/scrape/truncate-all`)
+
+    if (response?.data.code === 200) {
+      ElMessage.success('清空记录成功')
+      // 清空选择
+      selectedRecords.value = []
+      // 刷新记录列表
+      loadRecords()
+    } else {
+      ElMessage.error(`清空记录失败: ${response?.data.message || '未知错误'}`)
+    }
+  } catch (error) {
+    // 如果用户取消操作，不显示错误消息
+    if (error !== 'cancel') {
+      console.error('清空记录失败:', error)
+      ElMessage.error('清空记录失败: 网络错误')
+    }
   }
 }
 

@@ -51,6 +51,7 @@
         <span style="margin-left: 10px; color: #666">{{ embyData.enable_refresh_library ? '启用' : '禁用' }}</span>
 
         <div>该功能需要至少同步完一次Emby媒体库才能生效，如果下方同步管理卡片中的总项目数为0，请点击下方：启动同步 按钮 触发一次同步。</div>
+        <div>STRM同步完成后会延迟30s执行刷新动作，以供元数据下载（如果开启了下载），但是可能下载不完就触发了刷新，做为备份手段：请开启Emby的实时监控</div>
         <div>功能解释：某个STRM同步目录同步完成后会自动触发相关联的Emby媒体库刷新，这样可以及时的将新增加的STRM文件入库</div>
       </el-form-item>
 
@@ -65,7 +66,9 @@
         <el-switch v-model="embyData.enable_delete_netdisk" :active-value="1" :inactive-value="0" :disabled="embyLoading" />
         <span style="margin-left: 10px; color: #d32f2f">{{ embyData.enable_delete_netdisk ? '启用' : '禁用' }}</span>
         <div style="margin-top: 8px; font-size: 12px; color: #d32f2f">
-          <strong>⚠ 谨慎启用：</strong> 启用后，删除Emby中的项目时，对应的网盘文件也会被删除
+          <strong>⚠ 谨慎启用：</strong> 启用后，删除Emby中的项目时，对应的网盘文件也会被删除<br />
+          <strong>由于Emby的特性如果strm文件内容变更会Emby先删除项目再新增删除，这时有概率导致：STRM变更->Emby通知删除->QMS联动删除网盘->Emby新增项目->播放失败</strong>，这个问题暂时无解<br />
+          <strong>如果打开了Emby的实时监控，在文件系统内删除Strm或者文件夹也会导致Emby触发删除通知->QMS联动删除网盘，所有删除文件一定要谨慎。</strong>
         </div>
         <div>该功能需要在Emby中配置通知才能生效，<a href="https://github.com/qicfan/qmediasync/wiki/Emby-%E9%80%9A%E7%9F%A5%E9%85%8D%E7%BD%AE" target="_blank">配置教程</a> <a :href="embyData.emby_url + '/web/index.html#!/settings/notifications.html'" target="_blank">去配置</a></div>
         <div>如果在Emby中删除了电影，会在网盘中将视频文件的父目录一起删除</div>

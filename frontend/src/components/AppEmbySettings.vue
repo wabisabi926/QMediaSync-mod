@@ -27,11 +27,30 @@
       <el-divider />
       <h4 style="margin: 10px 0">同步和功能配置</h4>
 
+      <el-form-item label="Emby通知链接">
+        <el-input v-model="webhookUrl" readonly class="limited-width-input">
+          <template #append>
+            <el-button @click="copyWebhookUrl" :icon="Check">复制</el-button>
+          </template>
+        </el-input>
+        <div>将此链接配置到Emby的通知设置中，
+          <a href="https://github.com/qicfan/qmediasync/wiki/Emby-%E9%80%9A%E7%9F%A5%E9%85%8D%E7%BD%AE" target="_blank">配置教程</a>
+          <a :href="embyData.emby_url + '/web/index.html#!/settings/notifications.html'" target="_blank">去配置</a>
+          如果下方开启了鉴权，请确保在Emby的通知链接中添加Api Key参数，示例：<code>{{webhookUrl}}?api_key=你的ApiKey</code>
+        </div>
+      </el-form-item>
+
+      <el-form-item label="Emby通知链接是否启用鉴权" prop="enable_auth">
+        <el-switch v-model="embyData.enable_auth" :active-value="1" :inactive-value="0" :disabled="embyLoading" />
+        <span style="margin-left: 10px; color: #666">{{ embyData.enable_auth ? '启用' : '禁用' }}</span>
+        <div>启用后，Emby的Webhook请求需要携带Api Key才能生效。如果要在外网使用Ebmy通知链接建议启用以提高安全性. 请到<router-link to="/settings/api-keys" class="api-key-link">Api Key模块</router-link>生成</div>
+      </el-form-item>
+
       <el-form-item label="STRM同步完成后刷新媒体库" prop="enable_refresh_library">
         <el-switch v-model="embyData.enable_refresh_library" :active-value="1" :inactive-value="0" :disabled="embyLoading" />
         <span style="margin-left: 10px; color: #666">{{ embyData.enable_refresh_library ? '启用' : '禁用' }}</span>
 
-        <div>该功能需要至少同步完一次Emby媒体库才能生效，如果下方同步管理卡片中的总项目数为0，请点击下方：立即同步 按钮 触发一次同步。</div>
+        <div>该功能需要至少同步完一次Emby媒体库才能生效，如果下方同步管理卡片中的总项目数为0，请点击下方：启动同步 按钮 触发一次同步。</div>
         <div>功能解释：某个STRM同步目录同步完成后会自动触发相关联的Emby媒体库刷新，这样可以及时的将新增加的STRM文件入库</div>
       </el-form-item>
 
@@ -68,6 +87,7 @@
               :disabled="!embyData.emby_url || !embyData.emby_api_key">
               提取媒体信息
             </el-button>
+            <p>该功能会将Emby没有提取媒体信息的项目全部触发提取，如果是重建媒体库或者新Emby可以执行一次。进度或者详情请在<router-link to="/download-queue" class="api-key-link">下载队列页</router-link>面查看</p>
           </div>
         </div>
       </el-form-item>
@@ -107,12 +127,12 @@
             <el-col :xs="24" :sm="12" :md="8">
               <div class="sync-info-item">
                 <span class="label">同步周期：</span>
-                <span class="value">{{ syncInfo.sync_cron || '5分钟' }}</span>
+                <span class="value">{{ syncInfo.sync_cron || '1小时' }}</span>
               </div>
             </el-col>
             <el-col :xs="24" :sm="12" :md="8">
               <div class="sync-info-item">
-                <span class="label">总项目数：</span>
+                <span class="label">关联的Emby Item数：</span>
                 <span class="value">{{ syncInfo.total_items || 0 }}</span>
               </div>
             </el-col>
@@ -183,10 +203,25 @@ const embyData = reactive({
   enable_refresh_library: 1,
   enable_extract_media_info: 1,
   enable_delete_netdisk: 0,
+  enable_auth: 1,
 })
 
 // 示例显示
 const embyExample = ref('http://192.168.1.100:8096')
+
+// Webhook URL 计算
+const webhookUrl = ref('')
+const updateWebhookUrl = () => {
+  let baseUrl: string
+  if (SERVER_URL === '/api') {
+    // 如果 SERVER_URL 为空或为 "/"，使用当前访问的 HOST:PORT
+    baseUrl = window.location.origin
+  } else {
+    baseUrl = SERVER_URL.replace(/\/api$/, '')
+  }
+  console.log(baseUrl)
+  webhookUrl.value = `${baseUrl}/emby/webhook`
+}
 
 // 状态提示
 const embyStatus = ref<{
@@ -219,6 +254,7 @@ const defaultConfig = {
   enable_refresh_library: 1,
   enable_extract_media_info: 1,
   enable_delete_netdisk: 0,
+  enable_auth: 0,
 }
 
 // 加载Emby配置
@@ -238,6 +274,7 @@ const loadEmbyConfig = async () => {
         embyData.enable_refresh_library = config.enable_refresh_library ?? 1
         embyData.enable_extract_media_info = config.enable_extract_media_info ?? 1
         embyData.enable_delete_netdisk = config.enable_delete_netdisk ?? 0
+        embyData.enable_auth = config.enable_auth ?? 1
       } else {
         // 配置不存在，使用默认配置
         Object.assign(embyData, defaultConfig)
@@ -274,6 +311,7 @@ const saveEmbyConfig = async () => {
         enable_refresh_library: embyData.enable_refresh_library,
         enable_extract_media_info: embyData.enable_extract_media_info,
         enable_delete_netdisk: embyData.enable_delete_netdisk,
+        enable_auth: embyData.enable_auth,
       },
       {
         headers: {
@@ -364,6 +402,17 @@ const praseEmby = async () => {
 // 更新示例
 const updateEmbyExample = () => {
   // 根据用户输入动态更新示例（如果需要）
+}
+
+// 复制 Webhook URL
+const copyWebhookUrl = async () => {
+  try {
+    await navigator.clipboard.writeText(webhookUrl.value)
+    ElMessage.success('Webhook链接已复制到剪贴板')
+  } catch (error) {
+    console.error('复制失败:', error)
+    ElMessage.error('复制失败，请手动复制')
+  }
 }
 
 // 启动同步
@@ -466,6 +515,8 @@ onMounted(() => {
   loadEmbyConfig()
   // 初始化时查询一次同步状态
   querySyncStatus()
+  // 初始化 webhook URL
+  updateWebhookUrl()
 })
 
 // 组件卸载时清理定时器
@@ -597,6 +648,17 @@ onBeforeUnmount(() => {
   font-size: 16px;
   font-weight: 600;
   word-break: break-all;
+}
+
+.api-key-link {
+  color: #409eff;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.api-key-link:hover {
+  color: #66b1ff;
+  text-decoration: underline;
 }
 
 @media (max-width: 768px) {

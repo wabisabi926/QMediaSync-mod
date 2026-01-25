@@ -67,6 +67,12 @@
               </el-icon>
               <span>通知管理</span>
             </el-menu-item>
+            <el-menu-item index="/settings/api-keys">
+              <el-icon>
+                <Key />
+              </el-icon>
+              <span>API Key</span>
+            </el-menu-item>
             <el-menu-item index="/settings/threads">
               <el-icon>
                 <Operation />
@@ -323,6 +329,7 @@ import {
   Loading,
   DataAnalysis,
   RefreshLeft,
+  Key,
 } from '@element-plus/icons-vue'
 import { ref, onMounted, onUnmounted, inject } from 'vue'
 import { useRoute, useRouter } from 'vue-router'

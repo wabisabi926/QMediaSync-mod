@@ -18,6 +18,7 @@ import AppUploadQueue from '@/components/AppUploadQueue.vue'
 import AppDownloadQueue from '@/components/AppDownloadQueue.vue'
 import AppScrapePathAdd from '@/components/AppScrapePathAdd.vue'
 import AppNotificationChannels from '@/components/AppNotificationChannels.vue'
+import AppApiKeys from '@/components/AppApiKeys.vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
@@ -65,6 +66,16 @@ const routes = [
     component: AppUserSettings,
     meta: {
       title: '用户账号设置',
+      requiresAuth: true,
+      parent: 'settings',
+    },
+  },
+  {
+    path: '/settings/api-keys',
+    name: 'settings-api-keys',
+    component: AppApiKeys,
+    meta: {
+      title: 'API Key管理',
       requiresAuth: true,
       parent: 'settings',
     },

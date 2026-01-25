@@ -19,6 +19,7 @@ import AppDownloadQueue from '@/components/AppDownloadQueue.vue'
 import AppScrapePathAdd from '@/components/AppScrapePathAdd.vue'
 import AppNotificationChannels from '@/components/AppNotificationChannels.vue'
 import AppApiKeys from '@/components/AppApiKeys.vue'
+import AppFileManager from '@/components/AppFileManager.vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
@@ -95,6 +96,15 @@ const routes = [
     component: AppSyncTaskDetail,
     meta: {
       title: '同步任务详情',
+      requiresAuth: true,
+    },
+  },
+  {
+    path: '/file-manager',
+    name: 'file-manager',
+    component: AppFileManager,
+    meta: {
+      title: '文件管理器',
       requiresAuth: true,
     },
   },

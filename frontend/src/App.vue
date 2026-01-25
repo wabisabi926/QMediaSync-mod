@@ -166,21 +166,13 @@
               <span>二级分类设置</span>
             </el-menu-item>
           </el-sub-menu>
-
-          <!-- <el-sub-menu index="/scrape">
-            <template #title>
-              <el-icon><Film /></el-icon>
-              <span>简易影视墙</span>
-            </template>
-            <el-menu-item index="/scrape-pathes">
-              <el-icon><FolderOpened /></el-icon>
-              <span>电影</span>
-            </el-menu-item>
-            <el-menu-item index="/media-import">
-              <el-icon><List /></el-icon>
-              <span>电视剧</span>
-            </el-menu-item>
-          </el-sub-menu> -->          <el-sub-menu index="database">
+          <el-menu-item index="/file-manager">
+            <el-icon>
+              <Folder />
+            </el-icon>
+            <span>网盘文件管理器</span>
+          </el-menu-item>
+          <el-sub-menu index="database">
             <template #title>
               <el-icon>
                 <DataAnalysis />
@@ -321,6 +313,7 @@ import {
   DocumentCopy,
   Link,
   FolderOpened,
+  Folder,
   List,
   Film,
   View,

@@ -159,6 +159,27 @@ interface BackupRecordsResponse {
   records: BackupRecord[]
 }
 
+// 文件管理器相关类型定义
+type FileType = 'directory' | 'video' | 'image' | 'nfo' | 'other'
+type FileOperationType = 'STRM_GENERATE' | 'SCRAPE_ORGANIZE' | 'GENERATE_ED2K'
+
+// 文件系统项目接口
+interface FileSystemItem {
+  name: string
+  path: string
+  type: FileType
+  size: number
+  modified_time: number
+  is_directory: boolean
+}
+
+// 文件列表响应接口
+interface FileListResponse {
+  total: number
+  items: FileSystemItem[]
+  current_path: string
+}
+
 export type {
   oo5Account,
   LibForm,
@@ -181,4 +202,8 @@ export type {
   BackupFile,
   BackupRecord,
   BackupRecordsResponse,
+  FileType,
+  FileOperationType,
+  FileSystemItem,
+  FileListResponse,
 }

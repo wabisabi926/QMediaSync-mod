@@ -57,8 +57,8 @@
           v-loading="loading"
         >
           <div
-            v-for="(log, index) in logLines"
-            :key="index"
+            v-for="(log, index) in limitedLogLines"
+            :key="log.id || index"
             class="log-line"
             :class="`log-level-${log.level}`"
           >
@@ -74,7 +74,7 @@
         <!-- 日志信息 -->
         <div class="log-info">
           <el-text size="small">
-            当前显示 {{ logLines.length }} 行日志
+            当前显示 {{ limitedLogLines.length }} 行日志
             <span v-if="isConnected" class="status-indicator connected">● 已连接</span>
             <span v-else class="status-indicator disconnected">● 已断开</span>
           </el-text>
@@ -85,7 +85,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Connection, Close, Delete, Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { SERVER_URL } from '@/const'
@@ -105,6 +105,7 @@ interface LogEntry {
   level: 'info' | 'warn' | 'error' | 'debug'
   message: string
   timestamp: string
+  id?: string
 }
 
 // 组件状态
@@ -113,6 +114,11 @@ const logLines = ref<LogEntry[]>([])
 const isConnected = ref(false)
 const loading = ref(false)
 const logsContainer = ref<HTMLElement | null>(null)
+
+// 日志数量限制配置
+const MAX_LOG_ENTRIES = 2000
+const CLEANUP_THRESHOLD = 2500
+let cleanupTimer: NodeJS.Timeout | null = null
 
 // 日志配置
 let isLoadingOldLogs = false
@@ -127,6 +133,11 @@ let wsUrl = SERVER_URL.replace('http', 'ws')
 wsUrl = wsUrl.replace('https', 'ws')
 const WS_URL = `${wsUrl}/logs/ws`
 const HTTP_URL = `${SERVER_URL}/logs/old`
+
+// 限制显示的日志条目
+const limitedLogLines = computed(() => {
+  return logLines.value.slice(0, MAX_LOG_ENTRIES)
+})
 
 // 监听日志路径变化，自动重新连接
 watch(() => props.logPath, (newPath) => {
@@ -191,6 +202,9 @@ const loadInitialLogs = async () => {
 // 清理资源
 onUnmounted(() => {
   disconnect()
+  if (cleanupTimer) {
+    clearTimeout(cleanupTimer)
+  }
 })
 
 // 处理滚动事件
@@ -217,10 +231,32 @@ const handleScroll = () => {
   lastScrollTop = scrollTop
 }
 
+// 防抖清理函数
+const debouncedCleanupLogs = () => {
+  if (cleanupTimer) {
+    clearTimeout(cleanupTimer)
+  }
+
+  cleanupTimer = setTimeout(() => {
+    if (logLines.value.length > CLEANUP_THRESHOLD) {
+      logLines.value = logLines.value.slice(0, MAX_LOG_ENTRIES)
+    }
+  }, 300)
+}
+
 // 添加日志条目
 const addLogEntry = (entry: LogEntry) => {
+  // 为日志条目添加唯一ID
+  const entryWithId = {
+    ...entry,
+    id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+  }
+
   // 添加到日志数组前面（最新的日志在最前面）
-  logLines.value = [entry, ...logLines.value]
+  logLines.value = [entryWithId, ...logLines.value]
+
+  // 防抖清理检查
+  debouncedCleanupLogs()
 }
 
 // 添加系统日志

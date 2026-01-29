@@ -6,10 +6,10 @@
           <div class="header-left">
             <h2 class="card-title hidden-md-and-down">同步目录管理</h2>
             <p class="card-subtitle">
-              115分为全量同步和增量同步，首次同步为全量，后续都为增量，其他类型不区分
+              115同步无法感知网盘的文件夹重命名等操作，如果发现文件夹名字不对可以手动点击：重置&同步
             </p>
-            <p class="card-subtitle">
-              115增量同步无法感知网盘的文件重命名等操作，如果发现文件夹名字不对可以手动点击全量同步
+            <p>
+              115的"重置&同步"操作会删除所有缓存数据（不会删除本地文件），然后执行同步，可以处理所有网盘文件变更
             </p>
             <p class="card-subtitle">
               115请按照电影和电视剧分开添加同步目录，电影的同步速度非常快，电视剧的同步速度较慢
@@ -101,11 +101,13 @@
           </div>
           <template #footer>
             <div class="card-actions">
-              <el-button type="warning" size="small" @click="handleFullStart(row, index)" :loading="row.starting"
-                :icon="VideoPlay" v-if="row.source_type === '115' && row.is_running === 0">全量同步</el-button>
+              <el-tooltip content="重置&同步会删除所有缓存数据（不会删除本地文件），然后执行同步，可以处理所有网盘文件变更" placement="top">
+                <el-button type="warning" size="small" @click="handleFullStart(row, index)" :loading="row.starting"
+                  :icon="WarningFilled" v-if="row.source_type === '115' && row.is_running === 0">重置&同步</el-button>
+              </el-tooltip>
+
               <el-button type="success" size="small" @click="handleStart(row, index)" :loading="row.starting"
-                v-if="row.is_running === 0" :icon="VideoPlay">{{ row.source_type !== '115' ? "同步" : "增量同步"
-                }}</el-button>
+                v-if="row.is_running === 0" :icon="VideoPlay">同步</el-button>
               <el-button type="info" size="small" @click="handleStop(row, index)" :loading="row.stopping"
                 :icon="VideoPause" v-if="row.is_running != 0">停止</el-button>
               <el-button type="primary" size="small" @click="handleEdit(row)" :loading="row.editing"
@@ -481,7 +483,7 @@ import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { inject, onMounted, onUnmounted, ref, reactive, watch, type Ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Loading, Folder, VideoPlay, Edit, Delete, Warning, Star, VideoPause } from '@element-plus/icons-vue'
+import { Plus, Loading, Folder, VideoPlay, Edit, Delete, Warning, Star, VideoPause, WarningFilled } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { formatTime } from '@/utils/timeUtils'
 import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
@@ -711,7 +713,7 @@ const updatePathesStatus = async () => {
       const path = directories.value.find(pa => pa.id === p.id)
       if (path) {
         path.is_running = p.is_running
-        console.log(`更新路径状态: ${path.id}, 运行状态: ${path.is_running}`)
+        // console.log(`更新路径状态: ${path.id}, 运行状态: ${path.is_running}`)
       }
     }
   }

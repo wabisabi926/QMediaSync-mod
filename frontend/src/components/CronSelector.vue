@@ -55,19 +55,14 @@ type CronParserClass = {
 
 let CronParser: CronParserClass | null = null
 
-// 懒罗加载 cron-parser
 const loadCronParser = async () => {
   if (!CronParser) {
     const cronParser = await import('cron-parser')
     CronParser = cronParser.default as unknown as CronParserClass
   }
+  return CronParser
 }
 
-onMounted(() => {
-  loadCronParser()
-})
-
-// Props 和 Emits
 const props = defineProps<{
   modelValue: string
 }>()
@@ -76,13 +71,11 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
 }>()
 
-// 状态
 const selectedPreset = ref<string>('0 2 * * *')
 const customCron = ref('')
 const validationError = ref('')
 const nextExecutionTime = ref('')
 
-// 预设值映射
 const presetValues = [
   '0 2 * * *',
   '0 3 * * *',
@@ -91,23 +84,20 @@ const presetValues = [
   '0 0 * * 0',
 ]
 
-// 验证 Cron 表达式
-const validateCron = (cronExpression: string): { valid: boolean; error?: string } => {
+const validateCron = async (cronExpression: string): Promise<{ valid: boolean; error?: string }> => {
   try {
-    if (!CronParser) {
+    const parser = await loadCronParser()
+    if (!parser) {
       return { valid: false, error: 'Cron解析器未加载' }
     }
 
-    // 使用 cron-parser 验证表达式
-    const expression = new CronParser(cronExpression)
+    const expression = new parser(cronExpression)
 
-    // 计算下两次执行时间，用于验证最小间隔
     expression.reset()
     const next1 = expression.next().toDate()
     const next2 = expression.next().toDate()
     const intervalMinutes = (next2.getTime() - next1.getTime()) / (1000 * 60)
 
-    // 验证最小间隔是否 >= 1小时
     if (intervalMinutes < 60) {
       return {
         valid: false,
@@ -124,15 +114,15 @@ const validateCron = (cronExpression: string): { valid: boolean; error?: string 
   }
 }
 
-// 计算下次执行时间
-const calculateNextExecution = (cronExpression: string) => {
+const calculateNextExecution = async (cronExpression: string) => {
   try {
-    if (!CronParser) {
+    const parser = await loadCronParser()
+    if (!parser) {
       nextExecutionTime.value = ''
       return
     }
 
-    const expression = new CronParser(cronExpression)
+    const expression = new parser(cronExpression)
     const next = expression.next().toDate()
     nextExecutionTime.value = next.toLocaleString('zh-CN', {
       year: 'numeric',
@@ -148,43 +138,36 @@ const calculateNextExecution = (cronExpression: string) => {
   }
 }
 
-// 处理预设值变更
-const handlePresetChange = (value: string) => {
+const handlePresetChange = async (value: string) => {
   validationError.value = ''
 
   if (value === 'custom') {
-    // 切换到自定义模式，保留当前值或使用默认值
     customCron.value = props.modelValue || '0 2 * * *'
-    validateAndEmit(customCron.value)
+    await validateAndEmit(customCron.value)
   } else {
-    // 使用预设值
-    validateAndEmit(value)
+    await validateAndEmit(value)
   }
 }
 
-// 处理自定义 Cron 变更
-const handleCustomCronChange = () => {
-  validateAndEmit(customCron.value)
+const handleCustomCronChange = async () => {
+  await validateAndEmit(customCron.value)
 }
 
-// 验证并发出更新事件
-const validateAndEmit = (cronExpression: string) => {
-  const result = validateCron(cronExpression)
+const validateAndEmit = async (cronExpression: string) => {
+  // const result = await validateCron(cronExpression)
 
-  if (result.valid) {
-    validationError.value = ''
-    calculateNextExecution(cronExpression)
+  // if (result.valid) {
+  //   validationError.value = ''
+    await calculateNextExecution(cronExpression)
     emit('update:modelValue', cronExpression)
-  } else {
-    validationError.value = result.error || '验证失败'
-    nextExecutionTime.value = ''
-  }
+  // } else {
+  //   validationError.value = result.error || '验证失败'
+  //   nextExecutionTime.value = ''
+  // }
 }
 
-// 初始化
-onMounted(() => {
+onMounted(async () => {
   if (props.modelValue) {
-    // 检查是否是预设值
     if (presetValues.includes(props.modelValue)) {
       selectedPreset.value = props.modelValue
     } else {
@@ -192,24 +175,22 @@ onMounted(() => {
       customCron.value = props.modelValue
     }
 
-    // 验证并计算下次执行时间
-    const result = validateCron(props.modelValue)
+    const result = await validateCron(props.modelValue)
     if (result.valid) {
-      calculateNextExecution(props.modelValue)
+      await calculateNextExecution(props.modelValue)
     } else {
       validationError.value = result.error || ''
     }
   }
 })
 
-// 监听外部值变化
-watch(() => props.modelValue, (newValue) => {
+watch(() => props.modelValue, async (newValue) => {
   if (newValue && newValue !== customCron.value && selectedPreset.value === 'custom') {
     customCron.value = newValue
-    const result = validateCron(newValue)
+    const result = await validateCron(newValue)
     if (result.valid) {
       validationError.value = ''
-      calculateNextExecution(newValue)
+      await calculateNextExecution(newValue)
     }
   }
 })

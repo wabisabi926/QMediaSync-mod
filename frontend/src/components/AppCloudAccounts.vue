@@ -60,6 +60,20 @@
                 <span class="info-value">{{ account.app_id || '-' }}</span>
               </div>
             </template>
+            <template v-if="account.source_type === 'openlist'">
+              <div class="info-item">
+                <span class="info-label">OpenList地址:</span>
+                <span class="info-value">{{ account.base_url }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">用户名:</span>
+                <span class="info-value">{{ account.name }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">用户ID:</span>
+                <span class="info-value">{{ account.user_id }}</span>
+              </div>
+            </template>
             <div class="info-item">
               <span class="info-label">添加时间:</span>
               <span class="info-value">{{ formatTimestamp(account.created_at) }}</span>
@@ -97,11 +111,22 @@
         <el-form-item label="访问地址" v-if="newAccountForm.type === 'openlist'">
           <el-input v-model="newAccountForm.base_url" placeholder="请输入OpenList地址:http://ip:5244" />
         </el-form-item>
-        <el-form-item label="用户名" v-if="newAccountForm.type === 'openlist'">
-          <el-input v-model="newAccountForm.username" placeholder="请输入用户名" />
+        <el-form-item label="认证方式" v-if="newAccountForm.type === 'openlist'">
+          <el-select v-model="newAccountForm.auth_type" placeholder="请选择认证方式">
+            <el-option label="用户名密码" value="password"></el-option>
+            <el-option label="令牌" value="token"></el-option>
+          </el-select>
         </el-form-item>
-        <el-form-item label="密码" v-if="newAccountForm.type === 'openlist'">
-          <el-input type="password" v-model="newAccountForm.password" placeholder="请输入密码" />
+        <template v-if="newAccountForm.type === 'openlist' && newAccountForm.auth_type === 'password'">
+          <el-form-item label="用户名">
+            <el-input v-model="newAccountForm.username" placeholder="请输入用户名" />
+          </el-form-item>
+          <el-form-item label="密码">
+            <el-input type="password" v-model="newAccountForm.password" placeholder="请输入密码" />
+          </el-form-item>
+        </template>
+        <el-form-item label="令牌" v-if="newAccountForm.type === 'openlist' && newAccountForm.auth_type === 'token'">
+          <el-input type="password" v-model="newAccountForm.token" placeholder="请输入令牌" />
         </el-form-item>
         <el-form-item label="115开放平台应用" v-if="newAccountForm.type === '115'">
           <el-select v-model="newAccountForm.app_id_name" placeholder="请选择APP ID">
@@ -189,11 +214,22 @@
         <el-form-item label="访问地址" prop="baseUrl">
           <el-input v-model="editAccountForm.base_url" placeholder="请输入OpenList地址:http://ip:5244" />
         </el-form-item>
-        <el-form-item label="用户名" prop="username">
-          <el-input v-model="editAccountForm.username" placeholder="请输入用户名" />
+        <el-form-item label="认证方式">
+          <el-select v-model="editAccountForm.auth_type" placeholder="请选择认证方式">
+            <el-option label="用户名密码" value="password"></el-option>
+            <el-option label="令牌" value="token"></el-option>
+          </el-select>
         </el-form-item>
-        <el-form-item label="密码" prop="password">
-          <el-input type="password" v-model="editAccountForm.password" placeholder="请输入密码（留空则不修改）" />
+        <template v-if="editAccountForm.auth_type === 'password'">
+          <el-form-item label="用户名">
+            <el-input v-model="editAccountForm.username" placeholder="请输入用户名" />
+          </el-form-item>
+          <el-form-item label="密码">
+            <el-input type="password" v-model="editAccountForm.password" placeholder="请输入密码（留空则不修改）" />
+          </el-form-item>
+        </template>
+        <el-form-item label="令牌" v-if="editAccountForm.auth_type === 'token'">
+          <el-input type="password" v-model="editAccountForm.token" placeholder="请输入令牌" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -224,7 +260,7 @@
 
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
-import type { AxiosStatic } from 'axios'
+import type { AxiosError, AxiosStatic } from 'axios'
 import { inject, ref, onMounted, onUnmounted } from 'vue'
 import QRCode from 'qrcode'
 import {
@@ -260,6 +296,7 @@ interface CloudAccount {
   base_url: string
   created_at: number
   token: string
+  auth_type?: string
   app_id_name?: string
   app_id?: string
   token_failed_reason?: string
@@ -287,8 +324,10 @@ const newAccountForm = ref({
   base_url: '',
   username: '',
   password: '',
+  token: '',
+  auth_type: 'password',
   app_id_name: 'Q115-STRM', // 默认值
-  app_id: ''
+  app_id: '',
 })
 
 // 编辑账号相关状态
@@ -300,7 +339,9 @@ const editAccountForm = ref({
   base_url: '',
   username: '',
   password: '',
-  token_failed_reason: ''
+  token: '',
+  auth_type: 'password',
+  token_failed_reason: '',
 })
 
 // 二维码登录相关状态
@@ -336,9 +377,10 @@ const loadAccounts = async () => {
         token: item.token,
         base_url: item.base_url,
         password: item.password,
+        auth_type: item.auth_type,
         app_id_name: item.app_id_name,
         app_id: item.app_id,
-        token_failed_reason: item.token_failed_reason || ''
+        token_failed_reason: item.token_failed_reason || '',
       }))
     } else {
       console.error('加载账号列表失败:', response?.data.message || '未知错误')
@@ -389,35 +431,38 @@ const handleDelete = async (row: CloudAccount) => {
 
 // 处理编辑账号
 const handleEdit = (account: CloudAccount) => {
-  // 设置当前编辑的账号
   currentEditAccount.value = account
   console.log(account.base_url, account.password)
-  // 填充编辑表单
+
+  const authType =
+    account.auth_type || (account.username && account.password ? 'password' : 'token')
+
   editAccountForm.value = {
     id: account.id,
     source_type: account.source_type,
     base_url: account.base_url,
     username: account.username,
     password: account.password,
-    token_failed_reason: account.token_failed_reason || ''
+    token: account.token || '',
+    auth_type: authType,
+    token_failed_reason: account.token_failed_reason || '',
   }
   console.log(editAccountForm.value)
-  // 显示编辑对话框
   showEditAccountDialog.value = true
 }
 
 // 处理更新账号
 const handleUpdateAccount = async () => {
   try {
-    // 准备请求数据
     const requestData = {
       id: editAccountForm.value.id,
       base_url: editAccountForm.value.base_url,
-      username: editAccountForm.value.username,
-      password: editAccountForm.value.password,
+      auth_type: editAccountForm.value.auth_type,
+      ...(editAccountForm.value.auth_type === 'token'
+        ? { token: editAccountForm.value.token }
+        : { username: editAccountForm.value.username, password: editAccountForm.value.password }),
     }
 
-    // 调用API更新账号
     const response = await http?.post(`${SERVER_URL}/account/openlist`, requestData, {
       headers: {
         'Content-Type': 'application/json',
@@ -425,9 +470,8 @@ const handleUpdateAccount = async () => {
     })
 
     if (response?.data.code === 200) {
-      // 更新成功，关闭对话框，刷新账号列表
       showEditAccountDialog.value = false
-      loadAccounts() // 刷新账号列表
+      loadAccounts()
       ElMessage.success('账号更新成功')
     } else {
       console.error('更新账号失败:', response?.data.message || '未知错误')
@@ -443,14 +487,35 @@ const handleUpdateAccount = async () => {
 const handleAuthorize = (row: CloudAccount) => {
   console.log('授权账号:', row)
   // 实现授权逻辑
-  // 如果是115网盘，显示二维码对话框
+  // 如果是115网盘，使用OAuth授权
   if (row.source_type === '115') {
-    handle115Login(row.id)
+    handle115OAuth(row.id)
   }
   // 如果是123云盘，显示确认对话框
   else if (row.source_type === '123') {
     selectedAccountId.value = row.id
     show123AuthDialog.value = true
+  }
+}
+
+// 处理115 OAuth授权
+const handle115OAuth = async (accountId?: number) => {
+  try {
+
+    const response = await http?.get(`${SERVER_URL}/115/oauth-url?account_id=${accountId}`)
+
+    if (response?.data.code === 200 && response.data.data) {
+      const oauthUrl = response.data.data
+      // 保存当前授权的账号ID
+      currentAccountId.value = accountId
+      // 在新窗口打开OAuth授权页面
+      window.open(oauthUrl, '_blank', 'width=600,height=700')
+    } else {
+      ElMessage.error(response?.data.message || '获取授权地址失败')
+    }
+  } catch (error) {
+    console.error('115 OAuth授权错误:', error)
+    ElMessage.error('获取授权地址失败')
   }
 }
 
@@ -472,15 +537,17 @@ const resetForm = () => {
     base_url: '',
     username: '',
     password: '',
+    token: '',
+    auth_type: 'password',
     app_id_name: 'Q115-STRM',
-    app_id: ''
+    app_id: '',
   }
 }
 
 // 添加账号
 const handleAddAccount = async () => {
   try {
-    const data = {
+    const data: Record<string, string | number> = {
       source_type: newAccountForm.value.type,
       name: newAccountForm.value.name,
     }
@@ -491,15 +558,20 @@ const handleAddAccount = async () => {
         username: newAccountForm.value.username,
         password: newAccountForm.value.password,
         app_id_name: newAccountForm.value.app_id_name,
-        app_id: newAccountForm.value.app_id
+        app_id: newAccountForm.value.app_id,
       })
     } else if (newAccountForm.value.type === 'openlist') {
       url = `${SERVER_URL}/account/openlist`
       Object.assign(data, {
         base_url: newAccountForm.value.base_url,
-        username: newAccountForm.value.username,
-        password: newAccountForm.value.password
+        auth_type: newAccountForm.value.auth_type,
       })
+      if (newAccountForm.value.auth_type === 'token') {
+        data.token = newAccountForm.value.token
+      } else {
+        data.username = newAccountForm.value.username
+        data.password = newAccountForm.value.password
+      }
     }
 
     const response = await http?.post(url, data)
@@ -514,7 +586,9 @@ const handleAddAccount = async () => {
     }
   } catch (error) {
     console.error('添加账号失败:', error)
-    ElMessage.error('添加账号失败: 网络错误')
+    const err: AxiosError = error as AxiosError
+    const errData = err.response?.data as { message?: string }
+    ElMessage.error(`添加账号失败: Http ${err.status}，${errData.message || err.message}`)
   }
 }
 
@@ -543,13 +617,13 @@ const generateQRCode = async (content: string): Promise<string> => {
 const handle115Login = async (accountId?: number) => {
   try {
     // 查找当前账号
-    const account = accounts.value.find(acc => acc.id === accountId)
+    const account = accounts.value.find((acc) => acc.id === accountId)
 
     // 获取二维码
     const requestData = {
       account_id: accountId, // 添加account_id参数
       app_id_name: account?.app_id_name || 'Q115-STRM', // 添加app_id_name参数
-      app_id: account?.app_id || '' // 添加app_id参数
+      app_id: account?.app_id || '', // 添加app_id参数
     }
 
     const response = await http?.post(`${SERVER_URL}/auth/115-qrcode-open`, requestData, {
@@ -695,6 +769,56 @@ const refreshQRCode = async (accountId?: number) => {
   }
 }
 
+// 处理115 OAuth授权完成后的消息
+const handle115OAuthMessage = async (event: MessageEvent) => {
+  if (event.data.type === 'oauth_success') {
+    // 115 OAuth授权成功，发送数据到服务端处理
+    console.log('115 OAuth授权成功，准备确认授权:', event.data.data)
+
+    try {
+      const requestData = {
+        account_id: currentAccountId.value,
+        data: event.data.data,
+      }
+
+      const response = await http?.post(`${SERVER_URL}/115/oauth-confirm`, requestData, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (response?.data.code === 200) {
+        ElMessage.success('115授权成功')
+        // 刷新账号列表
+        loadAccounts()
+        // 清空当前账号ID
+        currentAccountId.value = undefined
+      } else {
+        ElMessage.error(response?.data.message || '授权确认失败')
+      }
+    } catch (error) {
+      console.error('115 OAuth确认错误:', error)
+      ElMessage.error('授权确认失败')
+    }
+  } else if (event.data.type === 'oauth_error') {
+    // 115 OAuth授权失败
+    console.error('115 OAuth授权失败:', event.data)
+
+    // 关闭二维码对话框
+    if (showQRDialog.value) {
+      closeQRDialog()
+    }
+
+    // 显示错误提示
+    const errorMsg = event.data.error || '授权失败，请重试'
+    const errorCode = event.data.errno || 0
+    ElMessage.error(`授权失败: ${errorMsg}${errorCode ? ` (错误代码: ${errorCode})` : ''}`)
+
+    // 清空当前账号ID
+    currentAccountId.value = undefined
+  }
+}
+
 // 处理123云盘授权完成后的消息
 const handle123AuthMessage = (event: MessageEvent) => {
   if (event.data.type === '123_auth_success') {
@@ -709,12 +833,15 @@ const handle123AuthMessage = (event: MessageEvent) => {
 // 组件挂载时加载数据并添加事件监听器
 onMounted(() => {
   loadAccounts()
+  // 添加事件监听器以处理115 OAuth授权完成后的消息
+  window.addEventListener('message', handle115OAuthMessage)
   // 添加事件监听器以处理123云盘授权完成后的消息
   window.addEventListener('message', handle123AuthMessage)
 })
 
 // 组件卸载时移除事件监听器
 onUnmounted(() => {
+  window.removeEventListener('message', handle115OAuthMessage)
   window.removeEventListener('message', handle123AuthMessage)
 })
 </script>

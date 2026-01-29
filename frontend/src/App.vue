@@ -170,7 +170,7 @@
             <el-icon>
               <Folder />
             </el-icon>
-            <span>网盘文件管理器</span>
+            <span>网盘文件管理(仅UI)</span>
           </el-menu-item>
           <el-sub-menu index="database">
             <template #title>

@@ -67,7 +67,7 @@
         <span style="margin-left: 10px; color: #d32f2f">{{ embyData.enable_delete_netdisk ? '启用' : '禁用' }}</span>
         <div style="margin-top: 8px; font-size: 12px; color: #d32f2f">
           <strong>⚠ 谨慎启用：</strong> 启用后，删除Emby中的项目时，对应的网盘文件也会被删除<br />
-          <strong>由于Emby的特性如果strm文件内容变更会Emby先删除项目再新增删除，这时有概率导致：STRM变更->Emby通知删除->QMS联动删除网盘->Emby新增项目->播放失败</strong>，这个问题暂时无解<br />
+          <strong>由于Emby的特性如果strm文件内容变更，Emby会先删除再新增，这时有概率导致：STRM变更->Emby通知删除->QMS联动删除网盘->Emby新增项目->播放失败</strong>，这个问题暂时无解<br />
           <strong>如果打开了Emby的实时监控，在文件系统内删除Strm或者文件夹也会导致Emby触发删除通知->QMS联动删除网盘，所有删除文件一定要谨慎。</strong>
         </div>
         <div>该功能需要在Emby中配置通知才能生效，<a href="https://github.com/qicfan/qmediasync/wiki/Emby-%E9%80%9A%E7%9F%A5%E9%85%8D%E7%BD%AE" target="_blank">配置教程</a> <a :href="embyData.emby_url + '/web/index.html#!/settings/notifications.html'" target="_blank">去配置</a></div>

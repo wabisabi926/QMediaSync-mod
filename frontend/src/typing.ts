@@ -165,6 +165,7 @@ type FileOperationType = 'STRM_GENERATE' | 'SCRAPE_ORGANIZE' | 'GENERATE_ED2K'
 
 // 文件系统项目接口
 interface FileSystemItem {
+  id: string
   name: string
   path: string
   type: FileType

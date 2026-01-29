@@ -104,6 +104,7 @@ const loadCronParser = async () => {
     const cronParser = await import('cron-parser')
     CronParser = cronParser.default as unknown as CronParserClass
   }
+  return CronParser
 }
 
 const http = inject<AxiosStatic>('$http')
@@ -133,15 +134,18 @@ const loadBackupConfig = async () => {
 
     if (res.data.code === 200 && res.data.data.exists && res.data.data.config) {
       const config = res.data.data.config
+
+      const cronExpression = config.backup_cron || '0 2 * * *'
+
       Object.assign(configForm, {
         backup_enabled: config.backup_enabled,
-        backup_cron: config.backup_cron,
+        backup_cron: cronExpression,
         backup_path: config.backup_path,
         backup_retention: config.backup_retention,
         backup_max_count: config.backup_max_count,
         backup_compress: config.backup_compress,
       })
-      calculateNextBackupTime()
+      await calculateNextBackupTime()
     }
   } catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : '加载备份配置失败'
@@ -159,7 +163,7 @@ const saveConfig = async () => {
 
     if (res.data.code === 200) {
       ElMessage.success('备份配置保存成功')
-      calculateNextBackupTime()
+      await calculateNextBackupTime()
     } else {
       ElMessage.error('保存配置失败')
     }
@@ -172,14 +176,20 @@ const saveConfig = async () => {
 }
 
 // 计算下次备份时间
-const calculateNextBackupTime = () => {
+const calculateNextBackupTime = async () => {
   try {
-    if (!CronParser || !configForm.backup_enabled || !configForm.backup_cron) {
+    if (!configForm.backup_enabled || !configForm.backup_cron) {
       nextBackupTime.value = ''
       return
     }
 
-    const expression = new CronParser(configForm.backup_cron)
+    const parser = await loadCronParser()
+    if (!parser) {
+      nextBackupTime.value = ''
+      return
+    }
+
+    const expression = new parser(configForm.backup_cron)
     const next = expression.next().toDate()
     nextBackupTime.value = next.toLocaleString('zh-CN', {
       year: 'numeric',

@@ -9,6 +9,7 @@
         <el-button type="info" @click="refreshQueue">刷新</el-button>
         <el-button type="success" @click="pauseAllTasks" :disabled="queueStatus === 0">全部暂停</el-button>
         <el-button type="primary" @click="resumeAllTasks" :disabled="queueStatus === 1">全部开始</el-button>
+        <el-button type="warning" @click="retryAllFailedTasks">重试所有失败的任务</el-button>
         <el-button type="warning" @click="clearQueue">清空等待中的任务</el-button>
         <el-button type="danger" @click="clearSuccessAndFailedTasks">清空成功和失败的任务</el-button>
       </div>
@@ -333,6 +334,27 @@ const clearSuccessAndFailedTasks = async () => {
   }
 }
 
+// 重试所有失败的任务
+const retryAllFailedTasks = async () => {
+  try {
+    await ElMessageBox.confirm('是否重试所有失败的任务？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+
+    const response = await http?.post(`${SERVER_URL}/upload/queue/retry-failed`)
+
+    if (response?.data.code === 200) {
+      ElMessage.success('已开始重试所有失败的任务')
+      loadQueueData()
+    } else {
+      ElMessage.error(`重试失败的任务失败: ${response?.data.message || ''}`)
+    }
+  } catch {
+    // 用户取消或请求失败
+  }
+}
 
 // 全局暂停所有任务
 const pauseAllTasks = async () => {

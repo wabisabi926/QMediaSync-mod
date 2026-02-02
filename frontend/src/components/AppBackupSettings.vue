@@ -1,81 +1,48 @@
 <template>
   <div class="backup-settings-container">
     <div class="page-header">
-      <el-icon><Setting /></el-icon>
+      <el-icon>
+        <Setting />
+      </el-icon>
       <span>备份配置</span>
     </div>
 
-    <el-form
-        ref="configFormRef"
-        :model="configForm"
-        label-width="120px"
-        :label-position="isMobile ? 'top' : 'right'"
-      >
-        <el-form-item label="启用自动备份">
-          <el-switch
-            v-model="configForm.backup_enabled"
-            :active-value="1"
-            :inactive-value="0"
-          />
-        </el-form-item>
+    <el-form ref="configFormRef" :model="configForm" label-width="120px" :label-position="isMobile ? 'top' : 'right'">
+      <el-form-item label="启用自动备份">
+        <el-switch v-model="configForm.backup_enabled" :active-value="1" :inactive-value="0" />
+      </el-form-item>
 
-        <el-form-item label="定时策略" required>
-          <cron-selector v-model="configForm.backup_cron" />
-        </el-form-item>
+      <el-form-item label="定时策略" required>
+        <cron-selector v-model="configForm.backup_cron" />
+      </el-form-item>
 
-        <el-form-item label="备份路径" required>
-          <el-input
-            v-model="configForm.backup_path"
-            placeholder="例如: config/backups/"
-          />
-        </el-form-item>
+      <el-form-item label="备份路径" required>
+        <el-input v-model="configForm.backup_path" placeholder="例如: config/backups/" />
+      </el-form-item>
 
-        <el-form-item label="保留天数" required>
-          <el-input-number
-            v-model="configForm.backup_retention"
-            :min="1"
-            :max="365"
-            controls-position="right"
-          />
-          <span style="margin-left: 8px; color: #909399">天</span>
-        </el-form-item>
+      <el-form-item label="保留天数" required>
+        <el-input-number v-model="configForm.backup_retention" :min="1" :max="365" controls-position="right" />
+        <span style="margin-left: 8px; color: #909399">天</span>
+      </el-form-item>
 
-        <el-form-item label="最大备份数" required>
-          <el-input-number
-            v-model="configForm.backup_max_count"
-            :min="1"
-            :max="100"
-            controls-position="right"
-          />
-          <span style="margin-left: 8px; color: #909399">个</span>
-        </el-form-item>
+      <el-form-item label="最大备份数" required>
+        <el-input-number v-model="configForm.backup_max_count" :min="1" :max="100" controls-position="right" />
+        <span style="margin-left: 8px; color: #909399">个</span>
+      </el-form-item>
 
-        <el-form-item label="压缩备份">
-          <el-switch
-            v-model="configForm.backup_compress"
-            :active-value="1"
-            :inactive-value="0"
-          />
-        </el-form-item>
+      <el-form-item label="压缩备份">
+        <el-switch v-model="configForm.backup_compress" :active-value="1" :inactive-value="0" />
+      </el-form-item>
 
-        <el-form-item>
-          <el-button
-            type="primary"
-            :loading="configSaving"
-            @click="saveConfig"
-          >
-            保存配置
-          </el-button>
-        </el-form-item>
-      </el-form>
+      <el-form-item>
+        <el-button type="primary" :loading="configSaving" @click="saveConfig">
+          保存配置
+        </el-button>
+      </el-form-item>
+    </el-form>
 
-      <!-- 下次执行时间提示 -->
-      <el-alert
-        v-if="nextBackupTime"
-        :title="`下次自动备份时间：${nextBackupTime}`"
-        type="info"
-        :closable="false"
-      />
+    <!-- 下次执行时间提示 -->
+    <el-alert v-if="nextBackupTime" :title="`下次自动备份时间：${nextBackupTime}`" type="info" :closable="false" />
   </div>
 </template>
 
@@ -90,7 +57,7 @@ import { isMobile as checkIsMobile } from '@/utils/deviceUtils'
 import CronSelector from './CronSelector.vue'
 
 type CronParserClass = {
-  new (expr: string): {
+  new(expr: string): {
     reset(): void
     next(): { toDate(): Date }
   }

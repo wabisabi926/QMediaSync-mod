@@ -1,14 +1,36 @@
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
-import { inject, onMounted, onUnmounted, ref } from 'vue'
-import { } from '@/utils/timeUtils'
+import { inject, onMounted, onUnmounted, ref, computed } from 'vue'
+import { formatDateTime } from '@/utils/timeUtils'
 import { formatFileSize } from '@/utils/fileSizeUtils'
 import MarkdownIt from 'markdown-it'
 import 'github-markdown-css'
 import { ElMessage } from 'element-plus'
 import { CircleCheck, Document } from '@element-plus/icons-vue'
 import AppLogViewer from './AppLogViewer.vue'
+import VChart from 'vue-echarts'
+import { use } from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
+import { BarChart, LineChart } from 'echarts/charts'
+import {
+  TitleComponent,
+  TooltipComponent,
+  LegendComponent,
+  GridComponent,
+  DataZoomComponent
+} from 'echarts/components'
+
+use([
+  CanvasRenderer,
+  BarChart,
+  LineChart,
+  TitleComponent,
+  TooltipComponent,
+  LegendComponent,
+  GridComponent,
+  DataZoomComponent
+])
 
 interface VersionInfo {
   version: string
@@ -22,6 +44,38 @@ interface UpdateInfo {
   url: string
   latest?: boolean
   current?: boolean
+}
+
+interface QueueStats {
+  avg_response_time_ms: number
+  is_throttled: boolean
+  last_throttle_time: string | null
+  qph_count: number
+  qpm_count: number
+  qps_count: number
+  throttle_recover_time: string
+  throttle_wait_time: string
+  throttled_count: number
+  throttled_elapsed_time: string
+  throttled_remaining_time: string
+  time_window_seconds: number
+  total_requests: number
+}
+
+interface HourlyStat {
+  hour_ts: number
+  total_requests: number
+  throttled_requests: number
+  avg_duration: string
+}
+
+interface HourlyStatsData {
+  start_date: string
+  end_date: string
+  total_requests: number
+  total_throttled: number
+  hourly_stats: HourlyStat[]
+  query_time_range_days: number
 }
 
 
@@ -44,6 +98,15 @@ const updateProgress = ref({
 const showUpdateCompleteDialog = ref(false) // 是否显示更新完成弹窗
 const countdown = ref(30) // 倒计时秒数
 let countdownTimer: NodeJS.Timeout | null = null
+
+// 115接口请求统计
+const queueStats = ref<QueueStats | null>(null)
+const queueStatsLoading = ref(false)
+let queueStatsTimer: NodeJS.Timeout | null = null
+
+// 每小时请求统计
+const hourlyStats = ref<HourlyStatsData | null>(null)
+const hourlyStatsLoading = ref(false)
 
 // 日志弹窗相关
 const showLogDialog = ref(false) // 是否显示日志弹窗
@@ -121,28 +184,157 @@ const loadUpdateList = async () => {
   } catch (error) {
     console.error('加载最新版本列表错误:', error)
     updateList.value = []
-    // 如果是接口调用失败，使用mock数据进行测试
-    console.log('使用模拟数据进行测试')
-    updateList.value = [
-      {
-        version: '1.0.0',
-        date: '2023-12-01',
-        note: '测试版本',
-        url: 'https://github.com/qicfan/qmediasync/releases',
-        latest: true
-      },
-      {
-        version: '0.9.9',
-        date: '2023-11-15',
-        note: '上一个版本',
-        url: 'https://github.com/qicfan/qmediasync/releases',
-        current: true
-      }
-    ]
   } finally {
     updateLoading.value = false
   }
 }
+
+// 加载115接口请求统计
+const loadQueueStats = async () => {
+  try {
+    queueStatsLoading.value = true
+    const response = await http?.get(`${SERVER_URL}/115/queue/stats`)
+    if (response && response.data && response.data.code === 200) {
+      queueStats.value = response.data.data
+    } else {
+      queueStats.value = null
+    }
+  } catch (error) {
+    console.error('加载115接口请求统计错误:', error)
+    queueStats.value = null
+  } finally {
+    queueStatsLoading.value = false
+  }
+}
+
+// 开始定时刷新统计数据
+const startQueueStatsPolling = () => {
+  if (queueStatsTimer) {
+    clearInterval(queueStatsTimer)
+  }
+
+  // 每3秒刷新一次
+  queueStatsTimer = setInterval(() => {
+    loadQueueStats()
+  }, 3000)
+}
+
+// 加载每小时请求统计
+const loadHourlyStats = async () => {
+  try {
+    hourlyStatsLoading.value = true
+    const response = await http?.get(`${SERVER_URL}/115/stats/hourly`)
+    if (response && response.data && response.data.code === 200) {
+      hourlyStats.value = response.data.data
+    } else {
+      hourlyStats.value = null
+    }
+  } catch (error) {
+    console.error('加载每小时请求统计错误:', error)
+    hourlyStats.value = null
+  } finally {
+    hourlyStatsLoading.value = false
+  }
+}
+
+// 图表配置
+const chartOption = computed(() => {
+  if (!hourlyStats.value || !hourlyStats.value.hourly_stats) {
+    return {}
+  }
+
+  const hours = hourlyStats.value.hourly_stats.map(item => formatDateTime(item.hour_ts))
+  const requestCounts = hourlyStats.value.hourly_stats.map(item => item.total_requests)
+  const throttledCounts = hourlyStats.value.hourly_stats.map(item => item.throttled_requests)
+  const avgDurations = hourlyStats.value.hourly_stats.map(item => {
+    const value = parseFloat(item.avg_duration)
+    return isNaN(value) ? 0 : Math.round(value)
+  })
+
+  return {
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: {
+        type: 'shadow'
+      }
+    },
+    legend: {
+      data: ['请求数', '限流次数', '平均响应时间(ms)'],
+      top: 10
+    },
+    grid: {
+      left: '50px',
+      right: '4%',
+      bottom: '60px',
+      top: '60px'
+    },
+    xAxis: {
+      type: 'category',
+      data: hours,
+      axisLabel: {
+        rotate: 45,
+        interval: 0,
+        fontSize: 10
+      }
+    },
+    yAxis: [
+      {
+        type: 'value',
+        name: '次数',
+        position: 'left'
+      },
+      {
+        type: 'value',
+        name: '响应时间(ms)',
+        position: 'right'
+      }
+    ],
+    series: [
+      {
+        name: '请求数',
+        type: 'bar',
+        yAxisIndex: 0,
+        data: requestCounts,
+        itemStyle: {
+          color: '#409eff'
+        }
+      },
+      {
+        name: '限流次数',
+        type: 'bar',
+        yAxisIndex: 0,
+        data: throttledCounts,
+        itemStyle: {
+          color: '#f56c6c'
+        }
+      },
+      {
+        name: '平均响应时间(ms)',
+        type: 'line',
+        yAxisIndex: 1,
+        data: avgDurations,
+        itemStyle: {
+          color: '#67c23a'
+        },
+        lineStyle: {
+          width: 2
+        },
+        smooth: true
+      }
+    ],
+    dataZoom: [
+      {
+        type: 'inside',
+        start: 0,
+        end: 100
+      },
+      {
+        start: 0,
+        end: 100
+      }
+    ]
+  }
+})
 
 onMounted(() => {
   loadVersionInfo()
@@ -150,6 +342,9 @@ onMounted(() => {
     // 加载完成后检查是否正在更新
     checkUpdateStatusOnLoad()
   })
+  loadQueueStats()
+  startQueueStatsPolling()
+  loadHourlyStats()
 })
 
 // 页面加载时检查更新状态
@@ -424,24 +619,172 @@ onUnmounted(() => {
     clearInterval(countdownTimer)
     countdownTimer = null
   }
+
+  if (queueStatsTimer) {
+    clearInterval(queueStatsTimer)
+    queueStatsTimer = null
+  }
 })
 </script>
 <template>
   <div class="home-container">
     <!-- 顶部操作按钮 -->
     <div class="top-actions">
-      <el-button
-        type="primary"
-        size="large"
-        @click="showLogDialog = true"
-        :icon="Document"
-      >
+      <el-button type="primary" size="large" @click="showLogDialog = true" :icon="Document">
         运行日志
       </el-button>
     </div>
 
     <!-- 账号信息和队列状态行 -->
     <el-row :gutter="20" class="top-row">
+      <el-col :xs="24" :sm="12" :md="8" :lg="8" :xl="8">
+        <el-card class="version-card stats-card" shadow="hover" v-loading="queueStatsLoading">
+          <template #header>
+            <h2 class="card-title">115接口请求统计</h2>
+            <p class="card-subtitle">实时监控115接口调用情况</p>
+          </template>
+
+          <div v-if="queueStats" class="stats-content">
+            <!-- 限流状态提示 -->
+            <el-alert v-if="queueStats.is_throttled" title="当前正在限流中" type="warning" :closable="false" show-icon
+              class="throttle-alert">
+              <template #default>
+                <div class="throttle-info">
+                  <p>限流等待时间: {{ queueStats.throttle_wait_time }}</p>
+                  <p>已经过时间: {{ queueStats.throttled_elapsed_time }}</p>
+                  <p>剩余时间: {{ queueStats.throttled_remaining_time }}</p>
+                </div>
+              </template>
+            </el-alert>
+
+            <el-alert v-else title="当前运行正常" type="success" :closable="false" show-icon class="throttle-alert">
+            </el-alert>
+
+            <!-- 统计数据网格 -->
+            <div class="stats-grid">
+              <div class="stat-card">
+                <div class="stat-card-label">每秒请求数 (QPS)</div>
+                <div class="stat-card-value" :class="{ 'text-warning': queueStats.qps_count > 3 }">
+                  {{ queueStats.qps_count }}
+                </div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-card-label">每分钟请求数 (QPM)</div>
+                <div class="stat-card-value">{{ queueStats.qpm_count }}</div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-card-label">每小时请求数 (QPH)</div>
+                <div class="stat-card-value">{{ queueStats.qph_count }}</div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-card-label">平均响应时间</div>
+                <div class="stat-card-value">{{ queueStats.avg_response_time_ms }} ms</div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-card-label">限流次数</div>
+                <div class="stat-card-value" :class="{ 'text-danger': queueStats.throttled_count > 0 }">
+                  {{ queueStats.throttled_count }}
+                </div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-card-label">时间窗口</div>
+                <div class="stat-card-value">{{ queueStats.time_window_seconds }} 秒</div>
+              </div>
+
+              <div class="stat-card" v-if="queueStats.last_throttle_time">
+                <div class="stat-card-label">最后限流时间</div>
+                <div class="stat-card-value small-text">{{ queueStats.last_throttle_time }}</div>
+              </div>
+            </div>
+          </div>
+
+          <div v-else class="no-stats">
+            <el-empty description="暂未获取到统计数据" />
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :sm="12" :md="16" :lg="16" :xl="16">
+        <el-card class="version-card hourly-stats-card" shadow="hover" v-loading="hourlyStatsLoading">
+          <template #header>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <h2 class="card-title">每小时请求统计</h2>
+                <div class="card-subtitle">统计周期: {{ hourlyStats?.start_date }} ~ {{ hourlyStats?.end_date }}</div>
+              </div>
+              <el-button type="primary" size="small" @click="loadHourlyStats" :loading="hourlyStatsLoading">
+                刷新数据
+              </el-button>
+            </div>
+          </template>
+
+          <div v-if="hourlyStats" class="hourly-stats-content">
+            <!-- 概览统计 -->
+            <div class="hourly-overview">
+              <div class="overview-item">
+                <div class="overview-label">总请求数</div>
+                <div class="overview-value highlight">{{ hourlyStats.total_requests }}</div>
+              </div>
+              <div class="overview-item">
+                <div class="overview-label">总限流次数</div>
+                <div class="overview-value" :class="{ 'text-danger': hourlyStats.total_throttled > 0 }">
+                  {{ hourlyStats.total_throttled }}
+                </div>
+              </div>
+            </div>
+
+            <!-- 每小时统计图表 -->
+            <div class="hourly-chart-wrapper">
+              <v-chart class="chart" :option="chartOption" autoresize />
+            </div>
+          </div>
+
+          <div v-else class="no-hourly-stats">
+            <el-empty description="暂未获取到每小时统计数据" />
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+    <el-row :gutter="20" class="top-row">
+      <el-col :xs="24" :sm="24" :md="8" :lg="8" :xl="8">
+        <!-- 系统版本信息卡片 -->
+        <el-card class="version-card" shadow="hover" v-loading="versionLoading">
+          <template #header>
+            <h2 class="card-title">系统信息</h2>
+            <p class="card-subtitle">当前系统版本和编译信息</p>
+          </template>
+
+          <div v-if="versionInfo" class="version-info">
+            <div class="version-item">
+              <span class="version-label">系统版本:</span>
+              <span class="version-value">{{ versionInfo.version }}</span>
+            </div>
+            <div class="version-item">
+              <span class="version-label">编译时间:</span>
+              <span class="version-value">{{ versionInfo.date }}</span>
+            </div>
+          </div>
+
+          <div v-else class="no-version">
+            <el-empty description="暂未获取到系统版本信息" />
+          </div>
+        </el-card>
+      </el-col>
+
+      <el-col :xs="24" :sm="24" :md="16" :lg="16" :xl="16">
+        <!-- 赞助版块 -->
+        <el-card class="version-card" shadow="hover">
+          <template #header>
+            <h2 class="card-title">请作者喝杯咖啡</h2>
+          </template>
+          <img src="https://s.mqfamily.top/alipay_wechat.jpg" alt="请作者喝杯咖啡" class="coffee-image"
+            style="max-width: 100%" />
+        </el-card>
+      </el-col>
       <el-col :xs="24" :sm="24" :md="24" :lg="24" :xl="24">
 
         <el-card class="version-card" shadow="hover" v-loading="versionLoading">
@@ -481,41 +824,6 @@ onUnmounted(() => {
               </el-text>
             </p>
           </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="24" :md="8" :lg="8" :xl="8">
-        <!-- 系统版本信息卡片 -->
-        <el-card class="version-card" shadow="hover" v-loading="versionLoading">
-          <template #header>
-            <h2 class="card-title">系统信息</h2>
-            <p class="card-subtitle">当前系统版本和编译信息</p>
-          </template>
-
-          <div v-if="versionInfo" class="version-info">
-            <div class="version-item">
-              <span class="version-label">系统版本:</span>
-              <span class="version-value">{{ versionInfo.version }}</span>
-            </div>
-            <div class="version-item">
-              <span class="version-label">编译时间:</span>
-              <span class="version-value">{{ versionInfo.date }}</span>
-            </div>
-          </div>
-
-          <div v-else class="no-version">
-            <el-empty description="暂未获取到系统版本信息" />
-          </div>
-        </el-card>
-      </el-col>
-
-      <el-col :xs="24" :sm="24" :md="16" :lg="16" :xl="16">
-        <!-- 赞助版块 -->
-        <el-card class="version-card" shadow="hover">
-          <template #header>
-            <h2 class="card-title">请作者喝杯咖啡</h2>
-          </template>
-          <img src="https://s.mqfamily.top/alipay_wechat.jpg" alt="请作者喝杯咖啡" class="coffee-image"
-            style="max-width: 100%" />
         </el-card>
       </el-col>
     </el-row>
@@ -621,17 +929,8 @@ onUnmounted(() => {
   </el-dialog>
 
   <!-- 日志查看弹窗 -->
-  <el-dialog
-    v-model="showLogDialog"
-    title="运行日志"
-    class="log-dialog"
-    :fullscreen="true"
-    :close-on-click-modal="true"
-    :close-on-press-escape="true"
-    show-close="true"
-    :destroy-on-close="true"
-    @close="handleLogDialogClose"
-  >
+  <el-dialog v-model="showLogDialog" title="运行日志" class="log-dialog" :fullscreen="true" :close-on-click-modal="true"
+    :close-on-press-escape="true" show-close="true" :destroy-on-close="true" @close="handleLogDialogClose">
     <div class="log-dialog-content">
       <AppLogViewer ref="logViewerRef" log-path="app.log" :is-real-time="true" />
     </div>
@@ -1161,17 +1460,168 @@ onUnmounted(() => {
 .update-complete-dialog {
   display: flex;
   align-items: center;
-  justify-content: center;
-  height: 100vh;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  margin: 0;
-  width: 100% !important;
-  max-width: none !important;
-  background-color: rgba(0, 0, 0, 0.8);
 }
+
+
+/* 115接口请求统计样式 */
+.stats-card {
+  margin-top: 20px;
+}
+
+.stats-content {
+  margin-top: 16px;
+}
+
+.throttle-alert {
+  margin-bottom: 20px;
+}
+
+.throttle-info {
+  margin-top: 8px;
+}
+
+.throttle-info p {
+  margin: 4px 0;
+  font-size: 14px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.stat-card {
+  /* background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); */
+  border-radius: 12px;
+  padding: 12px;
+  /* color: white; */
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.stat-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
+}
+
+.stat-card-label {
+  font-size: 13px;
+  opacity: 0.9;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.stat-card-value {
+  font-size: 28px;
+  font-weight: 700;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+.stat-card-value.small-text {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.stat-card-value.text-warning {
+  color: #ffd700;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.stat-card-value.text-danger {
+  color: #ff6b6b;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.no-stats {
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.notice-content {
+  margin-top: 0;
+}
+
+.notice-item {
+  margin-bottom: 12px;
+}
+
+.notice-item:last-child {
+  margin-bottom: 0;
+}
+
+/* 每小时请求统计样式 */
+.hourly-stats-card {
+  margin-top: 0;
+}
+
+.hourly-stats-content {
+  margin-top: 16px;
+}
+
+.hourly-overview {
+  display: flex;
+  justify-content: space-around;
+  gap: 16px;
+  padding: 16px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  border-radius: 12px;
+}
+
+.overview-item {
+  text-align: center;
+  padding: 12px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.overview-label {
+  font-size: 13px;
+  color: #909399;
+  margin-bottom: 8px;
+}
+
+.overview-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #303133;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+.overview-value.highlight {
+  color: #409eff;
+}
+
+.hourly-chart-wrapper {
+  margin-top: 16px;
+  width: 100%;
+  height: 450px;
+}
+
+.chart {
+  width: 100%;
+  height: 100%;
+}
+
+.no-hourly-stats {
+  padding: 40px 20px;
+  text-align: center;
+}
+
 
 .update-complete-dialog :deep(.el-dialog) {
   width: 500px;
@@ -1189,6 +1639,23 @@ onUnmounted(() => {
   font-size: 24px;
   color: #67c23a;
   margin-bottom: 20px;
+}
+
+.stats-grid {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.stat-card-label {
+  font-size: 12px;
+}
+
+.stat-card-value {
+  font-size: 22px;
+}
+
+.stat-card-value.small-text {
+  font-size: 12px;
 }
 
 .dialog-content h3 {
@@ -1286,6 +1753,29 @@ onUnmounted(() => {
   .stat-label,
   .stat-value {
     font-size: 13px;
+  }
+
+  /* 每小时统计响应式 */
+  .hourly-overview {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .overview-item {
+    padding: 10px;
+  }
+
+  .overview-label {
+    font-size: 12px;
+  }
+
+  .overview-value {
+    font-size: 20px;
+  }
+
+  .hourly-chart-wrapper {
+    height: 350px;
   }
 }
 </style>

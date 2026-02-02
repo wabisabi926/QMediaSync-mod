@@ -1,11 +1,6 @@
 <template>
   <div class="cron-selector">
-    <el-select
-      v-model="selectedPreset"
-      placeholder="选择定时策略"
-      @change="handlePresetChange"
-      style="width: 100%"
-    >
+    <el-select v-model="selectedPreset" placeholder="选择定时策略" @change="handlePresetChange" style="width: 100%">
       <el-option label="每天凌晨2点" value="0 2 * * *" />
       <el-option label="每天凌晨3点" value="0 3 * * *" />
       <el-option label="每4小时" value="0 */4 * * *" />
@@ -15,28 +10,19 @@
     </el-select>
 
     <!-- 自定义输入框 -->
-    <el-input
-      v-if="selectedPreset === 'custom'"
-      v-model="customCron"
-      placeholder="请输入 Cron 表达式，如: 0 2 * * *"
-      @input="handleCustomCronChange"
-      style="margin-top: 12px"
-    >
+    <el-input v-if="selectedPreset === 'custom'" v-model="customCron" placeholder="请输入 Cron 表达式，如: 0 2 * * *"
+      @input="handleCustomCronChange" style="margin-top: 12px">
       <template #prepend>Cron</template>
     </el-input>
 
     <!-- 验证错误提示 -->
-    <el-alert
-      v-if="validationError"
-      :title="validationError"
-      type="error"
-      :closable="false"
-      style="margin-top: 8px"
-    />
+    <el-alert v-if="validationError" :title="validationError" type="error" :closable="false" style="margin-top: 8px" />
 
     <!-- 下次执行时间预览 -->
     <div v-if="nextExecutionTime && !validationError" class="next-execution">
-      <el-icon><Clock /></el-icon>
+      <el-icon>
+        <Clock />
+      </el-icon>
       <span>下次执行时间：{{ nextExecutionTime }}</span>
     </div>
   </div>
@@ -47,7 +33,7 @@ import { ref, watch, onMounted } from 'vue'
 import { Clock } from '@element-plus/icons-vue'
 
 type CronParserClass = {
-  new (expr: string): {
+  new(expr: string): {
     reset(): void
     next(): { toDate(): Date }
   }
@@ -140,7 +126,7 @@ const calculateNextExecution = async (cronExpression: string) => {
 
 const handlePresetChange = async (value: string) => {
   validationError.value = ''
-
+  console.log(value)
   if (value === 'custom') {
     customCron.value = props.modelValue || '0 2 * * *'
     await validateAndEmit(customCron.value)
@@ -158,8 +144,8 @@ const validateAndEmit = async (cronExpression: string) => {
 
   // if (result.valid) {
   //   validationError.value = ''
-    await calculateNextExecution(cronExpression)
-    emit('update:modelValue', cronExpression)
+  await calculateNextExecution(cronExpression)
+  emit('update:modelValue', cronExpression)
   // } else {
   //   validationError.value = result.error || '验证失败'
   //   nextExecutionTime.value = ''
@@ -168,6 +154,7 @@ const validateAndEmit = async (cronExpression: string) => {
 
 onMounted(async () => {
   if (props.modelValue) {
+    console.log('加载初始值:', props.modelValue)
     if (presetValues.includes(props.modelValue)) {
       selectedPreset.value = props.modelValue
     } else {
@@ -185,12 +172,27 @@ onMounted(async () => {
 })
 
 watch(() => props.modelValue, async (newValue) => {
-  if (newValue && newValue !== customCron.value && selectedPreset.value === 'custom') {
-    customCron.value = newValue
-    const result = await validateCron(newValue)
-    if (result.valid) {
+  if (!newValue) return
+
+  // 检查新值是否是预设值
+  if (presetValues.includes(newValue)) {
+    if (selectedPreset.value !== newValue) {
+      selectedPreset.value = newValue
       validationError.value = ''
       await calculateNextExecution(newValue)
+    }
+  } else {
+    // 自定义值
+    if (selectedPreset.value !== 'custom' || customCron.value !== newValue) {
+      selectedPreset.value = 'custom'
+      customCron.value = newValue
+      const result = await validateCron(newValue)
+      if (result.valid) {
+        validationError.value = ''
+        await calculateNextExecution(newValue)
+      } else {
+        validationError.value = result.error || ''
+      }
     }
   }
 })

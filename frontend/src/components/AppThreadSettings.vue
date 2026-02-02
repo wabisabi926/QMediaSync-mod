@@ -1,10 +1,5 @@
 <template>
   <div class="main-content-container thread-settings-container">
-    <el-alert title="重要提示" type="error" :closable="false" show-icon style="margin-bottom: 20px;">
-      <template #default>
-        修改无法立即生效，请重启容器(docker部署)或者重启应用(非docker部署)，重启会丢失现在的下载队列，谨慎操作。
-      </template>
-    </el-alert>
     <el-form :model="formData" :label-position="checkIsMobile ? 'top' : 'left'" :label-width="150" class="thread-form">
       <el-form-item label="下载QPS" prop="downloadThreads">
         <el-input-number v-model="formData.downloadThreads" :min="1" :max="10" :disabled="loading" size="large" />

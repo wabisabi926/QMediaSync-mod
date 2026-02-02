@@ -172,7 +172,7 @@
             </el-icon>
             <span>网盘文件管理(仅UI)</span>
           </el-menu-item>
-          <el-sub-menu index="database">
+          <!-- <el-sub-menu index="database">
             <template #title>
               <el-icon>
                 <DataAnalysis />
@@ -197,7 +197,8 @@
               </el-icon>
               <span>备份恢复</span>
             </el-menu-item>
-          </el-sub-menu>          <el-menu-item index="/settings/user">
+          </el-sub-menu>           -->
+          <el-menu-item index="/settings/user">
             <el-icon>
               <UserFilled />
             </el-icon>
@@ -239,26 +240,18 @@
   </div>
 
   <!-- 全局备份/恢复进度弹窗 -->
-  <el-dialog
-    v-model="backupStore.showProgressDialog"
-    :title="backupStore.taskType === 'backup' ? '备份进行中' : '数据库恢复中'"
-    :width="isMobile ? '90%' : '600px'"
-    :close-on-click-modal="false"
-    :close-on-press-escape="false"
-    :show-close="false"
-    center
-  >
+  <el-dialog v-model="backupStore.showProgressDialog" :title="backupStore.taskType === 'backup' ? '备份进行中' : '数据库恢复中'"
+    :width="isMobile ? '90%' : '600px'" :close-on-click-modal="false" :close-on-press-escape="false" :show-close="false"
+    center>
     <div class="backup-progress-content">
       <!-- 进度条 -->
-      <el-progress
-        :percentage="backupStore.progress?.progress || 0"
-        :status="getProgressStatus()"
-        :stroke-width="20"
-      />
+      <el-progress :percentage="backupStore.progress?.progress || 0" :status="getProgressStatus()" :stroke-width="20" />
 
       <!-- 当前步骤 -->
       <div v-if="backupStore.progress?.current_step" class="progress-step">
-        <el-icon class="is-loading"><Loading /></el-icon>
+        <el-icon class="is-loading">
+          <Loading />
+        </el-icon>
         <span>{{ backupStore.progress.current_step }}</span>
       </div>
 
@@ -275,27 +268,19 @@
         </div>
         <div v-if="backupStore.progress.estimated_seconds" class="time-item">
           <span class="label">预计剩余：</span>
-          <span class="value">{{ formatDuration(backupStore.progress.estimated_seconds - backupStore.progress.elapsed_seconds) }}</span>
+          <span class="value">{{ formatDuration(backupStore.progress.estimated_seconds -
+            backupStore.progress.elapsed_seconds) }}</span>
         </div>
       </div>
 
       <!-- 错误重试提示 -->
-      <el-alert
-        v-if="backupStore.errorRetryCount > 0"
-        :title="`网络异常，正在重试 (${backupStore.errorRetryCount}/${3})...`"
-        type="warning"
-        :closable="false"
-        style="margin-top: 16px"
-      />
+      <el-alert v-if="backupStore.errorRetryCount > 0" :title="`网络异常，正在重试 (${backupStore.errorRetryCount}/${3})...`"
+        type="warning" :closable="false" style="margin-top: 16px" />
     </div>
 
     <template #footer>
       <!-- 仅备份任务且运行中时显示取消按钮 -->
-      <el-button
-        v-if="backupStore.canCancel"
-        type="danger"
-        @click="handleCancelBackup"
-      >
+      <el-button v-if="backupStore.canCancel" type="danger" @click="handleCancelBackup">
         取消备份
       </el-button>
     </template>

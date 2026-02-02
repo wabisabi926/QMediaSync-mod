@@ -101,7 +101,7 @@
           </div>
           <template #footer>
             <div class="card-actions">
-              <el-tooltip content="重置&同步会删除所有缓存数据（不会删除本地文件），然后执行同步，可以处理所有网盘文件变更" placement="top">
+              <el-tooltip content="改操作会删除所有缓存数据（不会删除本地文件），然后执行同步，可以处理所有网盘文件变更; 就是以前的全量同步" placement="top">
                 <el-button type="warning" size="small" @click="handleFullStart(row, index)" :loading="row.starting"
                   :icon="WarningFilled" v-if="row.source_type === '115' && row.is_running === 0">重置&同步</el-button>
               </el-tooltip>
@@ -872,7 +872,7 @@ const handleEditSave = async () => {
 const handleDelete = async (row: SyncDirectory, index: number) => {
   try {
     await ElMessageBox.confirm(
-      `该操作将删除所有strm和元数据文件，确定要删除同步目录 "${row.local_path}" 吗？`,
+      `不会删除已经同步的元数据和STRM文件，确定要删除同步目录 "${row.local_path}" 吗？`,
       '确认删除',
       {
         confirmButtonText: '确定',

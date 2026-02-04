@@ -1133,13 +1133,13 @@ const confirmSelectDir = async () => {
     if (isEditMode.value) {
       // 编辑模式：设置编辑表单的CID值和显示路径
       editForm.base_cid = selectedDir.id
-      editSelectedDirPath.value = selectedDir.path ? selectedDir.path : selectedDir.name
+      editSelectedDirPath.value = selectedDir.path
       // 更新编辑表单的STRM路径
       updateEditStrmPath()
     } else {
       // 添加模式：设置添加表单的CID值和显示路径
       addForm.base_cid = selectedDir.id
-      selectedDirPath.value = selectedDir.path ? selectedDir.path : selectedDir.name
+      selectedDirPath.value = selectedDir.path
       // 更新添加表单的STRM路径
       updateAddStrmPath()
     }

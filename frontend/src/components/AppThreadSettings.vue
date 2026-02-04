@@ -1,14 +1,29 @@
 <template>
   <div class="main-content-container thread-settings-container">
-    <el-form :model="formData" :label-position="checkIsMobile ? 'top' : 'left'" :label-width="150" class="thread-form">
+    <el-form :model="formData" :label-position="checkIsMobile ? 'top' : 'left'" :label-width="200" class="thread-form">
       <el-form-item label="下载QPS" prop="downloadThreads">
         <el-input-number v-model="formData.downloadThreads" :min="1" :max="10" :disabled="loading" size="large" />
         <div class="form-help">下载队列的每秒处理数量，合理设置可提高下载速度，最大10，最小1，最大是因为要给播放和刮削留出空余。</div>
       </el-form-item>
 
       <el-form-item label="115 接口请求QPS" prop="fileDetailThreads">
-        <el-input-number v-model="formData.fileDetailThreads" :min="1" :max="10" :disabled="loading" size="large" />
-        <div class="form-help">115开放平台接口的每秒请求数量，影响同步速度，最大10，最小1</div>
+        <el-input-number v-model="formData.fileDetailThreads" :min="2" :max="10" :disabled="loading" size="large" />
+        <div class="form-help">115开放平台接口的每秒请求数量，影响同步速度，最大10，最小2</div>
+      </el-form-item>
+
+      <el-form-item label="OpenList 接口请求QPS" prop="openlistQPS">
+        <el-input-number v-model="formData.openlistQPS" :min="2" :max="10" :disabled="loading" size="large" />
+        <div class="form-help">OpenList 接口的每秒请求数量，影响同步速度，最大10，最小2</div>
+      </el-form-item>
+
+      <el-form-item label="OpenList 接口重试次数" prop="openlistRetryCount">
+        <el-input-number v-model="formData.openlistRetryCount" :min="1" :max="10" :disabled="loading" size="large" />
+        <div class="form-help">OpenList 接口报错后的重试次数，重试该次数后如果依然报错则同步停止，影响同步速度，最大10，最小1</div>
+      </el-form-item>
+
+      <el-form-item label="OpenList 接口重试间隔秒数" prop="openlistRetryDelay">
+        <el-input-number v-model="formData.openlistRetryDelay" :min="30" :max="3600" :disabled="loading" size="large" />
+        <div class="form-help">OpenList 接口每次重试的间隔时间，单位：秒。影响同步速度，最大3600，最小30</div>
       </el-form-item>
 
       <div class="form-actions">
@@ -48,6 +63,9 @@ import { useAuthStore } from '@/stores/auth'
 interface ThreadSettings {
   downloadThreads: number
   fileDetailThreads: number
+  openlistQPS: number,
+  openlistRetryCount: number,
+  openlistRetryDelay: number
 }
 
 interface SaveStatus {
@@ -63,8 +81,11 @@ const saveStatus = ref<SaveStatus | null>(null)
 
 // 表单数据
 const formData = reactive<ThreadSettings>({
-  downloadThreads: 5,
-  fileDetailThreads: 3
+  downloadThreads: 1,
+  fileDetailThreads: 3,
+  openlistQPS: 2,
+  openlistRetryCount: 1,
+  openlistRetryDelay: 30
 })
 
 // 页面挂载时获取当前设置
@@ -82,8 +103,11 @@ async function fetchThreadSettings() {
       }
     })
 
-    formData.downloadThreads = response?.data.data.download_threads || 5
-    formData.fileDetailThreads = response?.data.data.file_detail_threads || 3
+    formData.downloadThreads = response?.data.data.download_threads
+    formData.fileDetailThreads = response?.data.data.file_detail_threads
+    formData.openlistQPS = response?.data.data.openlist_qps
+    formData.openlistRetryCount = response?.data.data.openlist_retry
+    formData.openlistRetryDelay = response?.data.data.openlist_retry_delay
   } catch (error) {
     console.error('获取线程设置失败:', error)
     ElMessage.error('获取线程设置失败，请稍后重试')
@@ -99,7 +123,10 @@ async function saveSettings() {
 
     const payload = {
       download_threads: formData.downloadThreads,
-      file_detail_threads: formData.fileDetailThreads
+      file_detail_threads: formData.fileDetailThreads,
+      openlist_qps: formData.openlistQPS,
+      openlist_retry: formData.openlistRetryCount,
+      openlist_retry_delay: formData.openlistRetryDelay
     }
 
     await http?.post(`${SERVER_URL}/setting/threads`, payload, {

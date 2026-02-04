@@ -5,7 +5,7 @@
   "scripts": {
     "build": "run-p type-check \"build-only {@}\" --",
     "lint": "eslint . --fix",
-    "build-only": "vite build --mode=production --emptyOutDir --outDir ../q115-strm-go/web_statics",
+    "build-only": "vite build --mode=production --emptyOutDir --outDir ../qmediasync/web_statics",
     "dev": "vite",
     "format": "prettier --write src/",
     "preview": "vite preview",

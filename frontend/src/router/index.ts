@@ -179,7 +179,7 @@ const routes = [
     name: 'settings-threads',
     component: AppThreadSettings,
     meta: {
-      title: '115并发线程设置',
+      title: '接口速率设置',
       requiresAuth: true,
       parent: 'settings',
     },

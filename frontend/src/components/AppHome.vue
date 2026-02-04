@@ -162,10 +162,14 @@ const handleDownloadClick = (update: UpdateInfo) => {
 }
 
 // 加载最新版本列表
-const loadUpdateList = async () => {
+const loadUpdateList = async (force = false) => {
   try {
     updateLoading.value = true
-    const response = await http?.get(`${SERVER_URL}/update/last`)
+    let url = `${SERVER_URL}/update/last`;
+    if (force) {
+      url += '?force=1';
+    }
+    const response = await http?.get(url)
     if (response && response.data && response.data.data) {
       updateList.value = response.data.data.map((item: UpdateInfo) => {
         // 确保url字段存在
@@ -833,8 +837,15 @@ onUnmounted(() => {
       <el-col :xs="24" :sm="24" :md="24" :lg="24" :xl="24">
         <el-card class="version-card" shadow="hover" v-loading="updateLoading">
           <template #header>
-            <h2 class="card-title">最新版本列表</h2>
-            <p class="card-subtitle">最新发布的版本信息， 可以选择要更新的版本</p>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <h2 class="card-title">最新版本列表</h2>
+                <p class="card-subtitle">版本列表会缓存1小时，如没发现新版本，请点击右侧手动刷新按钮</p>
+              </div>
+              <el-button type="primary" size="small" @click="loadUpdateList(true)" :loading="updateLoading">
+                手动刷新
+              </el-button>
+            </div>
           </template>
 
           <div v-if="updateList.length > 0" class="update-list">

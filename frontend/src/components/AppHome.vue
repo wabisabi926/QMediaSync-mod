@@ -87,7 +87,7 @@ const updateList = ref<UpdateInfo[]>([])
 const updateLoading = ref(false)
 const activeNames = ref<string[]>(['update-0'])
 const isUpdating = ref(false) // 是否正在更新中
-let progressTimer: NodeJS.Timeout | null = null
+let progressTimer: number | null = null
 const updatingVersion = ref<string>('') // 当前正在更新的版本
 const updateProgress = ref({
   progress: 0, // 进度百分比
@@ -97,12 +97,12 @@ const updateProgress = ref({
 })
 const showUpdateCompleteDialog = ref(false) // 是否显示更新完成弹窗
 const countdown = ref(30) // 倒计时秒数
-let countdownTimer: NodeJS.Timeout | null = null
+let countdownTimer: number | null = null
 
 // 115接口请求统计
 const queueStats = ref<QueueStats | null>(null)
 const queueStatsLoading = ref(false)
-let queueStatsTimer: NodeJS.Timeout | null = null
+let queueStatsTimer: number | null = null
 
 // 每小时请求统计
 const hourlyStats = ref<HourlyStatsData | null>(null)
@@ -638,11 +638,11 @@ onUnmounted(() => {
         运行日志
       </el-button>
     </div>
-
+    <h1>v0.12.27版本将下载QPS改成了1，防止115因为下载并发太高限流。如果需要请手动调整。</h1>
     <!-- 账号信息和队列状态行 -->
     <el-row :gutter="20" class="top-row">
       <el-col :xs="24" :sm="12" :md="8" :lg="8" :xl="8">
-        <el-card class="version-card stats-card" shadow="hover" v-loading="queueStatsLoading">
+        <el-card class="version-card stats-card" shadow="hover" v-loading="queueStatsLoading" style="margin-top:0">
           <template #header>
             <h2 class="card-title">115接口请求统计</h2>
             <p class="card-subtitle">实时监控115接口调用情况</p>

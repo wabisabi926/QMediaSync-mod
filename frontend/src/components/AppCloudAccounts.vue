@@ -46,20 +46,18 @@
             </div>
           </template>
           <div class="card-body">
-            <template v-if="account.source_type === '115'">
-              <div class="info-item">
-                <span class="info-label">115账号:</span>
-                <span class="info-value">{{ account.username }}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">115开放平台应用:</span>
-                <span class="info-value">{{ account.app_id_name }}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">APP ID:</span>
-                <span class="info-value">{{ account.app_id || '-' }}</span>
-              </div>
-            </template>
+            <div class="info-item" v-if="account.source_type === '115'">
+              <span class="info-label">115账号:</span>
+              <span class="info-value">{{ account.username }}</span>
+            </div>
+            <div class="info-item" v-if="account.source_type === '115'">
+              <span class="info-label">115开放平台应用:</span>
+              <span class="info-value">{{ account.app_id_name }}</span>
+            </div>
+            <div class="info-item" v-if="account.source_type === 'baidupan'">
+              <span class="info-label">APP ID:</span>
+              <span class="info-value">{{ account.app_id || '-' }}</span>
+            </div>
             <template v-if="account.source_type === 'openlist'">
               <div class="info-item">
                 <span class="info-label">OpenList地址:</span>
@@ -95,181 +93,98 @@
         </el-card>
       </div>
     </div>
-    <!-- 添加账号对话框 -->
-    <el-dialog v-model="showAddAccountDialog" title="添加账号" :width="isMobile ? '90%' : '500px'">
-      <el-form :model="newAccountForm" label-width="120px">
-        <el-form-item label="网盘类型">
-          <el-select v-model="newAccountForm.type" placeholder="请选择网盘类型">
-            <template v-for="typeItem in sourceTypeOptions" :key="typeItem.value">
-              <el-option v-if="typeItem.value !== 'local'" :label="typeItem.label" :value="typeItem.value"></el-option>
-            </template>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="账号备注" v-if="newAccountForm.type !== 'openlist'">
-          <el-input v-model="newAccountForm.name" placeholder="请输入账号备注" />
-        </el-form-item>
-        <el-form-item label="访问地址" v-if="newAccountForm.type === 'openlist'">
-          <el-input v-model="newAccountForm.base_url" placeholder="请输入OpenList地址:http://ip:5244" />
-        </el-form-item>
-        <el-form-item label="认证方式" v-if="newAccountForm.type === 'openlist'">
-          <el-select v-model="newAccountForm.auth_type" placeholder="请选择认证方式">
-            <el-option label="用户名密码" value="password"></el-option>
-            <el-option label="令牌" value="token"></el-option>
-          </el-select>
-        </el-form-item>
-        <template v-if="newAccountForm.type === 'openlist' && newAccountForm.auth_type === 'password'">
-          <el-form-item label="用户名">
-            <el-input v-model="newAccountForm.username" placeholder="请输入用户名" />
-          </el-form-item>
-          <el-form-item label="密码">
-            <el-input type="password" v-model="newAccountForm.password" placeholder="请输入密码" />
-          </el-form-item>
-        </template>
-        <el-form-item label="令牌" v-if="newAccountForm.type === 'openlist' && newAccountForm.auth_type === 'token'">
-          <el-input type="password" v-model="newAccountForm.token" placeholder="请输入令牌" />
-        </el-form-item>
-        <el-form-item label="115开放平台应用" v-if="newAccountForm.type === '115'">
-          <el-select v-model="newAccountForm.app_id_name" placeholder="请选择APP ID">
-            <el-option label="Q115-STRM" value="Q115-STRM"></el-option>
-            <el-option label="MQ的媒体库" value="MQ的媒体库"></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="APP ID" v-if="newAccountForm.type === '115' && newAccountForm.app_id_name === '自定义'">
-          <el-input v-model="newAccountForm.app_id" placeholder="请输入自定义APP ID" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="showAddAccountDialog = false">取消</el-button>
-          <el-button type="primary" @click="handleAddAccount" :loading="addAccountLoading">确定</el-button>
-        </span>
-      </template>
-    </el-dialog>
-
-    <!-- 115网盘二维码授权对话框 -->
-    <el-dialog v-model="showQRDialog" title="115开放平台扫码授权" width="400px" :close-on-click-modal="false"
-      :close-on-press-escape="false" @close="closeQRDialog">
-      <div class="qr-login-container">
-        <div class="qr-code-section">
-          <div v-if="qrCodeUrl" class="qr-code-wrapper">
-            <img :src="qrCodeUrl" alt="登录二维码" class="qr-code-image" />
-          </div>
-          <div v-else class="qr-loading">
-            <el-icon class="is-loading">
-              <Loading />
-            </el-icon>
-            <p>正在生成二维码...</p>
-          </div>
-        </div>
-
-        <div class="qr-status-section">
-          <div v-if="qrStatus === 'waiting'" class="status-waiting">
-            <el-icon>
-              <Iphone />
-            </el-icon>
-            <p>请使用115手机客户端扫描二维码</p>
-          </div>
-          <div v-else-if="qrStatus === 'scanned'" class="status-scanned">
-            <el-icon>
-              <SuccessFilled />
-            </el-icon>
-            <p>扫描成功，请在手机上确认授权</p>
-          </div>
-          <div v-else-if="qrStatus === 'confirmed'" class="status-confirmed">
-            <el-icon>
-              <CircleCheckFilled />
-            </el-icon>
-            <p>授权确认成功，正在获取账号信息...</p>
-          </div>
-          <div v-else-if="qrStatus === 'expired'" class="status-expired">
-            <el-icon>
-              <WarningFilled />
-            </el-icon>
-            <p>二维码已过期，请重新获取</p>
-          </div>
-          <div v-else-if="qrStatus === 'error'" class="status-error">
-            <el-icon>
-              <CircleCloseFilled />
-            </el-icon>
-            <p>授权过程中出现错误，请重试</p>
-          </div>
-        </div>
-      </div>
-
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button @click="closeQRDialog">取消</el-button>
-          <el-button v-if="qrStatus === 'expired' || qrStatus === 'error'" type="primary"
-            @click="refreshQRCode(currentAccountId)">
-            重新获取二维码
-          </el-button>
-        </div>
-      </template>
-    </el-dialog>
-
-    <!-- 编辑账号对话框 -->
-    <el-dialog v-model="showEditAccountDialog" title="编辑OpenList账号" :width="isMobile ? '90%' : '500px'">
-      <el-form :model="editAccountForm" label-width="80px">
-        <el-form-item label="访问地址" prop="baseUrl">
-          <el-input v-model="editAccountForm.base_url" placeholder="请输入OpenList地址:http://ip:5244" />
-        </el-form-item>
-        <el-form-item label="认证方式">
-          <el-select v-model="editAccountForm.auth_type" placeholder="请选择认证方式">
-            <el-option label="用户名密码" value="password"></el-option>
-            <el-option label="令牌" value="token"></el-option>
-          </el-select>
-        </el-form-item>
-        <template v-if="editAccountForm.auth_type === 'password'">
-          <el-form-item label="用户名">
-            <el-input v-model="editAccountForm.username" placeholder="请输入用户名" />
-          </el-form-item>
-          <el-form-item label="密码">
-            <el-input type="password" v-model="editAccountForm.password" placeholder="请输入密码（留空则不修改）" />
-          </el-form-item>
-        </template>
-        <el-form-item label="令牌" v-if="editAccountForm.auth_type === 'token'">
-          <el-input type="password" v-model="editAccountForm.token" placeholder="请输入令牌" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="showEditAccountDialog = false">取消</el-button>
-          <el-button type="primary" @click="handleUpdateAccount">确定</el-button>
-        </span>
-      </template>
-    </el-dialog>
-
-    <!-- 123云盘授权确认对话框 -->
-    <el-dialog v-model="show123AuthDialog" title="123云盘授权确认" width="400px" :close-on-click-modal="true"
-      :close-on-press-escape="true">
-      <div class="auth-123-container">
-        <el-button type="primary" :icon="Link">打开123云盘授权页面</el-button>
-        <p>授权成功后会返回本页面</p>
-      </div>
-
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button @click="show123AuthDialog = false">取消</el-button>
-          <el-button type="primary" @click="proceed123Auth">确定</el-button>
-        </div>
-      </template>
-    </el-dialog>
   </div>
+  <!-- 添加账号对话框 -->
+  <el-dialog v-model="showAddAccountDialog" title="添加账号" :width="isMobile ? '90%' : '500px'">
+    <el-form :model="newAccountForm" label-width="120px">
+      <el-form-item label="网盘类型">
+        <el-select v-model="newAccountForm.type" placeholder="请选择网盘类型">
+          <template v-for="typeItem in sourceTypeOptions" :key="typeItem.value">
+            <el-option v-if="typeItem.value !== 'local'" :label="typeItem.label" :value="typeItem.value"></el-option>
+          </template>
+        </el-select>
+      </el-form-item>
+      <el-form-item label="账号备注" v-if="newAccountForm.type !== 'openlist'">
+        <el-input v-model="newAccountForm.name" placeholder="请输入账号备注" />
+      </el-form-item>
+      <el-form-item label="访问地址" v-if="newAccountForm.type === 'openlist'">
+        <el-input v-model="newAccountForm.base_url" placeholder="请输入OpenList地址:http://ip:5244" />
+      </el-form-item>
+      <el-form-item label="认证方式" v-if="newAccountForm.type === 'openlist'">
+        <el-select v-model="newAccountForm.auth_type" placeholder="请选择认证方式">
+          <el-option label="用户名密码" value="password"></el-option>
+          <el-option label="令牌" value="token"></el-option>
+        </el-select>
+      </el-form-item>
+      <template v-if="newAccountForm.type === 'openlist' && newAccountForm.auth_type === 'password'">
+        <el-form-item label="用户名">
+          <el-input v-model="newAccountForm.username" placeholder="请输入用户名" />
+        </el-form-item>
+        <el-form-item label="密码">
+          <el-input type="password" v-model="newAccountForm.password" placeholder="请输入密码" />
+        </el-form-item>
+      </template>
+      <el-form-item label="令牌" v-if="newAccountForm.type === 'openlist' && newAccountForm.auth_type === 'token'">
+        <el-input type="password" v-model="newAccountForm.token" placeholder="请输入令牌" />
+      </el-form-item>
+      <el-form-item label="115开放平台应用" v-if="newAccountForm.type === '115'">
+        <el-select v-model="newAccountForm.app_id_name" placeholder="请选择APP ID">
+          <el-option label="Q115-STRM" value="Q115-STRM"></el-option>
+          <el-option label="MQ的媒体库" value="MQ的媒体库"></el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item label="APP ID" v-if="newAccountForm.type === '115' && newAccountForm.app_id_name === '自定义'">
+        <el-input v-model="newAccountForm.app_id" placeholder="请输入自定义APP ID" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <span class="dialog-footer">
+        <el-button @click="showAddAccountDialog = false">取消</el-button>
+        <el-button type="primary" @click="handleAddAccount" :loading="addAccountLoading">确定</el-button>
+      </span>
+    </template>
+  </el-dialog>
+
+  <!-- 编辑账号对话框 -->
+  <el-dialog v-model="showEditAccountDialog" title="编辑OpenList账号" :width="isMobile ? '90%' : '500px'">
+    <el-form :model="editAccountForm" label-width="80px">
+      <el-form-item label="访问地址" prop="baseUrl">
+        <el-input v-model="editAccountForm.base_url" placeholder="请输入OpenList地址:http://ip:5244" />
+      </el-form-item>
+      <el-form-item label="认证方式">
+        <el-select v-model="editAccountForm.auth_type" placeholder="请选择认证方式">
+          <el-option label="用户名密码" value="password"></el-option>
+          <el-option label="令牌" value="token"></el-option>
+        </el-select>
+      </el-form-item>
+      <template v-if="editAccountForm.auth_type === 'password'">
+        <el-form-item label="用户名">
+          <el-input v-model="editAccountForm.username" placeholder="请输入用户名" />
+        </el-form-item>
+        <el-form-item label="密码">
+          <el-input type="password" v-model="editAccountForm.password" placeholder="请输入密码（留空则不修改）" />
+        </el-form-item>
+      </template>
+      <el-form-item label="令牌" v-if="editAccountForm.auth_type === 'token'">
+        <el-input type="password" v-model="editAccountForm.token" placeholder="请输入令牌" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <span class="dialog-footer">
+        <el-button @click="showEditAccountDialog = false">取消</el-button>
+        <el-button type="primary" @click="handleUpdateAccount">确定</el-button>
+      </span>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
 import type { AxiosError, AxiosStatic } from 'axios'
 import { inject, ref, onMounted, onUnmounted } from 'vue'
-import QRCode from 'qrcode'
+
 import {
-  Loading,
-  Iphone,
-  SuccessFilled,
-  CircleCheckFilled,
   WarningFilled,
-  CircleCloseFilled,
-  Link,
 } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { formatTimestamp } from '@/utils/timeUtils'
@@ -277,12 +192,6 @@ import { sourceTypeMap, sourceTypeOptions, sourceTypeTagMap } from '@/utils/sour
 import { isMobile as checkIsMobile } from '@/utils/deviceUtils'
 
 const isMobile = ref(checkIsMobile())
-
-// 定义二维码数据结构
-interface QRCodeData {
-  qrcode: string
-  [key: string]: unknown // 允许其他未知字段
-}
 
 // 定义页面显示的账号数据结构
 interface CloudAccount {
@@ -343,15 +252,7 @@ const editAccountForm = ref({
   token_failed_reason: '',
 })
 
-// 二维码登录相关状态
-const showQRDialog = ref(false)
-const qrCodeUrl = ref('')
-const qrCodeContent = ref('') // 保存二维码内容
-const qrCodeData = ref<QRCodeData | null>(null) // 保存完整的扫码接口结果
 const currentAccountId = ref<number | undefined>(undefined) // 当前账号ID
-// 轮询定时器
-const pollingTimer = ref<NodeJS.Timeout | null>(null)
-const qrStatus = ref<'waiting' | 'scanned' | 'confirmed' | 'expired' | 'error'>('waiting')
 
 // 123云盘授权相关状态
 const show123AuthDialog = ref(false)
@@ -495,6 +396,10 @@ const handleAuthorize = (row: CloudAccount) => {
     selectedAccountId.value = row.id
     show123AuthDialog.value = true
   }
+  // 如果是百度网盘，显示确认对话框
+  else if (row.source_type === 'baidupan') {
+    handleBaiduOAuth(row.id)
+  }
 }
 
 // 处理115 OAuth授权
@@ -518,13 +423,24 @@ const handle115OAuth = async (accountId?: number) => {
   }
 }
 
-// 处理123云盘授权确认
-const proceed123Auth = () => {
-  show123AuthDialog.value = false
-  // 打开新页面进行123云盘授权
-  // 由于是演示，我们使用本地的123auth.html页面
-  const authUrl = '/123auth.html'
-  window.open(authUrl, '_blank')
+// 处理百度网盘OAuth授权
+const handleBaiduOAuth = async (accountId?: number) => {
+  try {
+    const response = await http?.get(`${SERVER_URL}/baidupan/oauth-url?account_id=${accountId}`)
+
+    if (response?.data.code === 200 && response.data.data) {
+      const oauthUrl = response.data.data
+      // 保存当前授权的账号ID
+      currentAccountId.value = accountId
+      // 在新窗口打开OAuth授权页面
+      window.open(oauthUrl, '_blank', 'width=600,height=700')
+    } else {
+      ElMessage.error(response?.data.message || '获取授权地址失败')
+    }
+  } catch (error) {
+    console.error('百度网盘 OAuth授权错误:', error)
+    ElMessage.error('获取授权地址失败')
+  }
 }
 
 // 处理添加账号
@@ -591,203 +507,32 @@ const handleAddAccount = async () => {
   }
 }
 
-// 生成二维码
-const generateQRCode = async (content: string): Promise<string> => {
-  try {
-    // 使用本地 qrcode 库生成二维码
-    const qrDataURL = await QRCode.toDataURL(content, {
-      width: 200,
-      margin: 2,
-      color: {
-        dark: '#000000',
-        light: '#FFFFFF',
-      },
-    })
-    return qrDataURL
-  } catch (error) {
-    console.error('生成二维码失败:', error)
-    // 如果本地生成失败，回退到在线服务
-    const encodedContent = encodeURIComponent(content)
-    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodedContent}`
-  }
-}
-
-// 处理115开放平台授权
-const handle115Login = async (accountId?: number) => {
-  try {
-    // 查找当前账号
-    const account = accounts.value.find((acc) => acc.id === accountId)
-
-    // 获取二维码
-    const requestData = {
-      account_id: accountId, // 添加account_id参数
-      app_id_name: account?.app_id_name || 'Q115-STRM', // 添加app_id_name参数
-      app_id: account?.app_id || '', // 添加app_id参数
-    }
-
-    const response = await http?.post(`${SERVER_URL}/auth/115-qrcode-open`, requestData, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (response?.data.code === 200 && response.data.data) {
-      qrCodeData.value = response.data.data // 保存完整的扫码结果
-      qrCodeContent.value = response.data.data.qrcode // 保存二维码内容
-      qrCodeUrl.value = await generateQRCode(response.data.data.qrcode) // 生成二维码图片
-      showAddAccountDialog.value = false // 关闭添加账号对话框
-      showQRDialog.value = true // 显示二维码对话框
-      qrStatus.value = 'waiting'
-      currentAccountId.value = accountId || undefined // 设置当前账号ID
-
-      // 开始轮询二维码状态，传递account_id
-      startPolling(accountId)
-    } else {
-      console.error('获取二维码失败:', response?.data.message || '未知错误')
-    }
-  } catch (error) {
-    console.error('115登录错误:', error)
-  }
-}
-
-// 开始轮询二维码状态
-const startPolling = (accountId?: number) => {
-  if (pollingTimer.value) {
-    clearInterval(pollingTimer.value)
-  }
-
-  pollingTimer.value = setInterval(async () => {
-    await checkQRStatus(accountId)
-  }, 500) // 每500毫秒检查一次
-}
-
-// 停止轮询
-const stopPolling = () => {
-  if (pollingTimer.value) {
-    clearInterval(pollingTimer.value)
-    pollingTimer.value = null
-  }
-}
-
-// 检查二维码状态
-const checkQRStatus = async (accountId?: number) => {
-  if (!qrCodeData.value) return
-
-  try {
-    // 将扫码数据转换为JSON格式
-    const requestData = {
-      ...qrCodeData.value,
-      account_id: accountId, // 添加account_id参数
-    }
-
-    const response = await http?.post(
-      `${SERVER_URL}/auth/115-qrcode-status`,
-      requestData, // 传递JSON格式的数据
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      },
-    )
-
-    if (response?.data.code === 200 && response.data.data) {
-      const status = response.data.data.status
-
-      switch (status) {
-        case 2: // 未扫码
-          qrStatus.value = 'waiting'
-          break
-        case 3: // 已扫码
-          qrStatus.value = 'scanned'
-          break
-        case 4: // 已确认（扫码成功）
-          qrStatus.value = 'confirmed'
-          stopPolling()
-          // 延迟1秒后关闭对话框并刷新账号列表
-          setTimeout(() => {
-            closeQRDialog()
-            loadAccounts() // 刷新账号列表
-          }, 1000)
-          break
-        case -5: // 已过期
-          qrStatus.value = 'expired'
-          stopPolling()
-          break
-        default:
-          // 其他未知状态
-          qrStatus.value = 'error'
-          break
-      }
-    }
-  } catch (error) {
-    console.error('检查二维码状态错误:', error)
-    qrStatus.value = 'error'
-  }
-}
-
-// 关闭二维码对话框
-const closeQRDialog = () => {
-  showQRDialog.value = false
-  stopPolling()
-  qrCodeUrl.value = ''
-  qrCodeContent.value = ''
-  qrCodeData.value = null
-  qrStatus.value = 'waiting'
-  currentAccountId.value = undefined // 重置当前账号ID
-}
-
-// 刷新二维码
-const refreshQRCode = async (accountId?: number) => {
-  qrStatus.value = 'waiting'
-  qrCodeUrl.value = ''
-
-  try {
-    const formData = new URLSearchParams()
-    formData.append('device_type', 'web')
-    if (accountId) {
-      formData.append('account_id', accountId.toString())
-    }
-
-    const response = await http?.post(`${SERVER_URL}/auth/115-qrcode-open`, formData, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-    })
-
-    if (response?.data.code === 200 && response.data.data) {
-      qrCodeData.value = response.data.data // 保存完整的扫码结果
-      qrCodeContent.value = response.data.data.qrcode // 保存二维码内容
-      qrCodeUrl.value = await generateQRCode(response.data.data.qrcode) // 生成二维码图片
-      startPolling(accountId)
-    } else {
-      qrStatus.value = 'error'
-    }
-  } catch (error) {
-    console.error('刷新二维码错误:', error)
-    qrStatus.value = 'error'
-  }
-}
-
 // 处理115 OAuth授权完成后的消息
-const handle115OAuthMessage = async (event: MessageEvent) => {
+const handleOAuthMessage = async (event: MessageEvent) => {
   if (event.data.type === 'oauth_success') {
     // 115 OAuth授权成功，发送数据到服务端处理
-    console.log('115 OAuth授权成功，准备确认授权:', event.data.data)
+    console.log('OAuth授权成功，准备确认授权:', event.data.data)
 
     try {
       const requestData = {
         account_id: currentAccountId.value,
         data: event.data.data,
       }
-
-      const response = await http?.post(`${SERVER_URL}/115/oauth-confirm`, requestData, {
+      let url = "";
+      if (event.data.type === '115') {
+        url = `${SERVER_URL}/115/oauth-confirm`
+        requestData.data = JSON.stringify(requestData.data)
+      } else if (event.data.type === 'baidupan') {
+        url = `${SERVER_URL}/baidupan/oauth-confirm`
+      }
+      const response = await http?.post(url, requestData, {
         headers: {
           'Content-Type': 'application/json',
         },
       })
 
       if (response?.data.code === 200) {
-        ElMessage.success('115授权成功')
+        ElMessage.success('授权成功')
         // 刷新账号列表
         loadAccounts()
         // 清空当前账号ID
@@ -800,13 +545,8 @@ const handle115OAuthMessage = async (event: MessageEvent) => {
       ElMessage.error('授权确认失败')
     }
   } else if (event.data.type === 'oauth_error') {
-    // 115 OAuth授权失败
-    console.error('115 OAuth授权失败:', event.data)
-
-    // 关闭二维码对话框
-    if (showQRDialog.value) {
-      closeQRDialog()
-    }
+    // OAuth授权失败
+    console.error('OAuth授权失败:', event.data)
 
     // 显示错误提示
     const errorMsg = event.data.error || '授权失败，请重试'
@@ -818,30 +558,16 @@ const handle115OAuthMessage = async (event: MessageEvent) => {
   }
 }
 
-// 处理123云盘授权完成后的消息
-const handle123AuthMessage = (event: MessageEvent) => {
-  if (event.data.type === '123_auth_success') {
-    // 123云盘授权成功，刷新账号列表
-    loadAccounts()
-  } else if (event.data.type === '123_auth_cancel') {
-    // 123云盘授权取消，不需要特殊处理
-    console.log('123云盘授权已取消')
-  }
-}
-
 // 组件挂载时加载数据并添加事件监听器
 onMounted(() => {
   loadAccounts()
   // 添加事件监听器以处理115 OAuth授权完成后的消息
-  window.addEventListener('message', handle115OAuthMessage)
-  // 添加事件监听器以处理123云盘授权完成后的消息
-  window.addEventListener('message', handle123AuthMessage)
+  window.addEventListener('message', handleOAuthMessage)
 })
 
 // 组件卸载时移除事件监听器
 onUnmounted(() => {
-  window.removeEventListener('message', handle115OAuthMessage)
-  window.removeEventListener('message', handle123AuthMessage)
+  window.removeEventListener('message', handleOAuthMessage)
 })
 </script>
 

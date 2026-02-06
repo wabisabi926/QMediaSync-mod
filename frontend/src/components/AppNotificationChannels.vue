@@ -700,8 +700,9 @@ const allChannelTypes = [
 
 // 可用的渠道类型选项（过滤掉已存在的）
 const channelTypes = computed(() => {
-  const existingTypes = channels.value.map(channel => channel.channel_type)
-  return allChannelTypes.filter(type => !existingTypes.includes(type.value))
+  // const existingTypes = channels.value.map(channel => channel.channel_type)
+  // return allChannelTypes.filter(type => !existingTypes.includes(type.value))
+  return allChannelTypes
 })
 
 // 渠道表单

@@ -118,7 +118,7 @@ const logsContainer = ref<HTMLElement | null>(null)
 // 日志数量限制配置
 const MAX_LOG_ENTRIES = 2000
 const CLEANUP_THRESHOLD = 2500
-let cleanupTimer: NodeJS.Timeout | null = null
+let cleanupTimer: number | null = null
 
 // 日志配置
 let isLoadingOldLogs = false

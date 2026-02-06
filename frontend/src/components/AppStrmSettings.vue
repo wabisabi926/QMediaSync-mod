@@ -119,8 +119,18 @@
           <p>保留：不会删除本地文件，不管网盘有没有删除它</p>
         </div>
       </el-form-item>
-
-
+      <el-form-item label="是否检查元数据修改时间" prop="check_meta_mtime">
+        <el-radio-group v-model="strmData.check_meta_mtime">
+          <el-radio-button :label="1">是</el-radio-button>
+          <el-radio-button :label="0">否</el-radio-button>
+        </el-radio-group>
+        <div class="form-help">
+          <p>如果选择是，会有两种情况：<br />
+            &nbsp;&nbsp;&nbsp;&nbsp;1. 网盘文件修改时间比本地文件新，则下载网盘文件替换本地文件<br />
+            &nbsp;&nbsp;&nbsp;&nbsp;2. 网盘文件修改时间比本地文件旧，则上传本地文件到网盘
+          </p>
+        </div>
+      </el-form-item>
       <!-- 同步完是否删除网盘不存在的空目录 -->
       <el-form-item label="网盘不存在的空目录" prop="delete_dir">
         <el-radio-group v-model="strmData.delete_dir">
@@ -131,7 +141,7 @@
           <p>同步完成后是否删除本地存在但网盘不存在的目录，该本地目录必须是空目录</p>
         </div>
       </el-form-item>
-
+    
       <el-form-item label="给strm链接添加路径" prop="add_path">
         <el-radio-group v-model="strmData.add_path">
           <el-radio-button :label="1">添加</el-radio-button>
@@ -191,6 +201,7 @@ interface StrmData {
   local_proxy: 0 | 1
   exclude_name: string[]
   add_path: 1 | 2
+  check_meta_mtime: 0 | 1
 }
 
 interface StrmStatus {
@@ -227,6 +238,7 @@ const defaultStrmData: StrmData = {
   local_proxy: 0, // 是否启用本地代理
   exclude_name: [], // 排除的名称列表，默认为空
   add_path: 2, // 默认不添加路径
+  check_meta_mtime: 0, // 检查元数据的修改时间
 }
 
 const strmData = reactive<StrmData>({ ...defaultStrmData })
@@ -288,7 +300,10 @@ const updateStrmExample = () => {
   if (strmData.direct_url) {
     // 生成示例STRM文件内容
     const baseUrl = strmData.direct_url.replace(/\/$/, '') // 移除末尾斜杠
-    strmExample.value = `${baseUrl}/115/newurl?pick_code=d6tkyd62bmngxx5bg`
+    strmExample.value = `${baseUrl}/115/video.mp4?pick_code=d6tkyd62bmngxx5bg&userid=5323423`
+    if (strmData.add_path == 1) {
+      strmExample.value += '&path=Media%2F电影%2F华语电影%2F让子弹飞%2F让子弹飞.mp4'
+    }
   } else {
     strmExample.value = ''
   }
@@ -323,6 +338,7 @@ const saveStrmConfig = async () => {
       local_proxy: strmData.local_proxy,
       exclude_name: strmData.exclude_name,
       add_path: strmData.add_path,
+      check_meta_mtime: strmData.check_meta_mtime
     }
 
     const response = await http?.post(`${SERVER_URL}/setting/strm-config`, requestData, {
@@ -376,6 +392,7 @@ const loadStrmConfig = async () => {
       strmData.local_proxy = config.local_proxy !== undefined ? config.local_proxy : 0
       strmData.exclude_name = config.exclude_name || []
       strmData.add_path = config.add_path !== undefined ? config.add_path : 2
+      strmData.check_meta_mtime = config.check_meta_mtime
 
       // 更新示例
       updateStrmExample()

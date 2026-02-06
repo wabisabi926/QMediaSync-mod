@@ -265,6 +265,19 @@
             <p>保留：不会删除本地文件，不管网盘有没有删除它</p>
           </div>
         </el-form-item>
+        <el-form-item label="是否检查元数据修改时间" prop="check_meta_mtime" v-if="addForm.custom_config">
+          <el-radio-group v-model="addForm.check_meta_mtime">
+            <el-radio-button :label="-1">使用STRM设置</el-radio-button>
+            <el-radio-button :label="1">是</el-radio-button>
+            <el-radio-button :label="0">否</el-radio-button>
+          </el-radio-group>
+          <div class="form-help">
+            <p>如果选择是，会有两种情况：<br />
+              &nbsp;&nbsp;&nbsp;&nbsp;1. 网盘文件修改时间比本地文件新，则下载网盘文件替换本地文件<br />
+              &nbsp;&nbsp;&nbsp;&nbsp;2. 网盘文件修改时间比本地文件旧，则上传本地文件到网盘
+            </p>
+          </div>
+        </el-form-item>
         <!-- 同步完是否删除网盘不存在的空目录 -->
         <el-form-item label="网盘不存在的空目录" prop="delete_dir" v-if="addForm.custom_config">
           <el-radio-group v-model="addForm.delete_dir">
@@ -287,6 +300,7 @@
             <p>是否给strm链接添加路径</p>
           </div>
         </el-form-item>
+        <!-- 是否检查元数据 -->
       </el-form>
 
       <template #footer>
@@ -398,6 +412,19 @@
               "interviews",
             </p>
             <p>保留：不会删除本地文件，不管网盘有没有删除它</p>
+          </div>
+        </el-form-item>
+        <el-form-item label="是否检查元数据修改时间" prop="check_meta_mtime" v-if="editForm.custom_config">
+          <el-radio-group v-model="editForm.check_meta_mtime">
+            <el-radio-button :label="-1">使用STRM设置</el-radio-button>
+            <el-radio-button :label="1">是</el-radio-button>
+            <el-radio-button :label="0">否</el-radio-button>
+          </el-radio-group>
+          <div class="form-help">
+            <p>如果选择是，会有两种情况：<br />
+              &nbsp;&nbsp;&nbsp;&nbsp;1. 网盘文件修改时间比本地文件新，则下载网盘文件替换本地文件<br />
+              &nbsp;&nbsp;&nbsp;&nbsp;2. 网盘文件修改时间比本地文件旧，则上传本地文件到网盘
+            </p>
           </div>
         </el-form-item>
         <!-- 同步完是否删除网盘不存在的空目录 -->
@@ -518,6 +545,7 @@ interface SyncDirectory {
   is_running: number
   stopping?: boolean
   add_path: -1 | 1 | 2
+  check_meta_mtime: -1 | 0 | 1
 }
 
 interface DirInfo {
@@ -597,6 +625,7 @@ const addForm = reactive({
   download_meta: -1,
   delete_dir: -1,
   add_path: -1,
+  check_meta_mtime: -1,
 })
 
 // 编辑对话框状态
@@ -620,6 +649,7 @@ const editForm = reactive({
   download_meta: -1,
   delete_dir: -1,
   add_path: -1,
+  check_meta_mtime: -1,
 })
 const editSelectedDirPath = ref('')
 
@@ -743,6 +773,7 @@ const handleAdd = async () => {
       download_meta: addForm.download_meta,
       delete_dir: addForm.delete_dir,
       add_path: addForm.add_path,
+      check_meta_mtime: addForm.check_meta_mtime,
     }
     console.log(formData)
 
@@ -768,6 +799,7 @@ const handleAdd = async () => {
       addForm.download_meta = -1
       addForm.delete_dir = -1
       addForm.add_path = -1
+      addForm.check_meta_mtime = -1
       loadDirectories()
     } else {
       ElMessage.error(response?.data.message || '添加同步目录失败')
@@ -799,6 +831,7 @@ const handleEdit = async (row: SyncDirectory) => {
   editForm.download_meta = row.download_meta
   editForm.delete_dir = row.delete_dir
   editForm.add_path = row.add_path
+  editForm.check_meta_mtime = row.check_meta_mtime
 
   // 初始化STRM路径
   updateEditStrmPath()
@@ -831,6 +864,7 @@ const handleEditSave = async () => {
       download_meta: editForm.download_meta,
       delete_dir: editForm.delete_dir,
       add_path: editForm.add_path,
+      check_meta_mtime: editForm.check_meta_mtime,
     }
 
     const response = await http?.post(`${SERVER_URL}/sync/path-update`, formData, {
@@ -856,6 +890,7 @@ const handleEditSave = async () => {
       editForm.download_meta = -1
       editForm.delete_dir = -1
       editForm.add_path = -1
+      editForm.check_meta_mtime = -1
       loadDirectories()
     } else {
       ElMessage.error(response?.data.message || '编辑同步目录失败')
@@ -1207,7 +1242,7 @@ const loadAccounts = async () => {
     if (response?.data.code === 200) {
       const data = response.data.data || []
       for (const account of data) {
-        if (account.username === '' || account.source_type !== addForm.source_type) continue
+        if (account.source_type !== addForm.source_type) continue
         accounts.value.push(account)
       }
     } else {

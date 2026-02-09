@@ -511,7 +511,7 @@ const handleAddAccount = async () => {
 const handleOAuthMessage = async (event: MessageEvent) => {
   if (event.data.type === 'oauth_success') {
     // 115 OAuth授权成功，发送数据到服务端处理
-    console.log('OAuth授权成功，准备确认授权:', event.data.data)
+    console.log('OAuth授权成功，准备确认授权:', event.data)
 
     try {
       const requestData = {
@@ -519,10 +519,10 @@ const handleOAuthMessage = async (event: MessageEvent) => {
         data: event.data.data,
       }
       let url = "";
-      if (event.data.type === '115') {
+      if (event.data.source === '' || event.data.source === '115') {
         url = `${SERVER_URL}/115/oauth-confirm`
-        requestData.data = JSON.stringify(requestData.data)
-      } else if (event.data.type === 'baidupan') {
+        // requestData.data = JSON.stringify(requestData.data)
+      } else if (event.data.source === 'baidupan') {
         url = `${SERVER_URL}/baidupan/oauth-confirm`
       }
       const response = await http?.post(url, requestData, {

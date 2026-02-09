@@ -170,7 +170,7 @@
             <el-icon>
               <Folder />
             </el-icon>
-            <span>网盘文件管理(仅UI)</span>
+            <span>网盘文件管理</span>
           </el-menu-item>
           <!-- <el-sub-menu index="database">
             <template #title>
@@ -305,8 +305,6 @@ import {
   Operation,
   Promotion,
   Loading,
-  DataAnalysis,
-  RefreshLeft,
   Key,
 } from '@element-plus/icons-vue'
 import { ref, onMounted, onUnmounted, inject } from 'vue'

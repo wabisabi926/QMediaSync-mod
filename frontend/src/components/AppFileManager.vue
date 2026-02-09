@@ -301,6 +301,8 @@ function getAccountTypeName(sourceType: string): string {
       return '123网盘'
     case 'openlist':
       return 'OpenList'
+    case 'baidupan':
+      return '百度网盘'
     default:
       return '其他'
   }

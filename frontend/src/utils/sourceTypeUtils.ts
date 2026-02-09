@@ -7,7 +7,7 @@ export const sourceTypeOptions: Array<Record<string, string>> = [
   //   label: '123云盘',
   //   value: '123',
   // },
-    {
+  {
     label: '百度网盘',
     value: 'baidupan',
   },

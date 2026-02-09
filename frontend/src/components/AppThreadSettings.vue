@@ -1,14 +1,14 @@
 <template>
   <div class="main-content-container thread-settings-container">
     <el-form :model="formData" :label-position="checkIsMobile ? 'top' : 'left'" :label-width="200" class="thread-form">
-      <el-form-item label="下载QPS" prop="downloadThreads">
+      <el-form-item label="下载队列每秒处理数量" prop="downloadThreads">
         <el-input-number v-model="formData.downloadThreads" :min="1" :max="10" :disabled="loading" size="large" />
-        <div class="form-help">下载队列的每秒处理数量，合理设置可提高下载速度，最大10，最小1，最大是因为要给播放和刮削留出空余。</div>
+        <div class="form-help">下载队列的每秒处理数量，每秒加入下载中的数量而不是每秒下载数量，所以下载队列下载中状态可能显示为大于此值，这是正常的。最大10，最小1，最大是因为要给播放和刮削留出空余。</div>
       </el-form-item>
 
-      <el-form-item label="115 接口请求QPS" prop="fileDetailThreads">
+      <el-form-item label="网盘接口每秒请求数量" prop="fileDetailThreads">
         <el-input-number v-model="formData.fileDetailThreads" :min="2" :max="10" :disabled="loading" size="large" />
-        <div class="form-help">115开放平台接口的每秒请求数量，影响同步速度，最大10，最小2</div>
+        <div class="form-help">115或者百度网盘开放平台接口的每秒请求数量，影响同步速度，最大10，最小2</div>
       </el-form-item>
 
       <el-form-item label="OpenList 接口请求QPS" prop="openlistQPS">

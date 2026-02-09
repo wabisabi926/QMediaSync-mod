@@ -6,10 +6,14 @@
           <div class="header-left">
             <h2 class="card-title hidden-md-and-down">同步目录管理</h2>
             <p class="card-subtitle">
-              115同步无法感知网盘的文件夹重命名等操作，如果发现文件夹名字不对可以手动点击：重置&同步
+              115同步无法感知网盘的文件夹重命名等操作，如果发现文件夹名字不对可以手动点击：重置&同步 <br />
+              百度网盘同步会只查询上次同步时间之后修改的文件列表，不会查询所有文件、无法感知文件和文件夹删除。
+              增量同步只能单线程，每分钟最多执行8次请求，每次请求1000个文件，如果单次变更文件数量大于8000，同步就会很慢。
             </p>
             <p>
-              115的"重置&同步"操作会删除所有缓存数据（不会删除本地文件），然后执行同步，可以处理所有网盘文件变更
+              115的"全量同步"操作会删除所有缓存数据（不会删除本地文件），然后执行同步，可以处理所有网盘文件变更 <br />
+              百度网盘的"全量同步"操作会删除所有缓存数据（不会删除本地文件），然后递归查询所有文件（不会附加其他查询条件），如果“同步”操作有无法同步的文件，可以执行"全量同步"。
+              每天的第一次同步会执行“全量同步”，后续同步会执行“增量同步”。
             </p>
             <p class="card-subtitle">
               115请按照电影和电视剧分开添加同步目录，电影的同步速度非常快，电视剧的同步速度较慢
@@ -101,9 +105,9 @@
           </div>
           <template #footer>
             <div class="card-actions">
-              <el-tooltip content="改操作会删除所有缓存数据（不会删除本地文件），然后执行同步，可以处理所有网盘文件变更; 就是以前的全量同步" placement="top">
+              <el-tooltip content="改操作会删除所有缓存数据（不会删除本地文件），然后执行同步，可以处理所有网盘文件变更" placement="top">
                 <el-button type="warning" size="small" @click="handleFullStart(row, index)" :loading="row.starting"
-                  :icon="WarningFilled" v-if="row.source_type === '115' && row.is_running === 0">重置&同步</el-button>
+                  :icon="WarningFilled" v-if="(row.source_type === '115' || row.source_type === 'baidupan') && row.is_running === 0">全量同步</el-button>
               </el-tooltip>
 
               <el-button type="success" size="small" @click="handleStart(row, index)" :loading="row.starting"
@@ -193,6 +197,14 @@
           <el-input v-model="addForm.strm_path" placeholder="自动计算：本地目录 + 选中目录路径" :disabled="true" readonly />
           <div class="form-tip">STRM和元数据实际存放目录（自动生成）</div>
         </el-form-item>
+        <!-- <el-form-item label="同步方式" v-if="addForm.source_type === 'baidupan'">
+          <el-radio-group v-model="addForm.baidu_sync_method">
+            <el-radio label="1">递归文件夹</el-radio>
+            <el-radio label="2">递归接口</el-radio>
+          </el-radio-group>
+          <div class="form-tip">递归文件夹: 适合8000以上文件及文件夹的目录同步</div>
+          <div class="form-tip">递归接口: 适合8000以下文件及文件夹的目录同步，每分钟只能单线程请求8次接口，每次1000个，超过就要等待1分钟。</div>
+        </el-form-item> -->
         <el-form-item label="是否自定义设置" prop="custom_config">
           <el-switch v-model="addForm.custom_config" :active-value="true" :inactive-value="false"
             :disabled="addLoading" />
@@ -342,6 +354,14 @@
           <el-text type="danger" size="large" style="font-weight: bold">{{ editForm.strm_path }}</el-text>
           <div class="form-tip">STRM和元数据实际存放目录（自动生成）</div>
         </el-form-item>
+        <!-- <el-form-item label="同步方式" v-if="editForm.source_type === 'baidupan'">
+          <el-radio-group v-model="editForm.baidu_sync_method">
+            <el-radio label="1">递归文件夹</el-radio>
+            <el-radio label="2">递归接口</el-radio>
+          </el-radio-group>
+          <div class="form-tip">递归文件夹: 适合8000以上文件及文件夹的目录同步</div>
+          <div class="form-tip">递归接口: 适合8000以下文件及文件夹的目录同步，每分钟只能单线程请求8次接口，每次1000个，超过就要等待1分钟。</div>
+        </el-form-item> -->
         <el-form-item label="是否自定义设置" prop="custom_config">
           <el-switch v-model="editForm.custom_config" :active-value="true" :inactive-value="false"
             :disabled="editLoading" />
@@ -546,6 +566,7 @@ interface SyncDirectory {
   stopping?: boolean
   add_path: -1 | 1 | 2
   check_meta_mtime: -1 | 0 | 1
+  baidu_sync_method: 1 | 2
 }
 
 interface DirInfo {
@@ -614,6 +635,7 @@ const addForm = reactive({
   base_cid: '',
   strm_path: '',
   source_type: '',
+  baidu_sync_method: 1,
   account_id: '',
   custom_config: false,
   video_ext: [] as string[],
@@ -639,6 +661,7 @@ const editForm = reactive({
   strm_path: '',
   source_type: '',
   account_id: 0,
+  baidu_sync_method: 1,
   custom_config: false,
   video_ext: [] as string[],
   meta_ext: [] as string[],
@@ -774,6 +797,7 @@ const handleAdd = async () => {
       delete_dir: addForm.delete_dir,
       add_path: addForm.add_path,
       check_meta_mtime: addForm.check_meta_mtime,
+      baidu_sync_method: addForm.baidu_sync_method,
     }
     console.log(formData)
 
@@ -800,6 +824,7 @@ const handleAdd = async () => {
       addForm.delete_dir = -1
       addForm.add_path = -1
       addForm.check_meta_mtime = -1
+      addForm.baidu_sync_method = 1
       loadDirectories()
     } else {
       ElMessage.error(response?.data.message || '添加同步目录失败')
@@ -832,6 +857,7 @@ const handleEdit = async (row: SyncDirectory) => {
   editForm.delete_dir = row.delete_dir
   editForm.add_path = row.add_path
   editForm.check_meta_mtime = row.check_meta_mtime
+  editForm.baidu_sync_method = row.baidu_sync_method
 
   // 初始化STRM路径
   updateEditStrmPath()
@@ -865,6 +891,7 @@ const handleEditSave = async () => {
       delete_dir: editForm.delete_dir,
       add_path: editForm.add_path,
       check_meta_mtime: editForm.check_meta_mtime,
+      baidu_sync_method: editForm.baidu_sync_method,
     }
 
     const response = await http?.post(`${SERVER_URL}/sync/path-update`, formData, {
@@ -891,6 +918,7 @@ const handleEditSave = async () => {
       editForm.delete_dir = -1
       editForm.add_path = -1
       editForm.check_meta_mtime = -1
+      editForm.baidu_sync_method = 1
       loadDirectories()
     } else {
       ElMessage.error(response?.data.message || '编辑同步目录失败')

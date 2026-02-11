@@ -482,42 +482,32 @@
     </el-dialog>
 
     <!-- 目录选择对话框 -->
-    <el-dialog v-model="showDirDialog" :title="isSelectingLocalPath ? '选择目标目录' : '选择来源目录'"
-      :width="checkIsMobile ? '90%' : '600px'" :close-on-click-modal="false">
+    <el-dialog v-model="showDirDialog" title="选择文件夹"
+      :width="checkIsMobile ? '90%' : '600px'" :close-on-click-modal="false" body-class="directory-selector">
       <div class="dir-selector">
-        <el-scrollbar height="400px">
-          <div v-if="dirTreeLoading" class="loading-container">
-            <el-icon class="is-loading">
-              <Loading />
-            </el-icon>
-            <p>加载中...</p>
-          </div>
-          <div v-else-if="dirTreeData.length === 0" class="empty-container">
-            <p>暂无目录</p>
-          </div>
-          <div v-else class="dir-list">
-            <div v-for="dir in dirTreeData" :key="dir.id" class="dir-item" @click="selectTempDir(dir)">
-              <el-icon>
-                <Folder />
-              </el-icon>
-              <span class="dir-name">{{ dir.name }}</span>
-            </div>
-          </div>
-        </el-scrollbar>
-
-        <!-- 选中目录显示和确认区域 -->
-        <div v-if="tempSelectedDir" class="selected-dir-section">
-          <div class="selected-dir-info">
-            <div class="selected-dir-label">当前选中目录：</div>
-            <div class="selected-dir-path">{{ tempSelectedDir.path || tempSelectedDir.name }}</div>
-          </div>
-        </div>
+        <DirectorySelector
+          v-model="tempSelectedDir"
+          :root-path="initialRootPath"
+          :source-type="selectedSourceType"
+          :account-id="Number(selectedAccountId)"
+          @create="showCreateDialog = true"
+          @cancel="showDirDialog = false"
+          @select="confirmSelectDir"
+        />
       </div>
+    </el-dialog>
+
+    <el-dialog v-model="showCreateDialog" title="新建文件夹" width="400px" :close-on-click-modal="false">
+      <el-form ref="createFormRef" :model="createForm" :rules="createRules" label-width="80px">
+        <el-form-item label="文件夹名称" prop="name">
+          <el-input v-model="createForm.name" placeholder="请输入文件夹名称" clearable />
+        </el-form-item>
+      </el-form>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="showDirDialog = false">取消</el-button>
-          <el-button type="primary" @click="confirmSelectDir" :disabled="!tempSelectedDir">
-            确定选择
+          <el-button @click="showCreateDialog = false">取消</el-button>
+          <el-button type="primary" @click="handleCreateDirectory" :loading="createLoading">
+            确定
           </el-button>
         </span>
       </template>
@@ -536,6 +526,8 @@ import { formatTime } from '@/utils/timeUtils'
 import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 import { sourceTypeOptions, sourceTypeTagMap, sourceTypeMap } from '@/utils/sourceTypeUtils'
 import MetadataExtInput from './MetadataExtInput.vue'
+import DirectorySelector from './DirectorySelector.vue'
+import type { DirInfo } from '@/typing'
 import 'element-plus/theme-chalk/display.css'
 
 interface SyncDirectory {
@@ -569,12 +561,6 @@ interface SyncDirectory {
   baidu_sync_method: 1 | 2
 }
 
-interface DirInfo {
-  id: string
-  name: string
-  path: string
-}
-
 // 账户信息接口
 interface CloudAccount {
   id: number
@@ -604,15 +590,25 @@ const checkIsMobile = ref(isMobile())
 
 // 目录选择相关状态
 const showDirDialog = ref(false)
-const dirTreeData = ref<DirInfo[]>([])
-const dirTreeLoading = ref(false)
+const showCreateDialog = ref(false)
 const selectedDirPath = ref('')
-const currentDir = ref<DirInfo | null>(null)
 const tempSelectedDir = ref<DirInfo | null>(null)
-const isEditMode = ref(false) // 标记是否为编辑模式
-const isSelectingLocalPath = ref(false) // 标记是否为选择本地路径
+const initialRootPath = ref('')
+const isEditMode = ref(false)
+const isSelectingLocalPath = ref(false)
 const selectedSourceType = ref('')
 const selectedAccountId: Ref<number | string> = ref(0)
+
+// 新建文件夹相关状态
+const createFormRef = ref<FormInstance>()
+const createForm = ref({ name: '' })
+const createRules = ref<FormRules>({
+  name: [
+    { required: true, message: '请输入文件夹名称', trigger: 'blur' },
+    { min: 1, max: 255, message: '文件夹名称长度在 1 到 255 个字符', trigger: 'blur' }
+  ]
+})
+const createLoading = ref(false)
 
 // 检测是否为移动设备
 const checkMobile = () => {
@@ -1093,53 +1089,10 @@ const toggleCron = async (row: SyncDirectory) => {
 const openDirSelector = async (isLocalPath: boolean = false) => {
   showDirDialog.value = true
   tempSelectedDir.value = null
-  currentDir.value = null
   selectedSourceType.value = isLocalPath ? 'local' : addForm.source_type
   isSelectingLocalPath.value = isLocalPath
   selectedAccountId.value = addForm.account_id
-
-  await loadDirTree(isLocalPath ? 'local' : addForm.source_type, null)
-}
-
-// 加载目录树
-const loadDirTree = async (sourceType: string, dir: DirInfo | null) => {
-  try {
-    dirTreeLoading.value = true
-    // 加载网盘目录树
-    const accountIdToUse = selectedAccountId.value
-    const response = await http?.get(`${SERVER_URL}/path/list`, {
-      params: {
-        parent_id: dir?.id || "",
-        parent_path: dir?.path || "",
-        source_type: sourceType,
-        account_id: accountIdToUse,
-      },
-      timeout: 60000, // 设置超时时间为1分钟
-    })
-
-    if (response?.data.code === 200) {
-      dirTreeData.value = response.data.data || []
-      return true
-    } else {
-      ElMessage.error(response?.data.message || '加载目录树失败')
-      return false
-    }
-  } catch (error) {
-    console.error('加载目录树错误:', error)
-    return false
-  } finally {
-    dirTreeLoading.value = false
-  }
-}
-
-// 临时选择目录（点击目录时）
-const selectTempDir = async (dir: DirInfo) => {
-  // 加载该目录的子目录
-  if (await loadDirTree(selectedSourceType.value, dir)) {
-    tempSelectedDir.value = dir
-    currentDir.value = dir
-    return
-  }
+  initialRootPath.value = ''
 }
 
 // 计算STRM存放目录
@@ -1210,7 +1163,6 @@ const confirmSelectDir = async () => {
 
   showDirDialog.value = false
   tempSelectedDir.value = null
-  currentDir.value = null
   isSelectingLocalPath.value = false
 }
 
@@ -1220,23 +1172,52 @@ const openEditDirSelector = async (isLocalPath: boolean = false) => {
   isSelectingLocalPath.value = isLocalPath
   showDirDialog.value = true
   tempSelectedDir.value = null
-  currentDir.value = null
   selectedSourceType.value = isLocalPath ? 'local' : editForm.source_type
   selectedAccountId.value = editForm.account_id
-  // 构造一个DirInfo对象
-  const dir = {
-    id: editForm.local_path,
-    path: editForm.local_path,
-    name: editForm.local_path
+  initialRootPath.value = isLocalPath ? editForm.local_path : editForm.remote_path
+}
+
+// 处理创建文件夹
+const handleCreateDirectory = async () => {
+  if (!createFormRef.value) return
+  if (!tempSelectedDir.value) {
+    ElMessage.warning('请先选择一个父目录')
+    return
   }
-  if (!isLocalPath) {
-    dir.path = editForm.remote_path
-    dir.id = editForm.base_cid
+
+  try {
+    await createFormRef.value.validate()
+    createLoading.value = true
+
+    const response = await http?.post(`${SERVER_URL}/path/create`, {
+      parent_id: tempSelectedDir.value.id,
+      parent_path: tempSelectedDir.value.path,
+      name: createForm.value.name.trim(),
+      source_type: selectedSourceType.value,
+      account_id: Number(selectedAccountId.value),
+    })
+
+    if (response?.data.code === 200) {
+      ElMessage.success('创建文件夹成功')
+      showCreateDialog.value = false
+      createForm.value.name = ''
+
+      // 重新加载目录树
+      showDirDialog.value = false
+      await new Promise(resolve => setTimeout(resolve, 100))
+      showDirDialog.value = true
+      tempSelectedDir.value = null
+      selectedSourceType.value = isSelectingLocalPath.value ? 'local' : (isEditMode.value ? editForm.source_type : addForm.source_type)
+      selectedAccountId.value = isEditMode.value ? editForm.account_id : addForm.account_id
+      initialRootPath.value = isSelectingLocalPath.value ? (isEditMode.value ? editForm.local_path : addForm.local_path) : (isEditMode.value ? editForm.remote_path : addForm.base_cid)
+    } else {
+      ElMessage.error(response?.data.message || '创建文件夹失败')
+    }
+  } catch {
+    ElMessage.error('创建文件夹失败')
+  } finally {
+    createLoading.value = false
   }
-  await loadDirTree(
-    isLocalPath ? 'local' : editForm.source_type,
-    dir,
-  )
 }
 
 // 监听添加表单本地路径变化
@@ -1599,11 +1580,7 @@ onUnmounted(() => {
   margin-top: 4px;
 }
 
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
+
 
 /* 115网盘目录选择相关样式 */
 .pan-dir-input {
@@ -1643,20 +1620,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-
-.loading-container,
-.empty-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 20px;
-  color: #909399;
-}
-
-.loading-container .el-icon {
-  font-size: 32px;
-  margin-bottom: 8px;
+  height: 500px;
 }
 </style>

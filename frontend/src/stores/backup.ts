@@ -1,68 +1,44 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import type { AxiosStatic } from 'axios'
 import type {
   BackupTaskType,
   BackupProgress,
-  BackupConfig,
 } from '@/typing'
 import { SERVER_URL } from '@/const'
 
 export const useBackupStore = defineStore('backup', () => {
-  // 状态
   const progress = ref<BackupProgress | null>(null)
   const taskType = ref<BackupTaskType>(null)
-  const taskId = ref<number | null>(null)
-  const isMaintenanceMode = ref(false)
   const showProgressDialog = ref(false)
   const pollingTimer = ref<number | null>(null)
   const errorRetryCount = ref(0)
-  const pollingStartTime = ref<number | null>(null)
 
-  // 最大重试次数
   const MAX_RETRY_COUNT = 3
-  // 最大轮询时长（65分钟，单位：毫秒）
-  const MAX_POLLING_DURATION = 65 * 60 * 1000
+  const API_SUCCESS_CODE = 0
 
-  // 计算属性
   const isRunning = computed(() => progress.value?.running === true)
   const canCancel = computed(
     () => taskType.value === 'backup' && progress.value?.status === 'running'
   )
 
-  // 检查备份状态
   const checkBackupStatus = async (http?: AxiosStatic) => {
     if (!http) return
 
     try {
-      // 检查是否有正在运行的备份任务
-      const progressRes = await http.get(`${SERVER_URL}/database/backup/progress`)
-      if (progressRes.data.code === 200 && progressRes.data.data.running) {
-        progress.value = progressRes.data.data
+      const res = await http.get(`${SERVER_URL}/backup/status`)
+      if (res.data.code === API_SUCCESS_CODE && res.data.data.is_running) {
+        progress.value = { running: true, status: 'running' }
         taskType.value = 'backup'
         showProgressDialog.value = true
         startProgressPolling('backup', undefined, http)
-        return
-      }
-
-      // 检查维护模式
-      const configRes = await http.get(`${SERVER_URL}/database/backup-config`)
-      if (configRes.data.code === 200 && configRes.data.data.exists) {
-        const config: BackupConfig = configRes.data.data.config
-        if (config.maintenance_mode === 1) {
-          isMaintenanceMode.value = true
-          taskType.value = 'restore'
-          showProgressDialog.value = true
-          startProgressPolling('restore', undefined, http)
-        }
       }
     } catch (error) {
       console.error('检查备份状态失败:', error)
     }
   }
 
-  // 开始轮询进度
   const startProgressPolling = (
     type: 'backup' | 'restore',
     id?: number,
@@ -71,80 +47,52 @@ export const useBackupStore = defineStore('backup', () => {
     if (!http) return
 
     taskType.value = type
-    if (id) taskId.value = id
     showProgressDialog.value = true
     errorRetryCount.value = 0
-    pollingStartTime.value = Date.now()
 
-    // 清除已存在的定时器
     if (pollingTimer.value) {
       clearInterval(pollingTimer.value)
     }
 
-    // 立即执行一次
     pollProgress(http)
 
-    // 每2秒轮询一次
     pollingTimer.value = window.setInterval(() => {
       pollProgress(http)
     }, 2000)
   }
 
-  // 轮询进度
   const pollProgress = async (http: AxiosStatic) => {
     try {
-      // 检查是否超过最大轮询时长
-      if (pollingStartTime.value && taskType.value === 'restore') {
-        const elapsedTime = Date.now() - pollingStartTime.value
-        if (elapsedTime > MAX_POLLING_DURATION) {
-          stopProgressPolling()
-          ElMessageBox.alert(
-            '数据库恢复操作已超过最大等待时间（65分钟），请手动刷新页面查看恢复结果。',
-            '提示',
-            {
-              confirmButtonText: '刷新页面',
-              callback: () => {
-                location.reload()
-              },
-            }
-          )
-          return
-        }
-      }
-
       if (taskType.value === 'backup') {
-        // 轮询备份进度
-        const res = await http.get(`${SERVER_URL}/database/backup/progress`)
-        if (res.data.code === 200) {
-          progress.value = res.data.data
-          errorRetryCount.value = 0 // 重置错误计数
-          taskId.value = res.data.data.task_id
+        const res = await http.get(`${SERVER_URL}/backup/status`)
+        if (res.data.code === API_SUCCESS_CODE) {
+          const statusData = res.data.data
+          progress.value = {
+            running: statusData.is_running,
+            status: statusData.is_running ? 'running' : 'completed',
+          }
+          errorRetryCount.value = 0
 
-          // 检查任务状态
-          if (progress.value && !progress.value.running) {
+          if (!statusData.is_running) {
             stopProgressPolling()
             handleTaskComplete(progress.value.status)
           }
         }
       } else if (taskType.value === 'restore') {
-        // 轮询恢复进度
-        const res = await http.get(`${SERVER_URL}/database/restore/progress`)
-        if (res.data.code === 200) {
-          const restoreProgress = res.data.data
-          errorRetryCount.value = 0 // 重置错误计数
+        const res = await http.get(`${SERVER_URL}/backup/status`)
+        if (res.data.code === API_SUCCESS_CODE) {
+          const statusData = res.data.data
+          errorRetryCount.value = 0
 
-          if (restoreProgress.running === false) {
-            // 无恢复任务
+          if (!statusData.is_running) {
             stopProgressPolling()
-            isMaintenanceMode.value = false
             showProgressDialog.value = false
             ElMessage.success('数据库恢复成功！页面即将刷新...')
             setTimeout(() => {
               location.reload()
             }, 1500)
           } else {
-            // 有恢复任务正在运行，更新进度信息
-            progress.value = restoreProgress
+            progress.value = { running: true, status: 'running' }
           }
         }
       }
@@ -152,7 +100,6 @@ export const useBackupStore = defineStore('backup', () => {
       console.error('轮询进度失败:', error)
       errorRetryCount.value++
 
-      // 超过最大重试次数，自动刷新页面
       if (errorRetryCount.value >= MAX_RETRY_COUNT) {
         stopProgressPolling()
         ElMessage.error('网络连接失败，页面即将刷新...')
@@ -163,7 +110,6 @@ export const useBackupStore = defineStore('backup', () => {
     }
   }
 
-  // 处理任务完成
   const handleTaskComplete = (status?: string) => {
     switch (status) {
       case 'completed':
@@ -180,36 +126,25 @@ export const useBackupStore = defineStore('backup', () => {
         break
     }
 
-    // 延迟关闭对话框
     setTimeout(() => {
       showProgressDialog.value = false
       resetState()
     }, 1500)
   }
 
-  // 停止轮询
   const stopProgressPolling = () => {
     if (pollingTimer.value) {
       clearInterval(pollingTimer.value)
       pollingTimer.value = null
     }
-    pollingStartTime.value = null
   }
 
-  // 取消备份任务
   const cancelBackupTask = async (http: AxiosStatic) => {
-    if (!taskId.value) {
-      ElMessage.error('无法获取任务ID')
-      return
-    }
-
     try {
-      const res = await http.post(`${SERVER_URL}/database/backup/cancel`, {
-        task_id: taskId.value,
-      })
+      const res = await http.post(`${SERVER_URL}/backup/cancel`)
 
-      if (res.data.code === 200) {
-        ElMessage.success('备份任务已取消')
+      if (res.data.code === API_SUCCESS_CODE) {
+        ElMessage.success(res.data.message || '备份任务已取消')
         stopProgressPolling()
         showProgressDialog.value = false
         resetState()
@@ -222,29 +157,19 @@ export const useBackupStore = defineStore('backup', () => {
     }
   }
 
-  // 重置状态
   const resetState = () => {
     progress.value = null
     taskType.value = null
-    taskId.value = null
     errorRetryCount.value = 0
-    pollingStartTime.value = null
   }
 
   return {
-    // 状态
     progress,
     taskType,
-    taskId,
-    isMaintenanceMode,
     showProgressDialog,
     errorRetryCount,
-
-    // 计算属性
     isRunning,
     canCancel,
-
-    // 方法
     checkBackupStatus,
     startProgressPolling,
     stopProgressPolling,

@@ -16,10 +16,6 @@
         <cron-selector v-model="configForm.backup_cron" />
       </el-form-item>
 
-      <el-form-item label="备份路径" required>
-        <el-input v-model="configForm.backup_path" placeholder="例如: config/backups/" />
-      </el-form-item>
-
       <el-form-item label="保留天数" required>
         <el-input-number v-model="configForm.backup_retention" :min="1" :max="365" controls-position="right" />
         <span style="margin-left: 8px; color: #909399">天</span>
@@ -41,7 +37,6 @@
       </el-form-item>
     </el-form>
 
-    <!-- 下次执行时间提示 -->
     <el-alert v-if="nextBackupTime" :title="`下次自动备份时间：${nextBackupTime}`" type="info" :closable="false" />
   </div>
 </template>
@@ -52,7 +47,7 @@ import { Setting } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { AxiosStatic } from 'axios'
 import { SERVER_URL } from '@/const'
-import type { BackupConfigResponse } from '@/typing'
+import type { BackupConfig } from '@/typing'
 import { isMobile as checkIsMobile } from '@/utils/deviceUtils'
 import CronSelector from './CronSelector.vue'
 
@@ -65,7 +60,6 @@ type CronParserClass = {
 
 let CronParser: CronParserClass | null = null
 
-// 懒加载 cron-parser
 const loadCronParser = async () => {
   if (!CronParser) {
     const cronParser = await import('cron-parser')
@@ -76,12 +70,11 @@ const loadCronParser = async () => {
 
 const http = inject<AxiosStatic>('$http')
 const isMobile = checkIsMobile()
+const API_SUCCESS_CODE = 0
 
-// 配置表单
 const configForm = reactive({
   backup_enabled: 1 as 0 | 1,
-  backup_cron: '0 2 * * *',
-  backup_path: 'config/backups/',
+  backup_cron: '0 3 * * *',
   backup_retention: 7,
   backup_max_count: 10,
   backup_compress: 1 as 0 | 1,
@@ -90,24 +83,21 @@ const configForm = reactive({
 const configSaving = ref(false)
 const nextBackupTime = ref('')
 
-// 加载备份配置
 const loadBackupConfig = async () => {
   if (!http) return
 
   try {
-    const res = await http.get<{ code: number; data: BackupConfigResponse }>(
-      `${SERVER_URL}/database/backup-config`
+    const res = await http.get<{ code: number; data: BackupConfig }>(
+      `${SERVER_URL}/backup/config`
     )
 
-    if (res.data.code === 200 && res.data.data.exists && res.data.data.config) {
-      const config = res.data.data.config
-
-      const cronExpression = config.backup_cron || '0 2 * * *'
+    if (res.data.code === API_SUCCESS_CODE && res.data.data) {
+      const config = res.data.data
+      const cronExpression = config.backup_cron || '0 3 * * *'
 
       Object.assign(configForm, {
         backup_enabled: config.backup_enabled,
         backup_cron: cronExpression,
-        backup_path: config.backup_path,
         backup_retention: config.backup_retention,
         backup_max_count: config.backup_max_count,
         backup_compress: config.backup_compress,
@@ -120,19 +110,18 @@ const loadBackupConfig = async () => {
   }
 }
 
-// 保存备份配置
 const saveConfig = async () => {
   if (!http) return
 
   configSaving.value = true
   try {
-    const res = await http.post(`${SERVER_URL}/database/backup-config`, configForm)
+    const res = await http.put(`${SERVER_URL}/backup/config`, configForm)
 
-    if (res.data.code === 200) {
+    if (res.data.code === API_SUCCESS_CODE) {
       ElMessage.success('备份配置保存成功')
       await calculateNextBackupTime()
     } else {
-      ElMessage.error('保存配置失败')
+      ElMessage.error(res.data.message || '保存配置失败')
     }
   } catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : '保存配置失败'
@@ -142,7 +131,6 @@ const saveConfig = async () => {
   }
 }
 
-// 计算下次备份时间
 const calculateNextBackupTime = async () => {
   try {
     if (!configForm.backup_enabled || !configForm.backup_cron) {
@@ -172,7 +160,6 @@ const calculateNextBackupTime = async () => {
   }
 }
 
-// 组件挂载时加载数据
 onMounted(async () => {
   await loadCronParser()
   loadBackupConfig()

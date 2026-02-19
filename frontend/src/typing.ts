@@ -86,7 +86,7 @@ interface CloudAccount {
 
 // 备份相关类型定义
 type BackupTaskType = 'backup' | 'restore' | null
-type BackupStatus = 'running' | 'completed' | 'cancelled' | 'timeout' | 'failed'
+type BackupStatus = 'pending' | 'running' | 'completed' | 'cancelled' | 'timeout' | 'failed'
 type BackupType = 'manual' | 'auto'
 
 // 备份配置接口
@@ -98,16 +98,15 @@ interface BackupConfig {
   backup_retention: number
   backup_max_count: number
   backup_compress: 0 | 1
-  maintenance_mode: 0 | 1
-  maintenance_mode_time: number
   created_at: number
   updated_at: number
 }
 
-// 备份配置响应接口
-interface BackupConfigResponse {
-  exists: boolean
-  config?: BackupConfig
+// 备份状态接口
+interface BackupStatusInfo {
+  is_running: boolean
+  backup_dir: string
+  config: BackupConfig
 }
 
 // 备份进度接口
@@ -122,20 +121,11 @@ interface BackupProgress {
   total_tables?: number
 }
 
-// 备份文件接口
-interface BackupFile {
-  filename: string
-  file_size: number
-  modified_time: number
-  backup_type: BackupType
-  created_reason: string
-  table_count: number
-  database_size: number
-}
-
 // 备份记录接口
 interface BackupRecord {
   id: number
+  created_at: number
+  updated_at: number
   task_id: number
   status: BackupStatus
   file_path: string
@@ -149,14 +139,26 @@ interface BackupRecord {
   compression_ratio: number
   is_compressed: 0 | 1
   completed_at: number
+}
+
+// 备份记录列表项接口（列表用）
+interface BackupRecordListItem {
+  id: number
   created_at: number
-  updated_at: number
+  status: BackupStatus
+  file_path: string
+  file_size: number
+  backup_type: BackupType
+  backup_duration: number
+  created_reason: string
 }
 
 // 备份记录分页响应接口
 interface BackupRecordsResponse {
+  list: BackupRecordListItem[]
   total: number
-  records: BackupRecord[]
+  page: number
+  page_size: number
 }
 
 // 文件管理器相关类型定义
@@ -198,10 +200,10 @@ export type {
   BackupStatus,
   BackupType,
   BackupConfig,
-  BackupConfigResponse,
+  BackupStatusInfo,
   BackupProgress,
-  BackupFile,
   BackupRecord,
+  BackupRecordListItem,
   BackupRecordsResponse,
   FileType,
   FileOperationType,

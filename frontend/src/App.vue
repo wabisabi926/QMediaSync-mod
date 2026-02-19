@@ -30,180 +30,32 @@
 
         <el-menu :default-active="$route.path" :default-openeds="getDefaultOpeneds()" router class="el-menu-vertical"
           @select="handleMenuSelect">
-          <el-menu-item index="/">
-            <el-icon>
-              <House />
-            </el-icon>
-            <span>首页</span>
-          </el-menu-item>
-          <el-menu-item index="/accounts">
-            <el-icon>
-              <User />
-            </el-icon>
-            <span>网盘账号</span>
-          </el-menu-item>
-          <el-sub-menu index="/settings">
-            <template #title>
+          <!-- 遍历一级菜单 -->
+          <template v-for="menu in menuItems" :key="menu.path">
+            <!-- 如果是子菜单 -->
+            <el-sub-menu v-if="menu.children && menu.children.length > 0" :index="menu.path">
+              <template #title>
+                <el-icon>
+                  <component :is="Icons[menu.meta.icon as keyof typeof Icons]" />
+                </el-icon>
+                <span>{{ menu.meta.title }}</span>
+              </template>
+              <!-- 遍历子菜单 -->
+              <el-menu-item v-for="child in menu.children" :key="child.path" :index="child.path">
+                <el-icon>
+                  <component :is="Icons[child.meta.icon as keyof typeof Icons]" />
+                </el-icon>
+                <span>{{ child.meta.title }}</span>
+              </el-menu-item>
+            </el-sub-menu>
+            <!-- 如果是普通菜单 -->
+            <el-menu-item v-else :index="menu.path">
               <el-icon>
-                <Setting />
+                <component :is="Icons[menu.meta.icon as keyof typeof Icons]" />
               </el-icon>
-              <span>系统设置</span>
-            </template>
-            <el-menu-item index="/settings/emby">
-              <el-icon>
-                <VideoPlay />
-              </el-icon>
-              <span>Emby</span>
+              <span>{{ menu.meta.title }}</span>
             </el-menu-item>
-            <el-menu-item index="/proxy">
-              <el-icon>
-                <Link />
-              </el-icon>
-              <span>网络代理</span>
-            </el-menu-item>
-            <el-menu-item index="/settings/notification">
-              <el-icon>
-                <Promotion />
-              </el-icon>
-              <span>通知管理</span>
-            </el-menu-item>
-            <el-menu-item index="/settings/api-keys">
-              <el-icon>
-                <Key />
-              </el-icon>
-              <span>API Key</span>
-            </el-menu-item>
-            <el-menu-item index="/settings/threads">
-              <el-icon>
-                <Operation />
-              </el-icon>
-              <span>接口速率</span>
-            </el-menu-item>
-          </el-sub-menu>
-          <el-sub-menu index="/upload-queue">
-            <template #title>
-              <el-icon>
-                <Download />
-              </el-icon>
-              <span>上传下载</span>
-            </template>
-            <el-menu-item index="/upload-queue">
-              <el-icon>
-                <Upload />
-              </el-icon>
-              <span>上传队列</span>
-            </el-menu-item>
-            <el-menu-item index="/download-queue">
-              <el-icon>
-                <Download />
-              </el-icon>
-              <span>下载队列</span>
-            </el-menu-item>
-          </el-sub-menu>
-          <el-sub-menu index="/sync">
-            <template #title>
-              <el-icon>
-                <DocumentCopy />
-              </el-icon>
-              <span>STRM同步</span>
-            </template>
-            <el-menu-item index="/sync-directories">
-              <el-icon>
-                <FolderOpened />
-              </el-icon>
-              <span>STRM同步目录</span>
-            </el-menu-item>
-            <el-menu-item index="/sync-records">
-              <el-icon>
-                <List />
-              </el-icon>
-              <span>STRM同步记录</span>
-            </el-menu-item>
-
-            <el-menu-item index="/settings/strm">
-              <el-icon>
-                <Setting />
-              </el-icon>
-              <span>STRM设置</span>
-            </el-menu-item>
-          </el-sub-menu>
-
-          <el-sub-menu index="/scrape">
-            <template #title>
-              <el-icon>
-                <Film />
-              </el-icon>
-              <span>刮削 & 整理</span>
-            </template>
-            <el-menu-item index="/scrape-pathes">
-              <el-icon>
-                <FolderOpened />
-              </el-icon>
-              <span>刮削目录</span>
-            </el-menu-item>
-            <el-menu-item index="/scrape-records">
-              <el-icon>
-                <List />
-              </el-icon>
-              <span>刮削记录</span>
-            </el-menu-item>
-            <el-menu-item index="/settings/tmdb">
-              <el-icon>
-                <Film />
-              </el-icon>
-              <span>TMDB设置</span>
-            </el-menu-item>
-            <el-menu-item index="/settings/ai">
-              <el-icon>
-                <View />
-              </el-icon>
-              <span>AI识别设置</span>
-            </el-menu-item>
-            <el-menu-item index="/settings/category-strategy">
-              <el-icon>
-                <Operation />
-              </el-icon>
-              <span>二级分类设置</span>
-            </el-menu-item>
-          </el-sub-menu>
-          <el-menu-item index="/file-manager">
-            <el-icon>
-              <Folder />
-            </el-icon>
-            <span>网盘文件管理</span>
-          </el-menu-item>
-          <!-- <el-sub-menu index="database">
-            <template #title>
-              <el-icon>
-                <DataAnalysis />
-              </el-icon>
-              <span>数据库备份</span>
-            </template>
-            <el-menu-item index="/database/backup/settings">
-              <el-icon>
-                <Setting />
-              </el-icon>
-              <span>备份设置</span>
-            </el-menu-item>
-            <el-menu-item index="/database/backup/records">
-              <el-icon>
-                <List />
-              </el-icon>
-              <span>备份记录</span>
-            </el-menu-item>
-            <el-menu-item index="/database/backup/restore">
-              <el-icon>
-                <RefreshLeft />
-              </el-icon>
-              <span>备份恢复</span>
-            </el-menu-item>
-          </el-sub-menu>           -->
-          <el-menu-item index="/settings/user">
-            <el-icon>
-              <UserFilled />
-            </el-icon>
-            <span>用户管理</span>
-          </el-menu-item>
+          </template>
         </el-menu>
       </el-aside>
 
@@ -289,25 +141,11 @@
 
 <script setup lang="ts">
 import {
-  House,
   User,
-  Setting,
   Menu,
-  UserFilled,
-  VideoPlay,
-  DocumentCopy,
-  Link,
-  FolderOpened,
-  Folder,
-  List,
-  Film,
-  View,
-  Operation,
-  Promotion,
   Loading,
-  Key,
 } from '@element-plus/icons-vue'
-import { ref, onMounted, onUnmounted, inject } from 'vue'
+import { ref, onMounted, onUnmounted, inject, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useBackupStore } from '@/stores/backup'
@@ -323,6 +161,96 @@ const backupStore = useBackupStore()
 const http = inject<AxiosStatic>('$http')
 const isMobile = ref(false)
 const isMenuOpen = ref(false)
+
+// 导入所有图标
+import * as Icons from '@element-plus/icons-vue'
+
+// 定义菜单项类型
+interface MenuItem {
+  path: string
+  name?: string
+  meta: {
+    title: string
+    icon: string
+    showInMenu: boolean
+    parent?: string
+  }
+  children?: MenuItem[]
+}
+
+// 计算属性：生成菜单数据
+const menuItems = computed(() => {
+  // 使用 router.options.routes 保持路由定义的顺序
+  type RouteConfig = { path: string; name?: string; meta?: { title: string; requiresAuth: boolean; parent?: string; icon?: string; showInMenu?: boolean }; redirect?: string }
+  const routes = router.options.routes as RouteConfig[]
+  // 获取所有需要在菜单中显示的路由
+  const allRoutes = routes.filter(route => route.meta?.showInMenu)
+
+  // 构建菜单结构
+  const menuMap = new Map<string, MenuItem>()
+  const rootMenus: MenuItem[] = []
+
+  // 首先处理所有路由，构建菜单映射
+  allRoutes.forEach(route => {
+    // 如果有父菜单
+    if (route.meta?.parent) {
+      // 确保父菜单存在
+      if (!menuMap.has(route.meta.parent)) {
+        // 查找父菜单路由
+        const parentRoute = routes.find(r => r.name === route.meta?.parent)
+        if (parentRoute && parentRoute.meta) {
+          const parentMenuItem: MenuItem = {
+            path: parentRoute.path,
+            name: typeof parentRoute.name === 'string' ? parentRoute.name : undefined,
+            meta: {
+              title: parentRoute.meta.title,
+              icon: parentRoute.meta.icon || 'Setting',
+              showInMenu: parentRoute.meta.showInMenu || false,
+              parent: parentRoute.meta.parent
+            },
+            children: []
+          }
+          menuMap.set(route.meta.parent, parentMenuItem)
+          rootMenus.push(parentMenuItem)
+        }
+      }
+      // 将当前路由添加到父菜单的子菜单中
+      if (route.meta.parent && menuMap.has(route.meta.parent) && route.meta) {
+        const childMenuItem: MenuItem = {
+          path: route.path,
+          name: typeof route.name === 'string' ? route.name : undefined,
+          meta: {
+            title: route.meta.title,
+            icon: route.meta.icon || 'Setting',
+            showInMenu: route.meta.showInMenu || false,
+            parent: route.meta.parent
+          }
+        }
+        menuMap.get(route.meta.parent)?.children?.push(childMenuItem)
+      }
+    } else if (route.meta) {
+      // 没有父菜单，是一级菜单
+      const routeNameKey = typeof route.name === 'string' ? route.name : ''
+      if (!menuMap.has(routeNameKey)) {
+        const menuItem: MenuItem = {
+          path: route.path,
+          name: typeof route.name === 'string' ? route.name : undefined,
+          meta: {
+            title: route.meta.title,
+            icon: route.meta.icon || 'Setting',
+            showInMenu: route.meta.showInMenu || false,
+            parent: route.meta.parent
+          },
+          children: []
+        }
+        menuMap.set(routeNameKey, menuItem)
+        rootMenus.push(menuItem)
+      }
+    }
+  })
+
+  return rootMenus
+})
 
 // 检测是否为移动设备
 const checkMobile = () => {

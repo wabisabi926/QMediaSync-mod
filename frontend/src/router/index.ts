@@ -1,6 +1,5 @@
 import AppHome from '@/components/AppHome.vue'
 import AppLogin from '@/components/AppLogin.vue'
-import AppTelegramSettings from '@/components/AppTelegramSettings.vue'
 import AppUserSettings from '@/components/AppUserSettings.vue'
 import AppStrmSettings from '@/components/AppStrmSettings.vue'
 import AppEmbySettings from '@/components/AppEmbySettings.vue'
@@ -23,6 +22,17 @@ import AppFileManager from '@/components/AppFileManager.vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
+// 定义路由元信息类型
+declare module 'vue-router' {
+  interface RouteMeta {
+    title: string
+    requiresAuth: boolean
+    parent?: string
+    icon?: string
+    showInMenu?: boolean
+  }
+}
+
 const routes = [
   {
     path: '/login',
@@ -31,6 +41,7 @@ const routes = [
     meta: {
       title: '登录',
       requiresAuth: false,
+      showInMenu: false,
     },
   },
   {
@@ -40,6 +51,8 @@ const routes = [
     meta: {
       title: '首页',
       requiresAuth: true,
+      icon: 'House',
+      showInMenu: true,
     },
   },
   {
@@ -47,8 +60,21 @@ const routes = [
     name: 'accounts',
     component: AppCloudAccounts,
     meta: {
-      title: '网盘账号管理',
+      title: '网盘账号',
       requiresAuth: true,
+      icon: 'User',
+      showInMenu: true,
+    },
+  },
+  {
+    path: '/settings',
+    name: 'settings',
+    redirect: '/settings/strm',
+    meta: {
+      title: '系统设置',
+      requiresAuth: true,
+      icon: 'Setting',
+      showInMenu: true,
     },
   },
   {
@@ -56,9 +82,11 @@ const routes = [
     name: 'settings-strm',
     component: AppStrmSettings,
     meta: {
-      title: 'STRM配置',
+      title: 'STRM',
       requiresAuth: true,
       parent: 'settings',
+      icon: 'Setting',
+      showInMenu: true,
     },
   },
   {
@@ -66,9 +94,11 @@ const routes = [
     name: 'settings-user',
     component: AppUserSettings,
     meta: {
-      title: '用户账号设置',
+      title: '用户管理',
       requiresAuth: true,
       parent: 'settings',
+      icon: 'UserFilled',
+      showInMenu: true,
     },
   },
   {
@@ -76,82 +106,11 @@ const routes = [
     name: 'settings-api-keys',
     component: AppApiKeys,
     meta: {
-      title: 'API Key管理',
+      title: 'API Key',
       requiresAuth: true,
       parent: 'settings',
-    },
-  },
-  {
-    path: '/sync-records',
-    name: 'sync-records',
-    component: AppSyncRecords,
-    meta: {
-      title: '同步记录',
-      requiresAuth: true,
-    },
-  },
-  {
-    path: '/sync-records/:id',
-    name: 'sync-task-detail',
-    component: AppSyncTaskDetail,
-    meta: {
-      title: '同步任务详情',
-      requiresAuth: true,
-    },
-  },
-  {
-    path: '/file-manager',
-    name: 'file-manager',
-    component: AppFileManager,
-    meta: {
-      title: '文件管理器',
-      requiresAuth: true,
-    },
-  },
-  {
-    path: '/sync-directories',
-    name: 'sync-directories',
-    component: AppSyncDirectories,
-    meta: {
-      title: '同步目录',
-      requiresAuth: true,
-    },
-  },
-  {
-    path: '/scrape-pathes',
-    name: 'scrape-pathes',
-    component: AppScrapePathes,
-    meta: {
-      title: '刮削目录',
-      requiresAuth: true,
-    },
-  },
-  {
-    path: '/scrape-add',
-    name: 'scrape-add',
-    component: AppScrapePathAdd,
-    meta: {
-      title: '添加刮削目录',
-      requiresAuth: true,
-    },
-  },
-  {
-    path: '/scrape-records',
-    name: 'scrape-records',
-    component: AppScrapeRecords,
-    meta: {
-      title: '刮削记录',
-      requiresAuth: true,
-    },
-  },
-  {
-    path: '/settings/telegram',
-    name: 'settings-telegram',
-    component: AppTelegramSettings,
-    meta: {
-      title: 'Telegram通知设置',
-      requiresAuth: true,
-      parent: 'settings',
+      icon: 'Key',
+      showInMenu: true,
     },
   },
   {
@@ -159,9 +118,11 @@ const routes = [
     name: 'settings-notification',
     component: AppNotificationChannels,
     meta: {
-      title: '通知渠道管理',
+      title: '通知管理',
       requiresAuth: true,
       parent: 'settings',
+      icon: 'Promotion',
+      showInMenu: true,
     },
   },
   {
@@ -169,9 +130,11 @@ const routes = [
     name: 'settings-emby',
     component: AppEmbySettings,
     meta: {
-      title: 'Emby配置',
+      title: 'Emby',
       requiresAuth: true,
       parent: 'settings',
+      icon: 'VideoPlay',
+      showInMenu: true,
     },
   },
   {
@@ -179,57 +142,11 @@ const routes = [
     name: 'settings-threads',
     component: AppThreadSettings,
     meta: {
-      title: '接口速率设置',
+      title: '接口速率',
       requiresAuth: true,
       parent: 'settings',
-    },
-  },
-  {
-    path: '/settings/tmdb',
-    name: 'settings-tmdb',
-    component: AppTmdbSettings,
-    meta: {
-      title: 'TMDB设置',
-      requiresAuth: true,
-      parent: 'settings',
-    },
-  },
-    {
-      path: '/settings/ai',
-      name: 'settings-ai',
-      component: AppAiSettings,
-      meta: {
-        title: 'AI识别设置',
-        requiresAuth: true,
-        parent: 'settings',
-      },
-    },
-  {
-    path: '/settings/category-strategy',
-    name: 'settings-category-strategy',
-    component: AppCategoryStrategy,
-    meta: {
-      title: '二级分类策略',
-      requiresAuth: true,
-      parent: 'settings',
-    },
-  },
-  {
-    path: '/instant-upload',
-    name: 'instant-upload',
-    component: () => import('@/components/AppInstantUpload.vue'),
-    meta: {
-      title: 'URL秒传',
-      requiresAuth: true,
-    },
-  },
-  {
-    path: '/media-import',
-    name: 'media-import',
-    component: () => import('@/components/AppMediaImport.vue'),
-    meta: {
-      title: '媒体库导入',
-      requiresAuth: true,
+      icon: 'Operation',
+      showInMenu: true,
     },
   },
   {
@@ -239,6 +156,9 @@ const routes = [
     meta: {
       title: '网络代理',
       requiresAuth: true,
+      parent: 'settings',
+      icon: 'Link',
+      showInMenu: true,
     },
   },
   {
@@ -246,8 +166,10 @@ const routes = [
     name: 'upload-queue',
     component: AppUploadQueue,
     meta: {
-      title: '上传队列',
+      title: '上传下载',
       requiresAuth: true,
+      icon: 'Download',
+      showInMenu: true,
     },
   },
   {
@@ -257,6 +179,157 @@ const routes = [
     meta: {
       title: '下载队列',
       requiresAuth: true,
+      parent: 'upload-queue',
+      icon: 'Download',
+      showInMenu: true,
+    },
+  },
+  {
+    path: '/sync',
+    name: 'sync',
+    redirect: '/sync-directories',
+    meta: {
+      title: 'STRM同步',
+      requiresAuth: true,
+      icon: 'DocumentCopy',
+      showInMenu: true,
+    },
+  },
+  {
+    path: '/sync-directories',
+    name: 'sync-directories',
+    component: AppSyncDirectories,
+    meta: {
+      title: 'STRM同步目录',
+      requiresAuth: true,
+      parent: 'sync',
+      icon: 'FolderOpened',
+      showInMenu: true,
+    },
+  },
+  {
+    path: '/sync-records',
+    name: 'sync-records',
+    component: AppSyncRecords,
+    meta: {
+      title: 'STRM同步记录',
+      requiresAuth: true,
+      parent: 'sync',
+      icon: 'List',
+      showInMenu: true,
+    },
+  },
+  {
+    path: '/sync-records/:id',
+    name: 'sync-task-detail',
+    component: AppSyncTaskDetail,
+    meta: {
+      title: '同步任务详情',
+      requiresAuth: true,
+      showInMenu: false,
+    },
+  },
+  {
+    path: '/scrape',
+    name: 'scrape',
+    redirect: '/scrape-pathes',
+    meta: {
+      title: '刮削 & 整理',
+      requiresAuth: true,
+      icon: 'Film',
+      showInMenu: true,
+    },
+  },
+  {
+    path: '/scrape-pathes',
+    name: 'scrape-pathes',
+    component: AppScrapePathes,
+    meta: {
+      title: '刮削目录',
+      requiresAuth: true,
+      parent: 'scrape',
+      icon: 'FolderOpened',
+      showInMenu: true,
+    },
+  },
+  {
+    path: '/scrape-add',
+    name: 'scrape-add',
+    component: AppScrapePathAdd,
+    meta: {
+      title: '添加刮削目录',
+      requiresAuth: true,
+      showInMenu: false,
+    },
+  },
+  {
+    path: '/scrape-records',
+    name: 'scrape-records',
+    component: AppScrapeRecords,
+    meta: {
+      title: '刮削记录',
+      requiresAuth: true,
+      parent: 'scrape',
+      icon: 'List',
+      showInMenu: true,
+    },
+  },
+  {
+    path: '/settings/tmdb',
+    name: 'settings-tmdb',
+    component: AppTmdbSettings,
+    meta: {
+      title: 'TMDB设置',
+      requiresAuth: true,
+      parent: 'scrape',
+      icon: 'Film',
+      showInMenu: true,
+    },
+  },
+  {
+    path: '/settings/ai',
+    name: 'settings-ai',
+    component: AppAiSettings,
+    meta: {
+      title: 'AI识别设置',
+      requiresAuth: true,
+      parent: 'scrape',
+      icon: 'View',
+      showInMenu: true,
+    },
+  },
+  {
+    path: '/settings/category-strategy',
+    name: 'settings-category-strategy',
+    component: AppCategoryStrategy,
+    meta: {
+      title: '二级分类设置',
+      requiresAuth: true,
+      parent: 'scrape',
+      icon: 'Operation',
+      showInMenu: true,
+    },
+  },
+  {
+    path: '/file-manager',
+    name: 'file-manager',
+    component: AppFileManager,
+    meta: {
+      title: '网盘文件管理',
+      requiresAuth: true,
+      icon: 'Folder',
+      showInMenu: true,
+    },
+  },
+    {
+    path: '/database',
+    name: 'database',
+    component: () => import('@/components/AppBackupSettings.vue'),
+    meta: {
+      title: '备份恢复',
+      requiresAuth: true,
+      icon: 'DataAnalysis',
+      showInMenu: true,
     },
   },
   {
@@ -267,6 +340,7 @@ const routes = [
       title: '备份设置',
       requiresAuth: true,
       parent: 'database',
+      showInMenu: true,
     },
   },
   {
@@ -277,6 +351,8 @@ const routes = [
       title: '备份记录',
       requiresAuth: true,
       parent: 'database',
+      icon: 'List',
+      showInMenu: true,
     },
   },
   {
@@ -287,6 +363,8 @@ const routes = [
       title: '备份恢复',
       requiresAuth: true,
       parent: 'database',
+      icon: 'RefreshLeft',
+      showInMenu: true,
     },
   },
 ]

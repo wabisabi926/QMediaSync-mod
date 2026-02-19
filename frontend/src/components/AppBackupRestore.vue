@@ -12,7 +12,7 @@
       />
 
       <el-alert
-        title="恢复说明：仅支持 .sql 或 .sql.gz 格式的备份文件，文件大小不超过 1GB"
+        title="恢复说明：仅支持 .sql 或 .zip 格式的备份文件，文件大小不超过 1GB"
         type="info"
         :closable="false"
         style="margin-bottom: 20px"
@@ -23,7 +23,7 @@
         action="#"
         :auto-upload="false"
         :limit="1"
-        :accept="'.sql,.sql.gz'"
+        :accept="'.sql,.zip'"
         :on-change="handleFileChange"
         :on-exceed="handleExceed"
         :disabled="backupStore.isRunning"
@@ -35,7 +35,7 @@
         </div>
         <template #tip>
           <div class="el-upload__tip">
-            只支持 .sql / .sql.gz 文件，且不超过 1GB
+            只支持 .sql / .zip 文件，且不超过 1GB
           </div>
         </template>
       </el-upload>
@@ -69,7 +69,7 @@
             {{ formatFileSize(selectedFile.size) }}
           </el-descriptions-item>
           <el-descriptions-item label="文件类型">
-            {{ selectedFile.name.endsWith('.gz') ? 'SQL (压缩)' : 'SQL' }}
+            {{ selectedFile.name.endsWith('.zip') ? 'ZIP 压缩' : 'SQL' }}
           </el-descriptions-item>
           <el-descriptions-item label="最后修改">
             {{ formatTimestamp(selectedFile.lastModified / 1000) }}
@@ -94,29 +94,27 @@ import { isMobile as checkIsMobile } from '@/utils/deviceUtils'
 const http = inject<AxiosStatic>('$http')
 const backupStore = useBackupStore()
 const isMobile = checkIsMobile()
+const API_SUCCESS_CODE = 0
 
 const uploadRef = ref<UploadInstance>()
 const selectedFile = ref<File | null>(null)
 const restoreStarting = ref(false)
 
-// 处理文件选择
 const handleFileChange = (uploadFile: UploadFile) => {
   const file = uploadFile.raw
   if (!file) {
     return
   }
 
-  // 检查文件格式
-  const validExtensions = ['.sql', '.sql.gz']
+  const validExtensions = ['.sql', '.zip']
   const isValidFormat = validExtensions.some(ext => file.name.toLowerCase().endsWith(ext))
 
   if (!isValidFormat) {
-    ElMessage.error('只支持 .sql 或 .sql.gz 格式的文件')
+    ElMessage.error('只支持 .sql 或 .zip 格式的文件')
     uploadRef.value?.clearFiles()
     return
   }
 
-  // 检查文件大小（1GB = 1073741824 字节）
   const maxSize = 1073741824
   if (file.size > maxSize) {
     ElMessage.error('文件大小不能超过 1GB')
@@ -128,28 +126,24 @@ const handleFileChange = (uploadFile: UploadFile) => {
   ElMessage.success('文件已选择')
 }
 
-// 处理文件数量超限
 const handleExceed = (files: File[]) => {
   if (files.length > 0) {
     ElMessage.warning('每次只能上传一个备份文件')
   }
 }
 
-// 清除已选择的文件
 const clearFile = () => {
   selectedFile.value = null
   uploadRef.value?.clearFiles()
   ElMessage.info('已清除选择的文件')
 }
 
-// 开始恢复
 const startRestore = async () => {
   if (!selectedFile.value || !http) {
     return
   }
 
   try {
-    // 二次确认
     await ElMessageBox.confirm(
       '此操作将覆盖当前数据库，数据库将暂时不可用，确认继续吗？',
       '危险操作确认',
@@ -163,23 +157,18 @@ const startRestore = async () => {
 
     restoreStarting.value = true
 
-    // 准备 FormData
     const formData = new FormData()
-    formData.append('backup_file', selectedFile.value)
+    formData.append('file', selectedFile.value)
 
-    // 上传并启动恢复
-    const res = await http.post(`${SERVER_URL}/database/restore`, formData, {
+    const res = await http.post(`${SERVER_URL}/backup/upload-restore`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     })
 
-    if (res.data.code === 200) {
+    if (res.data.code === API_SUCCESS_CODE) {
       ElMessage.success('恢复任务已启动')
-      const taskId = 1
-      backupStore.startProgressPolling('restore', taskId, http)
-
-      // 清除文件选择
+      backupStore.startProgressPolling('restore', undefined, http)
       clearFile()
     } else {
       ElMessage.error(res.data.message || '启动恢复任务失败')

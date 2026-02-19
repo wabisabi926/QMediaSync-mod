@@ -4,8 +4,8 @@
     <el-form :model="strmData" :rules="formRules" :label-position="checkIsMobile ? 'top' : 'left'" :label-width="180"
       class="strm-form" ref="formRef">
       <!-- 排除的名称 -->
-      <el-form-item label="排除的名称" prop="exclude_names">
-        <MetadataExtInput v-model="strmData.exclude_name" placeholder="输入名称后按回车添加"
+      <el-form-item label="排除的名称" prop="exclude_name_arr">
+        <MetadataExtInput v-model="strmData.exclude_name_arr" placeholder="输入名称后按回车添加"
           class="meta-ext-input limited-width-input" :autoAddDot="false" />
         <div class="form-help">
           <p>指定需要排除的文件名或目录名，完整匹配不支持正则表达式。</p>
@@ -13,8 +13,8 @@
         </div>
       </el-form-item>
       <!-- 视频文件扩展名 -->
-      <el-form-item label="视频文件扩展名" prop="video_ext">
-        <MetadataExtInput v-model="strmData.video_ext" placeholder="输入扩展名后按回车添加,逗号或者分行分隔"
+      <el-form-item label="视频文件扩展名" prop="video_ext_arr">
+        <MetadataExtInput v-model="strmData.video_ext_arr" placeholder="输入扩展名后按回车添加,逗号或者分行分隔"
           class="meta-ext-input limited-width-input" />
         <div class="form-help">
           <p>指定需要生成STRM文件的视频文件扩展名，如：.mp4, .mkv, .avi, .mov 等</p>
@@ -22,8 +22,8 @@
       </el-form-item>
 
       <!-- 最小文件大小 -->
-      <el-form-item label="最小文件大小 (MB)" prop="min_file_size">
-        <el-input-number v-model="strmData.min_file_size" :min="0" :step="1" :precision="0" placeholder="输入最小文件大小"
+      <el-form-item label="最小文件大小 (MB)" prop="min_video_size">
+        <el-input-number v-model="strmData.min_video_size" :min="0" :step="1" :precision="0" placeholder="输入最小文件大小"
           :disabled="strmLoading" class="limited-width-input" />
         <div class="form-help">
           <p>小于此大小的视频文件将不会生成STRM文件，单位为MB。设置为0表示不限制文件大小</p>
@@ -31,8 +31,8 @@
       </el-form-item>
 
       <!-- 元数据扩展名 -->
-      <el-form-item label="元数据扩展名" prop="meta_ext">
-        <MetadataExtInput v-model="strmData.meta_ext" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
+      <el-form-item label="元数据扩展名" prop="meta_ext_arr">
+        <MetadataExtInput v-model="strmData.meta_ext_arr" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
           class="meta-ext-input limited-width-input" />
         <div class="form-help">
           <p>指定需要处理的元数据文件扩展名，如：.jpg, .nfo, .srt, .ass 等</p>
@@ -40,8 +40,8 @@
       </el-form-item>
 
       <!-- 定时同步表达式 -->
-      <el-form-item label="定时同步表达式" prop="cron_expression">
-        <el-input v-model="strmData.cron_expression" placeholder="输入Cron表达式，如：0 2 * * *" :disabled="strmLoading"
+      <el-form-item label="定时同步表达式" prop="cron">
+        <el-input v-model="strmData.cron" placeholder="输入Cron表达式，如：0 2 * * *" :disabled="strmLoading"
           class="limited-width-input" @blur="loadCronTimes" />
         <div class="form-help">
           <p><strong>常用示例：</strong></p>
@@ -66,7 +66,7 @@
 
       <!-- STRM直连地址 -->
       <el-form-item label="STRM直连地址" prop="direct_url">
-        <el-input v-model="strmData.direct_url" placeholder="输入HTTP地址，如：http://192.168.1.100:8080"
+        <el-input v-model="strmData.strm_base_url" placeholder="输入HTTP地址，如：http://192.168.1.100:8080"
           :disabled="strmLoading" @input="updateStrmExample" class="limited-width-input" />
         <div v-if="strmExample" class="strm-example-inline">
           <span class="example-label">示例：</span>
@@ -141,7 +141,7 @@
           <p>同步完成后是否删除本地存在但网盘不存在的目录，该本地目录必须是空目录</p>
         </div>
       </el-form-item>
-    
+
       <el-form-item label="给strm链接添加路径" prop="add_path">
         <el-radio-group v-model="strmData.add_path">
           <el-radio-button :label="1">添加</el-radio-button>
@@ -190,17 +190,16 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { isMobile } from '@/utils/deviceUtils'
 import MetadataExtInput from './MetadataExtInput.vue'
 interface StrmData {
-  video_ext: string[]
-  min_file_size: number
-  meta_ext: string[]
-  cron_expression: string
-  direct_url: string
+  video_ext_arr: string[]
+  min_video_size: number
+  meta_ext_arr: string[]
+  cron: string
+  strm_base_url: string
   upload_meta: 0 | 1 | 2
   download_meta: 0 | 1
-  delete_strm: 0 | 1
   delete_dir: 0 | 1
   local_proxy: 0 | 1
-  exclude_name: string[]
+  exclude_name_arr: string[]
   add_path: 1 | 2
   check_meta_mtime: 0 | 1
 }
@@ -227,17 +226,16 @@ const cronTimesLoading = ref(false)
 
 // 默认STRM配置
 const defaultStrmData: StrmData = {
-  video_ext: ['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.3gp', '.ts'],
-  min_file_size: 50, // 默认50MB
-  meta_ext: ['.jpg', '.jpeg', '.png', '.webp', '.nfo', '.srt', '.ass', '.svg', '.sup', '.lrc'],
-  cron_expression: '30 * * * *',
-  direct_url: '',
+  video_ext_arr: ['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.3gp', '.ts'],
+  min_video_size: 50, // 默认50MB
+  meta_ext_arr: ['.jpg', '.jpeg', '.png', '.webp', '.nfo', '.srt', '.ass', '.svg', '.sup', '.lrc'],
+  cron: '30 * * * *',
+  strm_base_url: '',
   upload_meta: 0, // 默认保留
   download_meta: 1, // 默认不下载元数据
-  delete_strm: 1, // 默认删除
   delete_dir: 0, // 默认不删除
   local_proxy: 0, // 是否启用本地代理
-  exclude_name: [], // 排除的名称列表，默认为空
+  exclude_name_arr: [], // 排除的名称列表，默认为空
   add_path: 2, // 默认不添加路径
   check_meta_mtime: 0, // 检查元数据的修改时间
 }
@@ -246,7 +244,7 @@ const strmData = reactive<StrmData>({ ...defaultStrmData })
 
 // 表单验证规则
 const formRules: FormRules = {
-  video_ext: [
+  video_ext_arr: [
     {
       required: true,
       validator: (rule, value, callback) => {
@@ -259,7 +257,7 @@ const formRules: FormRules = {
       trigger: 'change',
     },
   ],
-  min_file_size: [
+  min_video_size: [
     { required: true, message: '请输入最小文件大小', trigger: 'blur' },
     {
       validator: (rule, value, callback) => {
@@ -272,7 +270,7 @@ const formRules: FormRules = {
       trigger: 'blur',
     },
   ],
-  meta_ext: [
+  meta_ext_arr: [
     {
       required: true,
       validator: (rule, value, callback) => {
@@ -285,8 +283,8 @@ const formRules: FormRules = {
       trigger: 'change',
     },
   ],
-  cron_expression: [{ required: true, message: '请输入定时同步表达式', trigger: 'blur' }],
-  direct_url: [
+  cron: [{ required: true, message: '请输入定时同步表达式', trigger: 'blur' }],
+  strm_base_url: [
     { required: true, message: '请输入STRM直连地址', trigger: 'blur' },
     {
       pattern: /^https?:\/\/.+/,
@@ -298,9 +296,9 @@ const formRules: FormRules = {
 
 // 更新STRM示例
 const updateStrmExample = () => {
-  if (strmData.direct_url) {
+  if (strmData.strm_base_url) {
     // 生成示例STRM文件内容
-    const baseUrl = strmData.direct_url.replace(/\/$/, '') // 移除末尾斜杠
+    const baseUrl = strmData.strm_base_url.replace(/\/$/, '') // 移除末尾斜杠
     strmExample.value = `${baseUrl}/115/video.mp4?pick_code=d6tkyd62bmngxx5bg&userid=5323423`
     if (strmData.add_path == 1) {
       strmExample.value += '&path=Media%2F电影%2F华语电影%2F让子弹飞%2F让子弹飞.mp4'
@@ -326,23 +324,7 @@ const saveStrmConfig = async () => {
     strmLoading.value = true
     strmStatus.value = null
 
-    const requestData = {
-      video_ext: strmData.video_ext,
-      min_video_size: strmData.min_file_size,
-      meta_ext: strmData.meta_ext,
-      cron: strmData.cron_expression,
-      strm_base_url: strmData.direct_url,
-      upload_meta: strmData.upload_meta,
-      download_meta: strmData.download_meta,
-      delete_strm: strmData.delete_strm,
-      delete_dir: strmData.delete_dir,
-      local_proxy: strmData.local_proxy,
-      exclude_name: strmData.exclude_name,
-      add_path: strmData.add_path,
-      check_meta_mtime: strmData.check_meta_mtime
-    }
-
-    const response = await http?.post(`${SERVER_URL}/setting/strm-config`, requestData, {
+    const response = await http?.post(`${SERVER_URL}/setting/strm-config`, strmData, {
       headers: {
         'Content-Type': 'application/json',
       },
@@ -380,19 +362,16 @@ const loadStrmConfig = async () => {
 
     if (response?.data.code === 200 && response.data.data) {
       const config = response.data.data
-      strmData.video_ext = config.video_ext || defaultStrmData.video_ext
-      strmData.min_file_size =
-        config.min_video_size !== undefined ? config.min_video_size : defaultStrmData.min_file_size
-      strmData.meta_ext = config.meta_ext || defaultStrmData.meta_ext
-      strmData.cron_expression = config.cron || defaultStrmData.cron_expression
-      strmData.direct_url = config.strm_base_url || ''
-      strmData.upload_meta = config.upload_meta !== undefined ? config.upload_meta : 0
-      strmData.download_meta = config.download_meta !== undefined ? config.download_meta : 1
-      strmData.delete_strm = config.delete_strm !== undefined ? config.delete_strm : 1
-      strmData.delete_dir = config.delete_dir !== undefined ? config.delete_dir : 0
-      strmData.local_proxy = config.local_proxy !== undefined ? config.local_proxy : 0
-      strmData.exclude_name = config.exclude_name || []
-      strmData.add_path = config.add_path !== undefined ? config.add_path : 2
+      strmData.video_ext_arr = config.video_ext_arr
+      strmData.min_video_size = config.min_video_size
+      strmData.meta_ext_arr = config.meta_ext_arr
+      strmData.cron = config.cron
+      strmData.strm_base_url = config.strm_base_url
+      strmData.upload_meta = config.upload_meta
+      strmData.delete_dir = config.delete_dir
+      strmData.local_proxy = config.local_proxy
+      strmData.exclude_name_arr = config.exclude_name_arr
+      strmData.add_path = config.add_path
       strmData.check_meta_mtime = config.check_meta_mtime
 
       // 更新示例
@@ -408,7 +387,7 @@ const loadStrmConfig = async () => {
 
 // 查询Cron下次执行时间
 const loadCronTimes = async () => {
-  if (!strmData.cron_expression) {
+  if (!strmData.cron) {
     cronTimes.value = []
     return
   }
@@ -416,7 +395,7 @@ const loadCronTimes = async () => {
   try {
     cronTimesLoading.value = true
     const response = await http?.get(`${SERVER_URL}/setting/cron`, {
-      params: { cron: strmData.cron_expression },
+      params: { cron: strmData.cron },
     })
 
     if (response?.data.code === 200 && response.data.data) {
@@ -441,7 +420,7 @@ const changeDownloadMeta = () => {
 
 // 监听cron表达式变化
 watch(
-  () => strmData.cron_expression,
+  () => strmData.cron,
   (newCron) => {
     if (newCron && newCron.trim()) {
       loadCronTimes()

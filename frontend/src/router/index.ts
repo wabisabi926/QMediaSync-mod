@@ -69,22 +69,10 @@ const routes = [
   {
     path: '/settings',
     name: 'settings',
-    redirect: '/settings/strm',
+    component: AppUserSettings,
     meta: {
       title: '系统设置',
       requiresAuth: true,
-      icon: 'Setting',
-      showInMenu: true,
-    },
-  },
-  {
-    path: '/settings/strm',
-    name: 'settings-strm',
-    component: AppStrmSettings,
-    meta: {
-      title: 'STRM',
-      requiresAuth: true,
-      parent: 'settings',
       icon: 'Setting',
       showInMenu: true,
     },
@@ -216,6 +204,18 @@ const routes = [
       requiresAuth: true,
       parent: 'sync',
       icon: 'List',
+      showInMenu: true,
+    },
+  },
+    {
+    path: '/settings/strm',
+    name: 'settings-strm',
+    component: AppStrmSettings,
+    meta: {
+      title: 'STRM设置',
+      requiresAuth: true,
+      parent: 'sync',
+      icon: 'Setting',
       showInMenu: true,
     },
   },

@@ -150,7 +150,7 @@ import { isMobile as checkIsMobile } from '@/utils/deviceUtils'
 const http = inject<AxiosStatic>('$http')
 const backupStore = useBackupStore()
 const isMobile = checkIsMobile()
-const API_SUCCESS_CODE = 0
+const API_SUCCESS_CODE = 200
 
 const activeTab = ref('records')
 const backupStarting = ref(false)

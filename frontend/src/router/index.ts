@@ -6,16 +6,17 @@ import AppEmbySettings from '@/components/AppEmbySettings.vue'
 import AppSyncRecords from '@/components/AppSyncRecords.vue'
 import AppSyncTaskDetail from '@/components/AppSyncTaskDetail.vue'
 import AppSyncDirectories from '@/components/AppSyncDirectories.vue'
+import AppSyncDirectoryForm from '@/components/AppSyncDirectoryForm.vue'
 import AppCloudAccounts from '@/components/AppCloudAccounts.vue'
 import AppThreadSettings from '@/components/AppThreadSettings.vue'
 import AppTmdbSettings from '@/components/AppTmdbSettings.vue'
 import AppAiSettings from '@/components/AppAiSettings.vue'
 import AppCategoryStrategy from '@/components/AppCategoryStrategy.vue'
 import AppScrapePathes from '@/components/AppScrapePathes.vue'
+import AppScrapePathForm from '@/components/AppScrapePathForm.vue'
 import AppScrapeRecords from '@/components/AppScrapeRecords.vue'
 import AppUploadQueue from '@/components/AppUploadQueue.vue'
 import AppDownloadQueue from '@/components/AppDownloadQueue.vue'
-import AppScrapePathAdd from '@/components/AppScrapePathAdd.vue'
 import AppNotificationChannels from '@/components/AppNotificationChannels.vue'
 import AppApiKeys from '@/components/AppApiKeys.vue'
 import AppFileManager from '@/components/AppFileManager.vue'
@@ -196,6 +197,28 @@ const routes = [
     },
   },
   {
+    path: '/sync-directory/add',
+    name: 'sync-directory-add',
+    component: AppSyncDirectoryForm,
+    meta: {
+      title: '添加同步目录',
+      requiresAuth: true,
+      parent: 'sync',
+      showInMenu: false,
+    },
+  },
+  {
+    path: '/sync-directory/edit/:id',
+    name: 'sync-directory-edit',
+    component: AppSyncDirectoryForm,
+    meta: {
+      title: '编辑同步目录',
+      requiresAuth: true,
+      parent: 'sync',
+      showInMenu: false,
+    },
+  },
+  {
     path: '/sync-records',
     name: 'sync-records',
     component: AppSyncRecords,
@@ -253,12 +276,24 @@ const routes = [
     },
   },
   {
-    path: '/scrape-add',
-    name: 'scrape-add',
-    component: AppScrapePathAdd,
+    path: '/scrape-path/add',
+    name: 'scrape-path-add',
+    component: AppScrapePathForm,
     meta: {
       title: '添加刮削目录',
       requiresAuth: true,
+      parent: 'scrape',
+      showInMenu: false,
+    },
+  },
+  {
+    path: '/scrape-path/edit/:id',
+    name: 'scrape-path-edit',
+    component: AppScrapePathForm,
+    meta: {
+      title: '编辑刮削目录',
+      requiresAuth: true,
+      parent: 'scrape',
       showInMenu: false,
     },
   },

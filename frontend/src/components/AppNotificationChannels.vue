@@ -1,125 +1,117 @@
 <template>
-  <div>
-    <el-alert type="info" :show-icon="true" style="margin-top: 12px">
-      管理系统的通知渠道，支持 Telegram、MeoW、Bark、Server酱、Webhook 等多种推送方式
-    </el-alert>
-    <div class="main-content-container notification-channels-container">
-      <!-- 操作按钮区 -->
-      <div class="action-bar">
+  <div class="notification-page">
+    <div class="page-header">
+      <div class="header-content">
+        <div class="header-icon">
+          <el-icon :size="32"><Bell /></el-icon>
+        </div>
+        <div class="header-text">
+          <h2>通知管理</h2>
+          <p class="header-desc">管理系统的通知渠道，支持 Telegram、MeoW、Bark、Server酱、Webhook 等多种推送方式</p>
+        </div>
+      </div>
+      <div class="header-actions">
         <el-button type="primary" :icon="Plus" @click="showCreateDialog">
-          添加通知渠道
+          <span class="btn-text">添加渠道</span>
         </el-button>
         <el-button :icon="Refresh" @click="loadChannels" :loading="loading">
-          刷新
+          <span class="btn-text">刷新</span>
         </el-button>
       </div>
+    </div>
 
-      <!-- 渠道列表 -->
-      <el-table :data="channels" v-loading="loading" stripe style="width: 100%; margin-top: 16px">
-        <el-table-column prop="channel_type" label="类型" width="120">
-          <template #default="{ row }">
-            <el-tag :type="getChannelTypeColor(row.channel_type)">
-              {{ getChannelTypeName(row.channel_type) }}
-            </el-tag>
+    <div class="main-content-container notification-channels-container">
+      <div v-if="channels.length === 0 && !loading" class="empty-state">
+        <el-empty description="暂无通知渠道">
+          <template #image>
+            <el-icon :size="64" color="var(--el-text-color-placeholder)"><Bell /></el-icon>
           </template>
-        </el-table-column>
-        <el-table-column prop="channel_name" label="名称" />
-        <el-table-column prop="is_enabled" label="状态" width="100">
-          <template #default="{ row }">
+          <el-button type="primary" :icon="Plus" @click="showCreateDialog">添加第一个渠道</el-button>
+        </el-empty>
+      </div>
+
+      <div v-else class="channels-grid" v-loading="loading">
+        <el-card
+          v-for="channel in channels"
+          :key="channel.id"
+          class="channel-card"
+          :class="{ 'channel-disabled': !channel.is_enabled }"
+          shadow="hover"
+        >
+          <div class="channel-card-header">
+            <div class="channel-type-badge" :class="`type-${channel.channel_type}`">
+              <el-icon :size="20">
+                <component :is="getChannelIcon(channel.channel_type)" />
+              </el-icon>
+            </div>
+            <div class="channel-info">
+              <h3 class="channel-name">{{ channel.channel_name }}</h3>
+              <span class="channel-type-label">{{ getChannelTypeName(channel.channel_type) }}</span>
+            </div>
             <el-switch
-              v-model="row.is_enabled"
-              @change="toggleChannelStatus(row)"
-              :loading="row._switching"
-            />
-          </template>
-        </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="180">
-          <template #default="{ row }">
-            {{ formatDateTime(row.created_at) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="380">
-          <template #default="{ row }">
-            <el-button
+              v-model="channel.is_enabled"
+              @change="toggleChannelStatus(channel as ChannelWithStatus)"
+              :loading="(channel as ChannelWithStatus)._switching"
               size="small"
-              :icon="Edit"
-              @click="showEditDialog(row)"
-              :loading="editLoading"
-            >
+            />
+          </div>
+
+          <div class="channel-card-body">
+            <div class="channel-meta">
+              <span class="meta-item">
+                <el-icon><Clock /></el-icon>
+                {{ formatDateTime(channel.created_at) }}
+              </span>
+            </div>
+          </div>
+
+          <div class="channel-card-actions">
+            <el-button size="small" text :icon="Edit" @click="showEditDialog(channel)" :loading="editLoading">
               编辑
             </el-button>
-            <el-button
-              size="small"
-              :icon="Setting"
-              @click="showRulesDialog(row)"
-            >
+            <el-button size="small" text :icon="Setting" @click="showRulesDialog(channel)">
               规则
             </el-button>
-            <el-button
-              size="small"
-              type="success"
-              :icon="Message"
-              @click="testChannel(row)"
-              :loading="row._testing"
-            >
+            <el-button size="small" text type="success" :icon="Promotion" @click="testChannel(channel as ChannelWithStatus)" :loading="(channel as ChannelWithStatus)._testing">
               测试
             </el-button>
-            <el-button
-              size="small"
-              type="danger"
-              :icon="Delete"
-              @click="deleteChannel(row)"
-            >
+            <el-button size="small" text type="danger" :icon="Delete" @click="deleteChannel(channel)">
               删除
             </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+          </div>
+        </el-card>
+      </div>
     </div>
 
     <!-- 创建渠道对话框 -->
     <el-dialog
       v-model="createDialogVisible"
       title="添加通知渠道"
-      width="600px"
+      :width="checkIsMobile ? '95%' : '600px'"
       :close-on-click-modal="false"
+      top="5vh"
     >
       <!-- 渠道类型选择 -->
-      <el-form v-if="!selectedChannelType" label-width="0">
-        <el-form-item label="">
-          <!-- 没有可用渠道类型时的提示 -->
-          <el-empty
-            v-if="channelTypes.length === 0"
-            description="所有渠道类型都已添加"
-            :image-size="80"
+      <div v-if="!selectedChannelType" class="channel-type-selector-wrapper">
+        <p class="selector-title">选择通知渠道类型</p>
+        <div class="channel-type-selector">
+          <div
+            v-for="type in channelTypes"
+            :key="type.value"
+            class="channel-type-card"
+            :class="`type-${type.value}`"
+            @click="selectedChannelType = type.value"
           >
-            <template #description>
-              <span>所有渠道类型都已添加</span>
-              <br>
-              <span style="font-size: 12px; color: var(--el-text-color-secondary);">
-                每种渠道类型只能添加一个，如需修改请先删除现有渠道
-              </span>
-            </template>
-          </el-empty>
-
-          <!-- 渠道类型卡片 -->
-          <div v-else class="channel-type-selector">
-            <el-card
-              v-for="type in channelTypes"
-              :key="type.value"
-              class="channel-type-card"
-              shadow="hover"
-              @click="selectedChannelType = type.value"
-            >
-              <div class="channel-type-content">
-                <div class="channel-type-icon">{{ type.icon }}</div>
-                <div class="channel-type-name">{{ type.label }}</div>
-                <div class="channel-type-desc">{{ type.description }}</div>
-              </div>
-            </el-card>
+            <div class="channel-type-icon">
+              <el-icon :size="28"><component :is="type.icon" /></el-icon>
+            </div>
+            <div class="channel-type-info">
+              <div class="channel-type-name">{{ type.label }}</div>
+              <div class="channel-type-desc">{{ type.description }}</div>
+            </div>
           </div>
-        </el-form-item>
-      </el-form>
+        </div>
+      </div>
 
       <!-- 渠道配置表单 -->
       <el-form
@@ -346,7 +338,8 @@
     <el-dialog
       v-model="rulesDialogVisible"
       :title="`${currentChannel?.channel_name} - 通知规则`"
-      width="600px"
+      :width="checkIsMobile ? '95%' : '600px'"
+      top="5vh"
     >
       <el-table :data="currentRules" v-loading="rulesLoading">
         <el-table-column prop="event_type" label="事件类型" width="180">
@@ -374,8 +367,9 @@
     <el-dialog
       v-model="editDialogVisible"
       :title="`编辑渠道 - ${editingChannel?.channel_name}`"
-      width="600px"
+      :width="checkIsMobile ? '95%' : '600px'"
       :close-on-click-modal="false"
+      top="5vh"
     >
       <el-form
         :model="channelForm"
@@ -580,16 +574,23 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted, inject, computed } from 'vue'
+import { reactive, ref, onMounted, inject, computed, type Component } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Plus,
   Refresh,
   Setting,
-  Message,
+  Promotion,
   Delete,
   Back,
-  Edit
+  Edit,
+  Bell,
+  Clock,
+  ChatDotRound,
+  Position,
+  Apple,
+  Cellphone,
+  Link
 } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
@@ -597,7 +598,6 @@ import { isMobile } from '@/utils/deviceUtils'
 import { formatDateTime } from '@/utils/timeUtils'
 import {
   getChannelTypeName,
-  getChannelTypeColor,
   getEventTypeName,
   type NotificationChannel,
   type NotificationRule,
@@ -669,34 +669,45 @@ const allChannelTypes = [
   {
     value: 'telegram' as ChannelType,
     label: 'Telegram',
-    icon: '✈️',
+    icon: Position,
     description: 'Telegram Bot 推送'
   },
   {
     value: 'meow' as ChannelType,
     label: 'MeoW',
-    icon: '🐱',
+    icon: ChatDotRound,
     description: 'MeoW 推送服务'
   },
   {
     value: 'bark' as ChannelType,
     label: 'Bark',
-    icon: '🍎',
+    icon: Apple,
     description: 'iOS Bark 推送'
   },
   {
     value: 'serverchan' as ChannelType,
     label: 'Server酱',
-    icon: '💬',
+    icon: Cellphone,
     description: '微信推送服务'
   },
   {
     value: 'webhook' as ChannelType,
     label: 'Webhook',
-    icon: '🔗',
+    icon: Link,
     description: '自定义 Webhook 推送'
   }
 ]
+
+const getChannelIcon = (type: ChannelType): Component => {
+  const iconMap: Record<ChannelType, Component> = {
+    telegram: Position,
+    meow: ChatDotRound,
+    bark: Apple,
+    serverchan: Cellphone,
+    webhook: Link
+  }
+  return iconMap[type] || Link
+}
 
 // 可用的渠道类型选项（过滤掉已存在的）
 const channelTypes = computed(() => {
@@ -1213,80 +1224,326 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.notification-channels-container {
-  padding: 16px;
+.notification-page {
+  padding: 0;
 }
 
-.action-bar {
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  background: var(--el-bg-color);
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--el-color-primary-light-5), var(--el-color-primary));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.header-text h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.header-desc {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+}
+
+.header-actions {
   display: flex;
   gap: 8px;
-  margin-bottom: 16px;
+}
+
+.notification-channels-container {
+  padding: 20px 24px;
+}
+
+.empty-state {
+  padding: 60px 0;
+  text-align: center;
+}
+
+.channels-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.channel-card {
+  border-radius: 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  transition: all 0.3s ease;
+}
+
+.channel-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.channel-card.channel-disabled {
+  opacity: 0.7;
+}
+
+.channel-card.channel-disabled .channel-type-badge {
+  filter: grayscale(50%);
+}
+
+.channel-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.channel-type-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  flex-shrink: 0;
+}
+
+.channel-type-badge.type-telegram {
+  background: linear-gradient(135deg, #37aee2, #1e96c8);
+}
+
+.channel-type-badge.type-meow {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+}
+
+.channel-type-badge.type-bark {
+  background: linear-gradient(135deg, #ff6b6b, #ee5a5a);
+}
+
+.channel-type-badge.type-serverchan {
+  background: linear-gradient(135deg, #07c160, #06ad56);
+}
+
+.channel-type-badge.type-webhook {
+  background: linear-gradient(135deg, #6b7280, #4b5563);
+}
+
+.channel-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.channel-name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.channel-type-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.channel-card-body {
+  padding: 12px 0;
+}
+
+.channel-meta {
+  display: flex;
+  gap: 16px;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.channel-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+
+.channel-card-actions .el-button {
+  padding: 6px 12px;
+}
+
+.channel-type-selector-wrapper {
+  padding: 8px 0;
+}
+
+.selector-title {
+  margin: 0 0 16px;
+  font-size: 14px;
+  color: var(--el-text-color-secondary);
 }
 
 .channel-type-selector {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .channel-type-card {
-  width: 100%;
-  cursor: pointer;
-  transition: all 0.3s;
-  height: 140px;
   display: flex;
   align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 2px solid var(--el-border-color-lighter);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: var(--el-bg-color);
 }
 
 .channel-type-card:hover {
-  transform: translateY(-4px);
-  border-color: var(--el-color-primary);
+  border-color: var(--el-color-primary-light-5);
+  background: var(--el-fill-color-light);
 }
 
-.channel-type-content {
-  text-align: center;
-  padding: 16px;
-  width: 100%;
+.channel-type-card .channel-type-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  flex-shrink: 0;
 }
 
-.channel-type-icon {
-  font-size: 36px;
-  margin-bottom: 8px;
+.channel-type-card.type-telegram .channel-type-icon {
+  background: linear-gradient(135deg, #37aee2, #1e96c8);
 }
 
-.channel-type-name {
-  font-size: 16px;
-  font-weight: bold;
-  margin-bottom: 6px;
+.channel-type-card.type-meow .channel-type-icon {
+  background: linear-gradient(135deg, #667eea, #764ba2);
 }
 
-.channel-type-desc {
+.channel-type-card.type-bark .channel-type-icon {
+  background: linear-gradient(135deg, #ff6b6b, #ee5a5a);
+}
+
+.channel-type-card.type-serverchan .channel-type-icon {
+  background: linear-gradient(135deg, #07c160, #06ad56);
+}
+
+.channel-type-card.type-webhook .channel-type-icon {
+  background: linear-gradient(135deg, #6b7280, #4b5563);
+}
+
+.channel-type-info {
+  flex: 1;
+}
+
+.channel-type-card .channel-type-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  margin-bottom: 4px;
+}
+
+.channel-type-card .channel-type-desc {
   font-size: 12px;
   color: var(--el-text-color-secondary);
-  line-height: 1.4;
 }
 
-/* 响应式适配 */
 @media (max-width: 768px) {
-  .channel-type-selector {
+  .page-header {
+    padding: 12px 16px;
+    flex-direction: row;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  .header-content {
+    display: none;
+  }
+
+  .header-actions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  .header-actions .el-button {
+    padding: 8px 12px;
+  }
+
+  .header-actions .btn-text {
+    display: none;
+  }
+
+  .notification-channels-container {
+    padding: 12px;
+  }
+
+  .channels-grid {
     grid-template-columns: 1fr;
   }
 
-  .channel-type-card {
-    height: 120px;
+  .channel-card-header {
+    flex-wrap: wrap;
   }
 
-  .channel-type-icon {
-    font-size: 32px;
+  .channel-card-actions {
+    justify-content: center;
   }
 
-  .channel-type-name {
-    font-size: 15px;
+  .channel-card-actions .el-button {
+    flex: 1;
+    min-width: 70px;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-header {
+    padding: 10px 12px;
   }
 
-  .channel-type-desc {
-    font-size: 11px;
+  .header-actions {
+    gap: 8px;
+  }
+
+  .header-actions .el-button {
+    padding: 8px;
+  }
+
+  .channel-type-badge {
+    width: 38px;
+    height: 38px;
+  }
+
+  .channel-name {
+    font-size: 14px;
   }
 }
 </style>

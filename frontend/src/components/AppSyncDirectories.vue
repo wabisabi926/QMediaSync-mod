@@ -1,534 +1,316 @@
 <template>
-  <div class="main-content-container sync-directories-container full-width-container">
-    <el-card shadow="none" class="full-width-card">
-      <template #header>
-        <div class="card-header">
-          <div class="header-left">
-            <h2 class="card-title hidden-md-and-down">同步目录管理</h2>
-            <p class="card-subtitle">
-              115同步无法感知网盘的文件夹重命名等操作，如果发现文件夹名字不对可以手动点击：重置&同步 <br />
-              百度网盘同步会只查询上次同步时间之后修改的文件列表，不会查询所有文件、无法感知文件和文件夹删除。
-              增量同步只能单线程，每分钟最多执行8次请求，每次请求1000个文件，如果单次变更文件数量大于8000，同步就会很慢。
-            </p>
-            <p>
-              115的"全量同步"操作会删除所有缓存数据（不会删除本地文件），然后执行同步，可以处理所有网盘文件变更 <br />
-              百度网盘的"全量同步"操作会删除所有缓存数据（不会删除本地文件），然后递归查询所有文件（不会附加其他查询条件），如果“同步”操作有无法同步的文件，可以执行"全量同步"。
-              每天的第一次同步会执行“全量同步”，后续同步会执行“增量同步”。
-            </p>
-            <p class="card-subtitle">
-              115请按照电影和电视剧分开添加同步目录，电影的同步速度非常快，电视剧的同步速度较慢
-            </p>
+  <div class="sync-directories-page">
+    <div class="page-header">
+      <div class="header-content">
+        <div class="header-title-section">
+          <h1 class="page-title">
+            <el-icon class="title-icon"><FolderOpened /></el-icon>
+            同步目录管理
+          </h1>
+          <p class="page-subtitle">管理您的云盘与本地目录的同步配置</p>
+        </div>
+        <div class="header-actions">
+          <el-button type="primary" class="add-btn" @click="handleAdd">
+            <el-icon><Plus /></el-icon>
+            <span class="btn-text">添加同步目录</span>
+          </el-button>
+        </div>
+      </div>
+      <div class="stats-bar mobile-hidden">
+        <div class="stat-item">
+          <div class="stat-icon total">
+            <el-icon><Files /></el-icon>
           </div>
-          <div class="header-right">
-            <el-button type="primary" @click="showAddDialog = true">
-              <el-icon>
-                <Plus />
-              </el-icon>
-              添加同步目录
-            </el-button>
+          <div class="stat-info">
+            <span class="stat-value">{{ directories.length }}</span>
+            <span class="stat-label">总目录数</span>
           </div>
         </div>
-      </template>
-      <div style="
-          width: 100%;
-          height: 100%;
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-          justify-content: start;
-          align-items: top;
-        ">
-        <el-card style="min-width: 320px" shadow="hover" v-for="(row, index) in directories" :key="row.id || index">
-          <template #header>
+        <div class="stat-item">
+          <div class="stat-icon running">
+            <el-icon><Loading /></el-icon>
+          </div>
+          <div class="stat-info">
+            <span class="stat-value">{{ runningCount }}</span>
+            <span class="stat-label">运行中</span>
+          </div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-icon waiting">
+            <el-icon><Clock /></el-icon>
+          </div>
+          <div class="stat-info">
+            <span class="stat-value">{{ waitingCount }}</span>
+            <span class="stat-label">等待中</span>
+          </div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-icon cron">
+            <el-icon><Timer /></el-icon>
+          </div>
+          <div class="stat-info">
+            <span class="stat-value">{{ cronEnabledCount }}</span>
+            <span class="stat-label">定时同步</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="directories-content">
+      <div class="directories-grid" v-if="directories.length > 0">
+        <div
+          class="directory-card"
+          v-for="(row, index) in directories"
+          :key="row.id || index"
+          :class="{ 'is-running': row.is_running === 2, 'is-waiting': row.is_running === 1 }"
+        >
+          <div class="card-status-bar" :class="getStatusClass(row)"></div>
+          <div class="card-main">
             <div class="card-header">
-              <div class="card-title">
-                <el-tooltip class="box-item" :content="'目录ID：' + row.base_cid" placement="bottom">
-                  #{{ row.id }} {{ row.remote_path }}
+              <div class="card-title-wrapper">
+                <el-tooltip :content="'目录ID：' + row.base_cid" placement="bottom">
+                  <span class="card-id">#{{ row.id }}</span>
                 </el-tooltip>
+                <span class="card-path">{{ row.remote_path }}</span>
               </div>
-              <div>
-                <el-tag :type="sourceTypeTagMap[row.source_type]">
-                  {{ sourceTypeMap[row.source_type] }}
-                </el-tag>
+              <el-tag :type="sourceTypeTagMap[row.source_type]" class="source-tag" effect="light">
+                {{ sourceTypeMap[row.source_type] }}
+              </el-tag>
+            </div>
+
+            <div class="card-body">
+              <div class="info-row" v-if="row.source_type !== 'local'">
+                <div class="info-icon">
+                  <el-icon><User /></el-icon>
+                </div>
+                <div class="info-content">
+                  <span class="info-label">关联账号</span>
+                  <span class="info-value">{{ row.account_name }}</span>
+                </div>
+              </div>
+
+              <div class="info-row">
+                <div class="info-icon">
+                  <el-icon><Folder /></el-icon>
+                </div>
+                <div class="info-content">
+                  <span class="info-label">目标路径</span>
+                  <span class="info-value path-value">{{ GetFullPath(row) }}</span>
+                </div>
+              </div>
+
+              <div class="info-row">
+                <div class="info-icon">
+                  <el-icon><Calendar /></el-icon>
+                </div>
+                <div class="info-content">
+                  <span class="info-label">添加时间</span>
+                  <span class="info-value">{{ formatTime(row.created_at) }}</span>
+                </div>
+              </div>
+
+              <div class="info-row">
+                <div class="info-icon">
+                  <el-icon><Refresh /></el-icon>
+                </div>
+                <div class="info-content">
+                  <span class="info-label">最后同步</span>
+                  <span class="info-value">{{ formatTime(row.last_sync_at) || '从未同步' }}</span>
+                </div>
+              </div>
+
+              <div class="info-row toggle-row">
+                <div class="info-icon">
+                  <el-icon><Timer /></el-icon>
+                </div>
+                <div class="info-content">
+                  <el-tooltip
+                    effect="dark"
+                    content="开启后会根据strm设置中的cron表达式定时同步数据，如果该同步目录内的资源变动概率较小，建议关闭定时同步"
+                    placement="top"
+                  >
+                    <span class="info-label with-tooltip">
+                      定时同步
+                      <el-icon class="help-icon"><QuestionFilled /></el-icon>
+                    </span>
+                  </el-tooltip>
+                  <el-switch
+                    v-model="row.enable_cron"
+                    :active-value="true"
+                    :inactive-value="false"
+                    @change="toggleCron(row)"
+                    active-color="#67c23a"
+                    inactive-color="#dcdfe6"
+                  />
+                </div>
+              </div>
+
+              <div class="status-row">
+                <div class="status-indicator" :class="getStatusClass(row)">
+                  <el-icon v-if="row.is_running === 2" class="rotating"><Loading /></el-icon>
+                  <el-icon v-else-if="row.is_running === 1"><Clock /></el-icon>
+                  <el-icon v-else><CircleCheck /></el-icon>
+                  <span>{{ getStatusText(row) }}</span>
+                </div>
               </div>
             </div>
-          </template>
 
-          <div class="card-body">
-            <div class="info-item" v-if="row.source_type !== 'local'">
-              <span class="info-label">账号:</span>
-              <span class="info-value">{{ row.account_name }}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">目标路径:</span>
-              <span class="info-value">{{ GetFullPath(row) }}</span>
-            </div>
-
-            <div class="info-item">
-              <span class="info-label">添加时间:</span>
-              <span class="info-value">{{ formatTime(row.created_at) }}</span>
-            </div>
-
-            <div class="info-item">
-              <span class="info-label">最后同步时间:</span>
-              <span class="info-value">{{ formatTime(row.last_sync_at) }}</span>
-            </div>
-
-            <div class="info-item">
-              <el-tooltip class="box-item" effect="dark"
-                content="开启后会根据strm设置中的cron表达式定时同步数据，如果该同步目录内的资源变动概率较小，建议关闭定时同步，然后有变动时手动同步" placement="bottom">
-                <span class="info-label">
-                  <el-icon>
-                    <Warning />
-                  </el-icon> 定时同步:
-                </span>
-              </el-tooltip>
-              <el-switch v-model="row.enable_cron" :active-value="true" :inactive-value="false"
-                @change="toggleCron(row)" active-color="#13ce66" inactive-color="#dcdfe6" />
-            </div>
-            <div class="info-item">
-              <span class="info-label">运行状态:</span>
-              <span class="info-value" v-if="row.is_running === 2">
-                <el-icon class="is-loading">
-                  <Loading />
-                </el-icon>
-                <el-text class="mx-1" type="primary">运行中...</el-text>
-              </span>
-              <span class="info-value" v-if="row.is_running === 1">
-                <el-icon class="is-loading">
-                  <Star />
-                </el-icon>
-                <el-text class="mx-1" type="warning">等待运行...</el-text>
-              </span>
-              <span class="info-value" v-if="row.is_running === 0">未执行</span>
-            </div>
-          </div>
-          <template #footer>
-            <div class="card-actions">
-              <el-tooltip content="改操作会删除所有缓存数据（不会删除本地文件），然后执行同步，可以处理所有网盘文件变更" placement="top">
-                <el-button type="warning" size="small" @click="handleFullStart(row, index)" :loading="row.starting"
-                  :icon="WarningFilled" v-if="(row.source_type === '115' || row.source_type === 'baidupan') && row.is_running === 0">全量同步</el-button>
+            <div class="card-footer">
+              <el-tooltip content="删除所有缓存数据后执行同步，可处理所有网盘文件变更" placement="top">
+                <el-button
+                  type="warning"
+                  size="small"
+                  plain
+                  @click="handleFullStart(row, index)"
+                  :loading="row.starting"
+                  v-if="(row.source_type === '115' || row.source_type === 'baidupan') && row.is_running === 0"
+                >
+                  <el-icon><RefreshRight /></el-icon>
+                  全量同步
+                </el-button>
               </el-tooltip>
 
-              <el-button type="success" size="small" @click="handleStart(row, index)" :loading="row.starting"
-                v-if="row.is_running === 0" :icon="VideoPlay">同步</el-button>
-              <el-button type="info" size="small" @click="handleStop(row, index)" :loading="row.stopping"
-                :icon="VideoPause" v-if="row.is_running != 0">停止</el-button>
-              <el-button type="primary" size="small" @click="handleEdit(row)" :loading="row.editing"
-                :icon="Edit">编辑</el-button>
-              <el-button type="danger" size="small" @click="handleDelete(row, index)" :loading="row.deleting"
-                :icon="Delete">删除</el-button>
+              <el-button
+                type="success"
+                size="small"
+                plain
+                @click="handleStart(row, index)"
+                :loading="row.starting"
+                v-if="row.is_running === 0"
+              >
+                <el-icon><VideoPlay /></el-icon>
+                同步
+              </el-button>
+
+              <el-button
+                type="info"
+                size="small"
+                plain
+                @click="handleStop(row, index)"
+                :loading="row.stopping"
+                v-if="row.is_running !== 0"
+              >
+                <el-icon><VideoPause /></el-icon>
+                停止
+              </el-button>
+
+              <el-button
+                type="primary"
+                size="small"
+                plain
+                @click="handleEdit(row)"
+              >
+                <el-icon><Edit /></el-icon>
+                编辑
+              </el-button>
+
+              <el-button
+                type="danger"
+                size="small"
+                plain
+                @click="handleDelete(row, index)"
+                :loading="row.deleting"
+              >
+                <el-icon><Delete /></el-icon>
+                删除
+              </el-button>
             </div>
-          </template>
-        </el-card>
-
-        <el-col v-if="directories.length === 0 && !loading" :span="24" class="empty-card-col">
-          <el-card shadow="never" class="empty-card">
-            <div class="empty-content">
-              <el-icon class="empty-icon">
-                <Folder />
-              </el-icon>
-              <p class="empty-text">暂无同步目录</p>
-            </div>
-          </el-card>
-        </el-col>
-      </div>
-    </el-card>
-
-    <!-- 添加同步目录对话框 -->
-    <el-dialog v-model="showAddDialog" title="添加同步目录" :width="checkIsMobile ? '90%' : '600px'"
-      :close-on-click-modal="false">
-      <el-form ref="addFormRef" :model="addForm" :rules="addFormRules" label-width="160px"
-        :label-position="checkIsMobile ? 'top' : 'left'">
-        <el-form-item label="同步源类型" prop="source_type">
-          <el-select v-model="addForm.source_type" placeholder="请选择同步源类型" @change="handleSourceTypeChange">
-            <el-option v-for="typeItem in sourceTypeOptions" :key="typeItem.value" :label="typeItem.label"
-              :value="typeItem.value"></el-option>
-          </el-select>
-          <div class="form-tip">
-            <div v-if="addForm.source_type === 'local'">
-              本地目录可以通过CD2间接支持更多网盘，请将CD2的本地挂载目录映射到容器中（如果使用docker）,然后选择该目录
-            </div>
-            <div v-if="addForm.source_type === '115'">需要先添加用于同步的115账号并授权</div>
-            <div v-if="addForm.source_type === '123'">需要先添加用于同步的123账号并授权</div>
           </div>
-        </el-form-item>
-        <el-form-item label="网盘账号" prop="account_id" v-if="addForm.source_type !== 'local'">
-          <el-select v-model="addForm.account_id" placeholder="请选择网盘账号" :loading="accountsLoading"
-            :disabled="addLoading">
-            <el-option v-for="account in accounts" :key="account.id" :label="account.name"
-              :value="account.id"></el-option>
-          </el-select>
-          <div class="form-tip">选择用于同步的网盘账号</div>
-        </el-form-item>
-        <el-form-item label="来源路径" prop="base_cid" v-if="
-          (addForm.source_type !== 'local' && addForm.account_id) ||
-          addForm.source_type === 'local'
-        ">
-          <div class="pan-dir-input">
-            <el-input v-model="addForm.base_cid" placeholder="点击选择按钮选择网盘目录" :disabled="addLoading" readonly />
-            <el-button type="primary" @click="openDirSelector(false)" :disabled="addLoading">
-              选择目录
-            </el-button>
-          </div>
-          <div v-if="selectedDirPath" class="selected-path-inline">
-            <span class="path-label">选中目录路径：</span>
-            <code class="path-url">{{ selectedDirPath }}</code>
-          </div>
-          <div class="form-tip">选择网盘中要同步的目录</div>
-        </el-form-item>
-        <el-form-item label="目标路径" prop="local_path" v-if="
-          (addForm.source_type !== 'local' && addForm.account_id) ||
-          addForm.source_type === 'local'
-        ">
-          <div class="pan-dir-input">
-            <el-input v-model="addForm.local_path" placeholder="点击选择按钮选择本地目录" :disabled="addLoading" readonly />
-            <el-button type="primary" @click="openDirSelector(true)" :disabled="addLoading">
-              选择目录
-            </el-button>
-          </div>
-          <div class="form-tip">选择本地目录作为STRM文件的存放位置</div>
-        </el-form-item>
-
-        <el-form-item label="STRM存放目录" v-if="
-          (addForm.source_type !== 'local' && addForm.account_id) ||
-          addForm.source_type === 'local'
-        ">
-          <el-input v-model="addForm.strm_path" placeholder="自动计算：本地目录 + 选中目录路径" :disabled="true" readonly />
-          <div class="form-tip">STRM和元数据实际存放目录（自动生成）</div>
-        </el-form-item>
-        <!-- <el-form-item label="同步方式" v-if="addForm.source_type === 'baidupan'">
-          <el-radio-group v-model="addForm.baidu_sync_method">
-            <el-radio label="1">递归文件夹</el-radio>
-            <el-radio label="2">递归接口</el-radio>
-          </el-radio-group>
-          <div class="form-tip">递归文件夹: 适合8000以上文件及文件夹的目录同步</div>
-          <div class="form-tip">递归接口: 适合8000以下文件及文件夹的目录同步，每分钟只能单线程请求8次接口，每次1000个，超过就要等待1分钟。</div>
-        </el-form-item> -->
-        <el-form-item label="是否自定义设置" prop="custom_config">
-          <el-switch v-model="addForm.custom_config" :active-value="true" :inactive-value="false"
-            :disabled="addLoading" />
-          <div class="form-tip">
-            开启后可自定义视频扩展名和元数据扩展名配置，否则使用strm设置中的值
-          </div>
-        </el-form-item>
-        <!-- 最小视频文件大小 -->
-        <el-form-item label="最小视频文件大小 (MB)" prop="min_video_size" v-if="addForm.custom_config">
-          <el-slider v-model="addForm.min_video_size" :min="-1" :max="1000" :step="1" :precision="0"
-            :format-tooltip="formatTooltip" show-input />
-          <div class="form-help">
-            <p>小于此大小的视频文件将不会生成STRM文件，单位为MB。设置为0表示不限制文件大小</p>
-          </div>
-        </el-form-item>
-        <el-form-item label="视频扩展名" prop="video_ext" v-if="addForm.custom_config">
-          <MetadataExtInput v-model="addForm.video_ext" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
-            class="meta-ext-input limited-width-input" />
-          <div class="form-tip">指定需要生成STRM文件的视频文件扩展名</div>
-        </el-form-item>
-        <el-form-item label="元数据扩展名" prop="meta_ext" v-if="addForm.custom_config">
-          <MetadataExtInput v-model="addForm.meta_ext" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
-            class="meta-ext-input limited-width-input" />
-          <div class="form-tip">指定需要同步的元数据文件扩展名</div>
-        </el-form-item>
-        <el-form-item label="排除文件名" prop="exclude_name" v-if="addForm.custom_config">
-          <MetadataExtInput v-model="addForm.exclude_name" :autoAddDot="false" placeholder="输入文件名后按回车添加，逗号或者分行分隔"
-            class="meta-ext-input limited-width-input" />
-          <div class="form-tip">指定需要排除同步的名称，必须输入完整，可以是文件夹名字或者文件名字</div>
-        </el-form-item>
-        <el-form-item label="是否下载元数据" prop="download_meta" v-if="addForm.custom_config">
-          <el-radio-group v-model="addForm.download_meta">
-            <el-radio-button :label="-1">使用STRM设置</el-radio-button>
-            <el-radio-button :label="1">是</el-radio-button>
-            <el-radio-button :label="0">否</el-radio-button>
-          </el-radio-group>
-          <div class="form-help">
-            <p>如果选择是，同步时会将本地不存在的元数据文件下载回来</p>
-            <p>
-              如果选择否，同步时不会下载，<strong stylle="color: black;">但是也同时跳过处理元数据，已存在的会保留，新增的不会上传</strong>
-            </p>
-          </div>
-        </el-form-item>
-        <!-- 同步完是否上传网盘不存在的元数据 -->
-        <el-form-item label="网盘不存在的元数据" prop="upload_meta" v-if="addForm.custom_config">
-          <el-radio-group v-model="addForm.upload_meta">
-            <el-radio-button :label="-1">使用STRM设置</el-radio-button>
-            <el-radio-button :label="2" :disabled="addForm.download_meta === 0">删除</el-radio-button>
-            <el-radio-button :label="1" :disabled="addForm.download_meta === 0">上传</el-radio-button>
-            <el-radio-button :label="0">保留</el-radio-button>
-          </el-radio-group>
-          <div class="form-help">
-            <p>删除: 本地存在且网盘不存在则删除本地文件</p>
-            <p>
-              上传: 本地存在且网盘不存在，分三种情况: <br />
-              &nbsp;&nbsp;&nbsp;&nbsp;1. 父目录在网盘存在则上传<br />
-              &nbsp;&nbsp;&nbsp;&nbsp;2. 父目录在网盘不存在（网盘已删除）则删除本地文件<br />
-              &nbsp;&nbsp;&nbsp;&nbsp;3. 父目录是特定名字，则创建父目录并上传，特定名字包括："extrafanart",
-              "exfanarts",
-              "extrafanarts",
-              "extras",
-              "specials",
-              "shorts",
-              "scenes",
-              "featurettes",
-              "behind the scenes",
-              "trailers",
-              "interviews",
-            </p>
-            <p>保留：不会删除本地文件，不管网盘有没有删除它</p>
-          </div>
-        </el-form-item>
-        <el-form-item label="是否检查元数据修改时间" prop="check_meta_mtime" v-if="addForm.custom_config">
-          <el-radio-group v-model="addForm.check_meta_mtime">
-            <el-radio-button :label="-1">使用STRM设置</el-radio-button>
-            <el-radio-button :label="1">是</el-radio-button>
-            <el-radio-button :label="0">否</el-radio-button>
-          </el-radio-group>
-          <div class="form-help">
-            <p>如果选择是，会有两种情况：<br />
-              &nbsp;&nbsp;&nbsp;&nbsp;1. 网盘文件修改时间比本地文件新，则下载网盘文件替换本地文件<br />
-              &nbsp;&nbsp;&nbsp;&nbsp;2. 网盘文件修改时间比本地文件旧，则上传本地文件到网盘
-            </p>
-          </div>
-        </el-form-item>
-        <!-- 同步完是否删除网盘不存在的空目录 -->
-        <el-form-item label="网盘不存在的空目录" prop="delete_dir" v-if="addForm.custom_config">
-          <el-radio-group v-model="addForm.delete_dir">
-            <el-radio-button :label="-1">使用STRM设置</el-radio-button>
-            <el-radio-button :label="1">删除</el-radio-button>
-            <el-radio-button :label="0">不删除</el-radio-button>
-          </el-radio-group>
-          <div class="form-help">
-            <p>同步完成后是否删除本地存在但网盘不存在的目录，该本地目录必须是空目录</p>
-          </div>
-        </el-form-item>
-        <!-- 是否给strm链接添加路径 -->
-        <el-form-item label="给strm链接添加路径" prop="add_path" v-if="addForm.custom_config">
-          <el-radio-group v-model="addForm.add_path">
-            <el-radio-button :label="-1">使用STRM设置</el-radio-button>
-            <el-radio-button :label="1">添加</el-radio-button>
-            <el-radio-button :label="2">不添加</el-radio-button>
-          </el-radio-group>
-          <div class="form-help">
-            <p>是否给strm链接添加路径</p>
-          </div>
-        </el-form-item>
-        <!-- 是否检查元数据 -->
-      </el-form>
-
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button @click="showAddDialog = false">取消</el-button>
-          <el-button type="primary" @click="handleAdd" :loading="addLoading"> 确定 </el-button>
         </div>
-      </template>
-    </el-dialog>
-
-    <!-- 编辑同步目录对话框 -->
-    <el-dialog v-model="showEditDialog" title="编辑同步目录" :width="checkIsMobile ? '90%' : '600px'"
-      :close-on-click-modal="false">
-      <el-form ref="editFormRef" :model="editForm" :rules="editFormRules" label-width="160px"
-        :label-position="checkIsMobile ? 'top' : 'left'">
-        <el-form-item label="来源路径" prop="base_cid">
-          <div class="pan-dir-input">
-            <el-input v-model="editForm.base_cid" placeholder="点击选择按钮选择115网盘目录" :disabled="editLoading" readonly />
-            <el-button type="primary" @click="openEditDirSelector(false)" :disabled="editLoading">
-              选择目录
-            </el-button>
-          </div>
-          <div v-if="editSelectedDirPath" class="selected-path-inline">
-            <span class="path-label">选中目录路径：</span>
-            <code class="path-url">{{ editSelectedDirPath }}</code>
-          </div>
-          <div class="form-tip">选择115网盘中要同步的目录</div>
-        </el-form-item>
-        <el-form-item label="目标路径" prop="local_path">
-          <div class="pan-dir-input">
-            <el-input v-model="editForm.local_path" placeholder="点击选择按钮选择本地目录" :disabled="editLoading" readonly />
-            <el-button type="primary" @click="openEditDirSelector(true)" :disabled="editLoading">
-              选择目录
-            </el-button>
-          </div>
-          <div class="form-tip">选择本地目录作为STRM文件的存放位置</div>
-        </el-form-item>
-        <el-form-item label="STRM存放目录">
-          <el-text type="danger" size="large" style="font-weight: bold">{{ editForm.strm_path }}</el-text>
-          <div class="form-tip">STRM和元数据实际存放目录（自动生成）</div>
-        </el-form-item>
-        <!-- <el-form-item label="同步方式" v-if="editForm.source_type === 'baidupan'">
-          <el-radio-group v-model="editForm.baidu_sync_method">
-            <el-radio label="1">递归文件夹</el-radio>
-            <el-radio label="2">递归接口</el-radio>
-          </el-radio-group>
-          <div class="form-tip">递归文件夹: 适合8000以上文件及文件夹的目录同步</div>
-          <div class="form-tip">递归接口: 适合8000以下文件及文件夹的目录同步，每分钟只能单线程请求8次接口，每次1000个，超过就要等待1分钟。</div>
-        </el-form-item> -->
-        <el-form-item label="是否自定义设置" prop="custom_config">
-          <el-switch v-model="editForm.custom_config" :active-value="true" :inactive-value="false"
-            :disabled="editLoading" />
-          <div class="form-tip">
-            开启后可自定义视频扩展名和元数据扩展名配置，否则使用strm设置中的值
-          </div>
-        </el-form-item>
-        <!-- 最小视频文件大小 -->
-        <el-form-item label="最小视频文件大小 (MB)" prop="min_video_size" v-if="editForm.custom_config">
-          <el-slider v-model="editForm.min_video_size" :min="-1" :max="1000" :step="1" :precision="0"
-            :format-tooltip="formatTooltip" show-input />
-          <div class="form-help">
-            <p>小于此大小的视频文件将不会生成STRM文件，单位为MB。设置为0表示不限制文件大小</p>
-          </div>
-        </el-form-item>
-        <el-form-item label="视频扩展名" prop="video_ext" v-if="editForm.custom_config">
-          <MetadataExtInput v-model="editForm.video_ext" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
-            class="meta-ext-input limited-width-input" />
-          <div class="form-tip">指定需要生成STRM文件的视频文件扩展名</div>
-        </el-form-item>
-        <el-form-item label="元数据扩展名" prop="meta_ext" v-if="editForm.custom_config">
-          <MetadataExtInput v-model="editForm.meta_ext" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
-            class="meta-ext-input limited-width-input" />
-          <div class="form-tip">指定需要同步的元数据文件扩展名</div>
-        </el-form-item>
-        <el-form-item label="排除文件名" prop="exclude_name" v-if="editForm.custom_config">
-          <MetadataExtInput v-model="editForm.exclude_name" :autoAddDot="false" placeholder="输入文件名后按回车添加，逗号或者分行分隔"
-            class="meta-ext-input limited-width-input" />
-          <div class="form-tip">指定需要排除同步的名称，必须输入完整，可以是文件夹名字或者文件名字</div>
-        </el-form-item>
-        <el-form-item label="是否下载元数据" prop="download_meta" v-if="editForm.custom_config">
-          <el-radio-group v-model="editForm.download_meta">
-            <el-radio-button :label="-1">使用STRM设置</el-radio-button>
-            <el-radio-button :label="1">是</el-radio-button>
-            <el-radio-button :label="0">否</el-radio-button>
-          </el-radio-group>
-          <div class="form-help">
-            <p>如果选择是，同步时会将本地不存在的元数据文件下载回来</p>
-            <p>
-              如果选择否，同步时不会下载，<strong stylle="color: black;">但是也同时跳过处理元数据，已存在的会保留，新增的不会上传</strong>
-            </p>
-          </div>
-        </el-form-item>
-        <!-- 同步完是否上传网盘不存在的元数据 -->
-        <el-form-item label="网盘不存在的元数据" prop="upload_meta" v-if="editForm.custom_config">
-          <el-radio-group v-model="editForm.upload_meta">
-            <el-radio-button :label="-1">使用STRM设置</el-radio-button>
-            <el-radio-button :label="2" :disabled="editForm.download_meta === 0">删除</el-radio-button>
-            <el-radio-button :label="1" :disabled="editForm.download_meta === 0">上传</el-radio-button>
-            <el-radio-button :label="0">保留</el-radio-button>
-          </el-radio-group>
-          <div class="form-help">
-            <p>删除: 本地存在且网盘不存在则删除本地文件</p>
-            <p>
-              上传: 本地存在且网盘不存在，分三种情况: <br />
-              &nbsp;&nbsp;&nbsp;&nbsp;1. 父目录在网盘存在则上传<br />
-              &nbsp;&nbsp;&nbsp;&nbsp;2. 父目录在网盘不存在（网盘已删除）则删除本地文件<br />
-              &nbsp;&nbsp;&nbsp;&nbsp;3. 父目录是特定名字，则创建父目录并上传，特定名字包括："extrafanart",
-              "exfanarts",
-              "extrafanarts",
-              "extras",
-              "specials",
-              "shorts",
-              "scenes",
-              "featurettes",
-              "behind the scenes",
-              "trailers",
-              "interviews",
-            </p>
-            <p>保留：不会删除本地文件，不管网盘有没有删除它</p>
-          </div>
-        </el-form-item>
-        <el-form-item label="是否检查元数据修改时间" prop="check_meta_mtime" v-if="editForm.custom_config">
-          <el-radio-group v-model="editForm.check_meta_mtime">
-            <el-radio-button :label="-1">使用STRM设置</el-radio-button>
-            <el-radio-button :label="1">是</el-radio-button>
-            <el-radio-button :label="0">否</el-radio-button>
-          </el-radio-group>
-          <div class="form-help">
-            <p>如果选择是，会有两种情况：<br />
-              &nbsp;&nbsp;&nbsp;&nbsp;1. 网盘文件修改时间比本地文件新，则下载网盘文件替换本地文件<br />
-              &nbsp;&nbsp;&nbsp;&nbsp;2. 网盘文件修改时间比本地文件旧，则上传本地文件到网盘
-            </p>
-          </div>
-        </el-form-item>
-        <!-- 同步完是否删除网盘不存在的空目录 -->
-        <el-form-item label="网盘不存在的空目录" prop="delete_dir" v-if="editForm.custom_config">
-          <el-radio-group v-model="editForm.delete_dir">
-            <el-radio-button :label="-1">使用STRM设置</el-radio-button>
-            <el-radio-button :label="1">删除</el-radio-button>
-            <el-radio-button :label="0">不删除</el-radio-button>
-          </el-radio-group>
-          <div class="form-help">
-            <p>同步完成后是否删除本地存在但网盘不存在的目录，该本地目录必须是空目录</p>
-          </div>
-        </el-form-item>
-        <!-- 是否给strm链接添加路径 -->
-        <el-form-item label="给strm链接添加路径" prop="add_path" v-if="editForm.custom_config">
-          <el-radio-group v-model="editForm.add_path">
-            <el-radio-button :label="-1">使用STRM设置</el-radio-button>
-            <el-radio-button :label="1">添加</el-radio-button>
-            <el-radio-button :label="2">不添加</el-radio-button>
-          </el-radio-group>
-          <div class="form-help">
-            <p>是否给strm链接添加路径</p>
-          </div>
-        </el-form-item>
-      </el-form>
-
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button @click="showEditDialog = false">取消</el-button>
-          <el-button type="primary" @click="handleEditSave" :loading="editLoading">
-            确定
-          </el-button>
-        </div>
-      </template>
-    </el-dialog>
-
-    <!-- 目录选择对话框 -->
-    <el-dialog v-model="showDirDialog" title="选择文件夹"
-      :width="checkIsMobile ? '90%' : '600px'" :close-on-click-modal="false" body-class="directory-selector">
-      <div class="dir-selector">
-        <DirectorySelector
-          v-model="tempSelectedDir"
-          :root-path="initialRootPath"
-          :source-type="selectedSourceType"
-          :account-id="Number(selectedAccountId)"
-          @create="showCreateDialog = true"
-          @cancel="showDirDialog = false"
-          @select="confirmSelectDir"
-        />
       </div>
-    </el-dialog>
 
-    <el-dialog v-model="showCreateDialog" title="新建文件夹" width="400px" :close-on-click-modal="false">
-      <el-form ref="createFormRef" :model="createForm" :rules="createRules" label-width="80px">
-        <el-form-item label="文件夹名称" prop="name">
-          <el-input v-model="createForm.name" placeholder="请输入文件夹名称" clearable />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="showCreateDialog = false">取消</el-button>
-          <el-button type="primary" @click="handleCreateDirectory" :loading="createLoading">
-            确定
-          </el-button>
-        </span>
-      </template>
-    </el-dialog>
+      <div class="empty-state" v-else-if="!loading">
+        <div class="empty-illustration">
+          <el-icon class="empty-icon"><FolderOpened /></el-icon>
+          <div class="empty-dots">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+        </div>
+        <h3 class="empty-title">暂无同步目录</h3>
+        <p class="empty-description">点击上方按钮添加您的第一个同步目录</p>
+        <el-button type="primary" @click="handleAdd">
+          <el-icon><Plus /></el-icon>
+          添加同步目录
+        </el-button>
+      </div>
+
+      <div class="loading-state" v-if="loading">
+        <el-icon class="loading-icon rotating"><Loading /></el-icon>
+        <span>加载中...</span>
+      </div>
+
+      <div class="page-footer-tips">
+        <div class="tips-header">
+          <el-icon class="tips-icon"><InfoFilled /></el-icon>
+          <span>使用说明</span>
+        </div>
+        <div class="tips-content">
+          <div class="tip-group">
+            <div class="tip-group-title">
+              <el-icon><Warning /></el-icon>
+              <span>115网盘</span>
+            </div>
+            <div class="tip-group-items">
+              <div class="tip-item">
+                <span class="tip-bullet">•</span>
+                <span>无法感知网盘的文件夹重命名等操作，如果发现文件夹名字不对可以手动点击：<strong>重置&同步</strong></span>
+              </div>
+              <div class="tip-item">
+                <span class="tip-bullet">•</span>
+                <span>"全量同步"会删除所有缓存数据（不会删除本地文件），然后执行同步，可以处理所有网盘文件变更</span>
+              </div>
+              <div class="tip-item tip-highlight">
+                <span class="tip-bullet">★</span>
+                <span>请按照电影和电视剧分开添加同步目录，电影的同步速度非常快，电视剧的同步速度较慢</span>
+              </div>
+            </div>
+          </div>
+          <div class="tip-group">
+            <div class="tip-group-title">
+              <el-icon><Timer /></el-icon>
+              <span>百度网盘</span>
+            </div>
+            <div class="tip-group-items">
+              <div class="tip-item">
+                <span class="tip-bullet">•</span>
+                <span>只查询上次同步时间之后修改的文件列表，不会查询所有文件、无法感知文件和文件夹删除</span>
+              </div>
+              <div class="tip-item">
+                <span class="tip-bullet">•</span>
+                <span>增量同步只能单线程，每分钟最多执行8次请求，每次请求1000个文件，如果单次变更文件数量大于8000，同步就会很慢</span>
+              </div>
+              <div class="tip-item">
+                <span class="tip-bullet">•</span>
+                <span>"全量同步"会删除所有缓存数据（不会删除本地文件），然后递归查询所有文件</span>
+              </div>
+              <div class="tip-item tip-highlight">
+                <span class="tip-bullet">★</span>
+                <span>每天的第一次同步会执行"全量同步"，后续同步会执行"增量同步"</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
-import { inject, onMounted, onUnmounted, ref, reactive, watch, type Ref } from 'vue'
+import { inject, onMounted, onUnmounted, ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Loading, Folder, VideoPlay, Edit, Delete, Warning, Star, VideoPause, WarningFilled } from '@element-plus/icons-vue'
-import type { FormInstance, FormRules } from 'element-plus'
+import {
+  Plus, Loading, Folder, VideoPlay, Edit, Delete, Warning, VideoPause,
+  InfoFilled, Timer, FolderOpened, Files, Clock, User, Calendar, Refresh,
+  RefreshRight, CircleCheck, QuestionFilled
+} from '@element-plus/icons-vue'
 import { formatTime } from '@/utils/timeUtils'
 import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
-import { sourceTypeOptions, sourceTypeTagMap, sourceTypeMap } from '@/utils/sourceTypeUtils'
-import MetadataExtInput from './MetadataExtInput.vue'
-import DirectorySelector from './DirectorySelector.vue'
-import type { DirInfo } from '@/typing'
-import 'element-plus/theme-chalk/display.css'
+import { sourceTypeTagMap, sourceTypeMap } from '@/utils/sourceTypeUtils'
 
 interface SyncDirectory {
   id: number
@@ -540,177 +322,47 @@ interface SyncDirectory {
   updated_at: number
   last_sync_at: number
   deleting?: boolean
-  editing?: boolean
   starting?: boolean
   source_type: string
   account_id: number
   account_name: string
-  custom_config: boolean
-  video_ext_arr: string[]
-  meta_ext_arr: string[]
-  exclude_name_arr: string[]
-  min_video_size: number
-  upload_meta: -1 | 0 | 1 | 2
-  download_meta: -1 | 0 | 1
-  delete_dir: -1 | 0 | 1
   enable_cron: boolean
   is_running: number
   stopping?: boolean
-  add_path: -1 | 1 | 2
-  check_meta_mtime: -1 | 0 | 1
-  baidu_sync_method: 1 | 2
-}
-
-// 账户信息接口
-interface CloudAccount {
-  id: number
-  name: string
-  source_type: string
-  user_id: string
-  username: string
-  created_at: number
-  token: string
 }
 
 const http: AxiosStatic | undefined = inject('$http')
+const router = useRouter()
 
-// 数据状态
 const directories = ref<SyncDirectory[]>([])
 const loading = ref(false)
 const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(9999)
 
-// 账户列表状态
-const accounts = ref<CloudAccount[]>([])
-const accountsLoading = ref(false)
-
-// 移动端检测
 const checkIsMobile = ref(isMobile())
 
-// 目录选择相关状态
-const showDirDialog = ref(false)
-const showCreateDialog = ref(false)
-const selectedDirPath = ref('')
-const tempSelectedDir = ref<DirInfo | null>(null)
-const initialRootPath = ref('')
-const isEditMode = ref(false)
-const isSelectingLocalPath = ref(false)
-const selectedSourceType = ref('')
-const selectedAccountId: Ref<number | string> = ref(0)
+const runningCount = computed(() => directories.value.filter(d => d.is_running === 2).length)
+const waitingCount = computed(() => directories.value.filter(d => d.is_running === 1).length)
+const cronEnabledCount = computed(() => directories.value.filter(d => d.enable_cron).length)
 
-// 新建文件夹相关状态
-const createFormRef = ref<FormInstance>()
-const createForm = ref({ name: '' })
-const createRules = ref<FormRules>({
-  name: [
-    { required: true, message: '请输入文件夹名称', trigger: 'blur' },
-    { min: 1, max: 255, message: '文件夹名称长度在 1 到 255 个字符', trigger: 'blur' }
-  ]
-})
-const createLoading = ref(false)
+const getStatusClass = (row: SyncDirectory) => {
+  if (row.is_running === 2) return 'status-running'
+  if (row.is_running === 1) return 'status-waiting'
+  return 'status-idle'
+}
 
-// 检测是否为移动设备
+const getStatusText = (row: SyncDirectory) => {
+  if (row.is_running === 2) return '运行中'
+  if (row.is_running === 1) return '等待中'
+  return '空闲'
+}
+
 const checkMobile = () => {
   checkIsMobile.value = isMobile()
 }
 
-const formatTooltip = (value: number) => {
-  if (value === -1) {
-    return '使用STRM设置'
-  }
-  return `${value} MB`
-}
-
-// 添加对话框状态
-const showAddDialog = ref(false)
-const addLoading = ref(false)
-const addFormRef = ref<FormInstance>()
-const addForm = reactive({
-  local_path: '',
-  base_cid: '',
-  strm_path: '',
-  source_type: '',
-  baidu_sync_method: 1,
-  account_id: '',
-  custom_config: false,
-  video_ext: [] as string[],
-  meta_ext: [] as string[],
-  exclude_name: [] as string[],
-  remote_path: '',
-  min_video_size: -1,
-  upload_meta: -1,
-  download_meta: -1,
-  delete_dir: -1,
-  add_path: -1,
-  check_meta_mtime: -1,
-})
-
-// 编辑对话框状态
-const showEditDialog = ref(false)
-const editLoading = ref(false)
-const editFormRef = ref<FormInstance>()
-const editForm = reactive({
-  id: 0,
-  local_path: '',
-  base_cid: '',
-  strm_path: '',
-  source_type: '',
-  account_id: 0,
-  baidu_sync_method: 1,
-  custom_config: false,
-  video_ext: [] as string[],
-  meta_ext: [] as string[],
-  exclude_name: [] as string[],
-  remote_path: '',
-  min_video_size: -1,
-  upload_meta: -1,
-  download_meta: -1,
-  delete_dir: -1,
-  add_path: -1,
-  check_meta_mtime: -1,
-})
-const editSelectedDirPath = ref('')
-
-// 表单验证规则
-const addFormRules: FormRules = {
-  local_path: [
-    { required: true, message: '请选择目标目录', trigger: 'blur' },
-    { min: 1, max: 500, message: '长度在 1 到 500 个字符', trigger: 'blur' },
-  ],
-  base_cid: [
-    { required: true, message: '请选择来源目录', trigger: 'blur' },
-    { min: 1, max: 100, message: '长度在 1 到 100 个字符', trigger: 'blur' },
-  ],
-  dir_depth: [
-    { required: true, message: '请输入缓存的目录深度', trigger: 'blur' },
-    {
-      type: 'number',
-      min: 1,
-      max: 3,
-      message: '缓存的目录深度必须在 1 到 3 之间',
-      trigger: 'blur',
-    },
-  ],
-  source_type: [{ required: true, message: '请选择同步源类型', trigger: 'change' }],
-  account_id: [{ required: true, message: '请选择网盘账号', trigger: 'change' }],
-}
-
-// 编辑表单验证规则
-const editFormRules: FormRules = {
-  local_path: [
-    { required: true, message: '请选择目标目录', trigger: 'blur' },
-    { min: 1, max: 500, message: '长度在 1 到 500 个字符', trigger: 'blur' },
-  ],
-  base_cid: [
-    { required: true, message: '请选择来源目录', trigger: 'blur' },
-    { min: 1, max: 100, message: '长度在 1 到 100 个字符', trigger: 'blur' },
-  ],
-  account_id: [{ required: true, message: '请选择网盘账号', trigger: 'change' }],
-}
-
 const GetFullPath = (row: SyncDirectory) => {
-  // 如果cleanLocalPath以字母开头则用\分隔，如果以/开头则用/分隔
   const pathSeparator = row.local_path.startsWith('/') ? '/' : '\\'
   if (row.source_type == 'local') {
     return row.local_path
@@ -724,7 +376,6 @@ const GetFullPath = (row: SyncDirectory) => {
   return `${row.local_path}${pathSeparator}${remotePath}`
 }
 
-// 加载同步目录列表
 const loadDirectories = async () => {
   try {
     loading.value = true
@@ -762,172 +413,20 @@ const updatePathesStatus = async () => {
       const path = directories.value.find(pa => pa.id === p.id)
       if (path) {
         path.is_running = p.is_running
-        // console.log(`更新路径状态: ${path.id}, 运行状态: ${path.is_running}`)
       }
     }
   }
   autoRefreshEnabled = true
 }
 
-// 处理添加同步目录
-const handleAdd = async () => {
-  if (!addFormRef.value) return
-
-  try {
-    await addFormRef.value.validate()
-    addLoading.value = true
-
-    const formData = {
-      local_path: addForm.local_path.trim(),
-      base_cid: addForm.base_cid.trim(),
-      remote_path: selectedDirPath.value,
-      source_type: addForm.source_type.trim(),
-      account_id: addForm.account_id ? addForm.account_id : 0,
-      custom_config: addForm.custom_config,
-      video_ext_arr: addForm.video_ext,
-      meta_ext_arr: addForm.meta_ext,
-      exclude_name_arr: addForm.exclude_name,
-      min_video_size: addForm.min_video_size,
-      upload_meta: addForm.upload_meta,
-      download_meta: addForm.download_meta,
-      delete_dir: addForm.delete_dir,
-      add_path: addForm.add_path,
-      check_meta_mtime: addForm.check_meta_mtime,
-      baidu_sync_method: addForm.baidu_sync_method,
-    }
-    console.log(formData)
-
-    const response = await http?.post(`${SERVER_URL}/sync/path-add`, formData, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (response?.data.code === 200) {
-      ElMessage.success('添加同步目录成功')
-      showAddDialog.value = false
-      addForm.local_path = ''
-      addForm.base_cid = ''
-      addForm.strm_path = ''
-      addForm.custom_config = false
-      addForm.video_ext = []
-      addForm.meta_ext = []
-      addForm.exclude_name = []
-      selectedDirPath.value = ''
-      addForm.min_video_size = -1
-      addForm.upload_meta = -1
-      addForm.download_meta = -1
-      addForm.delete_dir = -1
-      addForm.add_path = -1
-      addForm.check_meta_mtime = -1
-      addForm.baidu_sync_method = 1
-      loadDirectories()
-    } else {
-      ElMessage.error(response?.data.message || '添加同步目录失败')
-    }
-  } catch {
-    console.error('添加同步目录错误')
-    ElMessage.error('添加同步目录失败')
-  } finally {
-    addLoading.value = false
-  }
+const handleAdd = () => {
+  router.push({ name: 'sync-directory-add' })
 }
 
-// 处理编辑同步目录
-const handleEdit = async (row: SyncDirectory) => {
-  editForm.id = row.id
-  editForm.account_id = row.account_id
-  editForm.local_path = row.local_path
-  editForm.base_cid = row.base_cid
-  editForm.source_type = row.source_type
-  editForm.account_id = row.account_id
-  editForm.custom_config = row.custom_config
-  editForm.video_ext = row.video_ext_arr || []
-  editForm.meta_ext = row.meta_ext_arr || []
-  editForm.exclude_name = row.exclude_name_arr || []
-  editForm.remote_path = row.remote_path
-  editSelectedDirPath.value = row.remote_path
-  editForm.min_video_size = row.min_video_size
-  editForm.upload_meta = row.upload_meta
-  editForm.download_meta = row.download_meta
-  editForm.delete_dir = row.delete_dir
-  editForm.add_path = row.add_path
-  editForm.check_meta_mtime = row.check_meta_mtime
-  editForm.baidu_sync_method = row.baidu_sync_method
-
-  // 初始化STRM路径
-  updateEditStrmPath()
-
-  showEditDialog.value = true
+const handleEdit = (row: SyncDirectory) => {
+  router.push({ name: 'sync-directory-edit', params: { id: row.id } })
 }
 
-// 处理编辑保存
-const handleEditSave = async () => {
-  if (!editFormRef.value) return
-
-  try {
-    await editFormRef.value.validate()
-    editLoading.value = true
-
-    const formData = {
-      id: editForm.id,
-      account_id: editForm.account_id,
-      local_path: editForm.local_path.trim(),
-      base_cid: editForm.base_cid.trim(),
-      strm_path: editForm.strm_path.trim(),
-      custom_config: editForm.custom_config,
-      video_ext_arr: editForm.video_ext,
-      meta_ext_arr: editForm.meta_ext,
-      exclude_name_arr: editForm.exclude_name,
-      source_type: editForm.source_type.trim(),
-      remote_path: editSelectedDirPath.value,
-      min_video_size: editForm.min_video_size,
-      upload_meta: editForm.upload_meta,
-      download_meta: editForm.download_meta,
-      delete_dir: editForm.delete_dir,
-      add_path: editForm.add_path,
-      check_meta_mtime: editForm.check_meta_mtime,
-      baidu_sync_method: editForm.baidu_sync_method,
-    }
-
-    const response = await http?.post(`${SERVER_URL}/sync/path-update`, formData, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (response?.data.code === 200) {
-      ElMessage.success('编辑同步目录成功')
-      showEditDialog.value = false
-      editForm.id = 0
-      editForm.local_path = ''
-      editForm.base_cid = ''
-      editForm.strm_path = ''
-      editForm.custom_config = false
-      editForm.video_ext = []
-      editForm.meta_ext = []
-      editForm.exclude_name = []
-      editSelectedDirPath.value = ''
-      editForm.min_video_size = -1
-      editForm.upload_meta = -1
-      editForm.download_meta = -1
-      editForm.delete_dir = -1
-      editForm.add_path = -1
-      editForm.check_meta_mtime = -1
-      editForm.baidu_sync_method = 1
-      loadDirectories()
-    } else {
-      ElMessage.error(response?.data.message || '编辑同步目录失败')
-    }
-  } catch {
-    console.error('编辑同步目录错误')
-    ElMessage.error('编辑同步目录失败')
-  } finally {
-    editLoading.value = false
-  }
-}
-
-// 处理删除同步目录
 const handleDelete = async (row: SyncDirectory, index: number) => {
   try {
     await ElMessageBox.confirm(
@@ -969,6 +468,7 @@ const handleDelete = async (row: SyncDirectory, index: number) => {
     }
   }
 }
+
 const handleFullStart = async (row: SyncDirectory, index: number) => {
   try {
     directories.value[index].starting = true
@@ -997,7 +497,7 @@ const handleFullStart = async (row: SyncDirectory, index: number) => {
     }
   }
 }
-// 处理启动同步目录
+
 const handleStart = async (row: SyncDirectory, index: number) => {
   try {
     directories.value[index].starting = true
@@ -1027,10 +527,9 @@ const handleStart = async (row: SyncDirectory, index: number) => {
   }
 }
 
-// 处理停止同步
 const handleStop = async (row: SyncDirectory, index: number) => {
   try {
-    directories.value[index].starting = true
+    directories.value[index].stopping = true
 
     const formData = {
       id: row.id || '',
@@ -1052,12 +551,11 @@ const handleStop = async (row: SyncDirectory, index: number) => {
     ElMessage.error('停止同步目录失败')
   } finally {
     if (directories.value[index]) {
-      directories.value[index].starting = false
+      directories.value[index].stopping = false
     }
   }
 }
 
-// 处理定时同步开关切换
 const toggleCron = async (row: SyncDirectory) => {
   try {
     const formData = {
@@ -1073,233 +571,26 @@ const toggleCron = async (row: SyncDirectory) => {
     if (response?.data.code === 200) {
       ElMessage.success(row.enable_cron ? '开启定时同步成功' : '关闭定时同步成功')
     } else {
-      // 如果失败，恢复原来的状态
       row.enable_cron = !row.enable_cron
       ElMessage.error(response?.data.message || '切换定时同步状态失败')
     }
   } catch {
     console.error('切换定时同步状态错误')
-    // 如果失败，恢复原来的状态
     row.enable_cron = !row.enable_cron
     ElMessage.error('切换定时同步状态失败')
   }
 }
 
-// 打开目录选择器
-const openDirSelector = async (isLocalPath: boolean = false) => {
-  showDirDialog.value = true
-  tempSelectedDir.value = null
-  selectedSourceType.value = isLocalPath ? 'local' : addForm.source_type
-  isSelectingLocalPath.value = isLocalPath
-  selectedAccountId.value = addForm.account_id
-  initialRootPath.value = ''
-}
-
-// 计算STRM存放目录
-const calculateStrmPath = (localPath: string, dirPath: string): string => {
-  if (!localPath || !dirPath) return ''
-
-  // 移除目录路径开头的斜杠并规范化路径分隔符
-  let cleanDirPath = dirPath
-  if (versionInfo.value?.isWindows) {
-    cleanDirPath = dirPath.replace(/^[/\\]+/, '').replace(/\//g, '\\')
-  }
-  let pathSeparator = '/'
-  if (versionInfo.value?.isWindows) {
-    pathSeparator = '\\'
-  }
-  return dirPath ? `${localPath}${pathSeparator}${cleanDirPath}` : localPath
-}
-
-// 更新添加表单的STRM路径
-const updateAddStrmPath = () => {
-  if (addForm.source_type !== 'local') {
-    addForm.strm_path = calculateStrmPath(addForm.local_path, selectedDirPath.value)
-  } else {
-    addForm.strm_path = addForm.local_path
-  }
-}
-
-// 更新编辑表单的STRM路径
-const updateEditStrmPath = () => {
-  if (editForm.source_type !== 'local') {
-    editForm.strm_path = calculateStrmPath(editForm.local_path, editSelectedDirPath.value)
-  } else {
-    editForm.strm_path = editForm.local_path
-  }
-}
-
-// 确认选择目录
-const confirmSelectDir = async () => {
-  if (!tempSelectedDir.value) return
-
-  const selectedDir = tempSelectedDir.value
-
-  if (isSelectingLocalPath.value) {
-    // 选择本地路径：更新local_path字段
-    if (isEditMode.value) {
-      // 编辑模式
-      editForm.local_path = selectedDir.path ? selectedDir.path : selectedDir.name
-    } else {
-      // 添加模式
-      addForm.local_path = selectedDir.path ? selectedDir.path : selectedDir.name
-    }
-  } else {
-    // 选择网盘路径：更新base_cid字段
-    if (isEditMode.value) {
-      // 编辑模式：设置编辑表单的CID值和显示路径
-      editForm.base_cid = selectedDir.id
-      editSelectedDirPath.value = selectedDir.path
-      // 更新编辑表单的STRM路径
-      updateEditStrmPath()
-    } else {
-      // 添加模式：设置添加表单的CID值和显示路径
-      addForm.base_cid = selectedDir.id
-      selectedDirPath.value = selectedDir.path
-      // 更新添加表单的STRM路径
-      updateAddStrmPath()
-    }
-  }
-
-  showDirDialog.value = false
-  tempSelectedDir.value = null
-  isSelectingLocalPath.value = false
-}
-
-// 编辑时打开目录选择器
-const openEditDirSelector = async (isLocalPath: boolean = false) => {
-  isEditMode.value = true
-  isSelectingLocalPath.value = isLocalPath
-  showDirDialog.value = true
-  tempSelectedDir.value = null
-  selectedSourceType.value = isLocalPath ? 'local' : editForm.source_type
-  selectedAccountId.value = editForm.account_id
-  initialRootPath.value = isLocalPath ? editForm.local_path : editForm.remote_path
-}
-
-// 处理创建文件夹
-const handleCreateDirectory = async () => {
-  if (!createFormRef.value) return
-  if (!tempSelectedDir.value) {
-    ElMessage.warning('请先选择一个父目录')
-    return
-  }
-
-  try {
-    await createFormRef.value.validate()
-    createLoading.value = true
-
-    const response = await http?.post(`${SERVER_URL}/path/create`, {
-      parent_id: tempSelectedDir.value.id,
-      parent_path: tempSelectedDir.value.path,
-      name: createForm.value.name.trim(),
-      source_type: selectedSourceType.value,
-      account_id: Number(selectedAccountId.value),
-    })
-
-    if (response?.data.code === 200) {
-      ElMessage.success('创建文件夹成功')
-      showCreateDialog.value = false
-      createForm.value.name = ''
-
-      // 重新加载目录树
-      showDirDialog.value = false
-      await new Promise(resolve => setTimeout(resolve, 100))
-      showDirDialog.value = true
-      tempSelectedDir.value = null
-      selectedSourceType.value = isSelectingLocalPath.value ? 'local' : (isEditMode.value ? editForm.source_type : addForm.source_type)
-      selectedAccountId.value = isEditMode.value ? editForm.account_id : addForm.account_id
-      initialRootPath.value = isSelectingLocalPath.value ? (isEditMode.value ? editForm.local_path : addForm.local_path) : (isEditMode.value ? editForm.remote_path : addForm.base_cid)
-    } else {
-      ElMessage.error(response?.data.message || '创建文件夹失败')
-    }
-  } catch {
-    ElMessage.error('创建文件夹失败')
-  } finally {
-    createLoading.value = false
-  }
-}
-
-// 监听添加表单本地路径变化
-watch(
-  () => addForm.local_path,
-  () => {
-    updateAddStrmPath()
-  },
-)
-
-// 监听编辑表单本地路径变化
-watch(
-  () => editForm.local_path,
-  () => {
-    updateEditStrmPath()
-  },
-)
-
-const handleSourceTypeChange = () => {
-  if (addForm.source_type !== 'local') {
-    loadAccounts()
-  }
-}
-
-// 加载账户列表
-const loadAccounts = async () => {
-  accounts.value = []
-  try {
-    accountsLoading.value = true
-    const response = await http?.get(`${SERVER_URL}/account/list`)
-    if (response?.data.code === 200) {
-      const data = response.data.data || []
-      for (const account of data) {
-        if (account.source_type !== addForm.source_type) continue
-        accounts.value.push(account)
-      }
-    } else {
-      console.error('加载账号列表失败:', response?.data.message || '未知错误')
-      accounts.value = []
-    }
-  } catch (error) {
-    console.error('加载账号列表失败:', error)
-    accounts.value = []
-  } finally {
-    accountsLoading.value = false
-  }
-}
-interface VersionInfo {
-  version: string
-  date: string
-  isWindows: boolean
-  isRelease: boolean
-}
-const versionInfo = ref<VersionInfo | null>(null)
-// 加载系统版本信息
-const loadVersionInfo = async () => {
-  try {
-    const response = await http?.get(`${SERVER_URL}/version`)
-    if (response && response.data) {
-      versionInfo.value = response.data
-    } else {
-      versionInfo.value = null
-    }
-  } catch (error) {
-    console.error('加载系统版本信息错误:', error)
-    versionInfo.value = null
-  }
-}
-// 添加自动刷新相关变量
-const autoRefreshTimer = ref<number | null>(null)
 let autoRefreshEnabled = true
-// 检查并设置自动刷新
+const autoRefreshTimer = ref<number | null>(null)
+
 const checkAndSetAutoRefresh = () => {
-  // 清除已存在的定时器
   if (autoRefreshTimer.value) {
     clearInterval(autoRefreshTimer.value)
     autoRefreshTimer.value = null
   }
 
-  // 设置定时器，每隔2秒刷新一次
   autoRefreshTimer.value = window.setInterval(() => {
-    // 只改状态
     if (!autoRefreshEnabled) {
       return
     }
@@ -1307,17 +598,17 @@ const checkAndSetAutoRefresh = () => {
     updatePathesStatus()
   }, 2000)
 }
+
 const clearAutoRefreshTimer = () => {
   if (autoRefreshTimer.value) {
     clearInterval(autoRefreshTimer.value)
     autoRefreshTimer.value = null
   }
 }
-// 组件挂载时加载数据
+
 let removeDeviceTypeListener: (() => void) | null = null
 
 onMounted(() => {
-  loadVersionInfo()
   checkMobile()
   removeDeviceTypeListener = onDeviceTypeChange((newIsMobile) => {
     checkIsMobile.value = newIsMobile
@@ -1335,291 +626,738 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.sync-directories-container {
-  width: 100% !important;
-  max-width: 100% !important;
-  margin: 0;
+.sync-directories-page {
+  min-height: 100%;
+  background: #f5f7fa;
   padding: 0;
 }
 
-/* 全宽度容器，突破父容器的padding限制 */
-.full-width-container {
-  margin: -20px !important;
-  padding: 20px !important;
-  width: calc(100% + 40px) !important;
-  max-width: calc(100% + 40px) !important;
-}
-
-.full-width-card {
-  width: 100%;
-  max-width: 100%;
-  border: 0;
-}
-
-.full-width-card .el-card__header {
-  padding: 0 !important;
-}
-
-.card-header {
-  margin: 0;
-  padding: 0;
-  display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
+.page-header {
+  background: #fff;
+  padding: 24px;
+  border-bottom: 1px solid #ebeef5;
 }
 
 .header-content {
   display: flex;
+  justify-content: space-between;
   align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
 }
 
-.header-info {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.header-title-section {
+  flex: 1;
 }
 
-.header-actions {
-  margin-top: 16px;
+.page-title {
   display: flex;
   align-items: center;
-}
-
-.card-title {
-  margin: 0;
-  font-size: 16px;
+  gap: 10px;
+  margin: 0 0 8px 0;
+  font-size: 24px;
   font-weight: 600;
   color: #303133;
 }
 
-.card-subtitle {
+.title-icon {
+  font-size: 28px;
+  color: #409eff;
+}
+
+.page-subtitle {
   margin: 0;
   font-size: 14px;
-  color: #000;
-  margin-bottom: 16px;
+  color: #909399;
 }
 
-.directories-table {
-  width: 100% !important;
-  margin-bottom: 20px;
-  overflow-x: auto;
+.header-actions {
+  display: flex;
+  gap: 12px;
 }
 
-/* 确保表格容器也占满宽度 */
-.directories-table :deep(.el-table) {
-  width: 100% !important;
+.add-btn {
+  background: #409eff !important;
+  border-color: #409eff !important;
+  transition: all 0.3s ease;
 }
 
-.directories-table :deep(.el-table__inner-wrapper) {
-  width: 100% !important;
+.add-btn:hover {
+  background: #66b1ff !important;
+  border-color: #66b1ff !important;
 }
 
-.table-cell-wrapper {
+.stats-bar {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #f5f7fa;
+  padding: 12px 16px;
+  border-radius: 8px;
+  min-width: 140px;
+}
+
+.stat-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.stat-icon.total {
+  background: #ecf5ff;
+  color: #409eff;
+}
+
+.stat-icon.running {
+  background: #f0f9eb;
+  color: #67c23a;
+}
+
+.stat-icon.waiting {
+  background: #fdf6ec;
+  color: #e6a23c;
+}
+
+.stat-icon.cron {
+  background: #f4f4f5;
+  color: #909399;
+}
+
+.stat-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
 }
 
-.cell-label {
+.stat-value {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #303133;
+}
+
+.stat-label {
   font-size: 12px;
   color: #909399;
-  font-weight: 500;
 }
 
-.cid-text {
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-size: 13px;
-  color: #606266;
-  word-break: break-all;
+.directories-content {
+  padding: 24px;
 }
 
-.path-text {
-  color: #303133;
-  word-break: break-all;
-  font-size: 13px;
-  line-height: 1.4;
-}
-
-/* 卡片列表基础样式 */
-.directories-card-list {
-  margin-bottom: 20px;
-}
-
-.directory-card-col {
-  margin-bottom: 20px;
+.directories-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 20px;
+  margin-bottom: 24px;
 }
 
 .directory-card {
-  height: 100%;
-  transition: all 0.3s;
+  background: #fff;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
+  position: relative;
 }
 
 .directory-card:hover {
-  border-color: #409eff;
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+.directory-card.is-running {
+  box-shadow: 0 2px 12px rgba(103, 194, 58, 0.2);
+}
+
+.directory-card.is-running:hover {
+  box-shadow: 0 8px 24px rgba(103, 194, 58, 0.3);
+}
+
+.directory-card.is-waiting {
+  box-shadow: 0 2px 12px rgba(230, 162, 60, 0.2);
+}
+
+.directory-card.is-waiting:hover {
+  box-shadow: 0 8px 24px rgba(230, 162, 60, 0.3);
+}
+
+.card-status-bar {
+  height: 4px;
+  background: #e4e7ed;
+}
+
+.card-status-bar.status-running {
+  background: linear-gradient(90deg, #67c23a, #95d475);
+  animation: pulse 2s infinite;
+}
+
+.card-status-bar.status-waiting {
+  background: linear-gradient(90deg, #e6a23c, #f0c78a);
+  animation: pulse 2s infinite;
+}
+
+.card-status-bar.status-idle {
+  background: linear-gradient(90deg, #909399, #c0c4cc);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.card-main {
+  padding: 16px;
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f2f5;
 }
 
-.card-title {
-  font-size: 18px;
+.card-title-wrapper {
+  flex: 1;
+  min-width: 0;
+}
+
+.card-id {
+  display: inline-block;
+  font-size: 12px;
+  color: #909399;
+  background: #f5f7fa;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-right: 8px;
+}
+
+.card-path {
+  font-size: 15px;
   font-weight: 600;
   color: #303133;
+  word-break: break-all;
 }
 
-.card-actions {
-  display: flex;
-  justify-content: end !important;
-  flex-wrap: wrap;
-  /* gap: 8px; */
+.source-tag {
+  flex-shrink: 0;
+  margin-left: 8px;
 }
 
 .card-body {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  /* height: 200px; */
 }
 
-.info-item {
+.info-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.info-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #f5f7fa;
   display: flex;
   align-items: center;
+  justify-content: center;
+  color: #909399;
+  flex-shrink: 0;
+}
+
+.info-content {
+  flex: 1;
+  display: flex;
   justify-content: space-between;
-  flex-wrap: nowrap;
-  gap: 4px;
+  align-items: center;
+  min-width: 0;
 }
 
 .info-label {
-  font-size: 12px;
-  color: #606266;
+  font-size: 13px;
+  color: #909399;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.info-label.with-tooltip {
+  cursor: help;
+}
+
+.help-icon {
+  font-size: 14px;
+  color: #c0c4cc;
 }
 
 .info-value {
-  font-size: 16px;
+  font-size: 14px;
   color: #303133;
+  text-align: right;
+}
+
+.path-value {
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 12px;
   word-break: break-all;
-  line-height: 1.5;
+  max-width: 200px;
 }
 
-.info-value.cid-text {
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-size: 13px;
-  background: #f5f7fa;
-  padding: 2px 6px;
-  border-radius: 4px;
-  display: inline-block;
+.toggle-row .info-content {
+  justify-content: space-between;
 }
 
-.info-value.path-text {
-  font-size: 13px;
+.status-row {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px dashed #ebeef5;
 }
 
-.empty-card-col {
-  margin-bottom: 20px;
-}
-
-.empty-card {
-  display: flex;
+.status-indicator {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  min-height: 200px;
-  color: #909399;
-  background: #fafafa;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
 }
 
-.empty-content {
+.status-indicator.status-running {
+  background: #f0f9eb;
+  color: #67c23a;
+}
+
+.status-indicator.status-waiting {
+  background: #fdf6ec;
+  color: #e6a23c;
+}
+
+.status-indicator.status-idle {
+  background: #f5f7fa;
+  color: #909399;
+}
+
+.rotating {
+  animation: rotate 1s linear infinite;
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.card-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 16px;
+  margin-top: 12px;
+  border-top: 1px solid #f0f2f5;
+}
+
+.card-footer .el-button {
+  flex: 1;
+  min-width: 70px;
+}
+
+.empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  width: 100%;
+  justify-content: center;
+  padding: 60px 20px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  margin-bottom: 24px;
+}
+
+.empty-illustration {
+  position: relative;
+  margin-bottom: 24px;
 }
 
 .empty-icon {
-  font-size: 48px;
+  font-size: 80px;
+  color: #dcdfe6;
 }
 
-.empty-text {
-  font-size: 16px;
-}
-
-.mobile-time-info {
-  display: flex;
-  gap: 12px;
-  margin-top: 4px;
-  font-size: 12px;
-}
-
-.time-item {
-  display: flex;
-  gap: 2px;
-}
-
-.time-label {
-  color: #909399;
-  font-weight: 500;
-}
-
-.time-value {
-  color: #606266;
-}
-
-.pagination-container {
+.empty-dots {
   display: flex;
   justify-content: center;
-  padding: 20px 0;
-  overflow-x: auto;
-}
-
-.form-tip {
-  font-size: 12px;
-  color: #909399;
-  margin-top: 4px;
-}
-
-
-
-/* 115网盘目录选择相关样式 */
-.pan-dir-input {
-  display: flex;
   gap: 8px;
-  align-items: flex-start;
+  margin-top: 16px;
 }
 
-.pan-dir-input .el-input {
-  flex: 1;
+.empty-dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #dcdfe6;
+  animation: bounce 1.4s infinite ease-in-out both;
 }
 
-.selected-path-inline {
-  margin-top: 8px;
-  padding: 8px 12px;
-  background: #f5f7fa;
-  border-radius: 4px;
-  font-size: 12px;
+.empty-dots span:nth-child(1) { animation-delay: -0.32s; }
+.empty-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes bounce {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1); }
 }
 
-.path-label {
+.empty-title {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.empty-description {
+  margin: 0 0 24px 0;
+  font-size: 14px;
   color: #909399;
-  font-weight: 500;
 }
 
-.path-url {
-  color: #606266;
-  background: #fff;
-  padding: 2px 6px;
-  border-radius: 2px;
-  border: 1px solid #dcdfe6;
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-}
-
-/* 目录选择对话框样式 */
-.dir-selector {
+.loading-state {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  height: 500px;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  background: #fff;
+  border-radius: 16px;
+  color: #909399;
+  gap: 12px;
+}
+
+.loading-icon {
+  font-size: 32px;
+  color: #409eff;
+}
+
+.page-footer-tips {
+  border: none;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+.tips-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.tips-icon {
+  font-size: 18px;
+}
+
+.tips-content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+}
+
+.tip-group {
+  flex: 1;
+  min-width: 300px;
+  padding: 20px;
+  border-right: 1px solid #f0f2f5;
+}
+
+.tip-group:last-child {
+  border-right: none;
+}
+
+.tip-group-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #f0f2f5;
+  font-size: 15px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.tip-group-title .el-icon {
+  color: #e6a23c;
+  font-size: 18px;
+}
+
+.tip-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tip-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  color: #606266;
+  line-height: 1.6;
+}
+
+.tip-bullet {
+  flex-shrink: 0;
+  width: 16px;
+  color: #c0c4cc;
+  text-align: center;
+}
+
+.tip-item strong {
+  color: #409eff;
+}
+
+.tip-highlight {
+  background: linear-gradient(135deg, #fdf6ec 0%, #fef8eb 100%);
+  margin: 6px -12px;
+  padding: 12px;
+  border-radius: 8px;
+  border-left: 3px solid #e6a23c;
+}
+
+.tip-highlight .tip-bullet {
+  color: #e6a23c;
+}
+
+.tip-highlight span:last-child {
+  color: #8b6b3d;
+}
+
+@media (max-width: 768px) {
+  .page-header {
+    padding: 12px;
+    background: #fff;
+  }
+
+  .header-title-section {
+    display: none;
+  }
+
+  .header-content {
+    margin-bottom: 0;
+  }
+
+  .header-actions {
+    justify-content: stretch;
+  }
+
+  .header-actions .add-btn {
+    width: 100%;
+    background: #409eff !important;
+    border-color: #409eff !important;
+    color: #fff !important;
+  }
+
+  .header-actions .add-btn:hover {
+    background: #66b1ff !important;
+    border-color: #66b1ff !important;
+    transform: none;
+  }
+
+  .mobile-hidden {
+    display: none !important;
+  }
+
+  .directories-content {
+    padding: 12px;
+  }
+
+  .directories-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .directory-card {
+    border-radius: 12px;
+  }
+
+  .card-main {
+    padding: 12px;
+  }
+
+  .card-header {
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+  }
+
+  .card-id {
+    font-size: 11px;
+    padding: 2px 6px;
+  }
+
+  .card-path {
+    font-size: 14px;
+  }
+
+  .source-tag {
+    font-size: 11px;
+  }
+
+  .card-body {
+    gap: 10px;
+  }
+
+  .info-row {
+    gap: 10px;
+  }
+
+  .info-icon {
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
+  }
+
+  .info-label {
+    font-size: 12px;
+  }
+
+  .info-value {
+    font-size: 13px;
+  }
+
+  .path-value {
+    font-size: 11px;
+    max-width: 140px;
+  }
+
+  .status-row {
+    margin-top: 6px;
+    padding-top: 10px;
+  }
+
+  .status-indicator {
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+
+  .card-footer {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    padding-top: 12px;
+    margin-top: 10px;
+  }
+
+  .card-footer .el-button {
+    flex: none;
+    min-width: 0;
+    width: 100%;
+    margin: 0;
+  }
+
+  .card-footer .el-button :deep(.el-icon) {
+    margin-right: 4px;
+  }
+
+  .empty-state {
+    padding: 40px 16px;
+    border-radius: 12px;
+  }
+
+  .empty-icon {
+    font-size: 60px;
+  }
+
+  .empty-title {
+    font-size: 16px;
+  }
+
+  .empty-description {
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+
+  .page-footer-tips {
+    border-radius: 12px;
+  }
+
+  .tips-header {
+    padding: 12px 14px;
+    font-size: 14px;
+  }
+
+  .tip-group {
+    padding: 14px;
+    border-right: none;
+    border-bottom: 1px solid #f0f2f5;
+  }
+
+  .tip-group:last-child {
+    border-bottom: none;
+  }
+
+  .tip-group-title {
+    font-size: 14px;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+  }
+
+  .tip-group-items {
+    gap: 8px;
+  }
+
+  .tip-item {
+    font-size: 12px;
+  }
+
+  .tip-highlight {
+    margin: 4px -8px;
+    padding: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .info-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .info-value {
+    text-align: left;
+  }
+
+  .path-value {
+    max-width: 100%;
+  }
+
+  .toggle-row .info-content {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+  }
+
+  .card-footer {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
 }
 </style>

@@ -632,290 +632,235 @@ onUnmounted(() => {
 </script>
 <template>
   <div class="home-container">
-    <!-- 顶部操作按钮 -->
-    <div class="top-actions">
-      <el-button type="primary" size="large" @click="showLogDialog = true" :icon="Document">
-        运行日志
-      </el-button>
+    <div class="header-section">
+      <div class="header-title">
+        <h1>控制台</h1>
+        <p>系统运行状态监控与管理</p>
+      </div>
+      <div class="header-actions">
+        <el-button type="primary" @click="showLogDialog = true" :icon="Document" round>
+          运行日志
+        </el-button>
+      </div>
     </div>
-    <h1>115限流主要是因为下载或播放请求并发太高导致，请主动检查CD2或者神医插件，如果频繁限流请停止CD2使用115，将神医插件的线程改为1冷却时间3s+。</h1>
-    <h3>百度网盘默认不能302，请将 STRM设置-启用本地代理播放 打开。</h3>
-    <!-- 账号信息和队列状态行 -->
-    <el-row :gutter="20" class="top-row">
-      <el-col :xs="24" :sm="12" :md="8" :lg="8" :xl="8">
-        <el-card class="version-card stats-card" shadow="hover" v-loading="queueStatsLoading" style="margin-top:0">
-          <template #header>
-            <h2 class="card-title">115接口请求统计</h2>
-            <p class="card-subtitle">实时监控115接口调用情况</p>
-          </template>
+
+    <div class="stats-section">
+      <div class="stats-row">
+        <div class="stats-card-main" v-loading="queueStatsLoading">
+          <div class="stats-card-header">
+            <div class="stats-card-title">
+              <span class="title-icon">📊</span>
+              <span>115接口监控</span>
+            </div>
+            <div class="status-badge" :class="queueStats?.is_throttled ? 'status-warning' : 'status-success'">
+              {{ queueStats?.is_throttled ? '限流中' : '运行正常' }}
+            </div>
+          </div>
 
           <div v-if="queueStats" class="stats-content">
-            <!-- 限流状态提示 -->
-            <el-alert v-if="queueStats.is_throttled" title="当前正在限流中" type="warning" :closable="false" show-icon
-              class="throttle-alert">
-              <template #default>
-                <div class="throttle-info">
-                  <p>限流等待时间: {{ queueStats.throttle_wait_time }}</p>
-                  <p>已经过时间: {{ queueStats.throttled_elapsed_time }}</p>
-                  <p>剩余时间: {{ queueStats.throttled_remaining_time }}</p>
+            <div v-if="queueStats.is_throttled" class="throttle-warning">
+              <div class="throttle-icon">⚠️</div>
+              <div class="throttle-details">
+                <div class="throttle-item">
+                  <span class="label">等待时间</span>
+                  <span class="value">{{ queueStats.throttle_wait_time }}</span>
                 </div>
-              </template>
-            </el-alert>
-
-            <el-alert v-else title="当前运行正常" type="success" :closable="false" show-icon class="throttle-alert">
-            </el-alert>
-
-            <!-- 统计数据网格 -->
-            <div class="stats-grid">
-              <div class="stat-card">
-                <div class="stat-card-label">每秒请求数 (QPS)</div>
-                <div class="stat-card-value" :class="{ 'text-warning': queueStats.qps_count > 3 }">
-                  {{ queueStats.qps_count }}
+                <div class="throttle-item">
+                  <span class="label">已过时间</span>
+                  <span class="value">{{ queueStats.throttled_elapsed_time }}</span>
+                </div>
+                <div class="throttle-item">
+                  <span class="label">剩余时间</span>
+                  <span class="value">{{ queueStats.throttled_remaining_time }}</span>
                 </div>
               </div>
+            </div>
 
-              <div class="stat-card">
-                <div class="stat-card-label">每分钟请求数 (QPM)</div>
-                <div class="stat-card-value">{{ queueStats.qpm_count }}</div>
+            <div class="metrics-grid">
+              <div class="metric-item" :class="{ 'metric-warning': queueStats.qps_count > 3 }">
+                <div class="metric-value">{{ queueStats.qps_count }}</div>
+                <div class="metric-label">QPS</div>
               </div>
-
-              <div class="stat-card">
-                <div class="stat-card-label">每小时请求数 (QPH)</div>
-                <div class="stat-card-value">{{ queueStats.qph_count }}</div>
+              <div class="metric-item">
+                <div class="metric-value">{{ queueStats.qpm_count }}</div>
+                <div class="metric-label">QPM</div>
               </div>
-
-              <div class="stat-card">
-                <div class="stat-card-label">平均响应时间</div>
-                <div class="stat-card-value">{{ queueStats.avg_response_time_ms }} ms</div>
+              <div class="metric-item">
+                <div class="metric-value">{{ queueStats.qph_count }}</div>
+                <div class="metric-label">QPH</div>
               </div>
-
-              <div class="stat-card">
-                <div class="stat-card-label">限流次数</div>
-                <div class="stat-card-value" :class="{ 'text-danger': queueStats.throttled_count > 0 }">
-                  {{ queueStats.throttled_count }}
-                </div>
+              <div class="metric-item">
+                <div class="metric-value">{{ queueStats.avg_response_time_ms }}</div>
+                <div class="metric-label">响应(ms)</div>
               </div>
-
-              <div class="stat-card">
-                <div class="stat-card-label">时间窗口</div>
-                <div class="stat-card-value">{{ queueStats.time_window_seconds }} 秒</div>
-              </div>
-
-              <div class="stat-card" v-if="queueStats.last_throttle_time">
-                <div class="stat-card-label">最后限流时间</div>
-                <div class="stat-card-value small-text">{{ queueStats.last_throttle_time }}</div>
+              <div class="metric-item" :class="{ 'metric-danger': queueStats.throttled_count > 0 }">
+                <div class="metric-value">{{ queueStats.throttled_count }}</div>
+                <div class="metric-label">限流次数</div>
               </div>
             </div>
           </div>
 
-          <div v-else class="no-stats">
-            <el-empty description="暂未获取到统计数据" />
+          <div v-else class="empty-state">
+            <el-empty description="暂无统计数据" :image-size="60" />
           </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="12" :md="16" :lg="16" :xl="16">
-        <el-card class="version-card hourly-stats-card" shadow="hover" v-loading="hourlyStatsLoading">
-          <template #header>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <div>
-                <h2 class="card-title">每小时请求统计</h2>
-                <div class="card-subtitle">统计周期: {{ hourlyStats?.start_date }} ~ {{ hourlyStats?.end_date }}</div>
-              </div>
-              <el-button type="primary" size="small" @click="loadHourlyStats" :loading="hourlyStatsLoading">
-                刷新数据
-              </el-button>
-            </div>
-          </template>
+        </div>
 
-          <div v-if="hourlyStats" class="hourly-stats-content">
-            <!-- 概览统计 -->
-            <div class="hourly-overview">
-              <div class="overview-item">
-                <div class="overview-label">总请求数</div>
-                <div class="overview-value highlight">{{ hourlyStats.total_requests }}</div>
+        <div class="chart-card" v-loading="hourlyStatsLoading">
+          <div class="chart-header">
+            <div class="chart-title">
+              <span class="title-icon">📈</span>
+              <span>请求趋势</span>
+              <span class="chart-period">{{ hourlyStats?.start_date }} ~ {{ hourlyStats?.end_date }}</span>
+            </div>
+            <el-button type="primary" size="small" @click="loadHourlyStats" :loading="hourlyStatsLoading" round>
+              刷新
+            </el-button>
+          </div>
+
+          <div v-if="hourlyStats" class="chart-content">
+            <div class="chart-summary">
+              <div class="summary-item">
+                <div class="summary-value">{{ hourlyStats.total_requests }}</div>
+                <div class="summary-label">总请求</div>
               </div>
-              <div class="overview-item">
-                <div class="overview-label">总限流次数</div>
-                <div class="overview-value" :class="{ 'text-danger': hourlyStats.total_throttled > 0 }">
-                  {{ hourlyStats.total_throttled }}
-                </div>
+              <div class="summary-item" :class="{ 'summary-danger': hourlyStats.total_throttled > 0 }">
+                <div class="summary-value">{{ hourlyStats.total_throttled }}</div>
+                <div class="summary-label">总限流</div>
               </div>
             </div>
-
-            <!-- 每小时统计图表 -->
-            <div class="hourly-chart-wrapper">
+            <div class="chart-wrapper">
               <v-chart class="chart" :option="chartOption" autoresize />
             </div>
           </div>
 
-          <div v-else class="no-hourly-stats">
-            <el-empty description="暂未获取到每小时统计数据" />
+          <div v-else class="empty-state">
+            <el-empty description="暂无统计数据" :image-size="60" />
           </div>
-        </el-card>
-      </el-col>
-    </el-row>
-    <el-row :gutter="20" class="top-row">
-      <el-col :xs="24" :sm="24" :md="8" :lg="8" :xl="8">
-        <!-- 系统版本信息卡片 -->
-        <el-card class="version-card" shadow="hover" v-loading="versionLoading">
-          <template #header>
-            <h2 class="card-title">系统信息</h2>
-            <p class="card-subtitle">当前系统版本和编译信息</p>
-          </template>
+        </div>
+      </div>
+    </div>
 
-          <div v-if="versionInfo" class="version-info">
-            <div class="version-item">
-              <span class="version-label">系统版本:</span>
-              <span class="version-value">{{ versionInfo.version }}</span>
+    <div class="info-section">
+      <div class="info-grid">
+        <div class="info-card system-info" v-loading="versionLoading">
+          <div class="info-card-header">
+            <span class="info-icon">⚙️</span>
+            <span>系统信息</span>
+          </div>
+          <div v-if="versionInfo" class="info-content">
+            <div class="info-row">
+              <span class="info-label">版本</span>
+              <span class="info-value version-tag">{{ versionInfo.version }}</span>
             </div>
-            <div class="version-item">
-              <span class="version-label">编译时间:</span>
-              <span class="version-value">{{ versionInfo.date }}</span>
+            <div class="info-row">
+              <span class="info-label">编译时间</span>
+              <span class="info-value">{{ versionInfo.date }}</span>
             </div>
           </div>
-
-          <div v-else class="no-version">
-            <el-empty description="暂未获取到系统版本信息" />
+          <div v-else class="empty-state-small">
+            <el-empty description="暂无信息" :image-size="40" />
           </div>
-        </el-card>
-      </el-col>
+        </div>
 
-      <el-col :xs="24" :sm="24" :md="16" :lg="16" :xl="16">
-        <!-- 赞助版块 -->
-        <el-card class="version-card" shadow="hover">
-          <template #header>
-            <h2 class="card-title">请作者喝杯咖啡</h2>
-          </template>
-          <img src="https://s.mqfamily.top/alipay_wechat.jpg" alt="请作者喝杯咖啡" class="coffee-image"
-            style="max-width: 100%" />
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="24" :md="24" :lg="24" :xl="24">
-
-        <el-card class="version-card" shadow="hover" v-loading="versionLoading">
-          <template #header>
-            <h2 class="card-title">使用注意事项：</h2>
-          </template>
-          <div class="notice-content">
-            <p class="notice-item">
-              <el-text class="mx-1" size="large" type="danger">
-                1. 本项目使用115开放平台，所以各方面受限颇多，QPS也不能太高，介意勿用。
-              </el-text>
-            </p>
-            <p class="notice-item">
-              <el-text class="mx-1" size="large">
-                2. 影片播放、元数据下载、神医助手、本项目的媒体信息提取等全部占用下载额度，请确保这些东西相加不要大于5，否则115会报403错误。
-              </el-text>
-            </p>
-            <p class="notice-item">
-              <el-text class="mx-1" size="large">
-                3. 请将神医助手的线程数调整到2或者1，如果使用的话。
-              </el-text>
-            </p>
-            <p class="notice-item">
-              <el-text class="mx-1" size="large">
-                4. 刮削和STRM同步是两个独立的功能，不会联动。刮削可以处理网盘，也可以处理本地文件。
-              </el-text>
-            </p>
-            <p class="notice-item">
-              <el-text class="mx-1" size="large">
-                5. 有问题请在github提交issue，带上截图或日志，日志请将config/logs目录打包压缩后上传。
-              </el-text>
-            </p>
-            <p class="notice-item">
-              <el-text class="mx-1" size="large">
-                6. 仓库地址：<a href="https://github.com/qicfan/qmediasync"
-                  target="_blank">https://github.com/qicfan/qmediasync</a>
-              </el-text>
-            </p>
+        <div class="info-card sponsor-card">
+          <div class="info-card-header">
+            <span class="info-icon">☕</span>
+            <span>支持作者</span>
           </div>
-        </el-card>
-      </el-col>
-    </el-row>
+          <div class="sponsor-content">
+            <img src="https://s.mqfamily.top/alipay_wechat.jpg" alt="请作者喝杯咖啡" />
+          </div>
+        </div>
 
-    <!-- 最新版本列表 -->
-    <el-row :gutter="20">
-      <el-col :xs="24" :sm="24" :md="24" :lg="24" :xl="24">
-        <el-card class="version-card" shadow="hover" v-loading="updateLoading">
-          <template #header>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <div>
-                <h2 class="card-title">最新版本列表</h2>
-                <p class="card-subtitle">版本列表会缓存1小时，如没发现新版本，请点击右侧手动刷新按钮</p>
-              </div>
-              <el-button type="primary" size="small" @click="loadUpdateList(true)" :loading="updateLoading">
-                手动刷新
-              </el-button>
+        <div class="info-card notice-card">
+          <div class="info-card-header">
+            <span class="info-icon">📝</span>
+            <span>使用须知</span>
+          </div>
+          <div class="notice-list">
+            <div class="notice-item notice-important">
+              <span class="notice-number">1</span>
+              <span>本项目使用115开放平台，QPS受限，介意勿用</span>
             </div>
-          </template>
+            <div class="notice-item">
+              <span class="notice-number">2</span>
+              <span>播放、下载、媒体提取等操作并发总和勿超5</span>
+            </div>
+            <div class="notice-item">
+              <span class="notice-number">3</span>
+              <span>神医助手线程数建议调整为1或2</span>
+            </div>
+            <div class="notice-item">
+              <span class="notice-number">4</span>
+              <span>刮削和STRM同步为独立功能</span>
+            </div>
+            <div class="notice-item">
+              <span class="notice-number">5</span>
+              <span>问题请在
+                <a href="https://github.com/qicfan/qmediasync" target="_blank">GitHub</a> 提交issue
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-          <div v-if="updateList.length > 0" class="update-list">
-            <el-collapse v-model="activeNames">
-              <el-collapse-item v-for="(update, index) in updateList" :key="index" :name="`update-${index}`">
-                <template #title>
-                  <div class="version-title-container">
-                    <div style="display:flex; flex-wrap: wrap; font-size:14px;">
-                      <span>版本 {{ update.version }}</span>
-                      <span>({{ update.date }})</span>
-                    </div>
-                    <div class="version-tags">
-                      <el-tag v-if="update.latest" type="success" size="small" class="mr-2">
-                        最新版本
-                      </el-tag>
-                      <el-tag v-if="update.current" type="primary" size="small">
-                        当前版本
-                      </el-tag>
-                    </div>
-                  </div>
-                </template>
-                <div class="update-item">
-                  <div class="update-content">
-                    <h4>更新内容:</h4>
-                    <div class="update-note markdown-body" v-html="renderMarkdown(update.note)"></div>
-                  </div>
-                  <div class="update-actions">
-                    <el-button v-if="!update.current" type="info" size="small" :href="update.url || '#'" target="_blank"
-                      @click="handleDownloadClick(update)">
-                      去下载
-                    </el-button>
-                    <el-button v-if="!update.current" type="primary" size="large"
-                      @click="updateToVersion(update.version)" :disabled="isUpdating">
-                      更新到此版本
-                    </el-button>
-                  </div>
+    <div class="update-section">
+      <div class="section-header">
+        <div class="section-title">
+          <span class="title-icon">🚀</span>
+          <span>版本更新</span>
+        </div>
+        <el-button type="primary" size="small" @click="loadUpdateList(true)" :loading="updateLoading" round>
+          刷新
+        </el-button>
+      </div>
 
-                  <!-- 下载进度条 -->
-                  <div v-if="isUpdating && update.version === updatingVersion" class="update-progress">
-                    <div style="display: flex; align-items: center; gap: 16px;">
-                      <el-progress :percentage="updateProgress.progress"
-                        :status="updateProgress.progress < 100 ? 'primary' : 'success'" :stroke-width="24"
-                        :text-inside="true" style="flex: 1;"></el-progress>
-                      <el-button type="danger" @click="cancelUpdate" :loading="updateProgress.progress >= 100">
-                        取消更新
-                      </el-button>
-                    </div>
-                    <div class="progress-info">
-                      <span>已下载: {{ formatFileSize(updateProgress.downloaded) }}</span>
-                      <span v-if="updateProgress.total_size > 0">
-                        / 总大小: {{ formatFileSize(updateProgress.total_size) }}
-                      </span>
-                      <span v-if="updateProgress.status">
-                        / 状态: {{ updateProgress.status === 'downloading' ? '下载中' : updateProgress.status === 'install' ?
-                          '安装中' : updateProgress.status }}
-                      </span>
-                    </div>
-                  </div>
+      <div v-if="updateList.length > 0" class="update-list">
+        <el-collapse v-model="activeNames" class="update-collapse">
+          <el-collapse-item v-for="(update, index) in updateList" :key="index" :name="`update-${index}`">
+            <template #title>
+              <div class="update-title-row">
+                <div class="update-version">
+                  <span class="version-number">v{{ update.version }}</span>
+                  <span class="version-date">{{ update.date }}</span>
                 </div>
-              </el-collapse-item>
-            </el-collapse>
-          </div>
+                <div class="update-tags">
+                  <el-tag v-if="update.latest" type="success" size="small" effect="dark">最新</el-tag>
+                  <el-tag v-if="update.current" type="primary" size="small" effect="dark">当前</el-tag>
+                </div>
+              </div>
+            </template>
+            <div class="update-detail">
+              <div class="update-note markdown-body" v-html="renderMarkdown(update.note)"></div>
+              <div class="update-actions" v-if="!update.current">
+                <el-button type="default" size="small" @click="handleDownloadClick(update)" round>
+                  手动下载
+                </el-button>
+                <el-button type="primary" size="small" @click="updateToVersion(update.version)" :disabled="isUpdating" round>
+                  在线更新
+                </el-button>
+              </div>
 
-          <div v-else class="no-update">
-            <el-empty description="暂未获取到版本更新信息" />
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
+              <div v-if="isUpdating && update.version === updatingVersion" class="update-progress">
+                <el-progress :percentage="updateProgress.progress" :stroke-width="8" :show-text="false" />
+                <div class="progress-info">
+                  <span>{{ formatFileSize(updateProgress.downloaded) }} / {{ formatFileSize(updateProgress.total_size) }}</span>
+                  <span>{{ updateProgress.status === 'downloading' ? '下载中' : updateProgress.status === 'install' ? '安装中' : '' }}</span>
+                </div>
+                <el-button type="danger" size="small" @click="cancelUpdate" round>
+                  取消
+                </el-button>
+              </div>
+            </div>
+          </el-collapse-item>
+        </el-collapse>
+      </div>
+
+      <div v-else class="empty-state">
+        <el-empty description="暂无版本信息" :image-size="80" />
+      </div>
+    </div>
   </div>
 
   <!-- 更新完成弹窗 -->
@@ -952,53 +897,503 @@ onUnmounted(() => {
 <style scoped>
 .home-container {
   width: 100%;
-  max-width: none;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 0;
+}
+
+.header-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 16px;
+  color: white;
+}
+
+.header-title h1 {
+  margin: 0 0 4px 0;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.header-title p {
+  margin: 0;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.stats-section {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: 0;
 }
 
-/* 顶部操作按钮样式 */
-.top-actions {
+.stats-row {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 20px;
+}
+
+.stats-card-main,
+.chart-card {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  border: 1px solid #f0f0f0;
+}
+
+.stats-card-header,
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.stats-card-title,
+.chart-title,
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.title-icon {
+  font-size: 20px;
+}
+
+.chart-period {
+  font-size: 12px;
+  color: #909399;
+  font-weight: 400;
+  margin-left: 8px;
+}
+
+.status-badge {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-success {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.status-warning {
+  background: #fff3e0;
+  color: #e65100;
+  animation: pulse-bg 2s ease-in-out infinite;
+}
+
+@keyframes pulse-bg {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.throttle-warning {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%);
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.throttle-icon {
+  font-size: 24px;
+}
+
+.throttle-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  flex: 1;
+}
+
+.throttle-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.throttle-item .label {
+  font-size: 12px;
+  color: #909399;
+}
+
+.throttle-item .value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  gap: 12px;
+}
+
+.metric-item {
+  text-align: center;
+  padding: 16px 8px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.metric-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.metric-item.metric-warning {
+  background: linear-gradient(135deg, #fff8e1 0%, #ffe082 100%);
+}
+
+.metric-item.metric-danger {
+  background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+}
+
+.metric-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #303133;
+  font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+}
+
+.metric-item.metric-warning .metric-value {
+  color: #e65100;
+}
+
+.metric-item.metric-danger .metric-value {
+  color: #c62828;
+}
+
+.metric-label {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
+}
+
+.chart-summary {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.summary-item {
+  flex: 1;
+  padding: 16px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4e7ed 100%);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.summary-item.summary-danger {
+  background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+}
+
+.summary-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #303133;
+  font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+}
+
+.summary-item.summary-danger .summary-value {
+  color: #c62828;
+}
+
+.summary-label {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
+}
+
+.chart-wrapper {
+  width: 100%;
+  height: 350px;
+}
+
+.chart {
+  width: 100%;
+  height: 100%;
+}
+
+.empty-state {
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.empty-state-small {
+  padding: 20px;
+  text-align: center;
+}
+
+.info-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: 280px 280px 1fr;
+  gap: 20px;
+}
+
+.info-card {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  border: 1px solid #f0f0f0;
+}
+
+.info-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #303133;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.info-icon {
+  font-size: 18px;
+}
+
+.info-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.info-label {
+  font-size: 13px;
+  color: #909399;
+}
+
+.info-value {
+  font-size: 13px;
+  color: #303133;
+  font-weight: 500;
+}
+
+.version-tag {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sponsor-content {
+  display: flex;
+  justify-content: center;
+}
+
+.sponsor-content img {
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+.notice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.notice-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  color: #606266;
+  line-height: 1.5;
+}
+
+.notice-item.notice-important {
+  color: #c62828;
+}
+
+.notice-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  background: #f0f0f0;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 600;
+  color: #606266;
+  flex-shrink: 0;
+}
+
+.notice-item.notice-important .notice-number {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.notice-item a {
+  color: #409eff;
+  text-decoration: none;
+}
+
+.notice-item a:hover {
+  text-decoration: underline;
+}
+
+.update-section {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  border: 1px solid #f0f0f0;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.update-collapse {
+  border: none;
+}
+
+.update-collapse :deep(.el-collapse-item__header) {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 0 16px;
+  margin-bottom: 8px;
+  border: none;
+  height: 56px;
+}
+
+.update-collapse :deep(.el-collapse-item__wrap) {
+  border: none;
+}
+
+.update-collapse :deep(.el-collapse-item__content) {
+  padding: 16px;
+}
+
+.update-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.update-version {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.version-number {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.version-date {
+  font-size: 13px;
+  color: #909399;
+}
+
+.update-tags {
+  display: flex;
+  gap: 8px;
+}
+
+.update-detail {
+  background: #fafafa;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.update-note {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #606266;
+}
+
+.update-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 12px;
+}
+
+.update-progress {
+  display: flex;
   align-items: center;
-  margin-bottom: 10px;
-  padding: 0;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #f0f0f0;
 }
 
-/* 顶部行样式 */
-.top-row {
-  margin-bottom: 0;
+.update-progress .el-progress {
+  flex: 1;
 }
 
-/* 日志弹窗样式 */
+.progress-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: #909399;
+  min-width: 120px;
+}
+
 .log-dialog {
   display: flex;
   align-items: center;
   justify-content: center;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  margin: 0;
-  width: 100% !important;
-  max-width: none !important;
 }
 
 .log-dialog-content {
   width: 100%;
   height: 100%;
-  padding: 0;
-  margin: 0;
   display: flex;
   flex-direction: column;
 }
 
 .log-dialog-content :deep(.el-dialog__body) {
   padding: 0;
-  margin: 0;
   overflow: hidden;
   height: calc(100% - 60px);
 }
@@ -1008,375 +1403,55 @@ onUnmounted(() => {
   border-bottom: 1px solid #ebeef5;
 }
 
-.log-dialog-content :deep(.el-dialog__title) {
-  font-size: 18px;
-  font-weight: 600;
+.update-complete-dialog :deep(.el-dialog) {
+  width: 500px;
+  max-width: 90vw;
+  border-radius: 16px;
 }
 
-.top-row .el-col {
+.dialog-content {
+  text-align: center;
+  padding: 30px 20px;
+}
+
+.dialog-content .el-icon {
+  font-size: 48px;
+  color: #67c23a;
   margin-bottom: 20px;
 }
 
-.account-card,
-.queue-card,
-.version-card,
-.intro-card {
-  width: 100%;
-  max-width: none;
-  margin: 0;
-  height: 100%;
-}
-
-.card-title {
-  margin: 0 0 8px 0;
-  font-size: 24px;
+.dialog-content h3 {
+  font-size: 20px;
   font-weight: 600;
+  margin-bottom: 12px;
   color: #303133;
 }
 
-.card-subtitle {
-  margin: 0;
-  font-size: 14px;
+.dialog-content p {
+  font-size: 15px;
+  color: #606266;
+  margin-bottom: 16px;
+}
+
+.dialog-tips {
+  padding: 12px 16px;
+  background: #f0f9ff;
+  border-radius: 8px;
+}
+
+.dialog-tips p {
+  font-size: 13px;
   color: #909399;
+  margin: 0;
 }
 
-/* 导航链接样式 */
-.navigation-links {
+.dialog-footer {
   display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin-top: 16px;
-}
-
-.nav-link-btn {
-  flex: 1;
-  min-width: 200px;
-  display: flex;
-  align-items: center;
   justify-content: center;
-  gap: 8px;
-}
-
-/* 115账号信息样式 */
-.account-info {
-  margin-top: 16px;
-}
-
-.info-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.info-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  background: #f8f9fa;
-  border-radius: 8px;
-  border: 1px solid #e4e7ed;
-}
-
-.info-label {
-  font-size: 14px;
-  font-weight: 600;
-  color: #606266;
-}
-
-.info-value {
-  font-size: 14px;
-  color: #303133;
-  font-weight: 500;
-}
-
-.member-vip {
-  color: #f56c6c !important;
-  font-weight: 600;
-}
-
-.member-normal {
-  color: #909399;
-}
-
-.expire-normal {
-  color: #67c23a;
-}
-
-.expire-notice {
-  color: #e6a23c;
-}
-
-.expire-warning {
-  color: #f56c6c;
-}
-
-.expire-expired {
-  color: #f56c6c;
-  font-weight: 600;
-}
-
-.expire-unknown {
-  color: #909399;
-}
-
-.storage-progress {
-  margin-top: 16px;
-}
-
-.no-account {
-  padding: 40px 20px;
-  text-align: center;
-}
-
-/* 系统版本信息样式 */
-.version-info {
-  margin-top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.version-item {
-  display: flex;
-  align-items: center;
-  padding: 12px 16px;
-  background: #f8f9fa;
-  border-radius: 8px;
-  border: 1px solid #e4e7ed;
-}
-
-.version-label {
-  font-size: 14px;
-  font-weight: 600;
-  color: #606266;
-  margin-right: 16px;
-  min-width: 80px;
-}
-
-.version-value {
-  font-size: 14px;
-  color: #303133;
-  font-weight: 500;
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-}
-
-.no-version {
-  padding: 40px 20px;
-  text-align: center;
-}
-
-/* 项目介绍样式 */
-.intro-content {
-  margin-top: 16px;
-  line-height: 1.6;
-}
-
-/* 移动端适配 */
-@media (max-width: 768px) {
-  .top-row .el-col:last-child {
-    margin-bottom: 0;
-  }
-
-  .account-card,
-  .version-card,
-  .intro-card {
-    margin: 0;
-  }
-
-  .card-title {
-    font-size: 20px;
-  }
-
-  .card-subtitle {
-    font-size: 13px;
-  }
-
-  .info-grid {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-
-  .info-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-  }
-
-  .info-label {
-    font-size: 13px;
-  }
-
-  .info-value {
-    font-size: 13px;
-  }
-
-  .version-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-  }
-
-  .version-label {
-    font-size: 13px;
-    margin-right: 0;
-    min-width: auto;
-  }
-
-  .version-value {
-    font-size: 13px;
-  }
-
-  .intro-content {
-    font-size: 14px;
-  }
-
-  .intro-content h2 {
-    font-size: 18px;
-    margin-top: 20px;
-    margin-bottom: 12px;
-  }
-
-  .intro-content h2:first-child {
-    margin-top: 0;
-  }
-
-  .intro-content ol,
-  .intro-content ul {
-    padding-left: 20px;
-  }
-
-  .intro-content li {
-    margin-bottom: 8px;
-  }
-
-  .intro-content blockquote {
-    margin: 10px 0;
-    padding: 8px 12px;
-    border-left: 3px solid #409eff;
-    background-color: #f4f4f5;
-    font-size: 13px;
-  }
-
-  .intro-content code {
-    padding: 2px 4px;
-    background-color: #f1f1f1;
-    border-radius: 3px;
-    font-size: 12px;
-  }
-}
-
-/* 队列状态卡片样式 */
-.queue-card {
-  height: 100%;
-}
-
-.queue-info {
-  margin: 0;
-}
-
-.queue-section {
-  background: #f8f9fa;
-  border-radius: 8px;
-  padding: 20px;
-  height: 100%;
-}
-
-.queue-section-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #333;
-  margin: 0 0 16px 0;
-  text-align: center;
-  border-bottom: 2px solid #e0e6ed;
-  padding-bottom: 8px;
-}
-
-.queue-stats {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.stat-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  background: white;
-  border-radius: 6px;
-  border: 1px solid #e4e7ed;
-}
-
-.stat-label {
-  font-size: 14px;
-  color: #606266;
-  font-weight: 500;
-}
-
-.stat-value {
-  font-size: 14px;
-  font-weight: 600;
-}
-
-/* 队列状态颜色 */
-.status-idle {
-  color: #909399;
-}
-
-.status-running {
-  color: #67c23a;
-}
-
-.status-paused {
-  color: #e6a23c;
-}
-
-.status-error {
-  color: #f56c6c;
-}
-
-.status-unknown {
-  color: #909399;
-}
-
-.active-count {
-  color: #67c23a;
-}
-
-.wait-count {
-  color: #e6a23c;
-}
-
-/* 最新版本列表样式 */
-.update-list {
-  margin-top: 16px;
-}
-
-.update-item {
-  padding: 12px 0;
-}
-
-.update-content h4 {
-  font-size: 16px;
-  color: #303133;
-  margin: 0 0 8px 0;
-}
-
-.update-note {
-  background: #f8f9fa;
-  border: 1px solid #e4e7ed;
-  border-radius: 6px;
   padding: 16px;
-  font-size: 14px;
-  line-height: 1.6;
-  color: #606266;
-  margin: 0 0 16px 0;
-  overflow-x: auto;
+  border-top: 1px solid #ebeef5;
 }
 
-/* 为markdown内容添加一些额外样式 */
 .update-note :deep(.markdown-body) {
   font-size: 14px;
   line-height: 1.6;
@@ -1384,16 +1459,16 @@ onUnmounted(() => {
 
 .update-note :deep(.markdown-body pre) {
   background-color: #f6f8fa;
-  border-radius: 3px;
-  padding: 16px;
+  border-radius: 6px;
+  padding: 12px;
   overflow: auto;
 }
 
 .update-note :deep(.markdown-body code) {
   background-color: #f1f1f1;
-  border-radius: 3px;
-  padding: 2px 4px;
-  font-size: 0.9em;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 13px;
 }
 
 .update-note :deep(.markdown-body pre code) {
@@ -1402,7 +1477,7 @@ onUnmounted(() => {
 }
 
 .update-note :deep(.markdown-body a) {
-  color: #0366d6;
+  color: #409eff;
   text-decoration: none;
 }
 
@@ -1410,384 +1485,122 @@ onUnmounted(() => {
   text-decoration: underline;
 }
 
-.update-note :deep(.markdown-body h1),
-.update-note :deep(.markdown-body h2),
-.update-note :deep(.markdown-body h3),
-.update-note :deep(.markdown-body h4),
-.update-note :deep(.markdown-body h5),
-.update-note :deep(.markdown-body h6) {
-  margin-top: 24px;
-  margin-bottom: 16px;
-  font-weight: 600;
-  line-height: 1.25;
-}
-
-.update-note :deep(.markdown-body p) {
-  margin-top: 0;
-  margin-bottom: 16px;
-}
-
 .update-note :deep(.markdown-body ul),
 .update-note :deep(.markdown-body ol) {
-  padding-left: 2em;
-  margin-top: 0;
-  margin-bottom: 16px;
+  padding-left: 1.5em;
+  margin: 8px 0;
 }
 
 .update-note :deep(.markdown-body li) {
   margin-bottom: 4px;
 }
 
-.update-note :deep(.markdown-body blockquote) {
-  padding: 0 1em;
-  color: #6a737d;
-  border-left: 0.25em solid #dfe2e5;
-  margin: 0 0 16px 0;
-}
-
-.update-actions {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  ;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.update-progress {
-  margin-top: 16px;
-}
-
-.progress-info {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-top: 8px;
-  font-size: 14px;
-  color: #606266;
-  gap: 8px;
-}
-
-/* 更新完成弹窗样式 */
-.update-complete-dialog {
-  display: flex;
-  align-items: center;
-}
-
-
-/* 115接口请求统计样式 */
-.stats-card {
-  margin-top: 20px;
-}
-
-.stats-content {
-  margin-top: 16px;
-}
-
-.throttle-alert {
-  margin-bottom: 20px;
-}
-
-.throttle-info {
-  margin-top: 8px;
-}
-
-.throttle-info p {
-  margin: 4px 0;
-  font-size: 14px;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.stat-card {
-  /* background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); */
-  border-radius: 12px;
-  padding: 12px;
-  /* color: white; */
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.stat-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
-}
-
-.stat-card-label {
-  font-size: 13px;
-  opacity: 0.9;
-  margin-bottom: 8px;
-  font-weight: 500;
-}
-
-.stat-card-value {
-  font-size: 28px;
-  font-weight: 700;
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-}
-
-.stat-card-value.small-text {
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.stat-card-value.text-warning {
-  color: #ffd700;
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
-.stat-card-value.text-danger {
-  color: #ff6b6b;
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse {
-
-  0%,
-  100% {
-    opacity: 1;
+@media (max-width: 1200px) {
+  .stats-row {
+    grid-template-columns: 1fr;
   }
 
-  50% {
-    opacity: 0.7;
+  .info-grid {
+    grid-template-columns: 1fr 1fr;
   }
 }
 
-.no-stats {
-  padding: 40px 20px;
-  text-align: center;
-}
-
-.notice-content {
-  margin-top: 0;
-}
-
-.notice-item {
-  margin-bottom: 12px;
-}
-
-.notice-item:last-child {
-  margin-bottom: 0;
-}
-
-/* 每小时请求统计样式 */
-.hourly-stats-card {
-  margin-top: 0;
-}
-
-.hourly-stats-content {
-  margin-top: 16px;
-}
-
-.hourly-overview {
-  display: flex;
-  justify-content: space-around;
-  gap: 16px;
-  padding: 16px;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  border-radius: 12px;
-}
-
-.overview-item {
-  text-align: center;
-  padding: 12px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.overview-label {
-  font-size: 13px;
-  color: #909399;
-  margin-bottom: 8px;
-}
-
-.overview-value {
-  font-size: 24px;
-  font-weight: 700;
-  color: #303133;
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-}
-
-.overview-value.highlight {
-  color: #409eff;
-}
-
-.hourly-chart-wrapper {
-  margin-top: 16px;
-  width: 100%;
-  height: 450px;
-}
-
-.chart {
-  width: 100%;
-  height: 100%;
-}
-
-.no-hourly-stats {
-  padding: 40px 20px;
-  text-align: center;
-}
-
-
-.update-complete-dialog :deep(.el-dialog) {
-  width: 500px;
-  max-width: 90vw;
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-}
-
-.dialog-content {
-  text-align: center;
-  padding: 20px 0;
-}
-
-.success-icon {
-  font-size: 24px;
-  color: #67c23a;
-  margin-bottom: 20px;
-}
-
-.stats-grid {
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
-}
-
-.stat-card-label {
-  font-size: 12px;
-}
-
-.stat-card-value {
-  font-size: 22px;
-}
-
-.stat-card-value.small-text {
-  font-size: 12px;
-}
-
-.dialog-content h3 {
-  font-size: 24px;
-  font-weight: 600;
-  margin-bottom: 16px;
-  color: #303133;
-}
-
-.dialog-content p {
-  font-size: 16px;
-  color: #606266;
-  margin-bottom: 20px;
-}
-
-.dialog-tips {
-  padding: 12px 20px;
-  background-color: #f0f9ff;
-  border: 1px solid #e6f7ff;
-  border-radius: 6px;
-  margin-top: 20px;
-}
-
-.dialog-tips p {
-  font-size: 14px;
-  color: #909399;
-  margin: 0;
-}
-
-.dialog-footer {
-  display: flex;
-  justify-content: center;
-  gap: 16px;
-  padding: 20px;
-  border-top: 1px solid #ebeef5;
-}
-
-.dialog-footer .el-button {
-  min-width: 120px;
-}
-
-.version-title-container {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-  flex-wrap: wrap
-}
-
-.version-tags {
-  display: flex;
-  gap: 8px;
-}
-
-.mr-2 {
-  margin-right: 8px;
-}
-
-.no-update {
-  padding: 40px 20px;
-  text-align: center;
-}
-
-/* 小屏移动设备 */
-@media (max-width: 480px) {
-  .card-title {
-    font-size: 18px;
-  }
-
-  .intro-content {
-    font-size: 13px;
-  }
-
-  .intro-content h2 {
-    font-size: 16px;
-  }
-
-  .info-item,
-  .version-item {
-    padding: 10px 12px;
-  }
-
-  .queue-section {
+@media (max-width: 768px) {
+  .header-section {
+    flex-direction: column;
+    gap: 16px;
+    text-align: center;
     padding: 16px;
   }
 
-  .queue-section-title {
-    font-size: 14px;
+  .header-title h1 {
+    font-size: 24px;
   }
 
-  .stat-item {
-    padding: 6px 10px;
-  }
-
-  .stat-label,
-  .stat-value {
-    font-size: 13px;
-  }
-
-  /* 每小时统计响应式 */
-  .hourly-overview {
+  .info-grid {
     grid-template-columns: 1fr;
-    gap: 12px;
-    padding: 12px;
   }
 
-  .overview-item {
-    padding: 10px;
+  .chart-wrapper {
+    height: 280px;
   }
 
-  .overview-label {
-    font-size: 12px;
+  .metrics-grid {
+    grid-template-columns: repeat(3, 1fr);
   }
 
-  .overview-value {
+  .metric-value {
     font-size: 20px;
   }
 
-  .hourly-chart-wrapper {
-    height: 350px;
+  .summary-value {
+    font-size: 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-title h1 {
+    font-size: 20px;
+  }
+
+  .header-title p {
+    font-size: 12px;
+  }
+
+  .stats-card-main,
+  .chart-card,
+  .info-card,
+  .update-section {
+    padding: 16px;
+    border-radius: 12px;
+  }
+
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .metric-item {
+    padding: 12px 6px;
+  }
+
+  .metric-value {
+    font-size: 18px;
+  }
+
+  .metric-label {
+    font-size: 10px;
+  }
+
+  .chart-summary {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .chart-wrapper {
+    height: 220px;
+  }
+
+  .update-collapse :deep(.el-collapse-item__header) {
+    padding: 0 12px;
+    height: 48px;
+  }
+
+  .update-detail {
+    padding: 12px;
+  }
+
+  .update-note {
+    padding: 12px;
+    font-size: 13px;
+  }
+
+  .update-actions {
+    flex-direction: column;
+  }
+
+  .update-actions .el-button {
+    width: 100%;
   }
 }
 </style>

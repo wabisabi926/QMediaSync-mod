@@ -16,8 +16,8 @@ export interface NotificationChannel {
   channel_type: ChannelType
   channel_name: string
   is_enabled: boolean
-  created_at: string
-  updated_at: string
+  created_at: number
+  updated_at: number
   config?: NotificationConfig
   rules?: NotificationRule[]
 }

@@ -14,6 +14,14 @@
 
       <el-form-item label="定时策略" required>
         <cron-selector v-model="configForm.backup_cron" />
+        <div v-if="cronTimes.length > 0" class="cron-next-times">
+          <p><strong>下5次执行时间：</strong></p>
+          <div v-loading="cronTimesLoading" class="cron-times-list">
+            <div v-for="(time, index) in cronTimes" :key="index" class="cron-time-item">
+              <el-tag type="info" size="small">{{ time }}</el-tag>
+            </div>
+          </div>
+        </div>
       </el-form-item>
 
       <el-form-item label="保留天数" required>
@@ -36,13 +44,11 @@
         </el-button>
       </el-form-item>
     </el-form>
-
-    <el-alert v-if="nextBackupTime" :title="`下次自动备份时间：${nextBackupTime}`" type="info" :closable="false" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, inject } from 'vue'
+import { ref, reactive, onMounted, inject, watch } from 'vue'
 import { Setting } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { AxiosStatic } from 'axios'
@@ -50,23 +56,6 @@ import { SERVER_URL } from '@/const'
 import type { BackupConfig } from '@/typing'
 import { isMobile as checkIsMobile } from '@/utils/deviceUtils'
 import CronSelector from './CronSelector.vue'
-
-type CronParserClass = {
-  new(expr: string): {
-    reset(): void
-    next(): { toDate(): Date }
-  }
-}
-
-let CronParser: CronParserClass | null = null
-
-const loadCronParser = async () => {
-  if (!CronParser) {
-    const cronParser = await import('cron-parser')
-    CronParser = cronParser.default as unknown as CronParserClass
-  }
-  return CronParser
-}
 
 const http = inject<AxiosStatic>('$http')
 const isMobile = checkIsMobile()
@@ -81,7 +70,8 @@ const configForm = reactive({
 })
 
 const configSaving = ref(false)
-const nextBackupTime = ref('')
+const cronTimes = ref<string[]>([])
+const cronTimesLoading = ref(false)
 
 const loadBackupConfig = async () => {
   if (!http) return
@@ -102,7 +92,7 @@ const loadBackupConfig = async () => {
         backup_max_count: config.backup_max_count,
         backup_compress: config.backup_compress,
       })
-      await calculateNextBackupTime()
+      await loadCronTimes()
     }
   } catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : '加载备份配置失败'
@@ -119,7 +109,7 @@ const saveConfig = async () => {
 
     if (res.data.code === API_SUCCESS_CODE) {
       ElMessage.success('备份配置保存成功')
-      await calculateNextBackupTime()
+      await loadCronTimes()
     } else {
       ElMessage.error(res.data.message || '保存配置失败')
     }
@@ -131,37 +121,40 @@ const saveConfig = async () => {
   }
 }
 
-const calculateNextBackupTime = async () => {
+const loadCronTimes = async () => {
+  if (!configForm.backup_cron || !http) {
+    cronTimes.value = []
+    return
+  }
+
   try {
-    if (!configForm.backup_enabled || !configForm.backup_cron) {
-      nextBackupTime.value = ''
-      return
-    }
-
-    const parser = await loadCronParser()
-    if (!parser) {
-      nextBackupTime.value = ''
-      return
-    }
-
-    const expression = new parser(configForm.backup_cron)
-    const next = expression.next().toDate()
-    nextBackupTime.value = next.toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
+    cronTimesLoading.value = true
+    const response = await http.get(`${SERVER_URL}/setting/cron`, {
+      params: { cron: configForm.backup_cron },
     })
-  } catch {
-    nextBackupTime.value = ''
+
+    if (response?.data.code === 200 && response.data.data) {
+      cronTimes.value = response.data.data || []
+    } else {
+      cronTimes.value = []
+    }
+  } catch (error) {
+    console.error('查询Cron执行时间错误:', error)
+    cronTimes.value = []
+  } finally {
+    cronTimesLoading.value = false
   }
 }
 
-onMounted(async () => {
-  await loadCronParser()
+watch(() => configForm.backup_cron, (newCron) => {
+  if (newCron && newCron.trim()) {
+    loadCronTimes()
+  } else {
+    cronTimes.value = []
+  }
+})
+
+onMounted(() => {
   loadBackupConfig()
 })
 </script>
@@ -181,6 +174,28 @@ onMounted(async () => {
   margin-bottom: 20px;
   padding-bottom: 12px;
   border-bottom: 1px solid #e4e7ed;
+}
+
+.cron-next-times {
+  margin-top: 12px;
+  padding: 12px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+}
+
+.cron-next-times p {
+  margin: 0 0 8px 0;
+  color: #606266;
+}
+
+.cron-times-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cron-time-item {
+  display: inline-flex;
 }
 
 @media (max-width: 768px) {

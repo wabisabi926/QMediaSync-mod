@@ -20,6 +20,7 @@ import AppDownloadQueue from '@/components/AppDownloadQueue.vue'
 import AppNotificationChannels from '@/components/AppNotificationChannels.vue'
 import AppApiKeys from '@/components/AppApiKeys.vue'
 import AppFileManager from '@/components/AppFileManager.vue'
+import AppUpdate from '@/components/AppUpdate.vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
@@ -64,112 +65,6 @@ const routes = [
       title: '网盘账号',
       requiresAuth: true,
       icon: 'User',
-      showInMenu: true,
-    },
-  },
-  {
-    path: '/settings',
-    name: 'settings',
-    component: AppUserSettings,
-    meta: {
-      title: '系统设置',
-      requiresAuth: true,
-      icon: 'Setting',
-      showInMenu: true,
-    },
-  },
-  {
-    path: '/settings/user',
-    name: 'settings-user',
-    component: AppUserSettings,
-    meta: {
-      title: '用户管理',
-      requiresAuth: true,
-      parent: 'settings',
-      icon: 'UserFilled',
-      showInMenu: true,
-    },
-  },
-  {
-    path: '/settings/api-keys',
-    name: 'settings-api-keys',
-    component: AppApiKeys,
-    meta: {
-      title: 'API Key',
-      requiresAuth: true,
-      parent: 'settings',
-      icon: 'Key',
-      showInMenu: true,
-    },
-  },
-  {
-    path: '/settings/notification',
-    name: 'settings-notification',
-    component: AppNotificationChannels,
-    meta: {
-      title: '通知管理',
-      requiresAuth: true,
-      parent: 'settings',
-      icon: 'Promotion',
-      showInMenu: true,
-    },
-  },
-  {
-    path: '/settings/emby',
-    name: 'settings-emby',
-    component: AppEmbySettings,
-    meta: {
-      title: 'Emby',
-      requiresAuth: true,
-      parent: 'settings',
-      icon: 'VideoPlay',
-      showInMenu: true,
-    },
-  },
-  {
-    path: '/settings/threads',
-    name: 'settings-threads',
-    component: AppThreadSettings,
-    meta: {
-      title: '接口速率',
-      requiresAuth: true,
-      parent: 'settings',
-      icon: 'Operation',
-      showInMenu: true,
-    },
-  },
-  {
-    path: '/proxy',
-    name: 'proxy',
-    component: () => import('@/components/AppProxySettings.vue'),
-    meta: {
-      title: '网络代理',
-      requiresAuth: true,
-      parent: 'settings',
-      icon: 'Link',
-      showInMenu: true,
-    },
-  },
-  {
-    path: '/upload-queue',
-    name: 'upload-queue',
-    component: AppUploadQueue,
-    meta: {
-      title: '上传下载',
-      requiresAuth: true,
-      icon: 'Download',
-      showInMenu: true,
-    },
-  },
-  {
-    path: '/download-queue',
-    name: 'download-queue',
-    component: AppDownloadQueue,
-    meta: {
-      title: '下载队列',
-      requiresAuth: true,
-      parent: 'upload-queue',
-      icon: 'Download',
       showInMenu: true,
     },
   },
@@ -345,6 +240,42 @@ const routes = [
       showInMenu: true,
     },
   },
+
+  {
+    path: '/upload-queue',
+    name: 'upload-queue',
+    component: AppUploadQueue,
+    meta: {
+      title: '上传下载',
+      requiresAuth: true,
+      icon: 'Download',
+      showInMenu: true,
+    },
+  },
+    {
+    path: '/upload-queue',
+    name: 'upload-queue',
+    component: AppUploadQueue,
+    meta: {
+      title: '上传队列',
+      requiresAuth: true,
+      parent: 'upload-queue',
+      icon: 'Upload',
+      showInMenu: true,
+    },
+  },
+  {
+    path: '/download-queue',
+    name: 'download-queue',
+    component: AppDownloadQueue,
+    meta: {
+      title: '下载队列',
+      requiresAuth: true,
+      parent: 'upload-queue',
+      icon: 'Download',
+      showInMenu: true,
+    },
+  },
   {
     path: '/file-manager',
     name: 'file-manager',
@@ -399,6 +330,101 @@ const routes = [
       requiresAuth: true,
       parent: 'database',
       icon: 'RefreshLeft',
+      showInMenu: true,
+    },
+  },
+  {
+    path: '/settings',
+    name: 'settings',
+    component: AppUserSettings,
+    meta: {
+      title: '系统设置',
+      requiresAuth: true,
+      icon: 'Setting',
+      showInMenu: true,
+    },
+  },
+  {
+    path: '/settings/user',
+    name: 'settings-user',
+    component: AppUserSettings,
+    meta: {
+      title: '用户管理',
+      requiresAuth: true,
+      parent: 'settings',
+      icon: 'UserFilled',
+      showInMenu: true,
+    },
+  },
+  {
+    path: '/settings/api-keys',
+    name: 'settings-api-keys',
+    component: AppApiKeys,
+    meta: {
+      title: 'API Key',
+      requiresAuth: true,
+      parent: 'settings',
+      icon: 'Key',
+      showInMenu: true,
+    },
+  },
+  {
+    path: '/settings/notification',
+    name: 'settings-notification',
+    component: AppNotificationChannels,
+    meta: {
+      title: '通知管理',
+      requiresAuth: true,
+      parent: 'settings',
+      icon: 'Promotion',
+      showInMenu: true,
+    },
+  },
+  {
+    path: '/settings/emby',
+    name: 'settings-emby',
+    component: AppEmbySettings,
+    meta: {
+      title: 'Emby',
+      requiresAuth: true,
+      parent: 'settings',
+      icon: 'VideoPlay',
+      showInMenu: true,
+    },
+  },
+  {
+    path: '/settings/threads',
+    name: 'settings-threads',
+    component: AppThreadSettings,
+    meta: {
+      title: '接口速率',
+      requiresAuth: true,
+      parent: 'settings',
+      icon: 'Operation',
+      showInMenu: true,
+    },
+  },
+  {
+    path: '/proxy',
+    name: 'proxy',
+    component: () => import('@/components/AppProxySettings.vue'),
+    meta: {
+      title: '网络代理',
+      requiresAuth: true,
+      parent: 'settings',
+      icon: 'Link',
+      showInMenu: true,
+    },
+  },
+  {
+    path: '/settings/update',
+    name: 'settings-update',
+    component: AppUpdate,
+    meta: {
+      title: '版本更新',
+      requiresAuth: true,
+      parent: 'settings',
+      icon: 'Upload',
       showInMenu: true,
     },
   },

@@ -256,7 +256,7 @@
           isEditMode
         ">
           <div class="pan-dir-input">
-            <el-input v-model="form.source_path" placeholder="点击选择按钮选择目录" :disabled="loading" readonly />
+            <el-input v-model="form.source_path_id" placeholder="点击选择按钮选择目录" :disabled="loading" readonly />
             <el-button type="primary" @click="openDirSelector(true)" :disabled="loading">
               选择目录
             </el-button>
@@ -271,7 +271,7 @@
           ((form.source_type !== 'local' && form.account_id) || form.source_type === 'local' || isEditMode) && form.scrape_type !== 'only_scrape'
         ">
           <div class="pan-dir-input">
-            <el-input v-model="form.dest_path" placeholder="点击选择按钮选择目标目录" :disabled="loading" readonly />
+            <el-input v-model="form.dest_path_id" placeholder="点击选择按钮选择目标目录" :disabled="loading" readonly />
             <el-button type="primary" @click="openDirSelector(false)" :disabled="loading">
               选择目录
             </el-button>
@@ -370,43 +370,16 @@
     </el-card>
 
     <el-dialog v-model="showDirDialog" :title="isSelectSource ? '选择来源目录' : '选择目标目录'"
-      :width="checkIsMobile ? '90%' : '600px'" :close-on-click-modal="false" :before-close="handleCloseDirDialog">
+      :width="checkIsMobile ? '90%' : '600px'" :close-on-click-modal="false" body-class="directory-selector">
       <div class="dir-selector">
-        <el-scrollbar height="400px">
-          <div v-if="dirTreeLoading" class="loading-container">
-            <el-icon class="is-loading">
-              <Loading />
-            </el-icon>
-            <p>加载中...</p>
-          </div>
-          <div v-else-if="dirTreeData.length === 0" class="empty-container">
-            <p>暂无目录</p>
-          </div>
-          <div v-else class="dir-list">
-            <div v-for="dir in dirTreeData" :key="dir.id" class="dir-item" @click="selectTempDir(dir)">
-              <el-icon>
-                <Folder />
-              </el-icon>
-              <span class="dir-name">{{ dir.name }}</span>
-            </div>
-          </div>
-        </el-scrollbar>
-
-        <div v-if="tempSelectedDir" class="selected-dir-section">
-          <div class="selected-dir-info">
-            <div class="selected-dir-label">当前选中目录：</div>
-            <div class="selected-dir-path">{{ tempSelectedDir.path || tempSelectedDir.name }}</div>
-          </div>
-        </div>
+        <DirectorySelector
+          v-model="tempSelectedDir"
+          :source-type="selectedSourceType"
+          :account-id="selectedAccountId"
+          @cancel="showDirDialog = false"
+          @select="confirmSelectDir"
+        />
       </div>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="handleCancelDirDialog">取消</el-button>
-          <el-button type="primary" @click="confirmSelectDir" :disabled="!tempSelectedDir">
-            确定选择
-          </el-button>
-        </span>
-      </template>
     </el-dialog>
   </div>
 </template>
@@ -417,11 +390,12 @@ import type { AxiosStatic } from 'axios'
 import { inject, onMounted, onUnmounted, ref, reactive, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, Loading, Folder } from '@element-plus/icons-vue'
+import { ArrowLeft } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 import { sourceTypeOptions } from '@/utils/sourceTypeUtils'
 import MetadataExtInput from './MetadataExtInput.vue'
+import DirectorySelector from './DirectorySelector.vue'
 import type { DirInfo } from '@/typing'
 
 interface CloudAccount {
@@ -526,13 +500,10 @@ const accounts = ref<CloudAccount[]>([])
 const accountsLoading = ref(false)
 
 const showDirDialog = ref(false)
-const dirTreeData = ref<DirInfo[]>([])
-const dirTreeLoading = ref(false)
 const tempSelectedDir = ref<DirInfo | null>(null)
 const isSelectSource = ref(true)
 const selectedSourceType = ref('')
 const selectedAccountId = ref(0)
-const isDirDialogClosed = ref(false)
 
 const goBack = () => {
   router.push({ name: 'scrape-pathes' })
@@ -613,63 +584,17 @@ const loadDirectoryData = async (id: number) => {
   }
 }
 
-const openDirSelector = async (isSource: boolean = false) => {
+const openDirSelector = (isSource: boolean = false) => {
   showDirDialog.value = true
   tempSelectedDir.value = null
   selectedSourceType.value = form.source_type
-  selectedAccountId.value = parseInt(form.account_id as string) || 0
+  selectedAccountId.value = Number(form.account_id) || 0
   isSelectSource.value = isSource
-  isDirDialogClosed.value = false
-
-  await loadDirTree(null)
-}
-
-const loadDirTree = async (dir: DirInfo | null) => {
-  try {
-    dirTreeLoading.value = true
-    const response = await http?.get(`${SERVER_URL}/path/list`, {
-      timeout: 30000,
-      params: {
-        source_type: selectedSourceType.value,
-        account_id: selectedAccountId.value,
-        parent_id: dir?.id || "",
-        parent_path: dir?.path || "",
-      },
-    })
-    if (isDirDialogClosed.value) {
-      return
-    }
-    if (response?.data.code === 200) {
-      dirTreeData.value = response.data.data || []
-    } else {
-      ElMessage.error(response?.data.message || '加载目录失败')
-      dirTreeData.value = []
-    }
-  } catch {
-    console.error('加载目录树错误')
-    ElMessage.error('加载目录失败')
-    dirTreeData.value = []
-  } finally {
-    if (isDirDialogClosed.value) {
-      return
-    }
-    dirTreeLoading.value = false
-  }
-}
-
-const selectTempDir = async (dir: DirInfo) => {
-  if (isDirDialogClosed.value) {
-    return
-  }
-  tempSelectedDir.value = dir
-  await loadDirTree(dir)
 }
 
 const confirmSelectDir = () => {
-  isDirDialogClosed.value = true
-
   if (!tempSelectedDir.value) return
-
+  console.log('tempSelectedDir.value', tempSelectedDir.value)
   if (isSelectSource.value) {
     form.source_path = tempSelectedDir.value.path
     form.source_path_id = tempSelectedDir.value.id
@@ -678,16 +603,6 @@ const confirmSelectDir = () => {
     form.dest_path_id = tempSelectedDir.value.id
   }
 
-  showDirDialog.value = false
-}
-
-const handleCloseDirDialog = () => {
-  isDirDialogClosed.value = true
-  showDirDialog.value = false
-}
-
-const handleCancelDirDialog = () => {
-  isDirDialogClosed.value = true
   showDirDialog.value = false
 }
 
@@ -905,78 +820,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-
-.loading-container,
-.empty-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
-  color: #909399;
-}
-
-.loading-container .el-icon {
-  font-size: 32px;
-  margin-bottom: 8px;
-}
-
-.dir-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.dir-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px;
-  background: #f5f7fa;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.dir-item:hover {
-  background: #e9ecf0;
-}
-
-.dir-name {
-  font-size: 14px;
-  color: #303133;
-}
-
-.selected-dir-section {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #ebeef5;
-}
-
-.selected-dir-info {
-  padding: 12px;
-  background: #f0f9ff;
-  border-radius: 4px;
-  border: 1px solid #b3d8ff;
-}
-
-.selected-dir-label {
-  font-size: 12px;
-  color: #409eff;
-  margin-bottom: 4px;
-}
-
-.selected-dir-path {
-  font-size: 14px;
-  color: #303133;
-  word-break: break-all;
-}
-
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
+  height: 500px;
 }
 
 .scrape-path-form-page.is-mobile {

@@ -342,45 +342,17 @@
     </el-dialog>
 
     <!-- 目录选择对话框 -->
-    <el-dialog v-model="showDirDialog" :title="isSelectSource ? '选择来源目录' : '选择目标目录'" width="600px"
-      @close="handleCloseDirDialog">
-      <div v-loading="dirTreeLoading" element-loading-text="加载中...">
-        <div v-if="dirTreeData.length === 0" class="empty-state">
-          <el-empty description="暂无目录数据" />
-        </div>
-
-        <div v-else class="dir-tree-container">
-          <el-tree :data="dirTreeData" node-key="id" :props="dirTreeProps" :expand-on-click-node="false"
-            :highlight-current="true" @node-click="selectTempDir">
-            <template #default="{ node, data }">
-              <span class="custom-tree-node">
-                <span>
-                  <el-icon v-if="data.is_dir">
-                    <Folder />
-                  </el-icon>
-                  <el-icon v-else>
-                    <Document />
-                  </el-icon>
-                  {{ node.label }}
-                </span>
-              </span>
-            </template>
-          </el-tree>
-        </div>
-
-        <div class="selected-dir-info" v-if="tempSelectedDir">
-          <p>选中目录: {{ tempSelectedDir.path }}</p>
-        </div>
+    <el-dialog v-model="showDirDialog" :title="isSelectSource ? '选择来源目录' : '选择目标目录'"
+      :width="checkIsMobile ? '90%' : '600px'" :close-on-click-modal="false" body-class="directory-selector">
+      <div class="dir-selector">
+        <DirectorySelector
+          v-model="tempSelectedDir"
+          :source-type="selectedSourceType"
+          :account-id="selectedAccountId"
+          @cancel="showDirDialog = false"
+          @select="confirmSelectDir"
+        />
       </div>
-
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="handleCancelDirDialog">取消</el-button>
-          <el-button type="primary" @click="confirmSelectDir" :disabled="!tempSelectedDir">
-            确定选择
-          </el-button>
-        </span>
-      </template>
     </el-dialog>
   </div>
 </template>
@@ -389,7 +361,8 @@
 import { ref, reactive, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { isMobile } from "@/utils/deviceUtils";
+import { isMobile } from "@/utils/deviceUtils"
+import DirectorySelector from '@/components/DirectorySelector.vue'
 
 import { inject } from 'vue'
 import type { AxiosStatic } from 'axios';
@@ -438,17 +411,11 @@ const showEditDialog = ref(false)
 const addLoading = ref(false)
 const editLoading = ref(false)
 const showDirDialog = ref(false)
-const dirTreeData = ref<DirInfo[]>([])
-const dirTreeLoading = ref(false)
 const tempSelectedDir = ref<DirInfo | null>(null)
-const currentDir = ref<DirInfo | null>(null)
 const selectedSourceType = ref('115')
 const selectedAccountId = ref(0)
 const isEditMode = ref(false)
 const isSelectSource = ref(false)
-const isSelectingLocalPath = ref(false)
-const selectedDirPath = ref('')
-const editSelectedDirPath = ref('')
 const tempVideoExt = ref('')
 
 // 表单引用
@@ -585,13 +552,6 @@ const editFormRules = reactive<FormRules>({
   folder_name_template: [{ required: true, message: '请输入文件夹重命名模板', trigger: 'blur' }],
   file_name_template: [{ required: true, message: '请输入文件重命名模板', trigger: 'blur' }],
 })
-
-// 目录树属性
-const dirTreeProps = {
-  label: 'name',
-  children: 'children',
-  isLeaf: 'is_dir',
-}
 
 // 监听添加表单媒体类型变化
 watch(() => addForm.media_type, (newType) => {
@@ -814,7 +774,6 @@ const resetAddForm = () => {
   addForm.min_video_file_size = 0
   addForm.video_ext_list = [".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".flv", ".avi", ".ts", ".m4v", ".iso", ".rmvb", ".strm"]
   tempVideoExt.value = ''
-  selectedDirPath.value = ''
   addForm.exclude_no_image_actor = false
   addForm.enable_ai = 'off'
   addForm.ai_prompt = ''
@@ -843,7 +802,6 @@ const handleEdit = (row: ScrapePath) => {
   editForm.delete_keyword = [...row.delete_keyword]
   editForm.min_video_file_size = row.min_video_file_size || 0
   editForm.video_ext_list = [...(row.video_ext_list || ['mp4', 'mkv', 'avi', 'wmv', 'flv', 'mov', 'webm'])]
-  editSelectedDirPath.value = row.source_path
   tempVideoExt.value = ''
   editForm.exclude_no_image_actor = row.exclude_no_image_actor || false
   editForm.enable_ai = row.enable_ai || 'off'
@@ -967,68 +925,26 @@ const handleStop = async (row: ScrapePath) => {
 }
 
 // 打开目录选择器
-const openDirSelector = async (isSource: boolean = false) => {
+const openDirSelector = (isSource: boolean = false) => {
   showDirDialog.value = true
   tempSelectedDir.value = null
-  currentDir.value = null
   selectedSourceType.value = addForm.source_type
-  selectedAccountId.value = parseInt(addForm.account_id + "") || 0
+  selectedAccountId.value = Number(addForm.account_id) || 0
   isEditMode.value = false
   isSelectSource.value = isSource
-
-  await loadDirTree(null)
 }
 
 // 打开编辑模式的目录选择器
-const openEditDirSelector = async (isSource: boolean = false) => {
+const openEditDirSelector = (isSource: boolean = false) => {
   showDirDialog.value = true
   tempSelectedDir.value = null
-  currentDir.value = null
   selectedSourceType.value = editForm.source_type
   selectedAccountId.value = editForm.account_id
   isEditMode.value = true
   isSelectSource.value = isSource
-  isSelectingLocalPath.value = !isSource
-
-  await loadDirTree(null)
 }
 
-// 加载目录树 - 复用同步目录的接口逻辑
-const loadDirTree = async (dir: DirInfo | null) => {
-  try {
-    dirTreeLoading.value = true
-    const response = await http?.get(`${SERVER_URL}/path/list`, {
-      timeout: 30000,
-      params: {
-        source_type: selectedSourceType.value,
-        account_id: selectedAccountId.value,
-        parent_id: dir?.id || "",
-        parent_path: dir?.path || "",
-      },
-    })
-    if (response?.data.code === 200) {
-      dirTreeData.value = response.data.data || []
-    } else {
-      ElMessage.error(response?.data.message || '加载目录失败')
-      dirTreeData.value = []
-    }
-  } catch {
-    console.error('加载目录树错误')
-    ElMessage.error('加载目录失败')
-    dirTreeData.value = []
-  } finally {
-    dirTreeLoading.value = false
-  }
-}
-
-// 选择临时目录
-const selectTempDir = async (dir: DirInfo) => {
-  tempSelectedDir.value = dir
-  // 如果选择了目录且不是本地路径，加载子目录
-  await loadDirTree(dir)
-}
-
-// 确认选择目录 - 复用同步目录的来源路径逻辑
+// 确认选择目录
 const confirmSelectDir = () => {
   if (!tempSelectedDir.value) return
 
@@ -1050,16 +966,6 @@ const confirmSelectDir = () => {
     }
   }
 
-  showDirDialog.value = false
-}
-
-// 目录选择对话框关闭事件处理
-const handleCloseDirDialog = () => {
-  showDirDialog.value = false
-}
-
-// 目录选择对话框取消事件处理
-const handleCancelDirDialog = () => {
   showDirDialog.value = false
 }
 
@@ -1138,34 +1044,11 @@ onUnmounted(() => {
   margin-bottom: 10px;
 }
 
-.dir-tree-container {
-  max-height: 300px;
-  overflow-y: auto;
-  border: 1px solid #ebeef5;
-  border-radius: 4px;
-  padding: 10px;
-}
-
-.selected-dir-info {
-  margin-top: 15px;
-  padding: 10px;
-  background-color: #f5f7fa;
-  border-radius: 4px;
-}
-
-.dialog-footer {
+.dir-selector {
   display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.custom-tree-node {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 14px;
-  padding-right: 8px;
+  flex-direction: column;
+  gap: 16px;
+  height: 500px;
 }
 
 .info-value {

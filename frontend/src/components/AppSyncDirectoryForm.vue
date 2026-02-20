@@ -104,7 +104,7 @@
               </div>
             </div>
           </el-form-item>
-          <el-form-item label="STRM直连地址" prop="strm_base_url">
+          <el-form-item label="STRM直连地址" prop="strm_base_url" v-if="form.source_type !== 'local' && form.source_type !== 'openlist'">
             <el-input v-model="form.strm_base_url" placeholder="留空则使用STRM设置中的地址"
               :disabled="loading" @input="updateStrmExample" />
             <div v-if="strmExample" class="strm-example-inline">
@@ -319,7 +319,7 @@
               </div>
             </div>
           </el-form-item>
-          <el-form-item label="STRM直连地址" prop="strm_base_url">
+          <el-form-item label="STRM直连地址" prop="strm_base_url" v-if="form.source_type !== 'local' && form.source_type !== 'openlist'">
             <el-input v-model="form.strm_base_url" placeholder="留空则使用STRM设置中的地址"
               :disabled="loading" @input="updateStrmExample" />
             <div v-if="strmExample" class="strm-example-inline">
@@ -445,27 +445,10 @@
           :root-path="initialRootPath"
           :source-type="selectedSourceType"
           :account-id="Number(selectedAccountId)"
-          @create="showCreateDialog = true"
           @cancel="showDirDialog = false"
           @select="confirmSelectDir"
         />
       </div>
-    </el-dialog>
-
-    <el-dialog v-model="showCreateDialog" title="新建文件夹" width="400px" :close-on-click-modal="false">
-      <el-form ref="createFormRef" :model="createForm" :rules="createRules" label-width="80px">
-        <el-form-item label="文件夹名称" prop="name">
-          <el-input v-model="createForm.name" placeholder="请输入文件夹名称" clearable />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="showCreateDialog = false">取消</el-button>
-          <el-button type="primary" @click="handleCreateDirectory" :loading="createLoading">
-            确定
-          </el-button>
-        </span>
-      </template>
     </el-dialog>
   </div>
 </template>
@@ -549,23 +532,12 @@ const accounts = ref<CloudAccount[]>([])
 const accountsLoading = ref(false)
 
 const showDirDialog = ref(false)
-const showCreateDialog = ref(false)
 const selectedDirPath = ref('')
 const tempSelectedDir = ref<DirInfo | null>(null)
 const initialRootPath = ref('')
 const isSelectingLocalPath = ref(false)
 const selectedSourceType = ref('')
 const selectedAccountId: Ref<number | string> = ref(0)
-const createLoading = ref(false)
-
-const createFormRef = ref<FormInstance>()
-const createForm = ref({ name: '' })
-const createRules = ref<FormRules>({
-  name: [
-    { required: true, message: '请输入文件夹名称', trigger: 'blur' },
-    { min: 1, max: 255, message: '文件夹名称长度在 1 到 255 个字符', trigger: 'blur' }
-  ]
-})
 
 const versionInfo = ref<VersionInfo | null>(null)
 
@@ -758,47 +730,6 @@ const confirmSelectDir = async () => {
   showDirDialog.value = false
   tempSelectedDir.value = null
   isSelectingLocalPath.value = false
-}
-
-const handleCreateDirectory = async () => {
-  if (!createFormRef.value) return
-  if (!tempSelectedDir.value) {
-    ElMessage.warning('请先选择一个父目录')
-    return
-  }
-
-  try {
-    await createFormRef.value.validate()
-    createLoading.value = true
-
-    const response = await http?.post(`${SERVER_URL}/path/create`, {
-      parent_id: tempSelectedDir.value.id,
-      parent_path: tempSelectedDir.value.path,
-      name: createForm.value.name.trim(),
-      source_type: selectedSourceType.value,
-      account_id: Number(selectedAccountId.value),
-    })
-
-    if (response?.data.code === 200) {
-      ElMessage.success('创建文件夹成功')
-      showCreateDialog.value = false
-      createForm.value.name = ''
-
-      showDirDialog.value = false
-      await new Promise(resolve => setTimeout(resolve, 100))
-      showDirDialog.value = true
-      tempSelectedDir.value = null
-      selectedSourceType.value = isSelectingLocalPath.value ? 'local' : form.source_type
-      selectedAccountId.value = form.account_id
-      initialRootPath.value = isSelectingLocalPath.value ? form.local_path : form.base_cid
-    } else {
-      ElMessage.error(response?.data.message || '创建文件夹失败')
-    }
-  } catch {
-    ElMessage.error('创建文件夹失败')
-  } finally {
-    createLoading.value = false
-  }
 }
 
 const handleSubmit = async () => {

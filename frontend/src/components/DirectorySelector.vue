@@ -18,12 +18,28 @@
       </div>
     </div>
     <div class="footer-buttons">
-      <el-button @click="$emit('create')">新建文件夹</el-button>
+      <el-button @click="openCreateDialog">新建文件夹</el-button>
       <el-button @click="handleCancel">取消</el-button>
       <el-button type="primary" @click="handleButtonSelect" :disabled="!selectedDir">
         选择
       </el-button>
     </div>
+
+    <el-dialog v-model="showCreateDialog" title="新建文件夹" width="400px" :close-on-click-modal="false" append-to-body>
+      <el-form ref="createFormRef" :model="createForm" :rules="createRules" label-width="80px">
+        <el-form-item label="文件夹名称" prop="name">
+          <el-input v-model="createForm.name" placeholder="请输入文件夹名称" clearable />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showCreateDialog = false">取消</el-button>
+          <el-button type="primary" @click="handleCreateDirectory" :loading="createLoading">
+            确定
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -31,6 +47,7 @@
 import { ref, onMounted, inject, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { AxiosStatic } from 'axios'
+import type { FormInstance, FormRules } from 'element-plus'
 import type { DirInfo } from '@/typing'
 import TreeNode from './TreeNode.vue'
 import { SERVER_URL } from '@/const'
@@ -50,13 +67,23 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   'update:modelValue': [value: DirInfo | null]
-  create: []
   cancel: []
   select: []
   reset: []
 }>()
 
 const http: AxiosStatic | undefined = inject('$http')
+
+const showCreateDialog = ref(false)
+const createLoading = ref(false)
+const createFormRef = ref<FormInstance>()
+const createForm = ref({ name: '' })
+const createRules = ref<FormRules>({
+  name: [
+    { required: true, message: '请输入文件夹名称', trigger: 'blur' },
+    { min: 1, max: 255, message: '文件夹名称长度在 1 到 255 个字符', trigger: 'blur' }
+  ]
+})
 
 interface TreeNodeData extends DirInfo {
   expanded?: boolean
@@ -195,6 +222,88 @@ watch(() => props.modelValue, (newValue) => {
 onMounted(() => {
   loadRootDirectories()
 })
+
+const openCreateDialog = () => {
+  if (!selectedDir.value) {
+    ElMessage.warning('请先选择一个父目录')
+    return
+  }
+  createForm.value.name = ''
+  showCreateDialog.value = true
+}
+
+const handleCreateDirectory = async () => {
+  if (!createFormRef.value) return
+  if (!selectedDir.value) {
+    ElMessage.warning('请先选择一个父目录')
+    return
+  }
+
+  try {
+    await createFormRef.value.validate()
+    createLoading.value = true
+
+    const response = await http?.post(`${SERVER_URL}/path/create`, {
+      parent_id: selectedDir.value.id,
+      parent_path: selectedDir.value.path,
+      name: createForm.value.name.trim(),
+      source_type: props.sourceType,
+      account_id: props.accountId,
+    })
+
+    if (response?.data.code === 200) {
+      ElMessage.success('创建文件夹成功')
+      showCreateDialog.value = false
+      createForm.value.name = ''
+
+      const newDir = response.data.data as DirInfo
+      selectedDir.value = newDir
+      emit('update:modelValue', newDir)
+
+      const parentPath = selectedDir.value.path || ''
+      const parentPathParts = parentPath.split('/').filter(Boolean)
+      if (parentPathParts.length === 0) {
+        treeData.value.push({
+          ...newDir,
+          expanded: false,
+          loading: false,
+          children: [],
+          hasChildren: true,
+        })
+      } else {
+        const findAndAddToParent = (nodes: TreeNodeData[]): boolean => {
+          for (const node of nodes) {
+            if (node.id === selectedDir.value?.id) {
+              if (!node.children) {
+                node.children = []
+              }
+              node.children.push({
+                ...newDir,
+                expanded: false,
+                loading: false,
+                children: [],
+                hasChildren: true,
+              })
+              node.expanded = true
+              return true
+            }
+            if (node.children && findAndAddToParent(node.children)) {
+              return true
+            }
+          }
+          return false
+        }
+        findAndAddToParent(treeData.value)
+      }
+    } else {
+      ElMessage.error(response?.data.message || '创建文件夹失败')
+    }
+  } catch {
+    ElMessage.error('创建文件夹失败')
+  } finally {
+    createLoading.value = false
+  }
+}
 
 defineExpose({
   refresh: loadRootDirectories,

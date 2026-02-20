@@ -1,100 +1,347 @@
 <template>
-  <div class="main-content-container accounts-content">
-    <!-- 操作提示 -->
-    <el-alert title="操作提示" type="info" description="先添加账号，然后点击列表中操作区域的授权按钮完成账号绑定" :closable="false" show-icon
-      class="operation-tip" />
-
-    <!-- 添加账号按钮 -->
-    <div class="add-account-button">
-      <el-button type="primary" @click="showAddAccountDialog = true">添加账号</el-button>
+  <div class="cloud-accounts-page">
+    <div class="page-header">
+      <div class="header-content">
+        <div class="header-title-section">
+          <h1 class="page-title">
+            <el-icon class="title-icon"><Cloudy /></el-icon>
+            网盘账号管理
+          </h1>
+          <p class="page-subtitle">管理您的网盘账号授权与绑定</p>
+        </div>
+        <div class="header-actions">
+          <el-button type="primary" class="add-btn" @click="showAddAccountDialog = true">
+            <el-icon><Plus /></el-icon>
+            <span class="btn-text">添加账号</span>
+          </el-button>
+        </div>
+      </div>
+      <div class="stats-bar mobile-hidden">
+        <div class="stat-item">
+          <div class="stat-icon total">
+            <el-icon><User /></el-icon>
+          </div>
+          <div class="stat-info">
+            <span class="stat-value">{{ accounts.length }}</span>
+            <span class="stat-label">总账号数</span>
+          </div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-icon authorized">
+            <el-icon><CircleCheck /></el-icon>
+          </div>
+          <div class="stat-info">
+            <span class="stat-value">{{ authorizedCount }}</span>
+            <span class="stat-label">已授权</span>
+          </div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-icon unauthorized">
+            <el-icon><WarningFilled /></el-icon>
+          </div>
+          <div class="stat-info">
+            <span class="stat-value">{{ unauthorizedCount }}</span>
+            <span class="stat-label">未授权</span>
+          </div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-icon failed">
+            <el-icon><CircleClose /></el-icon>
+          </div>
+          <div class="stat-info">
+            <span class="stat-value">{{ failedCount }}</span>
+            <span class="stat-label">授权失败</span>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- 账号卡片列表 -->
-    <div v-loading="loading" element-loading-text="加载中..." class="accounts-loading-container">
-      <div style="
-          width: 100%;
-          height: 100%;
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-          justify-content: start;
-          align-items: top;
-        ">
-        <el-card class="account-card" shadow="hover" v-for="account in accounts" :key="account.id">
-          <template #header>
-            <div class="account-card-header">
-              <div class="account-info">
-                <h3 class="account-name">#{{ account.id }} {{ account.name }}</h3>
-                <el-tag :type="sourceTypeTagMap[account.source_type]" effect="dark">
-                  {{ sourceTypeMap[account.source_type] }}
-                </el-tag>
+    <div class="accounts-content">
+      <div class="accounts-grid" v-if="accounts.length > 0">
+        <div
+          class="account-card"
+          v-for="account in accounts"
+          :key="account.id"
+          :class="getCardStatusClass(account)"
+        >
+          <div class="card-status-bar" :class="getStatusClass(account)"></div>
+          <div class="card-main">
+            <div class="card-header">
+              <div class="card-title-wrapper">
+                <el-tooltip :content="'账号ID：' + account.id" placement="bottom">
+                  <span class="card-id">#{{ account.id }}</span>
+                </el-tooltip>
+                <span class="card-name">{{ account.name }}</span>
               </div>
-              <div>
-                <el-tag v-if="account.token" type="success" size="large">已授权</el-tag>
-                <template v-if="account.token_failed_reason && !account.token">
-                  <el-tooltip :content="account.token_failed_reason" placement="top">
-                    <el-tag type="danger" size="large">
-                      <el-icon>
-                        <WarningFilled />
-                      </el-icon>
-                      凭证刷新失败
-                    </el-tag>
-                  </el-tooltip>
-                </template>
-                <el-tag v-if="!account.token_failed_reason && !account.token" type="danger" size="large">未授权</el-tag>
+              <el-tag :type="sourceTypeTagMap[account.source_type]" class="source-tag" effect="light">
+                {{ sourceTypeMap[account.source_type] }}
+              </el-tag>
+            </div>
+
+            <div class="card-body">
+              <div class="info-row" v-if="account.source_type === '115'">
+                <div class="info-icon">
+                  <el-icon><User /></el-icon>
+                </div>
+                <div class="info-content">
+                  <span class="info-label">115账号</span>
+                  <span class="info-value">{{ account.username || '-' }}</span>
+                </div>
+              </div>
+
+              <div class="info-row" v-if="account.source_type === '115'">
+                <div class="info-icon">
+                  <el-icon><Key /></el-icon>
+                </div>
+                <div class="info-content">
+                  <span class="info-label">开放平台应用</span>
+                  <span class="info-value">{{ account.app_id_name || '-' }}</span>
+                </div>
+              </div>
+
+              <div class="info-row" v-if="account.source_type === 'baidupan'">
+                <div class="info-icon">
+                  <el-icon><Key /></el-icon>
+                </div>
+                <div class="info-content">
+                  <span class="info-label">APP ID</span>
+                  <span class="info-value">{{ account.app_id || '-' }}</span>
+                </div>
+              </div>
+
+              <template v-if="account.source_type === 'openlist'">
+                <div class="info-row">
+                  <div class="info-icon">
+                    <el-icon><Link /></el-icon>
+                  </div>
+                  <div class="info-content">
+                    <span class="info-label">访问地址</span>
+                    <span class="info-value path-value">{{ account.base_url }}</span>
+                  </div>
+                </div>
+                <div class="info-row">
+                  <div class="info-icon">
+                    <el-icon><User /></el-icon>
+                  </div>
+                  <div class="info-content">
+                    <span class="info-label">用户名</span>
+                    <span class="info-value">{{ account.name }}</span>
+                  </div>
+                </div>
+                <div class="info-row">
+                  <div class="info-icon">
+                    <el-icon><Postcard /></el-icon>
+                  </div>
+                  <div class="info-content">
+                    <span class="info-label">用户ID</span>
+                    <span class="info-value">{{ account.user_id || '-' }}</span>
+                  </div>
+                </div>
+              </template>
+
+              <div class="info-row">
+                <div class="info-icon">
+                  <el-icon><Calendar /></el-icon>
+                </div>
+                <div class="info-content">
+                  <span class="info-label">添加时间</span>
+                  <span class="info-value">{{ formatTimestamp(account.created_at) }}</span>
+                </div>
+              </div>
+
+              <template v-if="(account.source_type === '115' || account.source_type === 'baidupan') && account.token">
+                <div class="status-divider"></div>
+                <div class="disk-status-section">
+                  <div class="status-header">
+                    <span class="status-title">网盘状态</span>
+                    <el-button
+                      type="primary"
+                      size="small"
+                      text
+                      :loading="account.statusLoading"
+                      @click="loadAccountStatus(account)"
+                    >
+                      <el-icon v-if="!account.statusLoading"><RefreshRight /></el-icon>
+                      刷新
+                    </el-button>
+                  </div>
+                  <template v-if="account.status">
+                    <div class="info-row">
+                      <div class="info-icon">
+                        <el-icon><User /></el-icon>
+                      </div>
+                      <div class="info-content">
+                        <span class="info-label">网盘用户</span>
+                        <span class="info-value">{{ account.status.username || '-' }}</span>
+                      </div>
+                    </div>
+                    <div class="info-row">
+                      <div class="info-icon space-icon">
+                        <el-icon><Cloudy /></el-icon>
+                      </div>
+                      <div class="info-content">
+                        <span class="info-label">空间使用</span>
+                        <div class="space-info">
+                          <el-progress
+                            :percentage="account.status.total_space > 0 ? Math.round((account.status.used_space / account.status.total_space) * 100) : 0"
+                            :stroke-width="6"
+                            :show-text="false"
+                            :color="getSpaceColor(account.status.used_space, account.status.total_space)"
+                          />
+                          <span class="space-text">{{ formatFileSize(account.status.used_space) }} / {{ formatFileSize(account.status.total_space) }}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="info-row" v-if="account.status.member_level">
+                      <div class="info-icon member-icon">
+                        <el-icon><Postcard /></el-icon>
+                      </div>
+                      <div class="info-content">
+                        <span class="info-label">会员等级</span>
+                        <el-tag size="small" type="warning" effect="plain">{{ account.status.member_level }}</el-tag>
+                      </div>
+                    </div>
+                    <div class="info-row" v-if="account.status.expire_time && account.status.expire_time !== '0001-01-01T00:00:00Z'">
+                      <div class="info-icon expire-icon">
+                        <el-icon><Calendar /></el-icon>
+                      </div>
+                      <div class="info-content">
+                        <span class="info-label">到期时间</span>
+                        <span class="info-value" :class="{ 'expire-warning': isExpiringSoon(account.status.expire_time) }">
+                          {{ formatExpireTime(account.status.expire_time) }}
+                        </span>
+                      </div>
+                    </div>
+                  </template>
+                  <template v-else-if="!account.statusLoading">
+                    <div class="no-status">暂无状态信息</div>
+                  </template>
+                </div>
+              </template>
+
+              <div class="status-row">
+                <div class="status-indicator" :class="getStatusClass(account)">
+                  <el-icon v-if="account.token_failed_reason && !account.token"><CircleClose /></el-icon>
+                  <el-icon v-else-if="account.token"><CircleCheck /></el-icon>
+                  <el-icon v-else><WarningFilled /></el-icon>
+                  <span>{{ getStatusText(account) }}</span>
+                </div>
+                <el-tooltip v-if="account.token_failed_reason && !account.token" :content="account.token_failed_reason" placement="top">
+                  <el-icon class="error-help-icon"><QuestionFilled /></el-icon>
+                </el-tooltip>
               </div>
             </div>
-          </template>
-          <div class="card-body">
-            <div class="info-item" v-if="account.source_type === '115'">
-              <span class="info-label">115账号:</span>
-              <span class="info-value">{{ account.username }}</span>
-            </div>
-            <div class="info-item" v-if="account.source_type === '115'">
-              <span class="info-label">115开放平台应用:</span>
-              <span class="info-value">{{ account.app_id_name }}</span>
-            </div>
-            <div class="info-item" v-if="account.source_type === 'baidupan'">
-              <span class="info-label">APP ID:</span>
-              <span class="info-value">{{ account.app_id || '-' }}</span>
-            </div>
-            <template v-if="account.source_type === 'openlist'">
-              <div class="info-item">
-                <span class="info-label">OpenList地址:</span>
-                <span class="info-value">{{ account.base_url }}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">用户名:</span>
-                <span class="info-value">{{ account.name }}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">用户ID:</span>
-                <span class="info-value">{{ account.user_id }}</span>
-              </div>
-            </template>
-            <div class="info-item">
-              <span class="info-label">添加时间:</span>
-              <span class="info-value">{{ formatTimestamp(account.created_at) }}</span>
-            </div>
-          </div>
-          <template #footer>
-            <div class="account-card-footer">
-              <el-button type="danger" @click="handleDelete(account)"> 删除 </el-button>
-              <el-button type="warning" @click="handleAuthorize(account)" size="small"
-                v-if="account.source_type !== 'openlist'">
+
+            <div class="card-footer">
+              <el-button
+                type="danger"
+                size="small"
+                plain
+                @click="handleDelete(account)"
+              >
+                <el-icon><Delete /></el-icon>
+                删除
+              </el-button>
+
+              <el-button
+                type="warning"
+                size="small"
+                plain
+                @click="handleAuthorize(account)"
+                v-if="account.source_type !== 'openlist'"
+              >
+                <el-icon><Key /></el-icon>
                 授权
               </el-button>
-              <el-button type="primary" @click="handleEdit(account)" size="small"
-                v-if="account.source_type === 'openlist'">
+
+              <el-button
+                type="primary"
+                size="small"
+                plain
+                @click="handleEdit(account)"
+                v-if="account.source_type === 'openlist'"
+              >
+                <el-icon><Edit /></el-icon>
                 编辑
               </el-button>
             </div>
-          </template>
-        </el-card>
+          </div>
+        </div>
+      </div>
+
+      <div class="empty-state" v-else-if="!loading">
+        <div class="empty-illustration">
+          <el-icon class="empty-icon"><Cloudy /></el-icon>
+          <div class="empty-dots">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+        </div>
+        <h3 class="empty-title">暂无网盘账号</h3>
+        <p class="empty-description">点击上方按钮添加您的第一个网盘账号</p>
+        <el-button type="primary" @click="showAddAccountDialog = true">
+          <el-icon><Plus /></el-icon>
+          添加账号
+        </el-button>
+      </div>
+
+      <div class="loading-state" v-if="loading">
+        <el-icon class="loading-icon rotating"><Loading /></el-icon>
+        <span>加载中...</span>
+      </div>
+
+      <div class="page-footer-tips">
+        <div class="tips-header">
+          <el-icon class="tips-icon"><InfoFilled /></el-icon>
+          <span>使用说明</span>
+        </div>
+        <div class="tips-content">
+          <div class="tip-group">
+            <div class="tip-group-title">
+              <el-icon><Warning /></el-icon>
+              <span>操作流程</span>
+            </div>
+            <div class="tip-group-items">
+              <div class="tip-item">
+                <span class="tip-bullet">1.</span>
+                <span>点击"添加账号"按钮，选择网盘类型并填写相关信息</span>
+              </div>
+              <div class="tip-item">
+                <span class="tip-bullet">2.</span>
+                <span>添加成功后，点击列表中的"授权"按钮完成账号绑定</span>
+              </div>
+              <div class="tip-item tip-highlight">
+                <span class="tip-bullet">★</span>
+                <span>只有已授权的账号才能用于STRM同步目录配置</span>
+              </div>
+            </div>
+          </div>
+          <div class="tip-group">
+            <div class="tip-group-title">
+              <el-icon><Key /></el-icon>
+              <span>授权说明</span>
+            </div>
+            <div class="tip-group-items">
+              <div class="tip-item">
+                <span class="tip-bullet">•</span>
+                <span>115网盘：通过OAuth授权，会打开新窗口进行授权</span>
+              </div>
+              <div class="tip-item">
+                <span class="tip-bullet">•</span>
+                <span>百度网盘：通过OAuth授权，会打开新窗口进行授权</span>
+              </div>
+              <div class="tip-item">
+                <span class="tip-bullet">•</span>
+                <span>OpenList：支持用户名密码或令牌两种认证方式</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
-  <!-- 添加账号对话框 -->
+
   <el-dialog v-model="showAddAccountDialog" title="添加账号" :width="isMobile ? '90%' : '500px'">
     <el-form :model="newAccountForm" label-width="120px">
       <el-form-item label="网盘类型">
@@ -145,7 +392,6 @@
     </template>
   </el-dialog>
 
-  <!-- 编辑账号对话框 -->
   <el-dialog v-model="showEditAccountDialog" title="编辑OpenList账号" :width="isMobile ? '90%' : '500px'">
     <el-form :model="editAccountForm" label-width="80px">
       <el-form-item label="访问地址" prop="baseUrl">
@@ -181,19 +427,42 @@
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
 import type { AxiosError, AxiosStatic } from 'axios'
-import { inject, ref, onMounted, onUnmounted } from 'vue'
+import { inject, ref, computed, onMounted, onUnmounted } from 'vue'
 
 import {
   WarningFilled,
+  Plus,
+  Loading,
+  User,
+  Key,
+  Link,
+  Calendar,
+  Delete,
+  Edit,
+  Cloudy,
+  CircleCheck,
+  CircleClose,
+  InfoFilled,
+  QuestionFilled,
+  Postcard,
+  RefreshRight,
 } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { formatTimestamp } from '@/utils/timeUtils'
 import { sourceTypeMap, sourceTypeOptions, sourceTypeTagMap } from '@/utils/sourceTypeUtils'
-import { isMobile as checkIsMobile } from '@/utils/deviceUtils'
+import { isMobile as checkIsMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 
 const isMobile = ref(checkIsMobile())
 
-// 定义页面显示的账号数据结构
+interface CloudDiskStatus {
+  user_id: string
+  username: string
+  used_space: number
+  total_space: number
+  member_level: string
+  expire_time: string
+}
+
 interface CloudAccount {
   id: number
   source_type: string
@@ -208,24 +477,17 @@ interface CloudAccount {
   app_id_name?: string
   app_id?: string
   token_failed_reason?: string
+  status?: CloudDiskStatus
+  statusLoading?: boolean
 }
 
-// 获取HTTP客户端
 const http: AxiosStatic | undefined = inject('$http')
 
-// 账号列表数据
 const accounts = ref<CloudAccount[]>([])
-
-// 加载状态
 const loading = ref(false)
-
-// 添加账号对话框显示状态
 const showAddAccountDialog = ref(false)
-
-// 添加账号loading状态
 const addAccountLoading = ref(false)
 
-// 新账号表单数据
 const newAccountForm = ref({
   type: '',
   name: '',
@@ -234,11 +496,10 @@ const newAccountForm = ref({
   password: '',
   token: '',
   auth_type: 'password',
-  app_id_name: 'Q115-STRM', // 默认值
+  app_id_name: 'Q115-STRM',
   app_id: '',
 })
 
-// 编辑账号相关状态
 const showEditAccountDialog = ref(false)
 const currentEditAccount = ref<CloudAccount | null>(null)
 const editAccountForm = ref({
@@ -252,13 +513,30 @@ const editAccountForm = ref({
   token_failed_reason: '',
 })
 
-const currentAccountId = ref<number | undefined>(undefined) // 当前账号ID
+const currentAccountId = ref<number | undefined>(undefined)
 
-// 123云盘授权相关状态
-const show123AuthDialog = ref(false)
-const selectedAccountId = ref<number | undefined>(undefined)
+const authorizedCount = computed(() => accounts.value.filter(a => a.token && !a.token_failed_reason).length)
+const unauthorizedCount = computed(() => accounts.value.filter(a => !a.token && !a.token_failed_reason).length)
+const failedCount = computed(() => accounts.value.filter(a => a.token_failed_reason && !a.token).length)
 
-// 加载账号列表
+const getStatusClass = (account: CloudAccount) => {
+  if (account.token_failed_reason && !account.token) return 'status-failed'
+  if (account.token) return 'status-authorized'
+  return 'status-unauthorized'
+}
+
+const getStatusText = (account: CloudAccount) => {
+  if (account.token_failed_reason && !account.token) return '授权失败'
+  if (account.token) return '已授权'
+  return '未授权'
+}
+
+const getCardStatusClass = (account: CloudAccount) => {
+  if (account.token_failed_reason && !account.token) return 'is-failed'
+  if (account.token) return 'is-authorized'
+  return 'is-unauthorized'
+}
+
 const loadAccounts = async () => {
   try {
     loading.value = true
@@ -266,7 +544,6 @@ const loadAccounts = async () => {
 
     if (response?.data.code === 200) {
       const data = response.data.data
-      console.log(data)
       accounts.value = data.map((item: CloudAccount) => ({
         id: item.id,
         source_type: item.source_type,
@@ -281,7 +558,14 @@ const loadAccounts = async () => {
         app_id_name: item.app_id_name,
         app_id: item.app_id,
         token_failed_reason: item.token_failed_reason || '',
+        status: undefined,
+        statusLoading: false,
       }))
+      accounts.value.forEach(account => {
+        if ((account.source_type === '115' || account.source_type === 'baidupan') && account.token) {
+          loadAccountStatus(account)
+        }
+      })
     } else {
       console.error('加载账号列表失败:', response?.data.message || '未知错误')
       accounts.value = []
@@ -294,7 +578,78 @@ const loadAccounts = async () => {
   }
 }
 
-// 删除账号
+const loadAccountStatus = async (account: CloudAccount) => {
+  const index = accounts.value.findIndex(a => a.id === account.id)
+  if (index === -1) return
+
+  accounts.value[index].statusLoading = true
+
+  try {
+    let url = ''
+    if (account.source_type === '115') {
+      url = `${SERVER_URL}/115/status`
+    } else if (account.source_type === 'baidupan') {
+      url = `${SERVER_URL}/baidupan/status`
+    } else {
+      return
+    }
+
+    const response = await http?.get(url, {
+      params: { account_id: account.id }
+    })
+
+    if (response?.data.code === 200 && response.data.data) {
+      accounts.value[index].status = response.data.data
+    }
+  } catch (error) {
+    console.error(`获取${account.source_type}状态失败:`, error)
+  } finally {
+    accounts.value[index].statusLoading = false
+  }
+}
+
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+  const k = 1024
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + units[i]
+}
+
+const formatExpireTime = (expireTime: string): string => {
+  if (!expireTime || expireTime === '0001-01-01T00:00:00Z' || expireTime === '1970-01-01T00:00:00Z') {
+    return '-'
+  }
+  try {
+    const date = new Date(expireTime)
+    if (isNaN(date.getTime())) return '-'
+    return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
+  } catch {
+    return '-'
+  }
+}
+
+const getSpaceColor = (used: number, total: number): string => {
+  if (total === 0) return '#67c23a'
+  const percentage = used / total
+  if (percentage < 0.5) return '#67c23a'
+  if (percentage < 0.8) return '#e6a23c'
+  return '#f56c6c'
+}
+
+const isExpiringSoon = (expireTime: string): boolean => {
+  if (!expireTime) return false
+  try {
+    const date = new Date(expireTime)
+    if (isNaN(date.getTime())) return false
+    const now = new Date()
+    const diffDays = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    return diffDays <= 30
+  } catch {
+    return false
+  }
+}
+
 const handleDelete = async (row: CloudAccount) => {
   try {
     await ElMessageBox.confirm(`确定要删除账号 "${row.name}" 吗？此操作不可恢复。`, '确认删除', {
@@ -303,7 +658,6 @@ const handleDelete = async (row: CloudAccount) => {
       type: 'warning',
     })
 
-    // 调用API删除账号
     const response = await http?.post(
       `${SERVER_URL}/account/delete`,
       { id: row.id },
@@ -316,12 +670,11 @@ const handleDelete = async (row: CloudAccount) => {
 
     if (response?.data.code === 200) {
       ElMessage.success('账号删除成功')
-      loadAccounts() // 刷新账号列表
+      loadAccounts()
     } else {
       ElMessage.error(response?.data.message || '删除账号失败')
     }
   } catch (error) {
-    // 用户取消删除或请求失败
     if (error !== 'cancel' && error !== 'close') {
       console.error('删除账号失败:', error)
       ElMessage.error('删除账号失败')
@@ -329,10 +682,8 @@ const handleDelete = async (row: CloudAccount) => {
   }
 }
 
-// 处理编辑账号
 const handleEdit = (account: CloudAccount) => {
   currentEditAccount.value = account
-  console.log(account.base_url, account.password)
 
   const authType =
     account.auth_type || (account.username && account.password ? 'password' : 'token')
@@ -347,11 +698,9 @@ const handleEdit = (account: CloudAccount) => {
     auth_type: authType,
     token_failed_reason: account.token_failed_reason || '',
   }
-  console.log(editAccountForm.value)
   showEditAccountDialog.value = true
 }
 
-// 处理更新账号
 const handleUpdateAccount = async () => {
   try {
     const requestData = {
@@ -383,36 +732,24 @@ const handleUpdateAccount = async () => {
   }
 }
 
-// 授权账号
 const handleAuthorize = (row: CloudAccount) => {
-  console.log('授权账号:', row)
-  // 实现授权逻辑
-  // 如果是115网盘，使用OAuth授权
   if (row.source_type === '115') {
     handle115OAuth(row.id)
-  }
-  // 如果是123云盘，显示确认对话框
-  else if (row.source_type === '123') {
+  } else if (row.source_type === '123') {
     selectedAccountId.value = row.id
     show123AuthDialog.value = true
-  }
-  // 如果是百度网盘，显示确认对话框
-  else if (row.source_type === 'baidupan') {
+  } else if (row.source_type === 'baidupan') {
     handleBaiduOAuth(row.id)
   }
 }
 
-// 处理115 OAuth授权
 const handle115OAuth = async (accountId?: number) => {
   try {
-
     const response = await http?.get(`${SERVER_URL}/115/oauth-url?account_id=${accountId}`)
 
     if (response?.data.code === 200 && response.data.data) {
       const oauthUrl = response.data.data
-      // 保存当前授权的账号ID
       currentAccountId.value = accountId
-      // 在新窗口打开OAuth授权页面
       window.open(oauthUrl, '_blank', 'width=600,height=700')
     } else {
       ElMessage.error(response?.data.message || '获取授权地址失败')
@@ -423,16 +760,13 @@ const handle115OAuth = async (accountId?: number) => {
   }
 }
 
-// 处理百度网盘OAuth授权
 const handleBaiduOAuth = async (accountId?: number) => {
   try {
     const response = await http?.get(`${SERVER_URL}/baidupan/oauth-url?account_id=${accountId}`)
 
     if (response?.data.code === 200 && response.data.data) {
       const oauthUrl = response.data.data
-      // 保存当前授权的账号ID
       currentAccountId.value = accountId
-      // 在新窗口打开OAuth授权页面
       window.open(oauthUrl, '_blank', 'width=600,height=700')
     } else {
       ElMessage.error(response?.data.message || '获取授权地址失败')
@@ -443,8 +777,6 @@ const handleBaiduOAuth = async (accountId?: number) => {
   }
 }
 
-// 处理添加账号
-// 重置表单
 const resetForm = () => {
   newAccountForm.value = {
     type: '',
@@ -459,7 +791,6 @@ const resetForm = () => {
   }
 }
 
-// 添加账号
 const handleAddAccount = async () => {
   try {
     const data: Record<string, string | number> = {
@@ -507,12 +838,8 @@ const handleAddAccount = async () => {
   }
 }
 
-// 处理115 OAuth授权完成后的消息
 const handleOAuthMessage = async (event: MessageEvent) => {
   if (event.data.type === 'oauth_success') {
-    // 115 OAuth授权成功，发送数据到服务端处理
-    console.log('OAuth授权成功，准备确认授权:', event.data)
-
     try {
       const requestData = {
         account_id: currentAccountId.value,
@@ -521,7 +848,6 @@ const handleOAuthMessage = async (event: MessageEvent) => {
       let url = "";
       if (event.data.source === '' || event.data.source === '115') {
         url = `${SERVER_URL}/115/oauth-confirm`
-        // requestData.data = JSON.stringify(requestData.data)
       } else if (event.data.source === 'baidupan') {
         url = `${SERVER_URL}/baidupan/oauth-confirm`
       }
@@ -533,9 +859,7 @@ const handleOAuthMessage = async (event: MessageEvent) => {
 
       if (response?.data.code === 200) {
         ElMessage.success('授权成功')
-        // 刷新账号列表
         loadAccounts()
-        // 清空当前账号ID
         currentAccountId.value = undefined
       } else {
         ElMessage.error(response?.data.message || '授权确认失败')
@@ -545,162 +869,602 @@ const handleOAuthMessage = async (event: MessageEvent) => {
       ElMessage.error('授权确认失败')
     }
   } else if (event.data.type === 'oauth_error') {
-    // OAuth授权失败
-    console.error('OAuth授权失败:', event.data)
-
-    // 显示错误提示
     const errorMsg = event.data.error || '授权失败，请重试'
     const errorCode = event.data.errno || 0
     ElMessage.error(`授权失败: ${errorMsg}${errorCode ? ` (错误代码: ${errorCode})` : ''}`)
-
-    // 清空当前账号ID
     currentAccountId.value = undefined
   }
 }
 
-// 组件挂载时加载数据并添加事件监听器
+const selectedAccountId = ref<number | undefined>(undefined)
+const show123AuthDialog = ref(false)
+
+let removeDeviceTypeListener: (() => void) | null = null
+
 onMounted(() => {
   loadAccounts()
-  // 添加事件监听器以处理115 OAuth授权完成后的消息
   window.addEventListener('message', handleOAuthMessage)
+  removeDeviceTypeListener = onDeviceTypeChange((newIsMobile) => {
+    isMobile.value = newIsMobile
+  })
 })
 
-// 组件卸载时移除事件监听器
 onUnmounted(() => {
   window.removeEventListener('message', handleOAuthMessage)
+  if (removeDeviceTypeListener) {
+    removeDeviceTypeListener()
+  }
 })
 </script>
 
 <style scoped>
-.cloud-accounts-container {
-  width: 100%;
-  max-width: none;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+.cloud-accounts-page {
+  min-height: 100%;
+  background: #f5f7fa;
   padding: 0;
 }
 
-.cloud-accounts-card {
-  width: 100%;
-  max-width: none;
-  margin: 0;
+.page-header {
+  background: #fff;
+  padding: 24px;
+  border-bottom: 1px solid #ebeef5;
 }
 
-.card-title {
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.header-title-section {
+  flex: 1;
+}
+
+.page-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin: 0 0 8px 0;
   font-size: 24px;
   font-weight: 600;
   color: #303133;
 }
 
-.add-account-button {
-  margin-bottom: 20px;
+.title-icon {
+  font-size: 28px;
+  color: #409eff;
 }
 
-.card-subtitle {
+.page-subtitle {
   margin: 0;
   font-size: 14px;
+  color: #909399;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.add-btn {
+  background: #409eff !important;
+  border-color: #409eff !important;
+  transition: all 0.3s ease;
+}
+
+.add-btn:hover {
+  background: #66b1ff !important;
+  border-color: #66b1ff !important;
+}
+
+.stats-bar {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #f5f7fa;
+  padding: 12px 16px;
+  border-radius: 8px;
+  min-width: 140px;
+}
+
+.stat-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.stat-icon.total {
+  background: #ecf5ff;
+  color: #409eff;
+}
+
+.stat-icon.authorized {
+  background: #f0f9eb;
+  color: #67c23a;
+}
+
+.stat-icon.unauthorized {
+  background: #fdf6ec;
+  color: #e6a23c;
+}
+
+.stat-icon.failed {
+  background: #fef0f0;
+  color: #f56c6c;
+}
+
+.stat-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-value {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #303133;
+}
+
+.stat-label {
+  font-size: 12px;
   color: #909399;
 }
 
 .accounts-content {
-  margin-top: 16px;
+  padding: 24px;
 }
 
-.operation-tip {
-  margin-bottom: 20px;
+.accounts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 20px;
+  margin-bottom: 24px;
 }
 
-/* 二维码登录对话框样式 */
-.qr-login-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 20px 0;
-}
-
-.qr-code-section {
-  margin-bottom: 20px;
-}
-
-.qr-code-wrapper {
-  display: flex;
-  justify-content: center;
-  padding: 20px;
+.account-card {
   background: #fff;
-  border: 1px solid #e4e7ed;
-  border-radius: 8px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
+  position: relative;
 }
 
-.qr-code-image {
-  width: 200px;
-  height: 200px;
+.account-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+.account-card.is-authorized {
+  box-shadow: 0 2px 12px rgba(103, 194, 58, 0.2);
+}
+
+.account-card.is-authorized:hover {
+  box-shadow: 0 8px 24px rgba(103, 194, 58, 0.3);
+}
+
+.account-card.is-unauthorized {
+  box-shadow: 0 2px 12px rgba(230, 162, 60, 0.2);
+}
+
+.account-card.is-unauthorized:hover {
+  box-shadow: 0 8px 24px rgba(230, 162, 60, 0.3);
+}
+
+.account-card.is-failed {
+  box-shadow: 0 2px 12px rgba(245, 108, 108, 0.2);
+}
+
+.account-card.is-failed:hover {
+  box-shadow: 0 8px 24px rgba(245, 108, 108, 0.3);
+}
+
+.card-status-bar {
+  height: 4px;
+  background: #e4e7ed;
+}
+
+.card-status-bar.status-authorized {
+  background: linear-gradient(90deg, #67c23a, #95d475);
+}
+
+.card-status-bar.status-unauthorized {
+  background: linear-gradient(90deg, #e6a23c, #f0c78a);
+}
+
+.card-status-bar.status-failed {
+  background: linear-gradient(90deg, #f56c6c, #fab6b6);
+}
+
+.card-main {
+  padding: 16px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.card-title-wrapper {
+  flex: 1;
+  min-width: 0;
+}
+
+.card-id {
+  display: inline-block;
+  font-size: 12px;
+  color: #909399;
+  background: #f5f7fa;
+  padding: 2px 8px;
   border-radius: 4px;
+  margin-right: 8px;
 }
 
-.qr-loading {
+.card-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #303133;
+  word-break: break-all;
+}
+
+.source-tag {
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.card-body {
   display: flex;
   flex-direction: column;
+  gap: 12px;
+}
+
+.info-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.info-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #f5f7fa;
+  display: flex;
   align-items: center;
-  padding: 60px 20px;
+  justify-content: center;
+  color: #909399;
+  flex-shrink: 0;
+}
+
+.info-content {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-width: 0;
+}
+
+.info-label {
+  font-size: 13px;
   color: #909399;
 }
 
-.qr-loading .el-icon {
-  font-size: 32px;
-  margin-bottom: 16px;
+.info-value {
+  font-size: 14px;
+  color: #303133;
+  text-align: right;
 }
 
-.qr-status-section {
-  text-align: center;
-  min-height: 60px;
+.path-value {
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 12px;
+  word-break: break-all;
+  max-width: 200px;
 }
 
-.status-waiting,
-.status-scanned,
-.status-confirmed,
-.status-expired,
-.status-error {
+.status-row {
   display: flex;
-  flex-direction: column;
   align-items: center;
   gap: 8px;
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px dashed #ebeef5;
 }
 
-.status-waiting .el-icon {
-  font-size: 24px;
+.status-divider {
+  height: 1px;
+  background: #ebeef5;
+  margin: 8px 0;
+}
+
+.disk-status-section {
+  background: #fafbfc;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 4px;
+}
+
+.status-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.status-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #606266;
+}
+
+.no-status {
+  text-align: center;
   color: #909399;
+  font-size: 13px;
+  padding: 8px 0;
 }
 
-.status-scanned .el-icon {
-  font-size: 24px;
+.space-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex: 1;
+}
+
+.space-text {
+  font-size: 12px;
+  color: #606266;
+}
+
+.expire-warning {
+  color: #f56c6c;
+  font-weight: 500;
+}
+
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.status-indicator.status-authorized {
+  background: #f0f9eb;
   color: #67c23a;
 }
 
-.status-confirmed .el-icon {
-  font-size: 24px;
-  color: #67c23a;
-}
-
-.status-expired .el-icon {
-  font-size: 24px;
+.status-indicator.status-unauthorized {
+  background: #fdf6ec;
   color: #e6a23c;
 }
 
-.status-error .el-icon {
-  font-size: 24px;
+.status-indicator.status-failed {
+  background: #fef0f0;
   color: #f56c6c;
 }
 
-.status-waiting p,
-.status-scanned p,
-.status-confirmed p,
-.status-expired p,
-.status-error p {
-  margin: 0;
+.error-help-icon {
+  font-size: 16px;
+  color: #f56c6c;
+  cursor: help;
+}
+
+.rotating {
+  animation: rotate 1s linear infinite;
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.card-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 16px;
+  margin-top: 12px;
+  border-top: 1px solid #f0f2f5;
+}
+
+.card-footer .el-button {
+  flex: 1;
+  min-width: 70px;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  margin-bottom: 24px;
+}
+
+.empty-illustration {
+  position: relative;
+  margin-bottom: 24px;
+}
+
+.empty-icon {
+  font-size: 80px;
+  color: #dcdfe6;
+}
+
+.empty-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.empty-dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #dcdfe6;
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.empty-dots span:nth-child(1) { animation-delay: -0.32s; }
+.empty-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes bounce {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1); }
+}
+
+.empty-title {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.empty-description {
+  margin: 0 0 24px 0;
   font-size: 14px;
+  color: #909399;
+}
+
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  background: #fff;
+  border-radius: 16px;
+  color: #909399;
+  gap: 12px;
+}
+
+.loading-icon {
+  font-size: 32px;
+  color: #409eff;
+}
+
+.page-footer-tips {
+  border: none;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+.tips-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.tips-icon {
+  font-size: 18px;
+}
+
+.tips-content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+}
+
+.tip-group {
+  flex: 1;
+  min-width: 300px;
+  padding: 20px;
+  border-right: 1px solid #f0f2f5;
+}
+
+.tip-group:last-child {
+  border-right: none;
+}
+
+.tip-group-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #f0f2f5;
+  font-size: 15px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.tip-group-title .el-icon {
+  color: #e6a23c;
+  font-size: 18px;
+}
+
+.tip-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tip-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
   color: #606266;
+  line-height: 1.6;
+}
+
+.tip-bullet {
+  flex-shrink: 0;
+  width: 16px;
+  color: #c0c4cc;
+  text-align: center;
+}
+
+.tip-item strong {
+  color: #409eff;
+}
+
+.tip-highlight {
+  background: linear-gradient(135deg, #fdf6ec 0%, #fef8eb 100%);
+  margin: 6px -12px;
+  padding: 12px;
+  border-radius: 8px;
+  border-left: 3px solid #e6a23c;
+}
+
+.tip-highlight .tip-bullet {
+  color: #e6a23c;
+}
+
+.tip-highlight span:last-child {
+  color: #8b6b3d;
 }
 
 .dialog-footer {
@@ -709,100 +1473,227 @@ onUnmounted(() => {
   gap: 12px;
 }
 
-.action-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  justify-content: flex-start;
+@media (max-width: 768px) {
+  .page-header {
+    padding: 12px;
+    background: #fff;
+  }
+
+  .header-title-section {
+    display: none;
+  }
+
+  .header-content {
+    margin-bottom: 0;
+  }
+
+  .header-actions {
+    justify-content: stretch;
+  }
+
+  .header-actions .add-btn {
+    width: 100%;
+    background: #409eff !important;
+    border-color: #409eff !important;
+    color: #fff !important;
+  }
+
+  .header-actions .add-btn:hover {
+    background: #66b1ff !important;
+    border-color: #66b1ff !important;
+    transform: none;
+  }
+
+  .mobile-hidden {
+    display: none !important;
+  }
+
+  .accounts-content {
+    padding: 12px;
+  }
+
+  .accounts-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .account-card {
+    border-radius: 12px;
+  }
+
+  .card-main {
+    padding: 12px;
+  }
+
+  .card-header {
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+  }
+
+  .card-id {
+    font-size: 11px;
+    padding: 2px 6px;
+  }
+
+  .card-name {
+    font-size: 14px;
+  }
+
+  .source-tag {
+    font-size: 11px;
+  }
+
+  .card-body {
+    gap: 10px;
+  }
+
+  .info-row {
+    gap: 10px;
+  }
+
+  .info-icon {
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
+  }
+
+  .info-label {
+    font-size: 12px;
+  }
+
+  .info-value {
+    font-size: 13px;
+  }
+
+  .path-value {
+    font-size: 11px;
+    max-width: 140px;
+  }
+
+  .status-row {
+    margin-top: 6px;
+    padding-top: 10px;
+  }
+
+  .status-indicator {
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+
+  .disk-status-section {
+    padding: 10px;
+  }
+
+  .status-header {
+    margin-bottom: 10px;
+  }
+
+  .status-title {
+    font-size: 12px;
+  }
+
+  .space-info {
+    align-items: flex-start;
+  }
+
+  .space-text {
+    font-size: 11px;
+  }
+
+  .card-footer {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    padding-top: 12px;
+    margin-top: 10px;
+  }
+
+  .card-footer .el-button {
+    flex: none;
+    min-width: 0;
+    width: 100%;
+    margin: 0;
+  }
+
+  .card-footer .el-button :deep(.el-icon) {
+    margin-right: 4px;
+  }
+
+  .empty-state {
+    padding: 40px 16px;
+    border-radius: 12px;
+  }
+
+  .empty-icon {
+    font-size: 60px;
+  }
+
+  .empty-title {
+    font-size: 16px;
+  }
+
+  .empty-description {
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+
+  .page-footer-tips {
+    border-radius: 12px;
+  }
+
+  .tips-header {
+    padding: 12px 14px;
+    font-size: 14px;
+  }
+
+  .tip-group {
+    padding: 14px;
+    border-right: none;
+    border-bottom: 1px solid #f0f2f5;
+  }
+
+  .tip-group:last-child {
+    border-bottom: none;
+  }
+
+  .tip-group-title {
+    font-size: 14px;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+  }
+
+  .tip-group-items {
+    gap: 8px;
+  }
+
+  .tip-item {
+    font-size: 12px;
+  }
+
+  .tip-highlight {
+    margin: 4px -8px;
+    padding: 10px;
+  }
 }
 
-.action-buttons .el-button {
-  margin: 0;
-}
+@media (max-width: 480px) {
+  .info-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
 
-/* 123云盘授权对话框样式 */
-.auth-123-container {
-  padding: 20px 0;
-  text-align: center;
-}
+  .info-value {
+    text-align: left;
+  }
 
-.auth-123-container p {
-  margin: 10px 0;
-  font-size: 14px;
-  color: #606266;
-  line-height: 1.5;
-}
+  .path-value {
+    max-width: 100%;
+  }
 
-/* 账号卡片列表样式 */
-.accounts-loading-container {
-  min-height: 300px;
-  padding: 10px 0;
-}
-
-.account-card {
-  /* width: 100%; */
-  display: flex;
-  flex-direction: column;
-  transition: all 0.3s ease;
-  min-width: 360px;
-}
-
-.account-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
-}
-
-.account-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  flex-wrap: nowrap;
-}
-
-.account-name {
-  font-size: 16px;
-  font-weight: bold;
-  margin-bottom: 10px;
-  color: #303133;
-}
-
-.account-type {
-  font-size: 12px;
-  color: #606266;
-  background-color: #f0f2f5;
-  padding: 2px 8px;
-  border-radius: 12px;
-  display: inline-block;
-  width: fit-content;
-  margin-top: 4px;
-}
-
-.account-id {
-  font-size: 12px;
-  color: #909399;
-  background-color: #f5f7fa;
-  padding: 2px 8px;
-  border-radius: 12px;
-}
-
-.account-card-body {
-  flex: 1;
-  margin-bottom: 16px;
-}
-
-.account-card-body p {
-  margin: 8px 0;
-  font-size: 14px;
-  color: #606266;
-}
-
-.account-card-body strong {
-  color: #303133;
-}
-
-.account-card-footer {
-  display: flex;
-  justify-content: end;
-  align-items: center;
+  .card-footer {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
 }
 </style>

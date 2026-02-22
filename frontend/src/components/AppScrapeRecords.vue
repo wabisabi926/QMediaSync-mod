@@ -1,240 +1,221 @@
 <template>
   <div class="scrape-records-container">
-    <h2 class="page-title  hidden-md-and-down">刮削记录</h2>
-    <p class="card-subtitle" style="margin-bottom:16px;">
-      当前刮削产生的临时文件存放在 <span style="color:#000; font-weight:bold;">config/tmp/刮削临时文件/</span>
-      目录下,可以观察是否存在异常情况，刮削完成的文件会删除临时文件 <br />
-    </p>
+    <div class="header-section">
+      <h2 class="page-title hidden-md-and-down">刮削记录</h2>
 
-    <div style="margin-bottom: 16px; display: flex; justify-content: space-between;">
-      <div>
-        <!-- 多选操作栏 -->
-        <div style="flex-wrap: wrap; display: flex; justify-content: flex-start; gap:12px; align-items: flex-start;">
-          <div>
+      <div class="top-actions">
+        <div class="action-group">
+          <div class="action-buttons">
             <el-tooltip content="将所选的识别错误的记录导出成一个文件，可以发送给作者" placement="top">
               <el-button type="primary" @click="handleExportErrors"
-                :disabled="selectedRecords.length === 0">导出识别错误文件</el-button>
+                :disabled="selectedRecords.length === 0">导出识别错误</el-button>
             </el-tooltip>
-          </div>
-          <div>
             <el-tooltip content="将刮削记录删除后，对应的文件在下次扫描时会再次识别和刮削。" placement="top">
               <el-button type="danger" @click="handleDeleteSelectedRecords"
-                :disabled="selectedRecords.length === 0">删除所选刮削记录</el-button>
+                :disabled="selectedRecords.length === 0">删除所选记录</el-button>
             </el-tooltip>
-          </div>
-          <div>
             <el-tooltip content="请选择整理失败的记录，该操作会将所选记录标记为待整理，下次整理时重试。" placement="top">
               <el-button type="warning" @click="handleRename"
-                :disabled="selectedRecords.length === 0">重新整理所选的刮削记录</el-button>
+                :disabled="selectedRecords.length === 0">重新整理所选</el-button>
+            </el-tooltip>
+          </div>
+          <div class="selected-count">已选择 {{ selectedRecords.length }} 条记录</div>
+        </div>
+        <div class="action-group">
+          <div class="action-buttons">
+            <el-tooltip content="会将列表中属于同一个电视剧的所有集合并成一条数据，方便查看" placement="top">
+              <el-button type="primary" @click="toggleMergeEpisodes">
+                {{ isMerged ? '显示电视剧集' : '合并电视剧集' }}
+              </el-button>
+            </el-tooltip>
+            <el-button type="warning" @click="handleDeleteFailedRecords">清除失败记录</el-button>
+            <el-tooltip content="删除所有刮削记录，慎用！" placement="top">
+              <el-button type="danger" @click="handleTruncateAll">清空记录</el-button>
             </el-tooltip>
           </div>
         </div>
-        <div class="selected-count">已选择 {{ selectedRecords.length }} 条记录</div>
       </div>
-      <div style="display: flex; justify-content: flex-end; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
-        <div>
-          <el-tooltip content="会将列表中属于同一个电视剧的所有集合并成一条数据，方便查看" placement="top">
-            <el-button type="primary" @click="toggleMergeEpisodes">
-              {{ isMerged ? '显示电视剧集' : '合并电视剧集' }}
-            </el-button>
-          </el-tooltip>
-        </div>
-        <div>
-          <el-button type="warning" @click="handleDeleteFailedRecords">清除所有刮削失败的记录</el-button>
-        </div>
-        <div>
-          <el-tooltip content="删除所有刮削记录，慎用！" placement="top">
-            <el-button type="danger" @click="handleTruncateAll">清空记录</el-button>
-          </el-tooltip>
-        </div>
+
+      <div class="search-filter-section">
+        <el-input v-model="nameFilter" placeholder="按文件名模糊搜索" class="filter-input" @keyup.enter="applyFilter" />
+        <el-select v-model="statusFilter" placeholder="筛选状态" class="filter-select">
+          <el-option label="全部" value=""></el-option>
+          <el-option label="未刮削" value="scanned"></el-option>
+          <el-option label="刮削中" value="scraping"></el-option>
+          <el-option label="已刮削" value="scraped"></el-option>
+          <el-option label="刮削失败" value="scrape_failed"></el-option>
+          <el-option label="整理中" value="renaming"></el-option>
+          <el-option label="已整理" value="renamed"></el-option>
+          <el-option label="整理失败" value="rename_failed"></el-option>
+        </el-select>
+        <el-select v-model="typeFilter" placeholder="筛选类型" class="filter-select-small">
+          <el-option label="全部" value=""></el-option>
+          <el-option label="电影" value="movie"></el-option>
+          <el-option label="电视剧" value="tvshow"></el-option>
+          <el-option label="其他" value="other"></el-option>
+        </el-select>
+        <el-button type="primary" @click="applyFilter">筛选</el-button>
+        <el-button @click="resetFilter">重置</el-button>
       </div>
     </div>
 
-    <!-- 搜索和过滤区域 -->
-    <div class="search-filter-section">
-      <el-input v-model="nameFilter" placeholder="按文件名模糊搜索" style="width: 200px;" @keyup.enter="applyFilter" />
-      <el-select v-model="statusFilter" placeholder="筛选状态" style="margin-left: 12px; width: 150px;">
-        <el-option label="全部" value=""></el-option>
-        <el-option label="未刮削" value="scanned"></el-option>
-        <el-option label="刮削中" value="scraping"></el-option>
-        <el-option label="已刮削" value="scraped"></el-option>
-        <el-option label="刮削失败" value="scrape_failed"></el-option>
-        <el-option label="整理中" value="renaming"></el-option>
-        <el-option label="已整理" value="renamed"></el-option>
-        <el-option label="整理失败" value="rename_failed"></el-option>
-      </el-select>
-      <el-select v-model="typeFilter" placeholder="筛选类型" style="margin-left: 12px; width: 120px;">
-        <el-option label="全部" value=""></el-option>
-        <el-option label="电影" value="movie"></el-option>
-        <el-option label="电视剧" value="tvshow"></el-option>
-        <el-option label="其他" value="other"></el-option>
-      </el-select>
-      <el-button type="primary" @click="applyFilter" style="margin-left: 12px;">
-        筛选
-      </el-button>
-      <el-button @click="resetFilter" style="margin-left: 8px;">
-        重置
-      </el-button>
-    </div>
-
-    <!-- 表格 -->
-    <div class="table-container">
-      <el-table v-loading="loading" :data="records" @selection-change="handleSelectionChange"
-        :row-key="(row: ScrapeRecord) => row.id" style="width: 100%" height="calc(100vh - 460px)"
-        class="hidden-md-and-up">
-        <el-table-column type="selection" width="30" />
-        <el-table-column type="expand" width="30">
-          <template #default="{ row }">
-            <el-descriptions class="margin-top" :column="2" border size="small" label-width="50px">
-              <el-descriptions-item label="类型">
-                <el-tag :type="getTypeTagType(row.type)">
-                  {{ getTypeName(row.type) }}
-                </el-tag>
-              </el-descriptions-item>
-              <el-descriptions-item label="来源">
-                <el-tag :type="getSourceTypeTagType(row.source_type)">
-                  {{ getSourceTypeName(row.source_type) }}
-                </el-tag>
-              </el-descriptions-item>
-              <el-descriptions-item label="状态">
+    <div class="table-section">
+      <div class="table-container">
+        <el-table v-loading="loading" :data="records" @selection-change="handleSelectionChange"
+          :row-key="(row: ScrapeRecord) => row.id" style="width: 100%" class="mobile-table">
+          <el-table-column type="selection" width="30" />
+          <el-table-column type="expand" width="30">
+            <template #default="{ row }">
+              <el-descriptions class="margin-top" :column="2" border size="small" label-width="50px">
+                <el-descriptions-item label="类型">
+                  <el-tag :type="getTypeTagType(row.type)">
+                    {{ getTypeName(row.type) }}
+                  </el-tag>
+                </el-descriptions-item>
+                <el-descriptions-item label="来源">
+                  <el-tag :type="getSourceTypeTagType(row.source_type)">
+                    {{ getSourceTypeName(row.source_type) }}
+                  </el-tag>
+                </el-descriptions-item>
+                <el-descriptions-item label="状态">
+                  <el-tag :type="getStatusTagType(row.status)">
+                    {{ getStatusName(row.status) }}
+                  </el-tag>
+                </el-descriptions-item>
+                <el-descriptions-item label="识别信息">
+                  <div>
+                    <p class="path-text">Tmdb ID: {{ row.tmdb_id }}</p>
+                    <p class="path-text">识别名称: {{ row.media_name }} </p>
+                    <p>年份：{{ row.year }}</p>
+                    <p class="path-text">原始名称: {{ row.original_name }}</p>
+                  </div>
+                </el-descriptions-item>
+                <el-descriptions-item label="时间" :span="2">
+                  <div>
+                    <p>创建：<br />{{ row.created_at ? formatTimestamp(row.created_at) : '-' }}</p>
+                    <p>刮削：<br />{{ row.scraped_at ? formatTimestamp(row.scraped_at) : '-' }}</p>
+                    <p>整理：<br />{{ row.renamed_at ? formatTimestamp(row.renamed_at) : '-' }}</p>
+                  </div>
+                </el-descriptions-item>
+                <el-descriptions-item label="失败原因" v-if="row.failed_reason" :span="2">
+                  {{ row.failed_reason ? row.failed_reason : '-' }}
+                </el-descriptions-item>
+                <el-descriptions-item label="操作" :span="2">
+                  <div>
+                    <el-button type="text" @click="handleDetail(row)">详情</el-button>
+                    <el-button type="warning" size="small" @click="reScrape(row)"
+                      v-if="(row.type == 'movie' && (row.status == 'scrape_failed' || row.status == 'scanned' || row.status == 'renamed')) || (row.type == 'tvshow' && row.status == 'scrape_failed')">重新识别</el-button>
+                    <el-button type="success" size="small" @click="markAsFinished(row)"
+                      v-if="row.status == 'renaming' || row.status == 'scraped'">标记为已整理</el-button>
+                  </div>
+                </el-descriptions-item>
+              </el-descriptions>
+            </template>
+          </el-table-column>
+          <el-table-column prop="path" label="文件路径">
+            <template #default="{ row }">
+              <div>
+                <p class="path-text">{{ row.source_full_path }}</p>
+                <p style="margin: 10px 0; display: flex; align-items: center; flex-wrap: wrap;">
+                  <el-tag :type="getRenameTypeTagType(row.rename_type)">
+                    {{ getRenameTypeName(row.rename_type) }}
+                  </el-tag>
+                  <span style="margin-left: 12px;">到</span>
+                </p>
+                <p class="path-text">{{ row.dest_full_path }}</p>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-table v-loading="loading" :data="records" @selection-change="handleSelectionChange"
+          :row-key="(row: ScrapeRecord) => row.id" style="width: 100%" class="desktop-table">
+          <el-table-column type="selection" width="55" />
+          <el-table-column prop="path_is_scraping" label="运行状态" width="80">
+            <template #default="{ row }">
+              <span class="info-value" v-if="row.path_is_scraping">
+                <el-icon class="is-loading">
+                  <Loading />
+                </el-icon>
+                <el-text class="mx-1" type="primary">刮削中...</el-text>
+              </span>
+              <span class="info-value" v-else>
+                <el-text class="mx-1" type="info" size="small">未执行</el-text>
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="type" label="类型" width="80">
+            <template #default="{ row }">
+              <el-tag :type="getTypeTagType(row.type)">
+                {{ getTypeName(row.type) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="source_type" label="来源" width="80">
+            <template #default="{ row }">
+              <el-tag :type="getSourceTypeTagType(row.source_type)">
+                {{ getSourceTypeName(row.source_type) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="path" label="文件路径" width="400">
+            <template #default="{ row }">
+              <div>
+                <p class="path-text">{{ row.source_full_path }}</p>
+                <p style="margin: 10px 0; display: flex; align-items: center; flex-wrap: wrap;">
+                  <el-tag :type="getRenameTypeTagType(row.rename_type)">
+                    {{ getRenameTypeName(row.rename_type) }}
+                  </el-tag>
+                  <span style="margin-left: 12px;">到</span>
+                </p>
+                <p class="path-text">{{ row.dest_full_path }}</p>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="识别信息" width="240">
+            <template #default="{ row }">
+              <div>
+                <p class="path-text">Tmdb ID: {{ row.tmdb_id }}</p>
+                <p class="path-text">识别名称: {{ row.media_name }} 年份：{{ row.year }}</p>
+                <p class="path-text">原始名称: {{ row.original_name }}</p>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column prop="status" label="文件状态" width="200">
+            <template #default="{ row }">
+              <el-tooltip :content="getStatusTooltip(row.status)" placement="top">
                 <el-tag :type="getStatusTagType(row.status)">
+                  <el-icon>
+                    <Warning />
+                  </el-icon>
                   {{ getStatusName(row.status) }}
                 </el-tag>
-              </el-descriptions-item>
-              <el-descriptions-item label="识别信息">
-                <div>
-                  <p class="path-text">Tmdb ID: {{ row.tmdb_id }}</p>
-                  <p class="path-text">识别名称: {{ row.media_name }} </p>
-                  <p>年份：{{ row.year }}</p>
-                  <p class="path-text">原始名称: {{ row.original_name }}</p>
-                </div>
-              </el-descriptions-item>
-              <el-descriptions-item label="时间" :span="2">
-                <div>
-                  <p>创建：<br />{{ row.created_at ? formatTimestamp(row.created_at) : '-' }}</p>
-                  <p>刮削：<br />{{ row.scraped_at ? formatTimestamp(row.scraped_at) : '-' }}</p>
-                  <p>整理：<br />{{ row.renamed_at ? formatTimestamp(row.renamed_at) : '-' }}</p>
-                </div>
-              </el-descriptions-item>
-              <el-descriptions-item label="失败原因" v-if="row.failed_reason" :span="2">
-                {{ row.failed_reason ? row.failed_reason : '-' }}
-              </el-descriptions-item>
-              <el-descriptions-item label="操作" :span="2">
-                <div>
-                  <el-button type="text" @click="handleDetail(row)">详情</el-button>
-                  <el-button type="warning" size="small" @click="reScrape(row)"
-                    v-if="(row.type == 'movie' && (row.status == 'scrape_failed' || row.status == 'scanned' || row.status == 'renamed')) || (row.type == 'tvshow' && row.status == 'scrape_failed')">重新识别</el-button>
-                  <el-button type="success" size="small" @click="markAsFinished(row)"
-                    v-if="row.status == 'renaming' || row.status == 'scraped'">标记为已整理</el-button>
-                </div>
-              </el-descriptions-item>
-            </el-descriptions>
-          </template>
-        </el-table-column>
-        <el-table-column prop="path" label="文件路径">
-          <template #default="{ row }">
-            <div>
-              <p class="path-text">{{ row.source_full_path }}</p>
-              <p style="margin: 10px 0; display: flex; align-items: center; flex-wrap: wrap;">
-                <el-tag :type="getRenameTypeTagType(row.rename_type)">
-                  {{ getRenameTypeName(row.rename_type) }}
-                </el-tag>
-                <span style="margin-left: 12px;">到</span>
-              </p>
-              <p class="path-text">{{ row.dest_full_path }}</p>
-            </div>
-          </template>
-        </el-table-column>
-      </el-table>
-      <el-table v-loading="loading" :data="records" style="width: 100%" @selection-change="handleSelectionChange"
-        :row-key="(row: ScrapeRecord) => row.id" height="calc(100vh - 400px)" class="hidden-md-and-down">
-        <el-table-column type="selection" width="55" />
-        <el-table-column prop="path_is_scraping" label="运行状态" width="80">
-          <template #default="{ row }">
-            <span class="info-value" v-if="row.path_is_scraping">
-              <el-icon class="is-loading">
-                <Loading />
-              </el-icon>
-              <el-text class="mx-1" type="primary">刮削中...</el-text>
-            </span>
-            <span class="info-value" v-else>
-              <el-text class="mx-1" type="info" size="small">未执行</el-text>
-            </span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="type" label="类型" width="80">
-          <template #default="{ row }">
-            <el-tag :type="getTypeTagType(row.type)">
-              {{ getTypeName(row.type) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="source_type" label="来源" width="80">
-          <template #default="{ row }">
-            <el-tag :type="getSourceTypeTagType(row.source_type)">
-              {{ getSourceTypeName(row.source_type) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="path" label="文件路径" width="580">
-          <template #default="{ row }">
-            <div>
-              <p class="path-text">{{ row.source_full_path }}</p>
-              <p style="margin: 10px 0; display: flex; align-items: center; flex-wrap: wrap;">
-                <el-tag :type="getRenameTypeTagType(row.rename_type)">
-                  {{ getRenameTypeName(row.rename_type) }}
-                </el-tag>
-                <span style="margin-left: 12px;">到</span>
-              </p>
-              <p class="path-text">{{ row.dest_full_path }}</p>
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column label="识别信息">
-          <template #default="{ row }">
-            <div>
-              <p class="path-text">Tmdb ID: {{ row.tmdb_id }}</p>
-              <p class="path-text">识别名称: {{ row.media_name }} 年份：{{ row.year }}</p>
-              <p class="path-text">原始名称: {{ row.original_name }}</p>
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" label="文件状态" width="200">
-          <template #default="{ row }">
-            <el-tooltip :content="getStatusTooltip(row.status)" placement="top">
-              <el-tag :type="getStatusTagType(row.status)">
-                <el-icon>
-                  <Warning />
-                </el-icon>
-                {{ getStatusName(row.status) }}
-              </el-tag>
-            </el-tooltip>
-            <p v-if="row.failed_reason" style="margin-top: 4px;">{{ row.failed_reason }}</p>
-          </template>
-        </el-table-column>
-        <el-table-column prop="rename_time" label="时间" width="250">
-          <template #default="{ row }">
-            <p>创建时间：{{ row.created_at ? formatTimestamp(row.created_at) : '-' }}</p>
-            <p>刮削时间：{{ row.scraped_at ? formatTimestamp(row.scraped_at) : '-' }}</p>
-            <p>整理时间：{{ row.renamed_at ? formatTimestamp(row.renamed_at) : '-' }}</p>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="140" fixed="right">
-          <template #default="{ row }">
-            <el-button type="text" @click="handleDetail(row)">详情</el-button>
-            <el-button type="warning" size="small" @click="reScrape(row)"
-              v-if="(row.type == 'movie' && (row.status == 'scrape_failed' || row.status == 'scanned' || row.status == 'renamed')) || (row.type == 'tvshow' && row.status == 'scrape_failed')">重新识别</el-button>
-            <el-button type="success" size="small" @click="markAsFinished(row)"
-              v-if="row.status == 'renaming' || row.status == 'scraped'">标记为已整理</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+              </el-tooltip>
+              <p v-if="row.failed_reason" style="margin-top: 4px;">{{ row.failed_reason }}</p>
+            </template>
+          </el-table-column>
+          <el-table-column prop="rename_time" label="时间" width="250">
+            <template #default="{ row }">
+              <p>创建时间：{{ row.created_at ? formatTimestamp(row.created_at) : '-' }}</p>
+              <p>刮削时间：{{ row.scraped_at ? formatTimestamp(row.scraped_at) : '-' }}</p>
+              <p>整理时间：{{ row.renamed_at ? formatTimestamp(row.renamed_at) : '-' }}</p>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="140" fixed="right">
+            <template #default="{ row }">
+              <el-button type="text" @click="handleDetail(row)">详情</el-button>
+              <el-button type="warning" size="small" @click="reScrape(row)"
+                v-if="(row.type == 'movie' && (row.status == 'scrape_failed' || row.status == 'scanned' || row.status == 'renamed')) || (row.type == 'tvshow' && row.status == 'scrape_failed')">重新识别</el-button>
+              <el-button type="success" size="small" @click="markAsFinished(row)"
+                v-if="row.status == 'renaming' || row.status == 'scraped'">标记为已整理</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
 
-      <!-- 分页 -->
-      <div class="pagination-container">
-        <el-pagination v-model:current-page="pagination.currentPage" v-model:page-size="pagination.pageSize"
-          :page-sizes="[100, 200, 500]" layout="total, sizes, prev, pager, next, jumper" :total="total"
-          @size-change="handleSizeChange" @current-change="handleCurrentChange" />
+        <div class="pagination-container">
+          <el-pagination v-model:current-page="pagination.currentPage" v-model:page-size="pagination.pageSize"
+            :page-sizes="[100, 200, 500]" layout="total, sizes, prev, pager, next, jumper" :total="total"
+            @size-change="handleSizeChange" @current-change="handleCurrentChange" />
+        </div>
       </div>
     </div>
 
@@ -288,35 +269,111 @@
     </el-dialog>
 
     <!-- 重新识别对话框 -->
-    <el-dialog v-model="showReScrapeDialog" title="重新识别" width="500px">
-      <el-form label-width="80px">
-        <el-form-item label="文件名">
-          <el-text>{{ reScrapeForm.originalFileName }}</el-text>
-        </el-form-item>
-        <el-form-item label="TMDB ID">
-          <el-input v-model="reScrapeForm.tmdb_id" placeholder="请输入TMDBID" />
-        </el-form-item>
-        <el-form-item label="名称">
-          <el-input v-model="reScrapeForm.name" placeholder="请输入影视剧名称" />
-        </el-form-item>
-        <el-form-item label="年份">
-          <el-input v-model="reScrapeForm.year" placeholder="请输入年份" type="number" :min="1900"
-            :max="new Date().getFullYear() + 5" />
-        </el-form-item>
-        <el-form-item label="季" v-if="reScrapeForm.type == 'tvshow'">
-          <el-input v-model="reScrapeForm.season" placeholder="请输入季数" type="number" :min="1" :max="100" />
-        </el-form-item>
-        <el-form-item label="集" v-if="reScrapeForm.type == 'tvshow'">
-          <el-input v-model="reScrapeForm.episode" placeholder="请输入集数" type="number" :min="1" :max="100" />
-        </el-form-item>
-      </el-form>
+    <el-dialog v-model="showReScrapeDialog" title="重新识别" width="700px" :close-on-click-modal="false">
+      <div class="re-scrape-dialog-content">
+        <div class="search-section">
+          <el-form label-width="80px" @submit.prevent>
+            <el-form-item label="文件名">
+              <el-text>{{ reScrapeForm.originalFileName }}</el-text>
+            </el-form-item>
+            <el-form-item label="搜索方式">
+              <el-radio-group v-model="searchMode" @change="handleSearchModeChange">
+                <el-radio value="name">名称+年份</el-radio>
+                <el-radio value="tmdb">TMDB ID</el-radio>
+              </el-radio-group>
+            </el-form-item>
+            <div v-if="searchMode === 'name'" class="search-row">
+              <el-form-item label="名称" class="name-input">
+                <el-input v-model="reScrapeForm.name" placeholder="请输入影视剧名称" />
+              </el-form-item>
+              <el-form-item label="年份" class="year-input">
+                <el-input v-model="reScrapeForm.year" placeholder="年份" type="number" :min="1900"
+                  :max="new Date().getFullYear() + 5" />
+              </el-form-item>
+            </div>
+            <div v-if="searchMode === 'tmdb'" class="search-row">
+              <el-form-item label="TMDB ID" class="tmdb-input">
+                <el-input v-model="reScrapeForm.tmdb_id" placeholder="请输入TMDB ID" type="number" :min="1" />
+              </el-form-item>
+            </div>
+            <el-form-item label="季" v-if="reScrapeForm.type == 'tvshow'" class="season-episode-row">
+              <el-input v-model="reScrapeForm.season" placeholder="季数" type="number" :min="1" :max="100"
+                style="width: 100px;" />
+              <span class="episode-label">集</span>
+              <el-input v-model="reScrapeForm.episode" placeholder="集数" type="number" :min="1" :max="100"
+                style="width: 100px;" />
+            </el-form-item>
+          </el-form>
+        </div>
+
+        <div class="search-results-section" v-if="searchResults.length > 0">
+          <div class="results-header">
+            <el-icon>
+              <Film />
+            </el-icon>
+            <span>搜索结果 ({{ searchResults.length }})</span>
+          </div>
+          <div class="results-list">
+            <div class="result-item" v-for="item in searchResults" :key="item.tmdb_id">
+              <div class="result-poster">
+                <el-image :src="item.poster_url" fit="cover" lazy>
+                  <template #error>
+                    <div class="poster-placeholder">
+                      <el-icon>
+                        <Picture />
+                      </el-icon>
+                    </div>
+                  </template>
+                </el-image>
+              </div>
+              <div class="result-info">
+                <div class="result-title">{{ item.title }}</div>
+                <div class="result-original-title" v-if="item.original_title !== item.title">
+                  原名: {{ item.original_title }}
+                </div>
+                <div class="result-meta">
+                  <el-tag size="small" type="info">{{ item.year || '未知年份' }}</el-tag>
+                  <el-tag size="small" type="warning">TMDB ID: {{ item.tmdb_id }}</el-tag>
+                </div>
+                <div class="result-overview" v-if="item.overview">
+                  {{ item.overview }}
+                </div>
+              </div>
+              <div class="result-action">
+                <el-button type="primary" size="small" @click="selectSearchResult(item)" :loading="item.selecting">
+                  选择
+                </el-button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="empty-results" v-if="hasSearched && searchResults.length === 0">
+          <el-empty description="未找到匹配的影片" :image-size="80" />
+        </div>
+      </div>
       <template #footer>
         <div class="dialog-footer">
-          <el-button @click="showReScrapeDialog = false">取消</el-button>
-          <el-button type="primary" @click="submitReScrape" :loading="reScrapeLoading">确认重新识别</el-button>
+          <el-button @click="closeReScrapeDialog">取消</el-button>
+          <el-button type="primary" @click="searchTmdb" :loading="searchLoading">
+            <el-icon>
+              <Search />
+            </el-icon>
+            搜索
+          </el-button>
         </div>
       </template>
     </el-dialog>
+
+    <div class="bottom-tips">
+      <el-alert type="info" :closable="false">
+        <template #title>
+          <span class="tips-text">
+            当前刮削产生的临时文件存放在 <strong>config/tmp/刮削临时文件/</strong> 目录下，可以观察是否存在异常情况，刮削完成的文件会删除临时文件
+          </span>
+        </template>
+      </el-alert>
+    </div>
 
     <!-- 回滚对话框 -->
     <el-dialog v-model="showRollbackDialog" title="注意" width="320px">
@@ -334,15 +391,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Film, Picture, Search } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { inject } from 'vue'
 import { formatTimestamp } from '@/utils/timeUtils'
 import 'element-plus/theme-chalk/display.css'
 
-// 获取HTTP客户端
 const http: AxiosStatic | undefined = inject('$http')
 
 // 定义刮削记录接口
@@ -381,6 +438,16 @@ interface ScrapeRecord {
   scrape_type: string
 }
 
+interface TmdbSearchResult {
+  tmdb_id: number
+  title: string
+  original_title: string
+  year: string
+  poster_url: string
+  overview: string
+  selecting?: boolean
+}
+
 // 状态变量
 const records = ref<ScrapeRecord[]>([])
 const originalRecords = ref<ScrapeRecord[]>([])
@@ -389,7 +456,7 @@ const loading = ref(false)
 const selectedRecords = ref<ScrapeRecord[]>([])
 const statusFilter = ref('')
 const typeFilter = ref('')
-const nameFilter = ref('') // 添加名称搜索变量
+const nameFilter = ref('')
 const showDetailDialog = ref(false)
 const selectedRecord = ref<ScrapeRecord | null>(null)
 const showRollbackDialog = ref(false)
@@ -632,25 +699,128 @@ const showReScrapeDialog = ref(false)
 const reScrapeForm = ref({
   type: '',
   id: 0,
-  tmdb_id: 0,
   name: '',
   year: '',
+  tmdb_id: '',
   originalFileName: '',
   season: -1,
   episode: -1,
   status: ''
 })
-const reScrapeLoading = ref(false)
+const searchResults = ref<TmdbSearchResult[]>([])
+const searchLoading = ref(false)
+const hasSearched = ref(false)
+const searchMode = ref<'name' | 'tmdb'>('name')
+
+const handleSearchModeChange = () => {
+  searchResults.value = []
+  hasSearched.value = false
+  if (searchMode.value === 'name') {
+    reScrapeForm.value.tmdb_id = ''
+  } else {
+    reScrapeForm.value.name = ''
+    reScrapeForm.value.year = ''
+  }
+}
+
+const closeReScrapeDialog = () => {
+  showReScrapeDialog.value = false
+  searchResults.value = []
+  hasSearched.value = false
+  searchMode.value = 'name'
+}
+
+const searchTmdb = async () => {
+  if (searchMode.value === 'name') {
+    if (!reScrapeForm.value.name) {
+      ElMessage.warning('请输入影视剧名称')
+      return
+    }
+  } else {
+    if (!reScrapeForm.value.tmdb_id) {
+      ElMessage.warning('请输入TMDB ID')
+      return
+    }
+  }
+
+  try {
+    searchLoading.value = true
+    hasSearched.value = false
+    searchResults.value = []
+
+    const params: Record<string, string | number> = {
+      type: reScrapeForm.value.type === 'tvshow' ? 'tv' : 'movie'
+    }
+
+    if (searchMode.value === 'name') {
+      params.name = reScrapeForm.value.name
+      if (reScrapeForm.value.year) {
+        params.year = reScrapeForm.value.year
+      }
+    } else {
+      params.tmdb_id = reScrapeForm.value.tmdb_id
+    }
+
+    const response = await http?.get(`${SERVER_URL}/scrape/tmdb-search`, { params, timeout: 30000 })
+
+    if (response?.data.code === 200) {
+      searchResults.value = (response.data.data || []).map((item: TmdbSearchResult) => ({
+        ...item,
+        selecting: false
+      }))
+      hasSearched.value = true
+    } else {
+      ElMessage.error(response?.data.message || '搜索失败')
+    }
+  } catch (error) {
+    console.error('TMDB搜索失败:', error)
+    ElMessage.error('搜索失败: 网络错误')
+  } finally {
+    searchLoading.value = false
+  }
+}
+
+const selectSearchResult = async (item: TmdbSearchResult) => {
+  try {
+    item.selecting = true
+
+    const params = {
+      id: reScrapeForm.value.id,
+      tmdb_id: item.tmdb_id,
+      season: reScrapeForm.value.season >= 0 ? reScrapeForm.value.season : -1,
+      episode: reScrapeForm.value.episode >= 0 ? reScrapeForm.value.episode : -1
+    }
+
+    const response = await http?.post(`${SERVER_URL}/scrape/re-scrape`, params, { timeout: 60000 })
+
+    if (response?.data.code === 200) {
+      ElMessage.success('重新识别请求已发送')
+      showReScrapeDialog.value = false
+      searchResults.value = []
+      hasSearched.value = false
+      loadRecords()
+    } else {
+      ElMessage.error(response?.data.message || '重新识别失败')
+    }
+  } catch (error) {
+    console.error('重新识别失败:', error)
+    ElMessage.error('重新识别失败: 网络错误')
+  } finally {
+    item.selecting = false
+  }
+}
 
 // 处理重新识别
 const reScrape = (record: ScrapeRecord) => {
-  // 初始化表单数据
+  searchResults.value = []
+  hasSearched.value = false
+  searchMode.value = 'name'
   reScrapeForm.value = {
     type: record.type,
     id: record.id,
-    tmdb_id: record.tmdb_id || 0,
     name: record.media_name || '',
     year: record.year?.toString() || '',
+    tmdb_id: '',
     originalFileName: record.file_name || '',
     season: record.season_number || -1,
     episode: record.episode_number || -1,
@@ -659,61 +829,7 @@ const reScrape = (record: ScrapeRecord) => {
   if (record.status == "renamed") {
     showRollbackDialog.value = true
   } else {
-    // 打开对话框
     showReScrapeDialog.value = true
-  }
-}
-
-// 提交重新识别请求
-const submitReScrape = async () => {
-  try {
-    // 验证表单数据
-    if (!reScrapeForm.value.id) {
-      ElMessage.error('请选择要重新识别的记录')
-      return
-    }
-    if (!reScrapeForm.value.tmdb_id && !reScrapeForm.value.name && !reScrapeForm.value.year) {
-      ElMessage.error('请输入TMDB ID或影视剧名称+年份')
-      return
-    }
-    if (reScrapeForm.value.name && !reScrapeForm.value.year) {
-      ElMessage.error('使用名称查找必须输入年份')
-      return
-    }
-    if (reScrapeForm.value.year && !reScrapeForm.value.name) {
-      ElMessage.error('使用年份查找必须输入名称')
-      return
-    }
-
-    reScrapeLoading.value = true
-
-
-    // 准备请求参数
-    const params = {
-      id: reScrapeForm.value.id,
-      tmdb_id: Number(reScrapeForm.value.tmdb_id) || 0,
-      name: reScrapeForm.value.name,
-      year: reScrapeForm.value.year ? parseInt(reScrapeForm.value.year) : undefined,
-      season: reScrapeForm.value.season >= 0 ? parseInt(reScrapeForm.value.season + "") : -1,
-      episode: reScrapeForm.value.episode >= 0 ? parseInt(reScrapeForm.value.episode + "") : -1
-    }
-
-    // 发送请求
-    const response = await http?.post(`${SERVER_URL}/scrape/re-scrape`, params, { timeout: 60000 })
-
-    if (response?.data.code === 200) {
-      ElMessage.success('重新识别请求已发送')
-      showReScrapeDialog.value = false
-      // 刷新记录列表
-      loadRecords()
-    } else {
-      ElMessage.error(`重新识别失败: ${response?.data.message || '未知错误'}`)
-    }
-  } catch (error) {
-    console.error('重新识别失败:', error)
-    ElMessage.error('重新识别失败: 网络错误')
-  } finally {
-    reScrapeLoading.value = false
   }
 }
 
@@ -971,11 +1087,22 @@ const getStatusName = (status: string): string => {
 onMounted(() => {
   loadRecords()
 })
+
+onUnmounted(() => {
+
+})
 </script>
 
 <style scoped>
 .scrape-records-container {
   padding: 20px;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 40px);
+}
+
+.header-section {
+  flex-shrink: 0;
 }
 
 .page-title {
@@ -985,35 +1112,72 @@ onMounted(() => {
   color: #303133;
 }
 
-.batch-operations {
+.top-actions {
   display: flex;
-  align-items: center;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
   margin-bottom: 16px;
-  padding: 12px;
-  background-color: #f0f9ff;
-  border: 1px solid #91d5ff;
-  border-radius: 4px;
+  padding: 16px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4e7ed 100%);
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.action-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .selected-count {
-  margin-left: 16px;
   color: #606266;
+  font-size: 13px;
 }
 
 .search-filter-section {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  margin-bottom: 20px;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
-.search-filter-section .el-input {
-  width: 300px;
+.filter-input {
+  width: 200px;
+}
+
+.filter-select {
+  width: 150px;
+}
+
+.filter-select-small {
+  width: 120px;
+}
+
+.table-section {
+  display: block;
 }
 
 .table-container {
   background: #fff;
   border-radius: 4px;
   padding: 0;
+  display: block;
+}
+
+.mobile-table {
+  display: none;
+}
+
+.desktop-table {
+  display: table;
 }
 
 .pagination-container {
@@ -1024,6 +1188,20 @@ onMounted(() => {
   border-top: 1px solid #ebeef5;
   margin-top: -1px;
   border-radius: 0 0 4px 4px;
+  flex-shrink: 0;
+}
+
+.bottom-tips {
+  margin-top: 20px;
+}
+
+.tips-text {
+  font-size: 13px;
+  color: #606266;
+}
+
+.tips-text strong {
+  color: #303133;
 }
 
 .error-reason-text {
@@ -1048,5 +1226,257 @@ onMounted(() => {
 
 .detail-value {
   font-size: 16px;
+}
+
+.re-scrape-dialog-content {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.search-section {
+  margin-bottom: 20px;
+}
+
+.search-row {
+  display: flex;
+  gap: 12px;
+}
+
+.search-row .name-input {
+  flex: 1;
+}
+
+.search-row .year-input {
+  width: 150px;
+}
+
+.search-row .tmdb-input {
+  flex: 1;
+  max-width: 250px;
+}
+
+.season-episode-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.episode-label {
+  color: #606266;
+  font-size: 14px;
+}
+
+.search-results-section {
+  margin-top: 16px;
+  border-top: 1px solid #ebeef5;
+  padding-top: 16px;
+}
+
+.results-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.result-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  background: #fafafa;
+  transition: all 0.2s ease;
+}
+
+.result-item:hover {
+  border-color: #409eff;
+  background: #f5f7fa;
+}
+
+.result-poster {
+  width: 60px;
+  height: 90px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #e4e7ed;
+}
+
+.result-poster .el-image {
+  width: 100%;
+  height: 100%;
+}
+
+.poster-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #c0c4cc;
+  font-size: 24px;
+}
+
+.result-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.result-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #303133;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.result-original-title {
+  font-size: 13px;
+  color: #909399;
+  margin-bottom: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.result-meta {
+  display: flex;
+  gap: 8px;
+}
+
+.result-overview {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.result-action {
+  flex-shrink: 0;
+}
+
+.empty-results {
+  padding: 20px 0;
+}
+
+@media (min-width: 769px) {
+  .mobile-table {
+    display: none;
+  }
+
+  .desktop-table {
+    display: table;
+  }
+}
+
+@media (max-width: 768px) {
+  .scrape-records-container {
+    padding: 12px;
+  }
+
+  .top-actions {
+    flex-direction: column;
+    padding: 12px;
+  }
+
+  .action-group {
+    width: 100%;
+  }
+
+  .action-buttons {
+    width: 100%;
+  }
+
+  .action-buttons .el-button {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    padding: 8px 12px;
+  }
+
+  .search-filter-section {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-input,
+  .filter-select,
+  .filter-select-small {
+    width: 100%;
+  }
+
+  .search-filter-section .el-button {
+    width: 100%;
+  }
+
+  .page-title {
+    font-size: 18px;
+    margin-bottom: 12px;
+  }
+  .scrape-records-container {
+    height: auto;
+    display: block;
+  }
+
+  .header-section {
+    margin-bottom: 0;
+  }
+
+  .mobile-table {
+    display: table;
+  }
+
+  .desktop-table {
+    display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .search-row {
+    flex-direction: column;
+  }
+
+  .search-row .year-input {
+    width: 100%;
+  }
+
+  .result-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .result-poster {
+    width: 100%;
+    height: 150px;
+  }
+
+  .result-action {
+    width: 100%;
+    margin-top: 8px;
+  }
+
+  .result-action .el-button {
+    width: 100%;
+  }
 }
 </style>

@@ -164,6 +164,7 @@ const startRestore = async () => {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      timeout: 600000,
     })
 
     if (res.data.code === API_SUCCESS_CODE) {

@@ -39,7 +39,7 @@ const getDisplayContent = (content: string, index: number): string => {
 </script>
 
 <template>
-  <div class="announcement-section" v-loading="announcementLoading">
+  <div v-if="announcementList.length > 0" class="announcement-section" v-loading="announcementLoading">
     <div class="section-header">
       <div class="section-title">
         <span class="title-icon">📢</span>
@@ -47,7 +47,7 @@ const getDisplayContent = (content: string, index: number): string => {
       </div>
     </div>
 
-    <div v-if="announcementList.length > 0" class="announcement-list">
+    <div class="announcement-list">
       <div 
         v-for="(announcement, index) in announcementList" 
         :key="announcement.id || index" 
@@ -75,10 +75,6 @@ const getDisplayContent = (content: string, index: number): string => {
           </el-button>
         </div>
       </div>
-    </div>
-
-    <div v-else class="empty-state">
-      <el-empty description="暂无公告" :image-size="60" />
     </div>
   </div>
 </template>
@@ -166,8 +162,4 @@ const getDisplayContent = (content: string, index: number): string => {
   word-break: break-word;
 }
 
-.empty-state {
-  padding: 40px 20px;
-  text-align: center;
-}
 </style>

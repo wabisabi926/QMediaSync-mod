@@ -16,7 +16,7 @@ export const useBackupStore = defineStore('backup', () => {
   const errorRetryCount = ref(0)
 
   const MAX_RETRY_COUNT = 3
-  const API_SUCCESS_CODE = 0
+  const API_SUCCESS_CODE = 200
 
   const isRunning = computed(() => progress.value?.running === true)
   const canCancel = computed(
@@ -28,6 +28,7 @@ export const useBackupStore = defineStore('backup', () => {
 
     try {
       const res = await http.get(`${SERVER_URL}/backup/status`)
+      console.log(res.data)
       if (res.data.code === API_SUCCESS_CODE && res.data.data.is_running) {
         progress.value = { running: true, status: 'running' }
         taskType.value = 'backup'
@@ -65,8 +66,10 @@ export const useBackupStore = defineStore('backup', () => {
     try {
       if (taskType.value === 'backup') {
         const res = await http.get(`${SERVER_URL}/backup/status`)
+        console.log(res.data)
         if (res.data.code === API_SUCCESS_CODE) {
           const statusData = res.data.data
+
           progress.value = {
             running: statusData.is_running,
             status: statusData.is_running ? 'running' : 'completed',

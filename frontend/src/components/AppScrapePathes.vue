@@ -211,6 +211,17 @@
                 <el-icon><Delete /></el-icon>
                 删除
               </el-button>
+
+              <el-button
+                v-if="row.source_type !== 'local'"
+                type="warning"
+                size="small"
+                plain
+                @click="openSyncPathDialog(row)"
+              >
+                <el-icon><Link /></el-icon>
+                关联
+              </el-button>
             </div>
           </div>
         </div>
@@ -276,17 +287,58 @@
               </div>
               <div class="tip-item">
                 <span class="tip-bullet">•</span>
-                <span>建议根据网络情况和网盘限制调整并发数</span>
+                <span>如果要调整并发数需要在 <router-link to="/settings/tmdb">TMDB设置</router-link> 中使用自己的TMDB API KEY，否则会使用默认并发数</span>
               </div>
               <div class="tip-item">
                 <span class="tip-bullet">•</span>
-                <span>首次刮削可能需要较长时间，请耐心等待</span>
+                <span>刮削流程：扫描文件夹下所有待刮削文件 - 刮削 - 整理。如果文件很多，首次刮削可能需要较长时间，请耐心等待</span>
               </div>
             </div>
           </div>
         </div>
       </div>
     </div>
+
+    <el-dialog
+      v-model="showSyncPathDialog"
+      title="关联STRM同步目录"
+      width="500px"
+      :close-on-click-modal="false"
+    >
+      <div class="sync-path-dialog-content">
+        <p class="dialog-tip">请选择要关联的STRM同步目录：</p>
+        <el-alert
+          title="刮削完毕会自动将元数据放入STRM同步目录并生成STRM文件"
+          type="info"
+          :closable="false"
+          show-icon
+          style="margin-bottom: 16px"
+        />
+        <el-select
+          v-model="selectedSyncPathIds"
+          multiple
+          filterable
+          placeholder="请选择同步目录"
+          style="width: 100%"
+          :loading="syncPathsLoading"
+        >
+          <el-option
+            v-for="item in syncPathOptions"
+            :key="item.id"
+            :label="item.label"
+            :value="item.id"
+          />
+        </el-select>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showSyncPathDialog = false">取消</el-button>
+          <el-button type="primary" @click="saveSyncPathRelation" :loading="saveSyncPathLoading">
+            确定
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -299,7 +351,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Plus, Loading, Folder, Edit, Delete, VideoPlay, VideoPause,
   InfoFilled, Timer, FolderOpened, Clock, User, Calendar, Film,
-  VideoCamera, Operation, Sort, CircleCheck, Setting, Warning
+  VideoCamera, Operation, Sort, CircleCheck, Setting, Warning, Link
 } from '@element-plus/icons-vue'
 import { formatTime } from '@/utils/timeUtils'
 import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
@@ -337,6 +389,13 @@ const loading = ref(false)
 const accounts = ref<CloudAccount[]>([])
 const accountsLoading = ref(false)
 const checkIsMobile = ref(isMobile())
+
+const showSyncPathDialog = ref(false)
+const selectedSyncPathIds = ref<number[]>([])
+const syncPathOptions = ref<{ id: number; label: string }[]>([])
+const syncPathsLoading = ref(false)
+const saveSyncPathLoading = ref(false)
+const currentScrapePath = ref<ScrapePath | null>(null)
 
 const runningCount = computed(() => pathes.value.filter(p => p.is_running === 2).length)
 const waitingCount = computed(() => pathes.value.filter(p => p.is_running === 1).length)
@@ -537,6 +596,75 @@ const toggleCron = async (row: ScrapePath) => {
     console.error('切换定时同步状态错误')
     row.enable_cron = !row.enable_cron
     ElMessage.error('切换定时同步状态失败')
+  }
+}
+
+const loadSyncPaths = async (sourceType?: string) => {
+  try {
+    syncPathsLoading.value = true
+    const response = await http?.get(`${SERVER_URL}/sync/path-list`, {
+      params: { page: 1, page_size: 9999, source_type: sourceType },
+    })
+
+    if (response?.data.code === 200) {
+      syncPathOptions.value = (response.data.data.list || []).map((item: { id: number; source_type: string; remote_path: string }) => ({
+        id: item.id,
+        label: `#${item.id} - ${item.source_type} - ${item.remote_path}`,
+      }))
+    } else {
+      ElMessage.error(response?.data.message || '加载同步目录失败')
+    }
+  } catch {
+    console.error('加载同步目录错误')
+    ElMessage.error('加载同步目录失败')
+  } finally {
+    syncPathsLoading.value = false
+  }
+}
+
+const openSyncPathDialog = async (row: ScrapePath) => {
+  currentScrapePath.value = row
+  selectedSyncPathIds.value = []
+  showSyncPathDialog.value = true
+  await loadSyncPaths(row.source_type)
+  if (row.id) {
+    try {
+      const response = await http?.get(`${SERVER_URL}/scrape/sync-pathes`, {
+        params: { scrape_path_id: row.id },
+      })
+      if (response?.data.code === 200) {
+        selectedSyncPathIds.value = response.data.data || []
+      }
+    } catch {
+      console.error('加载已关联同步目录错误')
+    }
+  }
+}
+
+const saveSyncPathRelation = async () => {
+  if (!currentScrapePath.value?.id) {
+    ElMessage.error('刮削目录ID不存在')
+    return
+  }
+
+  try {
+    saveSyncPathLoading.value = true
+    const response = await http?.post(`${SERVER_URL}/scrape/sync-pathes`, {
+      scrape_path_id: currentScrapePath.value.id,
+      sync_path_ids: selectedSyncPathIds.value,
+    })
+
+    if (response?.data.code === 200) {
+      ElMessage.success('关联同步目录成功')
+      showSyncPathDialog.value = false
+    } else {
+      ElMessage.error(response?.data.message || '关联同步目录失败')
+    }
+  } catch {
+    console.error('关联同步目录错误')
+    ElMessage.error('关联同步目录失败')
+  } finally {
+    saveSyncPathLoading.value = false
   }
 }
 
@@ -1303,5 +1431,15 @@ onUnmounted(() => {
     grid-template-columns: 1fr;
     gap: 6px;
   }
+}
+
+.sync-path-dialog-content {
+  padding: 10px 0;
+}
+
+.dialog-tip {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: #606266;
 }
 </style>

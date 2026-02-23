@@ -81,31 +81,11 @@
             <div class="card-body">
               <div class="info-row" v-if="account.source_type === '115'">
                 <div class="info-icon">
-                  <el-icon><User /></el-icon>
-                </div>
-                <div class="info-content">
-                  <span class="info-label">115账号</span>
-                  <span class="info-value">{{ account.username || '-' }}</span>
-                </div>
-              </div>
-
-              <div class="info-row" v-if="account.source_type === '115'">
-                <div class="info-icon">
                   <el-icon><Key /></el-icon>
                 </div>
                 <div class="info-content">
                   <span class="info-label">开放平台应用</span>
                   <span class="info-value">{{ account.app_id_name || '-' }}</span>
-                </div>
-              </div>
-
-              <div class="info-row" v-if="account.source_type === 'baidupan'">
-                <div class="info-icon">
-                  <el-icon><Key /></el-icon>
-                </div>
-                <div class="info-content">
-                  <span class="info-label">APP ID</span>
-                  <span class="info-value">{{ account.app_id || '-' }}</span>
                 </div>
               </div>
 
@@ -117,15 +97,6 @@
                   <div class="info-content">
                     <span class="info-label">访问地址</span>
                     <span class="info-value path-value">{{ account.base_url }}</span>
-                  </div>
-                </div>
-                <div class="info-row">
-                  <div class="info-icon">
-                    <el-icon><User /></el-icon>
-                  </div>
-                  <div class="info-content">
-                    <span class="info-label">用户名</span>
-                    <span class="info-value">{{ account.name }}</span>
                   </div>
                 </div>
                 <div class="info-row">
@@ -166,25 +137,17 @@
                     </el-button>
                   </div>
                   <template v-if="account.status">
-                    <div class="info-row">
-                      <div class="info-icon">
-                        <el-icon><User /></el-icon>
-                      </div>
-                      <div class="info-content">
-                        <span class="info-label">网盘用户</span>
-                        <span class="info-value">{{ account.status.username || '-' }}</span>
-                      </div>
-                    </div>
-                    <div class="info-row">
+                    <div class="info-row space-row">
                       <div class="info-icon space-icon">
                         <el-icon><Cloudy /></el-icon>
                       </div>
-                      <div class="info-content">
+                      <div class="info-content space-content">
                         <span class="info-label">空间使用</span>
                         <div class="space-info">
                           <el-progress
+                            style="width: 80%;"
                             :percentage="account.status.total_space > 0 ? Math.round((account.status.used_space / account.status.total_space) * 100) : 0"
-                            :stroke-width="6"
+                            :stroke-width="10"
                             :show-text="false"
                             :color="getSpaceColor(account.status.used_space, account.status.total_space)"
                           />
@@ -1137,7 +1100,7 @@ onUnmounted(() => {
 
 .info-row {
   display: flex;
-  align-items: flex-start;
+  align-items: middle;
   gap: 12px;
 }
 

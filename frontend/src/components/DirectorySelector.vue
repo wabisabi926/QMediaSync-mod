@@ -257,33 +257,26 @@ const handleCreateDirectory = async () => {
       createForm.value.name = ''
 
       const newDir = response.data.data as DirInfo
-      selectedDir.value = newDir
-      emit('update:modelValue', newDir)
+      const parentId = selectedDir.value.id
 
-      const parentPath = selectedDir.value.path || ''
-      const parentPathParts = parentPath.split('/').filter(Boolean)
-      if (parentPathParts.length === 0) {
-        treeData.value.push({
-          ...newDir,
-          expanded: false,
-          loading: false,
-          children: [],
-          hasChildren: true,
-        })
+      const newTreeNode: TreeNodeData = {
+        ...newDir,
+        expanded: false,
+        loading: false,
+        children: [],
+        hasChildren: true,
+      }
+
+      if (!parentId) {
+        treeData.value.push(newTreeNode)
       } else {
         const findAndAddToParent = (nodes: TreeNodeData[]): boolean => {
           for (const node of nodes) {
-            if (node.id === selectedDir.value?.id) {
+            if (node.id === parentId) {
               if (!node.children) {
                 node.children = []
               }
-              node.children.push({
-                ...newDir,
-                expanded: false,
-                loading: false,
-                children: [],
-                hasChildren: true,
-              })
+              node.children.push(newTreeNode)
               node.expanded = true
               return true
             }
@@ -295,6 +288,9 @@ const handleCreateDirectory = async () => {
         }
         findAndAddToParent(treeData.value)
       }
+
+      selectedDir.value = newDir
+      emit('update:modelValue', newDir)
     } else {
       ElMessage.error(response?.data.message || '创建文件夹失败')
     }

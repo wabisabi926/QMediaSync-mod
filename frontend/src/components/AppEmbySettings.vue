@@ -534,7 +534,9 @@ const querySyncStatus = async () => {
 
     if (response?.data.code === 200) {
       syncInfo.value = response.data.data
-      if (response.data.data?.sync_enabled || syncPolling.value) {
+      syncPolling.value = response.data.data?.is_running
+      console.log(syncPolling.value)
+      if (syncPolling.value) {
       } else {
         stopSyncPolling()
       }
@@ -551,6 +553,8 @@ const startSyncPolling = () => {
 
       if (response?.data.code === 200) {
         syncInfo.value = response.data.data
+         syncPolling.value = response.data.data?.is_running
+        console.log(syncPolling.value)
         if (!syncPolling.value) {
           stopSyncPolling()
         }

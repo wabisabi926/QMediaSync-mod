@@ -367,6 +367,7 @@ const loadStrmConfig = async () => {
       strmData.meta_ext_arr = config.meta_ext_arr
       strmData.cron = config.cron
       strmData.strm_base_url = config.strm_base_url
+      strmData.download_meta = config.download_meta
       strmData.upload_meta = config.upload_meta
       strmData.delete_dir = config.delete_dir
       strmData.local_proxy = config.local_proxy

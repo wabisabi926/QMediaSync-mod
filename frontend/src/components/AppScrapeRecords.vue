@@ -303,10 +303,10 @@
               </el-form-item>
             </div>
             <el-form-item label="季" v-if="reScrapeForm.type == 'tvshow'" class="season-episode-row">
-              <el-input v-model="reScrapeForm.season" placeholder="季数" type="number" :min="1" :max="100"
+              <el-input v-model="reScrapeForm.season" placeholder="季数" type="number" :min="0" :max="100"
                 style="width: 100px;" />
               <span class="episode-label">集</span>
-              <el-input v-model="reScrapeForm.episode" placeholder="集数" type="number" :min="1" :max="100"
+              <el-input v-model="reScrapeForm.episode" placeholder="集数" type="number" :min="0" :max="10000"
                 style="width: 100px;" />
             </el-form-item>
           </el-form>
@@ -793,7 +793,7 @@ const selectSearchResult = async (item: TmdbSearchResult) => {
     const params = {
       id: reScrapeForm.value.id,
       tmdb_id: item.tmdb_id,
-      season: reScrapeForm.value.season >= 0 ? reScrapeForm.value.season : -1,
+      season: reScrapeForm.value.season >= 0 ? parseInt(reScrapeForm.value.season + "") : -1,
       episode: reScrapeForm.value.episode >= 0 ? parseInt(reScrapeForm.value.episode + "") : -1
     }
 

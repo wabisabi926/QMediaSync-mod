@@ -691,12 +691,10 @@ const loadVersionInfo = async () => {
 const loadDirectoryData = async (id: number) => {
   try {
     loading.value = true
-    const response = await http?.get(`${SERVER_URL}/sync/path-list`, {
-      params: { page: 1, page_size: 9999 }
-    })
+    const response = await http?.get(`${SERVER_URL}/sync/path/${id}`)
 
     if (response?.data.code === 200) {
-      const directory = response.data.data.list?.find((d: { id: number }) => d.id === id)
+      const directory = response.data.data
       if (directory) {
         form.id = directory.id
         form.account_id = directory.account_id

@@ -179,7 +179,7 @@
                 v-if="row.is_running === 0"
               >
                 <el-icon><VideoPlay /></el-icon>
-                同步
+                {{row.source_type == '115' || row.source_type == 'baidupan' ? '增量' : ''}}同步
               </el-button>
 
               <el-button
@@ -363,17 +363,17 @@ const checkMobile = () => {
 }
 
 const GetFullPath = (row: SyncDirectory) => {
-  const pathSeparator = row.local_path.startsWith('/') ? '/' : '\\'
+  // const pathSeparator = row.local_path.startsWith('/') ? '/' : '\\'
   if (row.source_type == 'local') {
     return row.local_path
   }
-  let remotePath = row.remote_path
-  if (pathSeparator === '/') {
-    remotePath = remotePath.replace(/\\/g, pathSeparator)
-  } else {
-    remotePath = remotePath.replace(/\//g, pathSeparator)
-  }
-  return `${row.local_path}${pathSeparator}${remotePath}`
+  // let remotePath = row.remote_path
+  // if (pathSeparator === '/') {
+  //   remotePath = remotePath.replace(/\\/g, pathSeparator)
+  // } else {
+  //   remotePath = remotePath.replace(/\//g, pathSeparator)
+  // }
+  return `${row.local_path}/${row.remote_path}`
 }
 
 const loadDirectories = async () => {
@@ -912,8 +912,8 @@ onUnmounted(() => {
 }
 
 .path-value {
-  font-family: 'SF Mono', Monaco, monospace;
-  font-size: 12px;
+  /* font-family: 'SF Mono', Monaco, monospace; */
+  font-size: 14px;
   word-break: break-all;
   max-width: 200px;
 }

@@ -52,7 +52,7 @@ const renderMarkdown = (content: string): string => {
           <template #title>
             <div class="update-title-row">
               <div class="update-version">
-                <span class="version-number">v{{ update.version }}</span>
+                <span class="version-number">{{ update.version }}</span>
                 <span class="version-date">{{ update.date }}</span>
               </div>
               <div class="update-tags">

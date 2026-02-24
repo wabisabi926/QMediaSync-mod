@@ -84,6 +84,11 @@
         </el-form-item>
 
         <template v-if="form.custom_config">
+          <el-form-item label="启用定时同步" prop="enable_cron">
+            <el-switch v-model="form.enable_cron" :active-value="true" :inactive-value="false"
+              :disabled="loading" />
+            <div class="form-tip">开启后将按照定时表达式自动执行同步任务</div>
+          </el-form-item>
           <el-form-item label="定时同步表达式" prop="cron">
             <el-input v-model="form.cron" placeholder="留空则使用STRM设置中的表达式" :disabled="loading"
               @blur="loadCronTimes" />
@@ -121,13 +126,23 @@
             </div>
           </el-form-item>
           <el-form-item label="视频扩展名" prop="video_ext">
-            <MetadataExtInput v-model="form.video_ext" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
-              class="meta-ext-input limited-width-input" />
+            <div class="ext-input-wrapper">
+              <MetadataExtInput v-model="form.video_ext" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
+                class="meta-ext-input limited-width-input" />
+              <el-button type="primary" link @click="importFromStrmSettings('video_ext')" :loading="importStrmSettingsLoading">
+                从STRM设置导入
+              </el-button>
+            </div>
             <div class="form-tip">指定需要生成STRM文件的视频文件扩展名</div>
           </el-form-item>
           <el-form-item label="元数据扩展名" prop="meta_ext">
-            <MetadataExtInput v-model="form.meta_ext" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
-              class="meta-ext-input limited-width-input" />
+            <div class="ext-input-wrapper">
+              <MetadataExtInput v-model="form.meta_ext" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
+                class="meta-ext-input limited-width-input" />
+              <el-button type="primary" link @click="importFromStrmSettings('meta_ext')" :loading="importStrmSettingsLoading">
+                从STRM设置导入
+              </el-button>
+            </div>
             <div class="form-tip">指定需要同步的元数据文件扩展名</div>
           </el-form-item>
           <el-form-item label="排除文件名" prop="exclude_name">
@@ -299,6 +314,11 @@
         </el-form-item>
 
         <template v-if="form.custom_config">
+          <el-form-item label="启用定时同步" prop="enable_cron">
+            <el-switch v-model="form.enable_cron" :active-value="true" :inactive-value="false"
+              :disabled="loading" />
+            <div class="form-tip">开启后将按照定时表达式自动执行同步任务</div>
+          </el-form-item>
           <el-form-item label="定时同步表达式" prop="cron">
             <el-input v-model="form.cron" placeholder="留空则使用STRM设置中的表达式" :disabled="loading"
               @blur="loadCronTimes" />
@@ -336,13 +356,23 @@
             </div>
           </el-form-item>
           <el-form-item label="视频扩展名" prop="video_ext">
-            <MetadataExtInput v-model="form.video_ext" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
-              class="meta-ext-input limited-width-input" />
+            <div class="ext-input-wrapper">
+              <MetadataExtInput v-model="form.video_ext" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
+                class="meta-ext-input limited-width-input" />
+              <el-button type="primary" link @click="importFromStrmSettings('video_ext')" :loading="importStrmSettingsLoading">
+                从STRM设置导入
+              </el-button>
+            </div>
             <div class="form-tip">指定需要生成STRM文件的视频文件扩展名</div>
           </el-form-item>
           <el-form-item label="元数据扩展名" prop="meta_ext">
-            <MetadataExtInput v-model="form.meta_ext" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
-              class="meta-ext-input limited-width-input" />
+            <div class="ext-input-wrapper">
+              <MetadataExtInput v-model="form.meta_ext" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
+                class="meta-ext-input limited-width-input" />
+              <el-button type="primary" link @click="importFromStrmSettings('meta_ext')" :loading="importStrmSettingsLoading">
+                从STRM设置导入
+              </el-button>
+            </div>
             <div class="form-tip">指定需要同步的元数据文件扩展名</div>
           </el-form-item>
           <el-form-item label="排除文件名" prop="exclude_name">
@@ -512,6 +542,7 @@ const form = reactive({
   add_path: -1 as -1 | 1 | 2,
   check_meta_mtime: -1 as -1 | 0 | 1,
   cron: '',
+  enable_cron: false,
   strm_base_url: '',
 })
 
@@ -573,6 +604,31 @@ const loadCronTimes = async () => {
     cronTimes.value = []
   } finally {
     cronTimesLoading.value = false
+  }
+}
+
+const importStrmSettingsLoading = ref(false)
+const importFromStrmSettings = async (field: 'video_ext' | 'meta_ext') => {
+  try {
+    importStrmSettingsLoading.value = true
+    const response = await http?.get(`${SERVER_URL}/setting/strm-config`)
+
+    if (response?.data.code === 200 && response.data.data) {
+      const config = response.data.data
+      if (field === 'video_ext') {
+        form.video_ext = config.video_ext_arr || []
+        ElMessage.success('已从STRM设置导入视频扩展名')
+      } else {
+        form.meta_ext = config.meta_ext_arr || []
+        ElMessage.success('已从STRM设置导入元数据扩展名')
+      }
+    } else {
+      ElMessage.error('获取STRM设置失败')
+    }
+  } catch {
+    ElMessage.error('获取STRM设置失败')
+  } finally {
+    importStrmSettingsLoading.value = false
   }
 }
 
@@ -661,6 +717,7 @@ const loadDirectoryData = async (id: number) => {
         form.check_meta_mtime = directory.check_meta_mtime
         form.baidu_sync_method = directory.baidu_sync_method
         form.cron = directory.cron || ''
+        form.enable_cron = directory.enable_cron !== false
         form.strm_base_url = directory.strm_base_url || ''
         updateStrmPath()
         if (form.strm_base_url) {
@@ -760,6 +817,7 @@ const handleSubmit = async () => {
         check_meta_mtime: form.check_meta_mtime,
         baidu_sync_method: form.baidu_sync_method,
         cron: form.cron.trim(),
+        enable_cron: form.enable_cron,
         strm_base_url: form.strm_base_url.trim(),
       }
 
@@ -794,6 +852,7 @@ const handleSubmit = async () => {
         check_meta_mtime: form.check_meta_mtime,
         baidu_sync_method: form.baidu_sync_method,
         cron: form.cron.trim(),
+        enable_cron: form.enable_cron,
         strm_base_url: form.strm_base_url.trim(),
       }
 
@@ -1047,5 +1106,21 @@ onUnmounted(() => {
 
 .is-mobile .pan-dir-input .el-button {
   width: 100%;
+}
+
+.ext-input-wrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ext-input-wrapper .meta-ext-input {
+  flex: 1;
+  min-width: 200px;
+}
+
+.ext-input-wrapper .el-button {
+  flex-shrink: 0;
 }
 </style>

@@ -143,6 +143,19 @@
               </span>
             </template>
           </el-table-column>
+          <el-table-column prop="status" label="文件状态" width="200">
+            <template #default="{ row }">
+              <el-tooltip :content="getStatusTooltip(row.status)" placement="top">
+                <el-tag :type="getStatusTagType(row.status)">
+                  <el-icon>
+                    <Warning />
+                  </el-icon>
+                  {{ getStatusName(row.status) }}
+                </el-tag>
+              </el-tooltip>
+              <p v-if="row.failed_reason" style="margin-top: 4px;">{{ row.failed_reason }}</p>
+            </template>
+          </el-table-column>
           <el-table-column prop="type" label="类型" width="80">
             <template #default="{ row }">
               <el-tag :type="getTypeTagType(row.type)">
@@ -157,6 +170,7 @@
               </el-tag>
             </template>
           </el-table-column>
+
           <el-table-column prop="path" label="文件路径" width="400">
             <template #default="{ row }">
               <div>
@@ -180,19 +194,6 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column prop="status" label="文件状态" width="200">
-            <template #default="{ row }">
-              <el-tooltip :content="getStatusTooltip(row.status)" placement="top">
-                <el-tag :type="getStatusTagType(row.status)">
-                  <el-icon>
-                    <Warning />
-                  </el-icon>
-                  {{ getStatusName(row.status) }}
-                </el-tag>
-              </el-tooltip>
-              <p v-if="row.failed_reason" style="margin-top: 4px;">{{ row.failed_reason }}</p>
-            </template>
-          </el-table-column>
           <el-table-column prop="rename_time" label="时间" width="250">
             <template #default="{ row }">
               <p>创建时间：{{ row.created_at ? formatTimestamp(row.created_at) : '-' }}</p>
@@ -211,7 +212,12 @@
           </el-table-column>
         </el-table>
 
-        <div class="pagination-container">
+        <div class="pagination-container mobile-pagination">
+          <el-pagination v-model:current-page="pagination.currentPage" v-model:page-size="pagination.pageSize"
+            :page-sizes="100" layout="total, prev, pager, next" :total="total"
+             @current-change="handleCurrentChange" />
+        </div>
+        <div class="pagination-container desktop-pagination">
           <el-pagination v-model:current-page="pagination.currentPage" v-model:page-size="pagination.pageSize"
             :page-sizes="[100, 200, 500]" layout="total, sizes, prev, pager, next, jumper" :total="total"
             @size-change="handleSizeChange" @current-change="handleCurrentChange" />
@@ -749,7 +755,7 @@ const searchTmdb = async () => {
     searchResults.value = []
 
     const params: Record<string, string | number> = {
-      type: reScrapeForm.value.type === 'tvshow' ? 'tv' : 'movie'
+      type: reScrapeForm.value.type
     }
 
     if (searchMode.value === 'name') {
@@ -788,7 +794,7 @@ const selectSearchResult = async (item: TmdbSearchResult) => {
       id: reScrapeForm.value.id,
       tmdb_id: item.tmdb_id,
       season: reScrapeForm.value.season >= 0 ? reScrapeForm.value.season : -1,
-      episode: reScrapeForm.value.episode >= 0 ? reScrapeForm.value.episode : -1
+      episode: reScrapeForm.value.episode >= 0 ? parseInt(reScrapeForm.value.episode + "") : -1
     }
 
     const response = await http?.post(`${SERVER_URL}/scrape/re-scrape`, params, { timeout: 60000 })
@@ -823,7 +829,7 @@ const reScrape = (record: ScrapeRecord) => {
     tmdb_id: '',
     originalFileName: record.file_name || '',
     season: record.season_number || -1,
-    episode: record.episode_number || -1,
+    episode: parseInt(record.episode_number + "") || -1,
     status: record.status || ''
   }
   if (record.status == "renamed") {
@@ -1172,11 +1178,11 @@ onUnmounted(() => {
   display: block;
 }
 
-.mobile-table {
+.mobile-table, .mobile-pagination {
   display: none;
 }
 
-.desktop-table {
+.desktop-table, .desktop-pagination {
   display: table;
 }
 
@@ -1380,11 +1386,11 @@ onUnmounted(() => {
 }
 
 @media (min-width: 769px) {
-  .mobile-table {
+  .mobile-table, .mobile-pagination {
     display: none;
   }
 
-  .desktop-table {
+  .desktop-table, .desktop-pagination {
     display: table;
   }
 }
@@ -1433,6 +1439,7 @@ onUnmounted(() => {
     font-size: 18px;
     margin-bottom: 12px;
   }
+
   .scrape-records-container {
     height: auto;
     display: block;
@@ -1442,11 +1449,11 @@ onUnmounted(() => {
     margin-bottom: 0;
   }
 
-  .mobile-table {
+  .mobile-table, .mobile-pagination {
     display: table;
   }
 
-  .desktop-table {
+  .desktop-table, .desktop-pagination {
     display: none;
   }
 }

@@ -401,7 +401,7 @@ onUnmounted(() => {
 })
 
 // 判断记录是否可删除（完成或失败）
-const isDeletableRecord = (row: SyncRecord) => row.status === 2 || row.status === 3
+const isDeletableRecord = (row: SyncRecord) => row.status === 2 || row.status === 3 || row.status === 0
 
 // 单条删除，无需确认
 const deleteRecord = async (id: number) => {

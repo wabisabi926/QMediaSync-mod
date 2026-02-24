@@ -486,6 +486,7 @@ defineExpose({
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
   gap: 20px;
 }
 
@@ -644,15 +645,26 @@ defineExpose({
     font-size: 12px;
   }
 
+  .log-line {
+    flex-wrap: wrap;
+  }
+
   .log-timestamp {
-    min-width: 140px;
-    margin-right: 8px;
+    min-width: auto;
+    width: 100%;
+    margin-right: 0;
+    margin-bottom: 2px;
+    font-size: 11px;
   }
 
   .log-level {
-    min-width: 50px;
+    min-width: 40px;
     margin-right: 8px;
     font-size: 10px;
+  }
+
+  .log-message {
+    width: calc(100% - 60px);
   }
 }
 </style>

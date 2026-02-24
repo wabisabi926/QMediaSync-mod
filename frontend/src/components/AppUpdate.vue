@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, inject } from 'vue'
 import { useUpdate } from '@/composables/useUpdate'
 import { useVersion } from '@/composables/useVersion'
 import { formatFileSize } from '@/utils/fileSizeUtils'
 import MarkdownIt from 'markdown-it'
 import 'github-markdown-css'
 import { CircleCheck } from '@element-plus/icons-vue'
+import { SERVER_URL } from '@/const'
+import type { AxiosStatic } from 'axios'
+
+const http: AxiosStatic | undefined = inject('$http')
 
 const activeNames = ref<string[]>(['update-0'])
 
@@ -26,6 +30,27 @@ const {
   manuallyRefresh
 } = useUpdate()
 
+const isFnOS = ref(false)
+const isFnOSLoading = ref(false)
+
+const checkIsFnOS = async () => {
+  try {
+    isFnOSLoading.value = true
+    const response = await http?.get(`${SERVER_URL}/path/is-fn-os`)
+    if (response?.data.code === 200) {
+      isFnOS.value = response.data.data === true
+    }
+  } catch {
+    isFnOS.value = false
+  } finally {
+    isFnOSLoading.value = false
+  }
+}
+
+onMounted(() => {
+  checkIsFnOS()
+})
+
 const md = new MarkdownIt({
   html: true,
   breaks: true,
@@ -41,7 +66,6 @@ const renderMarkdown = (content: string): string => {
   <div class="update-page">
     <div class="page-header">
       <div class="header-content">
-        <h1>版本更新</h1>
         <p>管理系统版本，查看更新日志，执行在线更新</p>
       </div>
       <div class="header-actions">
@@ -58,7 +82,7 @@ const renderMarkdown = (content: string): string => {
           <span>当前版本</span>
         </div>
         <div v-if="versionInfo" class="version-info">
-          <div class="version-number">v{{ versionInfo.version }}</div>
+          <div class="version-number">{{ versionInfo.version }}</div>
           <div class="version-date">编译时间: {{ versionInfo.date }}</div>
         </div>
         <div v-else class="empty-state">
@@ -67,8 +91,8 @@ const renderMarkdown = (content: string): string => {
       </div>
     </div>
 
-    <div class="update-section">
-      <div class="section-card">
+    <div class="update-section" v-if="!isFnOS">
+      <div class="section-card" v-loading="isFnOSLoading">
         <div class="section-header">
           <span class="section-icon">🚀</span>
           <span>可用版本</span>
@@ -80,7 +104,7 @@ const renderMarkdown = (content: string): string => {
               <template #title>
                 <div class="update-title-row">
                   <div class="update-version">
-                    <span class="version-number">v{{ update.version }}</span>
+                    <span class="version-number">{{ update.version }}</span>
                     <span class="version-date">{{ update.date }}</span>
                   </div>
                   <div class="update-tags">
@@ -117,6 +141,18 @@ const renderMarkdown = (content: string): string => {
 
         <div v-else class="empty-state">
           <el-empty description="暂无版本信息" :image-size="80" />
+        </div>
+      </div>
+    </div>
+
+    <div class="update-section fnos-tip" v-else>
+      <div class="section-card">
+        <div class="section-header">
+          <span class="section-icon">💡</span>
+          <span>提示</span>
+        </div>
+        <div class="fnos-content">
+          <p>检测到您正在使用飞牛NAS系统，版本更新请通过飞牛应用商店进行。</p>
         </div>
       </div>
     </div>
@@ -411,5 +447,17 @@ const renderMarkdown = (content: string): string => {
 
 .update-note :deep(.markdown-body li) {
   margin-bottom: 4px;
+}
+
+.fnos-content {
+  padding: 20px;
+  text-align: center;
+}
+
+.fnos-content p {
+  font-size: 15px;
+  color: #606266;
+  margin: 0;
+  line-height: 1.6;
 }
 </style>

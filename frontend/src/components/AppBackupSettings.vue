@@ -34,10 +34,6 @@
         <span style="margin-left: 8px; color: #909399">个</span>
       </el-form-item>
 
-      <el-form-item label="压缩备份">
-        <el-switch v-model="configForm.backup_compress" :active-value="1" :inactive-value="0" />
-      </el-form-item>
-
       <el-form-item>
         <el-button type="primary" :loading="configSaving" @click="saveConfig">
           保存配置
@@ -59,7 +55,7 @@ import CronSelector from './CronSelector.vue'
 
 const http = inject<AxiosStatic>('$http')
 const isMobile = checkIsMobile()
-const API_SUCCESS_CODE = 0
+const API_SUCCESS_CODE = 200
 
 const configForm = reactive({
   backup_enabled: 1 as 0 | 1,

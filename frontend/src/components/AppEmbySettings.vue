@@ -101,26 +101,7 @@
             </div>
           </template>
 
-          <div class="feature-item">
-            <el-form-item label="同步后刷新媒体库" prop="enable_refresh_library">
-              <div class="switch-wrapper">
-                <el-switch v-model="embyData.enable_refresh_library" :active-value="1" :inactive-value="0"
-                  :disabled="embyLoading" active-color="#67c23a" inactive-color="#dcdfe6" />
-                <span class="switch-label" :class="{ 'is-active': embyData.enable_refresh_library }">
-                  {{ embyData.enable_refresh_library ? '启用' : '禁用' }}
-                </span>
-              </div>
-            </el-form-item>
-            <div class="feature-description">
-              <p>该功能需要至少同步完一次Emby媒体库才能生效，如果下方同步管理卡片中的总项目数为0，请点击下方：启动同步 按钮触发一次同步。</p>
-              <p>STRM同步完成后会延迟30s执行刷新动作，以供元数据下载（如果开启了下载），但是可能下载不完就触发了刷新，做为备份手段：请开启Emby的实时监控</p>
-              <p class="feature-note">功能解释：某个STRM同步目录同步完成后会自动触发相关联的Emby媒体库刷新，这样可以及时的将新增加的STRM文件入库</p>
-            </div>
-          </div>
-
-          <el-divider class="feature-divider" />
-
-          <div class="feature-item">
+           <div class="feature-item">
             <el-form-item label="入库后提取媒体信息" prop="enable_extract_media_info">
               <div class="switch-wrapper">
                 <el-switch v-model="embyData.enable_extract_media_info" :active-value="1" :inactive-value="0"
@@ -142,11 +123,47 @@
 
           <el-divider class="feature-divider" />
 
-          <div class="feature-item danger-item">
+          <div class="feature-item">
+            <el-form-item label="启用同步" prop="sync_enabled">
+              <div class="switch-wrapper">
+                <el-switch v-model="embyData.sync_enabled" :active-value="1" :inactive-value="0"
+                  :disabled="embyLoading" active-color="#67c23a" inactive-color="#dcdfe6" />
+                <span class="switch-label" :class="{ 'is-active': embyData.sync_enabled }">
+                  {{ embyData.sync_enabled ? '已启用' : '已禁用' }}
+                </span>
+              </div>
+            </el-form-item>
+            <div class="feature-description">
+              <p class="feature-note">启用后可以使用STRM同步功能，禁用时同步相关功能将全部关闭</p>
+            </div>
+          </div>
+
+          <el-divider class="feature-divider" />
+
+          <div class="feature-item" :class="{ 'is-disabled': !embyData.sync_enabled }">
+            <el-form-item label="同步后刷新媒体库" prop="enable_refresh_library">
+              <div class="switch-wrapper">
+                <el-switch v-model="embyData.enable_refresh_library" :active-value="1" :inactive-value="0"
+                  :disabled="embyLoading || !embyData.sync_enabled" active-color="#67c23a" inactive-color="#dcdfe6" />
+                <span class="switch-label" :class="{ 'is-active': embyData.enable_refresh_library }">
+                  {{ embyData.enable_refresh_library ? '启用' : '禁用' }}
+                </span>
+              </div>
+            </el-form-item>
+            <div class="feature-description">
+              <p>该功能需要至少同步完一次Emby媒体库才能生效，如果下方同步管理卡片中的总项目数为0，请点击下方：启动同步 按钮触发一次同步。</p>
+              <p>STRM同步完成后会延迟30s执行刷新动作，以供元数据下载（如果开启了下载），但是可能下载不完就触发了刷新，做为备份手段：请开启Emby的实时监控</p>
+              <p class="feature-note">功能解释：某个STRM同步目录同步完成后会自动触发相关联的Emby媒体库刷新，这样可以及时的将新增加的STRM文件入库</p>
+            </div>
+          </div>
+
+          <el-divider class="feature-divider" />
+
+          <div class="feature-item danger-item" :class="{ 'is-disabled': !embyData.sync_enabled }">
             <el-form-item label="删除联动删除网盘文件" prop="enable_delete_netdisk">
               <div class="switch-wrapper">
                 <el-switch v-model="embyData.enable_delete_netdisk" :active-value="1" :inactive-value="0"
-                  :disabled="embyLoading" active-color="#f56c6c" inactive-color="#dcdfe6" />
+                  :disabled="embyLoading || !embyData.sync_enabled" active-color="#f56c6c" inactive-color="#dcdfe6" />
                 <span class="switch-label" :class="{ 'is-danger': embyData.enable_delete_netdisk }">
                   {{ embyData.enable_delete_netdisk ? '启用' : '禁用' }}
                 </span>
@@ -201,7 +218,7 @@
             </div>
             <div class="card-header-action">
               <el-button type="primary" @click="startSync" :loading="syncStartLoading" :icon="Refresh"
-                :disabled="!embyData.emby_url || syncPolling" size="default">
+                :disabled="!embyData.emby_url || !embyData.sync_enabled || syncPolling" size="default">
                 {{ syncPolling ? '同步进行中...' : '启动同步' }}
               </el-button>
             </div>
@@ -403,7 +420,7 @@ const saveEmbyConfig = async () => {
       {
         emby_url: embyData.emby_url.trim(),
         emby_api_key: embyData.emby_api_key.trim(),
-        sync_enabled: 1,
+        sync_enabled: embyData.sync_enabled,
         sync_cron: embyData.sync_cron,
         enable_refresh_library: embyData.enable_refresh_library,
         enable_extract_media_info: embyData.enable_extract_media_info,
@@ -813,6 +830,11 @@ onBeforeUnmount(() => {
 
 .feature-item:first-child {
   padding-top: 0;
+}
+
+.feature-item.is-disabled {
+  opacity: 0.5;
+  pointer-events: none;
 }
 
 .danger-item {

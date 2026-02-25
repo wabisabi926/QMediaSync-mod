@@ -34,7 +34,7 @@
           </el-select>
           <div class="form-tip">选择用于刮削的网盘账号</div>
         </el-form-item>
-        <el-form-item label="媒体类型" prop="media_type">
+        <el-form-item label="媒体类型" prop="media_type" v-if="!isEditMode">
           <el-radio-group v-model="form.media_type" placeholder="请选择媒体类型">
             <el-radio-button value="movie">电影</el-radio-button>
             <el-radio-button value="tvshow">电视剧</el-radio-button>
@@ -45,8 +45,7 @@
         <el-form-item label="操作方式" prop="scrape_type">
           <el-radio-group v-model="form.scrape_type">
             <el-radio-button value="only_scrape" :disabled="form.media_type === 'other'">仅刮削</el-radio-button>
-            <el-radio-button value="scrape_and_rename"
-              :disabled="form.media_type === 'other'">刮削和整理</el-radio-button>
+            <el-radio-button value="scrape_and_rename" :disabled="form.media_type === 'other'">刮削和整理</el-radio-button>
             <el-radio-button value="only_rename">仅整理</el-radio-button>
           </el-radio-group>
           <div class="form-tip">
@@ -215,7 +214,7 @@
           </el-select>
           <div class="form-tip">选择用于刮削的网盘账号</div>
         </el-form-item>
-        <el-form-item label="媒体类型" prop="media_type">
+        <el-form-item label="媒体类型" prop="media_type" v-if="!isEditMode">
           <el-radio-group v-model="form.media_type" placeholder="请选择媒体类型">
             <el-radio-button value="movie">电影</el-radio-button>
             <el-radio-button value="tvshow">电视剧</el-radio-button>
@@ -324,7 +323,7 @@
           <div class="form-tip">整理完成是否强制删除源文件所在路径（一般会遗留广告垃圾文件），如果禁用只会删除空目录</div>
         </el-form-item>
         <el-form-item label="刮削线程数" prop="max_threads">
-          <el-input-number v-model="form.max_threads" :disabled="loading" min="1"
+          <el-input-number v-model="form.max_threads" :disabled="loading" :min="1"
             :max="form.source_type === 'local' ? 20 : 5" step="1" style="width: 100%" />
           <div class="form-help">刮削本地文件时的最大并发线程数，越高越快, 刮削网盘该值无效。默认值为5; 只有本地目录类型可以修改（前提是添加了自己的TMDB API KEY）</div>
         </el-form-item>
@@ -448,10 +447,10 @@ const isEditMode = ref(false)
 const loading = ref(false)
 
 const formRef = ref<FormInstance>()
-const form = reactive({
+const form = reactive<ScrapePath>({
   id: 0,
   source_type: '115',
-  account_id: '' as string | number,
+  account_id: 0,
   media_type: 'movie',
   source_path: '',
   source_path_id: '',
@@ -539,14 +538,16 @@ const loadAccounts = async () => {
 const loadDirectoryData = async (id: number) => {
   try {
     loading.value = true
-    const response = await http?.get(`${SERVER_URL}/scrape/pathes`)
+    const response = await http?.get(`${SERVER_URL}/scrape/pathes/${id}`)
 
     if (response?.data.code === 200) {
-      const directory = response.data.data?.find((d: ScrapePath) => d.id === id)
-      if (directory) {
+      // const directory = response.data.data?.find((d: ScrapePath) => d.id === id)
+      // if (directory) {
+        // 将res.data.data赋值给form
+        const directory = response.data.data || {}
         form.id = directory.id || 0
         form.source_type = directory.source_type
-        form.account_id = directory.account_id || ''
+        form.account_id = directory.account_id
         form.media_type = directory.media_type
         form.source_path = directory.source_path
         form.source_path_id = directory.source_path_id
@@ -566,11 +567,11 @@ const loadDirectoryData = async (id: number) => {
         form.force_delete_source_path = directory.force_delete_source_path || false
         form.enable_cron = directory.enable_cron || false
         form.enable_fanart_tv = directory.enable_fanart_tv || false
-        form.max_threads = directory.max_threads || 5
-      } else {
-        ElMessage.error('未找到该刮削目录')
-        goBack()
-      }
+        form.max_threads = parseInt(directory.max_threads + "") || 5
+      // } else {
+      //   ElMessage.error('未找到该刮削目录')
+      //   goBack()
+      // }
     } else {
       ElMessage.error(response?.data.message || '加载刮削目录失败')
       goBack()
@@ -651,7 +652,7 @@ const handleSubmit = async () => {
       const response = await http?.post(`${SERVER_URL}/scrape/pathes`, {
         id: 0,
         source_type: form.source_type,
-        account_id: form.source_type !== 'local' ? form.account_id : undefined,
+        account_id: form.source_type !== 'local' ? form.account_id : 0,
         media_type: form.media_type,
         source_path: form.source_path,
         source_path_id: form.source_path_id,
@@ -727,6 +728,7 @@ onMounted(async () => {
   } else {
     await loadAccounts()
   }
+  console.log(isEditMode.value)
 })
 
 onUnmounted(() => {

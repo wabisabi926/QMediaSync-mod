@@ -94,7 +94,7 @@ import { isMobile as checkIsMobile } from '@/utils/deviceUtils'
 const http = inject<AxiosStatic>('$http')
 const backupStore = useBackupStore()
 const isMobile = checkIsMobile()
-const API_SUCCESS_CODE = 0
+const API_SUCCESS_CODE = 200
 
 const uploadRef = ref<UploadInstance>()
 const selectedFile = ref<File | null>(null)
@@ -166,7 +166,6 @@ const startRestore = async () => {
       },
       timeout: 600000,
     })
-
     if (res.data.code === API_SUCCESS_CODE) {
       ElMessage.success('恢复任务已启动')
       backupStore.startProgressPolling('restore', undefined, http)

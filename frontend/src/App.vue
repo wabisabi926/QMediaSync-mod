@@ -129,13 +129,6 @@
       <el-alert v-if="backupStore.errorRetryCount > 0" :title="`网络异常，正在重试 (${backupStore.errorRetryCount}/${3})...`"
         type="warning" :closable="false" style="margin-top: 16px" />
     </div>
-
-    <template #footer>
-      <!-- 仅备份任务且运行中时显示取消按钮 -->
-      <el-button v-if="backupStore.canCancel" type="danger" @click="handleCancelBackup">
-        取消备份
-      </el-button>
-    </template>
   </el-dialog>
 </template>
 
@@ -145,20 +138,18 @@ import {
   Menu,
   Loading,
 } from '@element-plus/icons-vue'
-import { ref, onMounted, onUnmounted, inject, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useBackupStore } from '@/stores/backup'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { isMobile as checkIsMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 import { formatDuration } from '@/utils/timeUtils'
-import type { AxiosStatic } from 'axios'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const backupStore = useBackupStore()
-const http = inject<AxiosStatic>('$http')
 const isMobile = ref(false)
 const isMenuOpen = ref(false)
 
@@ -334,22 +325,6 @@ const getProgressStatus = () => {
   }
 }
 
-// 处理取消备份
-const handleCancelBackup = async () => {
-  try {
-    await ElMessageBox.confirm('确定要取消备份任务吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning',
-    })
-
-    if (http) {
-      await backupStore.cancelBackupTask(http)
-    }
-  } catch {
-    // 用户取消
-  }
-}
 
 // 组件挂载时加载数据
 let removeDeviceTypeListener: (() => void) | null = null
@@ -362,11 +337,6 @@ onMounted(() => {
       isMenuOpen.value = false
     }
   })
-
-  // 检查备份状态
-  if (http) {
-    backupStore.checkBackupStatus(http)
-  }
 })
 
 onUnmounted(() => {

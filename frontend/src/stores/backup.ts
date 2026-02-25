@@ -23,22 +23,22 @@ export const useBackupStore = defineStore('backup', () => {
     () => taskType.value === 'backup' && progress.value?.status === 'running'
   )
 
-  const checkBackupStatus = async (http?: AxiosStatic) => {
-    if (!http) return
+  // const checkBackupStatus = async (http?: AxiosStatic) => {
+  //   if (!http) return
 
-    try {
-      const res = await http.get(`${SERVER_URL}/backup/status`)
-      console.log(res.data)
-      if (res.data.code === API_SUCCESS_CODE && res.data.data.is_running) {
-        progress.value = { running: true, status: 'running' }
-        taskType.value = 'backup'
-        showProgressDialog.value = true
-        startProgressPolling('backup', undefined, http)
-      }
-    } catch (error) {
-      console.error('检查备份状态失败:', error)
-    }
-  }
+  //   try {
+  //     const res = await http.get(`${SERVER_URL}/backup/status`)
+  //     console.log(res.data)
+  //     if (res.data.code === API_SUCCESS_CODE && res.data.data.is_running) {
+  //       progress.value = { running: true, status: 'running' }
+  //       taskType.value = 'backup'
+  //       showProgressDialog.value = true
+  //       startProgressPolling('backup', undefined, http)
+  //     }
+  //   } catch (error) {
+  //     console.error('检查备份状态失败:', error)
+  //   }
+  // }
 
   const startProgressPolling = (
     type: 'backup' | 'restore',
@@ -66,13 +66,18 @@ export const useBackupStore = defineStore('backup', () => {
     try {
       if (taskType.value === 'backup') {
         const res = await http.get(`${SERVER_URL}/backup/status`)
-        console.log(res.data)
         if (res.data.code === API_SUCCESS_CODE) {
           const statusData = res.data.data
 
           progress.value = {
             running: statusData.is_running,
             status: statusData.is_running ? 'running' : 'completed',
+            progress: parseInt(((statusData.count / statusData.total) * 100) + "", 10),
+            elapsed_seconds: statusData.elapsed,
+            estimated_seconds: 0,
+            current_step: statusData.desc,
+            processed_tables: statusData.count,
+            total_tables: statusData.total,
           }
           errorRetryCount.value = 0
 
@@ -85,17 +90,21 @@ export const useBackupStore = defineStore('backup', () => {
         const res = await http.get(`${SERVER_URL}/backup/status`)
         if (res.data.code === API_SUCCESS_CODE) {
           const statusData = res.data.data
+          progress.value = {
+            running: statusData.is_running,
+            status: statusData.is_running ? 'running' : 'completed',
+            progress: statusData.count == 0 ? 0 : parseInt(((statusData.count / statusData.total) * 100) + "", 10),
+            elapsed_seconds: statusData.elapsed,
+            estimated_seconds: 0,
+            current_step: statusData.desc,
+            processed_tables: statusData.count,
+            total_tables: statusData.total,
+          }
           errorRetryCount.value = 0
 
-          if (!statusData.is_running) {
+          if (!progress.value.running) {
             stopProgressPolling()
             showProgressDialog.value = false
-            ElMessage.success('数据库恢复成功！页面即将刷新...')
-            setTimeout(() => {
-              location.reload()
-            }, 1500)
-          } else {
-            progress.value = { running: true, status: 'running' }
           }
         }
       }
@@ -142,23 +151,23 @@ export const useBackupStore = defineStore('backup', () => {
     }
   }
 
-  const cancelBackupTask = async (http: AxiosStatic) => {
-    try {
-      const res = await http.post(`${SERVER_URL}/backup/cancel`)
+  // const cancelBackupTask = async (http: AxiosStatic) => {
+  //   try {
+  //     const res = await http.post(`${SERVER_URL}/backup/cancel`)
 
-      if (res.data.code === API_SUCCESS_CODE) {
-        ElMessage.success(res.data.message || '备份任务已取消')
-        stopProgressPolling()
-        showProgressDialog.value = false
-        resetState()
-      } else {
-        ElMessage.error(res.data.message || '取消备份任务失败')
-      }
-    } catch (error: unknown) {
-      const errorMsg = error instanceof Error ? error.message : '取消备份任务失败'
-      ElMessage.error(errorMsg)
-    }
-  }
+  //     if (res.data.code === API_SUCCESS_CODE) {
+  //       ElMessage.success(res.data.message || '备份任务已取消')
+  //       stopProgressPolling()
+  //       showProgressDialog.value = false
+  //       resetState()
+  //     } else {
+  //       ElMessage.error(res.data.message || '取消备份任务失败')
+  //     }
+  //   } catch (error: unknown) {
+  //     const errorMsg = error instanceof Error ? error.message : '取消备份任务失败'
+  //     ElMessage.error(errorMsg)
+  //   }
+  // }
 
   const resetState = () => {
     progress.value = null
@@ -173,10 +182,10 @@ export const useBackupStore = defineStore('backup', () => {
     errorRetryCount,
     isRunning,
     canCancel,
-    checkBackupStatus,
+    // checkBackupStatus,
     startProgressPolling,
     stopProgressPolling,
-    cancelBackupTask,
+    // cancelBackupTask,
     resetState,
   }
 })

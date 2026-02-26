@@ -4,7 +4,7 @@
       <template #header>
         <div class="card-header">
           <div class="header-left">
-            <h2 class="card-title hidden-md-and-down">网盘文件浏览器（仅测试UI，暂无功能）</h2>
+            <h2 class="card-title hidden-md-and-down">网盘文件浏览器（实装功能：查看列表、创建文件夹、删除）</h2>
             <p class="card-subtitle">
               浏览和管理媒体文件，支持STRM生成、刮削整理和ED2K生成操作
             </p>
@@ -53,13 +53,19 @@
           <!-- 文件列表内容 -->
           <template v-else>
             <!-- 面包屑导航 -->
-            <el-breadcrumb separator="/" style="margin-bottom: 16px">
-              <el-breadcrumb-item @click="navigateToPath(-1)" style="cursor: pointer">根目录</el-breadcrumb-item>
-              <el-breadcrumb-item v-for="(item, index) in pathItems" :key="item.id"
-                @click="navigateToPath(index)" style="cursor: pointer">
-                {{ item.name }}
-              </el-breadcrumb-item>
-            </el-breadcrumb>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px">
+              <el-breadcrumb separator="/">
+                <el-breadcrumb-item @click="navigateToPath(-1)" style="cursor: pointer">根目录</el-breadcrumb-item>
+                <el-breadcrumb-item v-for="(item, index) in pathItems" :key="item.id"
+                  @click="navigateToPath(index)" style="cursor: pointer">
+                  {{ item.name }}
+                </el-breadcrumb-item>
+              </el-breadcrumb>
+              <el-button type="primary" @click="openCreateDialog" :disabled="!selectedAccountId">
+                <el-icon><FolderAdd /></el-icon>
+                新建文件夹
+              </el-button>
+            </div>
 
             <!-- 批量操作按钮组 -->
             <div v-if="batchMode" style="margin-bottom: 16px">
@@ -127,6 +133,7 @@
                           command="GENERATE_ED2K">
                           生成ED2K
                         </el-dropdown-item>
+                        <el-dropdown-item command="DELETE" divided>删除</el-dropdown-item>
                       </el-dropdown-menu>
                     </template>
                   </el-dropdown>
@@ -154,6 +161,9 @@
                         v-if="!row.is_directory && (getFileType(row.name) === 'video' || getFileType(row.name) === 'image')"
                         size="small" type="warning" @click="handleSingleOperation('GENERATE_ED2K', row)">
                         生成ED2K
+                      </el-button>
+                      <el-button size="small" type="danger" @click="handleSingleOperation('DELETE', row)">
+                        删除
                       </el-button>
                     </div>
                   </div>
@@ -184,14 +194,31 @@
         </div>
       </div>
     </el-card>
+
+    <el-dialog v-model="showCreateDialog" title="新建文件夹" width="400px" :close-on-click-modal="false">
+      <el-form ref="createFormRef" :model="createForm" :rules="createRules" label-width="80px">
+        <el-form-item label="文件夹名称" prop="name">
+          <el-input v-model="createForm.name" placeholder="请输入文件夹名称" clearable />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showCreateDialog = false">取消</el-button>
+          <el-button type="primary" @click="handleCreateDirectory" :loading="createLoading">
+            确定
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, inject } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, VideoPlay, FolderOpened, Link, Files } from '@element-plus/icons-vue'
+import { ArrowDown, VideoPlay, FolderOpened, Link, Files, FolderAdd } from '@element-plus/icons-vue'
 import type { FileSystemItem, FileOperationType } from '@/typing'
+import type { FormInstance, FormRules } from 'element-plus'
 import { getFileType, getFileIconByName } from '@/utils/fileIconUtils'
 import { formatFileSize } from '@/utils/fileSizeUtils'
 import { formatDateTime } from '@/utils/timeUtils'
@@ -228,6 +255,17 @@ const pathItems = ref<FileSystemItem[]>([])
 const http: AxiosStatic | undefined = inject('$http')
 const accountList = ref<NetdiskAccount[]>([])
 const selectedAccountId = ref<number | null>(null)
+
+const showCreateDialog = ref(false)
+const createLoading = ref(false)
+const createFormRef = ref<FormInstance>()
+const createForm = ref({ name: '' })
+const createRules = ref<FormRules>({
+  name: [
+    { required: true, message: '请输入文件夹名称', trigger: 'blur' },
+    { min: 1, max: 255, message: '文件夹名称长度在 1 到 255 个字符', trigger: 'blur' }
+  ]
+})
 
 // 计算属性
 // const pathSegments = computed(() => {
@@ -404,6 +442,11 @@ function handlePageChange(newPage: number) {
 
 // 处理单个操作
 async function handleSingleOperation(operation: FileOperationType, item: FileSystemItem) {
+  if (operation === 'DELETE') {
+    await handleDeleteItem(item)
+    return
+  }
+
   try {
     const operationMap = {
       'STRM_GENERATE': 'STRM生成',
@@ -430,13 +473,52 @@ async function handleSingleOperation(operation: FileOperationType, item: FileSys
   }
 }
 
+async function handleDeleteItem(item: FileSystemItem) {
+  try {
+    await ElMessageBox.confirm(
+      `确认删除 "${item.name}" 吗？${item.is_directory ? '文件夹内的所有内容也将被删除。' : ''}`,
+      '确认删除',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    if (!selectedAccountId.value) {
+      ElMessage.warning('请先选择网盘账号')
+      return
+    }
+
+    const currentParentId = pathItems.value.length > 0 ? pathItems.value[pathItems.value.length - 1].id : ''
+
+    const response = await http?.delete(`${SERVER_URL}/path`, {
+      params: {
+        parent_id: currentParentId,
+        file_id: item.id,
+        account_id: selectedAccountId.value
+      }
+    })
+
+    if (response?.data.code === 200) {
+      ElMessage.success('删除成功')
+      loadFileList()
+    } else {
+      ElMessage.error(response?.data.message || '删除失败')
+    }
+  } catch {
+    // 用户取消操作或删除失败
+  }
+}
+
 // 处理批量操作
 async function handleBatchOperation(operation: FileOperationType) {
   try {
     const operationMap = {
       'STRM_GENERATE': 'STRM生成',
       'SCRAPE_ORGANIZE': '刮削整理',
-      'GENERATE_ED2K': '生成ED2K'
+      'GENERATE_ED2K': '生成ED2K',
+      'DELETE': '删除'
     }
 
     const targetItems = operation === 'GENERATE_ED2K' ? selectedVideoItems.value : selectedItems.value
@@ -482,6 +564,50 @@ async function performFileOperation(paths: string[], operation: FileOperationTyp
   //   paths: paths,
   //   operation: operation
   // })
+}
+
+function openCreateDialog() {
+  createForm.value.name = ''
+  showCreateDialog.value = true
+}
+
+async function handleCreateDirectory() {
+  if (!createFormRef.value) return
+  if (!selectedAccountId.value) {
+    ElMessage.warning('请先选择网盘账号')
+    return
+  }
+
+  try {
+    await createFormRef.value.validate()
+    createLoading.value = true
+
+    const currentParentId = pathItems.value.length > 0 ? pathItems.value[pathItems.value.length - 1].id : ''
+    const currentParentPath = pathItems.value.length > 0 ? pathItems.value[pathItems.value.length - 1].path : ''
+
+    const account = accountList.value.find(a => a.id === selectedAccountId.value)
+
+    const response = await http?.post(`${SERVER_URL}/path/create`, {
+      parent_id: currentParentId,
+      parent_path: currentParentPath,
+      name: createForm.value.name.trim(),
+      source_type: account?.source_type || '115',
+      account_id: selectedAccountId.value,
+    })
+
+    if (response?.data.code === 200) {
+      ElMessage.success('创建文件夹成功')
+      showCreateDialog.value = false
+      createForm.value.name = ''
+      loadFileList()
+    } else {
+      ElMessage.error(response?.data.message || '创建文件夹失败')
+    }
+  } catch {
+    ElMessage.error('创建文件夹失败')
+  } finally {
+    createLoading.value = false
+  }
 }
 
 // 监听路径变化

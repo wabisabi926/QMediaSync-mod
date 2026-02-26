@@ -134,7 +134,7 @@
               </div>
             </el-form-item>
             <div class="feature-description">
-              <p class="feature-note">启用后可以使用STRM同步功能，禁用时同步相关功能将全部关闭</p>
+              <p class="feature-note">启用后可以将Emby中的资源同步到QMediaSync中和网盘文件建立联系，来实现同步后刷新媒体库和联动删除网盘文件功能</p>
             </div>
           </div>
 

@@ -141,6 +141,29 @@
           <el-divider class="feature-divider" />
 
           <div class="feature-item" :class="{ 'is-disabled': !embyData.sync_enabled }">
+            <el-form-item label="同步时间" prop="sync_cron">
+              <el-input v-model="embyData.sync_cron" placeholder="请输入Cron表达式，如：0 2 * * *"
+                :disabled="embyLoading || !embyData.sync_enabled"
+                class="limited-width-input" @blur="fetchCronNextTimes" clearable />
+              <div class="form-help">
+                <el-icon><InfoFilled /></el-icon>
+                <span>Cron表达式，格式：秒 分 时 日 月 周（如：0 2 * * * 表示每天凌晨2点执行）</span>
+              </div>
+            </el-form-item>
+            <div v-if="cronNextTimes.length > 0" class="cron-next-times">
+              <div class="cron-times-header">
+                <el-icon><Clock /></el-icon>
+                <span>接下来5次执行时间：</span>
+              </div>
+              <ul class="cron-times-list">
+                <li v-for="(time, index) in cronNextTimes" :key="index">{{ time }}</li>
+              </ul>
+            </div>
+          </div>
+
+          <el-divider class="feature-divider" />
+
+          <div class="feature-item" :class="{ 'is-disabled': !embyData.sync_enabled }">
             <el-form-item label="同步后刷新媒体库" prop="enable_refresh_library">
               <div class="switch-wrapper">
                 <el-switch v-model="embyData.enable_refresh_library" :active-value="1" :inactive-value="0"
@@ -244,7 +267,7 @@
             </div>
             <div class="stat-content">
               <div class="stat-label">同步周期</div>
-              <div class="stat-value">{{ syncInfo.sync_cron || '1小时' }}</div>
+              <div class="stat-value">{{ syncInfo.sync_cron }}</div>
             </div>
           </div>
 
@@ -319,6 +342,8 @@ const syncInfo = ref<{
   last_sync_time: number | null
 } | null>(null)
 let syncPollTimer: number | null = null
+
+const cronNextTimes = ref<string[]>([])
 
 const embyData = reactive({
   emby_url: '',
@@ -524,6 +549,32 @@ const copyWebhookUrl = async () => {
   }
 }
 
+const fetchCronNextTimes = async () => {
+  if (!embyData.sync_cron || !embyData.sync_cron.trim()) {
+    cronNextTimes.value = []
+    return
+  }
+
+  try {
+    const response = await http?.get(`${SERVER_URL}/setting/cron`, {
+      params: { cron: embyData.sync_cron.trim() }
+    })
+
+    if (response?.data.code === 200 && response.data.data) {
+      cronNextTimes.value = response.data.data
+    } else {
+      cronNextTimes.value = []
+      if (response?.data.message) {
+        ElMessage.warning(response.data.message)
+      }
+    }
+  } catch (error) {
+    console.error('获取Cron执行时间错误:', error)
+    cronNextTimes.value = []
+    ElMessage.error('获取Cron执行时间失败，请检查表达式格式')
+  }
+}
+
 const startSync = async () => {
   try {
     syncStartLoading.value = true
@@ -552,7 +603,6 @@ const querySyncStatus = async () => {
     if (response?.data.code === 200) {
       syncInfo.value = response.data.data
       syncPolling.value = response.data.data?.is_running
-      console.log(syncPolling.value)
       if (syncPolling.value) {
       } else {
         stopSyncPolling()
@@ -864,6 +914,37 @@ onBeforeUnmount(() => {
 .feature-note {
   color: #909399;
   font-style: italic;
+}
+
+.cron-next-times {
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-radius: 8px;
+  border: 1px solid #bae6fd;
+}
+
+.cron-times-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #0284c7;
+  margin-bottom: 8px;
+}
+
+.cron-times-list {
+  margin: 0;
+  padding-left: 20px;
+  list-style: decimal;
+}
+
+.cron-times-list li {
+  font-size: 13px;
+  color: #0369a1;
+  line-height: 1.8;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
 }
 
 .feature-divider {

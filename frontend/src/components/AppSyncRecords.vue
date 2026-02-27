@@ -29,7 +29,7 @@
           批量删除
         </el-button>
       </div>
-      <el-table :data="syncRecords" v-loading="tableLoading" stripe class="sync-table hidden-md-and-up"
+      <el-table :data="syncRecords" v-loading="tableLoading" stripe class="sync-table mobile-table"
         empty-text="暂无同步记录" :show-overflow-tooltip="true" @selection-change="handleSelectionChange"
         height="calc(100vh - 250px)" style="width: 100%">
         <el-table-column v-if="batchMode" type="selection" width="30" align="center" :selectable="isDeletableRecord" />
@@ -79,7 +79,7 @@
         </el-table-column>
       </el-table>
       <!-- 同步记录表格 -->
-      <el-table :data="syncRecords" v-loading="tableLoading" stripe class="sync-table hidden-md-and-down"
+      <el-table :data="syncRecords" v-loading="tableLoading" stripe class="sync-table desktop-table"
         empty-text="暂无同步记录" :show-overflow-tooltip="true" @selection-change="handleSelectionChange"
         height="calc(100vh - 350px)">
         <el-table-column v-if="batchMode" type="selection" width="50" align="center" :selectable="isDeletableRecord" />
@@ -160,7 +160,6 @@ import { inject, onMounted, onUnmounted, ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { formatDateTime } from '@/utils/timeUtils'
-import 'element-plus/theme-chalk/display.css'
 
 interface SyncRecord {
   id: number
@@ -608,6 +607,15 @@ watch(batchMode, (val) => {
   word-break: break-all;
 }
 
+.mobile-table, .mobile-pagination {
+  display: none;
+}
+
+.desktop-table, .desktop-pagination {
+  display: table;
+}
+
+
 /* 移动端适配 */
 @media (max-width: 768px) {
   .card-header {
@@ -666,6 +674,23 @@ watch(batchMode, (val) => {
     flex-wrap: wrap;
     gap: 8px;
   }
+  .mobile-table, .mobile-pagination {
+    display: table;
+  }
+
+  .desktop-table, .desktop-pagination {
+    display: none;
+  }
+}
+
+@media (min-width: 769px) {
+  .mobile-table, .mobile-pagination {
+    display: none;
+  }
+
+  .desktop-table, .desktop-pagination {
+    display: table;
+  }
 }
 
 /* 小屏移动设备 */
@@ -692,4 +717,5 @@ watch(batchMode, (val) => {
     font-size: 11px;
   }
 }
+
 </style>

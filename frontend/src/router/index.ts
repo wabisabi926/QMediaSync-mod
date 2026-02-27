@@ -428,6 +428,18 @@ const routes = [
       showInMenu: true,
     },
   },
+  {
+    path: '/settings/database-repair',
+    name: 'settings-database-repair',
+    component: () => import('@/components/AppDatabaseRepair.vue'),
+    meta: {
+      title: '数据库修复',
+      requiresAuth: true,
+      parent: 'settings',
+      icon: 'Database',
+      showInMenu: true,
+    },
+  },
 ]
 
 const router = createRouter({

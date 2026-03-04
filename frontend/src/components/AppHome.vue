@@ -30,6 +30,7 @@ const handleLogDialogClose = () => {
         </el-button>
       </div>
     </div>
+     <AnnouncementCard />
 
     <div class="stats-section">
       <div class="stats-row">
@@ -38,7 +39,7 @@ const handleLogDialogClose = () => {
       </div>
     </div>
 
-    <AnnouncementCard />
+
 
     <div class="info-section">
       <div class="info-grid">

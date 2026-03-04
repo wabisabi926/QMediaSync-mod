@@ -701,10 +701,10 @@ watch(() => form.media_type, (newType) => {
     form.scrape_type = 'only_rename'
     form.folder_name_template = '{actors}/{num}'
     form.file_name_template = '{num}'
-  } else if (newType === 'movie' && form.file_name_template.includes('{num}')) {
+  } else if (newType === 'movie' && (form.file_name_template.includes('{num}') || form.file_name_template.includes('{season_episode}'))) {
     form.folder_name_template = '{title} ({year})'
     form.file_name_template = '{title} ({year})'
-  } else if (newType === 'tvshow' && form.file_name_template.includes('{num}')) {
+  } else if (newType === 'tvshow' && !form.file_name_template.includes('{season_episode}')) {
     form.folder_name_template = '{title} ({year})'
     form.file_name_template = '{title} - {season_episode} - 第 {episode_number} 集'
   }

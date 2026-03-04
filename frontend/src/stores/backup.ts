@@ -54,12 +54,15 @@ export const useBackupStore = defineStore('backup', () => {
     if (pollingTimer.value) {
       clearInterval(pollingTimer.value)
     }
-
-    pollProgress(http)
-
-    pollingTimer.value = window.setInterval(() => {
+    // 三秒后再开始检查状态，防止服务端没更新状态
+    setTimeout(() => {
       pollProgress(http)
-    }, 2000)
+
+      pollingTimer.value = window.setInterval(() => {
+        pollProgress(http)
+      }, 2000)
+    }, 3000)
+
   }
 
   const pollProgress = async (http: AxiosStatic) => {

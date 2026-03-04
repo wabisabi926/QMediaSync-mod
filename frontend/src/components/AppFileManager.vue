@@ -15,7 +15,6 @@
               <el-option label="200" :value="200" />
               <el-option label="500" :value="500" />
             </el-select>
-            <el-checkbox v-model="batchMode">批量操作</el-checkbox>
           </div>
         </div>
       </template>
@@ -67,35 +66,9 @@
               </el-button>
             </div>
 
-            <!-- 批量操作按钮组 -->
-            <div v-if="batchMode" style="margin-bottom: 16px">
-              <el-button type="primary" :disabled="selectedItems.length === 0"
-                @click="handleBatchOperation('STRM_GENERATE')">
-                <el-icon>
-                  <VideoPlay />
-                </el-icon>
-                批量STRM生成 ({{ selectedItems.length }})
-              </el-button>
-              <el-button type="success" :disabled="selectedItems.length === 0"
-                @click="handleBatchOperation('SCRAPE_ORGANIZE')">
-                <el-icon>
-                  <FolderOpened />
-                </el-icon>
-                批量刮削整理 ({{ selectedItems.length }})
-              </el-button>
-              <el-button type="warning" :disabled="selectedVideoItems.length === 0"
-                @click="handleBatchOperation('GENERATE_ED2K')">
-                <el-icon>
-                  <Link />
-                </el-icon>
-                批量生成ED2K ({{ selectedVideoItems.length }})
-              </el-button>
-            </div>
-
             <!-- 桌面端表格 -->
             <el-table class="hidden-md-and-down" v-loading="loading" :data="fileList" style="width: 100%"
-              @selection-change="handleSelectionChange" @row-dblclick="handleRowDoubleClick">
-              <el-table-column v-if="batchMode" type="selection" width="50" :selectable="isFileSelectable" />
+              @row-dblclick="handleRowDoubleClick">
               <el-table-column label="名称" min-width="300">
                 <template #default="{ row }">
                   <div style="display: flex; align-items: center; gap: 8px">
@@ -143,8 +116,7 @@
 
             <!-- 移动端表格 -->
             <el-table class="hidden-md-and-up" v-loading="loading" :data="fileList" style="width: 100%"
-              @selection-change="handleSelectionChange" @row-dblclick="handleRowDoubleClick">
-              <el-table-column v-if="batchMode" type="selection" width="50" :selectable="isFileSelectable" />
+              @row-dblclick="handleRowDoubleClick">
               <el-table-column type="expand" width="30">
                 <template #default="{ row }">
                   <div style="padding: 0 20px">
@@ -210,21 +182,43 @@
         </span>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="showStrmTargetDialog" title="选择STRM目标目录" width="600px" :close-on-click-modal="false">
+      <div class="strm-target-dialog-content">
+        <p class="dialog-tip">请选择STRM文件的目标存放目录：</p>
+        <div v-if="strmSourceItem" class="strm-source-info">
+          <span class="source-label">源文件：</span>
+          <span class="source-name">{{ strmSourceItem.name }}</span>
+        </div>
+        <div class="dir-selector-container">
+          <DirectorySelector
+            v-model="strmTargetDir"
+            source-type="local"
+            @cancel="showStrmTargetDialog = false"
+            @select="confirmStrmGenerate"
+          />
+        </div>
+        <div v-if="strmStorePath" class="strm-store-path">
+          <span class="store-label">STRM存放路径：</span>
+          <code class="store-path">{{ strmStorePath }}</code>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, inject } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, VideoPlay, FolderOpened, Link, Files, FolderAdd } from '@element-plus/icons-vue'
-import type { FileSystemItem, FileOperationType } from '@/typing'
+import { ArrowDown, Files, FolderAdd } from '@element-plus/icons-vue'
+import type { FileSystemItem, FileOperationType, DirInfo } from '@/typing'
 import type { FormInstance, FormRules } from 'element-plus'
 import { getFileType, getFileIconByName } from '@/utils/fileIconUtils'
 import { formatFileSize } from '@/utils/fileSizeUtils'
 import { formatDateTime } from '@/utils/timeUtils'
-// import { isMobile } from '@/utils/deviceUtils'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
+import DirectorySelector from './DirectorySelector.vue'
 
 interface NetdiskAccount {
   id: number
@@ -243,13 +237,11 @@ interface NetdiskAccount {
 
 // 响应式数据
 const loading = ref(false)
-const batchMode = ref(false)
 const currentPath = ref('')
 const currentPage = ref(1)
 const pageSize = ref(100)
 const total = ref(0)
 const fileList = ref<FileSystemItem[]>([])
-const selectedItems = ref<FileSystemItem[]>([])
 const pathItems = ref<FileSystemItem[]>([])
 
 const http: AxiosStatic | undefined = inject('$http')
@@ -267,15 +259,17 @@ const createRules = ref<FormRules>({
   ]
 })
 
-// 计算属性
-// const pathSegments = computed(() => {
-//   return pathItems.value.map(item => item.name)
-// })
+const showStrmTargetDialog = ref(false)
+const strmTargetDir = ref<DirInfo | null>(null)
+const strmSourceItem = ref<FileSystemItem | null>(null)
+const strmGenerateLoading = ref(false)
 
-const selectedVideoItems = computed(() => {
-  return selectedItems.value.filter(item =>
-    !item.is_directory && (getFileType(item.name) === 'video' || getFileType(item.name) === 'image')
-  )
+// 计算属性
+const strmStorePath = computed(() => {
+  if (!strmTargetDir.value || !strmSourceItem.value) return ''
+  const currentPathStr = pathItems.value.map(p => p.name).join('/')
+  const itemPath = currentPathStr ? `${currentPathStr}/${strmSourceItem.value.name}` : strmSourceItem.value.name
+  return `${strmTargetDir.value.path}/${itemPath}`
 })
 
 // const isMobileDevice = computed(() => isMobile())
@@ -321,7 +315,6 @@ function selectAccount(account: NetdiskAccount) {
   selectedAccountId.value = account.id
   pathItems.value = []
   currentPage.value = 1
-  selectedItems.value = []
   loadFileList()
 }
 
@@ -402,7 +395,6 @@ async function loadFileList() {
 function navigateToPath(index: number) {
   pathItems.value = pathItems.value.slice(0, index + 1)
   currentPage.value = 1
-  selectedItems.value = []
   loadFileList()
 }
 
@@ -411,20 +403,8 @@ function handleRowDoubleClick(row: FileSystemItem) {
   if (row.is_directory) {
     pathItems.value = [...pathItems.value, row]
     currentPage.value = 1
-    selectedItems.value = []
     loadFileList()
   }
-}
-
-// 处理选择变化
-function handleSelectionChange(selection: FileSystemItem[]) {
-  selectedItems.value = selection
-}
-
-// 判断文件是否可选择
-function isFileSelectable(row: FileSystemItem): boolean {
-  console.log('isFileSelectable', row)
-  return true // 所有文件和目录都可选择
 }
 
 // 处理分页大小变化
@@ -447,6 +427,13 @@ async function handleSingleOperation(operation: FileOperationType, item: FileSys
     return
   }
 
+  if (operation === 'STRM_GENERATE') {
+    strmSourceItem.value = item
+    strmTargetDir.value = null
+    showStrmTargetDialog.value = true
+    return
+  }
+
   try {
     const operationMap = {
       'STRM_GENERATE': 'STRM生成',
@@ -464,12 +451,8 @@ async function handleSingleOperation(operation: FileOperationType, item: FileSys
       }
     )
 
-    // 执行操作的占位函数
-    await performFileOperation([item.path], operation)
-
-    ElMessage.success(`${operationMap[operation]} 操作已提交`)
+    ElMessage.info(`${operationMap[operation]} 功能开发中...`)
   } catch {
-    // 用户取消操作，不显示错误
   }
 }
 
@@ -509,61 +492,6 @@ async function handleDeleteItem(item: FileSystemItem) {
   } catch {
     // 用户取消操作或删除失败
   }
-}
-
-// 处理批量操作
-async function handleBatchOperation(operation: FileOperationType) {
-  try {
-    const operationMap = {
-      'STRM_GENERATE': 'STRM生成',
-      'SCRAPE_ORGANIZE': '刮削整理',
-      'GENERATE_ED2K': '生成ED2K',
-      'DELETE': '删除'
-    }
-
-    const targetItems = operation === 'GENERATE_ED2K' ? selectedVideoItems.value : selectedItems.value
-
-    if (targetItems.length === 0) {
-      ElMessage.warning('请先选择要操作的文件')
-      return
-    }
-
-    await ElMessageBox.confirm(
-      `确认对选中的 ${targetItems.length} 个项目执行 ${operationMap[operation]} 操作吗？`,
-      '确认批量操作',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-
-    // 执行操作的占位函数
-    const paths = targetItems.map(item => item.path)
-    await performFileOperation(paths, operation)
-
-    ElMessage.success(`${operationMap[operation]} 批量操作已提交，共处理 ${targetItems.length} 个项目`)
-
-    // 清空选择
-    selectedItems.value = []
-  } catch {
-    // 用户取消操作，不显示错误
-  }
-}
-
-// 执行文件操作的占位函数
-async function performFileOperation(paths: string[], operation: FileOperationType) {
-  // 这里是占位函数，后续接入真实API
-  console.log('执行文件操作:', { paths, operation })
-
-  // 模拟API调用延时
-  await new Promise(resolve => setTimeout(resolve, 500))
-
-  // TODO: 实现真实的API调用
-  // const response = await $http.post('/api/files/operate', {
-  //   paths: paths,
-  //   operation: operation
-  // })
 }
 
 function openCreateDialog() {
@@ -607,6 +535,46 @@ async function handleCreateDirectory() {
     ElMessage.error('创建文件夹失败')
   } finally {
     createLoading.value = false
+  }
+}
+
+async function confirmStrmGenerate() {
+  if (!strmTargetDir.value || !strmSourceItem.value) {
+    ElMessage.warning('请选择目标目录')
+    return
+  }
+
+  if (!selectedAccountId.value) {
+    ElMessage.warning('请先选择网盘账号')
+    return
+  }
+
+  try {
+    strmGenerateLoading.value = true
+
+    // const currentPathStr = pathItems.value.map(p => p.name).join('/')
+    // const itemPath = currentPathStr ? `${currentPathStr}/${strmSourceItem.value.name}` : strmSourceItem.value.name
+
+    const response = await http?.post(`${SERVER_URL}/sync/manual`, {
+      path_id: strmSourceItem.value.id,
+      // path: itemPath,
+      target_path: strmTargetDir.value.path,
+      // is_file: !strmSourceItem.value.is_directory,
+      account_id: selectedAccountId.value,
+    })
+
+    if (response?.data.code === 200) {
+      ElMessage.success('STRM生成任务已提交')
+      showStrmTargetDialog.value = false
+      strmSourceItem.value = null
+      strmTargetDir.value = null
+    } else {
+      ElMessage.error(response?.data.message || 'STRM生成失败')
+    }
+  } catch {
+    ElMessage.error('STRM生成失败')
+  } finally {
+    strmGenerateLoading.value = false
   }
 }
 
@@ -770,5 +738,65 @@ onMounted(async () => {
   .header-right {
     justify-content: space-between;
   }
+}
+
+.strm-target-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.strm-target-dialog-content .dialog-tip {
+  margin: 0;
+  color: #606266;
+  font-size: 14px;
+}
+
+.strm-source-info {
+  padding: 12px;
+  background: #f5f7fa;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.strm-source-info .source-label {
+  color: #909399;
+  margin-right: 8px;
+}
+
+.strm-source-info .source-name {
+  color: #303133;
+  font-weight: 500;
+}
+
+.strm-store-path {
+  padding: 12px;
+  background: #f0f9eb;
+  border-radius: 4px;
+  font-size: 14px;
+  border: 1px solid #e1f3d8;
+}
+
+.strm-store-path .store-label {
+  color: #67c23a;
+  margin-right: 8px;
+  font-weight: 500;
+}
+
+.strm-store-path .store-path {
+  color: #303133;
+  background: #fff;
+  padding: 2px 6px;
+  border-radius: 2px;
+  border: 1px solid #dcdfe6;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  word-break: break-all;
+}
+
+.dir-selector-container {
+  height: 400px;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  padding: 12px;
 }
 </style>

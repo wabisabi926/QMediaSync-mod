@@ -25,7 +25,8 @@
             </div>
             <div class="form-help">
               <el-icon><InfoFilled /></el-icon>
-              <span>想使用Emby外网302必须输入Emby服务器地址，不要以/结尾</span>
+              <span>想使用Emby外网302必须输入Emby服务器地址，不要以/结尾，输入emby的内网地址即可，比如：http://192.168.1.100:8096 或者docker容器的地址</span>
+              <span style="color: red; font-weight: bold; margin-left: 16px; font-size: 18px;">保存后需要重启才能生效</span>
             </div>
           </el-form-item>
 
@@ -801,8 +802,8 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  font-size: 12px;
-  color: #909399;
+  font-size: 14px;
+  color: #3c3d40;
   margin-top: 8px;
   line-height: 1.5;
 }

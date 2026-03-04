@@ -6,36 +6,36 @@ const { announcementList, announcementLoading } = useAnnouncement()
 
 const expandedItems = ref<Set<number>>(new Set())
 
-const isContentLong = (content: string): boolean => {
-  const lines = content.split('\n')
-  return lines.length > 3 || content.length > 150
-}
+// const isContentLong = (content: string): boolean => {
+//   const lines = content.split('\n')
+//   return lines.length > 3 || content.length > 150
+// }
 
-const toggleExpand = (index: number) => {
-  if (expandedItems.value.has(index)) {
-    expandedItems.value.delete(index)
-  } else {
-    expandedItems.value.add(index)
-  }
-}
+// const toggleExpand = (index: number) => {
+//   if (expandedItems.value.has(index)) {
+//     expandedItems.value.delete(index)
+//   } else {
+//     expandedItems.value.add(index)
+//   }
+// }
 
 const isExpanded = (index: number): boolean => {
   return expandedItems.value.has(index)
 }
 
-const getDisplayContent = (content: string, index: number): string => {
-  if (isExpanded(index)) {
-    return content
-  }
-  const lines = content.split('\n')
-  if (lines.length > 3) {
-    return lines.slice(0, 3).join('\n') + '...'
-  }
-  if (content.length > 150) {
-    return content.substring(0, 150) + '...'
-  }
-  return content
-}
+// const getDisplayContent = (content: string, index: number): string => {
+//   if (isExpanded(index)) {
+//     return content
+//   }
+//   const lines = content.split('\n')
+//   if (lines.length > 5) {
+//     return lines.slice(0, 5).join('\n') + '...'
+//   }
+//   if (content.length > 150) {
+//     return content.substring(0, 150) + '...'
+//   }
+//   return content
+// }
 </script>
 
 <template>
@@ -48,9 +48,9 @@ const getDisplayContent = (content: string, index: number): string => {
     </div>
 
     <div class="announcement-list">
-      <div 
-        v-for="(announcement, index) in announcementList" 
-        :key="announcement.id || index" 
+      <div
+        v-for="(announcement, index) in announcementList"
+        :key="announcement.id || index"
         class="announcement-item"
       >
         <div class="announcement-header">
@@ -58,21 +58,21 @@ const getDisplayContent = (content: string, index: number): string => {
           <div class="announcement-time">{{ announcement.time }}</div>
         </div>
         <div class="announcement-content">
-          <div 
-            class="content-text" 
+          <div
+            class="content-text"
             :class="{ 'is-expanded': isExpanded(index) }"
           >
-            {{ getDisplayContent(announcement.content, index) }}
+            <div v-html="announcement.content"></div>
           </div>
-          <el-button 
-            v-if="isContentLong(announcement.content)" 
-            type="primary" 
-            link 
+          <!-- <el-button
+            v-if="isContentLong(announcement.content)"
+            type="primary"
+            link
             size="small"
             @click="toggleExpand(index)"
           >
             {{ isExpanded(index) ? '收起' : '展开' }}
-          </el-button>
+          </el-button> -->
         </div>
       </div>
     </div>

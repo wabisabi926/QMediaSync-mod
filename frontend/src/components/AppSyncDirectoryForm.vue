@@ -109,7 +109,7 @@
               </div>
             </div>
           </el-form-item>
-          <el-form-item label="STRM直连地址" prop="strm_base_url" v-if="form.source_type !== 'local' && form.source_type !== 'openlist'">
+          <el-form-item label="STRM直连地址" prop="strm_base_url">
             <el-input v-model="form.strm_base_url" placeholder="留空则使用STRM设置中的地址"
               :disabled="loading" @input="updateStrmExample" />
             <div v-if="strmExample" class="strm-example-inline">
@@ -339,7 +339,7 @@
               </div>
             </div>
           </el-form-item>
-          <el-form-item label="STRM直连地址" prop="strm_base_url" v-if="form.source_type !== 'local' && form.source_type !== 'openlist'">
+          <el-form-item label="STRM直连地址" prop="strm_base_url">
             <el-input v-model="form.strm_base_url" placeholder="留空则使用STRM设置中的地址"
               :disabled="loading" @input="updateStrmExample" />
             <div v-if="strmExample" class="strm-example-inline">

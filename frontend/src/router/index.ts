@@ -436,7 +436,7 @@ const routes = [
       title: '数据库修复',
       requiresAuth: true,
       parent: 'settings',
-      icon: 'Database',
+      icon: 'DataLine',
       showInMenu: true,
     },
   },

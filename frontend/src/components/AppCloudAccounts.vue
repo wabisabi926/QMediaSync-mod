@@ -137,6 +137,24 @@
                     </el-button>
                   </div>
                   <template v-if="account.status">
+                    <div class="info-row" v-if="account.status.member_level">
+                      <div class="info-icon member-icon">
+                        <el-icon><Postcard /></el-icon>
+                      </div>
+                      <div class="info-content">
+                        <span class="info-label">用户ID</span>
+                        <span class="info-value">{{ account.user_id }}</span>
+                      </div>
+                    </div>
+                    <div class="info-row" v-if="account.status.member_level">
+                      <div class="info-icon member-icon">
+                        <el-icon><Postcard /></el-icon>
+                      </div>
+                      <div class="info-content">
+                        <span class="info-label">用户名</span>
+                        <span class="info-value">{{ account.username }}</span>
+                      </div>
+                    </div>
                     <div class="info-row space-row">
                       <div class="info-icon space-icon">
                         <el-icon><Cloudy /></el-icon>

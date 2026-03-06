@@ -56,6 +56,14 @@
               <span>{{ menu.meta.title }}</span>
             </el-menu-item>
           </template>
+          <!-- 使用帮助 -->
+                   <!-- 使用帮助 -->
+          <el-menu-item index="help" @click="openHelp">
+            <el-icon>
+              <QuestionFilled />
+            </el-icon>
+            <span>使用帮助</span>
+          </el-menu-item>
         </el-menu>
       </el-aside>
 
@@ -137,6 +145,7 @@ import {
   User,
   Menu,
   Loading,
+  QuestionFilled,
 } from '@element-plus/icons-vue'
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -325,6 +334,9 @@ const getProgressStatus = () => {
   }
 }
 
+const openHelp = () => {
+  window.open('https://gitee.com/qicfan/qmediasync/wikis/Home', '_blank')
+}
 
 // 组件挂载时加载数据
 let removeDeviceTypeListener: (() => void) | null = null

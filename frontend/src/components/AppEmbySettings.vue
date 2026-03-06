@@ -19,6 +19,7 @@
           <el-form-item label="Emby服务器地址" prop="emby_url">
             <el-input v-model="embyData.emby_url" placeholder="请输入Emby服务器地址，格式：http://ip:port" :disabled="embyLoading"
               class="limited-width-input" @input="updateEmbyExample" :prefix-icon="Link" clearable />
+            <p style="color: red; font-weight: bold; margin-left: 16px; font-size: 28px;">输入Emby地址后，页面往下滚，点击"保存设置"按钮后，重启QMediaSync才能生效</p>
             <div v-if="embyExample" class="emby-example-inline">
               <span class="example-label">示例格式：</span>
               <code class="example-url">{{ embyExample }}</code>
@@ -26,7 +27,7 @@
             <div class="form-help">
               <el-icon><InfoFilled /></el-icon>
               <span>想使用Emby外网302必须输入Emby服务器地址，不要以/结尾，输入emby的内网地址即可，比如：http://192.168.1.100:8096 或者docker容器的地址</span>
-              <span style="color: red; font-weight: bold; margin-left: 16px; font-size: 18px;">保存后需要重启才能生效</span>
+
             </div>
           </el-form-item>
 

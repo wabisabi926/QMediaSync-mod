@@ -288,11 +288,11 @@
             <div class="tip-group-items">
               <div class="tip-item">
                 <span class="tip-bullet">•</span>
-                <span>115网盘：通过OAuth授权，会打开新窗口进行授权</span>
+                <span>115网盘：通过OAuth授权，将跳转到授权页面</span>
               </div>
               <div class="tip-item">
                 <span class="tip-bullet">•</span>
-                <span>百度网盘：通过OAuth授权，会打开新窗口进行授权</span>
+                <span>百度网盘：通过OAuth授权，将跳转到授权页面</span>
               </div>
               <div class="tip-item">
                 <span class="tip-bullet">•</span>
@@ -476,11 +476,14 @@ const editAccountForm = ref({
   token_failed_reason: '',
 })
 
-const currentAccountId = ref<number | undefined>(undefined)
+const selectedAccountId = ref<number | undefined>(undefined)
+const show123AuthDialog = ref(false)
 
 const authorizedCount = computed(() => accounts.value.filter(a => a.token && !a.token_failed_reason).length)
 const unauthorizedCount = computed(() => accounts.value.filter(a => !a.token && !a.token_failed_reason).length)
 const failedCount = computed(() => accounts.value.filter(a => a.token_failed_reason && !a.token).length)
+
+let removeDeviceTypeListener: (() => void) | null = null
 
 const getStatusClass = (account: CloudAccount) => {
   if (account.token_failed_reason && !account.token) return 'status-failed'
@@ -708,35 +711,67 @@ const handleAuthorize = (row: CloudAccount) => {
 
 const handle115OAuth = async (accountId?: number) => {
   try {
-    const response = await http?.get(`${SERVER_URL}/115/oauth-url?account_id=${accountId}`)
+    await ElMessageBox.confirm(
+      '即将跳转到115网盘授权页面，请在新页面完成授权后返回本页面。',
+      '授权提示',
+      {
+        confirmButtonText: '前往授权',
+        cancelButtonText: '取消',
+        type: 'info',
+      }
+    )
+
+    const redirectUrl = window.location.href.split('?')[0]
+    const response = await http?.get(`${SERVER_URL}/115/oauth-url`, {
+      params: {
+        account_id: accountId,
+        redirect_url: redirectUrl
+      }
+    })
 
     if (response?.data.code === 200 && response.data.data) {
-      const oauthUrl = response.data.data
-      currentAccountId.value = accountId
-      window.open(oauthUrl, '_blank', 'width=600,height=700')
+      window.location.href = response.data.data
     } else {
       ElMessage.error(response?.data.message || '获取授权地址失败')
     }
   } catch (error) {
-    console.error('115 OAuth授权错误:', error)
-    ElMessage.error('获取授权地址失败')
+    if (error !== 'cancel') {
+      console.error('115 OAuth授权错误:', error)
+      ElMessage.error('获取授权地址失败')
+    }
   }
 }
 
 const handleBaiduOAuth = async (accountId?: number) => {
   try {
-    const response = await http?.get(`${SERVER_URL}/baidupan/oauth-url?account_id=${accountId}`)
+    await ElMessageBox.confirm(
+      '即将跳转到百度网盘授权页面，请在新页面完成授权后返回本页面。',
+      '授权提示',
+      {
+        confirmButtonText: '前往授权',
+        cancelButtonText: '取消',
+        type: 'info',
+      }
+    )
+
+    const redirectUrl = window.location.href.split('?')[0]
+    const response = await http?.get(`${SERVER_URL}/baidupan/oauth-url`, {
+      params: {
+        account_id: accountId,
+        redirect_url: redirectUrl
+      }
+    })
 
     if (response?.data.code === 200 && response.data.data) {
-      const oauthUrl = response.data.data
-      currentAccountId.value = accountId
-      window.open(oauthUrl, '_blank', 'width=600,height=700')
+      window.location.href = response.data.data
     } else {
       ElMessage.error(response?.data.message || '获取授权地址失败')
     }
   } catch (error) {
-    console.error('百度网盘 OAuth授权错误:', error)
-    ElMessage.error('获取授权地址失败')
+    if (error !== 'cancel') {
+      console.error('百度网盘 OAuth授权错误:', error)
+      ElMessage.error('获取授权地址失败')
+    }
   }
 }
 
@@ -801,59 +836,62 @@ const handleAddAccount = async () => {
   }
 }
 
-const handleOAuthMessage = async (event: MessageEvent) => {
-  if (event.data.type === 'oauth_success') {
-    try {
-      const requestData = {
-        account_id: currentAccountId.value,
-        data: event.data.data,
-      }
-      let url = "";
-      if (event.data.source === '' || event.data.source === '115') {
-        url = `${SERVER_URL}/115/oauth-confirm`
-      } else if (event.data.source === 'baidupan') {
-        url = `${SERVER_URL}/baidupan/oauth-confirm`
-      }
-      const response = await http?.post(url, requestData, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (response?.data.code === 200) {
-        ElMessage.success('授权成功')
-        loadAccounts()
-        currentAccountId.value = undefined
-      } else {
-        ElMessage.error(response?.data.message || '授权确认失败')
-      }
-    } catch (error) {
-      console.error('115 OAuth确认错误:', error)
-      ElMessage.error('授权确认失败')
+const confirmOAuth = async (source: string, accountId: number, tokenData: string): Promise<void> => {
+  try {
+    let url = "";
+    if (source === '' || source === '115') {
+      url = `${SERVER_URL}/115/oauth-confirm`
+    } else if (source === 'baidupan') {
+      url = `${SERVER_URL}/baidupan/oauth-confirm`
+    } else {
+      return
     }
-  } else if (event.data.type === 'oauth_error') {
-    const errorMsg = event.data.error || '授权失败，请重试'
-    const errorCode = event.data.errno || 0
-    ElMessage.error(`授权失败: ${errorMsg}${errorCode ? ` (错误代码: ${errorCode})` : ''}`)
-    currentAccountId.value = undefined
+
+    const response = await http?.post(url, {
+      account_id: accountId,
+      data: tokenData,
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (response?.data.code === 200) {
+      ElMessage.success('授权成功')
+      const hash = window.location.hash
+      const cleanHash = hash.split('?')[0]
+      window.location.href = window.location.origin + cleanHash
+    } else {
+      ElMessage.error(response?.data.message || '授权确认失败')
+    }
+  } catch (error) {
+    console.error('OAuth确认错误:', error)
+    ElMessage.error('授权确认失败')
   }
 }
 
-const selectedAccountId = ref<number | undefined>(undefined)
-const show123AuthDialog = ref(false)
+const checkOAuthCallback = async () => {
+  const hash = window.location.hash
+  const hashQueryIndex = hash.indexOf('?')
+  const urlParams = new URLSearchParams(hashQueryIndex >= 0 ? hash.substring(hashQueryIndex) : '')
+  const accountId = urlParams.get('account_id')
+  const tokenData = urlParams.get('token_data')
+  const source = urlParams.get('source') || '115'
 
-let removeDeviceTypeListener: (() => void) | null = null
+  if (accountId && tokenData) {
+    await confirmOAuth(source, parseInt(accountId), tokenData)
+  }
+}
 
 onMounted(() => {
+  checkOAuthCallback()
   loadAccounts()
-  window.addEventListener('message', handleOAuthMessage)
   removeDeviceTypeListener = onDeviceTypeChange((newIsMobile) => {
     isMobile.value = newIsMobile
   })
 })
 
 onUnmounted(() => {
-  window.removeEventListener('message', handleOAuthMessage)
   if (removeDeviceTypeListener) {
     removeDeviceTypeListener()
   }
@@ -1436,6 +1474,18 @@ onUnmounted(() => {
   gap: 12px;
 }
 
+.oauth-iframe-container {
+  width: 100%;
+  height: 500px;
+  overflow: hidden;
+}
+
+.oauth-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
 @media (max-width: 768px) {
   .page-header {
     padding: 12px;
@@ -1636,6 +1686,11 @@ onUnmounted(() => {
   .tip-highlight {
     margin: 4px -8px;
     padding: 10px;
+  }
+
+  .oauth-iframe-container {
+    height: calc(100vh - 120px);
+    min-height: 400px;
   }
 }
 

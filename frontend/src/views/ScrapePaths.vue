@@ -8,65 +8,22 @@
         </div>
       </template>
 
-      <el-table :data="pathes" v-loading="loading" element-loading-text="加载中..." class="scrape-paths-table">
-        <el-table-column prop="account_name" label="账号" min-width="120">
-          <template #default="scope">
-            <span class="info-value">{{ getAccountName(scope.row.account_id) }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="media_type" label="媒体类型" min-width="100">
-          <template #default="scope">
-            <span class="info-value">{{ getMediaTypeText(scope.row.media_type) }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="source_path" label="来源路径" min-width="200">
-          <template #default="scope">
-            <span class="info-value">{{ scope.row.source_path }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="dest_path" label="目标路径" min-width="200">
-          <template #default="scope">
-            <span class="info-value">{{ scope.row.dest_path }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="scrape_type" label="操作方式" min-width="120">
-          <template #default="scope">
-            <span class="info-value">{{ getScrapeTypeText(scope.row.scrape_type) }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="rename_type" label="整理方式" min-width="100">
-          <template #default="scope">
-            <span class="info-value">{{ getRenameTypeText(scope.row.rename_type) }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="状态" min-width="120">
-          <template #default="scope">
-            <el-tag v-if="scope.row.is_scraping" type="warning">刮削中</el-tag>
-            <el-tag v-else-if="scope.row.is_renaming" type="warning">整理中</el-tag>
-            <el-tag v-else type="success">空闲</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" fixed="right" min-width="200">
-          <template #default="scope">
-            <el-button size="small" type="primary" :loading="scope.row.scanning" @click="handleScan(scope.row)">
-              {{ scope.row.is_scraping ? '刮削中...' : '启动' }}
-            </el-button>
-            <el-button size="small" type="warning" :loading="scope.row.scanning" @click="handleStop(scope.row)"
-              :disabled="!scope.row.is_scraping && !scope.row.is_renaming">
-              停止
-            </el-button>
-            <el-button size="small" @click="handleEdit(scope.row)">编辑</el-button>
-            <el-button size="small" type="danger" :loading="scope.row.deleting"
-              @click="handleDelete(scope.row, scope.$index)">
-              删除
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+    <!-- 使用虚拟滚动表格 -->
+    <el-table-v2
+      v-if="pathes.length > 0"
+      :data="pathes"
+      :columns="columns"
+      :width="tableWidth"
+      :height="500"
+      :row-height="60"
+      :header-height="50"
+      fixed
+      v-loading="loading"
+    />
 
-      <div v-if="pathes.length === 0 && !loading" class="empty-state">
-        <el-empty description="暂无刮削目录" />
-      </div>
+    <div v-if="pathes.length === 0 && !loading" class="empty-state">
+      <el-empty description="暂无刮削目录" />
+    </div>
     </el-card>
 
     <!-- 添加刮削目录对话框 -->
@@ -358,8 +315,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ref, reactive, onMounted, onUnmounted, watch, h, computed } from 'vue'
+import { ElMessage, ElMessageBox, ElButton, ElTag } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { isMobile } from "@/utils/deviceUtils"
 import DirectorySelector from '@/components/DirectorySelector.vue'
@@ -653,6 +610,8 @@ const loadPathes = async () => {
 
     if (response?.data.code === 200) {
       pathes.value = response.data.data || []
+      // 加载完成后检查并设置刷新频率
+      checkAndSetAutoRefresh()
     } else {
       ElMessage.error(response?.data.message || '加载刮削目录失败')
       pathes.value = []
@@ -666,6 +625,7 @@ const loadPathes = async () => {
   }
 }
 
+// 优化：只更新状态，不全量更新
 const updatePathesStatus = async () => {
   loading.value = true
   const response = await http?.get(`${SERVER_URL}/scrape/pathes`)
@@ -674,10 +634,16 @@ const updatePathesStatus = async () => {
     for (const p of response?.data?.data || []) {
       const path = pathes.value.find(pa => pa.id === p.id)
       if (path) {
-        path.is_renaming = p.is_renaming
-        path.is_scraping = p.is_scraping
+        // 只更新状态字段，避免重新渲染整个表格
+        Object.assign(path, {
+          is_renaming: p.is_renaming,
+          is_scraping: p.is_scraping
+        })
       }
     }
+
+    // 检查是否需要调整刷新频率
+    checkAndSetAutoRefresh()
   }
 }
 
@@ -971,7 +937,108 @@ const confirmSelectDir = () => {
 
 // 添加自动刷新相关变量
 const autoRefreshTimer = ref<number | null>(null)
-// 检查并设置自动刷新
+
+// 虚拟滚动表格列配置
+const columns = computed(() => [
+  {
+    key: 'account_name',
+    title: '账号',
+    width: 120,
+    cellRenderer: ({ rowData }: any) => {
+      return getAccountName(rowData.account_id)
+    }
+  },
+  {
+    key: 'media_type',
+    title: '媒体类型',
+    width: 100,
+    cellRenderer: ({ rowData }: any) => {
+      return getMediaTypeText(rowData.media_type)
+    }
+  },
+  {
+    key: 'source_path',
+    title: '来源路径',
+    width: 200,
+    cellRenderer: ({ cellData }: any) => cellData
+  },
+  {
+    key: 'dest_path',
+    title: '目标路径',
+    width: 200,
+    cellRenderer: ({ cellData }: any) => cellData
+  },
+  {
+    key: 'scrape_type',
+    title: '操作方式',
+    width: 120,
+    cellRenderer: ({ rowData }: any) => {
+      return getScrapeTypeText(rowData.scrape_type)
+    }
+  },
+  {
+    key: 'rename_type',
+    title: '整理方式',
+    width: 100,
+    cellRenderer: ({ rowData }: any) => {
+      return getRenameTypeText(rowData.rename_type)
+    }
+  },
+  {
+    key: 'status',
+    title: '状态',
+    width: 120,
+    cellRenderer: ({ rowData }: any) => {
+      if (rowData.is_scraping) {
+        return h(ElTag, { type: 'warning' }, () => '刮削中')
+      }
+      if (rowData.is_renaming) {
+        return h(ElTag, { type: 'warning' }, () => '整理中')
+      }
+      return h(ElTag, { type: 'success' }, () => '空闲')
+    }
+  },
+  {
+    key: 'actions',
+    title: '操作',
+    width: 250,
+    fixed: 'right' as const,
+    cellRenderer: ({ rowData, rowIndex }: any) => {
+      return h('div', { class: 'action-buttons' }, [
+        h(ElButton, {
+          size: 'small',
+          type: 'primary',
+          loading: rowData.scanning,
+          onClick: () => handleScan(rowData)
+        }, () => rowData.is_scraping ? '刮削中...' : '启动'),
+        h(ElButton, {
+          size: 'small',
+          type: 'warning',
+          loading: rowData.scanning,
+          disabled: !rowData.is_scraping && !rowData.is_renaming,
+          onClick: () => handleStop(rowData)
+        }, () => '停止'),
+        h(ElButton, {
+          size: 'small',
+          onClick: () => handleEdit(rowData)
+        }, () => '编辑'),
+        h(ElButton, {
+          size: 'small',
+          type: 'danger',
+          loading: rowData.deleting,
+          onClick: () => handleDelete(rowData, rowIndex)
+        }, () => '删除')
+      ])
+    }
+  }
+])
+
+// 计算表格宽度
+const tableWidth = computed(() => {
+  return columns.value.reduce((sum, col) => sum + col.width, 0)
+})
+
+// 检查并设置自动刷新（智能刷新策略）
 const checkAndSetAutoRefresh = () => {
   // 清除已存在的定时器
   if (autoRefreshTimer.value) {
@@ -979,11 +1046,22 @@ const checkAndSetAutoRefresh = () => {
     autoRefreshTimer.value = null
   }
 
-  // 设置定时器，每隔2秒刷新一次
-  autoRefreshTimer.value = window.setInterval(() => {
-    // 只改状态
-    updatePathesStatus()
-  }, 2000)
+  // 检查是否有运行中或待运行的任务
+  const hasActiveTask = pathes.value.some(p =>
+    p.is_scraping || p.is_renaming
+  )
+
+  if (hasActiveTask) {
+    // 有任务在运行：每1秒刷新一次
+    autoRefreshTimer.value = window.setInterval(() => {
+      updatePathesStatus()
+    }, 1000)
+  } else {
+    // 没有任务：每30秒刷新一次
+    autoRefreshTimer.value = window.setInterval(() => {
+      updatePathesStatus()
+    }, 30000)
+  }
 }
 
 // 组件挂载时加载数据
@@ -1026,10 +1104,6 @@ onUnmounted(() => {
   align-items: center;
 }
 
-.scrape-paths-table {
-  width: 100%;
-}
-
 .empty-state {
   text-align: center;
   padding: 40px 0;
@@ -1054,5 +1128,11 @@ onUnmounted(() => {
 .info-value {
   display: flex;
   align-items: center;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 </style>

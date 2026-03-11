@@ -94,6 +94,7 @@
           </el-dropdown>
         </div>
 
+        <Banner />
         <router-view />
       </el-main>
     </el-container>
@@ -151,6 +152,7 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useBackupStore } from '@/stores/backup'
+import Banner from '@/components/Banner.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { isMobile as checkIsMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 import { formatDuration } from '@/utils/timeUtils'

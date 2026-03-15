@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "run-p type-check \"build-only {@}\" --",
-    "lint": "eslint . --fix",
+    "lint": "eslint ./src/**/*.{js,jsx,ts,tsx,vue} --fix",
     "build-only": "vite build --mode=production --emptyOutDir --outDir ../qmediasync/web_statics",
     "dev": "vite",
     "format": "prettier --write src/",

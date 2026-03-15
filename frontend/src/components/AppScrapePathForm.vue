@@ -171,6 +171,30 @@
           <el-switch v-model="form.enable_cron" :active-value="true" :inactive-value="false" :disabled="loading" />
           <div class="form-tip">是否启用定时同步功能</div>
         </el-form-item>
+        <template v-if="form.enable_cron">
+          <el-form-item label="Cron表达式" prop="cron_expression">
+            <el-input v-model="form.cron_expression" placeholder="0 3 * * *" :disabled="loading"
+              @change="validateCronExpression" />
+            <div class="form-tip">
+              标准Cron表达式格式：分 时 日 月 周（例如：0 3 * * * 表示每天凌晨3点）
+            </div>
+          </el-form-item>
+          <el-form-item label="Cron描述">
+            <div class="cron-description">{{ form.cron_description || '请输入有效的Cron表达式' }}</div>
+          </el-form-item>
+          <el-form-item label="快速选择">
+            <el-select v-model="selectedCronPreset" placeholder="选择预设模板" @change="applyCronPreset"
+              :disabled="loading">
+              <el-option label="每天凌晨3点" value="0 3 * * *" />
+              <el-option label="每天凌晨2点" value="0 2 * * *" />
+              <el-option label="每2小时" value="0 */2 * * *" />
+              <el-option label="每6小时" value="0 */6 * * *" />
+              <el-option label="周一到周五凌晨3点" value="0 3 * * 1-5" />
+              <el-option label="每周日凌晨3点" value="0 3 * * 0" />
+              <el-option label="每月1号凌晨3点" value="0 3 1 * *" />
+            </el-select>
+          </el-form-item>
+        </template>
         <el-form-item label="启用fanart.tv" prop="enable_fanart_tv" v-if="form.media_type == 'movie'">
           <el-switch v-model="form.enable_fanart_tv" :active-value="true" :inactive-value="false" :disabled="loading" />
           <div class="form-tip">是否启用fanart.tv的高清图下载，下载很慢会降低刮削效率。</div>
@@ -352,6 +376,30 @@
           <el-switch v-model="form.enable_cron" :active-value="true" :inactive-value="false" :disabled="loading" />
           <div class="form-tip">是否启用定时同步功能</div>
         </el-form-item>
+        <template v-if="form.enable_cron">
+          <el-form-item label="Cron表达式" prop="cron_expression">
+            <el-input v-model="form.cron_expression" placeholder="0 3 * * *" :disabled="loading"
+              @change="validateCronExpression" />
+            <div class="form-tip">
+              标准Cron表达式格式：分 时 日 月 周（例如：0 3 * * * 表示每天凌晨3点）
+            </div>
+          </el-form-item>
+          <el-form-item label="Cron描述">
+            <div class="cron-description">{{ form.cron_description || '请输入有效的Cron表达式' }}</div>
+          </el-form-item>
+          <el-form-item label="快速选择">
+            <el-select v-model="selectedCronPreset" placeholder="选择预设模板" @change="applyCronPreset"
+              :disabled="loading">
+              <el-option label="每天凌晨3点" value="0 3 * * *" />
+              <el-option label="每天凌晨2点" value="0 2 * * *" />
+              <el-option label="每2小时" value="0 */2 * * *" />
+              <el-option label="每6小时" value="0 */6 * * *" />
+              <el-option label="周一到周五凌晨3点" value="0 3 * * 1-5" />
+              <el-option label="每周日凌晨3点" value="0 3 * * 0" />
+              <el-option label="每月1号凌晨3点" value="0 3 1 * *" />
+            </el-select>
+          </el-form-item>
+        </template>
         <el-form-item label="启用fanart.tv" prop="enable_fanart_tv" v-if="form.media_type == 'movie'">
           <el-switch v-model="form.enable_fanart_tv" :active-value="true" :inactive-value="false" :disabled="loading" />
           <div class="form-tip">是否启用fanart.tv的高清图下载，下载很慢会降低刮削效率。</div>
@@ -431,6 +479,8 @@ interface ScrapePath {
   exclude_no_image_actor: boolean
   force_delete_source_path: boolean
   enable_cron?: boolean
+  cron_expression?: string
+  cron_description?: string
   enable_fanart_tv: boolean
   max_threads: number
 }
@@ -469,6 +519,8 @@ const form = reactive<ScrapePath>({
   ai_prompt: '',
   force_delete_source_path: false,
   enable_cron: false,
+  cron_expression: '',
+  cron_description: '',
   enable_fanart_tv: false,
   max_threads: 5
 })
@@ -497,6 +549,9 @@ const formRules: FormRules = {
 
 const accounts = ref<CloudAccount[]>([])
 const accountsLoading = ref(false)
+
+const selectedPreset = ref('')
+const selectedCronPreset = ref('')
 
 const showDirDialog = ref(false)
 const tempSelectedDir = ref<DirInfo | null>(null)
@@ -570,6 +625,8 @@ const loadDirectoryData = async (id: number) => {
         form.ai_prompt = directory.ai_prompt || ''
         form.force_delete_source_path = directory.force_delete_source_path || false
         form.enable_cron = directory.enable_cron || false
+        form.cron_expression = directory.cron_expression || ''
+        form.cron_description = directory.cron_description || ''
         form.enable_fanart_tv = directory.enable_fanart_tv || false
         form.max_threads = parseInt(directory.max_threads + "") || 5
 
@@ -613,6 +670,52 @@ const confirmSelectDir = () => {
   showDirDialog.value = false
 }
 
+// 验证并解析 Cron 表达式
+const validateCronExpression = async () => {
+  if (!form.cron_expression || form.cron_expression.trim() === '') {
+    form.cron_description = ''
+    return
+  }
+
+  try {
+    const response = await http?.post(`${SERVER_URL}/cron/validate`, {
+      cron_expression: form.cron_expression.trim()
+    })
+
+    if (response?.data.code === 200) {
+      form.cron_description = response.data.data.description || '有效表达式'
+    } else {
+      ElMessage.warning(response?.data.message || 'Cron表达式验证失败')
+      form.cron_description = '无效表达式'
+    }
+  } catch (error) {
+    console.error('验证Cron表达式失败:', error)
+    ElMessage.error('验证Cron表达式失败，请检查网络连接')
+  }
+}
+
+// 应用预设的 Cron 表达式
+const applyPreset = () => {
+  if (!selectedPreset.value) {
+    return
+  }
+
+  form.cron_expression = selectedPreset.value
+  selectedPreset.value = ''
+  validateCronExpression()
+}
+
+// 应用预设的 Cron 表达式（快速选择）
+const applyCronPreset = () => {
+  if (!selectedCronPreset.value) {
+    return
+  }
+
+  form.cron_expression = selectedCronPreset.value
+  selectedCronPreset.value = ''
+  validateCronExpression()
+}
+
 const handleSubmit = async () => {
   if (!formRef.value) return
   if (form.scrape_type !== 'only_scrape' && form.dest_path_id == '') {
@@ -644,6 +747,8 @@ const handleSubmit = async () => {
         ai_prompt: form.ai_prompt,
         force_delete_source_path: form.force_delete_source_path,
         enable_cron: form.enable_cron,
+        cron_expression: form.cron_expression || '',
+        cron_description: form.cron_description || '',
         enable_fanart_tv: form.enable_fanart_tv,
         max_threads: parseInt(form.max_threads + ""),
       })
@@ -677,6 +782,8 @@ const handleSubmit = async () => {
         ai_prompt: form.ai_prompt,
         force_delete_source_path: form.force_delete_source_path,
         enable_cron: form.enable_cron,
+        cron_expression: form.cron_expression || '',
+        cron_description: form.cron_description || '',
         enable_fanart_tv: form.enable_fanart_tv,
         max_threads: form.max_threads,
       })

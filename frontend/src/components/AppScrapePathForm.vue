@@ -171,6 +171,30 @@
           <el-switch v-model="form.enable_cron" :active-value="true" :inactive-value="false" :disabled="loading" />
           <div class="form-tip">是否启用定时同步功能</div>
         </el-form-item>
+        <template v-if="form.enable_cron">
+          <el-form-item label="Cron表达式" prop="cron_expression">
+            <el-input v-model="form.cron_expression" placeholder="0 3 * * *" :disabled="loading"
+              @change="validateCronExpression" />
+            <div class="form-tip">
+              标准Cron表达式格式：分 时 日 月 周（例如：0 3 * * * 表示每天凌晨3点）
+            </div>
+          </el-form-item>
+          <el-form-item label="Cron描述">
+            <div class="cron-description">{{ form.cron_description || '请输入有效的Cron表达式' }}</div>
+          </el-form-item>
+          <el-form-item label="快速选择">
+            <el-select v-model="selectedCronPreset" placeholder="选择预设模板" @change="applyCronPreset"
+              :disabled="loading">
+              <el-option label="每天凌晨3点" value="0 3 * * *" />
+              <el-option label="每天凌晨2点" value="0 2 * * *" />
+              <el-option label="每2小时" value="0 */2 * * *" />
+              <el-option label="每6小时" value="0 */6 * * *" />
+              <el-option label="周一到周五凌晨3点" value="0 3 * * 1-5" />
+              <el-option label="每周日凌晨3点" value="0 3 * * 0" />
+              <el-option label="每月1号凌晨3点" value="0 3 1 * *" />
+            </el-select>
+          </el-form-item>
+        </template>
         <el-form-item label="启用fanart.tv" prop="enable_fanart_tv" v-if="form.media_type == 'movie'">
           <el-switch v-model="form.enable_fanart_tv" :active-value="true" :inactive-value="false" :disabled="loading" />
           <div class="form-tip">是否启用fanart.tv的高清图下载，下载很慢会降低刮削效率。</div>
@@ -352,6 +376,30 @@
           <el-switch v-model="form.enable_cron" :active-value="true" :inactive-value="false" :disabled="loading" />
           <div class="form-tip">是否启用定时同步功能</div>
         </el-form-item>
+        <template v-if="form.enable_cron">
+          <el-form-item label="Cron表达式" prop="cron_expression">
+            <el-input v-model="form.cron_expression" placeholder="0 3 * * *" :disabled="loading"
+              @change="validateCronExpression" />
+            <div class="form-tip">
+              标准Cron表达式格式：分 时 日 月 周（例如：0 3 * * * 表示每天凌晨3点）
+            </div>
+          </el-form-item>
+          <el-form-item label="Cron描述">
+            <div class="cron-description">{{ form.cron_description || '请输入有效的Cron表达式' }}</div>
+          </el-form-item>
+          <el-form-item label="快速选择">
+            <el-select v-model="selectedCronPreset" placeholder="选择预设模板" @change="applyCronPreset"
+              :disabled="loading">
+              <el-option label="每天凌晨3点" value="0 3 * * *" />
+              <el-option label="每天凌晨2点" value="0 2 * * *" />
+              <el-option label="每2小时" value="0 */2 * * *" />
+              <el-option label="每6小时" value="0 */6 * * *" />
+              <el-option label="周一到周五凌晨3点" value="0 3 * * 1-5" />
+              <el-option label="每周日凌晨3点" value="0 3 * * 0" />
+              <el-option label="每月1号凌晨3点" value="0 3 1 * *" />
+            </el-select>
+          </el-form-item>
+        </template>
         <el-form-item label="启用fanart.tv" prop="enable_fanart_tv" v-if="form.media_type == 'movie'">
           <el-switch v-model="form.enable_fanart_tv" :active-value="true" :inactive-value="false" :disabled="loading" />
           <div class="form-tip">是否启用fanart.tv的高清图下载，下载很慢会降低刮削效率。</div>
@@ -503,6 +551,7 @@ const accounts = ref<CloudAccount[]>([])
 const accountsLoading = ref(false)
 
 const selectedPreset = ref('')
+const selectedCronPreset = ref('')
 
 const showDirDialog = ref(false)
 const tempSelectedDir = ref<DirInfo | null>(null)
@@ -653,6 +702,17 @@ const applyPreset = () => {
 
   form.cron_expression = selectedPreset.value
   selectedPreset.value = ''
+  validateCronExpression()
+}
+
+// 应用预设的 Cron 表达式（快速选择）
+const applyCronPreset = () => {
+  if (!selectedCronPreset.value) {
+    return
+  }
+
+  form.cron_expression = selectedCronPreset.value
+  selectedCronPreset.value = ''
   validateCronExpression()
 }
 

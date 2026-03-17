@@ -1,12 +1,22 @@
 <template>
   <!-- STRM设置卡片 -->
   <div class="main-content-container strm-content">
-    <el-form :model="strmData" :rules="formRules" :label-position="checkIsMobile ? 'top' : 'left'" :label-width="180"
-      class="strm-form" ref="formRef">
+    <el-form
+      :model="strmData"
+      :rules="formRules"
+      :label-position="checkIsMobile ? 'top' : 'left'"
+      :label-width="180"
+      class="strm-form"
+      ref="formRef"
+    >
       <!-- 排除的名称 -->
       <el-form-item label="排除的名称" prop="exclude_name_arr">
-        <MetadataExtInput v-model="strmData.exclude_name_arr" placeholder="输入名称后按回车添加"
-          class="meta-ext-input limited-width-input" :autoAddDot="false" />
+        <MetadataExtInput
+          v-model="strmData.exclude_name_arr"
+          placeholder="输入名称后按回车添加"
+          class="meta-ext-input limited-width-input"
+          :autoAddDot="false"
+        />
         <div class="form-help">
           <p>指定需要排除的文件名或目录名，完整匹配不支持正则表达式。</p>
           <p>被排除的文件或目录将不会同步，其下的所有内容也都不会同步</p>
@@ -14,8 +24,11 @@
       </el-form-item>
       <!-- 视频文件扩展名 -->
       <el-form-item label="视频文件扩展名" prop="video_ext_arr">
-        <MetadataExtInput v-model="strmData.video_ext_arr" placeholder="输入扩展名后按回车添加,逗号或者分行分隔"
-          class="meta-ext-input limited-width-input" />
+        <MetadataExtInput
+          v-model="strmData.video_ext_arr"
+          placeholder="输入扩展名后按回车添加,逗号或者分行分隔"
+          class="meta-ext-input limited-width-input"
+        />
         <div class="form-help">
           <p>指定需要生成STRM文件的视频文件扩展名，如：.mp4, .mkv, .avi, .mov 等</p>
         </div>
@@ -23,8 +36,15 @@
 
       <!-- 最小文件大小 -->
       <el-form-item label="最小文件大小 (MB)" prop="min_video_size">
-        <el-input-number v-model="strmData.min_video_size" :min="0" :step="1" :precision="0" placeholder="输入最小文件大小"
-          :disabled="strmLoading" class="limited-width-input" />
+        <el-input-number
+          v-model="strmData.min_video_size"
+          :min="0"
+          :step="1"
+          :precision="0"
+          placeholder="输入最小文件大小"
+          :disabled="strmLoading"
+          class="limited-width-input"
+        />
         <div class="form-help">
           <p>小于此大小的视频文件将不会生成STRM文件，单位为MB。设置为0表示不限制文件大小</p>
         </div>
@@ -32,8 +52,11 @@
 
       <!-- 元数据扩展名 -->
       <el-form-item label="元数据扩展名" prop="meta_ext_arr">
-        <MetadataExtInput v-model="strmData.meta_ext_arr" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
-          class="meta-ext-input limited-width-input" />
+        <MetadataExtInput
+          v-model="strmData.meta_ext_arr"
+          placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
+          class="meta-ext-input limited-width-input"
+        />
         <div class="form-help">
           <p>指定需要处理的元数据文件扩展名，如：.jpg, .nfo, .srt, .ass 等</p>
         </div>
@@ -41,8 +64,13 @@
 
       <!-- 定时同步表达式 -->
       <el-form-item label="定时同步表达式" prop="cron">
-        <el-input v-model="strmData.cron" placeholder="输入Cron表达式，如：0 2 * * *" :disabled="strmLoading"
-          class="limited-width-input" @blur="loadCronTimes" />
+        <el-input
+          v-model="strmData.cron"
+          placeholder="输入Cron表达式，如：0 2 * * *"
+          :disabled="strmLoading"
+          class="limited-width-input"
+          @blur="loadCronTimes"
+        />
         <div class="form-help">
           <p><strong>常用示例：</strong></p>
           <ul class="cron-examples">
@@ -66,8 +94,13 @@
 
       <!-- STRM直连地址 -->
       <el-form-item label="STRM直连地址" prop="direct_url">
-        <el-input v-model="strmData.strm_base_url" placeholder="输入HTTP地址，如：http://192.168.1.100:8080"
-          :disabled="strmLoading" @input="updateStrmExample" class="limited-width-input" />
+        <el-input
+          v-model="strmData.strm_base_url"
+          placeholder="输入HTTP地址，如：http://192.168.1.100:8080"
+          :disabled="strmLoading"
+          @input="updateStrmExample"
+          class="limited-width-input"
+        />
         <div v-if="strmExample" class="strm-example-inline">
           <span class="example-label">示例：</span>
           <code class="example-url">{{ strmExample }}</code>
@@ -86,7 +119,9 @@
         <div class="form-help">
           <p>如果选择是，同步时会将本地不存在的元数据文件下载回来</p>
           <p>
-            如果选择否，同步时不会下载，<strong stylle="color: black;">但是也同时跳过处理元数据，已存在的会保留，新增的不会上传</strong>
+            如果选择否，同步时不会下载，<strong stylle="color: black;"
+              >但是也同时跳过处理元数据，已存在的会保留，新增的不会上传</strong
+            >
           </p>
         </div>
       </el-form-item>
@@ -94,8 +129,12 @@
       <!-- 同步完是否上传网盘不存在的元数据 -->
       <el-form-item label="网盘不存在的元数据" prop="upload_meta">
         <el-radio-group v-model="strmData.upload_meta">
-          <el-radio-button :label="2" :disabled="strmData.download_meta === 0">删除</el-radio-button>
-          <el-radio-button :label="1" :disabled="strmData.download_meta === 0">上传</el-radio-button>
+          <el-radio-button :label="2" :disabled="strmData.download_meta === 0"
+            >删除</el-radio-button
+          >
+          <el-radio-button :label="1" :disabled="strmData.download_meta === 0"
+            >上传</el-radio-button
+          >
           <el-radio-button :label="0">保留</el-radio-button>
         </el-radio-group>
         <div class="form-help">
@@ -104,17 +143,10 @@
             上传: 本地存在且网盘不存在，分三种情况: <br />
             &nbsp;&nbsp;&nbsp;&nbsp;1. 父目录在网盘存在则上传<br />
             &nbsp;&nbsp;&nbsp;&nbsp;2. 父目录在网盘不存在（网盘已删除）则删除本地文件<br />
-            &nbsp;&nbsp;&nbsp;&nbsp;3. 父目录是特定名字，则创建父目录并上传，特定名字包括："extrafanart",
-            "exfanarts",
-            "extrafanarts",
-            "extras",
-            "specials",
-            "shorts",
-            "scenes",
-            "featurettes",
-            "behind the scenes",
-            "trailers",
-            "interviews",
+            &nbsp;&nbsp;&nbsp;&nbsp;3.
+            父目录是特定名字，则创建父目录并上传，特定名字包括："extrafanart", "exfanarts",
+            "extrafanarts", "extras", "specials", "shorts", "scenes", "featurettes", "behind the
+            scenes", "trailers", "interviews",
           </p>
           <p>保留：不会删除本地文件，不管网盘有没有删除它</p>
         </div>
@@ -125,7 +157,8 @@
           <el-radio-button :label="0">否</el-radio-button>
         </el-radio-group>
         <div class="form-help">
-          <p>如果选择是，会有两种情况：<br />
+          <p>
+            如果选择是，会有两种情况：<br />
             &nbsp;&nbsp;&nbsp;&nbsp;1. 网盘文件修改时间比本地文件新，则下载网盘文件替换本地文件<br />
             &nbsp;&nbsp;&nbsp;&nbsp;2. 网盘文件修改时间比本地文件旧，则上传本地文件到网盘
           </p>
@@ -159,25 +192,42 @@
         </el-radio-group>
         <div class="form-help">
           <p>
-            如果你使用本项目的Emby代理 8095端口来播放，那除了百度网盘外，其他网盘都不会受本开关控制（全部默认为本开关关闭）
+            如果你使用本项目的Emby代理
+            8095端口来播放，那除了百度网盘外，其他网盘都不会受本开关控制（全部默认为本开关关闭）
           </p>
           <p>
-            如果使用Emby 8096端口来播放，本开关开启时流量会由QMediaSync代理，解决部分播放器因为UA一致性无法播放的问题。
+            如果使用Emby
+            8096端口来播放，本开关开启时流量会由QMediaSync代理，解决部分播放器因为UA一致性无法播放的问题。
           </p>
-          <p>百度网盘默认不支持302，如果使用8095播放且你的播放器不支持百度网盘302，那么需要打开本开关。</p>
+          <p>
+            百度网盘默认不支持302，如果使用8095播放且你的播放器不支持百度网盘302，那么需要打开本开关。
+          </p>
         </div>
       </el-form-item>
       <!-- 保存和重置按钮 -->
       <div class="strm-actions">
-        <el-button type="success" @click="saveStrmConfig" :loading="strmLoading" size="large" :icon="Check">
+        <el-button
+          type="success"
+          @click="saveStrmConfig"
+          :loading="strmLoading"
+          size="large"
+          :icon="Check"
+        >
           保存STRM配置
         </el-button>
       </div>
     </el-form>
 
     <!-- STRM配置状态显示 -->
-    <el-alert v-if="strmStatus" :title="strmStatus.title" :type="strmStatus.type" :description="strmStatus.description"
-      :closable="false" show-icon class="strm-status" />
+    <el-alert
+      v-if="strmStatus"
+      :title="strmStatus.title"
+      :type="strmStatus.type"
+      :description="strmStatus.description"
+      :closable="false"
+      show-icon
+      class="strm-status"
+    />
   </div>
 </template>
 

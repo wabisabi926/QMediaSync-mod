@@ -105,7 +105,9 @@
                 </div>
                 <div class="info-content">
                   <span class="info-label">目标路径</span>
-                  <span class="info-value path-value">{{ row.scrape_type === 'only_scrape' ? '-' : row.dest_path }}</span>
+                  <span class="info-value path-value">{{
+                    row.scrape_type === 'only_scrape' ? '-' : row.dest_path
+                  }}</span>
                 </div>
               </div>
 
@@ -191,12 +193,7 @@
                 停止
               </el-button>
 
-              <el-button
-                type="primary"
-                size="small"
-                plain
-                @click="goToEdit(row)"
-              >
+              <el-button type="primary" size="small" plain @click="goToEdit(row)">
                 <el-icon><Edit /></el-icon>
                 编辑
               </el-button>
@@ -287,11 +284,18 @@
               </div>
               <div class="tip-item">
                 <span class="tip-bullet">•</span>
-                <span>如果要调整并发数需要在 <router-link to="/settings/tmdb">TMDB设置</router-link> 中使用自己的TMDB API KEY，否则会使用默认并发数</span>
+                <span
+                  >如果要调整并发数需要在
+                  <router-link to="/settings/tmdb">TMDB设置</router-link> 中使用自己的TMDB API
+                  KEY，否则会使用默认并发数</span
+                >
               </div>
               <div class="tip-item">
                 <span class="tip-bullet">•</span>
-                <span>刮削流程：扫描文件夹下所有待刮削文件 - 刮削 - 整理。如果文件很多，首次刮削可能需要较长时间，请耐心等待</span>
+                <span
+                  >刮削流程：扫描文件夹下所有待刮削文件 - 刮削 -
+                  整理。如果文件很多，首次刮削可能需要较长时间，请耐心等待</span
+                >
               </div>
             </div>
           </div>
@@ -349,9 +353,27 @@ import { inject, onMounted, ref, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Plus, Loading, Folder, Edit, Delete, VideoPlay, VideoPause,
-  InfoFilled, Timer, FolderOpened, Clock, User, Calendar, Film,
-  VideoCamera, Operation, Sort, CircleCheck, Setting, Warning, Link
+  Plus,
+  Loading,
+  Folder,
+  Edit,
+  Delete,
+  VideoPlay,
+  VideoPause,
+  InfoFilled,
+  Timer,
+  FolderOpened,
+  Clock,
+  User,
+  Calendar,
+  Film,
+  VideoCamera,
+  Operation,
+  Sort,
+  CircleCheck,
+  Setting,
+  Warning,
+  Link,
 } from '@element-plus/icons-vue'
 import { formatTime } from '@/utils/timeUtils'
 import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
@@ -397,9 +419,9 @@ const syncPathsLoading = ref(false)
 const saveSyncPathLoading = ref(false)
 const currentScrapePath = ref<ScrapePath | null>(null)
 
-const runningCount = computed(() => pathes.value.filter(p => p.is_running === 2).length)
-const waitingCount = computed(() => pathes.value.filter(p => p.is_running === 1).length)
-const cronEnabledCount = computed(() => pathes.value.filter(p => p.enable_cron).length)
+const runningCount = computed(() => pathes.value.filter((p) => p.is_running === 2).length)
+const waitingCount = computed(() => pathes.value.filter((p) => p.is_running === 1).length)
+const cronEnabledCount = computed(() => pathes.value.filter((p) => p.enable_cron).length)
 
 const getStatusClass = (row: ScrapePath) => {
   if (row.is_running === 2) return 'status-running'
@@ -423,7 +445,7 @@ const goToEdit = (row: ScrapePath) => {
 
 const getAccountName = (accountId?: number): string => {
   if (!accountId) return ''
-  const account = accounts.value.find(a => a.id === accountId)
+  const account = accounts.value.find((a) => a.id === accountId)
   return account ? account.name : ''
 }
 
@@ -451,7 +473,7 @@ const getRenameTypeText = (renameType: string): string => {
     copy: '复制',
     soft_symlink: '软链接',
     hard_symlink: '硬链接',
-    same: "-"
+    same: '-',
   }
   return typeMap[renameType] || renameType
 }
@@ -481,7 +503,7 @@ const updatePathesStatus = async () => {
 
   if (response?.data.code === 200) {
     for (const p of response?.data?.data || []) {
-      const path = pathes.value.find(pa => pa.id === p.id)
+      const path = pathes.value.find((pa) => pa.id === p.id)
       if (path) {
         path.is_running = p.is_running
       }
@@ -607,10 +629,12 @@ const loadSyncPaths = async (sourceType?: string) => {
     })
 
     if (response?.data.code === 200) {
-      syncPathOptions.value = (response.data.data.list || []).map((item: { id: number; source_type: string; remote_path: string }) => ({
-        id: item.id,
-        label: `#${item.id} - ${item.source_type} - ${item.remote_path}`,
-      }))
+      syncPathOptions.value = (response.data.data.list || []).map(
+        (item: { id: number; source_type: string; remote_path: string }) => ({
+          id: item.id,
+          label: `#${item.id} - ${item.source_type} - ${item.remote_path}`,
+        }),
+      )
     } else {
       ElMessage.error(response?.data.message || '加载同步目录失败')
     }
@@ -900,8 +924,13 @@ onUnmounted(() => {
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
 }
 
 .card-main {
@@ -1034,8 +1063,12 @@ onUnmounted(() => {
 }
 
 @keyframes rotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .card-footer {
@@ -1089,12 +1122,22 @@ onUnmounted(() => {
   animation: bounce 1.4s infinite ease-in-out both;
 }
 
-.empty-dots span:nth-child(1) { animation-delay: -0.32s; }
-.empty-dots span:nth-child(2) { animation-delay: -0.16s; }
+.empty-dots span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+.empty-dots span:nth-child(2) {
+  animation-delay: -0.16s;
+}
 
 @keyframes bounce {
-  0%, 80%, 100% { transform: scale(0); }
-  40% { transform: scale(1); }
+  0%,
+  80%,
+  100% {
+    transform: scale(0);
+  }
+  40% {
+    transform: scale(1);
+  }
 }
 
 .empty-title {

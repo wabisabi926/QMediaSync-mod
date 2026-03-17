@@ -11,8 +11,10 @@
       <div v-if="isMobile && isMenuOpen" class="mobile-overlay" @click="toggleMenu"></div>
 
       <!-- 侧边栏 -->
-      <el-aside :width="isMobile ? '250px' : '200px'"
-        :class="{ 'mobile-aside': isMobile, 'mobile-aside-open': isMobile && isMenuOpen }">
+      <el-aside
+        :width="isMobile ? '250px' : '200px'"
+        :class="{ 'mobile-aside': isMobile, 'mobile-aside-open': isMobile && isMenuOpen }"
+      >
         <!-- 用户信息 -->
         <div class="user-info">
           <div class="user-avatar">
@@ -28,8 +30,13 @@
           </div>
         </div>
 
-        <el-menu :default-active="$route.path" :default-openeds="getDefaultOpeneds()" router class="el-menu-vertical"
-          @select="handleMenuSelect">
+        <el-menu
+          :default-active="$route.path"
+          :default-openeds="getDefaultOpeneds()"
+          router
+          class="el-menu-vertical"
+          @select="handleMenuSelect"
+        >
           <!-- 遍历一级菜单 -->
           <template v-for="menu in menuItems" :key="menu.path">
             <!-- 如果是子菜单 -->
@@ -57,7 +64,7 @@
             </el-menu-item>
           </template>
           <!-- 使用帮助 -->
-                   <!-- 使用帮助 -->
+          <!-- 使用帮助 -->
           <el-menu-item index="help" @click="openHelp">
             <el-icon>
               <QuestionFilled />
@@ -100,12 +107,22 @@
   </div>
 
   <!-- 全局备份/恢复进度弹窗 -->
-  <el-dialog v-model="backupStore.showProgressDialog" :title="backupStore.taskType === 'backup' ? '备份进行中' : '数据库恢复中'"
-    :width="isMobile ? '90%' : '600px'" :close-on-click-modal="false" :close-on-press-escape="false" :show-close="false"
-    center>
+  <el-dialog
+    v-model="backupStore.showProgressDialog"
+    :title="backupStore.taskType === 'backup' ? '备份进行中' : '数据库恢复中'"
+    :width="isMobile ? '90%' : '600px'"
+    :close-on-click-modal="false"
+    :close-on-press-escape="false"
+    :show-close="false"
+    center
+  >
     <div class="backup-progress-content">
       <!-- 进度条 -->
-      <el-progress :percentage="backupStore.progress?.progress || 0" :status="getProgressStatus()" :stroke-width="20" />
+      <el-progress
+        :percentage="backupStore.progress?.progress || 0"
+        :status="getProgressStatus()"
+        :stroke-width="20"
+      />
 
       <!-- 当前步骤 -->
       <div v-if="backupStore.progress?.current_step" class="progress-step">
@@ -117,7 +134,10 @@
 
       <!-- 表处理进度 -->
       <div v-if="backupStore.progress?.total_tables" class="progress-tables">
-        <span>已处理：{{ backupStore.progress.processed_tables || 0 }} / {{ backupStore.progress.total_tables }} 个表</span>
+        <span
+          >已处理：{{ backupStore.progress.processed_tables || 0 }} /
+          {{ backupStore.progress.total_tables }} 个表</span
+        >
       </div>
 
       <!-- 时间信息 -->
@@ -128,25 +148,28 @@
         </div>
         <div v-if="backupStore.progress.estimated_seconds" class="time-item">
           <span class="label">预计剩余：</span>
-          <span class="value">{{ formatDuration(backupStore.progress.estimated_seconds -
-            backupStore.progress.elapsed_seconds) }}</span>
+          <span class="value">{{
+            formatDuration(
+              backupStore.progress.estimated_seconds - backupStore.progress.elapsed_seconds,
+            )
+          }}</span>
         </div>
       </div>
 
       <!-- 错误重试提示 -->
-      <el-alert v-if="backupStore.errorRetryCount > 0" :title="`网络异常，正在重试 (${backupStore.errorRetryCount}/${3})...`"
-        type="warning" :closable="false" style="margin-top: 16px" />
+      <el-alert
+        v-if="backupStore.errorRetryCount > 0"
+        :title="`网络异常，正在重试 (${backupStore.errorRetryCount}/${3})...`"
+        type="warning"
+        :closable="false"
+        style="margin-top: 16px"
+      />
     </div>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import {
-  User,
-  Menu,
-  Loading,
-  QuestionFilled,
-} from '@element-plus/icons-vue'
+import { User, Menu, Loading, QuestionFilled } from '@element-plus/icons-vue'
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
@@ -181,23 +204,34 @@ interface MenuItem {
 // 计算属性：生成菜单数据
 const menuItems = computed(() => {
   // 使用 router.options.routes 保持路由定义的顺序
-  type RouteConfig = { path: string; name?: string; meta?: { title: string; requiresAuth: boolean; parent?: string; icon?: string; showInMenu?: boolean }; redirect?: string }
+  type RouteConfig = {
+    path: string
+    name?: string
+    meta?: {
+      title: string
+      requiresAuth: boolean
+      parent?: string
+      icon?: string
+      showInMenu?: boolean
+    }
+    redirect?: string
+  }
   const routes = router.options.routes as RouteConfig[]
   // 获取所有需要在菜单中显示的路由
-  const allRoutes = routes.filter(route => route.meta?.showInMenu)
+  const allRoutes = routes.filter((route) => route.meta?.showInMenu)
 
   // 构建菜单结构
   const menuMap = new Map<string, MenuItem>()
   const rootMenus: MenuItem[] = []
 
   // 首先处理所有路由，构建菜单映射
-  allRoutes.forEach(route => {
+  allRoutes.forEach((route) => {
     // 如果有父菜单
     if (route.meta?.parent) {
       // 确保父菜单存在
       if (!menuMap.has(route.meta.parent)) {
         // 查找父菜单路由
-        const parentRoute = routes.find(r => r.name === route.meta?.parent)
+        const parentRoute = routes.find((r) => r.name === route.meta?.parent)
         if (parentRoute && parentRoute.meta) {
           const parentMenuItem: MenuItem = {
             path: parentRoute.path,
@@ -206,9 +240,9 @@ const menuItems = computed(() => {
               title: parentRoute.meta.title,
               icon: parentRoute.meta.icon || 'Setting',
               showInMenu: parentRoute.meta.showInMenu || false,
-              parent: parentRoute.meta.parent
+              parent: parentRoute.meta.parent,
             },
-            children: []
+            children: [],
           }
           menuMap.set(route.meta.parent, parentMenuItem)
           rootMenus.push(parentMenuItem)
@@ -223,8 +257,8 @@ const menuItems = computed(() => {
             title: route.meta.title,
             icon: route.meta.icon || 'Setting',
             showInMenu: route.meta.showInMenu || false,
-            parent: route.meta.parent
-          }
+            parent: route.meta.parent,
+          },
         }
         menuMap.get(route.meta.parent)?.children?.push(childMenuItem)
       }
@@ -239,9 +273,9 @@ const menuItems = computed(() => {
             title: route.meta.title,
             icon: route.meta.icon || 'Setting',
             showInMenu: route.meta.showInMenu || false,
-            parent: route.meta.parent
+            parent: route.meta.parent,
           },
-          children: []
+          children: [],
         }
         menuMap.set(routeNameKey, menuItem)
         rootMenus.push(menuItem)
@@ -291,7 +325,7 @@ const handleLogout = async () => {
 
 // 获取当前页面标题
 const getCurrentPageTitle = (): string => {
-  return route.meta.title as string || '首页'
+  return (route.meta.title as string) || '首页'
 }
 
 // 获取默认展开的子菜单

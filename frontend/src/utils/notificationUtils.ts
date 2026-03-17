@@ -74,21 +74,21 @@ export function getChannelTypeName(type: ChannelType): string {
     meow: 'MeoW',
     bark: 'Bark',
     serverchan: 'Server酱',
-    webhook: 'Webhook'
+    webhook: 'Webhook',
   }
   return nameMap[type] || type
 }
 
 // 获取渠道类型颜色
 export function getChannelTypeColor(
-  type: ChannelType
+  type: ChannelType,
 ): 'primary' | 'success' | 'info' | 'warning' | 'danger' {
   const colorMap: Record<ChannelType, 'primary' | 'success' | 'info' | 'warning' | 'danger'> = {
     telegram: 'primary',
     meow: 'success',
     bark: 'warning',
     serverchan: 'info',
-    webhook: 'danger'
+    webhook: 'danger',
   }
   return colorMap[type] || 'info'
 }
@@ -101,7 +101,7 @@ export function getEventTypeName(type: EventType): string {
     scrape_finish: '刮削完成',
     system_alert: '系统警告',
     media_added: '媒体添加',
-    media_removed: '媒体移除'
+    media_removed: '媒体移除',
   }
   return nameMap[type] || type
 }
@@ -114,7 +114,7 @@ export function getEventTypeDescription(type: EventType): string {
     scrape_finish: '刮削任务完成时发送通知',
     system_alert: '系统出现重要警告时发送通知',
     media_added: '新媒体添加到媒体库时发送通知',
-    media_removed: '媒体从媒体库移除时发送通知'
+    media_removed: '媒体从媒体库移除时发送通知',
   }
   return descMap[type] || ''
 }

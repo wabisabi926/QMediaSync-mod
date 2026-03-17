@@ -1,6 +1,11 @@
 <template>
   <div class="cron-selector">
-    <el-select v-model="selectedPreset" placeholder="选择定时策略" @change="handlePresetChange" style="width: 100%">
+    <el-select
+      v-model="selectedPreset"
+      placeholder="选择定时策略"
+      @change="handlePresetChange"
+      style="width: 100%"
+    >
       <el-option label="每天凌晨2点" value="0 2 * * *" />
       <el-option label="每天凌晨3点" value="0 3 * * *" />
       <el-option label="每4小时" value="0 */4 * * *" />
@@ -10,8 +15,13 @@
     </el-select>
 
     <!-- 自定义输入框 -->
-    <el-input v-if="selectedPreset === 'custom'" v-model="customCron" placeholder="请输入 Cron 表达式，如: 0 2 * * *"
-      @input="handleCustomCronChange" style="margin-top: 12px">
+    <el-input
+      v-if="selectedPreset === 'custom'"
+      v-model="customCron"
+      placeholder="请输入 Cron 表达式，如: 0 2 * * *"
+      @input="handleCustomCronChange"
+      style="margin-top: 12px"
+    >
       <template #prepend>Cron</template>
     </el-input>
   </div>
@@ -31,13 +41,7 @@ const emit = defineEmits<{
 const selectedPreset = ref<string>('0 2 * * *')
 const customCron = ref('')
 
-const presetValues = [
-  '0 2 * * *',
-  '0 3 * * *',
-  '0 */4 * * *',
-  '0 */12 * * *',
-  '0 0 * * 0',
-]
+const presetValues = ['0 2 * * *', '0 3 * * *', '0 */4 * * *', '0 */12 * * *', '0 0 * * 0']
 
 const handlePresetChange = (value: string) => {
   if (value === 'custom') {
@@ -63,20 +67,23 @@ onMounted(() => {
   }
 })
 
-watch(() => props.modelValue, (newValue) => {
-  if (!newValue) return
+watch(
+  () => props.modelValue,
+  (newValue) => {
+    if (!newValue) return
 
-  if (presetValues.includes(newValue)) {
-    if (selectedPreset.value !== newValue) {
-      selectedPreset.value = newValue
+    if (presetValues.includes(newValue)) {
+      if (selectedPreset.value !== newValue) {
+        selectedPreset.value = newValue
+      }
+    } else {
+      if (selectedPreset.value !== 'custom' || customCron.value !== newValue) {
+        selectedPreset.value = 'custom'
+        customCron.value = newValue
+      }
     }
-  } else {
-    if (selectedPreset.value !== 'custom' || customCron.value !== newValue) {
-      selectedPreset.value = 'custom'
-      customCron.value = newValue
-    }
-  }
-})
+  },
+)
 </script>
 
 <style scoped>

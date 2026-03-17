@@ -37,6 +37,6 @@ export function useVersion() {
   return {
     versionInfo,
     versionLoading,
-    loadVersionInfo
+    loadVersionInfo,
   }
 }

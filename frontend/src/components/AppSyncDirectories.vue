@@ -156,14 +156,20 @@
             </div>
 
             <div class="card-footer">
-              <el-tooltip content="删除所有缓存数据后执行同步，可处理所有网盘文件变更" placement="top">
+              <el-tooltip
+                content="删除所有缓存数据后执行同步，可处理所有网盘文件变更"
+                placement="top"
+              >
                 <el-button
                   type="warning"
                   size="small"
                   plain
                   @click="handleFullStart(row, index)"
                   :loading="row.starting"
-                  v-if="(row.source_type === '115' || row.source_type === 'baidupan') && row.is_running === 0"
+                  v-if="
+                    (row.source_type === '115' || row.source_type === 'baidupan') &&
+                    row.is_running === 0
+                  "
                 >
                   <el-icon><RefreshRight /></el-icon>
                   全量同步
@@ -179,7 +185,7 @@
                 v-if="row.is_running === 0"
               >
                 <el-icon><VideoPlay /></el-icon>
-                {{row.source_type == '115' || row.source_type == 'baidupan' ? '增量' : ''}}同步
+                {{ row.source_type == '115' || row.source_type == 'baidupan' ? '增量' : '' }}同步
               </el-button>
 
               <el-button
@@ -194,12 +200,7 @@
                 停止
               </el-button>
 
-              <el-button
-                type="primary"
-                size="small"
-                plain
-                @click="handleEdit(row)"
-              >
+              <el-button type="primary" size="small" plain @click="handleEdit(row)">
                 <el-icon><Edit /></el-icon>
                 编辑
               </el-button>
@@ -215,12 +216,7 @@
                 删除
               </el-button>
 
-              <el-button
-                type="warning"
-                size="small"
-                plain
-                @click="openScrapePathDialog(row)"
-              >
+              <el-button type="warning" size="small" plain @click="openScrapePathDialog(row)">
                 <el-icon><Link /></el-icon>
                 关联
               </el-button>
@@ -285,7 +281,11 @@
         <template #footer>
           <span class="dialog-footer">
             <el-button @click="showScrapePathDialog = false">取消</el-button>
-            <el-button type="primary" @click="saveScrapePathRelation" :loading="saveScrapePathLoading">
+            <el-button
+              type="primary"
+              @click="saveScrapePathRelation"
+              :loading="saveScrapePathLoading"
+            >
               确定
             </el-button>
           </span>
@@ -306,15 +306,23 @@
             <div class="tip-group-items">
               <div class="tip-item">
                 <span class="tip-bullet">•</span>
-                <span>无法感知网盘的文件夹重命名等操作，如果发现文件夹名字不对可以手动点击：<strong>重置&同步</strong></span>
+                <span
+                  >无法感知网盘的文件夹重命名等操作，如果发现文件夹名字不对可以手动点击：<strong
+                    >重置&同步</strong
+                  ></span
+                >
               </div>
               <div class="tip-item">
                 <span class="tip-bullet">•</span>
-                <span>"全量同步"会删除所有缓存数据（不会删除本地文件），然后执行同步，可以处理所有网盘文件变更</span>
+                <span
+                  >"全量同步"会删除所有缓存数据（不会删除本地文件），然后执行同步，可以处理所有网盘文件变更</span
+                >
               </div>
               <div class="tip-item tip-highlight">
                 <span class="tip-bullet">★</span>
-                <span>请按照电影和电视剧分开添加同步目录，电影的同步速度非常快，电视剧的同步速度较慢</span>
+                <span
+                  >请按照电影和电视剧分开添加同步目录，电影的同步速度非常快，电视剧的同步速度较慢</span
+                >
               </div>
             </div>
           </div>
@@ -326,11 +334,15 @@
             <div class="tip-group-items">
               <div class="tip-item">
                 <span class="tip-bullet">•</span>
-                <span>只查询上次同步时间之后修改的文件列表，不会查询所有文件、无法感知文件和文件夹删除</span>
+                <span
+                  >只查询上次同步时间之后修改的文件列表，不会查询所有文件、无法感知文件和文件夹删除</span
+                >
               </div>
               <div class="tip-item">
                 <span class="tip-bullet">•</span>
-                <span>增量同步只能单线程，每分钟最多执行8次请求，每次请求1000个文件，如果单次变更文件数量大于8000，同步就会很慢</span>
+                <span
+                  >增量同步只能单线程，每分钟最多执行8次请求，每次请求1000个文件，如果单次变更文件数量大于8000，同步就会很慢</span
+                >
               </div>
               <div class="tip-item">
                 <span class="tip-bullet">•</span>
@@ -355,9 +367,26 @@ import { inject, onMounted, onUnmounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Plus, Loading, Folder, VideoPlay, Edit, Delete, Warning, VideoPause,
-  InfoFilled, Timer, FolderOpened, Files, Clock, User, Calendar, Refresh,
-  RefreshRight, CircleCheck, QuestionFilled, Link
+  Plus,
+  Loading,
+  Folder,
+  VideoPlay,
+  Edit,
+  Delete,
+  Warning,
+  VideoPause,
+  InfoFilled,
+  Timer,
+  FolderOpened,
+  Files,
+  Clock,
+  User,
+  Calendar,
+  Refresh,
+  RefreshRight,
+  CircleCheck,
+  QuestionFilled,
+  Link,
 } from '@element-plus/icons-vue'
 import { formatTime } from '@/utils/timeUtils'
 import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
@@ -400,9 +429,9 @@ const scrapePathsLoading = ref(false)
 const saveScrapePathLoading = ref(false)
 const currentSyncDirectory = ref<SyncDirectory | null>(null)
 
-const runningCount = computed(() => directories.value.filter(d => d.is_running === 2).length)
-const waitingCount = computed(() => directories.value.filter(d => d.is_running === 1).length)
-const cronEnabledCount = computed(() => directories.value.filter(d => d.enable_cron).length)
+const runningCount = computed(() => directories.value.filter((d) => d.is_running === 2).length)
+const waitingCount = computed(() => directories.value.filter((d) => d.is_running === 1).length)
+const cronEnabledCount = computed(() => directories.value.filter((d) => d.enable_cron).length)
 
 const getStatusClass = (row: SyncDirectory) => {
   if (row.is_running === 2) return 'status-running'
@@ -468,7 +497,7 @@ const updatePathesStatus = async () => {
 
   if (response?.data.code === 200) {
     for (const p of response.data.data.list || []) {
-      const path = directories.value.find(pa => pa.id === p.id)
+      const path = directories.value.find((pa) => pa.id === p.id)
       if (path) {
         path.is_running = p.is_running
       }
@@ -647,11 +676,12 @@ const loadScrapePaths = async () => {
     })
 
     if (response?.data.code === 200) {
-
-      scrapePathOptions.value = (response.data.data || []).map((item: { id: number; source_path: string }) => ({
-        id: item.id,
-        label: `#${item.id} - ${item.source_path}`,
-      }))
+      scrapePathOptions.value = (response.data.data || []).map(
+        (item: { id: number; source_path: string }) => ({
+          id: item.id,
+          label: `#${item.id} - ${item.source_path}`,
+        }),
+      )
     } else {
       ElMessage.error(response?.data.message || '加载刮削目录失败')
     }
@@ -938,8 +968,13 @@ onUnmounted(() => {
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
 }
 
 .card-main {
@@ -1084,8 +1119,12 @@ onUnmounted(() => {
 }
 
 @keyframes rotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .card-footer {
@@ -1139,12 +1178,22 @@ onUnmounted(() => {
   animation: bounce 1.4s infinite ease-in-out both;
 }
 
-.empty-dots span:nth-child(1) { animation-delay: -0.32s; }
-.empty-dots span:nth-child(2) { animation-delay: -0.16s; }
+.empty-dots span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+.empty-dots span:nth-child(2) {
+  animation-delay: -0.16s;
+}
 
 @keyframes bounce {
-  0%, 80%, 100% { transform: scale(0); }
-  40% { transform: scale(1); }
+  0%,
+  80%,
+  100% {
+    transform: scale(0);
+  }
+  40% {
+    transform: scale(1);
+  }
 }
 
 .empty-title {

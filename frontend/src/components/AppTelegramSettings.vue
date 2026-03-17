@@ -4,38 +4,64 @@
       新创建的机器人，请先给机器人发送一条消息激活机器人
     </el-alert>
     <div class="main-content-container telegram-settings-container">
-      <el-form :model="formData" :label-position="checkIsMobile ? 'top' : 'left'" :label-width="100"
-        class="telegram-form">
+      <el-form
+        :model="formData"
+        :label-position="checkIsMobile ? 'top' : 'left'"
+        :label-width="100"
+        class="telegram-form"
+      >
         <el-form-item label="启用" prop="enabled">
           <div class="enable-switch">
-            <el-switch v-model="formData.enabled" :loading="loading" size="large" active-text="已启用"
-              inactive-text="已禁用" />
+            <el-switch
+              v-model="formData.enabled"
+              :loading="loading"
+              size="large"
+              active-text="已启用"
+              inactive-text="已禁用"
+            />
             <div class="form-help">开启后，系统将通过Telegram机器人发送重要通知</div>
           </div>
         </el-form-item>
 
         <el-form-item label="机器人Token" prop="telegram_bot_token">
-          <el-input v-model="formData.telegram_bot_token" placeholder="搜索@BotFather创建机器人，找到TOKEN"
-            :disabled="loading || !formData.enabled" />
+          <el-input
+            v-model="formData.telegram_bot_token"
+            placeholder="搜索@BotFather创建机器人，找到TOKEN"
+            :disabled="loading || !formData.enabled"
+          />
           <div class="form-help">在Telegram中搜索@BotFather，创建机器人后获取TOKEN</div>
         </el-form-item>
 
         <el-form-item label="用户ID" prop="telegram_user_id">
-          <el-input v-model="formData.telegram_user_id" placeholder="搜索@get_id_bot，点开始，找到Your Chat Id=后面的数字"
-            :disabled="loading || !formData.enabled" />
+          <el-input
+            v-model="formData.telegram_user_id"
+            placeholder="搜索@get_id_bot，点开始，找到Your Chat Id=后面的数字"
+            :disabled="loading || !formData.enabled"
+          />
           <div class="form-help">在Telegram中搜索@get_id_bot，点击开始获取您的Chat ID</div>
         </el-form-item>
 
         <el-form-item>
           <div class="form-actions">
             <div>
-              <el-button type="primary" @click="testBot" :loading="testing" :disabled="loading || !formData.enabled"
-                :icon="Message">
+              <el-button
+                type="primary"
+                @click="testBot"
+                :loading="testing"
+                :disabled="loading || !formData.enabled"
+                :icon="Message"
+              >
                 测试机器人
               </el-button>
             </div>
             <div>
-              <el-button type="success" @click="saveSettings" :loading="loading" :disabled="testing" :icon="Check">
+              <el-button
+                type="success"
+                @click="saveSettings"
+                :loading="loading"
+                :disabled="testing"
+                :icon="Check"
+              >
                 保存设置
               </el-button>
             </div>
@@ -44,8 +70,15 @@
       </el-form>
     </div>
     <!-- 测试状态显示 -->
-    <el-alert v-if="testStatus" :title="testStatus.title" :type="testStatus.type" :description="testStatus.description"
-      :closable="false" show-icon class="test-status" />
+    <el-alert
+      v-if="testStatus"
+      :title="testStatus.title"
+      :type="testStatus.type"
+      :description="testStatus.description"
+      :closable="false"
+      show-icon
+      class="test-status"
+    />
   </div>
 </template>
 

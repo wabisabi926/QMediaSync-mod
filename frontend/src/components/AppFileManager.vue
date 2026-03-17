@@ -4,13 +4,17 @@
       <template #header>
         <div class="card-header">
           <div class="header-left">
-            <h2 class="card-title hidden-md-and-down">网盘文件浏览器（实装功能：查看列表、创建文件夹、删除）</h2>
-            <p class="card-subtitle">
-              浏览和管理媒体文件，支持STRM生成、刮削整理和ED2K生成操作
-            </p>
+            <h2 class="card-title hidden-md-and-down">
+              网盘文件浏览器（实装功能：查看列表、创建文件夹、删除）
+            </h2>
+            <p class="card-subtitle">浏览和管理媒体文件，支持STRM生成、刮削整理和ED2K生成操作</p>
           </div>
           <div class="header-right">
-            <el-select v-model="pageSize" style="width: 100px; margin-right: 10px" @change="handlePageSizeChange">
+            <el-select
+              v-model="pageSize"
+              style="width: 100px; margin-right: 10px"
+              @change="handlePageSizeChange"
+            >
               <el-option label="100" :value="100" />
               <el-option label="200" :value="200" />
               <el-option label="500" :value="500" />
@@ -27,14 +31,21 @@
             <h3>网盘账号</h3>
           </div>
           <div class="account-list">
-            <div v-for="account in accountList" :key="account.id"
-              :class="['account-item', { active: selectedAccountId === account.id }]" @click="selectAccount(account)">
+            <div
+              v-for="account in accountList"
+              :key="account.id"
+              :class="['account-item', { active: selectedAccountId === account.id }]"
+              @click="selectAccount(account)"
+            >
               <div class="account-info">
                 <el-icon class="account-icon">
                   <component :is="getAccountIcon()" />
                 </el-icon>
                 <div class="account-details">
-                  <div class="account-name">{{ account.username }} <span v-if="account.source_type === '115'">({{ account.user_id }})</span></div>
+                  <div class="account-name">
+                    {{ account.username }}
+                    <span v-if="account.source_type === '115'">({{ account.user_id }})</span>
+                  </div>
                   <div class="account-type">{{ getAccountTypeName(account.source_type) }}</div>
                 </div>
               </div>
@@ -52,11 +63,24 @@
           <!-- 文件列表内容 -->
           <template v-else>
             <!-- 面包屑导航 -->
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px">
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 16px;
+              "
+            >
               <el-breadcrumb separator="/">
-                <el-breadcrumb-item @click="navigateToPath(-1)" style="cursor: pointer">根目录</el-breadcrumb-item>
-                <el-breadcrumb-item v-for="(item, index) in pathItems" :key="item.id"
-                  @click="navigateToPath(index)" style="cursor: pointer">
+                <el-breadcrumb-item @click="navigateToPath(-1)" style="cursor: pointer"
+                  >根目录</el-breadcrumb-item
+                >
+                <el-breadcrumb-item
+                  v-for="(item, index) in pathItems"
+                  :key="item.id"
+                  @click="navigateToPath(index)"
+                  style="cursor: pointer"
+                >
                   {{ item.name }}
                 </el-breadcrumb-item>
               </el-breadcrumb>
@@ -67,8 +91,13 @@
             </div>
 
             <!-- 桌面端表格 -->
-            <el-table class="hidden-md-and-down" v-loading="loading" :data="fileList" style="width: 100%"
-              @row-dblclick="handleRowDoubleClick">
+            <el-table
+              class="hidden-md-and-down"
+              v-loading="loading"
+              :data="fileList"
+              style="width: 100%"
+              @row-dblclick="handleRowDoubleClick"
+            >
               <el-table-column label="名称" min-width="300">
                 <template #default="{ row }">
                   <div style="display: flex; align-items: center; gap: 8px">
@@ -92,8 +121,12 @@
               </el-table-column>
               <el-table-column label="操作" width="120" align="center">
                 <template #default="{ row }">
-                  <el-dropdown trigger="click"
-                    @command="(command: string) => handleSingleOperation(command as FileOperationType, row)">
+                  <el-dropdown
+                    trigger="click"
+                    @command="
+                      (command: string) => handleSingleOperation(command as FileOperationType, row)
+                    "
+                  >
                     <el-button type="primary" size="small">
                       操作 <el-icon class="el-icon--right"><arrow-down /></el-icon>
                     </el-button>
@@ -102,8 +135,12 @@
                         <el-dropdown-item command="STRM_GENERATE">STRM生成</el-dropdown-item>
                         <el-dropdown-item command="SCRAPE_ORGANIZE">刮削整理</el-dropdown-item>
                         <el-dropdown-item
-                          v-if="!row.is_directory && (getFileType(row.name) === 'video' || getFileType(row.name) === 'image')"
-                          command="GENERATE_ED2K">
+                          v-if="
+                            !row.is_directory &&
+                            (getFileType(row.name) === 'video' || getFileType(row.name) === 'image')
+                          "
+                          command="GENERATE_ED2K"
+                        >
                           生成ED2K
                         </el-dropdown-item>
                         <el-dropdown-item command="DELETE" divided>删除</el-dropdown-item>
@@ -115,26 +152,52 @@
             </el-table>
 
             <!-- 移动端表格 -->
-            <el-table class="hidden-md-and-up" v-loading="loading" :data="fileList" style="width: 100%"
-              @row-dblclick="handleRowDoubleClick">
+            <el-table
+              class="hidden-md-and-up"
+              v-loading="loading"
+              :data="fileList"
+              style="width: 100%"
+              @row-dblclick="handleRowDoubleClick"
+            >
               <el-table-column type="expand" width="30">
                 <template #default="{ row }">
                   <div style="padding: 0 20px">
-                    <p><strong>大小：</strong>{{ row.is_directory ? '--' : formatFileSize(row.size) }}</p>
+                    <p>
+                      <strong>大小：</strong
+                      >{{ row.is_directory ? '--' : formatFileSize(row.size) }}
+                    </p>
                     <p><strong>修改时间：</strong>{{ formatDateTime(row.modified_time * 1000) }}</p>
                     <div style="margin-top: 10px">
-                      <el-button size="small" type="primary" @click="handleSingleOperation('STRM_GENERATE', row)">
+                      <el-button
+                        size="small"
+                        type="primary"
+                        @click="handleSingleOperation('STRM_GENERATE', row)"
+                      >
                         STRM生成
                       </el-button>
-                      <el-button size="small" type="success" @click="handleSingleOperation('SCRAPE_ORGANIZE', row)">
+                      <el-button
+                        size="small"
+                        type="success"
+                        @click="handleSingleOperation('SCRAPE_ORGANIZE', row)"
+                      >
                         刮削整理
                       </el-button>
                       <el-button
-                        v-if="!row.is_directory && (getFileType(row.name) === 'video' || getFileType(row.name) === 'image')"
-                        size="small" type="warning" @click="handleSingleOperation('GENERATE_ED2K', row)">
+                        v-if="
+                          !row.is_directory &&
+                          (getFileType(row.name) === 'video' || getFileType(row.name) === 'image')
+                        "
+                        size="small"
+                        type="warning"
+                        @click="handleSingleOperation('GENERATE_ED2K', row)"
+                      >
                         生成ED2K
                       </el-button>
-                      <el-button size="small" type="danger" @click="handleSingleOperation('DELETE', row)">
+                      <el-button
+                        size="small"
+                        type="danger"
+                        @click="handleSingleOperation('DELETE', row)"
+                      >
                         删除
                       </el-button>
                     </div>
@@ -158,16 +221,27 @@
 
             <!-- 分页器 -->
             <div class="pagination-container" style="margin-top: 20px; text-align: center">
-              <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize"
-                :page-sizes="[100, 200, 500]" :total="total" layout="total, sizes, prev, pager, next, jumper"
-                @size-change="handlePageSizeChange" @current-change="handlePageChange" />
+              <el-pagination
+                v-model:current-page="currentPage"
+                v-model:page-size="pageSize"
+                :page-sizes="[100, 200, 500]"
+                :total="total"
+                layout="total, sizes, prev, pager, next, jumper"
+                @size-change="handlePageSizeChange"
+                @current-change="handlePageChange"
+              />
             </div>
           </template>
         </div>
       </div>
     </el-card>
 
-    <el-dialog v-model="showCreateDialog" title="新建文件夹" width="400px" :close-on-click-modal="false">
+    <el-dialog
+      v-model="showCreateDialog"
+      title="新建文件夹"
+      width="400px"
+      :close-on-click-modal="false"
+    >
       <el-form ref="createFormRef" :model="createForm" :rules="createRules" label-width="80px">
         <el-form-item label="文件夹名称" prop="name">
           <el-input v-model="createForm.name" placeholder="请输入文件夹名称" clearable />
@@ -183,7 +257,12 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="showStrmTargetDialog" title="选择STRM目标目录" width="600px" :close-on-click-modal="false">
+    <el-dialog
+      v-model="showStrmTargetDialog"
+      title="选择STRM目标目录"
+      width="600px"
+      :close-on-click-modal="false"
+    >
       <div class="strm-target-dialog-content">
         <p class="dialog-tip">请选择STRM文件的目标存放目录：</p>
         <div v-if="strmSourceItem" class="strm-source-info">
@@ -255,8 +334,8 @@ const createForm = ref({ name: '' })
 const createRules = ref<FormRules>({
   name: [
     { required: true, message: '请输入文件夹名称', trigger: 'blur' },
-    { min: 1, max: 255, message: '文件夹名称长度在 1 到 255 个字符', trigger: 'blur' }
-  ]
+    { min: 1, max: 255, message: '文件夹名称长度在 1 到 255 个字符', trigger: 'blur' },
+  ],
 })
 
 const showStrmTargetDialog = ref(false)
@@ -267,8 +346,10 @@ const strmGenerateLoading = ref(false)
 // 计算属性
 const strmStorePath = computed(() => {
   if (!strmTargetDir.value || !strmSourceItem.value) return ''
-  const currentPathStr = pathItems.value.map(p => p.name).join('/')
-  const itemPath = currentPathStr ? `${currentPathStr}/${strmSourceItem.value.name}` : strmSourceItem.value.name
+  const currentPathStr = pathItems.value.map((p) => p.name).join('/')
+  const itemPath = currentPathStr
+    ? `${currentPathStr}/${strmSourceItem.value.name}`
+    : strmSourceItem.value.name
   return `${strmTargetDir.value.path}/${itemPath}`
 })
 
@@ -298,7 +379,7 @@ async function loadAccountList() {
         password: item.password,
         app_id_name: item.app_id_name,
         app_id: item.app_id,
-        token_failed_reason: item.token_failed_reason || ''
+        token_failed_reason: item.token_failed_reason || '',
       }))
     } else {
       console.error('加载账号列表失败:', response?.data.message || '未知错误')
@@ -354,16 +435,17 @@ async function loadFileList() {
 
   loading.value = true
   try {
-    const currentItemId = pathItems.value.length > 0 ? pathItems.value[pathItems.value.length - 1].id : ''
+    const currentItemId =
+      pathItems.value.length > 0 ? pathItems.value[pathItems.value.length - 1].id : ''
 
     const response = await http.get(`${SERVER_URL}/path/files`, {
       params: {
         account_id: selectedAccountId.value,
         path: currentItemId,
         page: currentPage.value,
-        page_size: pageSize.value
+        page_size: pageSize.value,
       },
-      timeout: 60000
+      timeout: 60000,
     })
 
     if (response?.data.code === 200) {
@@ -376,7 +458,7 @@ async function loadFileList() {
         type: item.is_directory ? 'directory' : getFileType(item.name),
         size: item.size,
         modified_time: item.modified_time,
-        is_directory: item.is_directory
+        is_directory: item.is_directory,
       }))
       total.value = items.length
     } else {
@@ -436,9 +518,9 @@ async function handleSingleOperation(operation: FileOperationType, item: FileSys
 
   try {
     const operationMap = {
-      'STRM_GENERATE': 'STRM生成',
-      'SCRAPE_ORGANIZE': '刮削整理',
-      'GENERATE_ED2K': '生成ED2K'
+      STRM_GENERATE: 'STRM生成',
+      SCRAPE_ORGANIZE: '刮削整理',
+      GENERATE_ED2K: '生成ED2K',
     }
 
     await ElMessageBox.confirm(
@@ -447,13 +529,12 @@ async function handleSingleOperation(operation: FileOperationType, item: FileSys
       {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
-        type: 'warning'
-      }
+        type: 'warning',
+      },
     )
 
     ElMessage.info(`${operationMap[operation]} 功能开发中...`)
-  } catch {
-  }
+  } catch {}
 }
 
 async function handleDeleteItem(item: FileSystemItem) {
@@ -464,8 +545,8 @@ async function handleDeleteItem(item: FileSystemItem) {
       {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
-        type: 'warning'
-      }
+        type: 'warning',
+      },
     )
 
     if (!selectedAccountId.value) {
@@ -473,14 +554,15 @@ async function handleDeleteItem(item: FileSystemItem) {
       return
     }
 
-    const currentParentId = pathItems.value.length > 0 ? pathItems.value[pathItems.value.length - 1].id : ''
+    const currentParentId =
+      pathItems.value.length > 0 ? pathItems.value[pathItems.value.length - 1].id : ''
 
     const response = await http?.delete(`${SERVER_URL}/path`, {
       params: {
         parent_id: currentParentId,
         file_id: item.id,
-        account_id: selectedAccountId.value
-      }
+        account_id: selectedAccountId.value,
+      },
     })
 
     if (response?.data.code === 200) {
@@ -510,10 +592,12 @@ async function handleCreateDirectory() {
     await createFormRef.value.validate()
     createLoading.value = true
 
-    const currentParentId = pathItems.value.length > 0 ? pathItems.value[pathItems.value.length - 1].id : ''
-    const currentParentPath = pathItems.value.length > 0 ? pathItems.value[pathItems.value.length - 1].path : ''
+    const currentParentId =
+      pathItems.value.length > 0 ? pathItems.value[pathItems.value.length - 1].id : ''
+    const currentParentPath =
+      pathItems.value.length > 0 ? pathItems.value[pathItems.value.length - 1].path : ''
 
-    const account = accountList.value.find(a => a.id === selectedAccountId.value)
+    const account = accountList.value.find((a) => a.id === selectedAccountId.value)
 
     const response = await http?.post(`${SERVER_URL}/path/create`, {
       parent_id: currentParentId,
@@ -579,9 +663,13 @@ async function confirmStrmGenerate() {
 }
 
 // 监听路径变化
-watch([currentPath, currentPage, pageSize], () => {
-  loadFileList()
-}, { immediate: false })
+watch(
+  [currentPath, currentPage, pageSize],
+  () => {
+    loadFileList()
+  },
+  { immediate: false },
+)
 
 // 组件挂载时加载数据
 onMounted(async () => {

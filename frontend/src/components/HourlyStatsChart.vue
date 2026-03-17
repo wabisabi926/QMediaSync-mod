@@ -11,9 +11,17 @@ const { hourlyStats, hourlyStatsLoading, chartOption, loadHourlyStats } = useHou
       <div class="chart-title">
         <span class="title-icon">📈</span>
         <span>请求趋势</span>
-        <span class="chart-period">{{ hourlyStats?.start_date }} ~ {{ hourlyStats?.end_date }}</span>
+        <span class="chart-period"
+          >{{ hourlyStats?.start_date }} ~ {{ hourlyStats?.end_date }}</span
+        >
       </div>
-      <el-button type="primary" size="small" @click="loadHourlyStats" :loading="hourlyStatsLoading" round>
+      <el-button
+        type="primary"
+        size="small"
+        @click="loadHourlyStats"
+        :loading="hourlyStatsLoading"
+        round
+      >
         刷新
       </el-button>
     </div>

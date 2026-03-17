@@ -16,7 +16,7 @@ export function isMobile(): boolean {
  */
 export function onDeviceTypeChange(callback: (isMobile: boolean) => void): () => void {
   let currentIsMobile = isMobile()
-  
+
   const handleResize = () => {
     const newIsMobile = isMobile()
     if (newIsMobile !== currentIsMobile) {
@@ -26,7 +26,7 @@ export function onDeviceTypeChange(callback: (isMobile: boolean) => void): () =>
   }
 
   window.addEventListener('resize', handleResize)
-  
+
   // 返回清除监听器的函数
   return () => {
     window.removeEventListener('resize', handleResize)

@@ -42,17 +42,12 @@ const repairDatabase = async () => {
         <p class="repair-description">
           本操作会重建所有数据库表（不会影响已存在的表和数据），如果有以下问题：<br />
           日志错误提示：SQL logic error: no such table: 表名 <br />
-          日志错误提示：pg duplicate key value violates unique constraint "表名_pkey" <br /> <br />
+          日志错误提示：pg duplicate key value violates unique constraint "表名_pkey" <br />
+          <br />
 
           都可以执行修复数据库来解决问题。
         </p>
-        <el-button
-          type="primary"
-          size="large"
-          :loading="loading"
-          @click="repairDatabase"
-          round
-        >
+        <el-button type="primary" size="large" :loading="loading" @click="repairDatabase" round>
           {{ loading ? '修复中...' : '修复数据库' }}
         </el-button>
       </div>

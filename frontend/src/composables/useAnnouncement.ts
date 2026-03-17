@@ -45,6 +45,6 @@ export function useAnnouncement() {
   return {
     announcementList,
     announcementLoading,
-    loadAnnouncements
+    loadAnnouncements,
   }
 }

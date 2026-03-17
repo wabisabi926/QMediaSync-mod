@@ -7,7 +7,12 @@
       <span>备份配置</span>
     </div>
 
-    <el-form ref="configFormRef" :model="configForm" label-width="120px" :label-position="isMobile ? 'top' : 'right'">
+    <el-form
+      ref="configFormRef"
+      :model="configForm"
+      label-width="120px"
+      :label-position="isMobile ? 'top' : 'right'"
+    >
       <el-form-item label="启用自动备份">
         <el-switch v-model="configForm.backup_enabled" :active-value="1" :inactive-value="0" />
       </el-form-item>
@@ -25,19 +30,27 @@
       </el-form-item>
 
       <el-form-item label="保留天数" required>
-        <el-input-number v-model="configForm.backup_retention" :min="1" :max="365" controls-position="right" />
+        <el-input-number
+          v-model="configForm.backup_retention"
+          :min="1"
+          :max="365"
+          controls-position="right"
+        />
         <span style="margin-left: 8px; color: #909399">天</span>
       </el-form-item>
 
       <el-form-item label="最大备份数" required>
-        <el-input-number v-model="configForm.backup_max_count" :min="1" :max="100" controls-position="right" />
+        <el-input-number
+          v-model="configForm.backup_max_count"
+          :min="1"
+          :max="100"
+          controls-position="right"
+        />
         <span style="margin-left: 8px; color: #909399">个</span>
       </el-form-item>
 
       <el-form-item>
-        <el-button type="primary" :loading="configSaving" @click="saveConfig">
-          保存配置
-        </el-button>
+        <el-button type="primary" :loading="configSaving" @click="saveConfig"> 保存配置 </el-button>
       </el-form-item>
     </el-form>
   </div>
@@ -73,9 +86,7 @@ const loadBackupConfig = async () => {
   if (!http) return
 
   try {
-    const res = await http.get<{ code: number; data: BackupConfig }>(
-      `${SERVER_URL}/backup/config`
-    )
+    const res = await http.get<{ code: number; data: BackupConfig }>(`${SERVER_URL}/backup/config`)
 
     if (res.data.code === API_SUCCESS_CODE && res.data.data) {
       const config = res.data.data
@@ -142,13 +153,16 @@ const loadCronTimes = async () => {
   }
 }
 
-watch(() => configForm.backup_cron, (newCron) => {
-  if (newCron && newCron.trim()) {
-    loadCronTimes()
-  } else {
-    cronTimes.value = []
-  }
-})
+watch(
+  () => configForm.backup_cron,
+  (newCron) => {
+    if (newCron && newCron.trim()) {
+      loadCronTimes()
+    } else {
+      cronTimes.value = []
+    }
+  },
+)
 
 onMounted(() => {
   loadBackupConfig()

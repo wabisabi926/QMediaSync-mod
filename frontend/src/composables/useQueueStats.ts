@@ -72,6 +72,6 @@ export function useQueueStats(pollingInterval = 3000) {
     queueStatsLoading,
     loadQueueStats,
     startPolling,
-    stopPolling
+    stopPolling,
   }
 }

@@ -37,20 +37,28 @@
                 <div class="info-item">
                   <span class="info-label">语言:</span>
                   <span class="info-value">
-                    {{row.language_array && row.language_array.length > 0 ? row.language_array.map((l: string) =>
-                      getLanguageName(l)).join(', ') : '全部语言' }}
+                    {{
+                      row.language_array && row.language_array.length > 0
+                        ? row.language_array.map((l: string) => getLanguageName(l)).join(', ')
+                        : '全部语言'
+                    }}
                   </span>
                 </div>
                 <div class="info-item">
                   <span class="info-label">类别:</span>
                   <span class="info-value">
-                    {{row.genre_id_array && row.genre_id_array.length > 0 ? row.genre_id_array.map((g: number) =>
-                      getMovieGenreName(g)).join(', ') : '全部分类' }}
+                    {{
+                      row.genre_id_array && row.genre_id_array.length > 0
+                        ? row.genre_id_array.map((g: number) => getMovieGenreName(g)).join(', ')
+                        : '全部分类'
+                    }}
                   </span>
                 </div>
                 <div class="info-item">
                   <span class="info-label">创建时间:</span>
-                  <span class="info-value">{{ formatDateTime(row.created_at ? row.created_at : 0) }}</span>
+                  <span class="info-value">{{
+                    formatDateTime(row.created_at ? row.created_at : 0)
+                  }}</span>
                 </div>
               </div>
 
@@ -117,20 +125,28 @@
                 <div class="info-item">
                   <span class="info-label">国家或地区:</span>
                   <span class="info-value">
-                    {{row.country_array && row.country_array.length > 0 ? row.country_array.map((c: string) =>
-                      getCountryName(c)).join(', ') : '全部国家' }}
+                    {{
+                      row.country_array && row.country_array.length > 0
+                        ? row.country_array.map((c: string) => getCountryName(c)).join(', ')
+                        : '全部国家'
+                    }}
                   </span>
                 </div>
                 <div class="info-item">
                   <span class="info-label">类别:</span>
                   <span class="info-value">
-                    {{row.genre_id_array && row.genre_id_array.length > 0 ? row.genre_id_array.map((g: number) =>
-                      getTvshowGenreName(g)).join(', ') : '全部分类' }}
+                    {{
+                      row.genre_id_array && row.genre_id_array.length > 0
+                        ? row.genre_id_array.map((g: number) => getTvshowGenreName(g)).join(', ')
+                        : '全部分类'
+                    }}
                   </span>
                 </div>
                 <div class="info-item">
                   <span class="info-label">创建时间:</span>
-                  <span class="info-value">{{ formatDateTime(row.created_at ? row.created_at : 0) }}</span>
+                  <span class="info-value">{{
+                    formatDateTime(row.created_at ? row.created_at : 0)
+                  }}</span>
                 </div>
               </div>
 
@@ -171,25 +187,54 @@
     </el-tabs>
 
     <!-- 添加/编辑弹窗 -->
-    <el-dialog v-model="dialogVisible" :title="dialogType === 'add' ? '添加分类' : '编辑分类'" width="500px"
-      @close="handleDialogClose">
+    <el-dialog
+      v-model="dialogVisible"
+      :title="dialogType === 'add' ? '添加分类' : '编辑分类'"
+      width="500px"
+      @close="handleDialogClose"
+    >
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
         <el-form-item label="分类名称" prop="name">
           <el-input v-model="formData.name" placeholder="请输入分类名称" />
         </el-form-item>
 
         <el-form-item :label="editingType === 'movie' ? '语言' : '国家'" prop="languages">
-          <el-select v-model="formData.languages" multiple collapse-tags filterable
-            :placeholder="editingType === 'movie' ? '请输入语言名称搜索或选择（多选）' : '请输入国家名称搜索或选择（多选）'" style="width: 100%">
-            <el-option v-for="item in (editingType === 'movie' ? languages : countries)" :key="item.code"
-              :label="item.name" :value="item.code" />
+          <el-select
+            v-model="formData.languages"
+            multiple
+            collapse-tags
+            filterable
+            :placeholder="
+              editingType === 'movie'
+                ? '请输入语言名称搜索或选择（多选）'
+                : '请输入国家名称搜索或选择（多选）'
+            "
+            style="width: 100%"
+          >
+            <el-option
+              v-for="item in editingType === 'movie' ? languages : countries"
+              :key="item.code"
+              :label="item.name"
+              :value="item.code"
+            />
           </el-select>
         </el-form-item>
 
         <el-form-item label="类别" prop="genres">
-          <el-select v-model="formData.genres" multiple collapse-tags filterable placeholder="请输入类别名称搜索或选择（多选）"
-            style="width: 100%">
-            <el-option v-for="genre in currentGenres" :key="genre.id" :label="genre.name" :value="genre.id" />
+          <el-select
+            v-model="formData.genres"
+            multiple
+            collapse-tags
+            filterable
+            placeholder="请输入类别名称搜索或选择（多选）"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="genre in currentGenres"
+              :key="genre.id"
+              :label="genre.name"
+              :value="genre.id"
+            />
           </el-select>
         </el-form-item>
       </el-form>
@@ -224,7 +269,7 @@ interface category {
   name: string
   language_array?: string[]
   country_array?: string[]
-  genre_id_array: number[],
+  genre_id_array: number[]
   created_at?: number
 }
 
@@ -255,14 +300,12 @@ const formData = reactive({
   id: 0,
   name: '',
   languages: [] as string[],
-  genres: [] as number[]
+  genres: [] as number[],
 })
 
 // 表单验证规则
 const formRules = {
-  name: [
-    { required: true, message: '请输入分类名称', trigger: 'blur' }
-  ]
+  name: [{ required: true, message: '请输入分类名称', trigger: 'blur' }],
 }
 
 // 计算属性
@@ -272,22 +315,22 @@ const currentGenres = computed(() => {
 
 // 方法
 const getLanguageName = (code: string) => {
-  const lang = languages.value.find(l => l.code === code.toLowerCase())
+  const lang = languages.value.find((l) => l.code === code.toLowerCase())
   return lang ? lang.name : code
 }
 
 const getCountryName = (code: string) => {
-  const country = countries.value.find(c => c.code === code)
+  const country = countries.value.find((c) => c.code === code)
   return country ? country.name : code
 }
 
 const getMovieGenreName = (id: number): string => {
-  const genre = movieGenres.value.find(g => g.id === id)
+  const genre = movieGenres.value.find((g) => g.id === id)
   return genre ? genre.name : id.toString()
 }
 
 const getTvshowGenreName = (id: number): string => {
-  const genre = tvshowGenres.value.find(g => g.id === id)
+  const genre = tvshowGenres.value.find((g) => g.id === id)
   return genre ? genre.name : id.toString()
 }
 
@@ -355,7 +398,7 @@ const loadCategories = async () => {
         language_array: item.language_array || [],
         country_array: item.country_array || [],
         genre_id_array: item.genre_id_array || [],
-        created_at: item.created_at
+        created_at: item.created_at,
       }))
 
       if (type === 'movie') {
@@ -401,15 +444,11 @@ const handleEdit = (type: 'movie' | 'tvshow', row: category) => {
 
 const handleDelete = async (type: 'movie' | 'tvshow', id: number) => {
   try {
-    await ElMessageBox.confirm(
-      '确定要删除该分类吗？',
-      '确认删除',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
+    await ElMessageBox.confirm('确定要删除该分类吗？', '确认删除', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
 
     const response = await http?.delete(`${SERVER_URL}/scrape/${type}-categories/${id}`)
     if (response?.data?.code === 200) {
@@ -449,7 +488,7 @@ const handleSubmit = async () => {
     const payload: category = {
       id: 0,
       name: formData.name,
-      genre_id_array: formData.genres
+      genre_id_array: formData.genres,
     }
 
     // 根据类型添加不同的数组字段
@@ -472,7 +511,11 @@ const handleSubmit = async () => {
       dialogVisible.value = false
       loadCategories()
     } else {
-      ElMessage.error((dialogType.value === 'add' ? '添加失败' : '编辑失败') + ': ' + (response?.data?.msg || '未知错误'))
+      ElMessage.error(
+        (dialogType.value === 'add' ? '添加失败' : '编辑失败') +
+          ': ' +
+          (response?.data?.msg || '未知错误'),
+      )
     }
   } catch (error: unknown) {
     if (error !== false) {
@@ -488,7 +531,7 @@ onMounted(async () => {
     loadCountries(),
     loadMovieGenres(),
     loadTvshowGenres(),
-    loadCategories()
+    loadCategories(),
   ])
 })
 </script>

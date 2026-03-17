@@ -3,20 +3,28 @@
     <div class="card-header">
       <div>
         <h2 class="hidden-md-and-down">下载队列</h2>
-        <p>strm同步时会下载元数据，这里是下载队列，可以观察下载进度或者清空下载队列（每隔一段时间会继续未完成的下载，除非关闭元数据下载）</p>
+        <p>
+          strm同步时会下载元数据，这里是下载队列，可以观察下载进度或者清空下载队列（每隔一段时间会继续未完成的下载，除非关闭元数据下载）
+        </p>
         <p>来源是"Emby媒体信息提取"的记录不会真正下载，只是触发Emby媒体信息提取。</p>
       </div>
       <div class="header-actions">
         <el-button type="info" @click="refreshQueue">刷新</el-button>
-        <el-button type="success" @click="pauseAllTasks" :disabled="queueStatus === 0">全部暂停</el-button>
-        <el-button type="primary" @click="resumeAllTasks" :disabled="queueStatus === 1">全部开始</el-button>
+        <el-button type="success" @click="pauseAllTasks" :disabled="queueStatus === 0"
+          >全部暂停</el-button
+        >
+        <el-button type="primary" @click="resumeAllTasks" :disabled="queueStatus === 1"
+          >全部开始</el-button
+        >
         <el-button type="warning" @click="clearQueue">清空等待中的任务</el-button>
-        <el-button type="danger" @click="clearSuccessAndFailedTasks">清空成功和失败的任务</el-button>
+        <el-button type="danger" @click="clearSuccessAndFailedTasks"
+          >清空成功和失败的任务</el-button
+        >
       </div>
     </div>
 
-    <div style="display:flex; gap: 20px; align-items: center;">
-      <div class="filter-container" style="width: 120px;">
+    <div style="display: flex; gap: 20px; align-items: center">
+      <div class="filter-container" style="width: 120px">
         <el-select v-model="statusFilter" placeholder="请选择状态" @change="handleStatusChange">
           <el-option label="全部状态" :value="-1"></el-option>
           <el-option label="等待中" :value="0"></el-option>
@@ -37,8 +45,15 @@
         </el-statistic>
       </div>
     </div>
-    <el-table :data="queueData" style="width: 100%" v-loading="loading" empty-text="暂无下载任务"
-      :row-class-name="tableRowClassName" height="calc(100vh - 500px)" class="hidden-md-and-up">
+    <el-table
+      :data="queueData"
+      style="width: 100%"
+      v-loading="loading"
+      empty-text="暂无下载任务"
+      :row-class-name="tableRowClassName"
+      height="calc(100vh - 500px)"
+      class="hidden-md-and-up"
+    >
       <el-table-column type="expand" width="30">
         <template #default="scope">
           <el-descriptions class="margin-top" :column="2" border size="small">
@@ -76,8 +91,15 @@
         </template>
       </el-table-column>
     </el-table>
-    <el-table :data="queueData" style="width: 100%" v-loading="loading" empty-text="暂无下载任务"
-      :row-class-name="tableRowClassName" height="calc(100vh - 300px)" class="hidden-md-and-down">
+    <el-table
+      :data="queueData"
+      style="width: 100%"
+      v-loading="loading"
+      empty-text="暂无下载任务"
+      :row-class-name="tableRowClassName"
+      height="calc(100vh - 300px)"
+      class="hidden-md-and-down"
+    >
       <el-table-column prop="id" label="ID" width="80" />
       <el-table-column prop="source" label="下载来源" width="80" />
       <el-table-column prop="status" label="状态" width="120">
@@ -129,13 +151,21 @@
           <span>{{ scope.row.local_full_path }}</span>
         </template>
       </el-table-column>
-
     </el-table>
 
-    <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :page-sizes="[10, 20, 50, 100]"
-      :small="false" :disabled="false" :background="true" layout="total, sizes, prev, pager, next, jumper"
-      :total="total" @size-change="handleSizeChange" @current-change="handleCurrentChange"
-      class="pagination-container" />
+    <el-pagination
+      v-model:current-page="currentPage"
+      v-model:page-size="pageSize"
+      :page-sizes="[10, 20, 50, 100]"
+      :small="false"
+      :disabled="false"
+      :background="true"
+      layout="total, sizes, prev, pager, next, jumper"
+      :total="total"
+      @size-change="handleSizeChange"
+      @current-change="handleCurrentChange"
+      class="pagination-container"
+    />
   </div>
 </template>
 
@@ -199,7 +229,9 @@ const getStatusText = (status: number): string => {
 }
 
 // 获取状态标签类型
-const getStatusTagType = (status: number): 'primary' | 'success' | 'warning' | 'danger' | 'info' => {
+const getStatusTagType = (
+  status: number,
+): 'primary' | 'success' | 'warning' | 'danger' | 'info' => {
   switch (status) {
     case 0:
       return 'info'
@@ -267,7 +299,7 @@ const loadQueueData = async () => {
       params: {
         page: currentPage.value,
         page_size: pageSize.value,
-        status: statusFilter.value
+        status: statusFilter.value,
       },
     })
 
@@ -298,7 +330,7 @@ const clearQueue = async () => {
     await ElMessageBox.confirm('只能清空所有等待下载的数据，此操作不可恢复，是否继续？', '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
-      type: 'warning'
+      type: 'warning',
     })
 
     const response = await http?.post(`${SERVER_URL}/download/queue/clear-pending`)
@@ -316,11 +348,15 @@ const clearQueue = async () => {
 
 const clearSuccessAndFailedTasks = async () => {
   try {
-    await ElMessageBox.confirm('只能清空所有已完成和失败的数据，此操作不可恢复，是否继续？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
+    await ElMessageBox.confirm(
+      '只能清空所有已完成和失败的数据，此操作不可恢复，是否继续？',
+      '提示',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      },
+    )
 
     const response = await http?.post(`${SERVER_URL}/download/queue/clear-success-failed`)
 

@@ -69,6 +69,7 @@ const icon = getFileIconByName('movie.mp4') // returns 'VideoPlay'
 ```
 
 **支持的文件类型：**
+
 - **视频文件**：mp4, mkv, avi, mov, wmv, flv, m4v, webm, ts, rmvb, rm, 3gp, mpg, mpeg
-- **图片文件**：jpg, jpeg, png, gif, bmp, webp, svg, ico, tiff, tga  
+- **图片文件**：jpg, jpeg, png, gif, bmp, webp, svg, ico, tiff, tga
 - **NFO文件**：nfo

@@ -1,10 +1,6 @@
 <template>
   <div class="main-content-container api-keys-container">
-    <el-alert
-      type="info"
-      :closable="false"
-      show-icon
-    >
+    <el-alert type="info" :closable="false" show-icon>
       <template #title>
         API Key 认证已启用，可通过在请求中追加 api_key 使用所有需要认证的接口。
       </template>
@@ -12,12 +8,8 @@
     </el-alert>
 
     <div class="action-bar">
-      <el-button type="primary" :icon="Plus" @click="openCreateDialog">
-        生成 API Key
-      </el-button>
-      <el-button :icon="Refresh" @click="loadKeys" :loading="loading">
-        刷新
-      </el-button>
+      <el-button type="primary" :icon="Plus" @click="openCreateDialog"> 生成 API Key </el-button>
+      <el-button :icon="Refresh" @click="loadKeys" :loading="loading"> 刷新 </el-button>
     </div>
 
     <el-table
@@ -57,12 +49,7 @@
       </el-table-column>
       <el-table-column label="操作" width="140" fixed="right">
         <template #default="{ row }">
-          <el-button
-            type="danger"
-            size="small"
-            :icon="Delete"
-            @click="confirmDelete(row)"
-          >
+          <el-button type="danger" size="small" :icon="Delete" @click="confirmDelete(row)">
             删除
           </el-button>
         </template>
@@ -93,9 +80,7 @@
 
     <template #footer>
       <el-button @click="createDialogVisible = false">取消</el-button>
-      <el-button type="primary" :loading="creating" @click="createKey">
-        生成
-      </el-button>
+      <el-button type="primary" :loading="creating" @click="createKey"> 生成 </el-button>
     </template>
   </el-dialog>
 
@@ -107,10 +92,10 @@
     :close-on-press-escape="false"
   >
     <el-alert type="warning" show-icon :closable="false" class="created-warning">
-      <template #title>
-        只会显示一次，关闭后无法再次查看完整密钥。
-      </template>
-      <p class="alert-tip">调用接口时在 URL 追加 api_key 参数即可使用，例如 /api/user/info?api_key=...</p>
+      <template #title> 只会显示一次，关闭后无法再次查看完整密钥。 </template>
+      <p class="alert-tip">
+        调用接口时在 URL 追加 api_key 参数即可使用，例如 /api/user/info?api_key=...
+      </p>
     </el-alert>
 
     <div class="created-key-box" v-if="createdKey">
@@ -118,12 +103,7 @@
         <span class="key-label">完整密钥</span>
         <div class="key-value">
           <el-input v-model="createdKey.key" readonly />
-          <el-button
-            type="primary"
-            plain
-            :icon="CopyDocument"
-            @click="copyContent(createdKey.key)"
-          >
+          <el-button type="primary" plain :icon="CopyDocument" @click="copyContent(createdKey.key)">
             复制
           </el-button>
         </div>
@@ -136,9 +116,7 @@
     </div>
 
     <template #footer>
-      <el-button type="primary" @click="createdKeyDialogVisible = false">
-        我已妥善保存
-      </el-button>
+      <el-button type="primary" @click="createdKeyDialogVisible = false"> 我已妥善保存 </el-button>
     </template>
   </el-dialog>
 </template>

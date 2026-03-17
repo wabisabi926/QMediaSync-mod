@@ -20,13 +20,13 @@ const {
   updateToVersion,
   cancelUpdate,
   handleDownloadClick,
-  manuallyRefresh
+  manuallyRefresh,
 } = useUpdate()
 
 const md = new MarkdownIt({
   html: true,
   breaks: true,
-  linkify: true
+  linkify: true,
 })
 
 const renderMarkdown = (content: string): string => {
@@ -41,14 +41,24 @@ const renderMarkdown = (content: string): string => {
         <span class="title-icon">🚀</span>
         <span>版本更新</span>
       </div>
-      <el-button type="primary" size="small" @click="loadUpdateList(true)" :loading="updateLoading" round>
+      <el-button
+        type="primary"
+        size="small"
+        @click="loadUpdateList(true)"
+        :loading="updateLoading"
+        round
+      >
         刷新
       </el-button>
     </div>
 
     <div v-if="updateList.length > 0" class="update-list">
       <el-collapse v-model="activeNames" class="update-collapse">
-        <el-collapse-item v-for="(update, index) in updateList" :key="index" :name="`update-${index}`">
+        <el-collapse-item
+          v-for="(update, index) in updateList"
+          :key="index"
+          :name="`update-${index}`"
+        >
           <template #title>
             <div class="update-title-row">
               <div class="update-version">
@@ -57,7 +67,9 @@ const renderMarkdown = (content: string): string => {
               </div>
               <div class="update-tags">
                 <el-tag v-if="update.latest" type="success" size="small" effect="dark">最新</el-tag>
-                <el-tag v-if="update.current" type="primary" size="small" effect="dark">当前</el-tag>
+                <el-tag v-if="update.current" type="primary" size="small" effect="dark"
+                  >当前</el-tag
+                >
               </div>
             </div>
           </template>
@@ -67,20 +79,37 @@ const renderMarkdown = (content: string): string => {
               <el-button type="default" size="small" @click="handleDownloadClick(update)" round>
                 手动下载
               </el-button>
-              <el-button type="primary" size="small" @click="updateToVersion(update.version)" :disabled="isUpdating" round>
+              <el-button
+                type="primary"
+                size="small"
+                @click="updateToVersion(update.version)"
+                :disabled="isUpdating"
+                round
+              >
                 在线更新
               </el-button>
             </div>
 
             <div v-if="isUpdating && update.version === updatingVersion" class="update-progress">
-              <el-progress :percentage="updateProgress.progress" :stroke-width="8" :show-text="false" />
+              <el-progress
+                :percentage="updateProgress.progress"
+                :stroke-width="8"
+                :show-text="false"
+              />
               <div class="progress-info">
-                <span>{{ formatFileSize(updateProgress.downloaded) }} / {{ formatFileSize(updateProgress.total_size) }}</span>
-                <span>{{ updateProgress.status === 'downloading' ? '下载中' : updateProgress.status === 'install' ? '安装中' : '' }}</span>
+                <span
+                  >{{ formatFileSize(updateProgress.downloaded) }} /
+                  {{ formatFileSize(updateProgress.total_size) }}</span
+                >
+                <span>{{
+                  updateProgress.status === 'downloading'
+                    ? '下载中'
+                    : updateProgress.status === 'install'
+                      ? '安装中'
+                      : ''
+                }}</span>
               </div>
-              <el-button type="danger" size="small" @click="cancelUpdate" round>
-                取消
-              </el-button>
+              <el-button type="danger" size="small" @click="cancelUpdate" round> 取消 </el-button>
             </div>
           </div>
         </el-collapse-item>
@@ -93,23 +122,32 @@ const renderMarkdown = (content: string): string => {
   </div>
 
   <!-- 更新完成弹窗 -->
-  <el-dialog v-model="showUpdateCompleteDialog" title="正在安装更新" class="update-complete-dialog"
-    :close-on-click-modal="false" :close-on-press-escape="false" show-close="false" :destroy-on-close="true">
+  <el-dialog
+    v-model="showUpdateCompleteDialog"
+    title="正在安装更新"
+    class="update-complete-dialog"
+    :close-on-click-modal="false"
+    :close-on-press-escape="false"
+    show-close="false"
+    :destroy-on-close="true"
+  >
     <div class="dialog-content">
       <el-icon>
         <CircleCheck />
       </el-icon>
       <h3>安装包已下载，正在更新中</h3>
-      <p>系统将在 <strong>{{ countdown }}</strong> 秒后自动刷新页面</p>
+      <p>
+        系统将在 <strong>{{ countdown }}</strong> 秒后自动刷新页面
+      </p>
       <div class="dialog-tips">
-        <p>提示：刷新页面后，新版本将生效。如未生效，请手动刷新或手动下载最新版本，如果是docker可以更新镜像</p>
+        <p>
+          提示：刷新页面后，新版本将生效。如未生效，请手动刷新或手动下载最新版本，如果是docker可以更新镜像
+        </p>
       </div>
     </div>
     <template #footer>
       <div class="dialog-footer">
-        <el-button type="primary" @click="manuallyRefresh">
-          立即刷新
-        </el-button>
+        <el-button type="primary" @click="manuallyRefresh"> 立即刷新 </el-button>
       </div>
     </template>
   </el-dialog>

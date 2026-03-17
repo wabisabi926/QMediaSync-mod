@@ -24,21 +24,44 @@
       <!-- 批量删除控制 -->
       <div style="display: flex; align-items: center; margin-bottom: 8px; gap: 12px">
         <el-checkbox v-model="batchMode" size="large">批量删除</el-checkbox>
-        <el-button v-if="batchMode" type="danger" size="small" :disabled="selectedIds.length === 0"
-          :loading="batchDeleteLoading" @click="batchDeleteRecords">
+        <el-button
+          v-if="batchMode"
+          type="danger"
+          size="small"
+          :disabled="selectedIds.length === 0"
+          :loading="batchDeleteLoading"
+          @click="batchDeleteRecords"
+        >
           批量删除
         </el-button>
       </div>
-      <el-table :data="syncRecords" v-loading="tableLoading" stripe class="sync-table mobile-table"
-        empty-text="暂无同步记录" :show-overflow-tooltip="true" @selection-change="handleSelectionChange"
-        height="calc(100vh - 250px)" style="width: 100%">
-        <el-table-column v-if="batchMode" type="selection" width="30" align="center" :selectable="isDeletableRecord" />
+      <el-table
+        :data="syncRecords"
+        v-loading="tableLoading"
+        stripe
+        class="sync-table mobile-table"
+        empty-text="暂无同步记录"
+        :show-overflow-tooltip="true"
+        @selection-change="handleSelectionChange"
+        height="calc(100vh - 250px)"
+        style="width: 100%"
+      >
+        <el-table-column
+          v-if="batchMode"
+          type="selection"
+          width="30"
+          align="center"
+          :selectable="isDeletableRecord"
+        />
         <el-table-column type="expand" width="30">
           <template #default="scope">
             <el-descriptions class="margin-top" :column="2" border size="small">
               <el-descriptions-item label="来源类型">{{ scope.row.source }}</el-descriptions-item>
               <el-descriptions-item label="状态">
-                <el-tag :type="getStatusType(scope.row.status)" :effect="scope.row.status === 1 ? 'dark' : 'light'">
+                <el-tag
+                  :type="getStatusType(scope.row.status)"
+                  :effect="scope.row.status === 1 ? 'dark' : 'light'"
+                >
                   {{ getStatusText(scope.row.status) }}
                 </el-tag>
               </el-descriptions-item>
@@ -71,22 +94,45 @@
             <el-button type="primary" size="small" @click="viewTaskDetail(scope.row.id)" link>
               查看
             </el-button>
-            <el-button v-if="isDeletableRecord(scope.row) && !batchMode" type="danger" size="small"
-              style="margin-left: 4px" :loading="deleteLoading" @click="deleteRecord(scope.row.id)" link>
+            <el-button
+              v-if="isDeletableRecord(scope.row) && !batchMode"
+              type="danger"
+              size="small"
+              style="margin-left: 4px"
+              :loading="deleteLoading"
+              @click="deleteRecord(scope.row.id)"
+              link
+            >
               删除
             </el-button>
           </template>
         </el-table-column>
       </el-table>
       <!-- 同步记录表格 -->
-      <el-table :data="syncRecords" v-loading="tableLoading" stripe class="sync-table desktop-table"
-        empty-text="暂无同步记录" :show-overflow-tooltip="true" @selection-change="handleSelectionChange"
-        height="calc(100vh - 350px)">
-        <el-table-column v-if="batchMode" type="selection" width="50" align="center" :selectable="isDeletableRecord" />
+      <el-table
+        :data="syncRecords"
+        v-loading="tableLoading"
+        stripe
+        class="sync-table desktop-table"
+        empty-text="暂无同步记录"
+        :show-overflow-tooltip="true"
+        @selection-change="handleSelectionChange"
+        height="calc(100vh - 350px)"
+      >
+        <el-table-column
+          v-if="batchMode"
+          type="selection"
+          width="50"
+          align="center"
+          :selectable="isDeletableRecord"
+        />
         <el-table-column prop="id" label="任务ID" width="80" />
         <el-table-column prop="status" label="状态" width="90">
           <template #default="scope">
-            <el-tag :type="getStatusType(scope.row.status)" :effect="scope.row.status === 1 ? 'dark' : 'light'">
+            <el-tag
+              :type="getStatusType(scope.row.status)"
+              :effect="scope.row.status === 1 ? 'dark' : 'light'"
+            >
               {{ getStatusText(scope.row.status) }}
             </el-tag>
           </template>
@@ -123,7 +169,13 @@
 
         <el-table-column prop="processed_files" label="总文件数" width="120" align="center" />
         <el-table-column prop="created_strm" label="新增STRM数" width="120" align="center" />
-        <el-table-column prop="downloaded_meta" label="下载元数据数" width="140" align="center" class-name="hidden-xs" />
+        <el-table-column
+          prop="downloaded_meta"
+          label="下载元数据数"
+          width="140"
+          align="center"
+          class-name="hidden-xs"
+        />
         <el-table-column prop="fail_reason" label="失败原因" width="200" show-overflow-tooltip>
           <template #default="scope">
             <span v-if="scope.row.status === 3 && scope.row.fail_reason" class="fail-reason-text">
@@ -137,8 +189,15 @@
             <el-button type="primary" size="small" @click="viewTaskDetail(scope.row.id)" link>
               查看
             </el-button>
-            <el-button v-if="isDeletableRecord(scope.row) && !batchMode" type="danger" size="small"
-              style="margin-left: 4px" :loading="deleteLoading" @click="deleteRecord(scope.row.id)" link>
+            <el-button
+              v-if="isDeletableRecord(scope.row) && !batchMode"
+              type="danger"
+              size="small"
+              style="margin-left: 4px"
+              :loading="deleteLoading"
+              @click="deleteRecord(scope.row.id)"
+              link
+            >
               删除
             </el-button>
           </template>
@@ -146,9 +205,17 @@
       </el-table>
 
       <!-- 分页器 -->
-      <el-pagination v-if="total > 0" v-model:current-page="currentPage" v-model:page-size="pageSize" :total="total"
-        :page-sizes="[10, 20, 50, 100]" layout="total, sizes, prev, pager, next, jumper" class="sync-pagination"
-        @size-change="handleSizeChange" @current-change="handleCurrentChange" />
+      <el-pagination
+        v-if="total > 0"
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :total="total"
+        :page-sizes="[10, 20, 50, 100]"
+        layout="total, sizes, prev, pager, next, jumper"
+        class="sync-pagination"
+        @size-change="handleSizeChange"
+        @current-change="handleCurrentChange"
+      />
     </div>
   </div>
 </template>
@@ -166,7 +233,7 @@ interface SyncRecord {
   start_time: number
   end_time: number | null
   status: 0 | 1 | 2 | 3 // 0-待开始，1-运行中，2-完成，3-失败
-  sub_status: 0 | 1 | 2// 0-待开始，1-正在处理网盘文件，2-正在处理本地文件
+  sub_status: 0 | 1 | 2 // 0-待开始，1-正在处理网盘文件，2-正在处理本地文件
   processed_files: number
   created_strm: number
   downloaded_meta: number
@@ -400,7 +467,8 @@ onUnmounted(() => {
 })
 
 // 判断记录是否可删除（完成或失败）
-const isDeletableRecord = (row: SyncRecord) => row.status === 2 || row.status === 3 || row.status === 0
+const isDeletableRecord = (row: SyncRecord) =>
+  row.status === 2 || row.status === 3 || row.status === 0
 
 // 单条删除，无需确认
 const deleteRecord = async (id: number) => {
@@ -607,14 +675,15 @@ watch(batchMode, (val) => {
   word-break: break-all;
 }
 
-.mobile-table, .mobile-pagination {
+.mobile-table,
+.mobile-pagination {
   display: none;
 }
 
-.desktop-table, .desktop-pagination {
+.desktop-table,
+.desktop-pagination {
   display: table;
 }
-
 
 /* 移动端适配 */
 @media (max-width: 768px) {
@@ -674,21 +743,25 @@ watch(batchMode, (val) => {
     flex-wrap: wrap;
     gap: 8px;
   }
-  .mobile-table, .mobile-pagination {
+  .mobile-table,
+  .mobile-pagination {
     display: table;
   }
 
-  .desktop-table, .desktop-pagination {
+  .desktop-table,
+  .desktop-pagination {
     display: none;
   }
 }
 
 @media (min-width: 769px) {
-  .mobile-table, .mobile-pagination {
+  .mobile-table,
+  .mobile-pagination {
     display: none;
   }
 
-  .desktop-table, .desktop-pagination {
+  .desktop-table,
+  .desktop-pagination {
     display: table;
   }
 }
@@ -717,5 +790,4 @@ watch(batchMode, (val) => {
     font-size: 11px;
   }
 }
-
 </style>

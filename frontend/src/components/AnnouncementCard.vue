@@ -39,7 +39,11 @@ const isExpanded = (index: number): boolean => {
 </script>
 
 <template>
-  <div v-if="announcementList.length > 0" class="announcement-section" v-loading="announcementLoading">
+  <div
+    v-if="announcementList.length > 0"
+    class="announcement-section"
+    v-loading="announcementLoading"
+  >
     <div class="section-header">
       <div class="section-title">
         <span class="title-icon">📢</span>
@@ -58,10 +62,7 @@ const isExpanded = (index: number): boolean => {
           <div class="announcement-time">{{ announcement.time }}</div>
         </div>
         <div class="announcement-content">
-          <div
-            class="content-text"
-            :class="{ 'is-expanded': isExpanded(index) }"
-          >
+          <div class="content-text" :class="{ 'is-expanded': isExpanded(index) }">
             <div v-html="announcement.content"></div>
           </div>
           <!-- <el-button
@@ -161,5 +162,4 @@ const isExpanded = (index: number): boolean => {
   white-space: pre-wrap;
   word-break: break-word;
 }
-
 </style>

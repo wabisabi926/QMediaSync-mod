@@ -2,10 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { AxiosStatic } from 'axios'
-import type {
-  BackupTaskType,
-  BackupProgress,
-} from '@/typing'
+import type { BackupTaskType, BackupProgress } from '@/typing'
 import { SERVER_URL } from '@/const'
 
 export const useBackupStore = defineStore('backup', () => {
@@ -20,7 +17,7 @@ export const useBackupStore = defineStore('backup', () => {
 
   const isRunning = computed(() => progress.value?.running === true)
   const canCancel = computed(
-    () => taskType.value === 'backup' && progress.value?.status === 'running'
+    () => taskType.value === 'backup' && progress.value?.status === 'running',
   )
 
   // const checkBackupStatus = async (http?: AxiosStatic) => {
@@ -40,11 +37,7 @@ export const useBackupStore = defineStore('backup', () => {
   //   }
   // }
 
-  const startProgressPolling = (
-    type: 'backup' | 'restore',
-    id?: number,
-    http?: AxiosStatic
-  ) => {
+  const startProgressPolling = (type: 'backup' | 'restore', id?: number, http?: AxiosStatic) => {
     if (!http) return
 
     taskType.value = type
@@ -62,7 +55,6 @@ export const useBackupStore = defineStore('backup', () => {
         pollProgress(http)
       }, 2000)
     }, 3000)
-
   }
 
   const pollProgress = async (http: AxiosStatic) => {
@@ -75,7 +67,7 @@ export const useBackupStore = defineStore('backup', () => {
           progress.value = {
             running: statusData.is_running,
             status: statusData.is_running ? 'running' : 'completed',
-            progress: parseInt(((statusData.count / statusData.total) * 100) + "", 10),
+            progress: parseInt((statusData.count / statusData.total) * 100 + '', 10),
             elapsed_seconds: statusData.elapsed,
             estimated_seconds: 0,
             current_step: statusData.desc,
@@ -96,7 +88,10 @@ export const useBackupStore = defineStore('backup', () => {
           progress.value = {
             running: statusData.is_running,
             status: statusData.is_running ? 'running' : 'completed',
-            progress: statusData.count == 0 ? 0 : parseInt(((statusData.count / statusData.total) * 100) + "", 10),
+            progress:
+              statusData.count == 0
+                ? 0
+                : parseInt((statusData.count / statusData.total) * 100 + '', 10),
             elapsed_seconds: statusData.elapsed,
             estimated_seconds: 0,
             current_step: statusData.desc,

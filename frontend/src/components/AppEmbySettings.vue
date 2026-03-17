@@ -1,8 +1,14 @@
 <template>
   <div class="main-content-container emby-content">
     <div class="emby-settings-wrapper">
-      <el-form :model="embyData" :rules="formRules" :label-position="isMobile ? 'top' : 'left'" :label-width="200"
-        class="emby-form" ref="formRef">
+      <el-form
+        :model="embyData"
+        :rules="formRules"
+        :label-position="isMobile ? 'top' : 'left'"
+        :label-width="200"
+        class="emby-form"
+        ref="formRef"
+      >
         <el-card class="settings-card emby-server-card" shadow="hover">
           <template #header>
             <div class="card-header-wrapper">
@@ -17,29 +23,51 @@
           </template>
 
           <el-form-item label="Emby服务器地址" prop="emby_url">
-            <el-input v-model="embyData.emby_url" placeholder="请输入Emby服务器地址，格式：http://ip:port" :disabled="embyLoading"
-              class="limited-width-input" @input="updateEmbyExample" :prefix-icon="Link" clearable />
-            <p style="color: red; font-weight: bold; margin-left: 16px; font-size: 28px;">输入Emby地址后，页面往下滚，点击"保存设置"按钮后，重启QMediaSync才能生效</p>
+            <el-input
+              v-model="embyData.emby_url"
+              placeholder="请输入Emby服务器地址，格式：http://ip:port"
+              :disabled="embyLoading"
+              class="limited-width-input"
+              @input="updateEmbyExample"
+              :prefix-icon="Link"
+              clearable
+            />
+            <p style="color: red; font-weight: bold; margin-left: 16px; font-size: 28px">
+              输入Emby地址后，页面往下滚，点击"保存设置"按钮后，重启QMediaSync才能生效
+            </p>
             <div v-if="embyExample" class="emby-example-inline">
               <span class="example-label">示例格式：</span>
               <code class="example-url">{{ embyExample }}</code>
             </div>
             <div class="form-help">
               <el-icon><InfoFilled /></el-icon>
-              <span>想使用Emby外网302必须输入Emby服务器地址，不要以/结尾，输入emby的内网地址即可，比如：http://192.168.1.100:8096 或者docker容器的地址</span>
-
+              <span
+                >想使用Emby外网302必须输入Emby服务器地址，不要以/结尾，输入emby的内网地址即可，比如：http://192.168.1.100:8096
+                或者docker容器的地址</span
+              >
             </div>
           </el-form-item>
 
           <el-form-item label="Emby API密钥" prop="emby_api_key">
-            <el-input v-model="embyData.emby_api_key" placeholder="请输入Emby API密钥" :disabled="embyLoading"
-              class="limited-width-input" @input="updateEmbyExample" :prefix-icon="Key" />
+            <el-input
+              v-model="embyData.emby_api_key"
+              placeholder="请输入Emby API密钥"
+              :disabled="embyLoading"
+              class="limited-width-input"
+              @input="updateEmbyExample"
+              :prefix-icon="Key"
+            />
             <div class="form-help">
               <el-icon><InfoFilled /></el-icon>
               <span>API密钥用来提取strm的视频、音频、内封字幕信息，如果不需要该功能，可以不填</span>
             </div>
             <div class="form-help author-credit">
-              <span>Strm信息提取功能由<a href="https://github.com/truewhile" target="_blank">@truewhile</a> 提供，感谢其无私的分享。</span>
+              <span
+                >Strm信息提取功能由<a href="https://github.com/truewhile" target="_blank"
+                  >@truewhile</a
+                >
+                提供，感谢其无私的分享。</span
+              >
             </div>
           </el-form-item>
         </el-card>
@@ -58,7 +86,12 @@
           </template>
 
           <el-form-item label="Emby通知链接">
-            <el-input v-model="webhookUrl" readonly class="limited-width-input webhook-input" :prefix-icon="Link">
+            <el-input
+              v-model="webhookUrl"
+              readonly
+              class="limited-width-input webhook-input"
+              :prefix-icon="Link"
+            >
               <template #append>
                 <el-button @click="copyWebhookUrl" :icon="DocumentCopy">复制</el-button>
               </template>
@@ -66,26 +99,54 @@
             <div class="form-help">
               <el-icon><InfoFilled /></el-icon>
               <span>将此链接配置到Emby的通知设置中，</span>
-              <a href="https://github.com/qicfan/qmediasync/wiki/Emby-%E9%80%9A%E7%9F%A5%E9%85%8D%E7%BD%AE" target="_blank" class="help-link">配置教程</a>
-              <a :href="embyData.emby_url + '/web/index.html#!/settings/notifications.html'" target="_blank" class="help-link action-link">去配置</a>
+              <a
+                href="https://github.com/qicfan/qmediasync/wiki/Emby-%E9%80%9A%E7%9F%A5%E9%85%8D%E7%BD%AE"
+                target="_blank"
+                class="help-link"
+                >配置教程</a
+              >
+              <a
+                :href="embyData.emby_url + '/web/index.html#!/settings/notifications.html'"
+                target="_blank"
+                class="help-link action-link"
+                >去配置</a
+              >
             </div>
             <div class="form-help" v-if="embyData.enable_auth">
               <el-icon><WarningFilled /></el-icon>
-              <span class="warning-text">已开启鉴权，请确保在Emby的通知链接中添加Api Key参数，示例：<code class="inline-code">{{ webhookUrl }}?api_key=你的ApiKey</code></span>
+              <span class="warning-text"
+                >已开启鉴权，请确保在Emby的通知链接中添加Api Key参数，示例：<code
+                  class="inline-code"
+                  >{{ webhookUrl }}?api_key=你的ApiKey</code
+                ></span
+              >
             </div>
           </el-form-item>
 
           <el-form-item label="通知链接鉴权" prop="enable_auth">
             <div class="switch-wrapper">
-              <el-switch v-model="embyData.enable_auth" :active-value="1" :inactive-value="0" :disabled="embyLoading"
-                active-color="#67c23a" inactive-color="#dcdfe6" />
+              <el-switch
+                v-model="embyData.enable_auth"
+                :active-value="1"
+                :inactive-value="0"
+                :disabled="embyLoading"
+                active-color="#67c23a"
+                inactive-color="#dcdfe6"
+              />
               <span class="switch-label" :class="{ 'is-active': embyData.enable_auth }">
                 {{ embyData.enable_auth ? '已启用鉴权' : '已禁用鉴权' }}
               </span>
             </div>
             <div class="form-help">
               <el-icon><InfoFilled /></el-icon>
-              <span>启用后，Emby的Webhook请求需要携带Api Key才能生效。如果要在外网使用Emby通知链接建议启用以提高安全性。请到<router-link to="/settings/api-keys" class="help-link">Api Key模块</router-link>生成</span>
+              <span
+                >启用后，Emby的Webhook请求需要携带Api
+                Key才能生效。如果要在外网使用Emby通知链接建议启用以提高安全性。请到<router-link
+                  to="/settings/api-keys"
+                  class="help-link"
+                  >Api Key模块</router-link
+                >生成</span
+              >
             </div>
           </el-form-item>
         </el-card>
@@ -103,12 +164,21 @@
             </div>
           </template>
 
-           <div class="feature-item">
+          <div class="feature-item">
             <el-form-item label="入库后提取媒体信息" prop="enable_extract_media_info">
               <div class="switch-wrapper">
-                <el-switch v-model="embyData.enable_extract_media_info" :active-value="1" :inactive-value="0"
-                  :disabled="embyLoading" active-color="#67c23a" inactive-color="#dcdfe6" />
-                <span class="switch-label" :class="{ 'is-active': embyData.enable_extract_media_info }">
+                <el-switch
+                  v-model="embyData.enable_extract_media_info"
+                  :active-value="1"
+                  :inactive-value="0"
+                  :disabled="embyLoading"
+                  active-color="#67c23a"
+                  inactive-color="#dcdfe6"
+                />
+                <span
+                  class="switch-label"
+                  :class="{ 'is-active': embyData.enable_extract_media_info }"
+                >
                   {{ embyData.enable_extract_media_info ? '启用' : '禁用' }}
                 </span>
               </div>
@@ -116,10 +186,22 @@
             <div class="feature-description">
               <div class="config-links">
                 <span>该功能需要在Emby中配置通知才能生效，</span>
-                <a href="https://github.com/qicfan/qmediasync/wiki/Emby-%E9%80%9A%E7%9F%A5%E9%85%8D%E7%BD%AE" target="_blank" class="help-link">配置教程</a>
-                <a :href="embyData.emby_url + '/web/index.html#!/settings/notifications.html'" target="_blank" class="help-link action-link">去配置</a>
+                <a
+                  href="https://github.com/qicfan/qmediasync/wiki/Emby-%E9%80%9A%E7%9F%A5%E9%85%8D%E7%BD%AE"
+                  target="_blank"
+                  class="help-link"
+                  >配置教程</a
+                >
+                <a
+                  :href="embyData.emby_url + '/web/index.html#!/settings/notifications.html'"
+                  target="_blank"
+                  class="help-link action-link"
+                  >去配置</a
+                >
               </div>
-              <p class="feature-note">功能解释：QMediaSync在收到Emby的通知某个资源入库后，自动触发提取该资源的媒体信息，加快起播速度。媒体信息指：视频、音频、内封字幕等详细信息</p>
+              <p class="feature-note">
+                功能解释：QMediaSync在收到Emby的通知某个资源入库后，自动触发提取该资源的媒体信息，加快起播速度。媒体信息指：视频、音频、内封字幕等详细信息
+              </p>
             </div>
           </div>
 
@@ -128,15 +210,23 @@
           <div class="feature-item">
             <el-form-item label="启用同步" prop="sync_enabled">
               <div class="switch-wrapper">
-                <el-switch v-model="embyData.sync_enabled" :active-value="1" :inactive-value="0"
-                  :disabled="embyLoading" active-color="#67c23a" inactive-color="#dcdfe6" />
+                <el-switch
+                  v-model="embyData.sync_enabled"
+                  :active-value="1"
+                  :inactive-value="0"
+                  :disabled="embyLoading"
+                  active-color="#67c23a"
+                  inactive-color="#dcdfe6"
+                />
                 <span class="switch-label" :class="{ 'is-active': embyData.sync_enabled }">
                   {{ embyData.sync_enabled ? '已启用' : '已禁用' }}
                 </span>
               </div>
             </el-form-item>
             <div class="feature-description">
-              <p class="feature-note">启用后可以将Emby中的资源同步到QMediaSync中和网盘文件建立联系，来实现同步后刷新媒体库和联动删除网盘文件功能</p>
+              <p class="feature-note">
+                启用后可以将Emby中的资源同步到QMediaSync中和网盘文件建立联系，来实现同步后刷新媒体库和联动删除网盘文件功能
+              </p>
             </div>
           </div>
 
@@ -144,12 +234,19 @@
 
           <div class="feature-item" :class="{ 'is-disabled': !embyData.sync_enabled }">
             <el-form-item label="同步时间" prop="sync_cron">
-              <el-input v-model="embyData.sync_cron" placeholder="请输入Cron表达式，如：0 2 * * *"
+              <el-input
+                v-model="embyData.sync_cron"
+                placeholder="请输入Cron表达式，如：0 2 * * *"
                 :disabled="embyLoading || !embyData.sync_enabled"
-                class="limited-width-input" @blur="fetchCronNextTimes" clearable />
+                class="limited-width-input"
+                @blur="fetchCronNextTimes"
+                clearable
+              />
               <div class="form-help">
                 <el-icon><InfoFilled /></el-icon>
-                <span>Cron表达式，格式：秒 分 时 日 月 周（如：0 2 * * * 表示每天凌晨2点执行）</span>
+                <span
+                  >Cron表达式，格式：秒 分 时 日 月 周（如：0 2 * * * 表示每天凌晨2点执行）</span
+                >
               </div>
             </el-form-item>
             <div v-if="cronNextTimes.length > 0" class="cron-next-times">
@@ -168,17 +265,33 @@
           <div class="feature-item" :class="{ 'is-disabled': !embyData.sync_enabled }">
             <el-form-item label="同步后刷新媒体库" prop="enable_refresh_library">
               <div class="switch-wrapper">
-                <el-switch v-model="embyData.enable_refresh_library" :active-value="1" :inactive-value="0"
-                  :disabled="embyLoading || !embyData.sync_enabled" active-color="#67c23a" inactive-color="#dcdfe6" />
-                <span class="switch-label" :class="{ 'is-active': embyData.enable_refresh_library }">
+                <el-switch
+                  v-model="embyData.enable_refresh_library"
+                  :active-value="1"
+                  :inactive-value="0"
+                  :disabled="embyLoading || !embyData.sync_enabled"
+                  active-color="#67c23a"
+                  inactive-color="#dcdfe6"
+                />
+                <span
+                  class="switch-label"
+                  :class="{ 'is-active': embyData.enable_refresh_library }"
+                >
                   {{ embyData.enable_refresh_library ? '启用' : '禁用' }}
                 </span>
               </div>
             </el-form-item>
             <div class="feature-description">
-              <p>该功能需要至少同步完一次Emby媒体库才能生效，如果下方同步管理卡片中的总项目数为0，请点击下方：启动同步 按钮触发一次同步。</p>
-              <p>STRM同步完成后会延迟30s执行刷新动作，以供元数据下载（如果开启了下载），但是可能下载不完就触发了刷新，做为备份手段：请开启Emby的实时监控</p>
-              <p class="feature-note">功能解释：某个STRM同步目录同步完成后会自动触发相关联的Emby媒体库刷新，这样可以及时的将新增加的STRM文件入库</p>
+              <p>
+                该功能需要至少同步完一次Emby媒体库才能生效，如果下方同步管理卡片中的总项目数为0，请点击下方：启动同步
+                按钮触发一次同步。
+              </p>
+              <p>
+                STRM同步完成后会延迟30s执行刷新动作，以供元数据下载（如果开启了下载），但是可能下载不完就触发了刷新，做为备份手段：请开启Emby的实时监控
+              </p>
+              <p class="feature-note">
+                功能解释：某个STRM同步目录同步完成后会自动触发相关联的Emby媒体库刷新，这样可以及时的将新增加的STRM文件入库
+              </p>
             </div>
           </div>
 
@@ -187,8 +300,14 @@
           <div class="feature-item danger-item" :class="{ 'is-disabled': !embyData.sync_enabled }">
             <el-form-item label="删除联动删除网盘文件" prop="enable_delete_netdisk">
               <div class="switch-wrapper">
-                <el-switch v-model="embyData.enable_delete_netdisk" :active-value="1" :inactive-value="0"
-                  :disabled="embyLoading || !embyData.sync_enabled" active-color="#f56c6c" inactive-color="#dcdfe6" />
+                <el-switch
+                  v-model="embyData.enable_delete_netdisk"
+                  :active-value="1"
+                  :inactive-value="0"
+                  :disabled="embyLoading || !embyData.sync_enabled"
+                  active-color="#f56c6c"
+                  inactive-color="#dcdfe6"
+                />
                 <span class="switch-label" :class="{ 'is-danger': embyData.enable_delete_netdisk }">
                   {{ embyData.enable_delete_netdisk ? '启用' : '禁用' }}
                 </span>
@@ -197,20 +316,37 @@
             <div class="feature-description">
               <el-alert type="warning" :closable="false" class="danger-alert">
                 <template #default>
-                  <strong>⚠ 谨慎启用：</strong> 启用后，删除Emby中的项目时，对应的网盘文件也会被删除<br />
-                  <strong>由于Emby的特性如果strm文件内容变更，Emby会先删除再新增，这时有概率导致：STRM变更→Emby通知删除→QMS联动删除网盘→Emby新增项目→播放失败</strong>，这个问题暂时无解<br />
-                  <strong>如果打开了Emby的实时监控，在文件系统内删除Strm或者文件夹也会导致Emby触发删除通知→QMS联动删除网盘，所有删除文件一定要谨慎。</strong>
+                  <strong>⚠ 谨慎启用：</strong>
+                  启用后，删除Emby中的项目时，对应的网盘文件也会被删除<br />
+                  <strong
+                    >由于Emby的特性如果strm文件内容变更，Emby会先删除再新增，这时有概率导致：STRM变更→Emby通知删除→QMS联动删除网盘→Emby新增项目→播放失败</strong
+                  >，这个问题暂时无解<br />
+                  <strong
+                    >如果打开了Emby的实时监控，在文件系统内删除Strm或者文件夹也会导致Emby触发删除通知→QMS联动删除网盘，所有删除文件一定要谨慎。</strong
+                  >
                 </template>
               </el-alert>
               <div class="config-links">
                 <span>该功能需要在Emby中配置通知才能生效，</span>
-                <a href="https://github.com/qicfan/qmediasync/wiki/Emby-%E9%80%9A%E7%9F%A5%E9%85%8D%E7%BD%AE" target="_blank" class="help-link">配置教程</a>
-                <a :href="embyData.emby_url + '/web/index.html#!/settings/notifications.html'" target="_blank" class="help-link action-link">去配置</a>
+                <a
+                  href="https://github.com/qicfan/qmediasync/wiki/Emby-%E9%80%9A%E7%9F%A5%E9%85%8D%E7%BD%AE"
+                  target="_blank"
+                  class="help-link"
+                  >配置教程</a
+                >
+                <a
+                  :href="embyData.emby_url + '/web/index.html#!/settings/notifications.html'"
+                  target="_blank"
+                  class="help-link action-link"
+                  >去配置</a
+                >
               </div>
               <ul class="delete-rules">
                 <li>如果在Emby中删除了电影，会在网盘中将视频文件的父目录一起删除</li>
                 <li>如果在Emby中删除了剧，会在网盘中将tvshow.nfo的父目录删除</li>
-                <li>如果在Emby中删除了季，会先检查视频文件的父目录，如果父目录是季文件夹则删除该文件夹；如果父目录是有tvshow的目录则仅删除季下所有集对应的视频文件+元数据（nfo、封面）</li>
+                <li>
+                  如果在Emby中删除了季，会先检查视频文件的父目录，如果父目录是季文件夹则删除该文件夹；如果父目录是有tvshow的目录则仅删除季下所有集对应的视频文件+元数据（nfo、封面）
+                </li>
                 <li>如果在Emby中删了集，会删除视频文件+元数据（nfo、封面）</li>
               </ul>
             </div>
@@ -218,15 +354,35 @@
         </el-card>
 
         <div class="form-actions-wrapper">
-          <el-button type="success" @click="saveEmbyConfig" :loading="embyLoading" :icon="Check" size="large" class="save-btn">
+          <el-button
+            type="success"
+            @click="saveEmbyConfig"
+            :loading="embyLoading"
+            :icon="Check"
+            size="large"
+            class="save-btn"
+          >
             保存设置
           </el-button>
-          <el-button type="primary" @click="praseEmby" :loading="embyLoading" :icon="Refresh"
-            :disabled="!embyData.emby_url || !embyData.emby_api_key" size="large" class="extract-btn">
+          <el-button
+            type="primary"
+            @click="praseEmby"
+            :loading="embyLoading"
+            :icon="Refresh"
+            :disabled="!embyData.emby_url || !embyData.emby_api_key"
+            size="large"
+            class="extract-btn"
+          >
             提取媒体信息
           </el-button>
           <div class="extract-help">
-            <p>该功能会将Emby没有提取媒体信息的项目全部触发提取，如果是重建媒体库或者新Emby可以执行一次。进度或者详情请在<router-link to="/download-queue" class="help-link">下载队列页</router-link>面查看</p>
+            <p>
+              该功能会将Emby没有提取媒体信息的项目全部触发提取，如果是重建媒体库或者新Emby可以执行一次。进度或者详情请在<router-link
+                to="/download-queue"
+                class="help-link"
+                >下载队列页</router-link
+              >面查看
+            </p>
           </div>
         </div>
       </el-form>
@@ -242,8 +398,14 @@
               <p class="card-subtitle">管理Emby媒体库同步状态</p>
             </div>
             <div class="card-header-action">
-              <el-button type="primary" @click="startSync" :loading="syncStartLoading" :icon="Refresh"
-                :disabled="!embyData.emby_url || !embyData.sync_enabled || syncPolling" size="default">
+              <el-button
+                type="primary"
+                @click="startSync"
+                :loading="syncStartLoading"
+                :icon="Refresh"
+                :disabled="!embyData.emby_url || !embyData.sync_enabled || syncPolling"
+                size="default"
+              >
                 {{ syncPolling ? '同步进行中...' : '启动同步' }}
               </el-button>
             </div>
@@ -306,8 +468,15 @@
         </div>
       </el-card>
 
-      <el-alert v-if="embyStatus" :title="embyStatus.title" :type="embyStatus.type" :description="embyStatus.description"
-        :closable="false" show-icon class="emby-status-alert" />
+      <el-alert
+        v-if="embyStatus"
+        :title="embyStatus.title"
+        :type="embyStatus.type"
+        :description="embyStatus.description"
+        :closable="false"
+        show-icon
+        class="emby-status-alert"
+      />
 
       <el-alert title="使用提示" type="info" :closable="false" show-icon class="tips-alert">
         <template #default>
@@ -322,7 +491,23 @@
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
-import { Check, Refresh, Loading, Monitor, Link, Key, Connection, Setting, DocumentCopy, InfoFilled, WarningFilled, Timer, Clock, FolderOpened, Calendar } from '@element-plus/icons-vue'
+import {
+  Check,
+  Refresh,
+  Loading,
+  Monitor,
+  Link,
+  Key,
+  Connection,
+  Setting,
+  DocumentCopy,
+  InfoFilled,
+  WarningFilled,
+  Timer,
+  Clock,
+  FolderOpened,
+  Calendar,
+} from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { inject, onMounted, ref, reactive, onBeforeUnmount } from 'vue'
 import { isMobile as checkIsMobile } from '@/utils/deviceUtils'
@@ -538,8 +723,7 @@ const praseEmby = async () => {
   }
 }
 
-const updateEmbyExample = () => {
-}
+const updateEmbyExample = () => {}
 
 const copyWebhookUrl = async () => {
   try {
@@ -559,7 +743,7 @@ const fetchCronNextTimes = async () => {
 
   try {
     const response = await http?.get(`${SERVER_URL}/setting/cron`, {
-      params: { cron: embyData.sync_cron.trim() }
+      params: { cron: embyData.sync_cron.trim() },
     })
 
     if (response?.data.code === 200 && response.data.data) {
@@ -622,7 +806,7 @@ const startSyncPolling = () => {
 
       if (response?.data.code === 200) {
         syncInfo.value = response.data.data
-         syncPolling.value = response.data.data?.is_running
+        syncPolling.value = response.data.data?.is_running
         console.log(syncPolling.value)
         if (!syncPolling.value) {
           stopSyncPolling()

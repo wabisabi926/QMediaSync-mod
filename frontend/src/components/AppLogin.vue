@@ -97,16 +97,20 @@ const handleLogin = async () => {
 
     loading.value = true
 
-    // 创建FormData对象，使用标准form表单格式
-    const formData = new FormData()
-    formData.append('username', loginForm.username)
-    formData.append('password', loginForm.password)
-
-    const response = await http?.post(`${SERVER_URL}/login`, formData, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+    // 使用JSON格式发送请求，以支持rememberMe参数
+    const response = await http?.post(
+      `${SERVER_URL}/login`,
+      {
+        username: loginForm.username,
+        password: loginForm.password,
+        rememberMe: loginForm.rememberMe,
       },
-    })
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    )
 
     if (response?.data.code === 200) {
       const { token, user } = response.data.data

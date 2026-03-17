@@ -8,7 +8,12 @@
         </div>
       </template>
 
-      <el-table :data="pathes" v-loading="loading" element-loading-text="加载中..." class="scrape-paths-table">
+      <el-table
+        :data="pathes"
+        v-loading="loading"
+        element-loading-text="加载中..."
+        class="scrape-paths-table"
+      >
         <el-table-column prop="account_name" label="账号" min-width="120">
           <template #default="scope">
             <span class="info-value">{{ getAccountName(scope.row.account_id) }}</span>
@@ -48,16 +53,30 @@
         </el-table-column>
         <el-table-column label="操作" fixed="right" min-width="200">
           <template #default="scope">
-            <el-button size="small" type="primary" :loading="scope.row.scanning" @click="handleScan(scope.row)">
+            <el-button
+              size="small"
+              type="primary"
+              :loading="scope.row.scanning"
+              @click="handleScan(scope.row)"
+            >
               {{ scope.row.is_scraping ? '刮削中...' : '启动' }}
             </el-button>
-            <el-button size="small" type="warning" :loading="scope.row.scanning" @click="handleStop(scope.row)"
-              :disabled="!scope.row.is_scraping && !scope.row.is_renaming">
+            <el-button
+              size="small"
+              type="warning"
+              :loading="scope.row.scanning"
+              @click="handleStop(scope.row)"
+              :disabled="!scope.row.is_scraping && !scope.row.is_renaming"
+            >
               停止
             </el-button>
             <el-button size="small" @click="handleEdit(scope.row)">编辑</el-button>
-            <el-button size="small" type="danger" :loading="scope.row.deleting"
-              @click="handleDelete(scope.row, scope.$index)">
+            <el-button
+              size="small"
+              type="danger"
+              :loading="scope.row.deleting"
+              @click="handleDelete(scope.row, scope.$index)"
+            >
               删除
             </el-button>
           </template>
@@ -70,10 +89,25 @@
     </el-card>
 
     <!-- 添加刮削目录对话框 -->
-    <el-dialog v-model="showAddDialog" title="添加刮削目录" width="600px" :close-on-click-modal="false">
-      <el-form ref="addFormRef" :model="addForm" :rules="addFormRules" label-width="120px" class="scrape-form">
+    <el-dialog
+      v-model="showAddDialog"
+      title="添加刮削目录"
+      width="600px"
+      :close-on-click-modal="false"
+    >
+      <el-form
+        ref="addFormRef"
+        :model="addForm"
+        :rules="addFormRules"
+        label-width="120px"
+        class="scrape-form"
+      >
         <el-form-item label="同步源类型" prop="source_type">
-          <el-select v-model="addForm.source_type" placeholder="请选择同步源类型" @change="loadAccounts">
+          <el-select
+            v-model="addForm.source_type"
+            placeholder="请选择同步源类型"
+            @change="loadAccounts"
+          >
             <el-option label="115网盘" value="115" />
             <el-option label="阿里云盘" value="ali" />
             <el-option label="夸克网盘" value="quark" />
@@ -82,8 +116,17 @@
         </el-form-item>
 
         <el-form-item v-if="addForm.source_type !== 'local'" label="网盘账号" prop="account_id">
-          <el-select v-model="addForm.account_id" placeholder="请选择网盘账号" :loading="accountsLoading">
-            <el-option v-for="account in accounts" :key="account.id" :label="account.name" :value="account.id" />
+          <el-select
+            v-model="addForm.account_id"
+            placeholder="请选择网盘账号"
+            :loading="accountsLoading"
+          >
+            <el-option
+              v-for="account in accounts"
+              :key="account.id"
+              :label="account.name"
+              :value="account.id"
+            />
           </el-select>
         </el-form-item>
 
@@ -96,7 +139,12 @@
         </el-form-item>
 
         <el-form-item label="来源路径" prop="source_path_id">
-          <el-input v-model="addForm.source_path" readonly placeholder="请选择来源路径" @click="openDirSelector(true)">
+          <el-input
+            v-model="addForm.source_path"
+            readonly
+            placeholder="请选择来源路径"
+            @click="openDirSelector(true)"
+          >
             <template #append>
               <el-button @click="openDirSelector(true)">选择</el-button>
             </template>
@@ -111,9 +159,16 @@
           </el-select>
         </el-form-item>
 
-        <el-form-item v-if="addForm.scrape_type !== 'only_scrape'" label="整理方式" prop="rename_type">
-          <el-select v-model="addForm.rename_type" placeholder="请选择整理方式"
-            :disabled="addForm.scrape_type === 'only_scrape'">
+        <el-form-item
+          v-if="addForm.scrape_type !== 'only_scrape'"
+          label="整理方式"
+          prop="rename_type"
+        >
+          <el-select
+            v-model="addForm.rename_type"
+            placeholder="请选择整理方式"
+            :disabled="addForm.scrape_type === 'only_scrape'"
+          >
             <el-option label="移动" value="move" />
             <el-option label="复制" value="copy" />
             <el-option label="软链接" value="soft_symlink" />
@@ -121,47 +176,91 @@
           </el-select>
         </el-form-item>
 
-        <el-form-item v-if="addForm.scrape_type !== 'only_scrape'" label="二级分类" prop="enable_category">
+        <el-form-item
+          v-if="addForm.scrape_type !== 'only_scrape'"
+          label="二级分类"
+          prop="enable_category"
+        >
           <el-switch v-model="addForm.enable_category" />
         </el-form-item>
 
-        <el-form-item v-if="addForm.scrape_type !== 'only_scrape'" label="目标路径" prop="dest_path_id">
-          <el-input v-model="addForm.dest_path" readonly placeholder="请选择目标路径" @click="openDirSelector(false)">
+        <el-form-item
+          v-if="addForm.scrape_type !== 'only_scrape'"
+          label="目标路径"
+          prop="dest_path_id"
+        >
+          <el-input
+            v-model="addForm.dest_path"
+            readonly
+            placeholder="请选择目标路径"
+            @click="openDirSelector(false)"
+          >
             <template #append>
               <el-button @click="openDirSelector(false)">选择</el-button>
             </template>
           </el-input>
         </el-form-item>
 
-        <el-form-item v-if="addForm.scrape_type !== 'only_scrape' && addForm.enable_category" label="文件夹重命名模板"
-          prop="folder_name_template">
+        <el-form-item
+          v-if="addForm.scrape_type !== 'only_scrape' && addForm.enable_category"
+          label="文件夹重命名模板"
+          prop="folder_name_template"
+        >
           <el-input v-model="addForm.folder_name_template" placeholder="请输入文件夹重命名模板" />
         </el-form-item>
 
-        <el-form-item v-if="addForm.scrape_type !== 'only_scrape'" label="文件重命名模板" prop="file_name_template">
+        <el-form-item
+          v-if="addForm.scrape_type !== 'only_scrape'"
+          label="文件重命名模板"
+          prop="file_name_template"
+        >
           <el-input v-model="addForm.file_name_template" placeholder="请输入文件重命名模板" />
         </el-form-item>
 
         <el-form-item label="删除关键词" prop="delete_keyword">
-          <el-select v-model="addForm.delete_keyword" multiple filterable allow-create default-first-option
-            placeholder="请输入删除关键词">
-            <el-option v-for="item in deleteKeywords" :key="item.value" :label="item.label" :value="item.value" />
+          <el-select
+            v-model="addForm.delete_keyword"
+            multiple
+            filterable
+            allow-create
+            default-first-option
+            placeholder="请输入删除关键词"
+          >
+            <el-option
+              v-for="item in deleteKeywords"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
           </el-select>
         </el-form-item>
 
         <el-form-item label="最小视频文件大小(MB)" prop="min_video_file_size">
-          <el-input-number v-model="addForm.min_video_file_size" :min="0" controls-position="right"
-            style="width: 100%" />
+          <el-input-number
+            v-model="addForm.min_video_file_size"
+            :min="0"
+            controls-position="right"
+            style="width: 100%"
+          />
         </el-form-item>
 
         <el-form-item label="视频文件扩展名" prop="video_ext_list">
           <div class="video-ext-container">
-            <el-tag v-for="(ext, index) in addForm.video_ext_list" :key="index" closable
-              @close="removeVideoExt(index, 'add')">
+            <el-tag
+              v-for="(ext, index) in addForm.video_ext_list"
+              :key="index"
+              closable
+              @close="removeVideoExt(index, 'add')"
+            >
               {{ ext }}
             </el-tag>
-            <el-input v-model="tempVideoExt" placeholder="添加扩展名" size="small" style="width: 120px; margin-top: 5px;"
-              @keyup.enter="addVideoExt('add')">
+            <el-input
+              v-model="tempVideoExt"
+              placeholder="添加扩展名"
+              size="small"
+              style="width: 120px; margin-top: 5px"
+              @keyup.enter="addVideoExt('add')"
+            >
               <template #append>
                 <el-button @click="addVideoExt('add')">添加</el-button>
               </template>
@@ -182,8 +281,12 @@
         </el-form-item>
 
         <el-form-item v-if="addForm.enable_ai !== 'off'" label="AI提示词" prop="ai_prompt">
-          <el-input v-model="addForm.ai_prompt" type="textarea" placeholder="请输入AI提示词"
-            :autosize="{ minRows: 2, maxRows: 4 }" />
+          <el-input
+            v-model="addForm.ai_prompt"
+            type="textarea"
+            placeholder="请输入AI提示词"
+            :autosize="{ minRows: 2, maxRows: 4 }"
+          />
         </el-form-item>
 
         <el-form-item label="定时同步" prop="enable_cron">
@@ -198,16 +301,25 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="showAddDialog = false">取消</el-button>
-          <el-button type="primary" @click="handleAdd" :loading="addLoading">
-            确定
-          </el-button>
+          <el-button type="primary" @click="handleAdd" :loading="addLoading"> 确定 </el-button>
         </span>
       </template>
     </el-dialog>
 
     <!-- 编辑刮削目录对话框 -->
-    <el-dialog v-model="showEditDialog" title="编辑刮削目录" width="600px" :close-on-click-modal="false">
-      <el-form ref="editFormRef" :model="editForm" :rules="editFormRules" label-width="120px" class="scrape-form">
+    <el-dialog
+      v-model="showEditDialog"
+      title="编辑刮削目录"
+      width="600px"
+      :close-on-click-modal="false"
+    >
+      <el-form
+        ref="editFormRef"
+        :model="editForm"
+        :rules="editFormRules"
+        label-width="120px"
+        class="scrape-form"
+      >
         <el-form-item label="同步源类型" prop="source_type">
           <el-select v-model="editForm.source_type" placeholder="请选择同步源类型" disabled>
             <el-option label="115网盘" value="115" />
@@ -218,8 +330,18 @@
         </el-form-item>
 
         <el-form-item v-if="editForm.source_type !== 'local'" label="网盘账号" prop="account_id">
-          <el-select v-model="editForm.account_id" placeholder="请选择网盘账号" :loading="accountsLoading" disabled>
-            <el-option v-for="account in accounts" :key="account.id" :label="account.name" :value="account.id" />
+          <el-select
+            v-model="editForm.account_id"
+            placeholder="请选择网盘账号"
+            :loading="accountsLoading"
+            disabled
+          >
+            <el-option
+              v-for="account in accounts"
+              :key="account.id"
+              :label="account.name"
+              :value="account.id"
+            />
           </el-select>
         </el-form-item>
 
@@ -232,7 +354,12 @@
         </el-form-item>
 
         <el-form-item label="来源路径" prop="source_path_id">
-          <el-input v-model="editForm.source_path" readonly placeholder="请选择来源路径" @click="openEditDirSelector(true)">
+          <el-input
+            v-model="editForm.source_path"
+            readonly
+            placeholder="请选择来源路径"
+            @click="openEditDirSelector(true)"
+          >
             <template #append>
               <el-button @click="openEditDirSelector(true)">选择</el-button>
             </template>
@@ -247,9 +374,16 @@
           </el-select>
         </el-form-item>
 
-        <el-form-item v-if="editForm.scrape_type !== 'only_scrape'" label="整理方式" prop="rename_type">
-          <el-select v-model="editForm.rename_type" placeholder="请选择整理方式"
-            :disabled="editForm.scrape_type === 'only_scrape'">
+        <el-form-item
+          v-if="editForm.scrape_type !== 'only_scrape'"
+          label="整理方式"
+          prop="rename_type"
+        >
+          <el-select
+            v-model="editForm.rename_type"
+            placeholder="请选择整理方式"
+            :disabled="editForm.scrape_type === 'only_scrape'"
+          >
             <el-option label="移动" value="move" />
             <el-option label="复制" value="copy" />
             <el-option label="软链接" value="soft_symlink" />
@@ -257,47 +391,91 @@
           </el-select>
         </el-form-item>
 
-        <el-form-item v-if="editForm.scrape_type !== 'only_scrape'" label="二级分类" prop="enable_category">
+        <el-form-item
+          v-if="editForm.scrape_type !== 'only_scrape'"
+          label="二级分类"
+          prop="enable_category"
+        >
           <el-switch v-model="editForm.enable_category" />
         </el-form-item>
 
-        <el-form-item v-if="editForm.scrape_type !== 'only_scrape'" label="目标路径" prop="dest_path_id">
-          <el-input v-model="editForm.dest_path" readonly placeholder="请选择目标路径" @click="openEditDirSelector(false)">
+        <el-form-item
+          v-if="editForm.scrape_type !== 'only_scrape'"
+          label="目标路径"
+          prop="dest_path_id"
+        >
+          <el-input
+            v-model="editForm.dest_path"
+            readonly
+            placeholder="请选择目标路径"
+            @click="openEditDirSelector(false)"
+          >
             <template #append>
               <el-button @click="openEditDirSelector(false)">选择</el-button>
             </template>
           </el-input>
         </el-form-item>
 
-        <el-form-item v-if="editForm.scrape_type !== 'only_scrape' && editForm.enable_category" label="文件夹重命名模板"
-          prop="folder_name_template">
+        <el-form-item
+          v-if="editForm.scrape_type !== 'only_scrape' && editForm.enable_category"
+          label="文件夹重命名模板"
+          prop="folder_name_template"
+        >
           <el-input v-model="editForm.folder_name_template" placeholder="请输入文件夹重命名模板" />
         </el-form-item>
 
-        <el-form-item v-if="editForm.scrape_type !== 'only_scrape'" label="文件重命名模板" prop="file_name_template">
+        <el-form-item
+          v-if="editForm.scrape_type !== 'only_scrape'"
+          label="文件重命名模板"
+          prop="file_name_template"
+        >
           <el-input v-model="editForm.file_name_template" placeholder="请输入文件重命名模板" />
         </el-form-item>
 
         <el-form-item label="删除关键词" prop="delete_keyword">
-          <el-select v-model="editForm.delete_keyword" multiple filterable allow-create default-first-option
-            placeholder="请输入删除关键词">
-            <el-option v-for="item in deleteKeywords" :key="item.value" :label="item.label" :value="item.value" />
+          <el-select
+            v-model="editForm.delete_keyword"
+            multiple
+            filterable
+            allow-create
+            default-first-option
+            placeholder="请输入删除关键词"
+          >
+            <el-option
+              v-for="item in deleteKeywords"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
           </el-select>
         </el-form-item>
 
         <el-form-item label="最小视频文件大小(MB)" prop="min_video_file_size">
-          <el-input-number v-model="editForm.min_video_file_size" :min="0" controls-position="right"
-            style="width: 100%" />
+          <el-input-number
+            v-model="editForm.min_video_file_size"
+            :min="0"
+            controls-position="right"
+            style="width: 100%"
+          />
         </el-form-item>
 
         <el-form-item label="视频文件扩展名" prop="video_ext_list">
           <div class="video-ext-container">
-            <el-tag v-for="(ext, index) in editForm.video_ext_list" :key="index" closable
-              @close="removeVideoExt(index, 'edit')">
+            <el-tag
+              v-for="(ext, index) in editForm.video_ext_list"
+              :key="index"
+              closable
+              @close="removeVideoExt(index, 'edit')"
+            >
               {{ ext }}
             </el-tag>
-            <el-input v-model="tempVideoExt" placeholder="添加扩展名" size="small" style="width: 120px; margin-top: 5px;"
-              @keyup.enter="addVideoExt('edit')">
+            <el-input
+              v-model="tempVideoExt"
+              placeholder="添加扩展名"
+              size="small"
+              style="width: 120px; margin-top: 5px"
+              @keyup.enter="addVideoExt('edit')"
+            >
               <template #append>
                 <el-button @click="addVideoExt('edit')">添加</el-button>
               </template>
@@ -318,8 +496,12 @@
         </el-form-item>
 
         <el-form-item v-if="editForm.enable_ai !== 'off'" label="AI提示词" prop="ai_prompt">
-          <el-input v-model="editForm.ai_prompt" type="textarea" placeholder="请输入AI提示词"
-            :autosize="{ minRows: 2, maxRows: 4 }" />
+          <el-input
+            v-model="editForm.ai_prompt"
+            type="textarea"
+            placeholder="请输入AI提示词"
+            :autosize="{ minRows: 2, maxRows: 4 }"
+          />
         </el-form-item>
 
         <el-form-item label="定时同步" prop="enable_cron">
@@ -342,8 +524,13 @@
     </el-dialog>
 
     <!-- 目录选择对话框 -->
-    <el-dialog v-model="showDirDialog" :title="isSelectSource ? '选择来源目录' : '选择目标目录'"
-      :width="checkIsMobile ? '90%' : '600px'" :close-on-click-modal="false" body-class="directory-selector">
+    <el-dialog
+      v-model="showDirDialog"
+      :title="isSelectSource ? '选择来源目录' : '选择目标目录'"
+      :width="checkIsMobile ? '90%' : '600px'"
+      :close-on-click-modal="false"
+      body-class="directory-selector"
+    >
       <div class="dir-selector">
         <DirectorySelector
           v-model="tempSelectedDir"
@@ -361,12 +548,12 @@
 import { ref, reactive, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { isMobile } from "@/utils/deviceUtils"
+import { isMobile } from '@/utils/deviceUtils'
 import DirectorySelector from '@/components/DirectorySelector.vue'
 
 import { inject } from 'vue'
-import type { AxiosStatic } from 'axios';
-import type { CloudAccount, DirInfo } from '@/typing';
+import type { AxiosStatic } from 'axios'
+import type { CloudAccount, DirInfo } from '@/typing'
 const http: AxiosStatic | undefined = inject('$http')
 // 依赖注入
 const SERVER_URL = inject('SERVER_URL')
@@ -438,7 +625,20 @@ const addForm = reactive<ScrapePath>({
   file_name_template: '{title}({year})',
   delete_keyword: [],
   min_video_file_size: 0,
-  video_ext_list: ['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.webm', '.flv', '.ts', '.m4v', '.iso', '.rmvb', '.strm'],
+  video_ext_list: [
+    '.mp4',
+    '.mkv',
+    '.avi',
+    '.mov',
+    '.wmv',
+    '.webm',
+    '.flv',
+    '.ts',
+    '.m4v',
+    '.iso',
+    '.rmvb',
+    '.strm',
+  ],
   exclude_no_image_actor: false,
   enable_ai: 'off',
   ai_prompt: '',
@@ -554,41 +754,53 @@ const editFormRules = reactive<FormRules>({
 })
 
 // 监听添加表单媒体类型变化
-watch(() => addForm.media_type, (newType) => {
-  if (newType === 'other') {
-    addForm.scrape_type = 'only_rename' // 当媒体类型为'other'时，操作方式固定为'only_rename'
-    addForm.folder_name_template = '{num}'
-    addForm.file_name_template = '{num}'
-  }
-})
+watch(
+  () => addForm.media_type,
+  (newType) => {
+    if (newType === 'other') {
+      addForm.scrape_type = 'only_rename' // 当媒体类型为'other'时，操作方式固定为'only_rename'
+      addForm.folder_name_template = '{num}'
+      addForm.file_name_template = '{num}'
+    }
+  },
+)
 
 // 监听添加表单操作方式变化
-watch(() => addForm.scrape_type, (newType) => {
-  if (newType === 'only_scrape') {
-    addForm.rename_type = 'same' // 当操作方式为'only_scrape'时，整理方式固定为'same'
-    addForm.enable_category = false // 当操作方式为'only_scrape'时，二级分类固定为false
-  }
-})
+watch(
+  () => addForm.scrape_type,
+  (newType) => {
+    if (newType === 'only_scrape') {
+      addForm.rename_type = 'same' // 当操作方式为'only_scrape'时，整理方式固定为'same'
+      addForm.enable_category = false // 当操作方式为'only_scrape'时，二级分类固定为false
+    }
+  },
+)
 
 // 监听编辑表单媒体类型变化
-watch(() => editForm.media_type, (newType) => {
-  if (newType === 'other') {
-    editForm.scrape_type = 'only_rename' // 当媒体类型为'other'时，操作方式固定为'only_rename'
-  }
-})
+watch(
+  () => editForm.media_type,
+  (newType) => {
+    if (newType === 'other') {
+      editForm.scrape_type = 'only_rename' // 当媒体类型为'other'时，操作方式固定为'only_rename'
+    }
+  },
+)
 
 // 监听编辑表单操作方式变化
-watch(() => editForm.scrape_type, (newType) => {
-  if (newType === 'only_scrape') {
-    editForm.rename_type = 'same' // 当操作方式为'only_scrape'时，整理方式固定为'same'
-    editForm.enable_category = false // 当操作方式为'only_scrape'时，二级分类固定为false
-  }
-})
+watch(
+  () => editForm.scrape_type,
+  (newType) => {
+    if (newType === 'only_scrape') {
+      editForm.rename_type = 'same' // 当操作方式为'only_scrape'时，整理方式固定为'same'
+      editForm.enable_category = false // 当操作方式为'only_scrape'时，二级分类固定为false
+    }
+  },
+)
 
 // 获取账号名称
 const getAccountName = (accountId?: number): string => {
   if (!accountId) return ''
-  const account = accounts.value.find((a: { id: number; }) => a.id === accountId)
+  const account = accounts.value.find((a: { id: number }) => a.id === accountId)
   return account ? account.name : ''
 }
 
@@ -619,7 +831,7 @@ const getRenameTypeText = (renameType: string): string => {
     copy: '复制',
     soft_symlink: '软链接',
     hard_symlink: '硬链接',
-    same: "-"
+    same: '-',
   }
   return typeMap[renameType] || renameType
 }
@@ -667,17 +879,24 @@ const loadPathes = async () => {
 }
 
 const updatePathesStatus = async () => {
-  loading.value = true
-  const response = await http?.get(`${SERVER_URL}/scrape/pathes`)
+  try {
+    const response = await http?.get(`${SERVER_URL}/scrape/pathes`)
 
-  if (response?.data.code === 200) {
-    for (const p of response?.data?.data || []) {
-      const path = pathes.value.find(pa => pa.id === p.id)
-      if (path) {
-        path.is_renaming = p.is_renaming
-        path.is_scraping = p.is_scraping
+    if (response?.data.code === 200) {
+      const newPathes = response.data.data || []
+
+      // 增量更新：只更新状态字段，保持其他字段不变
+      for (const newPath of newPathes) {
+        const existingPath = pathes.value.find((p) => p.id === newPath.id)
+        if (existingPath) {
+          // 只更新状态字段
+          existingPath.is_renaming = newPath.is_renaming
+          existingPath.is_scraping = newPath.is_scraping
+        }
       }
     }
+  } catch (error) {
+    console.error('更新刮削目录状态失败:', error)
   }
 }
 
@@ -707,7 +926,7 @@ const loadAccounts = async (sourceType?: string) => {
 // 处理添加刮削目录
 const handleAdd = async () => {
   if (!addFormRef.value) return
-  if (addForm.scrape_type !== 'only_scrape' && (addForm.dest_path_id == '')) {
+  if (addForm.scrape_type !== 'only_scrape' && addForm.dest_path_id == '') {
     ElMessage.error('请选择目标路径且填写文件夹重命名模板和文件重命名模板')
     return
   }
@@ -772,7 +991,21 @@ const resetAddForm = () => {
   addForm.file_name_template = '{title}({year})'
   addForm.delete_keyword = []
   addForm.min_video_file_size = 0
-  addForm.video_ext_list = [".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".flv", ".avi", ".ts", ".m4v", ".iso", ".rmvb", ".strm"]
+  addForm.video_ext_list = [
+    '.mp4',
+    '.mkv',
+    '.avi',
+    '.mov',
+    '.wmv',
+    '.webm',
+    '.flv',
+    '.avi',
+    '.ts',
+    '.m4v',
+    '.iso',
+    '.rmvb',
+    '.strm',
+  ]
   tempVideoExt.value = ''
   addForm.exclude_no_image_actor = false
   addForm.enable_ai = 'off'
@@ -801,7 +1034,9 @@ const handleEdit = (row: ScrapePath) => {
   editForm.file_name_template = row.file_name_template
   editForm.delete_keyword = [...row.delete_keyword]
   editForm.min_video_file_size = row.min_video_file_size || 0
-  editForm.video_ext_list = [...(row.video_ext_list || ['mp4', 'mkv', 'avi', 'wmv', 'flv', 'mov', 'webm'])]
+  editForm.video_ext_list = [
+    ...(row.video_ext_list || ['mp4', 'mkv', 'avi', 'wmv', 'flv', 'mov', 'webm']),
+  ]
   tempVideoExt.value = ''
   editForm.exclude_no_image_actor = row.exclude_no_image_actor || false
   editForm.enable_ai = row.enable_ai || 'off'
@@ -814,7 +1049,7 @@ const handleEdit = (row: ScrapePath) => {
 // 处理保存编辑
 const handleEditSave = async () => {
   if (!editFormRef.value) return
-  if (editForm.scrape_type !== 'only_scrape' && (editForm.dest_path_id == '')) {
+  if (editForm.scrape_type !== 'only_scrape' && editForm.dest_path_id == '') {
     ElMessage.error('请选择目标路径')
     return
   }

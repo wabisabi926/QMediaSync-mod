@@ -5,77 +5,73 @@
     </div>
 
     <el-alert
-        title="警告：数据库恢复操作将覆盖当前数据库，请谨慎操作！"
-        type="error"
-        :closable="false"
-        style="margin-bottom: 20px"
-      />
+      title="警告：数据库恢复操作将覆盖当前数据库，请谨慎操作！"
+      type="error"
+      :closable="false"
+      style="margin-bottom: 20px"
+    />
 
-      <el-alert
-        title="恢复说明：仅支持 .sql 或 .zip 格式的备份文件，文件大小不超过 1GB"
-        type="info"
-        :closable="false"
-        style="margin-bottom: 20px"
-      />
+    <el-alert
+      title="恢复说明：仅支持 .sql 或 .zip 格式的备份文件，文件大小不超过 1GB"
+      type="info"
+      :closable="false"
+      style="margin-bottom: 20px"
+    />
 
-      <el-upload
-        ref="uploadRef"
-        action="#"
-        :auto-upload="false"
-        :limit="1"
-        :accept="'.sql,.zip'"
-        :on-change="handleFileChange"
-        :on-exceed="handleExceed"
-        :disabled="backupStore.isRunning"
-        drag
+    <el-upload
+      ref="uploadRef"
+      action="#"
+      :auto-upload="false"
+      :limit="1"
+      :accept="'.sql,.zip'"
+      :on-change="handleFileChange"
+      :on-exceed="handleExceed"
+      :disabled="backupStore.isRunning"
+      drag
+    >
+      <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
+      <div class="el-upload__text">将备份文件拖到此处，或<em>点击选择文件</em></div>
+      <template #tip>
+        <div class="el-upload__tip">只支持 .sql / .zip 文件，且不超过 1GB</div>
+      </template>
+    </el-upload>
+
+    <div class="action-buttons">
+      <el-button
+        type="primary"
+        size="large"
+        :loading="restoreStarting"
+        :disabled="!selectedFile || backupStore.isRunning"
+        @click="startRestore"
       >
-        <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
-        <div class="el-upload__text">
-          将备份文件拖到此处，或<em>点击选择文件</em>
-        </div>
-        <template #tip>
-          <div class="el-upload__tip">
-            只支持 .sql / .zip 文件，且不超过 1GB
-          </div>
-        </template>
-      </el-upload>
+        <el-icon><CircleCheck /></el-icon>
+        <span>开始恢复</span>
+      </el-button>
+      <el-button
+        size="large"
+        :disabled="!selectedFile || restoreStarting || backupStore.isRunning"
+        @click="clearFile"
+      >
+        清除
+      </el-button>
+    </div>
 
-      <div class="action-buttons">
-        <el-button
-          type="primary"
-          size="large"
-          :loading="restoreStarting"
-          :disabled="!selectedFile || backupStore.isRunning"
-          @click="startRestore"
-        >
-          <el-icon><CircleCheck /></el-icon>
-          <span>开始恢复</span>
-        </el-button>
-        <el-button
-          size="large"
-          :disabled="!selectedFile || restoreStarting || backupStore.isRunning"
-          @click="clearFile"
-        >
-          清除
-        </el-button>
-      </div>
-
-      <div v-if="selectedFile" class="file-info">
-        <el-descriptions :column="isMobile ? 1 : 2" border>
-          <el-descriptions-item label="文件名">
-            {{ selectedFile.name }}
-          </el-descriptions-item>
-          <el-descriptions-item label="文件大小">
-            {{ formatFileSize(selectedFile.size) }}
-          </el-descriptions-item>
-          <el-descriptions-item label="文件类型">
-            {{ selectedFile.name.endsWith('.zip') ? 'ZIP 压缩' : 'SQL' }}
-          </el-descriptions-item>
-          <el-descriptions-item label="最后修改">
-            {{ formatTimestamp(selectedFile.lastModified / 1000) }}
-          </el-descriptions-item>
-        </el-descriptions>
-      </div>
+    <div v-if="selectedFile" class="file-info">
+      <el-descriptions :column="isMobile ? 1 : 2" border>
+        <el-descriptions-item label="文件名">
+          {{ selectedFile.name }}
+        </el-descriptions-item>
+        <el-descriptions-item label="文件大小">
+          {{ formatFileSize(selectedFile.size) }}
+        </el-descriptions-item>
+        <el-descriptions-item label="文件类型">
+          {{ selectedFile.name.endsWith('.zip') ? 'ZIP 压缩' : 'SQL' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="最后修改">
+          {{ formatTimestamp(selectedFile.lastModified / 1000) }}
+        </el-descriptions-item>
+      </el-descriptions>
+    </div>
   </div>
 </template>
 
@@ -107,7 +103,7 @@ const handleFileChange = (uploadFile: UploadFile) => {
   }
 
   const validExtensions = ['.sql', '.zip']
-  const isValidFormat = validExtensions.some(ext => file.name.toLowerCase().endsWith(ext))
+  const isValidFormat = validExtensions.some((ext) => file.name.toLowerCase().endsWith(ext))
 
   if (!isValidFormat) {
     ElMessage.error('只支持 .sql 或 .zip 格式的文件')
@@ -152,7 +148,7 @@ const startRestore = async () => {
         cancelButtonText: '取消',
         type: 'error',
         confirmButtonClass: 'el-button--danger',
-      }
+      },
     )
 
     restoreStarting.value = true

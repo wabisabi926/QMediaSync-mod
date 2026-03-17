@@ -1,41 +1,98 @@
 <template>
   <div class="main-content-container thread-settings-container">
-    <el-form :model="formData" :label-position="checkIsMobile ? 'top' : 'left'" :label-width="200" class="thread-form">
+    <el-form
+      :model="formData"
+      :label-position="checkIsMobile ? 'top' : 'left'"
+      :label-width="200"
+      class="thread-form"
+    >
       <el-form-item label="下载队列每秒处理数量" prop="downloadThreads">
-        <el-input-number v-model="formData.downloadThreads" :min="1" :max="10" :disabled="loading" size="large" />
-        <div class="form-help">下载队列的每秒处理数量，每秒加入下载中的数量而不是每秒下载数量，所以下载队列下载中状态可能显示为大于此值，这是正常的。最大10，最小1，最大是因为要给播放和刮削留出空余。</div>
+        <el-input-number
+          v-model="formData.downloadThreads"
+          :min="1"
+          :max="10"
+          :disabled="loading"
+          size="large"
+        />
+        <div class="form-help">
+          下载队列的每秒处理数量，每秒加入下载中的数量而不是每秒下载数量，所以下载队列下载中状态可能显示为大于此值，这是正常的。最大10，最小1，最大是因为要给播放和刮削留出空余。
+        </div>
       </el-form-item>
 
       <el-form-item label="网盘接口每秒请求数量" prop="fileDetailThreads">
-        <el-input-number v-model="formData.fileDetailThreads" :min="2" :max="10" :disabled="loading" size="large" />
-        <div class="form-help">115或者百度网盘开放平台接口的每秒请求数量，影响同步速度，最大10，最小2</div>
+        <el-input-number
+          v-model="formData.fileDetailThreads"
+          :min="2"
+          :max="10"
+          :disabled="loading"
+          size="large"
+        />
+        <div class="form-help">
+          115或者百度网盘开放平台接口的每秒请求数量，影响同步速度，最大10，最小2
+        </div>
       </el-form-item>
 
       <el-form-item label="OpenList 接口请求QPS" prop="openlistQPS">
-        <el-input-number v-model="formData.openlistQPS" :min="2" :max="10" :disabled="loading" size="large" />
+        <el-input-number
+          v-model="formData.openlistQPS"
+          :min="2"
+          :max="10"
+          :disabled="loading"
+          size="large"
+        />
         <div class="form-help">OpenList 接口的每秒请求数量，影响同步速度，最大10，最小2</div>
       </el-form-item>
 
       <el-form-item label="OpenList 接口重试次数" prop="openlistRetryCount">
-        <el-input-number v-model="formData.openlistRetryCount" :min="1" :max="10" :disabled="loading" size="large" />
-        <div class="form-help">OpenList 接口报错后的重试次数，重试该次数后如果依然报错则同步停止，影响同步速度，最大10，最小1</div>
+        <el-input-number
+          v-model="formData.openlistRetryCount"
+          :min="1"
+          :max="10"
+          :disabled="loading"
+          size="large"
+        />
+        <div class="form-help">
+          OpenList
+          接口报错后的重试次数，重试该次数后如果依然报错则同步停止，影响同步速度，最大10，最小1
+        </div>
       </el-form-item>
 
       <el-form-item label="OpenList 接口重试间隔秒数" prop="openlistRetryDelay">
-        <el-input-number v-model="formData.openlistRetryDelay" :min="30" :max="3600" :disabled="loading" size="large" />
-        <div class="form-help">OpenList 接口每次重试的间隔时间，单位：秒。影响同步速度，最大3600，最小30</div>
+        <el-input-number
+          v-model="formData.openlistRetryDelay"
+          :min="30"
+          :max="3600"
+          :disabled="loading"
+          size="large"
+        />
+        <div class="form-help">
+          OpenList 接口每次重试的间隔时间，单位：秒。影响同步速度，最大3600，最小30
+        </div>
       </el-form-item>
 
       <div class="form-actions">
-        <el-button type="success" @click="saveSettings" :loading="loading" size="large" :icon="Check">
+        <el-button
+          type="success"
+          @click="saveSettings"
+          :loading="loading"
+          size="large"
+          :icon="Check"
+        >
           保存设置
         </el-button>
       </div>
     </el-form>
 
     <!-- 保存状态显示 -->
-    <el-alert v-if="saveStatus" :title="saveStatus.title" :type="saveStatus.type" :description="saveStatus.description"
-      :closable="false" show-icon class="save-status" />
+    <el-alert
+      v-if="saveStatus"
+      :title="saveStatus.title"
+      :type="saveStatus.type"
+      :description="saveStatus.description"
+      :closable="false"
+      show-icon
+      class="save-status"
+    />
     <div class="security-content">
       <div class="warning-section">
         <el-alert title="使用提示" type="warning" :closable="false" show-icon>
@@ -63,8 +120,8 @@ import { useAuthStore } from '@/stores/auth'
 interface ThreadSettings {
   downloadThreads: number
   fileDetailThreads: number
-  openlistQPS: number,
-  openlistRetryCount: number,
+  openlistQPS: number
+  openlistRetryCount: number
   openlistRetryDelay: number
 }
 
@@ -85,7 +142,7 @@ const formData = reactive<ThreadSettings>({
   fileDetailThreads: 3,
   openlistQPS: 2,
   openlistRetryCount: 1,
-  openlistRetryDelay: 30
+  openlistRetryDelay: 30,
 })
 
 // 页面挂载时获取当前设置
@@ -99,8 +156,8 @@ async function fetchThreadSettings() {
     loading.value = true
     const response = await http?.get(`${SERVER_URL}/setting/threads`, {
       headers: {
-        Authorization: `Bearer ${authStore.token}`
-      }
+        Authorization: `Bearer ${authStore.token}`,
+      },
     })
 
     formData.downloadThreads = response?.data.data.download_threads
@@ -126,32 +183,31 @@ async function saveSettings() {
       file_detail_threads: formData.fileDetailThreads,
       openlist_qps: formData.openlistQPS,
       openlist_retry: formData.openlistRetryCount,
-      openlist_retry_delay: formData.openlistRetryDelay
+      openlist_retry_delay: formData.openlistRetryDelay,
     }
 
     await http?.post(`${SERVER_URL}/setting/threads`, payload, {
       headers: {
-        Authorization: `Bearer ${authStore.token}`
-      }
+        Authorization: `Bearer ${authStore.token}`,
+      },
     })
 
     saveStatus.value = {
       title: '保存成功',
       type: 'success',
-      description: '线程设置已成功保存'
+      description: '线程设置已成功保存',
     }
 
     // 3秒后清除状态提示
     setTimeout(() => {
       saveStatus.value = null
     }, 3000)
-
   } catch (error) {
     console.error('保存线程设置失败:', error)
     saveStatus.value = {
       title: '保存失败',
       type: 'error',
-      description: '保存线程设置失败，请稍后重试'
+      description: '保存线程设置失败，请稍后重试',
     }
   } finally {
     loading.value = false

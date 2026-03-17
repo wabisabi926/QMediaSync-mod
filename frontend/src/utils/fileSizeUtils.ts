@@ -12,15 +12,15 @@ export function formatFileSize(bytes: number): string {
   if (bytes === null || bytes === undefined || isNaN(bytes) || bytes < 0) {
     return 'N/A'
   }
-  
+
   if (bytes === 0) return '0 Bytes'
-  
+
   const k = 1024
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
-  
+
   // 确保索引在有效范围内
   const index = Math.min(i, sizes.length - 1)
-  
+
   return parseFloat((bytes / Math.pow(k, index)).toFixed(2)) + ' ' + sizes[index]
 }

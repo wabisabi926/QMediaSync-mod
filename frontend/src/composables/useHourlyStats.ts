@@ -11,7 +11,7 @@ import {
   TooltipComponent,
   LegendComponent,
   GridComponent,
-  DataZoomComponent
+  DataZoomComponent,
 } from 'echarts/components'
 
 use([
@@ -22,7 +22,7 @@ use([
   TooltipComponent,
   LegendComponent,
   GridComponent,
-  DataZoomComponent
+  DataZoomComponent,
 ])
 
 export interface HourlyStat {
@@ -68,10 +68,10 @@ export function useHourlyStats() {
       return {}
     }
 
-    const hours = hourlyStats.value.hourly_stats.map(item => formatDateTime(item.hour_ts))
-    const requestCounts = hourlyStats.value.hourly_stats.map(item => item.total_requests)
-    const throttledCounts = hourlyStats.value.hourly_stats.map(item => item.throttled_requests)
-    const avgDurations = hourlyStats.value.hourly_stats.map(item => {
+    const hours = hourlyStats.value.hourly_stats.map((item) => formatDateTime(item.hour_ts))
+    const requestCounts = hourlyStats.value.hourly_stats.map((item) => item.total_requests)
+    const throttledCounts = hourlyStats.value.hourly_stats.map((item) => item.throttled_requests)
+    const avgDurations = hourlyStats.value.hourly_stats.map((item) => {
       const value = parseFloat(item.avg_duration)
       return isNaN(value) ? 0 : Math.round(value)
     })
@@ -80,18 +80,18 @@ export function useHourlyStats() {
       tooltip: {
         trigger: 'axis',
         axisPointer: {
-          type: 'shadow'
-        }
+          type: 'shadow',
+        },
       },
       legend: {
         data: ['请求数', '限流次数', '平均响应时间(ms)'],
-        top: 10
+        top: 10,
       },
       grid: {
         left: '50px',
         right: '4%',
         bottom: '60px',
-        top: '60px'
+        top: '60px',
       },
       xAxis: {
         type: 'category',
@@ -99,20 +99,20 @@ export function useHourlyStats() {
         axisLabel: {
           rotate: 45,
           interval: 0,
-          fontSize: 10
-        }
+          fontSize: 10,
+        },
       },
       yAxis: [
         {
           type: 'value',
           name: '次数',
-          position: 'left'
+          position: 'left',
         },
         {
           type: 'value',
           name: '响应时间(ms)',
-          position: 'right'
-        }
+          position: 'right',
+        },
       ],
       series: [
         {
@@ -121,8 +121,8 @@ export function useHourlyStats() {
           yAxisIndex: 0,
           data: requestCounts,
           itemStyle: {
-            color: '#409eff'
-          }
+            color: '#409eff',
+          },
         },
         {
           name: '限流次数',
@@ -130,8 +130,8 @@ export function useHourlyStats() {
           yAxisIndex: 0,
           data: throttledCounts,
           itemStyle: {
-            color: '#f56c6c'
-          }
+            color: '#f56c6c',
+          },
         },
         {
           name: '平均响应时间(ms)',
@@ -139,25 +139,25 @@ export function useHourlyStats() {
           yAxisIndex: 1,
           data: avgDurations,
           itemStyle: {
-            color: '#67c23a'
+            color: '#67c23a',
           },
           lineStyle: {
-            width: 2
+            width: 2,
           },
-          smooth: true
-        }
+          smooth: true,
+        },
       ],
       dataZoom: [
         {
           type: 'inside',
           start: 0,
-          end: 100
+          end: 100,
         },
         {
           start: 0,
-          end: 100
-        }
-      ]
+          end: 100,
+        },
+      ],
     }
   })
 
@@ -169,6 +169,6 @@ export function useHourlyStats() {
     hourlyStats,
     hourlyStatsLoading,
     chartOption,
-    loadHourlyStats
+    loadHourlyStats,
   }
 }

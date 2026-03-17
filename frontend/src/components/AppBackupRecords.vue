@@ -25,46 +25,25 @@
             :height="isMobile ? 'auto' : 400"
             style="width: 100%"
           >
-            <el-table-column
-              prop="id"
-              label="ID"
-              width="80"
-            />
-            <el-table-column
-              prop="status"
-              label="状态"
-              width="100"
-            >
+            <el-table-column prop="id" label="ID" width="80" />
+            <el-table-column prop="status" label="状态" width="100">
               <template #default="{ row }">
                 <el-tag :type="getStatusTagType(row.status)" size="small">
                   {{ getStatusText(row.status) }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column
-              v-if="!isMobile"
-              prop="file_size"
-              label="文件大小"
-              width="120"
-            >
+            <el-table-column v-if="!isMobile" prop="file_size" label="文件大小" width="120">
               <template #default="{ row }">
                 {{ row.file_size ? formatFileSize(row.file_size) : '-' }}
               </template>
             </el-table-column>
-            <el-table-column
-              prop="backup_duration"
-              label="耗时"
-              width="100"
-            >
+            <el-table-column prop="backup_duration" label="耗时" width="100">
               <template #default="{ row }">
                 {{ row.backup_duration ? formatDuration(row.backup_duration) : '-' }}
               </template>
             </el-table-column>
-            <el-table-column
-              prop="backup_type"
-              label="类型"
-              width="100"
-            >
+            <el-table-column prop="backup_type" label="类型" width="100">
               <template #default="{ row }">
                 <el-tag :type="row.backup_type === 'manual' ? 'primary' : 'info'" size="small">
                   {{ row.backup_type === 'manual' ? '手动' : '自动' }}
@@ -78,20 +57,12 @@
               min-width="120"
               show-overflow-tooltip
             />
-            <el-table-column
-              prop="created_at"
-              label="创建时间"
-              :width="isMobile ? 100 : 180"
-            >
+            <el-table-column prop="created_at" label="创建时间" :width="isMobile ? 100 : 180">
               <template #default="{ row }">
                 {{ formatTimestamp(row.created_at) }}
               </template>
             </el-table-column>
-            <el-table-column
-              label="操作"
-              :width="isMobile ? 120 : 150"
-              fixed="right"
-            >
+            <el-table-column label="操作" :width="isMobile ? 120 : 150" fixed="right">
               <template #default="{ row }">
                 <el-button
                   v-if="row.status === 'completed'"
@@ -102,12 +73,7 @@
                 >
                   下载
                 </el-button>
-                <el-button
-                  type="danger"
-                  size="small"
-                  link
-                  @click="deleteBackupRecord(row.id)"
-                >
+                <el-button type="danger" size="small" link @click="deleteBackupRecord(row.id)">
                   删除
                 </el-button>
               </template>
@@ -138,11 +104,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { AxiosStatic } from 'axios'
 import { SERVER_URL } from '@/const'
 import { useBackupStore } from '@/stores/backup'
-import type {
-  BackupRecordListItem,
-  BackupRecordsResponse,
-  BackupStatus,
-} from '@/typing'
+import type { BackupRecordListItem, BackupRecordsResponse, BackupStatus } from '@/typing'
 import { formatFileSize } from '@/utils/fileSizeUtils'
 import { formatTimestamp, formatDuration } from '@/utils/timeUtils'
 import { isMobile as checkIsMobile } from '@/utils/deviceUtils'
@@ -199,7 +161,7 @@ const loadBackupRecords = async () => {
           page_size: pageSize.value,
           type: 'all',
         },
-      }
+      },
     )
 
     if (res.data.code === API_SUCCESS_CODE) {
@@ -254,15 +216,11 @@ const downloadBackup = async (recordId: number, filename: string) => {
 
 const deleteBackupRecord = async (recordId: number) => {
   try {
-    await ElMessageBox.confirm(
-      '确定要删除此备份记录吗？相关的备份文件也将被删除。',
-      '确认删除',
-      {
-        confirmButtonText: '删除',
-        cancelButtonText: '取消',
-        type: 'warning',
-      }
-    )
+    await ElMessageBox.confirm('确定要删除此备份记录吗？相关的备份文件也将被删除。', '确认删除', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
 
     if (!http) return
 

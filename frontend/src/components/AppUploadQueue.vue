@@ -7,16 +7,22 @@
       </div>
       <div class="header-actions">
         <el-button type="info" @click="refreshQueue">刷新</el-button>
-        <el-button type="success" @click="pauseAllTasks" :disabled="queueStatus === 0">全部暂停</el-button>
-        <el-button type="primary" @click="resumeAllTasks" :disabled="queueStatus === 1">全部开始</el-button>
+        <el-button type="success" @click="pauseAllTasks" :disabled="queueStatus === 0"
+          >全部暂停</el-button
+        >
+        <el-button type="primary" @click="resumeAllTasks" :disabled="queueStatus === 1"
+          >全部开始</el-button
+        >
         <el-button type="warning" @click="retryAllFailedTasks">重试所有失败的任务</el-button>
         <el-button type="warning" @click="clearQueue">清空等待中的任务</el-button>
-        <el-button type="danger" @click="clearSuccessAndFailedTasks">清空成功和失败的任务</el-button>
+        <el-button type="danger" @click="clearSuccessAndFailedTasks"
+          >清空成功和失败的任务</el-button
+        >
       </div>
     </div>
 
-    <div style="display:flex; gap: 20px; align-items: center;">
-      <div class="filter-container" style="width: 120px;">
+    <div style="display: flex; gap: 20px; align-items: center">
+      <div class="filter-container" style="width: 120px">
         <el-select v-model="statusFilter" placeholder="请选择状态" @change="handleStatusChange">
           <el-option label="全部状态" :value="-1"></el-option>
           <el-option label="等待中" :value="0"></el-option>
@@ -26,7 +32,6 @@
           <el-option label="已取消" :value="4"></el-option>
         </el-select>
       </div>
-
 
       <div class="queue-stats">
         <el-statistic :value="uploading">
@@ -39,8 +44,15 @@
       </div>
     </div>
 
-    <el-table :data="queueData" style="width: 100%" v-loading="loading" empty-text="暂无上传任务"
-      :row-class-name="tableRowClassName" height="calc(100vh - 420px)" class="hidden-md-and-up">
+    <el-table
+      :data="queueData"
+      style="width: 100%"
+      v-loading="loading"
+      empty-text="暂无上传任务"
+      :row-class-name="tableRowClassName"
+      height="calc(100vh - 420px)"
+      class="hidden-md-and-up"
+    >
       <el-table-column type="expand" width="30">
         <template #default="scope">
           <el-descriptions class="margin-top" :column="2" border size="small">
@@ -73,13 +85,22 @@
 
       <el-table-column prop="speed" label="上传文件">
         <template #default="scope">
-          <p><el-text type="primary"># {{ scope.row.id }}</el-text> {{ scope.row.local_full_path }}</p>
-          <p> => {{ scope.row.remote_file_id }}</p>
+          <p>
+            <el-text type="primary"># {{ scope.row.id }}</el-text> {{ scope.row.local_full_path }}
+          </p>
+          <p>=> {{ scope.row.remote_file_id }}</p>
         </template>
       </el-table-column>
     </el-table>
-    <el-table :data="queueData" style="width: 100%" v-loading="loading" empty-text="暂无上传任务"
-      :row-class-name="tableRowClassName" height="calc(100vh - 300px)" class="hidden-md-and-down">
+    <el-table
+      :data="queueData"
+      style="width: 100%"
+      v-loading="loading"
+      empty-text="暂无上传任务"
+      :row-class-name="tableRowClassName"
+      height="calc(100vh - 300px)"
+      class="hidden-md-and-down"
+    >
       <el-table-column prop="id" label="任务ID" width="60" />
       <el-table-column prop="source" label="来源类型" width="80" />
       <el-table-column prop="status" label="状态" width="100">
@@ -122,14 +143,23 @@
       <el-table-column prop="speed" label="上传文件">
         <template #default="scope">
           <p>{{ scope.row.local_full_path }}</p>
-          <p> => {{ scope.row.remote_file_id }}</p>
+          <p>=> {{ scope.row.remote_file_id }}</p>
         </template>
       </el-table-column>
     </el-table>
-    <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :page-sizes="[10, 20, 50, 100]"
-      :small="false" :disabled="false" :background="true" layout="total, sizes, prev, pager, next, jumper"
-      :total="total" @size-change="handleSizeChange" @current-change="handleCurrentChange"
-      class="pagination-container" />
+    <el-pagination
+      v-model:current-page="currentPage"
+      v-model:page-size="pageSize"
+      :page-sizes="[10, 20, 50, 100]"
+      :small="false"
+      :disabled="false"
+      :background="true"
+      layout="total, sizes, prev, pager, next, jumper"
+      :total="total"
+      @size-change="handleSizeChange"
+      @current-change="handleCurrentChange"
+      class="pagination-container"
+    />
   </div>
 </template>
 
@@ -265,7 +295,7 @@ const loadQueueData = async () => {
       params: {
         page: currentPage.value,
         page_size: pageSize.value,
-        status: statusFilter.value
+        status: statusFilter.value,
       },
     })
 
@@ -295,7 +325,7 @@ const clearQueue = async () => {
     await ElMessageBox.confirm('只能清空等待中的记录，是否继续？此操作不可恢复。', '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
-      type: 'warning'
+      type: 'warning',
     })
 
     const response = await http?.post(`${SERVER_URL}/upload/queue/clear-pending`)
@@ -315,11 +345,15 @@ const clearQueue = async () => {
 
 const clearSuccessAndFailedTasks = async () => {
   try {
-    await ElMessageBox.confirm('只能清空所有已完成和失败的数据，此操作不可恢复，是否继续？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
+    await ElMessageBox.confirm(
+      '只能清空所有已完成和失败的数据，此操作不可恢复，是否继续？',
+      '提示',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      },
+    )
 
     const response = await http?.post(`${SERVER_URL}/upload/queue/clear-success-failed`)
 
@@ -340,7 +374,7 @@ const retryAllFailedTasks = async () => {
     await ElMessageBox.confirm('是否重试所有失败的任务？', '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
-      type: 'warning'
+      type: 'warning',
     })
 
     const response = await http?.post(`${SERVER_URL}/upload/queue/retry-failed`)

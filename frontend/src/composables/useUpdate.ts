@@ -23,7 +23,7 @@ export interface UpdateProgress {
 
 export function useUpdate() {
   const http = inject<AxiosStatic>('$http')
-  
+
   const updateList = ref<UpdateInfo[]>([])
   const updateLoading = ref(false)
   const isUpdating = ref(false)
@@ -32,11 +32,11 @@ export function useUpdate() {
     progress: 0,
     total_size: 0,
     downloaded: 0,
-    status: ''
+    status: '',
   })
   const showUpdateCompleteDialog = ref(false)
   const countdown = ref(30)
-  
+
   let progressTimer: number | null = null
   let countdownTimer: number | null = null
 
@@ -52,7 +52,7 @@ export function useUpdate() {
         updateList.value = response.data.data.map((item: UpdateInfo) => {
           return {
             ...item,
-            url: item.url || ''
+            url: item.url || '',
           }
         })
       } else {
@@ -73,7 +73,12 @@ export function useUpdate() {
 
       if (response && response.data && response.data.code === 200) {
         const progressData = response.data.data
-        if (progressData && (progressData.progress > 0 || progressData.status === 'downloading' || progressData.status === 'install')) {
+        if (
+          progressData &&
+          (progressData.progress > 0 ||
+            progressData.status === 'downloading' ||
+            progressData.status === 'install')
+        ) {
           isUpdating.value = true
           updatingVersion.value = progressData.version || ''
 
@@ -81,7 +86,7 @@ export function useUpdate() {
             progress: progressData.progress || 0,
             total_size: progressData.total_size || 0,
             downloaded: progressData.downloaded || 0,
-            status: progressData.status || 'downloading'
+            status: progressData.status || 'downloading',
           }
 
           startProgressPolling()
@@ -99,12 +104,12 @@ export function useUpdate() {
       progress: 0,
       total_size: 0,
       downloaded: 0,
-      status: 'downloading'
+      status: 'downloading',
     }
 
     try {
       const response = await http?.post(`${SERVER_URL}/update/to-version`, {
-        version: version
+        version: version,
       })
 
       if (response && response.data && response.data.code === 200) {
@@ -116,7 +121,7 @@ export function useUpdate() {
           progress: 0,
           total_size: 0,
           downloaded: 0,
-          status: ''
+          status: '',
         }
         ElMessage.error(response?.data.message || '触发版本更新失败')
       }
@@ -128,7 +133,7 @@ export function useUpdate() {
         progress: 0,
         total_size: 0,
         downloaded: 0,
-        status: ''
+        status: '',
       }
       ElMessage.error('触发版本更新失败')
     }
@@ -223,7 +228,7 @@ export function useUpdate() {
 
             ElMessage.error({
               message: '更新失败，请稍后重试或手动下载最新版本',
-              duration: 5000
+              duration: 5000,
             })
 
             setTimeout(() => {
@@ -268,7 +273,7 @@ export function useUpdate() {
         progress: 0,
         total_size: 0,
         downloaded: 0,
-        status: ''
+        status: '',
       }
 
       ElMessage.success('已取消更新')
@@ -322,6 +327,6 @@ export function useUpdate() {
     updateToVersion,
     cancelUpdate,
     handleDownloadClick,
-    manuallyRefresh
+    manuallyRefresh,
   }
 }

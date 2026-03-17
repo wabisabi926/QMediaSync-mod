@@ -73,7 +73,11 @@
                 </el-tooltip>
                 <span class="card-name">{{ account.name }}</span>
               </div>
-              <el-tag :type="sourceTypeTagMap[account.source_type]" class="source-tag" effect="light">
+              <el-tag
+                :type="sourceTypeTagMap[account.source_type]"
+                class="source-tag"
+                effect="light"
+              >
                 {{ sourceTypeMap[account.source_type] }}
               </el-tag>
             </div>
@@ -120,7 +124,12 @@
                 </div>
               </div>
 
-              <template v-if="(account.source_type === '115' || account.source_type === 'baidupan') && account.token">
+              <template
+                v-if="
+                  (account.source_type === '115' || account.source_type === 'baidupan') &&
+                  account.token
+                "
+              >
                 <div class="status-divider"></div>
                 <div class="disk-status-section">
                   <div class="status-header">
@@ -163,13 +172,24 @@
                         <span class="info-label">空间使用</span>
                         <div class="space-info">
                           <el-progress
-                            style="width: 80%;"
-                            :percentage="account.status.total_space > 0 ? Math.round((account.status.used_space / account.status.total_space) * 100) : 0"
+                            style="width: 80%"
+                            :percentage="
+                              account.status.total_space > 0
+                                ? Math.round(
+                                    (account.status.used_space / account.status.total_space) * 100,
+                                  )
+                                : 0
+                            "
                             :stroke-width="10"
                             :show-text="false"
-                            :color="getSpaceColor(account.status.used_space, account.status.total_space)"
+                            :color="
+                              getSpaceColor(account.status.used_space, account.status.total_space)
+                            "
                           />
-                          <span class="space-text">{{ formatFileSize(account.status.used_space) }} / {{ formatFileSize(account.status.total_space) }}</span>
+                          <span class="space-text"
+                            >{{ formatFileSize(account.status.used_space) }} /
+                            {{ formatFileSize(account.status.total_space) }}</span
+                          >
                         </div>
                       </div>
                     </div>
@@ -179,16 +199,27 @@
                       </div>
                       <div class="info-content">
                         <span class="info-label">会员等级</span>
-                        <el-tag size="small" type="warning" effect="plain">{{ account.status.member_level }}</el-tag>
+                        <el-tag size="small" type="warning" effect="plain">{{
+                          account.status.member_level
+                        }}</el-tag>
                       </div>
                     </div>
-                    <div class="info-row" v-if="account.status.expire_time && account.status.expire_time !== '0001-01-01T00:00:00Z'">
+                    <div
+                      class="info-row"
+                      v-if="
+                        account.status.expire_time &&
+                        account.status.expire_time !== '0001-01-01T00:00:00Z'
+                      "
+                    >
                       <div class="info-icon expire-icon">
                         <el-icon><Calendar /></el-icon>
                       </div>
                       <div class="info-content">
                         <span class="info-label">到期时间</span>
-                        <span class="info-value" :class="{ 'expire-warning': isExpiringSoon(account.status.expire_time) }">
+                        <span
+                          class="info-value"
+                          :class="{ 'expire-warning': isExpiringSoon(account.status.expire_time) }"
+                        >
                           {{ formatExpireTime(account.status.expire_time) }}
                         </span>
                       </div>
@@ -202,24 +233,25 @@
 
               <div class="status-row">
                 <div class="status-indicator" :class="getStatusClass(account)">
-                  <el-icon v-if="account.token_failed_reason && !account.token"><CircleClose /></el-icon>
+                  <el-icon v-if="account.token_failed_reason && !account.token"
+                    ><CircleClose
+                  /></el-icon>
                   <el-icon v-else-if="account.token"><CircleCheck /></el-icon>
                   <el-icon v-else><WarningFilled /></el-icon>
                   <span>{{ getStatusText(account) }}</span>
                 </div>
-                <el-tooltip v-if="account.token_failed_reason && !account.token" :content="account.token_failed_reason" placement="top">
+                <el-tooltip
+                  v-if="account.token_failed_reason && !account.token"
+                  :content="account.token_failed_reason"
+                  placement="top"
+                >
                   <el-icon class="error-help-icon"><QuestionFilled /></el-icon>
                 </el-tooltip>
               </div>
             </div>
 
             <div class="card-footer">
-              <el-button
-                type="danger"
-                size="small"
-                plain
-                @click="handleDelete(account)"
-              >
+              <el-button type="danger" size="small" plain @click="handleDelete(account)">
                 <el-icon><Delete /></el-icon>
                 删除
               </el-button>
@@ -328,7 +360,11 @@
       <el-form-item label="网盘类型">
         <el-select v-model="newAccountForm.type" placeholder="请选择网盘类型">
           <template v-for="typeItem in sourceTypeOptions" :key="typeItem.value">
-            <el-option v-if="typeItem.value !== 'local'" :label="typeItem.label" :value="typeItem.value"></el-option>
+            <el-option
+              v-if="typeItem.value !== 'local'"
+              :label="typeItem.label"
+              :value="typeItem.value"
+            ></el-option>
           </template>
         </el-select>
       </el-form-item>
@@ -336,7 +372,10 @@
         <el-input v-model="newAccountForm.name" placeholder="请输入账号备注" />
       </el-form-item>
       <el-form-item label="访问地址" v-if="newAccountForm.type === 'openlist'">
-        <el-input v-model="newAccountForm.base_url" placeholder="请输入OpenList地址:http://ip:5244" />
+        <el-input
+          v-model="newAccountForm.base_url"
+          placeholder="请输入OpenList地址:http://ip:5244"
+        />
       </el-form-item>
       <el-form-item label="认证方式" v-if="newAccountForm.type === 'openlist'">
         <el-select v-model="newAccountForm.auth_type" placeholder="请选择认证方式">
@@ -344,7 +383,9 @@
           <el-option label="令牌" value="token"></el-option>
         </el-select>
       </el-form-item>
-      <template v-if="newAccountForm.type === 'openlist' && newAccountForm.auth_type === 'password'">
+      <template
+        v-if="newAccountForm.type === 'openlist' && newAccountForm.auth_type === 'password'"
+      >
         <el-form-item label="用户名">
           <el-input v-model="newAccountForm.username" placeholder="请输入用户名" />
         </el-form-item>
@@ -352,7 +393,10 @@
           <el-input type="password" v-model="newAccountForm.password" placeholder="请输入密码" />
         </el-form-item>
       </template>
-      <el-form-item label="令牌" v-if="newAccountForm.type === 'openlist' && newAccountForm.auth_type === 'token'">
+      <el-form-item
+        label="令牌"
+        v-if="newAccountForm.type === 'openlist' && newAccountForm.auth_type === 'token'"
+      >
         <el-input type="password" v-model="newAccountForm.token" placeholder="请输入令牌" />
       </el-form-item>
       <el-form-item label="115开放平台应用" v-if="newAccountForm.type === '115'">
@@ -361,22 +405,34 @@
           <el-option label="MQ的媒体库" value="MQ的媒体库"></el-option>
         </el-select>
       </el-form-item>
-      <el-form-item label="APP ID" v-if="newAccountForm.type === '115' && newAccountForm.app_id_name === '自定义'">
+      <el-form-item
+        label="APP ID"
+        v-if="newAccountForm.type === '115' && newAccountForm.app_id_name === '自定义'"
+      >
         <el-input v-model="newAccountForm.app_id" placeholder="请输入自定义APP ID" />
       </el-form-item>
     </el-form>
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="showAddAccountDialog = false">取消</el-button>
-        <el-button type="primary" @click="handleAddAccount" :loading="addAccountLoading">确定</el-button>
+        <el-button type="primary" @click="handleAddAccount" :loading="addAccountLoading"
+          >确定</el-button
+        >
       </span>
     </template>
   </el-dialog>
 
-  <el-dialog v-model="showEditAccountDialog" title="编辑OpenList账号" :width="isMobile ? '90%' : '500px'">
+  <el-dialog
+    v-model="showEditAccountDialog"
+    title="编辑OpenList账号"
+    :width="isMobile ? '90%' : '500px'"
+  >
     <el-form :model="editAccountForm" label-width="80px">
       <el-form-item label="访问地址" prop="baseUrl">
-        <el-input v-model="editAccountForm.base_url" placeholder="请输入OpenList地址:http://ip:5244" />
+        <el-input
+          v-model="editAccountForm.base_url"
+          placeholder="请输入OpenList地址:http://ip:5244"
+        />
       </el-form-item>
       <el-form-item label="认证方式">
         <el-select v-model="editAccountForm.auth_type" placeholder="请选择认证方式">
@@ -389,7 +445,11 @@
           <el-input v-model="editAccountForm.username" placeholder="请输入用户名" />
         </el-form-item>
         <el-form-item label="密码">
-          <el-input type="password" v-model="editAccountForm.password" placeholder="请输入密码（留空则不修改）" />
+          <el-input
+            type="password"
+            v-model="editAccountForm.password"
+            placeholder="请输入密码（留空则不修改）"
+          />
         </el-form-item>
       </template>
       <el-form-item label="令牌" v-if="editAccountForm.auth_type === 'token'">
@@ -497,9 +557,15 @@ const editAccountForm = ref({
 const selectedAccountId = ref<number | undefined>(undefined)
 const show123AuthDialog = ref(false)
 
-const authorizedCount = computed(() => accounts.value.filter(a => a.token && !a.token_failed_reason).length)
-const unauthorizedCount = computed(() => accounts.value.filter(a => !a.token && !a.token_failed_reason).length)
-const failedCount = computed(() => accounts.value.filter(a => a.token_failed_reason && !a.token).length)
+const authorizedCount = computed(
+  () => accounts.value.filter((a) => a.token && !a.token_failed_reason).length,
+)
+const unauthorizedCount = computed(
+  () => accounts.value.filter((a) => !a.token && !a.token_failed_reason).length,
+)
+const failedCount = computed(
+  () => accounts.value.filter((a) => a.token_failed_reason && !a.token).length,
+)
 
 let removeDeviceTypeListener: (() => void) | null = null
 
@@ -545,8 +611,11 @@ const loadAccounts = async () => {
         status: undefined,
         statusLoading: false,
       }))
-      accounts.value.forEach(account => {
-        if ((account.source_type === '115' || account.source_type === 'baidupan') && account.token) {
+      accounts.value.forEach((account) => {
+        if (
+          (account.source_type === '115' || account.source_type === 'baidupan') &&
+          account.token
+        ) {
           loadAccountStatus(account)
         }
       })
@@ -563,7 +632,7 @@ const loadAccounts = async () => {
 }
 
 const loadAccountStatus = async (account: CloudAccount) => {
-  const index = accounts.value.findIndex(a => a.id === account.id)
+  const index = accounts.value.findIndex((a) => a.id === account.id)
   if (index === -1) return
 
   accounts.value[index].statusLoading = true
@@ -579,7 +648,7 @@ const loadAccountStatus = async (account: CloudAccount) => {
     }
 
     const response = await http?.get(url, {
-      params: { account_id: account.id }
+      params: { account_id: account.id },
     })
 
     if (response?.data.code === 200 && response.data.data) {
@@ -601,7 +670,11 @@ const formatFileSize = (bytes: number): string => {
 }
 
 const formatExpireTime = (expireTime: string): string => {
-  if (!expireTime || expireTime === '0001-01-01T00:00:00Z' || expireTime === '1970-01-01T00:00:00Z') {
+  if (
+    !expireTime ||
+    expireTime === '0001-01-01T00:00:00Z' ||
+    expireTime === '1970-01-01T00:00:00Z'
+  ) {
     return '-'
   }
   try {
@@ -736,15 +809,15 @@ const handle115OAuth = async (accountId?: number) => {
         confirmButtonText: '前往授权',
         cancelButtonText: '取消',
         type: 'info',
-      }
+      },
     )
 
     const redirectUrl = window.location.href.split('?')[0]
     const response = await http?.get(`${SERVER_URL}/115/oauth-url`, {
       params: {
         account_id: accountId,
-        redirect_url: redirectUrl
-      }
+        redirect_url: redirectUrl,
+      },
     })
 
     if (response?.data.code === 200 && response.data.data) {
@@ -769,15 +842,15 @@ const handleBaiduOAuth = async (accountId?: number) => {
         confirmButtonText: '前往授权',
         cancelButtonText: '取消',
         type: 'info',
-      }
+      },
     )
 
     const redirectUrl = window.location.href.split('?')[0]
     const response = await http?.get(`${SERVER_URL}/baidupan/oauth-url`, {
       params: {
         account_id: accountId,
-        redirect_url: redirectUrl
-      }
+        redirect_url: redirectUrl,
+      },
     })
 
     if (response?.data.code === 200 && response.data.data) {
@@ -854,9 +927,13 @@ const handleAddAccount = async () => {
   }
 }
 
-const confirmOAuth = async (source: string, accountId: number, tokenData: string): Promise<void> => {
+const confirmOAuth = async (
+  source: string,
+  accountId: number,
+  tokenData: string,
+): Promise<void> => {
   try {
-    let url = "";
+    let url = ''
     if (source === '' || source === '115') {
       url = `${SERVER_URL}/115/oauth-confirm`
     } else if (source === 'baidupan') {
@@ -865,14 +942,18 @@ const confirmOAuth = async (source: string, accountId: number, tokenData: string
       return
     }
 
-    const response = await http?.post(url, {
-      account_id: accountId,
-      data: tokenData,
-    }, {
-      headers: {
-        'Content-Type': 'application/json',
+    const response = await http?.post(
+      url,
+      {
+        account_id: accountId,
+        data: tokenData,
       },
-    })
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    )
 
     if (response?.data.code === 200) {
       ElMessage.success('授权成功')
@@ -1294,8 +1375,12 @@ onUnmounted(() => {
 }
 
 @keyframes rotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .card-footer {
@@ -1349,12 +1434,22 @@ onUnmounted(() => {
   animation: bounce 1.4s infinite ease-in-out both;
 }
 
-.empty-dots span:nth-child(1) { animation-delay: -0.32s; }
-.empty-dots span:nth-child(2) { animation-delay: -0.16s; }
+.empty-dots span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+.empty-dots span:nth-child(2) {
+  animation-delay: -0.16s;
+}
 
 @keyframes bounce {
-  0%, 80%, 100% { transform: scale(0); }
-  40% { transform: scale(1); }
+  0%,
+  80%,
+  100% {
+    transform: scale(0);
+  }
+  40% {
+    transform: scale(1);
+  }
 }
 
 .empty-title {

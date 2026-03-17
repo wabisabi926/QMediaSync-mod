@@ -11,7 +11,10 @@ const { queueStats, queueStatsLoading } = useQueueStats()
         <span class="title-icon">📊</span>
         <span>115接口监控</span>
       </div>
-      <div class="status-badge" :class="queueStats?.is_throttled ? 'status-warning' : 'status-success'">
+      <div
+        class="status-badge"
+        :class="queueStats?.is_throttled ? 'status-warning' : 'status-success'"
+      >
         {{ queueStats?.is_throttled ? '限流中' : '运行正常' }}
       </div>
     </div>
@@ -113,8 +116,13 @@ const { queueStats, queueStatsLoading } = useQueueStats()
 }
 
 @keyframes pulse-bg {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 
 .throttle-warning {

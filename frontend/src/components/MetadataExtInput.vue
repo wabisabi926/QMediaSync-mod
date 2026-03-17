@@ -1,17 +1,38 @@
 <template>
   <div class="metadata-ext-input-container">
     <div class="ext-tags-container">
-      <el-tag v-for="(tag, index) in tags" :key="index" closable @close="removeTag(index)" class="ext-tag">
+      <el-tag
+        v-for="(tag, index) in tags"
+        :key="index"
+        closable
+        @close="removeTag(index)"
+        class="ext-tag"
+      >
         {{ tag }}
       </el-tag>
-      <el-button v-if="!showInput" @click="showInput = true" size="small" type="primary" plain class="add-tag-btn">
+      <el-button
+        v-if="!showInput"
+        @click="showInput = true"
+        size="small"
+        type="primary"
+        plain
+        class="add-tag-btn"
+      >
         + 添加
       </el-button>
     </div>
-    <el-input v-model="inputValue" :placeholder="placeholder" @keyup.enter="handleEnter" class="ext-input-full"
-      size="small" v-if="showInput">
+    <el-input
+      v-model="inputValue"
+      :placeholder="placeholder"
+      @keyup.enter="handleEnter"
+      class="ext-input-full"
+      size="small"
+      v-if="showInput"
+    >
       <template #append>
-        <el-button @click="handleEnter" size="small" type="primary" :disabled="!inputValue.trim()">添加</el-button>
+        <el-button @click="handleEnter" size="small" type="primary" :disabled="!inputValue.trim()"
+          >添加</el-button
+        >
       </template>
     </el-input>
   </div>
@@ -37,8 +58,8 @@ const emit = defineEmits<{
 const props = withDefaults(defineProps<Props>(), {
   modelValue: () => [],
   placeholder: '输入扩展名后按回车添加，如：jpg 或 jpg,png,gif',
-  autoAddDot: true
-});
+  autoAddDot: true,
+})
 
 // 输入框值
 const inputValue: Ref<string> = ref('')
@@ -55,7 +76,7 @@ watch(
   (newVal) => {
     tags.value = [...newVal]
   },
-  { deep: true }
+  { deep: true },
 )
 
 // 处理回车事件
@@ -68,12 +89,12 @@ const handleEnter = () => {
   // 分割输入的扩展名（支持逗号或分号分隔）
   const exts = inputValue.value
     .split(/[,;]+/)
-    .map(ext => ext.trim())
-    .filter(ext => ext.length > 0)
+    .map((ext) => ext.trim())
+    .filter((ext) => ext.length > 0)
 
   // 处理每个扩展名
   const newTags = [...tags.value]
-  exts.forEach(ext => {
+  exts.forEach((ext) => {
     // 根据属性控制是否自动添加点号
     const formattedExt = props.autoAddDot && !ext.startsWith('.') ? `.${ext}` : ext
 

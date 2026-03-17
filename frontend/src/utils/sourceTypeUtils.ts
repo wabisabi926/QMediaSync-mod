@@ -24,15 +24,15 @@ export const sourceTypeOptions: Array<Record<string, string>> = [
 export const sourceTypeTagMap: Record<string, string> = {
   '115': 'success',
   // '123': 'primary',
-  'baidupan': 'danger',
-  'openlist': 'warning',
-  'local': 'info',
+  baidupan: 'danger',
+  openlist: 'warning',
+  local: 'info',
 }
 
 export const sourceTypeMap: Record<string, string> = {
   '115': '115网盘',
   // '123': '123云盘',
-  'baidupan': '百度网盘',
+  baidupan: '百度网盘',
   openlist: 'OpenList',
   local: '本地目录',
 }

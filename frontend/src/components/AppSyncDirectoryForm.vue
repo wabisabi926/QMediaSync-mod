@@ -12,12 +12,25 @@
         <h3>{{ isEditMode ? '编辑同步目录' : '添加同步目录' }}</h3>
       </div>
 
-      <el-form ref="formRef" :model="form" :rules="formRules" label-width="160px"
-        label-position="top">
+      <el-form
+        ref="formRef"
+        :model="form"
+        :rules="formRules"
+        label-width="160px"
+        label-position="top"
+      >
         <el-form-item label="同步源类型" prop="source_type" v-if="!isEditMode">
-          <el-select v-model="form.source_type" placeholder="请选择同步源类型" @change="handleSourceTypeChange">
-            <el-option v-for="typeItem in sourceTypeOptions" :key="typeItem.value" :label="typeItem.label"
-              :value="typeItem.value"></el-option>
+          <el-select
+            v-model="form.source_type"
+            placeholder="请选择同步源类型"
+            @change="handleSourceTypeChange"
+          >
+            <el-option
+              v-for="typeItem in sourceTypeOptions"
+              :key="typeItem.value"
+              :label="typeItem.label"
+              :value="typeItem.value"
+            ></el-option>
           </el-select>
           <div class="form-tip">
             <div v-if="form.source_type === 'local'">
@@ -27,21 +40,42 @@
             <div v-if="form.source_type === '123'">需要先添加用于同步的123账号并授权</div>
           </div>
         </el-form-item>
-        <el-form-item label="网盘账号" prop="account_id" v-if="form.source_type !== 'local' && !isEditMode">
-          <el-select v-model="form.account_id" placeholder="请选择网盘账号" :loading="accountsLoading"
-            :disabled="loading">
-            <el-option v-for="account in accounts" :key="account.id" :label="account.name"
-              :value="account.id"></el-option>
+        <el-form-item
+          label="网盘账号"
+          prop="account_id"
+          v-if="form.source_type !== 'local' && !isEditMode"
+        >
+          <el-select
+            v-model="form.account_id"
+            placeholder="请选择网盘账号"
+            :loading="accountsLoading"
+            :disabled="loading"
+          >
+            <el-option
+              v-for="account in accounts"
+              :key="account.id"
+              :label="account.name"
+              :value="account.id"
+            ></el-option>
           </el-select>
           <div class="form-tip">选择用于同步的网盘账号</div>
         </el-form-item>
-        <el-form-item label="来源路径" prop="base_cid" v-if="
-          (form.source_type !== 'local' && form.account_id) ||
-          form.source_type === 'local' ||
-          isEditMode
-        ">
+        <el-form-item
+          label="来源路径"
+          prop="base_cid"
+          v-if="
+            (form.source_type !== 'local' && form.account_id) ||
+            form.source_type === 'local' ||
+            isEditMode
+          "
+        >
           <div class="pan-dir-input">
-            <el-input v-model="form.base_cid" placeholder="点击选择按钮选择网盘目录" :disabled="loading" readonly />
+            <el-input
+              v-model="form.base_cid"
+              placeholder="点击选择按钮选择网盘目录"
+              :disabled="loading"
+              readonly
+            />
             <el-button type="primary" @click="openDirSelector(false)" :disabled="loading">
               选择目录
             </el-button>
@@ -52,13 +86,22 @@
           </div>
           <div class="form-tip">选择网盘中要同步的目录</div>
         </el-form-item>
-        <el-form-item label="目标路径" prop="local_path" v-if="
-          (form.source_type !== 'local' && form.account_id) ||
-          form.source_type === 'local' ||
-          isEditMode
-        ">
+        <el-form-item
+          label="目标路径"
+          prop="local_path"
+          v-if="
+            (form.source_type !== 'local' && form.account_id) ||
+            form.source_type === 'local' ||
+            isEditMode
+          "
+        >
           <div class="pan-dir-input">
-            <el-input v-model="form.local_path" placeholder="点击选择按钮选择本地目录" :disabled="loading" readonly />
+            <el-input
+              v-model="form.local_path"
+              placeholder="点击选择按钮选择本地目录"
+              :disabled="loading"
+              readonly
+            />
             <el-button type="primary" @click="openDirSelector(true)" :disabled="loading">
               选择目录
             </el-button>
@@ -66,18 +109,30 @@
           <div class="form-tip">选择本地目录作为STRM文件的存放位置</div>
         </el-form-item>
 
-        <el-form-item label="STRM存放目录" v-if="
-          (form.source_type !== 'local' && form.account_id) ||
-          form.source_type === 'local' ||
-          isEditMode
-        ">
-          <el-input v-model="form.strm_path" placeholder="自动计算：本地目录 + 选中目录路径" :disabled="true" readonly />
+        <el-form-item
+          label="STRM存放目录"
+          v-if="
+            (form.source_type !== 'local' && form.account_id) ||
+            form.source_type === 'local' ||
+            isEditMode
+          "
+        >
+          <el-input
+            v-model="form.strm_path"
+            placeholder="自动计算：本地目录 + 选中目录路径"
+            :disabled="true"
+            readonly
+          />
           <div class="form-tip">STRM和元数据实际存放目录（自动生成）</div>
         </el-form-item>
 
         <el-form-item label="是否自定义设置" prop="custom_config">
-          <el-switch v-model="form.custom_config" :active-value="true" :inactive-value="false"
-            :disabled="loading" />
+          <el-switch
+            v-model="form.custom_config"
+            :active-value="true"
+            :inactive-value="false"
+            :disabled="loading"
+          />
           <div class="form-tip">
             开启后可自定义视频扩展名和元数据扩展名配置，否则使用strm设置中的值
           </div>
@@ -85,13 +140,21 @@
 
         <template v-if="form.custom_config">
           <el-form-item label="启用定时同步" prop="enable_cron">
-            <el-switch v-model="form.enable_cron" :active-value="true" :inactive-value="false"
-              :disabled="loading" />
+            <el-switch
+              v-model="form.enable_cron"
+              :active-value="true"
+              :inactive-value="false"
+              :disabled="loading"
+            />
             <div class="form-tip">开启后将按照定时表达式自动执行同步任务</div>
           </el-form-item>
           <el-form-item label="定时同步表达式" prop="cron">
-            <el-input v-model="form.cron" placeholder="留空则使用STRM设置中的表达式" :disabled="loading"
-              @blur="loadCronTimes" />
+            <el-input
+              v-model="form.cron"
+              placeholder="留空则使用STRM设置中的表达式"
+              :disabled="loading"
+              @blur="loadCronTimes"
+            />
             <div class="form-help">
               <p><strong>常用示例：</strong></p>
               <ul class="cron-examples">
@@ -110,8 +173,12 @@
             </div>
           </el-form-item>
           <el-form-item label="STRM直连地址" prop="strm_base_url">
-            <el-input v-model="form.strm_base_url" placeholder="留空则使用STRM设置中的地址"
-              :disabled="loading" @input="updateStrmExample" />
+            <el-input
+              v-model="form.strm_base_url"
+              placeholder="留空则使用STRM设置中的地址"
+              :disabled="loading"
+              @input="updateStrmExample"
+            />
             <div v-if="strmExample" class="strm-example-inline">
               <span class="example-label">示例：</span>
               <code class="example-url">{{ strmExample }}</code>
@@ -119,17 +186,32 @@
             <div class="form-tip">STRM文件将使用此地址作为基础URL，留空则使用STRM设置中的值</div>
           </el-form-item>
           <el-form-item label="最小视频文件大小 (MB)" prop="min_video_size">
-            <el-slider v-model="form.min_video_size" :min="-1" :max="1000" :step="1" :precision="0"
-              :format-tooltip="formatTooltip" show-input />
+            <el-slider
+              v-model="form.min_video_size"
+              :min="-1"
+              :max="1000"
+              :step="1"
+              :precision="0"
+              :format-tooltip="formatTooltip"
+              show-input
+            />
             <div class="form-help">
               <p>小于此大小的视频文件将不会生成STRM文件，单位为MB。设置为0表示不限制文件大小</p>
             </div>
           </el-form-item>
           <el-form-item label="视频扩展名" prop="video_ext">
             <div class="ext-input-wrapper">
-              <MetadataExtInput v-model="form.video_ext" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
-                class="meta-ext-input limited-width-input" />
-              <el-button type="primary" link @click="importFromStrmSettings('video_ext')" :loading="importStrmSettingsLoading">
+              <MetadataExtInput
+                v-model="form.video_ext"
+                placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
+                class="meta-ext-input limited-width-input"
+              />
+              <el-button
+                type="primary"
+                link
+                @click="importFromStrmSettings('video_ext')"
+                :loading="importStrmSettingsLoading"
+              >
                 从STRM设置导入
               </el-button>
             </div>
@@ -137,18 +219,32 @@
           </el-form-item>
           <el-form-item label="元数据扩展名" prop="meta_ext">
             <div class="ext-input-wrapper">
-              <MetadataExtInput v-model="form.meta_ext" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
-                class="meta-ext-input limited-width-input" />
-              <el-button type="primary" link @click="importFromStrmSettings('meta_ext')" :loading="importStrmSettingsLoading">
+              <MetadataExtInput
+                v-model="form.meta_ext"
+                placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
+                class="meta-ext-input limited-width-input"
+              />
+              <el-button
+                type="primary"
+                link
+                @click="importFromStrmSettings('meta_ext')"
+                :loading="importStrmSettingsLoading"
+              >
                 从STRM设置导入
               </el-button>
             </div>
             <div class="form-tip">指定需要同步的元数据文件扩展名</div>
           </el-form-item>
           <el-form-item label="排除文件名" prop="exclude_name">
-            <MetadataExtInput v-model="form.exclude_name" :autoAddDot="false" placeholder="输入文件名后按回车添加，逗号或者分行分隔"
-              class="meta-ext-input limited-width-input" />
-            <div class="form-tip">指定需要排除同步的名称，必须输入完整，可以是文件夹名字或者文件名字</div>
+            <MetadataExtInput
+              v-model="form.exclude_name"
+              :autoAddDot="false"
+              placeholder="输入文件名后按回车添加，逗号或者分行分隔"
+              class="meta-ext-input limited-width-input"
+            />
+            <div class="form-tip">
+              指定需要排除同步的名称，必须输入完整，可以是文件夹名字或者文件名字
+            </div>
           </el-form-item>
           <el-form-item label="是否下载元数据" prop="download_meta">
             <el-radio-group v-model="form.download_meta">
@@ -159,15 +255,21 @@
             <div class="form-help">
               <p>如果选择是，同步时会将本地不存在的元数据文件下载回来</p>
               <p>
-                如果选择否，同步时不会下载，<strong style="color: black;">但是也同时跳过处理元数据，已存在的会保留，新增的不会上传</strong>
+                如果选择否，同步时不会下载，<strong style="color: black"
+                  >但是也同时跳过处理元数据，已存在的会保留，新增的不会上传</strong
+                >
               </p>
             </div>
           </el-form-item>
           <el-form-item label="网盘不存在的元数据" prop="upload_meta">
             <el-radio-group v-model="form.upload_meta">
               <el-radio-button :label="-1">使用STRM设置</el-radio-button>
-              <el-radio-button :label="2" :disabled="form.download_meta === 0">删除</el-radio-button>
-              <el-radio-button :label="1" :disabled="form.download_meta === 0">上传</el-radio-button>
+              <el-radio-button :label="2" :disabled="form.download_meta === 0"
+                >删除</el-radio-button
+              >
+              <el-radio-button :label="1" :disabled="form.download_meta === 0"
+                >上传</el-radio-button
+              >
               <el-radio-button :label="0">保留</el-radio-button>
             </el-radio-group>
             <div class="form-help">
@@ -176,17 +278,10 @@
                 上传: 本地存在且网盘不存在，分三种情况: <br />
                 &nbsp;&nbsp;&nbsp;&nbsp;1. 父目录在网盘存在则上传<br />
                 &nbsp;&nbsp;&nbsp;&nbsp;2. 父目录在网盘不存在（网盘已删除）则删除本地文件<br />
-                &nbsp;&nbsp;&nbsp;&nbsp;3. 父目录是特定名字，则创建父目录并上传，特定名字包括："extrafanart",
-                "exfanarts",
-                "extrafanarts",
-                "extras",
-                "specials",
-                "shorts",
-                "scenes",
-                "featurettes",
-                "behind the scenes",
-                "trailers",
-                "interviews",
+                &nbsp;&nbsp;&nbsp;&nbsp;3.
+                父目录是特定名字，则创建父目录并上传，特定名字包括："extrafanart", "exfanarts",
+                "extrafanarts", "extras", "specials", "shorts", "scenes", "featurettes", "behind the
+                scenes", "trailers", "interviews",
               </p>
               <p>保留：不会删除本地文件，不管网盘有没有删除它</p>
             </div>
@@ -198,8 +293,10 @@
               <el-radio-button :label="0">否</el-radio-button>
             </el-radio-group>
             <div class="form-help">
-              <p>如果选择是，会有两种情况：<br />
-                &nbsp;&nbsp;&nbsp;&nbsp;1. 网盘文件修改时间比本地文件新，则下载网盘文件替换本地文件<br />
+              <p>
+                如果选择是，会有两种情况：<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;1.
+                网盘文件修改时间比本地文件新，则下载网盘文件替换本地文件<br />
                 &nbsp;&nbsp;&nbsp;&nbsp;2. 网盘文件修改时间比本地文件旧，则上传本地文件到网盘
               </p>
             </div>
@@ -242,12 +339,25 @@
         </div>
       </template>
 
-      <el-form ref="formRef" :model="form" :rules="formRules" label-width="160px"
-        :label-position="checkIsMobile ? 'top' : 'left'">
+      <el-form
+        ref="formRef"
+        :model="form"
+        :rules="formRules"
+        label-width="160px"
+        :label-position="checkIsMobile ? 'top' : 'left'"
+      >
         <el-form-item label="同步源类型" prop="source_type" v-if="!isEditMode">
-          <el-select v-model="form.source_type" placeholder="请选择同步源类型" @change="handleSourceTypeChange">
-            <el-option v-for="typeItem in sourceTypeOptions" :key="typeItem.value" :label="typeItem.label"
-              :value="typeItem.value"></el-option>
+          <el-select
+            v-model="form.source_type"
+            placeholder="请选择同步源类型"
+            @change="handleSourceTypeChange"
+          >
+            <el-option
+              v-for="typeItem in sourceTypeOptions"
+              :key="typeItem.value"
+              :label="typeItem.label"
+              :value="typeItem.value"
+            ></el-option>
           </el-select>
           <div class="form-tip">
             <div v-if="form.source_type === 'local'">
@@ -257,21 +367,42 @@
             <div v-if="form.source_type === '123'">需要先添加用于同步的123账号并授权</div>
           </div>
         </el-form-item>
-        <el-form-item label="网盘账号" prop="account_id" v-if="form.source_type !== 'local' && !isEditMode">
-          <el-select v-model="form.account_id" placeholder="请选择网盘账号" :loading="accountsLoading"
-            :disabled="loading">
-            <el-option v-for="account in accounts" :key="account.id" :label="account.name"
-              :value="account.id"></el-option>
+        <el-form-item
+          label="网盘账号"
+          prop="account_id"
+          v-if="form.source_type !== 'local' && !isEditMode"
+        >
+          <el-select
+            v-model="form.account_id"
+            placeholder="请选择网盘账号"
+            :loading="accountsLoading"
+            :disabled="loading"
+          >
+            <el-option
+              v-for="account in accounts"
+              :key="account.id"
+              :label="account.name"
+              :value="account.id"
+            ></el-option>
           </el-select>
           <div class="form-tip">选择用于同步的网盘账号</div>
         </el-form-item>
-        <el-form-item label="来源路径" prop="base_cid" v-if="
-          (form.source_type !== 'local' && form.account_id) ||
-          form.source_type === 'local' ||
-          isEditMode
-        ">
+        <el-form-item
+          label="来源路径"
+          prop="base_cid"
+          v-if="
+            (form.source_type !== 'local' && form.account_id) ||
+            form.source_type === 'local' ||
+            isEditMode
+          "
+        >
           <div class="pan-dir-input">
-            <el-input v-model="form.base_cid" placeholder="点击选择按钮选择网盘目录" :disabled="loading" readonly />
+            <el-input
+              v-model="form.base_cid"
+              placeholder="点击选择按钮选择网盘目录"
+              :disabled="loading"
+              readonly
+            />
             <el-button type="primary" @click="openDirSelector(false)" :disabled="loading">
               选择目录
             </el-button>
@@ -282,13 +413,22 @@
           </div>
           <div class="form-tip">选择网盘中要同步的目录</div>
         </el-form-item>
-        <el-form-item label="目标路径" prop="local_path" v-if="
-          (form.source_type !== 'local' && form.account_id) ||
-          form.source_type === 'local' ||
-          isEditMode
-        ">
+        <el-form-item
+          label="目标路径"
+          prop="local_path"
+          v-if="
+            (form.source_type !== 'local' && form.account_id) ||
+            form.source_type === 'local' ||
+            isEditMode
+          "
+        >
           <div class="pan-dir-input">
-            <el-input v-model="form.local_path" placeholder="点击选择按钮选择本地目录" :disabled="loading" readonly />
+            <el-input
+              v-model="form.local_path"
+              placeholder="点击选择按钮选择本地目录"
+              :disabled="loading"
+              readonly
+            />
             <el-button type="primary" @click="openDirSelector(true)" :disabled="loading">
               选择目录
             </el-button>
@@ -296,18 +436,30 @@
           <div class="form-tip">选择本地目录作为STRM文件的存放位置</div>
         </el-form-item>
 
-        <el-form-item label="STRM存放目录" v-if="
-          (form.source_type !== 'local' && form.account_id) ||
-          form.source_type === 'local' ||
-          isEditMode
-        ">
-          <el-input v-model="form.strm_path" placeholder="自动计算：本地目录 + 选中目录路径" :disabled="true" readonly />
+        <el-form-item
+          label="STRM存放目录"
+          v-if="
+            (form.source_type !== 'local' && form.account_id) ||
+            form.source_type === 'local' ||
+            isEditMode
+          "
+        >
+          <el-input
+            v-model="form.strm_path"
+            placeholder="自动计算：本地目录 + 选中目录路径"
+            :disabled="true"
+            readonly
+          />
           <div class="form-tip">STRM和元数据实际存放目录（自动生成）</div>
         </el-form-item>
 
         <el-form-item label="是否自定义设置" prop="custom_config">
-          <el-switch v-model="form.custom_config" :active-value="true" :inactive-value="false"
-            :disabled="loading" />
+          <el-switch
+            v-model="form.custom_config"
+            :active-value="true"
+            :inactive-value="false"
+            :disabled="loading"
+          />
           <div class="form-tip">
             开启后可自定义视频扩展名和元数据扩展名配置，否则使用strm设置中的值
           </div>
@@ -315,13 +467,21 @@
 
         <template v-if="form.custom_config">
           <el-form-item label="启用定时同步" prop="enable_cron">
-            <el-switch v-model="form.enable_cron" :active-value="true" :inactive-value="false"
-              :disabled="loading" />
+            <el-switch
+              v-model="form.enable_cron"
+              :active-value="true"
+              :inactive-value="false"
+              :disabled="loading"
+            />
             <div class="form-tip">开启后将按照定时表达式自动执行同步任务</div>
           </el-form-item>
           <el-form-item label="定时同步表达式" prop="cron">
-            <el-input v-model="form.cron" placeholder="留空则使用STRM设置中的表达式" :disabled="loading"
-              @blur="loadCronTimes" />
+            <el-input
+              v-model="form.cron"
+              placeholder="留空则使用STRM设置中的表达式"
+              :disabled="loading"
+              @blur="loadCronTimes"
+            />
             <div class="form-help">
               <p><strong>常用示例：</strong></p>
               <ul class="cron-examples">
@@ -340,8 +500,12 @@
             </div>
           </el-form-item>
           <el-form-item label="STRM直连地址" prop="strm_base_url">
-            <el-input v-model="form.strm_base_url" placeholder="留空则使用STRM设置中的地址"
-              :disabled="loading" @input="updateStrmExample" />
+            <el-input
+              v-model="form.strm_base_url"
+              placeholder="留空则使用STRM设置中的地址"
+              :disabled="loading"
+              @input="updateStrmExample"
+            />
             <div v-if="strmExample" class="strm-example-inline">
               <span class="example-label">示例：</span>
               <code class="example-url">{{ strmExample }}</code>
@@ -349,17 +513,32 @@
             <div class="form-tip">STRM文件将使用此地址作为基础URL，留空则使用STRM设置中的值</div>
           </el-form-item>
           <el-form-item label="最小视频文件大小 (MB)" prop="min_video_size">
-            <el-slider v-model="form.min_video_size" :min="-1" :max="1000" :step="1" :precision="0"
-              :format-tooltip="formatTooltip" show-input />
+            <el-slider
+              v-model="form.min_video_size"
+              :min="-1"
+              :max="1000"
+              :step="1"
+              :precision="0"
+              :format-tooltip="formatTooltip"
+              show-input
+            />
             <div class="form-help">
               <p>小于此大小的视频文件将不会生成STRM文件，单位为MB。设置为0表示不限制文件大小</p>
             </div>
           </el-form-item>
           <el-form-item label="视频扩展名" prop="video_ext">
             <div class="ext-input-wrapper">
-              <MetadataExtInput v-model="form.video_ext" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
-                class="meta-ext-input limited-width-input" />
-              <el-button type="primary" link @click="importFromStrmSettings('video_ext')" :loading="importStrmSettingsLoading">
+              <MetadataExtInput
+                v-model="form.video_ext"
+                placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
+                class="meta-ext-input limited-width-input"
+              />
+              <el-button
+                type="primary"
+                link
+                @click="importFromStrmSettings('video_ext')"
+                :loading="importStrmSettingsLoading"
+              >
                 从STRM设置导入
               </el-button>
             </div>
@@ -367,18 +546,32 @@
           </el-form-item>
           <el-form-item label="元数据扩展名" prop="meta_ext">
             <div class="ext-input-wrapper">
-              <MetadataExtInput v-model="form.meta_ext" placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
-                class="meta-ext-input limited-width-input" />
-              <el-button type="primary" link @click="importFromStrmSettings('meta_ext')" :loading="importStrmSettingsLoading">
+              <MetadataExtInput
+                v-model="form.meta_ext"
+                placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
+                class="meta-ext-input limited-width-input"
+              />
+              <el-button
+                type="primary"
+                link
+                @click="importFromStrmSettings('meta_ext')"
+                :loading="importStrmSettingsLoading"
+              >
                 从STRM设置导入
               </el-button>
             </div>
             <div class="form-tip">指定需要同步的元数据文件扩展名</div>
           </el-form-item>
           <el-form-item label="排除文件名" prop="exclude_name">
-            <MetadataExtInput v-model="form.exclude_name" :autoAddDot="false" placeholder="输入文件名后按回车添加，逗号或者分行分隔"
-              class="meta-ext-input limited-width-input" />
-            <div class="form-tip">指定需要排除同步的名称，必须输入完整，可以是文件夹名字或者文件名字</div>
+            <MetadataExtInput
+              v-model="form.exclude_name"
+              :autoAddDot="false"
+              placeholder="输入文件名后按回车添加，逗号或者分行分隔"
+              class="meta-ext-input limited-width-input"
+            />
+            <div class="form-tip">
+              指定需要排除同步的名称，必须输入完整，可以是文件夹名字或者文件名字
+            </div>
           </el-form-item>
           <el-form-item label="是否下载元数据" prop="download_meta">
             <el-radio-group v-model="form.download_meta">
@@ -389,15 +582,21 @@
             <div class="form-help">
               <p>如果选择是，同步时会将本地不存在的元数据文件下载回来</p>
               <p>
-                如果选择否，同步时不会下载，<strong style="color: black;">但是也同时跳过处理元数据，已存在的会保留，新增的不会上传</strong>
+                如果选择否，同步时不会下载，<strong style="color: black"
+                  >但是也同时跳过处理元数据，已存在的会保留，新增的不会上传</strong
+                >
               </p>
             </div>
           </el-form-item>
           <el-form-item label="网盘不存在的元数据" prop="upload_meta">
             <el-radio-group v-model="form.upload_meta">
               <el-radio-button :label="-1">使用STRM设置</el-radio-button>
-              <el-radio-button :label="2" :disabled="form.download_meta === 0">删除</el-radio-button>
-              <el-radio-button :label="1" :disabled="form.download_meta === 0">上传</el-radio-button>
+              <el-radio-button :label="2" :disabled="form.download_meta === 0"
+                >删除</el-radio-button
+              >
+              <el-radio-button :label="1" :disabled="form.download_meta === 0"
+                >上传</el-radio-button
+              >
               <el-radio-button :label="0">保留</el-radio-button>
             </el-radio-group>
             <div class="form-help">
@@ -406,17 +605,10 @@
                 上传: 本地存在且网盘不存在，分三种情况: <br />
                 &nbsp;&nbsp;&nbsp;&nbsp;1. 父目录在网盘存在则上传<br />
                 &nbsp;&nbsp;&nbsp;&nbsp;2. 父目录在网盘不存在（网盘已删除）则删除本地文件<br />
-                &nbsp;&nbsp;&nbsp;&nbsp;3. 父目录是特定名字，则创建父目录并上传，特定名字包括："extrafanart",
-                "exfanarts",
-                "extrafanarts",
-                "extras",
-                "specials",
-                "shorts",
-                "scenes",
-                "featurettes",
-                "behind the scenes",
-                "trailers",
-                "interviews",
+                &nbsp;&nbsp;&nbsp;&nbsp;3.
+                父目录是特定名字，则创建父目录并上传，特定名字包括："extrafanart", "exfanarts",
+                "extrafanarts", "extras", "specials", "shorts", "scenes", "featurettes", "behind the
+                scenes", "trailers", "interviews",
               </p>
               <p>保留：不会删除本地文件，不管网盘有没有删除它</p>
             </div>
@@ -428,8 +620,10 @@
               <el-radio-button :label="0">否</el-radio-button>
             </el-radio-group>
             <div class="form-help">
-              <p>如果选择是，会有两种情况：<br />
-                &nbsp;&nbsp;&nbsp;&nbsp;1. 网盘文件修改时间比本地文件新，则下载网盘文件替换本地文件<br />
+              <p>
+                如果选择是，会有两种情况：<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;1.
+                网盘文件修改时间比本地文件新，则下载网盘文件替换本地文件<br />
                 &nbsp;&nbsp;&nbsp;&nbsp;2. 网盘文件修改时间比本地文件旧，则上传本地文件到网盘
               </p>
             </div>
@@ -467,8 +661,13 @@
       </template>
     </el-card>
 
-    <el-dialog v-model="showDirDialog" title="选择文件夹"
-      :width="checkIsMobile ? '90%' : '600px'" :close-on-click-modal="false" body-class="directory-selector">
+    <el-dialog
+      v-model="showDirDialog"
+      title="选择文件夹"
+      :width="checkIsMobile ? '90%' : '600px'"
+      :close-on-click-modal="false"
+      body-class="directory-selector"
+    >
       <div class="dir-selector">
         <DirectorySelector
           v-model="tempSelectedDir"

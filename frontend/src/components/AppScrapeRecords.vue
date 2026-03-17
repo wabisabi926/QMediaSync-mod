@@ -6,24 +6,48 @@
       <div class="top-actions">
         <div class="action-group">
           <div class="action-buttons">
-            <el-tooltip content="将所选的识别错误的记录导出成一个文件，可以发送给作者" placement="top">
-              <el-button type="primary" @click="handleExportErrors"
-                :disabled="selectedRecords.length === 0">导出识别错误</el-button>
+            <el-tooltip
+              content="将所选的识别错误的记录导出成一个文件，可以发送给作者"
+              placement="top"
+            >
+              <el-button
+                type="primary"
+                @click="handleExportErrors"
+                :disabled="selectedRecords.length === 0"
+                >导出识别错误</el-button
+              >
             </el-tooltip>
-            <el-tooltip content="将刮削记录删除后，对应的文件在下次扫描时会再次识别和刮削。" placement="top">
-              <el-button type="danger" @click="handleDeleteSelectedRecords"
-                :disabled="selectedRecords.length === 0">删除所选记录</el-button>
+            <el-tooltip
+              content="将刮削记录删除后，对应的文件在下次扫描时会再次识别和刮削。"
+              placement="top"
+            >
+              <el-button
+                type="danger"
+                @click="handleDeleteSelectedRecords"
+                :disabled="selectedRecords.length === 0"
+                >删除所选记录</el-button
+              >
             </el-tooltip>
-            <el-tooltip content="请选择整理失败的记录，该操作会将所选记录标记为待整理，下次整理时重试。" placement="top">
-              <el-button type="warning" @click="handleRename"
-                :disabled="selectedRecords.length === 0">重新整理所选</el-button>
+            <el-tooltip
+              content="请选择整理失败的记录，该操作会将所选记录标记为待整理，下次整理时重试。"
+              placement="top"
+            >
+              <el-button
+                type="warning"
+                @click="handleRename"
+                :disabled="selectedRecords.length === 0"
+                >重新整理所选</el-button
+              >
             </el-tooltip>
           </div>
           <div class="selected-count">已选择 {{ selectedRecords.length }} 条记录</div>
         </div>
         <div class="action-group">
           <div class="action-buttons">
-            <el-tooltip content="会将列表中属于同一个电视剧的所有集合并成一条数据，方便查看" placement="top">
+            <el-tooltip
+              content="会将列表中属于同一个电视剧的所有集合并成一条数据，方便查看"
+              placement="top"
+            >
               <el-button type="primary" @click="toggleMergeEpisodes">
                 {{ isMerged ? '显示电视剧集' : '合并电视剧集' }}
               </el-button>
@@ -37,7 +61,12 @@
       </div>
 
       <div class="search-filter-section">
-        <el-input v-model="nameFilter" placeholder="按文件名模糊搜索" class="filter-input" @keyup.enter="applyFilter" />
+        <el-input
+          v-model="nameFilter"
+          placeholder="按文件名模糊搜索"
+          class="filter-input"
+          @keyup.enter="applyFilter"
+        />
         <el-select v-model="statusFilter" placeholder="筛选状态" class="filter-select">
           <el-option label="全部" value=""></el-option>
           <el-option label="未刮削" value="scanned"></el-option>
@@ -61,12 +90,24 @@
 
     <div class="table-section">
       <div class="table-container">
-        <el-table v-loading="loading" :data="records" @selection-change="handleSelectionChange"
-          :row-key="(row: ScrapeRecord) => row.id" style="width: 100%" class="mobile-table">
+        <el-table
+          v-loading="loading"
+          :data="records"
+          @selection-change="handleSelectionChange"
+          :row-key="(row: ScrapeRecord) => row.id"
+          style="width: 100%"
+          class="mobile-table"
+        >
           <el-table-column type="selection" width="30" />
           <el-table-column type="expand" width="30">
             <template #default="{ row }">
-              <el-descriptions class="margin-top" :column="2" border size="small" label-width="50px">
+              <el-descriptions
+                class="margin-top"
+                :column="2"
+                border
+                size="small"
+                label-width="50px"
+              >
                 <el-descriptions-item label="类型">
                   <el-tag :type="getTypeTagType(row.type)">
                     {{ getTypeName(row.type) }}
@@ -85,7 +126,7 @@
                 <el-descriptions-item label="识别信息">
                   <div>
                     <p class="path-text">Tmdb ID: {{ row.tmdb_id }}</p>
-                    <p class="path-text">识别名称: {{ row.media_name }} </p>
+                    <p class="path-text">识别名称: {{ row.media_name }}</p>
                     <p>年份：{{ row.year }}</p>
                     <p class="path-text">原始名称: {{ row.original_name }}</p>
                   </div>
@@ -103,10 +144,26 @@
                 <el-descriptions-item label="操作" :span="2">
                   <div>
                     <el-button type="text" @click="handleDetail(row)">详情</el-button>
-                    <el-button type="warning" size="small" @click="reScrape(row)"
-                      v-if="(row.type == 'movie' && (row.status == 'scrape_failed' || row.status == 'scanned' || row.status == 'renamed')) || (row.type == 'tvshow' && row.status == 'scrape_failed')">重新识别</el-button>
-                    <el-button type="success" size="small" @click="markAsFinished(row)"
-                      v-if="row.status == 'renaming' || row.status == 'scraped'">标记为已整理</el-button>
+                    <el-button
+                      type="warning"
+                      size="small"
+                      @click="reScrape(row)"
+                      v-if="
+                        (row.type == 'movie' &&
+                          (row.status == 'scrape_failed' ||
+                            row.status == 'scanned' ||
+                            row.status == 'renamed')) ||
+                        (row.type == 'tvshow' && row.status == 'scrape_failed')
+                      "
+                      >重新识别</el-button
+                    >
+                    <el-button
+                      type="success"
+                      size="small"
+                      @click="markAsFinished(row)"
+                      v-if="row.status == 'renaming' || row.status == 'scraped'"
+                      >标记为已整理</el-button
+                    >
                   </div>
                 </el-descriptions-item>
               </el-descriptions>
@@ -116,19 +173,25 @@
             <template #default="{ row }">
               <div>
                 <p class="path-text">{{ row.source_full_path }}</p>
-                <p style="margin: 10px 0; display: flex; align-items: center; flex-wrap: wrap;">
+                <p style="margin: 10px 0; display: flex; align-items: center; flex-wrap: wrap">
                   <el-tag :type="getRenameTypeTagType(row.rename_type)">
                     {{ getRenameTypeName(row.rename_type) }}
                   </el-tag>
-                  <span style="margin-left: 12px;">到</span>
+                  <span style="margin-left: 12px">到</span>
                 </p>
                 <p class="path-text">{{ row.dest_full_path }}</p>
               </div>
             </template>
           </el-table-column>
         </el-table>
-        <el-table v-loading="loading" :data="records" @selection-change="handleSelectionChange"
-          :row-key="(row: ScrapeRecord) => row.id" style="width: 100%" class="desktop-table">
+        <el-table
+          v-loading="loading"
+          :data="records"
+          @selection-change="handleSelectionChange"
+          :row-key="(row: ScrapeRecord) => row.id"
+          style="width: 100%"
+          class="desktop-table"
+        >
           <el-table-column type="selection" width="55" />
           <el-table-column prop="path_is_scraping" label="运行状态" width="80">
             <template #default="{ row }">
@@ -153,7 +216,7 @@
                   {{ getStatusName(row.status) }}
                 </el-tag>
               </el-tooltip>
-              <p v-if="row.failed_reason" style="margin-top: 4px;">{{ row.failed_reason }}</p>
+              <p v-if="row.failed_reason" style="margin-top: 4px">{{ row.failed_reason }}</p>
             </template>
           </el-table-column>
           <el-table-column prop="type" label="类型" width="80">
@@ -175,11 +238,11 @@
             <template #default="{ row }">
               <div>
                 <p class="path-text">{{ row.source_full_path }}</p>
-                <p style="margin: 10px 0; display: flex; align-items: center; flex-wrap: wrap;">
+                <p style="margin: 10px 0; display: flex; align-items: center; flex-wrap: wrap">
                   <el-tag :type="getRenameTypeTagType(row.rename_type)">
                     {{ getRenameTypeName(row.rename_type) }}
                   </el-tag>
-                  <span style="margin-left: 12px;">到</span>
+                  <span style="margin-left: 12px">到</span>
                 </p>
                 <p class="path-text">{{ row.dest_full_path }}</p>
               </div>
@@ -204,23 +267,50 @@
           <el-table-column label="操作" width="140" fixed="right">
             <template #default="{ row }">
               <el-button type="text" @click="handleDetail(row)">详情</el-button>
-              <el-button type="warning" size="small" @click="reScrape(row)"
-                v-if="(row.type == 'movie' && (row.status == 'scrape_failed' || row.status == 'scanned' || row.status == 'renamed')) || (row.type == 'tvshow' && row.status == 'scrape_failed')">重新识别</el-button>
-              <el-button type="success" size="small" @click="markAsFinished(row)"
-                v-if="row.status == 'renaming' || row.status == 'scraped'">标记为已整理</el-button>
+              <el-button
+                type="warning"
+                size="small"
+                @click="reScrape(row)"
+                v-if="
+                  (row.type == 'movie' &&
+                    (row.status == 'scrape_failed' ||
+                      row.status == 'scanned' ||
+                      row.status == 'renamed')) ||
+                  (row.type == 'tvshow' && row.status == 'scrape_failed')
+                "
+                >重新识别</el-button
+              >
+              <el-button
+                type="success"
+                size="small"
+                @click="markAsFinished(row)"
+                v-if="row.status == 'renaming' || row.status == 'scraped'"
+                >标记为已整理</el-button
+              >
             </template>
           </el-table-column>
         </el-table>
 
         <div class="pagination-container mobile-pagination">
-          <el-pagination v-model:current-page="pagination.currentPage" v-model:page-size="pagination.pageSize"
-            :page-sizes="100" layout="total, prev, pager, next" :total="total"
-             @current-change="handleCurrentChange" />
+          <el-pagination
+            v-model:current-page="pagination.currentPage"
+            v-model:page-size="pagination.pageSize"
+            :page-sizes="100"
+            layout="total, prev, pager, next"
+            :total="total"
+            @current-change="handleCurrentChange"
+          />
         </div>
         <div class="pagination-container desktop-pagination">
-          <el-pagination v-model:current-page="pagination.currentPage" v-model:page-size="pagination.pageSize"
-            :page-sizes="[100, 200, 500]" layout="total, sizes, prev, pager, next, jumper" :total="total"
-            @size-change="handleSizeChange" @current-change="handleCurrentChange" />
+          <el-pagination
+            v-model:current-page="pagination.currentPage"
+            v-model:page-size="pagination.pageSize"
+            :page-sizes="[100, 200, 500]"
+            layout="total, sizes, prev, pager, next, jumper"
+            :total="total"
+            @size-change="handleSizeChange"
+            @current-change="handleCurrentChange"
+          />
         </div>
       </div>
     </div>
@@ -231,51 +321,111 @@
         <el-descriptions border direction="vertical">
           <el-descriptions-item label="原始路径">
             <el-tooltip :content="selectedRecord.path" placement="top">
-              <pre style="margin: 0; white-space: pre-wrap; word-break: break-all; max-height: 100px; overflow: auto;">{{
-                selectedRecord.path }}</pre>
+              <pre
+                style="
+                  margin: 0;
+                  white-space: pre-wrap;
+                  word-break: break-all;
+                  max-height: 100px;
+                  overflow: auto;
+                "
+                >{{ selectedRecord.path }}</pre
+              >
             </el-tooltip>
           </el-descriptions-item>
           <el-descriptions-item label="原始文件名">
             <el-tooltip :content="selectedRecord.file_name" placement="top">
-              <pre style="margin: 0; white-space: pre-wrap; word-break: break-all; max-height: 100px; overflow: auto;">{{
-                selectedRecord.file_name }}</pre>
+              <pre
+                style="
+                  margin: 0;
+                  white-space: pre-wrap;
+                  word-break: break-all;
+                  max-height: 100px;
+                  overflow: auto;
+                "
+                >{{ selectedRecord.file_name }}</pre
+              >
             </el-tooltip>
           </el-descriptions-item>
-          <el-descriptions-item label="识别名称">{{ selectedRecord.media_name || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="识别年份">{{ selectedRecord.year || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="识别类型">{{ getTypeName(selectedRecord.type) }}</el-descriptions-item>
-          <el-descriptions-item label="二级分类">{{ selectedRecord.category_name || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="新文件夹">{{ selectedRecord.new_dest_path || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="新文件名">{{ selectedRecord.new_dest_name || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="TMDBID">{{ selectedRecord.tmdb_id || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="识别名称">{{
+            selectedRecord.media_name || '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item label="识别年份">{{
+            selectedRecord.year || '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item label="识别类型">{{
+            getTypeName(selectedRecord.type)
+          }}</el-descriptions-item>
+          <el-descriptions-item label="二级分类">{{
+            selectedRecord.category_name || '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item label="新文件夹">{{
+            selectedRecord.new_dest_path || '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item label="新文件名">{{
+            selectedRecord.new_dest_name || '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item label="TMDBID">{{
+            selectedRecord.tmdb_id || '-'
+          }}</el-descriptions-item>
           <el-descriptions-item label="季集">
             <span v-if="selectedRecord.type == 'tvshow'">
               S{{ selectedRecord.season_number }}E{{ selectedRecord.episode_number }}
             </span>
             <span v-else>-</span>
           </el-descriptions-item>
-          <el-descriptions-item label="集名称">{{ selectedRecord.episode_name || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="音轨数量">{{ selectedRecord.audio_count || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="字幕数量">{{ selectedRecord.subtitle_count || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="分辨率">{{ selectedRecord.resolution || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="分辨率等级">{{ selectedRecord.resolution_level || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="是否HDR">{{ selectedRecord.is_hdr ? '是' : '否' }}</el-descriptions-item>
-          <el-descriptions-item label="状态">{{ getStatusName(selectedRecord.status) }}</el-descriptions-item>
-          <el-descriptions-item label="识别时间">{{ formatTimestamp(selectedRecord.scanned_at) }}</el-descriptions-item>
-          <el-descriptions-item label="刮削时间">{{ formatTimestamp(selectedRecord.scraped_at) }}</el-descriptions-item>
+          <el-descriptions-item label="集名称">{{
+            selectedRecord.episode_name || '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item label="音轨数量">{{
+            selectedRecord.audio_count || '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item label="字幕数量">{{
+            selectedRecord.subtitle_count || '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item label="分辨率">{{
+            selectedRecord.resolution || '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item label="分辨率等级">{{
+            selectedRecord.resolution_level || '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item label="是否HDR">{{
+            selectedRecord.is_hdr ? '是' : '否'
+          }}</el-descriptions-item>
+          <el-descriptions-item label="状态">{{
+            getStatusName(selectedRecord.status)
+          }}</el-descriptions-item>
+          <el-descriptions-item label="识别时间">{{
+            formatTimestamp(selectedRecord.scanned_at)
+          }}</el-descriptions-item>
+          <el-descriptions-item label="刮削时间">{{
+            formatTimestamp(selectedRecord.scraped_at)
+          }}</el-descriptions-item>
           <el-descriptions-item label="失败原因">
-            <pre v-if="selectedRecord.failed_reason"
-              style="margin: 0; white-space: pre-wrap; word-break: break-all; max-height: 100px; overflow: auto;">{{
-                selectedRecord.failed_reason }}</pre>
+            <pre
+              v-if="selectedRecord.failed_reason"
+              style="
+                margin: 0;
+                white-space: pre-wrap;
+                word-break: break-all;
+                max-height: 100px;
+                overflow: auto;
+              "
+              >{{ selectedRecord.failed_reason }}</pre
+            >
             <span v-else>-</span>
           </el-descriptions-item>
-
         </el-descriptions>
       </div>
     </el-dialog>
 
     <!-- 重新识别对话框 -->
-    <el-dialog v-model="showReScrapeDialog" title="重新识别" width="700px" :close-on-click-modal="false">
+    <el-dialog
+      v-model="showReScrapeDialog"
+      title="重新识别"
+      width="700px"
+      :close-on-click-modal="false"
+    >
       <div class="re-scrape-dialog-content">
         <div class="search-section">
           <el-form label-width="80px" @submit.prevent>
@@ -293,21 +443,47 @@
                 <el-input v-model="reScrapeForm.name" placeholder="请输入影视剧名称" />
               </el-form-item>
               <el-form-item label="年份" class="year-input">
-                <el-input v-model="reScrapeForm.year" placeholder="年份" type="number" :min="1900"
-                  :max="new Date().getFullYear() + 5" />
+                <el-input
+                  v-model="reScrapeForm.year"
+                  placeholder="年份"
+                  type="number"
+                  :min="1900"
+                  :max="new Date().getFullYear() + 5"
+                />
               </el-form-item>
             </div>
             <div v-if="searchMode === 'tmdb'" class="search-row">
               <el-form-item label="TMDB ID" class="tmdb-input">
-                <el-input v-model="reScrapeForm.tmdb_id" placeholder="请输入TMDB ID" type="number" :min="1" />
+                <el-input
+                  v-model="reScrapeForm.tmdb_id"
+                  placeholder="请输入TMDB ID"
+                  type="number"
+                  :min="1"
+                />
               </el-form-item>
             </div>
-            <el-form-item label="季" v-if="reScrapeForm.type == 'tvshow'" class="season-episode-row">
-              <el-input v-model="reScrapeForm.season" placeholder="季数" type="number" :min="0" :max="100"
-                style="width: 100px;" />
+            <el-form-item
+              label="季"
+              v-if="reScrapeForm.type == 'tvshow'"
+              class="season-episode-row"
+            >
+              <el-input
+                v-model="reScrapeForm.season"
+                placeholder="季数"
+                type="number"
+                :min="0"
+                :max="100"
+                style="width: 100px"
+              />
               <span class="episode-label">集</span>
-              <el-input v-model="reScrapeForm.episode" placeholder="集数" type="number" :min="0" :max="10000"
-                style="width: 100px;" />
+              <el-input
+                v-model="reScrapeForm.episode"
+                placeholder="集数"
+                type="number"
+                :min="0"
+                :max="10000"
+                style="width: 100px"
+              />
             </el-form-item>
           </el-form>
         </div>
@@ -346,7 +522,12 @@
                 </div>
               </div>
               <div class="result-action">
-                <el-button type="primary" size="small" @click="selectSearchResult(item)" :loading="item.selecting">
+                <el-button
+                  type="primary"
+                  size="small"
+                  @click="selectSearchResult(item)"
+                  :loading="item.selecting"
+                >
                   选择
                 </el-button>
               </div>
@@ -375,7 +556,9 @@
       <el-alert type="info" :closable="false">
         <template #title>
           <span class="tips-text">
-            当前刮削产生的临时文件存放在 <strong>config/tmp/刮削临时文件/</strong> 目录下，可以观察是否存在异常情况，刮削完成的文件会删除临时文件
+            当前刮削产生的临时文件存放在
+            <strong>config/tmp/刮削临时文件/</strong>
+            目录下，可以观察是否存在异常情况，刮削完成的文件会删除临时文件
           </span>
         </template>
       </el-alert>
@@ -383,13 +566,13 @@
 
     <!-- 回滚对话框 -->
     <el-dialog v-model="showRollbackDialog" title="注意" width="320px">
-      <p>确认回滚该刮削记录吗？回滚后视频+字幕会放回原目录并且根据查询到的tmdb信息重命名，刮削记录会被删除，后续扫描时会重新刮削该影片。</p>
+      <p>
+        确认回滚该刮削记录吗？回滚后视频+字幕会放回原目录并且根据查询到的tmdb信息重命名，刮削记录会被删除，后续扫描时会重新刮削该影片。
+      </p>
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="showRollbackDialog = false">取消</el-button>
-          <el-button type="primary" @click="showReScrapeDialog = true">
-            确认
-          </el-button>
+          <el-button type="primary" @click="showReScrapeDialog = true"> 确认 </el-button>
         </div>
       </template>
     </el-dialog>
@@ -421,7 +604,14 @@ interface ScrapeRecord {
   season_number: number
   episode_number: number
   episode_name?: string
-  status: 'scanned' | 'scraping' | 'scraped' | 'scrape_failed' | 'renaming' | 'renamed' | 'rename_failed'
+  status:
+    | 'scanned'
+    | 'scraping'
+    | 'scraped'
+    | 'scrape_failed'
+    | 'renaming'
+    | 'renamed'
+    | 'rename_failed'
   failed_reason: string
   created_at: number
   updated_at: number
@@ -470,7 +660,7 @@ const showRollbackDialog = ref(false)
 // 分页相关
 const pagination = ref({
   currentPage: 1,
-  pageSize: 20
+  pageSize: 20,
 })
 const total = ref(0)
 
@@ -481,7 +671,7 @@ const loadRecords = async () => {
     // 构建查询参数
     const params: Record<string, string | number> = {
       page: pagination.value.currentPage,
-      pageSize: pagination.value.pageSize
+      pageSize: pagination.value.pageSize,
     }
 
     // 根据需求，将statusFilter映射到media_type参数
@@ -502,8 +692,9 @@ const loadRecords = async () => {
     const response = await http?.get(`${SERVER_URL}/scrape/records`, { params })
 
     if (response?.data.code === 200) {
+      // 性能优化：使用展开运算符替代 JSON 深拷贝，减少性能开销
       records.value = response.data.data.list
-      originalRecords.value = JSON.parse(JSON.stringify(response.data.data.list)) // 深拷贝保存原始记录
+      originalRecords.value = response.data.data.list.map((item: ScrapeRecord) => ({ ...item }))
       total.value = response.data.data.total
     } else {
       ElMessage.error(`加载刮削记录失败: ${response?.data.message || '未知错误'}`)
@@ -522,7 +713,7 @@ const toggleMergeEpisodes = () => {
     // 合并电视剧集：根据tmdb_id和season_number分组，相同值只保留一份
     const mergedMap = new Map<string, ScrapeRecord>()
 
-    records.value.forEach(record => {
+    records.value.forEach((record) => {
       if (record.type === 'tvshow' && record.tmdb_id && record.season_number) {
         const key = `${record.tmdb_id}-${record.season_number}`
         if (!mergedMap.has(key)) {
@@ -614,7 +805,7 @@ const handleExportErrors = async () => {
       return
     }
 
-    const ids = selectedRecords.value.map(record => record.id)
+    const ids = selectedRecords.value.map((record) => record.id)
     // 构造URL，将ids作为GET参数传递
     const idsQuery = ids.join(',')
     const downloadUrl = `${SERVER_URL}/scrape/records/export?ids=${idsQuery}`
@@ -641,7 +832,7 @@ const handleDeleteSelectedRecords = async () => {
       return
     }
 
-    const ids = selectedRecords.value.map(record => record.id)
+    const ids = selectedRecords.value.map((record) => record.id)
     // 发送DELETE请求，参数与导出识别错误文件接口一致
     // 构造URL，将ids作为GET参数传递
     const idsQuery = ids.join(',')
@@ -673,7 +864,7 @@ const handleRename = async () => {
       return
     }
 
-    const ids = selectedRecords.value.map(record => record.id)
+    const ids = selectedRecords.value.map((record) => record.id)
     // 发送DELETE请求，参数与导出识别错误文件接口一致
     // 构造URL，将ids作为GET参数传递
     const idsQuery = ids.join(',')
@@ -711,7 +902,7 @@ const reScrapeForm = ref({
   originalFileName: '',
   season: -1,
   episode: -1,
-  status: ''
+  status: '',
 })
 const searchResults = ref<TmdbSearchResult[]>([])
 const searchLoading = ref(false)
@@ -755,7 +946,7 @@ const searchTmdb = async () => {
     searchResults.value = []
 
     const params: Record<string, string | number> = {
-      type: reScrapeForm.value.type
+      type: reScrapeForm.value.type,
     }
 
     if (searchMode.value === 'name') {
@@ -772,7 +963,7 @@ const searchTmdb = async () => {
     if (response?.data.code === 200) {
       searchResults.value = (response.data.data || []).map((item: TmdbSearchResult) => ({
         ...item,
-        selecting: false
+        selecting: false,
       }))
       hasSearched.value = true
     } else {
@@ -793,8 +984,8 @@ const selectSearchResult = async (item: TmdbSearchResult) => {
     const params = {
       id: reScrapeForm.value.id,
       tmdb_id: item.tmdb_id,
-      season: reScrapeForm.value.season >= 0 ? parseInt(reScrapeForm.value.season + "") : -1,
-      episode: reScrapeForm.value.episode >= 0 ? parseInt(reScrapeForm.value.episode + "") : -1
+      season: reScrapeForm.value.season >= 0 ? parseInt(reScrapeForm.value.season + '') : -1,
+      episode: reScrapeForm.value.episode >= 0 ? parseInt(reScrapeForm.value.episode + '') : -1,
     }
 
     const response = await http?.post(`${SERVER_URL}/scrape/re-scrape`, params, { timeout: 60000 })
@@ -829,10 +1020,10 @@ const reScrape = (record: ScrapeRecord) => {
     tmdb_id: '',
     originalFileName: record.file_name || '',
     season: record.season_number || -1,
-    episode: parseInt(record.episode_number + "") || -1,
-    status: record.status || ''
+    episode: parseInt(record.episode_number + '') || -1,
+    status: record.status || '',
   }
-  if (record.status == "renamed") {
+  if (record.status == 'renamed') {
     showRollbackDialog.value = true
   } else {
     showReScrapeDialog.value = true
@@ -858,26 +1049,18 @@ const handleDeleteFailedRecords = async () => {
 const handleTruncateAll = async () => {
   try {
     // 第一次确认
-    await ElMessageBox.confirm(
-      '此操作将删除所有刮削记录，是否继续？',
-      '警告',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning',
-      }
-    )
+    await ElMessageBox.confirm('此操作将删除所有刮削记录，是否继续？', '警告', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
 
     // 第二次确认
-    await ElMessageBox.confirm(
-      '确认要清空所有刮削记录吗？此操作不可恢复！',
-      '二次确认',
-      {
-        confirmButtonText: '确认清空',
-        cancelButtonText: '取消',
-        type: 'error',
-      }
-    )
+    await ElMessageBox.confirm('确认要清空所有刮削记录吗？此操作不可恢复！', '二次确认', {
+      confirmButtonText: '确认清空',
+      cancelButtonText: '取消',
+      type: 'error',
+    })
 
     // 发送请求
     const response = await http?.post(`${SERVER_URL}/scrape/truncate-all`)
@@ -910,7 +1093,7 @@ const markAsFinished = async (record: ScrapeRecord) => {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'warning',
-      }
+      },
     )
 
     // 发送POST请求到/scrape/finish接口
@@ -1094,9 +1277,7 @@ onMounted(() => {
   loadRecords()
 })
 
-onUnmounted(() => {
-
-})
+onUnmounted(() => {})
 </script>
 
 <style scoped>
@@ -1178,11 +1359,13 @@ onUnmounted(() => {
   display: block;
 }
 
-.mobile-table, .mobile-pagination {
+.mobile-table,
+.mobile-pagination {
   display: none;
 }
 
-.desktop-table, .desktop-pagination {
+.desktop-table,
+.desktop-pagination {
   display: table;
 }
 
@@ -1386,11 +1569,13 @@ onUnmounted(() => {
 }
 
 @media (min-width: 769px) {
-  .mobile-table, .mobile-pagination {
+  .mobile-table,
+  .mobile-pagination {
     display: none;
   }
 
-  .desktop-table, .desktop-pagination {
+  .desktop-table,
+  .desktop-pagination {
     display: table;
   }
 }
@@ -1449,11 +1634,13 @@ onUnmounted(() => {
     margin-bottom: 0;
   }
 
-  .mobile-table, .mobile-pagination {
+  .mobile-table,
+  .mobile-pagination {
     display: table;
   }
 
-  .desktop-table, .desktop-pagination {
+  .desktop-table,
+  .desktop-pagination {
     display: none;
   }
 }
@@ -1487,3 +1674,4 @@ onUnmounted(() => {
   }
 }
 </style>
+e>

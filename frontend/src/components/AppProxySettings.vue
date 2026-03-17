@@ -1,10 +1,19 @@
 <template>
   <!-- 网络代理设置部分 -->
   <div class="main-content-container proxy-section">
-    <el-form :model="proxyData" :label-position="checkIsMobile ? 'top' : 'left'" :label-width="120" class="proxy-form">
+    <el-form
+      :model="proxyData"
+      :label-position="checkIsMobile ? 'top' : 'left'"
+      :label-width="120"
+      class="proxy-form"
+    >
       <el-form-item label="HTTP代理地址" prop="proxy_url">
-        <el-input v-model="proxyData.proxy_url" placeholder="例如: http://127.0.0.1:7890 或 http://proxy.example.com:8080"
-          :disabled="proxyLoading" clearable />
+        <el-input
+          v-model="proxyData.proxy_url"
+          placeholder="例如: http://127.0.0.1:7890 或 http://proxy.example.com:8080"
+          :disabled="proxyLoading"
+          clearable
+        />
         <div class="form-help">
           支持HTTP代理，格式：http://[用户名:密码@]主机:端口，留空表示不使用代理
         </div>
@@ -12,7 +21,12 @@
       <el-form-item>
         <div class="form-actions">
           <div>
-            <el-button type="primary" @click="testProxy" :loading="testingProxy" :disabled="proxyLoading">
+            <el-button
+              type="primary"
+              @click="testProxy"
+              :loading="testingProxy"
+              :disabled="proxyLoading"
+            >
               <el-icon>
                 <Connection />
               </el-icon>
@@ -20,7 +34,12 @@
             </el-button>
           </div>
           <div>
-            <el-button type="success" @click="saveProxy" :loading="proxyLoading" :disabled="testingProxy">
+            <el-button
+              type="success"
+              @click="saveProxy"
+              :loading="proxyLoading"
+              :disabled="testingProxy"
+            >
               <el-icon>
                 <Check />
               </el-icon>
@@ -32,8 +51,15 @@
     </el-form>
 
     <!-- 代理状态显示 -->
-    <el-alert v-if="proxyStatus" :title="proxyStatus.title" :type="proxyStatus.type"
-      :description="proxyStatus.description" :closable="false" show-icon class="proxy-status" />
+    <el-alert
+      v-if="proxyStatus"
+      :title="proxyStatus.title"
+      :type="proxyStatus.type"
+      :description="proxyStatus.description"
+      :closable="false"
+      show-icon
+      class="proxy-status"
+    />
   </div>
 </template>
 

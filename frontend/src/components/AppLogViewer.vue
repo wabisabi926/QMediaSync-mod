@@ -7,39 +7,21 @@
           <div class="header-actions">
             <!-- 只有实时日志模式才显示连接、断开、清空按钮 -->
             <template v-if="isRealTime">
-              <el-button
-                type="primary"
-                @click="connect"
-                size="small"
-                :disabled="isConnected"
-              >
+              <el-button type="primary" @click="connect" size="small" :disabled="isConnected">
                 <el-icon v-if="!isConnected"><Connection /></el-icon>
                 连接
               </el-button>
-              <el-button
-                type="danger"
-                @click="disconnect"
-                size="small"
-                :disabled="!isConnected"
-              >
+              <el-button type="danger" @click="disconnect" size="small" :disabled="!isConnected">
                 <el-icon v-if="isConnected"><Close /></el-icon>
                 断开
               </el-button>
-              <el-button
-                type="info"
-                @click="clearLogs"
-                size="small"
-              >
+              <el-button type="info" @click="clearLogs" size="small">
                 <el-icon><Delete /></el-icon>
                 清空
               </el-button>
             </template>
             <!-- 下载按钮始终显示 -->
-            <el-button
-              type="success"
-              @click="downloadLogs"
-              size="small"
-            >
+            <el-button type="success" @click="downloadLogs" size="small">
               <el-icon><Download /></el-icon>
               下载日志
             </el-button>
@@ -49,13 +31,7 @@
 
       <div class="log-content">
         <!-- 日志显示区域 -->
-        <div
-          class="logs"
-          id="logs"
-          ref="logsContainer"
-          @scroll="handleScroll"
-          v-loading="loading"
-        >
+        <div class="logs" id="logs" ref="logsContainer" @scroll="handleScroll" v-loading="loading">
           <div
             v-for="(log, index) in limitedLogLines"
             :key="log.id || index"
@@ -66,9 +42,7 @@
             <span class="log-level">{{ log.level.toUpperCase() }}</span>
             <span class="log-message">{{ log.message }}</span>
           </div>
-          <div v-if="logLines.length === 0" class="empty-logs">
-            暂无日志内容
-          </div>
+          <div v-if="logLines.length === 0" class="empty-logs">暂无日志内容</div>
         </div>
 
         <!-- 日志信息 -->
@@ -97,7 +71,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  isRealTime: true
+  isRealTime: true,
 })
 
 // 定义日志条目类型
@@ -140,15 +114,18 @@ const limitedLogLines = computed(() => {
 })
 
 // 监听日志路径变化，自动重新连接
-watch(() => props.logPath, (newPath) => {
-  if (newPath && isConnected.value) {
-    reconnectWebSocket()
-  }
-})
+watch(
+  () => props.logPath,
+  (newPath) => {
+    if (newPath && isConnected.value) {
+      reconnectWebSocket()
+    }
+  },
+)
 
 // 初始化
 onMounted(async () => {
-  console.log("isRealTime:", props.isRealTime)
+  console.log('isRealTime:', props.isRealTime)
   // 如果提供了日志路径，先加载历史日志
   if (props.logPath) {
     // 设置初始偏移量为0
@@ -192,7 +169,10 @@ const loadInitialLogs = async () => {
     }
   } catch (error) {
     console.error('加载初始日志失败:', error)
-    addSystemLog(`加载初始日志失败: ${error instanceof Error ? error.message : '未知错误'}`, 'error')
+    addSystemLog(
+      `加载初始日志失败: ${error instanceof Error ? error.message : '未知错误'}`,
+      'error',
+    )
   } finally {
     isLoadingOldLogs = false
     loading.value = false
@@ -249,7 +229,7 @@ const addLogEntry = (entry: LogEntry) => {
   // 为日志条目添加唯一ID
   const entryWithId = {
     ...entry,
-    id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
   }
 
   // 添加到日志数组前面（最新的日志在最前面）
@@ -343,7 +323,6 @@ const disconnect = () => {
 
 // 重新连接WebSocket
 const reconnectWebSocket = () => {
-
   // 如果已经连接，不需要重新连接
   if (isWebSocketConnected()) {
     return
@@ -393,27 +372,30 @@ const loadOldLogs = () => {
 
   // 发送HTTP请求
   fetch(apiUrl)
-    .then(response => {
+    .then((response) => {
       if (!response.ok) {
         throw new Error('HTTP请求失败')
       }
       return response.json() // 解析为JSON格式
     })
-    .then(rs => {
+    .then((rs) => {
       const entries = rs.entries || []
       currentOffset = rs.pos
       // 处理返回的旧日志条目
       if (Array.isArray(entries) && entries.length > 0) {
-          // 直接添加新日志
+        // 直接添加新日志
         logLines.value = [...logLines.value, ...entries]
       } else {
         // 返回数据为空，说明已经到达日志文件末尾
         hasReachedEnd = true
       }
     })
-    .catch(error => {
+    .catch((error) => {
       console.error('加载旧日志失败:', error)
-      addSystemLog(`加载旧日志失败: ${error instanceof Error ? error.message : '未知错误'}`, 'error')
+      addSystemLog(
+        `加载旧日志失败: ${error instanceof Error ? error.message : '未知错误'}`,
+        'error',
+      )
     })
     .finally(() => {
       isLoadingOldLogs = false
@@ -462,7 +444,7 @@ const downloadLogs = () => {
 
 // 暴露方法给父组件
 defineExpose({
-  disconnect
+  disconnect,
 })
 </script>
 

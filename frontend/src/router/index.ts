@@ -125,7 +125,7 @@ const routes = [
       showInMenu: true,
     },
   },
-    {
+  {
     path: '/settings/strm',
     name: 'settings-strm',
     component: AppStrmSettings,
@@ -252,7 +252,7 @@ const routes = [
       showInMenu: true,
     },
   },
-    {
+  {
     path: '/upload-queue',
     name: 'upload-queue',
     component: AppUploadQueue,

@@ -30,7 +30,7 @@ const handleLogDialogClose = () => {
         </el-button>
       </div>
     </div>
-     <AnnouncementCard />
+    <AnnouncementCard />
 
     <div class="stats-section">
       <div class="stats-row">
@@ -38,8 +38,6 @@ const handleLogDialogClose = () => {
         <HourlyStatsChart />
       </div>
     </div>
-
-
 
     <div class="info-section">
       <div class="info-grid">
@@ -79,7 +77,8 @@ const handleLogDialogClose = () => {
             </div>
             <div class="notice-item">
               <span class="notice-number">5</span>
-              <span>问题请在
+              <span
+                >问题请在
                 <a href="https://github.com/qicfan/qmediasync" target="_blank">GitHub</a> 提交issue
               </span>
             </div>
@@ -90,8 +89,17 @@ const handleLogDialogClose = () => {
   </div>
 
   <!-- 日志查看弹窗 -->
-  <el-dialog v-model="showLogDialog" title="运行日志" class="log-dialog" :fullscreen="true" :close-on-click-modal="true"
-    :close-on-press-escape="true" show-close="true" :destroy-on-close="true" @close="handleLogDialogClose">
+  <el-dialog
+    v-model="showLogDialog"
+    title="运行日志"
+    class="log-dialog"
+    :fullscreen="true"
+    :close-on-click-modal="true"
+    :close-on-press-escape="true"
+    show-close="true"
+    :destroy-on-close="true"
+    @close="handleLogDialogClose"
+  >
     <div class="log-dialog-content">
       <AppLogViewer ref="logViewerRef" log-path="app.log" :is-real-time="true" />
     </div>

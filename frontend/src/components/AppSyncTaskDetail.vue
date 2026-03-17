@@ -30,7 +30,12 @@
               <span v-else>-</span>
             </el-descriptions-item>
             <el-descriptions-item label="子状态">
-              <el-tag v-if="taskInfo && taskInfo.status === 1" type="primary" size="small" effect="light">
+              <el-tag
+                v-if="taskInfo && taskInfo.status === 1"
+                type="primary"
+                size="small"
+                effect="light"
+              >
                 {{ getSubStatusText(taskInfo.sub_status) }}
               </el-tag>
               <span v-else>-</span>
@@ -60,8 +65,12 @@
         <div class="execution-timeline" v-if="taskInfo">
           <h3>执行时间线</h3>
           <div class="horizontal-timeline">
-            <div v-for="(item, index) in getTimelineItems()" :key="index" class="timeline-step"
-              :class="{ completed: item.completed, current: item.current }">
+            <div
+              v-for="(item, index) in getTimelineItems()"
+              :key="index"
+              class="timeline-step"
+              :class="{ completed: item.completed, current: item.current }"
+            >
               <div class="step-icon">
                 <el-icon :class="{ loading: item.current && !item.completed }">
                   <component :is="item.icon" />
@@ -69,24 +78,26 @@
               </div>
               <div class="step-content">
                 <div class="step-title">{{ item.title }}</div>
-                <div class="step-time" v-if="item.time && item.time !== '进行中...'">{{ item.time }}</div>
-                <div class="step-time" v-else-if="item.time === '进行中...'">进行中...</div>
-                <div class="step-duration" v-if="item.duration">
-                  耗时: {{ item.duration }}
+                <div class="step-time" v-if="item.time && item.time !== '进行中...'">
+                  {{ item.time }}
                 </div>
+                <div class="step-time" v-else-if="item.time === '进行中...'">进行中...</div>
+                <div class="step-duration" v-if="item.duration">耗时: {{ item.duration }}</div>
               </div>
-              <div v-if="index < getTimelineItems().length - 1" class="step-connector"
-                :class="{ active: item.completed }">
-              </div>
+              <div
+                v-if="index < getTimelineItems().length - 1"
+                class="step-connector"
+                :class="{ active: item.completed }"
+              ></div>
             </div>
           </div>
         </div>
 
-     <!-- 同步日志 -->
+        <!-- 同步日志 -->
         <div class="task-logs">
           <AppLogViewer
             :log-path="`libs/sync_${taskId}.log`"
-            :is-real-time="taskInfo ? (taskInfo.status === 0 || taskInfo.status === 1) : false"
+            :is-real-time="taskInfo ? taskInfo.status === 0 || taskInfo.status === 1 : false"
           />
         </div>
       </div>
@@ -270,7 +281,10 @@ const getTimelineItems = () => {
     icon: Clock,
     duration: null, // 不计算时长
     completed: !!startTime,
-    current: taskInfo.value.status === 1 && taskInfo.value.sub_status === 0 && !taskInfo.value.net_file_start_at
+    current:
+      taskInfo.value.status === 1 &&
+      taskInfo.value.sub_status === 0 &&
+      !taskInfo.value.net_file_start_at,
   })
 
   // 阶段2: 处理网盘文件
@@ -285,14 +299,20 @@ const getTimelineItems = () => {
   }
 
   items.push({
-    title: netFileCompleted ? '已完成处理网盘文件' : (netFileCurrent ? '正在处理网盘文件' : '处理网盘文件'),
-    time: netFileStartAt ?
-      (netFileFinishAt ? formatDateTime(netFileStartAt) : '进行中...') :
-      '未开始',
+    title: netFileCompleted
+      ? '已完成处理网盘文件'
+      : netFileCurrent
+        ? '正在处理网盘文件'
+        : '处理网盘文件',
+    time: netFileStartAt
+      ? netFileFinishAt
+        ? formatDateTime(netFileStartAt)
+        : '进行中...'
+      : '未开始',
     icon: netFileCurrent ? Loading : Document,
     duration: netFileDuration,
     completed: !!netFileCompleted,
-    current: netFileCurrent
+    current: netFileCurrent,
   })
 
   // 阶段3: 处理本地文件
@@ -307,14 +327,20 @@ const getTimelineItems = () => {
   }
 
   items.push({
-    title: localFileCompleted ? '已完成处理本地文件' : (localFileCurrent ? '正在处理本地文件' : '处理本地文件'),
-    time: localFileStartAt ?
-      (localFileFinishAt ? formatDateTime(localFileStartAt) : '进行中...') :
-      '未开始',
+    title: localFileCompleted
+      ? '已完成处理本地文件'
+      : localFileCurrent
+        ? '正在处理本地文件'
+        : '处理本地文件',
+    time: localFileStartAt
+      ? localFileFinishAt
+        ? formatDateTime(localFileStartAt)
+        : '进行中...'
+      : '未开始',
     icon: localFileCurrent ? Loading : Download,
     duration: localFileDuration,
     completed: !!localFileCompleted,
-    current: localFileCurrent
+    current: localFileCurrent,
   })
 
   // 阶段4: 结束
@@ -325,7 +351,7 @@ const getTimelineItems = () => {
     icon: SuccessFilled,
     duration: null, // 不计算时长
     completed: !!endTime,
-    current: false
+    current: false,
   })
 
   return items

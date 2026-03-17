@@ -25,7 +25,13 @@
       </el-button>
     </div>
 
-    <el-dialog v-model="showCreateDialog" title="新建文件夹" width="400px" :close-on-click-modal="false" append-to-body>
+    <el-dialog
+      v-model="showCreateDialog"
+      title="新建文件夹"
+      width="400px"
+      :close-on-click-modal="false"
+      append-to-body
+    >
       <el-form ref="createFormRef" :model="createForm" :rules="createRules" label-width="80px">
         <el-form-item label="文件夹名称" prop="name">
           <el-input v-model="createForm.name" placeholder="请输入文件夹名称" clearable />
@@ -81,8 +87,8 @@ const createForm = ref({ name: '' })
 const createRules = ref<FormRules>({
   name: [
     { required: true, message: '请输入文件夹名称', trigger: 'blur' },
-    { min: 1, max: 255, message: '文件夹名称长度在 1 到 255 个字符', trigger: 'blur' }
-  ]
+    { min: 1, max: 255, message: '文件夹名称长度在 1 到 255 个字符', trigger: 'blur' },
+  ],
 })
 
 interface TreeNodeData extends DirInfo {
@@ -110,7 +116,7 @@ const loadSubdirectories = async (parentNode: TreeNodeData): Promise<TreeNodeDat
 
     if (response?.data.code === 200) {
       const subdirs = (response.data.data || []) as DirInfo[]
-      return subdirs.map(dir => ({
+      return subdirs.map((dir) => ({
         ...dir,
         expanded: false,
         loading: false,
@@ -183,7 +189,7 @@ const loadRootDirectories = async () => {
 
     if (response?.data.code === 200) {
       const dirs = (response.data.data || []) as DirInfo[]
-      treeData.value = dirs.map(dir => ({
+      treeData.value = dirs.map((dir) => ({
         ...dir,
         expanded: false,
         loading: false,
@@ -203,21 +209,33 @@ const loadRootDirectories = async () => {
   }
 }
 
-watch(() => props.sourceType, () => {
-  loadRootDirectories()
-})
+watch(
+  () => props.sourceType,
+  () => {
+    loadRootDirectories()
+  },
+)
 
-watch(() => props.accountId, () => {
-  loadRootDirectories()
-})
+watch(
+  () => props.accountId,
+  () => {
+    loadRootDirectories()
+  },
+)
 
-watch(() => props.rootPath, () => {
-  loadRootDirectories()
-})
+watch(
+  () => props.rootPath,
+  () => {
+    loadRootDirectories()
+  },
+)
 
-watch(() => props.modelValue, (newValue) => {
-  selectedDir.value = newValue
-})
+watch(
+  () => props.modelValue,
+  (newValue) => {
+    selectedDir.value = newValue
+  },
+)
 
 onMounted(() => {
   loadRootDirectories()

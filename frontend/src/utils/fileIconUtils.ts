@@ -12,7 +12,22 @@ export function getFileType(filename: string): FileType {
   if (!ext) return 'other'
 
   // 视频文件
-  const videoExtensions = ['mp4', 'mkv', 'avi', 'mov', 'wmv', 'flv', 'm4v', 'webm', 'ts', 'rmvb', 'rm', '3gp', 'mpg', 'mpeg']
+  const videoExtensions = [
+    'mp4',
+    'mkv',
+    'avi',
+    'mov',
+    'wmv',
+    'flv',
+    'm4v',
+    'webm',
+    'ts',
+    'rmvb',
+    'rm',
+    '3gp',
+    'mpg',
+    'mpeg',
+  ]
   if (videoExtensions.includes(ext)) return 'video'
 
   // 图片文件

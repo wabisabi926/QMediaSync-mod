@@ -7,7 +7,9 @@
         </div>
         <div class="header-text">
           <h2>通知管理</h2>
-          <p class="header-desc">管理系统的通知渠道，支持 Telegram、MeoW、Bark、Server酱、Webhook 等多种推送方式</p>
+          <p class="header-desc">
+            管理系统的通知渠道，支持 Telegram、MeoW、Bark、Server酱、Webhook 等多种推送方式
+          </p>
         </div>
       </div>
       <div class="header-actions">
@@ -26,7 +28,9 @@
           <template #image>
             <el-icon :size="64" color="var(--el-text-color-placeholder)"><Bell /></el-icon>
           </template>
-          <el-button type="primary" :icon="Plus" @click="showCreateDialog">添加第一个渠道</el-button>
+          <el-button type="primary" :icon="Plus" @click="showCreateDialog"
+            >添加第一个渠道</el-button
+          >
         </el-empty>
       </div>
 
@@ -66,16 +70,35 @@
           </div>
 
           <div class="channel-card-actions">
-            <el-button size="small" text :icon="Edit" @click="showEditDialog(channel)" :loading="editLoading">
+            <el-button
+              size="small"
+              text
+              :icon="Edit"
+              @click="showEditDialog(channel)"
+              :loading="editLoading"
+            >
               编辑
             </el-button>
             <el-button size="small" text :icon="Setting" @click="showRulesDialog(channel)">
               规则
             </el-button>
-            <el-button size="small" text type="success" :icon="Promotion" @click="testChannel(channel as ChannelWithStatus)" :loading="(channel as ChannelWithStatus)._testing">
+            <el-button
+              size="small"
+              text
+              type="success"
+              :icon="Promotion"
+              @click="testChannel(channel as ChannelWithStatus)"
+              :loading="(channel as ChannelWithStatus)._testing"
+            >
               测试
             </el-button>
-            <el-button size="small" text type="danger" :icon="Delete" @click="deleteChannel(channel)">
+            <el-button
+              size="small"
+              text
+              type="danger"
+              :icon="Delete"
+              @click="deleteChannel(channel)"
+            >
               删除
             </el-button>
           </div>
@@ -128,95 +151,59 @@
         </el-form-item>
 
         <el-form-item label="渠道名称" required>
-          <el-input
-            v-model="channelForm.channel_name"
-            placeholder="请输入渠道显示名称"
-          />
+          <el-input v-model="channelForm.channel_name" placeholder="请输入渠道显示名称" />
         </el-form-item>
 
         <!-- Telegram 配置 -->
         <template v-if="selectedChannelType === 'telegram'">
           <el-form-item label="Bot Token" required>
-            <el-input
-              v-model="channelForm.bot_token"
-              placeholder="123456:ABC-DEF..."
-            />
+            <el-input v-model="channelForm.bot_token" placeholder="123456:ABC-DEF..." />
           </el-form-item>
           <el-form-item label="Chat ID" required>
-            <el-input
-              v-model="channelForm.chat_id"
-              placeholder="123456789"
-            />
+            <el-input v-model="channelForm.chat_id" placeholder="123456789" />
           </el-form-item>
         </template>
 
         <!-- MeoW 配置 -->
         <template v-if="selectedChannelType === 'meow'">
           <el-form-item label="昵称" required>
-            <el-input
-              v-model="channelForm.nickname"
-              placeholder="my_nickname"
-            />
+            <el-input v-model="channelForm.nickname" placeholder="my_nickname" />
           </el-form-item>
           <el-form-item label="API地址">
-            <el-input
-              v-model="channelForm.endpoint"
-              placeholder="http://api.chuckfang.com"
-            />
+            <el-input v-model="channelForm.endpoint" placeholder="http://api.chuckfang.com" />
           </el-form-item>
         </template>
 
         <!-- Bark 配置 -->
         <template v-if="selectedChannelType === 'bark'">
           <el-form-item label="设备密钥" required>
-            <el-input
-              v-model="channelForm.device_key"
-              placeholder="your_device_key_here"
-            />
+            <el-input v-model="channelForm.device_key" placeholder="your_device_key_here" />
           </el-form-item>
           <el-form-item label="服务器地址">
-            <el-input
-              v-model="channelForm.server_url"
-              placeholder="https://api.day.app"
-            />
+            <el-input v-model="channelForm.server_url" placeholder="https://api.day.app" />
           </el-form-item>
           <el-form-item label="通知声音">
-            <el-input
-              v-model="channelForm.sound"
-              placeholder="alert"
-            />
+            <el-input v-model="channelForm.sound" placeholder="alert" />
           </el-form-item>
           <el-form-item label="通知图标">
-            <el-input
-              v-model="channelForm.icon"
-              placeholder="https://example.com/icon.png"
-            />
+            <el-input v-model="channelForm.icon" placeholder="https://example.com/icon.png" />
           </el-form-item>
         </template>
 
         <!-- Server酱 配置 -->
         <template v-if="selectedChannelType === 'serverchan'">
           <el-form-item label="SCKEY" required>
-            <el-input
-              v-model="channelForm.sc_key"
-              placeholder="SCU1234567890abcdef"
-            />
+            <el-input v-model="channelForm.sc_key" placeholder="SCU1234567890abcdef" />
           </el-form-item>
           <el-form-item label="API地址">
-            <el-input
-              v-model="channelForm.endpoint"
-              placeholder="https://sc.ftqq.com"
-            />
+            <el-input v-model="channelForm.endpoint" placeholder="https://sc.ftqq.com" />
           </el-form-item>
         </template>
 
         <!-- Webhook 配置 -->
         <template v-if="selectedChannelType === 'webhook'">
           <el-form-item label="请求地址" required>
-            <el-input
-              v-model="channelForm.endpoint"
-              placeholder="https://example.com/webhook"
-            />
+            <el-input v-model="channelForm.endpoint" placeholder="https://example.com/webhook" />
           </el-form-item>
           <el-form-item label="请求方法" required>
             <el-select v-model="channelForm.method" placeholder="选择请求方法" style="width: 100%">
@@ -236,29 +223,32 @@
               v-model="channelForm.template"
               type="textarea"
               :rows="6"
-              placeholder='支持变量: &#123;&#123;title&#125;&#125;, &#123;&#123;content&#125;&#125;, &#123;&#123;timestamp&#125;&#125;, &#123;&#123;image&#125;&#125;'
+              placeholder="支持变量: &#123;&#123;title&#125;&#125;, &#123;&#123;content&#125;&#125;, &#123;&#123;timestamp&#125;&#125;, &#123;&#123;image&#125;&#125;"
             />
-            <div style="font-size: 12px; color: var(--el-text-color-secondary); margin-top: 4px;">
+            <div style="font-size: 12px; color: var(--el-text-color-secondary); margin-top: 4px">
               支持的变量:<br />
               &#123;&#123;title&#125;&#125; - 通知标题<br />
               &#123;&#123;content&#125;&#125; - 通知内容<br />
               &#123;&#123;timestamp&#125;&#125; - 时间戳<br />
               &#123;&#123;image&#125;&#125; - 图片URL（如果有） <br />
-              POST JSON示例: {"title":"&#123;&#123;title&#125;&#125;","content":"&#123;&#123;content&#125;&#125;"}
-              <br>
-              POST Form示例: title=&#123;&#123;title&#125;&#125;&content=&#123;&#123;content&#125;&#125;
-              <br>
+              POST JSON示例:
+              {"title":"&#123;&#123;title&#125;&#125;","content":"&#123;&#123;content&#125;&#125;"}
+              <br />
+              POST Form示例:
+              title=&#123;&#123;title&#125;&#125;&content=&#123;&#123;content&#125;&#125;
+              <br />
               GET/Text示例: 【&#123;&#123;title&#125;&#125;】&#123;&#123;content&#125;&#125;
             </div>
           </el-form-item>
           <el-form-item v-if="channelForm.method === 'GET'" label="查询参数名">
-            <el-input
-              v-model="channelForm.query_param"
-              placeholder="默认: q"
-            />
+            <el-input v-model="channelForm.query_param" placeholder="默认: q" />
           </el-form-item>
           <el-form-item label="鉴权类型">
-            <el-select v-model="channelForm.auth_type" placeholder="选择鉴权方式" style="width: 100%">
+            <el-select
+              v-model="channelForm.auth_type"
+              placeholder="选择鉴权方式"
+              style="width: 100%"
+            >
               <el-option label="无鉴权" value="none" />
               <el-option label="Bearer Token" value="bearer" />
               <el-option label="Basic Auth" value="basic" />
@@ -268,24 +258,15 @@
           </el-form-item>
           <template v-if="channelForm.auth_type === 'bearer' || channelForm.auth_type === 'query'">
             <el-form-item :label="channelForm.auth_type === 'bearer' ? 'Token' : '参数值'">
-              <el-input
-                v-model="channelForm.auth_token"
-                placeholder="输入token或参数值"
-              />
+              <el-input v-model="channelForm.auth_token" placeholder="输入token或参数值" />
             </el-form-item>
             <el-form-item v-if="channelForm.auth_type === 'query'" label="参数名">
-              <el-input
-                v-model="channelForm.auth_query_key"
-                placeholder="例如: token"
-              />
+              <el-input v-model="channelForm.auth_query_key" placeholder="例如: token" />
             </el-form-item>
           </template>
           <template v-if="channelForm.auth_type === 'basic'">
             <el-form-item label="用户名">
-              <el-input
-                v-model="channelForm.auth_user"
-                placeholder="Basic Auth用户名"
-              />
+              <el-input v-model="channelForm.auth_user" placeholder="Basic Auth用户名" />
             </el-form-item>
             <el-form-item label="密码">
               <el-input
@@ -298,16 +279,10 @@
           </template>
           <template v-if="channelForm.auth_type === 'header'">
             <el-form-item label="Header名称">
-              <el-input
-                v-model="channelForm.auth_header_key"
-                placeholder="例如: X-Api-Key"
-              />
+              <el-input v-model="channelForm.auth_header_key" placeholder="例如: X-Api-Key" />
             </el-form-item>
             <el-form-item label="Header值">
-              <el-input
-                v-model="channelForm.auth_token"
-                placeholder="输入Header值"
-              />
+              <el-input v-model="channelForm.auth_token" placeholder="输入Header值" />
             </el-form-item>
           </template>
           <el-form-item label="备注说明">
@@ -378,95 +353,59 @@
         ref="channelFormRef"
       >
         <el-form-item label="渠道名称" required>
-          <el-input
-            v-model="channelForm.channel_name"
-            placeholder="请输入渠道显示名称"
-          />
+          <el-input v-model="channelForm.channel_name" placeholder="请输入渠道显示名称" />
         </el-form-item>
 
         <!-- Telegram 编辑 -->
         <template v-if="editingChannel?.channel_type === 'telegram'">
           <el-form-item label="Bot Token">
-            <el-input
-              v-model="channelForm.bot_token"
-              placeholder="123456:ABC-DEF..."
-            />
+            <el-input v-model="channelForm.bot_token" placeholder="123456:ABC-DEF..." />
           </el-form-item>
           <el-form-item label="Chat ID">
-            <el-input
-              v-model="channelForm.chat_id"
-              placeholder="123456789"
-            />
+            <el-input v-model="channelForm.chat_id" placeholder="123456789" />
           </el-form-item>
         </template>
 
         <!-- MeoW 编辑 -->
         <template v-if="editingChannel?.channel_type === 'meow'">
           <el-form-item label="昵称">
-            <el-input
-              v-model="channelForm.nickname"
-              placeholder="my_nickname"
-            />
+            <el-input v-model="channelForm.nickname" placeholder="my_nickname" />
           </el-form-item>
           <el-form-item label="API地址">
-            <el-input
-              v-model="channelForm.endpoint"
-              placeholder="http://api.chuckfang.com"
-            />
+            <el-input v-model="channelForm.endpoint" placeholder="http://api.chuckfang.com" />
           </el-form-item>
         </template>
 
         <!-- Bark 编辑 -->
         <template v-if="editingChannel?.channel_type === 'bark'">
           <el-form-item label="设备密钥">
-            <el-input
-              v-model="channelForm.device_key"
-              placeholder="your_device_key_here"
-            />
+            <el-input v-model="channelForm.device_key" placeholder="your_device_key_here" />
           </el-form-item>
           <el-form-item label="服务器地址">
-            <el-input
-              v-model="channelForm.server_url"
-              placeholder="https://api.day.app"
-            />
+            <el-input v-model="channelForm.server_url" placeholder="https://api.day.app" />
           </el-form-item>
           <el-form-item label="通知声音">
-            <el-input
-              v-model="channelForm.sound"
-              placeholder="alert"
-            />
+            <el-input v-model="channelForm.sound" placeholder="alert" />
           </el-form-item>
           <el-form-item label="通知图标">
-            <el-input
-              v-model="channelForm.icon"
-              placeholder="https://example.com/icon.png"
-            />
+            <el-input v-model="channelForm.icon" placeholder="https://example.com/icon.png" />
           </el-form-item>
         </template>
 
         <!-- Server酱 编辑 -->
         <template v-if="editingChannel?.channel_type === 'serverchan'">
           <el-form-item label="SCKEY">
-            <el-input
-              v-model="channelForm.sc_key"
-              placeholder="SCU1234567890abcdef"
-            />
+            <el-input v-model="channelForm.sc_key" placeholder="SCU1234567890abcdef" />
           </el-form-item>
           <el-form-item label="API地址">
-            <el-input
-              v-model="channelForm.endpoint"
-              placeholder="https://sc.ftqq.com"
-            />
+            <el-input v-model="channelForm.endpoint" placeholder="https://sc.ftqq.com" />
           </el-form-item>
         </template>
 
         <!-- Webhook 编辑 -->
         <template v-if="editingChannel?.channel_type === 'webhook'">
           <el-form-item label="请求地址">
-            <el-input
-              v-model="channelForm.endpoint"
-              placeholder="https://example.com/webhook"
-            />
+            <el-input v-model="channelForm.endpoint" placeholder="https://example.com/webhook" />
           </el-form-item>
           <el-form-item label="请求方法">
             <el-select v-model="channelForm.method" placeholder="选择请求方法" style="width: 100%">
@@ -486,17 +425,18 @@
               v-model="channelForm.template"
               type="textarea"
               :rows="6"
-              placeholder='支持变量: &#123;&#123;title&#125;&#125;, &#123;&#123;content&#125;&#125;, &#123;&#123;timestamp&#125;&#125;, &#123;&#123;image&#125;&#125;'
+              placeholder="支持变量: &#123;&#123;title&#125;&#125;, &#123;&#123;content&#125;&#125;, &#123;&#123;timestamp&#125;&#125;, &#123;&#123;image&#125;&#125;"
             />
           </el-form-item>
           <el-form-item v-if="channelForm.method === 'GET'" label="查询参数名">
-            <el-input
-              v-model="channelForm.query_param"
-              placeholder="默认: q"
-            />
+            <el-input v-model="channelForm.query_param" placeholder="默认: q" />
           </el-form-item>
           <el-form-item label="鉴权类型">
-            <el-select v-model="channelForm.auth_type" placeholder="选择鉴权方式" style="width: 100%">
+            <el-select
+              v-model="channelForm.auth_type"
+              placeholder="选择鉴权方式"
+              style="width: 100%"
+            >
               <el-option label="无鉴权" value="none" />
               <el-option label="Bearer Token" value="bearer" />
               <el-option label="Basic Auth" value="basic" />
@@ -506,24 +446,15 @@
           </el-form-item>
           <template v-if="channelForm.auth_type === 'bearer' || channelForm.auth_type === 'query'">
             <el-form-item :label="channelForm.auth_type === 'bearer' ? 'Token' : '参数值'">
-              <el-input
-                v-model="channelForm.auth_token"
-                placeholder="输入token或参数值"
-              />
+              <el-input v-model="channelForm.auth_token" placeholder="输入token或参数值" />
             </el-form-item>
             <el-form-item v-if="channelForm.auth_type === 'query'" label="参数名">
-              <el-input
-                v-model="channelForm.auth_query_key"
-                placeholder="例如: token"
-              />
+              <el-input v-model="channelForm.auth_query_key" placeholder="例如: token" />
             </el-form-item>
           </template>
           <template v-if="channelForm.auth_type === 'basic'">
             <el-form-item label="用户名">
-              <el-input
-                v-model="channelForm.auth_user"
-                placeholder="Basic Auth用户名"
-              />
+              <el-input v-model="channelForm.auth_user" placeholder="Basic Auth用户名" />
             </el-form-item>
             <el-form-item label="密码">
               <el-input
@@ -536,16 +467,10 @@
           </template>
           <template v-if="channelForm.auth_type === 'header'">
             <el-form-item label="Header名称">
-              <el-input
-                v-model="channelForm.auth_header_key"
-                placeholder="例如: X-Api-Key"
-              />
+              <el-input v-model="channelForm.auth_header_key" placeholder="例如: X-Api-Key" />
             </el-form-item>
             <el-form-item label="Header值">
-              <el-input
-                v-model="channelForm.auth_token"
-                placeholder="输入Header值"
-              />
+              <el-input v-model="channelForm.auth_token" placeholder="输入Header值" />
             </el-form-item>
           </template>
           <el-form-item label="备注说明">
@@ -561,13 +486,7 @@
 
       <template #footer>
         <el-button @click="editDialogVisible = false">取消</el-button>
-        <el-button
-          type="primary"
-          @click="updateChannel"
-          :loading="updating"
-        >
-          保存
-        </el-button>
+        <el-button type="primary" @click="updateChannel" :loading="updating"> 保存 </el-button>
       </template>
     </el-dialog>
   </div>
@@ -590,7 +509,7 @@ import {
   Position,
   Apple,
   Cellphone,
-  Link
+  Link,
 } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
@@ -601,7 +520,7 @@ import {
   getEventTypeName,
   type NotificationChannel,
   type NotificationRule,
-  type ChannelType
+  type ChannelType,
 } from '@/utils/notificationUtils'
 
 // 渠道表单接口
@@ -670,32 +589,32 @@ const allChannelTypes = [
     value: 'telegram' as ChannelType,
     label: 'Telegram',
     icon: Position,
-    description: 'Telegram Bot 推送'
+    description: 'Telegram Bot 推送',
   },
   {
     value: 'meow' as ChannelType,
     label: 'MeoW',
     icon: ChatDotRound,
-    description: 'MeoW 推送服务'
+    description: 'MeoW 推送服务',
   },
   {
     value: 'bark' as ChannelType,
     label: 'Bark',
     icon: Apple,
-    description: 'iOS Bark 推送'
+    description: 'iOS Bark 推送',
   },
   {
     value: 'serverchan' as ChannelType,
     label: 'Server酱',
     icon: Cellphone,
-    description: '微信推送服务'
+    description: '微信推送服务',
   },
   {
     value: 'webhook' as ChannelType,
     label: 'Webhook',
     icon: Link,
-    description: '自定义 Webhook 推送'
-  }
+    description: '自定义 Webhook 推送',
+  },
 ]
 
 const getChannelIcon = (type: ChannelType): Component => {
@@ -704,7 +623,7 @@ const getChannelIcon = (type: ChannelType): Component => {
     meow: ChatDotRound,
     bark: Apple,
     serverchan: Cellphone,
-    webhook: Link
+    webhook: Link,
   }
   return iconMap[type] || Link
 }
@@ -739,7 +658,7 @@ const channelForm = reactive<ChannelFormData>({
   auth_pass: '',
   auth_header_key: '',
   auth_query_key: '',
-  description: ''
+  description: '',
 })
 
 // 加载渠道列表
@@ -748,11 +667,13 @@ const loadChannels = async () => {
   try {
     const response = await http?.get(`${SERVER_URL}/setting/notification/channels`)
     if (response?.data.code === 0) {
-      channels.value = response.data.data.map((channel: NotificationChannel): ChannelWithStatus => ({
-        ...channel,
-        _switching: false,
-        _testing: false
-      }))
+      channels.value = response.data.data.map(
+        (channel: NotificationChannel): ChannelWithStatus => ({
+          ...channel,
+          _switching: false,
+          _testing: false,
+        }),
+      )
     } else {
       ElMessage.error(response?.data.message || '加载失败')
     }
@@ -767,8 +688,8 @@ const loadChannels = async () => {
 // 显示创建对话框
 const showCreateDialog = () => {
   // 检查是否还有可用的渠道类型
-  const existingTypes = channels.value.map(channel => channel.channel_type)
-  const availableTypes = allChannelTypes.filter(type => !existingTypes.includes(type.value))
+  const existingTypes = channels.value.map((channel) => channel.channel_type)
+  const availableTypes = allChannelTypes.filter((type) => !existingTypes.includes(type.value))
 
   if (availableTypes.length === 0) {
     ElMessage.warning('所有渠道类型都已添加，每种类型只能添加一个渠道')
@@ -813,7 +734,7 @@ const showEditDialog = async (channel: NotificationChannel) => {
   try {
     // 根据渠道类型调用对应的查询接口获取详细配置
     const response = await http?.get(
-      `${SERVER_URL}/setting/notification/channels/${channel.channel_type}/${channel.id}`
+      `${SERVER_URL}/setting/notification/channels/${channel.channel_type}/${channel.id}`,
     )
 
     if (response?.data.code === 0) {
@@ -916,7 +837,7 @@ const createChannel = async () => {
   creating.value = true
   try {
     const requestData: Record<string, unknown> = {
-      channel_name: channelForm.channel_name
+      channel_name: channelForm.channel_name,
     }
 
     // 根据类型添加配置字段
@@ -976,7 +897,7 @@ const createChannel = async () => {
 
     const response = await http?.post(
       `${SERVER_URL}/setting/notification/channels/${selectedChannelType.value}`,
-      requestData
+      requestData,
     )
 
     if (response?.data.code === 0) {
@@ -998,13 +919,10 @@ const createChannel = async () => {
 const toggleChannelStatus = async (channel: ChannelWithStatus) => {
   channel._switching = true
   try {
-    const response = await http?.post(
-      `${SERVER_URL}/setting/notification/channels/status`,
-      {
-        channel_id: channel.id,
-        is_enabled: channel.is_enabled
-      }
-    )
+    const response = await http?.post(`${SERVER_URL}/setting/notification/channels/status`, {
+      channel_id: channel.id,
+      is_enabled: channel.is_enabled,
+    })
 
     if (response?.data.code === 0) {
       ElMessage.success(channel.is_enabled ? '已启用' : '已禁用')
@@ -1034,7 +952,7 @@ const updateChannel = async () => {
   try {
     const requestData: Record<string, unknown> = {
       channel_id: editingChannel.value.id,
-      channel_name: channelForm.channel_name
+      channel_name: channelForm.channel_name,
     }
 
     const channelType = editingChannel.value.channel_type
@@ -1084,7 +1002,7 @@ const updateChannel = async () => {
 
     const response = await http?.put(
       `${SERVER_URL}/setting/notification/channels/${channelType}`,
-      requestData
+      requestData,
     )
 
     if (response?.data.code === 0) {
@@ -1106,12 +1024,9 @@ const updateChannel = async () => {
 const testChannel = async (channel: ChannelWithStatus) => {
   channel._testing = true
   try {
-    const response = await http?.post(
-      `${SERVER_URL}/setting/notification/channels/test`,
-      {
-        channel_id: channel.id
-      }
-    )
+    const response = await http?.post(`${SERVER_URL}/setting/notification/channels/test`, {
+      channel_id: channel.id,
+    })
 
     if (response?.data.code === 0) {
       ElMessage.success('测试消息已发送，请检查您的设备')
@@ -1135,13 +1050,11 @@ const deleteChannel = async (channel: NotificationChannel) => {
       {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
-        type: 'warning'
-      }
+        type: 'warning',
+      },
     )
 
-    const response = await http?.delete(
-      `${SERVER_URL}/setting/notification/channels/${channel.id}`
-    )
+    const response = await http?.delete(`${SERVER_URL}/setting/notification/channels/${channel.id}`)
 
     if (response?.data.code === 0) {
       ElMessage.success('删除成功')
@@ -1169,14 +1082,16 @@ const loadRules = async (channelId: number) => {
   rulesLoading.value = true
   try {
     const response = await http?.get(
-      `${SERVER_URL}/setting/notification/rules?channel_id=${channelId}`
+      `${SERVER_URL}/setting/notification/rules?channel_id=${channelId}`,
     )
 
     if (response?.data.code === 0) {
-      currentRules.value = response.data.data.map((rule: NotificationRule): RuleWithStatus => ({
-        ...rule,
-        _updating: false
-      }))
+      currentRules.value = response.data.data.map(
+        (rule: NotificationRule): RuleWithStatus => ({
+          ...rule,
+          _updating: false,
+        }),
+      )
     } else {
       ElMessage.error(response?.data.message || '加载规则失败')
     }
@@ -1192,14 +1107,11 @@ const loadRules = async (channelId: number) => {
 const updateRule = async (rule: RuleWithStatus) => {
   rule._updating = true
   try {
-    const response = await http?.put(
-      `${SERVER_URL}/setting/notification/rules`,
-      {
-        channel_id: rule.channel_id,
-        event_type: rule.event_type,
-        is_enabled: rule.is_enabled
-      }
-    )
+    const response = await http?.put(`${SERVER_URL}/setting/notification/rules`, {
+      channel_id: rule.channel_id,
+      event_type: rule.event_type,
+      is_enabled: rule.is_enabled,
+    })
 
     if (response?.data.code === 0) {
       ElMessage.success('更新成功')

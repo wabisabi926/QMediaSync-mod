@@ -1,8 +1,6 @@
 <template>
   <div class="welcome-banner">
-    <div class="banner-content">
-      欢迎使用 QMediaSync
-    </div>
+    <div class="banner-content">欢迎使用 QMediaSync</div>
   </div>
 </template>
 

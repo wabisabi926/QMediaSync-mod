@@ -9,6 +9,9 @@ export type EventType =
   | 'system_alert'
   | 'media_added'
   | 'media_removed'
+  | 'playback_start'
+  | 'playback_pause'
+  | 'playback_stop'
 
 // 通知渠道接口
 export interface NotificationChannel {
@@ -102,6 +105,9 @@ export function getEventTypeName(type: EventType): string {
     system_alert: '系统警告',
     media_added: '媒体添加',
     media_removed: '媒体移除',
+    playback_start: '播放开始',
+    playback_pause: '播放暂停',
+    playback_stop: '播放停止',
   }
   return nameMap[type] || type
 }
@@ -115,6 +121,9 @@ export function getEventTypeDescription(type: EventType): string {
     system_alert: '系统出现重要警告时发送通知',
     media_added: '新媒体添加到媒体库时发送通知',
     media_removed: '媒体从媒体库移除时发送通知',
+    playback_start: '用户开始播放内容时发送通知',
+    playback_pause: '用户暂停播放时发送通知',
+    playback_stop: '用户停止播放时发送通知',
   }
   return descMap[type] || ''
 }

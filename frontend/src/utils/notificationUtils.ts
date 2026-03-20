@@ -99,15 +99,15 @@ export function getChannelTypeColor(
 // 获取事件类型名称
 export function getEventTypeName(type: EventType): string {
   const nameMap: Record<EventType, string> = {
-    sync_finish: '同步完成',
-    sync_error: '同步错误',
+    sync_finish: 'STRM同步完成',
+    sync_error: 'STRM同步错误',
     scrape_finish: '刮削完成',
     system_alert: '系统警告',
-    media_added: '媒体添加',
-    media_removed: '媒体移除',
-    playback_start: '播放开始',
-    playback_pause: '播放暂停',
-    playback_stop: '播放停止',
+    media_added: 'Emby媒体添加',
+    media_removed: 'Emby媒体移除',
+    playback_start: 'Emby播放开始',
+    playback_pause: 'Emby播放暂停',
+    playback_stop: 'Emby播放停止',
   }
   return nameMap[type] || type
 }

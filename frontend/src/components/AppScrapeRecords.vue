@@ -1172,6 +1172,8 @@ const getSourceTypeName = (type: string): string => {
       return 'OpenList'
     case '123':
       return '123云盘'
+    case 'baidupan':
+      return '百度网盘'
     default:
       return '其他'
   }
@@ -1188,6 +1190,8 @@ const getSourceTypeTagType = (type: string): string => {
       return 'success'
     case '123':
       return 'info'
+    case 'baidupan':
+      return 'danger'
     default:
       return 'info'
   }

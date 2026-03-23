@@ -468,6 +468,49 @@
         </div>
       </el-card>
 
+      <!-- 媒体库同步选择卡片 -->
+      <el-card class="settings-card library-selection-card" shadow="hover">
+        <template #header>
+          <div class="card-header-wrapper">
+            <div class="card-header-icon library-icon">
+              <el-icon :size="24"><FolderOpened /></el-icon>
+            </div>
+            <div class="card-header-content">
+              <h3 class="card-title">媒体库同步选择</h3>
+              <p class="card-subtitle">选择需要同步的Emby媒体库</p>
+            </div>
+          </div>
+        </template>
+
+        <el-form-item label="同步模式">
+          <el-radio-group v-model="embyData.sync_all_libraries">
+            <el-radio :label="1">全部媒体库</el-radio>
+            <el-radio :label="0">指定媒体库</el-radio>
+          </el-radio-group>
+          <div class="form-help">
+            <el-icon><InfoFilled /></el-icon>
+            <span>选择"全部媒体库"将同步所有媒体库（包括未来新增的），选择"指定媒体库"可手动选择需要同步的媒体库</span>
+          </div>
+        </el-form-item>
+
+        <el-form-item label="选择媒体库" v-if="embyData.sync_all_libraries === 0">
+          <el-checkbox-group v-model="selectedLibraryIds" class="library-checkbox-group">
+            <el-checkbox 
+              v-for="lib in availableLibraries" 
+              :key="lib.library_id" 
+              :label="lib.library_id"
+              class="library-checkbox"
+            >
+              {{ lib.name }}
+            </el-checkbox>
+          </el-checkbox-group>
+          <div class="form-help" v-if="availableLibraries.length === 0">
+            <el-icon><WarningFilled /></el-icon>
+            <span class="warning-text">请先配置Emby服务器地址并保存，然后执行一次同步以获取媒体库列表</span>
+          </div>
+        </el-form-item>
+      </el-card>
+
       <el-alert
         v-if="embyStatus"
         :title="embyStatus.title"
@@ -541,7 +584,13 @@ const embyData = reactive({
   enable_extract_media_info: 1,
   enable_delete_netdisk: 0,
   enable_auth: 1,
+  sync_all_libraries: 1,
+  selected_libraries: '[]',
 })
+
+// 媒体库选择相关数据
+const availableLibraries = ref<Array<{ library_id: string; name: string }>>([])
+const selectedLibraryIds = ref<string[]>([])
 
 const embyExample = ref('http://192.168.1.100:8096')
 
@@ -586,6 +635,8 @@ const defaultConfig = {
   enable_extract_media_info: 1,
   enable_delete_netdisk: 0,
   enable_auth: 0,
+  sync_all_libraries: 1,
+  selected_libraries: '[]',
 }
 
 const loadEmbyConfig = async () => {
@@ -604,6 +655,18 @@ const loadEmbyConfig = async () => {
         embyData.enable_extract_media_info = config.enable_extract_media_info ?? 1
         embyData.enable_delete_netdisk = config.enable_delete_netdisk ?? 0
         embyData.enable_auth = config.enable_auth ?? 1
+        embyData.sync_all_libraries = config.sync_all_libraries ?? 1
+        embyData.selected_libraries = config.selected_libraries || '[]'
+        
+        // 解析选中的媒体库ID列表
+        try {
+          selectedLibraryIds.value = JSON.parse(embyData.selected_libraries)
+        } catch (e) {
+          selectedLibraryIds.value = []
+        }
+        
+        // 加载媒体库列表
+        await loadEmbyLibraries()
       } else {
         Object.assign(embyData, defaultConfig)
       }
@@ -617,6 +680,21 @@ const loadEmbyConfig = async () => {
     ElMessage.error('加载Emby配置失败')
   } finally {
     embyLoading.value = false
+  }
+}
+
+// 加载Emby媒体库列表
+const loadEmbyLibraries = async () => {
+  try {
+    const response = await http?.get(`${SERVER_URL}/emby/libraries`)
+    if (response?.data.code === 200 && response?.data.data) {
+      availableLibraries.value = response.data.data.map((lib: any) => ({
+        library_id: lib.library_id,
+        name: lib.name,
+      }))
+    }
+  } catch (error) {
+    console.error('加载媒体库列表错误:', error)
   }
 }
 
@@ -638,6 +716,8 @@ const saveEmbyConfig = async () => {
         enable_extract_media_info: embyData.enable_extract_media_info,
         enable_delete_netdisk: embyData.enable_delete_netdisk,
         enable_auth: embyData.enable_auth,
+        sync_all_libraries: embyData.sync_all_libraries,
+        selected_libraries: JSON.stringify(selectedLibraryIds.value),
       },
       {
         headers: {

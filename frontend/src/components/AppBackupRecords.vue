@@ -62,7 +62,7 @@
                 {{ formatTimestamp(row.created_at) }}
               </template>
             </el-table-column>
-            <el-table-column label="操作" :width="isMobile ? 120 : 150" fixed="right">
+            <el-table-column label="操作" :width="isMobile ? 180 : 210" fixed="right">
               <template #default="{ row }">
                 <el-button
                   v-if="row.status === 'completed'"
@@ -72,6 +72,16 @@
                   @click="downloadBackup(row.id, getFilenameFromPath(row.file_path))"
                 >
                   下载
+                </el-button>
+                <el-button
+                  v-if="row.status === 'completed'"
+                  type="warning"
+                  size="small"
+                  link
+                  :disabled="restoringBackup"
+                  @click="handleRestoreBackup(row)"
+                >
+                  恢复
                 </el-button>
                 <el-button type="danger" size="small" link @click="deleteBackupRecord(row.id)">
                   删除
@@ -117,6 +127,7 @@ const API_SUCCESS_CODE = 200
 const activeTab = ref('records')
 const backupStarting = ref(false)
 const recordsLoading = ref(false)
+const restoringBackup = ref(false)
 const backupRecords = ref<BackupRecordListItem[]>([])
 const currentPage = ref(1)
 const pageSize = ref(20)
@@ -237,6 +248,59 @@ const deleteBackupRecord = async (recordId: number) => {
       const errorMsg = error instanceof Error ? error.message : '删除备份记录失败'
       ElMessage.error(errorMsg)
     }
+  }
+}
+
+const handleRestoreBackup = async (record: BackupRecordListItem) => {
+  try {
+    await ElMessageBox.confirm(
+      `<div style="line-height: 1.8;">
+        <p><strong>备份时间：</strong>${formatTimestamp(record.created_at)}</p>
+        <p><strong>备份类型：</strong>${record.backup_type === 'manual' ? '手动备份' : '自动备份'}</p>
+        ${record.created_reason ? `<p><strong>备份原因：</strong>${record.created_reason}</p>` : ''}
+        <p style="color: #E6A23C; font-weight: bold; margin-top: 12px;">⚠️ 警告：此操作不可逆！</p>
+        <p style="color: #F56C6C; font-weight: bold; font-size: 16px; margin-top: 8px;">⚠️ 注意：恢复操作会重启服务！</p>
+      </div>`,
+      '确认恢复备份',
+      {
+        confirmButtonText: '确认恢复',
+        cancelButtonText: '取消',
+        type: 'warning',
+        dangerouslyUseHTMLString: true,
+      },
+    )
+
+    // 用户确认后，调用恢复API
+    await restoreBackup(record.id)
+  } catch (error) {
+    // 用户取消操作
+    if (error !== 'cancel') {
+      console.error('恢复备份失败:', error)
+    }
+  }
+}
+
+const restoreBackup = async (recordId: number) => {
+  if (!http) return
+
+  try {
+    restoringBackup.value = true
+    ElMessage.info('正在恢复备份，请稍候...')
+
+    const response = await http.post(`${SERVER_URL}/backup/restore`, {
+      record_id: recordId,
+    })
+
+    if (response?.data.code === API_SUCCESS_CODE) {
+      ElMessage.success('备份恢复成功，服务即将重启...')
+    } else {
+      ElMessage.error(response?.data.message || '恢复备份失败')
+    }
+  } catch (error) {
+    console.error('恢复备份失败:', error)
+    ElMessage.error('恢复备份失败')
+  } finally {
+    restoringBackup.value = false
   }
 }
 

@@ -245,7 +245,7 @@
             </template>
 
             <el-form-item label="同步模式">
-              <el-radio-group v-model="embyData.sync_all_libraries">
+              <el-radio-group v-model="embyData.sync_all_libraries" @change="handleSyncModeChange">
                 <el-radio :label="1">全部媒体库</el-radio>
                 <el-radio :label="0">指定媒体库</el-radio>
               </el-radio-group>
@@ -695,6 +695,14 @@ const loadEmbyLibraries = async () => {
     }
   } catch (error) {
     console.error('加载媒体库列表错误:', error)
+  }
+}
+
+// 处理同步模式切换
+const handleSyncModeChange = (value: number) => {
+  // 当选择"指定媒体库"时，重新加载媒体库列表
+  if (value === 0) {
+    loadEmbyLibraries()
   }
 }
 

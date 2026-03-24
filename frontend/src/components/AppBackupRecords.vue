@@ -285,14 +285,16 @@ const restoreBackup = async (recordId: number) => {
 
   try {
     restoringBackup.value = true
-    ElMessage.info('正在恢复备份，请稍候...')
+    ElMessage.info('正在启动恢复任务...')
 
     const response = await http.post(`${SERVER_URL}/backup/restore`, {
       record_id: recordId,
     })
 
     if (response?.data.code === API_SUCCESS_CODE) {
-      ElMessage.success('备份恢复成功，服务即将重启...')
+      ElMessage.success('恢复任务已启动')
+      // 启动进度轮询，与现有的恢复流程相同
+      backupStore.startProgressPolling('restore', undefined, http)
     } else {
       ElMessage.error(response?.data.message || '恢复备份失败')
     }

@@ -401,15 +401,8 @@
       </el-form-item>
       <el-form-item label="115开放平台应用" v-if="newAccountForm.type === '115'">
         <el-select v-model="newAccountForm.app_id_name" placeholder="请选择APP ID">
-          <el-option label="Q115-STRM" value="Q115-STRM"></el-option>
-          <el-option label="MQ的媒体库" value="MQ的媒体库"></el-option>
+          <el-option label="QMediaSync" value="QMediaSync"></el-option>
         </el-select>
-      </el-form-item>
-      <el-form-item
-        label="APP ID"
-        v-if="newAccountForm.type === '115' && newAccountForm.app_id_name === '自定义'"
-      >
-        <el-input v-model="newAccountForm.app_id" placeholder="请输入自定义APP ID" />
       </el-form-item>
     </el-form>
     <template #footer>

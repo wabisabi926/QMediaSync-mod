@@ -1275,17 +1275,28 @@ const checkAndSetAutoRefresh = () => {
   const hasActiveTask = pathes.value.some((p) => p.is_scraping || p.is_renaming)
 
   if (hasActiveTask) {
-    // 有任务在运行：每1秒刷新一次
+    // 有任务在运行：每5秒刷新一次
     autoRefreshTimer.value = window.setInterval(() => {
       updatePathesStatus()
-    }, 1000)
+    }, 5000)
   } else {
-    // 没有任务：每30秒刷新一次
-    autoRefreshTimer.value = window.setInterval(() => {
-      updatePathesStatus()
-    }, 30000)
+    // 没有任务：不轮询，依赖WebSocket事件
   }
 }
+
+// WebSocket事件监听
+import { useWSEvent } from '@/composables/useWebSocket'
+
+const onScraperStart = () => {
+  updatePathesStatus()
+}
+const onScraperComplete = () => {
+  updatePathesStatus()
+  checkAndSetAutoRefresh()
+}
+
+useWSEvent('scraper_task_start', onScraperStart)
+useWSEvent('scraper_task_complete', onScraperComplete)
 
 // 组件挂载时加载数据
 onMounted(async () => {

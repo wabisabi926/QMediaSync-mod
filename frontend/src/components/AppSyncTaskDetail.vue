@@ -149,45 +149,22 @@ const taskId = ref(route.params.id as string)
 const taskInfo = ref<TaskInfo | null>(null)
 const infoLoading = ref(false)
 
-// 定时器相关
+// 定时器相关 - 已停用，使用WebSocket替代
 const refreshTimer = ref<number | null>(null)
 const shouldAutoRefresh = ref(false)
+
+// WebSocket事件监听
+import { useWSEvent } from '@/composables/useWebSocket'
+
+const onSyncComplete = () => {
+  loadTaskInfo()
+}
+
+useWSEvent('strm_sync_task_complete', onSyncComplete)
 
 // 返回上一页
 const goBack = () => {
   router.push({ name: 'sync-records' })
-}
-
-// 启动定时器
-const startAutoRefresh = () => {
-  stopAutoRefresh() // 先清除现有定时器
-  shouldAutoRefresh.value = true
-  refreshTimer.value = window.setInterval(() => {
-    if (shouldAutoRefresh.value) {
-      loadTaskInfo()
-    }
-  }, 5000) // 每5秒刷新一次
-}
-
-// 停止定时器
-const stopAutoRefresh = () => {
-  if (refreshTimer.value) {
-    clearInterval(refreshTimer.value)
-    refreshTimer.value = null
-  }
-  shouldAutoRefresh.value = false
-}
-
-// 检查是否需要自动刷新
-const checkAutoRefresh = () => {
-  // 如果任务状态为运行中(1)，启动自动刷新
-  if (taskInfo.value?.status === 1) {
-    if (!shouldAutoRefresh.value) {
-      startAutoRefresh()
-    }
-  } else {
-    stopAutoRefresh()
-  }
 }
 
 // 获取状态标签类型
@@ -384,8 +361,7 @@ const loadTaskInfo = async () => {
     console.error('加载任务信息错误:', error)
   } finally {
     infoLoading.value = false
-    // 检查是否需要自动刷新
-    checkAutoRefresh()
+    // 不再需要定时器检查
   }
 }
 
@@ -394,9 +370,13 @@ onMounted(() => {
   loadTaskInfo()
 })
 
-// 页面卸载时清理定时器
+// 页面卸载时清理定时器（已停用）
 onUnmounted(() => {
-  stopAutoRefresh()
+  // 旧的定时器清理，已不再需要
+  if (refreshTimer.value) {
+    clearInterval(refreshTimer.value)
+    refreshTimer.value = null
+  }
 })
 </script>
 

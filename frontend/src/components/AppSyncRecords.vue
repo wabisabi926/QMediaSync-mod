@@ -276,7 +276,7 @@ const currentPage = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
 
-// 定时器相关
+// 定时器相关 - 已停用，使用WebSocket替代
 const refreshTimer = ref<number | null>(null)
 const shouldAutoRefresh = ref(false)
 
@@ -285,36 +285,18 @@ const hasRunningSyncTask = computed(() => {
   return syncRecords.value.some((record) => record.status === 1) // 1-运行中
 })
 
-// 启动定时器
-const startAutoRefresh = () => {
-  stopAutoRefresh() // 先清除现有定时器
-  shouldAutoRefresh.value = true
-  refreshTimer.value = window.setInterval(() => {
-    if (shouldAutoRefresh.value) {
-      loadSyncRecords()
-    }
-  }, 5000) // 每5秒刷新一次
+// WebSocket事件监听
+import { useWSEvent } from '@/composables/useWebSocket'
+
+const onSyncStart = () => {
+  loadSyncRecords()
+}
+const onSyncComplete = () => {
+  loadSyncRecords()
 }
 
-// 停止定时器
-const stopAutoRefresh = () => {
-  if (refreshTimer.value) {
-    clearInterval(refreshTimer.value)
-    refreshTimer.value = null
-  }
-  shouldAutoRefresh.value = false
-}
-
-// 检查是否需要自动刷新
-const checkAutoRefresh = () => {
-  if (hasRunningSyncTask.value) {
-    if (!shouldAutoRefresh.value) {
-      startAutoRefresh()
-    }
-  } else {
-    stopAutoRefresh()
-  }
-}
+useWSEvent('strm_sync_task_start', onSyncStart)
+useWSEvent('strm_sync_task_complete', onSyncComplete)
 
 // 获取状态标签类型
 const getStatusType = (status: number) => {
@@ -393,8 +375,6 @@ const loadSyncRecords = async () => {
     console.error('加载同步记录错误:', error)
   } finally {
     tableLoading.value = false
-    // 检查是否需要自动刷新
-    checkAutoRefresh()
   }
 }
 
@@ -461,9 +441,13 @@ onMounted(() => {
   loadSyncRecords()
 })
 
-// 页面卸载时清理定时器
+// 页面卸载时清理定时器（已停用）
 onUnmounted(() => {
-  stopAutoRefresh()
+  // 旧的定时器清理，已不再需要
+  if (refreshTimer.value) {
+    clearInterval(refreshTimer.value)
+    refreshTimer.value = null
+  }
 })
 
 // 判断记录是否可删除（完成或失败）

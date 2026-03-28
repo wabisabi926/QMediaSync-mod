@@ -149,6 +149,46 @@
               >
             </div>
           </el-form-item>
+
+          <el-form-item label="播放通知显示剧情简介" prop="enable_playback_overview">
+            <div class="switch-wrapper">
+              <el-switch
+                v-model="embyData.enable_playback_overview"
+                :active-value="1"
+                :inactive-value="0"
+                :disabled="embyLoading"
+                active-color="#67c23a"
+                inactive-color="#dcdfe6"
+              />
+              <span class="switch-label" :class="{ 'is-active': embyData.enable_playback_overview }">
+                {{ embyData.enable_playback_overview ? '已启用' : '已禁用' }}
+              </span>
+            </div>
+            <div class="form-help">
+              <el-icon><InfoFilled /></el-icon>
+              <span>开启后，播放通知将显示当前视频的剧情简介（超过100字自动截断）</span>
+            </div>
+          </el-form-item>
+
+          <el-form-item label="播放通知显示播放进度" prop="enable_playback_progress">
+            <div class="switch-wrapper">
+              <el-switch
+                v-model="embyData.enable_playback_progress"
+                :active-value="1"
+                :inactive-value="0"
+                :disabled="embyLoading"
+                active-color="#67c23a"
+                inactive-color="#dcdfe6"
+              />
+              <span class="switch-label" :class="{ 'is-active': embyData.enable_playback_progress }">
+                {{ embyData.enable_playback_progress ? '已启用' : '已禁用' }}
+              </span>
+            </div>
+            <div class="form-help">
+              <el-icon><InfoFilled /></el-icon>
+              <span>开启后，播放通知将显示当前播放进度和总时长（如：00:15:30 / 00:45:00）</span>
+            </div>
+          </el-form-item>
         </el-card>
 
         <el-card class="settings-card sync-features-card" shadow="hover">
@@ -629,6 +669,8 @@ const embyData = reactive({
   enable_auth: 1,
   sync_all_libraries: 1,
   selected_libraries: '[]',
+  enable_playback_overview: 0,
+  enable_playback_progress: 0,
 })
 
 // 媒体库选择相关数据
@@ -700,6 +742,8 @@ const loadEmbyConfig = async () => {
         embyData.enable_auth = config.enable_auth ?? 1
         embyData.sync_all_libraries = config.sync_all_libraries ?? 1
         embyData.selected_libraries = config.selected_libraries || '[]'
+        embyData.enable_playback_overview = config.enable_playback_overview ?? 0
+        embyData.enable_playback_progress = config.enable_playback_progress ?? 0
         
         // 解析选中的媒体库ID列表
         try {
@@ -769,6 +813,8 @@ const saveEmbyConfig = async () => {
         enable_auth: embyData.enable_auth,
         sync_all_libraries: embyData.sync_all_libraries,
         selected_libraries: JSON.stringify(selectedLibraryIds.value),
+        enable_playback_overview: embyData.enable_playback_overview,
+        enable_playback_progress: embyData.enable_playback_progress,
       },
       {
         headers: {

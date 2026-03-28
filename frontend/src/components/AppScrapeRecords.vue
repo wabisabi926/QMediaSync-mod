@@ -587,6 +587,7 @@ import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { inject } from 'vue'
 import { formatTimestamp } from '@/utils/timeUtils'
+import { useWSEvent } from '@/composables/useWebSocket'
 import 'element-plus/theme-chalk/display.css'
 
 const http: AxiosStatic | undefined = inject('$http')
@@ -1275,6 +1276,16 @@ const getStatusName = (status: string): string => {
       return '未知'
   }
 }
+
+// WebSocket 事件监听：刮削单项完成时刷新记录列表
+useWSEvent('scraper_item_complete', () => {
+  loadRecords()
+})
+
+// WebSocket 事件监听：刮削任务完成时刷新记录列表
+useWSEvent('scraper_task_complete', () => {
+  loadRecords()
+})
 
 // 组件挂载时加载数据
 onMounted(() => {

@@ -70,6 +70,19 @@
         </div>
       </el-form-item>
 
+      <el-form-item label="115文件列表每页查询数量" prop="fileListPageSize">
+        <el-input-number
+          v-model="formData.fileListPageSize"
+          :min="100"
+          :max="1150"
+          :disabled="loading"
+          size="large"
+        />
+        <div class="form-help">
+          115网盘文件列表接口的每页查询数量，网络较慢时可减小此值避免超时。范围100-1150，默认1150
+        </div>
+      </el-form-item>
+
       <div class="form-actions">
         <el-button
           type="success"
@@ -123,6 +136,7 @@ interface ThreadSettings {
   openlistQPS: number
   openlistRetryCount: number
   openlistRetryDelay: number
+  fileListPageSize: number
 }
 
 interface SaveStatus {
@@ -143,6 +157,7 @@ const formData = reactive<ThreadSettings>({
   openlistQPS: 2,
   openlistRetryCount: 1,
   openlistRetryDelay: 30,
+  fileListPageSize: 1150,
 })
 
 // 页面挂载时获取当前设置
@@ -165,6 +180,7 @@ async function fetchThreadSettings() {
     formData.openlistQPS = response?.data.data.openlist_qps
     formData.openlistRetryCount = response?.data.data.openlist_retry
     formData.openlistRetryDelay = response?.data.data.openlist_retry_delay
+    formData.fileListPageSize = response?.data.data.file_list_page_size || 1150
   } catch (error) {
     console.error('获取线程设置失败:', error)
     ElMessage.error('获取线程设置失败，请稍后重试')
@@ -184,6 +200,7 @@ async function saveSettings() {
       openlist_qps: formData.openlistQPS,
       openlist_retry: formData.openlistRetryCount,
       openlist_retry_delay: formData.openlistRetryDelay,
+      file_list_page_size: formData.fileListPageSize,
     }
 
     await http?.post(`${SERVER_URL}/setting/threads`, payload, {

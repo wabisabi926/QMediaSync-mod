@@ -696,18 +696,8 @@ let autoRefreshEnabled = true
 const autoRefreshTimer = ref<number | null>(null)
 
 const checkAndSetAutoRefresh = () => {
-  if (autoRefreshTimer.value) {
-    clearInterval(autoRefreshTimer.value)
-    autoRefreshTimer.value = null
-  }
-
-  autoRefreshTimer.value = window.setInterval(() => {
-    if (!autoRefreshEnabled) {
-      return
-    }
-    autoRefreshEnabled = false
-    updatePathesStatus()
-  }, 2000)
+  clearAutoRefreshTimer()
+  // 不再自动轮询，依赖WebSocket事件
 }
 
 const clearAutoRefreshTimer = () => {
@@ -716,6 +706,18 @@ const clearAutoRefreshTimer = () => {
     autoRefreshTimer.value = null
   }
 }
+
+// WebSocket事件监听
+import { useWSEvent } from '@/composables/useWebSocket'
+
+const onScraperEvent = () => {
+  autoRefreshEnabled = true
+  updatePathesStatus()
+}
+
+useWSEvent('scraper_task_start', onScraperEvent)
+useWSEvent('scraper_task_complete', onScraperEvent)
+useWSEvent('scraper_item_complete', onScraperEvent)
 
 let removeDeviceTypeListener: (() => void) | null = null
 
@@ -726,7 +728,6 @@ onMounted(async () => {
   })
   await loadPathes()
   await loadAccounts()
-  checkAndSetAutoRefresh()
 })
 
 onUnmounted(() => {

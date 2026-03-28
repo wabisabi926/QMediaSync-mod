@@ -741,18 +741,8 @@ let autoRefreshEnabled = true
 const autoRefreshTimer = ref<number | null>(null)
 
 const checkAndSetAutoRefresh = () => {
-  if (autoRefreshTimer.value) {
-    clearInterval(autoRefreshTimer.value)
-    autoRefreshTimer.value = null
-  }
-
-  autoRefreshTimer.value = window.setInterval(() => {
-    if (!autoRefreshEnabled) {
-      return
-    }
-    autoRefreshEnabled = false
-    updatePathesStatus()
-  }, 2000)
+  clearAutoRefreshTimer()
+  // 不再自动轮询，依赖WebSocket事件
 }
 
 const clearAutoRefreshTimer = () => {
@@ -762,6 +752,17 @@ const clearAutoRefreshTimer = () => {
   }
 }
 
+// WebSocket事件监听
+import { useWSEvent } from '@/composables/useWebSocket'
+
+const onSyncEvent = () => {
+  autoRefreshEnabled = true
+  updatePathesStatus()
+}
+
+useWSEvent('strm_sync_task_start', onSyncEvent)
+useWSEvent('strm_sync_task_complete', onSyncEvent)
+
 let removeDeviceTypeListener: (() => void) | null = null
 
 onMounted(() => {
@@ -770,7 +771,6 @@ onMounted(() => {
     checkIsMobile.value = newIsMobile
   })
   loadDirectories()
-  checkAndSetAutoRefresh()
 })
 
 onUnmounted(() => {

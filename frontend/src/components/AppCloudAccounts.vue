@@ -936,10 +936,12 @@ const confirmOAuth = async (
     )
 
     if (response?.data.code === 200) {
-      ElMessage.success('授权成功')
-      const hash = window.location.hash
-      const cleanHash = hash.split('?')[0]
-      window.location.href = window.location.origin + cleanHash
+      ElMessage.success({message: '授权成功，2秒后将自动刷新页面', duration: 2000})
+      setTimeout(() => {
+        const hash = window.location.hash
+        const cleanHash = hash.split('?')[0]
+        window.location.href = window.location.origin + cleanHash
+      }, 2000)
     } else {
       ElMessage.error(response?.data.message || '授权确认失败')
     }

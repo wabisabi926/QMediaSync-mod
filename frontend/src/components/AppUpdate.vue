@@ -23,12 +23,18 @@ const {
   updateProgress,
   showUpdateCompleteDialog,
   countdown,
+  updateChannel,
   loadUpdateList,
   updateToVersion,
   cancelUpdate,
   handleDownloadClick,
   manuallyRefresh,
 } = useUpdate()
+
+const handleChannelChange = (channel: string) => {
+  updateChannel.value = channel as 'github' | 'gitee'
+  loadUpdateList(true)
+}
 
 const isFnOS = ref(false)
 const isFnOSLoading = ref(false)
@@ -64,20 +70,9 @@ const renderMarkdown = (content: string): string => {
 
 <template>
   <div class="update-page">
-    <div class="page-header">
-      <div class="header-content">
-        <p>管理系统版本，查看更新日志，执行在线更新</p>
-      </div>
-      <div class="header-actions">
-        <el-button type="primary" @click="loadUpdateList(true)" :loading="updateLoading" round>
-          刷新
-        </el-button>
-      </div>
-    </div>
-
     <div class="current-version-section" v-loading="versionLoading">
-      <div class="section-card">
-        <div class="section-header">
+      <div class="section-card" >
+        <div class="section-header" style="justify-content: flex-start;">
           <span class="section-icon">⚙️</span>
           <span>当前版本</span>
         </div>
@@ -94,17 +89,25 @@ const renderMarkdown = (content: string): string => {
     <div class="update-section" v-if="!isFnOS">
       <div class="section-card" v-loading="isFnOSLoading">
         <div class="section-header">
-          <span class="section-icon">🚀</span>
-          <span>可用版本</span>
+          <div class="section-header-left">
+            <span class="section-icon">🚀</span>
+            <span>可用版本</span>
+
+          </div>
+          <div class="section-header-right" style="display: flex; align-items: center; gap: 8px;">
+            <el-radio-group v-model="updateChannel" size="large" class="channel-selector" @change="handleChannelChange">
+              <el-radio-button value="github">GitHub</el-radio-button>
+              <el-radio-button value="gitee">Gitee</el-radio-button>
+            </el-radio-group>
+            <el-button type="primary" @click="loadUpdateList(true)" :loading="updateLoading" round>
+              刷新
+            </el-button>
+          </div>
         </div>
 
         <div v-if="updateList.length > 0" class="update-list">
           <el-collapse v-model="activeNames" class="update-collapse">
-            <el-collapse-item
-              v-for="(update, index) in updateList"
-              :key="index"
-              :name="`update-${index}`"
-            >
+            <el-collapse-item v-for="(update, index) in updateList" :key="index" :name="`update-${index}`">
               <template #title>
                 <div class="update-title-row">
                   <div class="update-version">
@@ -112,12 +115,8 @@ const renderMarkdown = (content: string): string => {
                     <span class="version-date">{{ update.date }}</span>
                   </div>
                   <div class="update-tags">
-                    <el-tag v-if="update.latest" type="success" size="small" effect="dark"
-                      >最新</el-tag
-                    >
-                    <el-tag v-if="update.current" type="primary" size="small" effect="dark"
-                      >当前</el-tag
-                    >
+                    <el-tag v-if="update.latest" type="success" size="small" effect="dark">最新</el-tag>
+                    <el-tag v-if="update.current" type="primary" size="small" effect="dark">当前</el-tag>
                   </div>
                 </div>
               </template>
@@ -127,31 +126,17 @@ const renderMarkdown = (content: string): string => {
                   <el-button type="default" size="small" @click="handleDownloadClick(update)" round>
                     手动下载
                   </el-button>
-                  <el-button
-                    type="primary"
-                    size="small"
-                    @click="updateToVersion(update.version)"
-                    :disabled="isUpdating"
-                    round
-                  >
+                  <el-button type="primary" size="small" @click="updateToVersion(update.version)" :disabled="isUpdating"
+                    round>
                     在线更新
                   </el-button>
                 </div>
 
-                <div
-                  v-if="isUpdating && update.version === updatingVersion"
-                  class="update-progress"
-                >
-                  <el-progress
-                    :percentage="updateProgress.progress"
-                    :stroke-width="8"
-                    :show-text="false"
-                  />
+                <div v-if="isUpdating && update.version === updatingVersion" class="update-progress">
+                  <el-progress :percentage="updateProgress.progress" :stroke-width="8" :show-text="false" />
                   <div class="progress-info">
-                    <span
-                      >{{ formatFileSize(updateProgress.downloaded) }} /
-                      {{ formatFileSize(updateProgress.total_size) }}</span
-                    >
+                    <span>{{ formatFileSize(updateProgress.downloaded) }} /
+                      {{ formatFileSize(updateProgress.total_size) }}</span>
                     <span>{{
                       updateProgress.status === 'downloading'
                         ? '下载中'
@@ -189,15 +174,8 @@ const renderMarkdown = (content: string): string => {
   </div>
 
   <!-- 更新完成弹窗 -->
-  <el-dialog
-    v-model="showUpdateCompleteDialog"
-    title="正在安装更新"
-    class="update-complete-dialog"
-    :close-on-click-modal="false"
-    :close-on-press-escape="false"
-    show-close="false"
-    :destroy-on-close="true"
-  >
+  <el-dialog v-model="showUpdateCompleteDialog" title="正在安装更新" class="update-complete-dialog"
+    :close-on-click-modal="false" :close-on-press-escape="false" show-close="false" :destroy-on-close="true">
     <div class="dialog-content">
       <el-icon>
         <CircleCheck />
@@ -267,6 +245,7 @@ const renderMarkdown = (content: string): string => {
 .section-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   font-size: 16px;
   font-weight: 600;
@@ -278,6 +257,10 @@ const renderMarkdown = (content: string): string => {
 
 .section-icon {
   font-size: 20px;
+}
+
+.channel-selector {
+  margin-left: 12px;
 }
 
 .version-info {

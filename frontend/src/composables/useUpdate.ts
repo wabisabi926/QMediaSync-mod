@@ -21,6 +21,8 @@ export interface UpdateProgress {
   version?: string
 }
 
+export type UpdateChannel = 'github' | 'gitee'
+
 export function useUpdate() {
   const http = inject<AxiosStatic>('$http')
 
@@ -36,6 +38,7 @@ export function useUpdate() {
   })
   const showUpdateCompleteDialog = ref(false)
   const countdown = ref(30)
+  const updateChannel = ref<UpdateChannel>('github')
 
   let progressTimer: number | null = null
   let countdownTimer: number | null = null
@@ -43,10 +46,12 @@ export function useUpdate() {
   const loadUpdateList = async (force = false) => {
     try {
       updateLoading.value = true
-      let url = `${SERVER_URL}/update/last`
+      const params: string[] = []
+      params.push(`channel=${updateChannel.value}`)
       if (force) {
-        url += '?force=1'
+        params.push('force=1')
       }
+      const url = `${SERVER_URL}/update/last?${params.join('&')}`
       const response = await http?.get(url)
       if (response && response.data && response.data.data) {
         updateList.value = response.data.data.map((item: UpdateInfo) => {
@@ -110,6 +115,7 @@ export function useUpdate() {
     try {
       const response = await http?.post(`${SERVER_URL}/update/to-version`, {
         version: version,
+        channel: updateChannel.value,
       })
 
       if (response && response.data && response.data.code === 200) {
@@ -323,6 +329,7 @@ export function useUpdate() {
     updateProgress,
     showUpdateCompleteDialog,
     countdown,
+    updateChannel,
     loadUpdateList,
     updateToVersion,
     cancelUpdate,

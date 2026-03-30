@@ -176,6 +176,13 @@
           align="center"
           class-name="hidden-xs"
         />
+        <el-table-column
+          prop="uploaded_meta"
+          label="上传元数据数"
+          width="140"
+          align="center"
+          class-name="hidden-xs"
+        />
         <el-table-column prop="fail_reason" label="失败原因" width="200" show-overflow-tooltip>
           <template #default="scope">
             <span v-if="scope.row.status === 3 && scope.row.fail_reason" class="fail-reason-text">
@@ -237,6 +244,7 @@ interface SyncRecord {
   processed_files: number
   created_strm: number
   downloaded_meta: number
+  uploaded_meta: number
   local_path: string
   remote_path: string
   fail_reason: string
@@ -251,6 +259,7 @@ interface ApiSyncRecord {
   total: number
   new_strm: number
   new_meta: number
+  new_upload: number
   local_path: string
   remote_path: string
   fail_reason: string
@@ -365,6 +374,7 @@ const loadSyncRecords = async () => {
         processed_files: item.total,
         created_strm: item.new_strm,
         downloaded_meta: item.new_meta || 0,
+        uploaded_meta: item.new_upload || 0,
         local_path: item.local_path || '',
         remote_path: item.remote_path || '',
         fail_reason: item.fail_reason || '',

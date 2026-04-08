@@ -551,49 +551,6 @@
         </div>
       </el-card>
 
-      <!-- 媒体库同步选择卡片 -->
-      <el-card class="settings-card library-selection-card" shadow="hover">
-        <template #header>
-          <div class="card-header-wrapper">
-            <div class="card-header-icon library-icon">
-              <el-icon :size="24"><FolderOpened /></el-icon>
-            </div>
-            <div class="card-header-content">
-              <h3 class="card-title">媒体库同步选择</h3>
-              <p class="card-subtitle">选择需要同步的Emby媒体库</p>
-            </div>
-          </div>
-        </template>
-
-        <el-form-item label="同步模式">
-          <el-radio-group v-model="embyData.sync_all_libraries">
-            <el-radio :label="1">全部媒体库</el-radio>
-            <el-radio :label="0">指定媒体库</el-radio>
-          </el-radio-group>
-          <div class="form-help">
-            <el-icon><InfoFilled /></el-icon>
-            <span>选择"全部媒体库"将同步所有媒体库（包括未来新增的），选择"指定媒体库"可手动选择需要同步的媒体库</span>
-          </div>
-        </el-form-item>
-
-        <el-form-item label="选择媒体库" v-if="embyData.sync_all_libraries === 0">
-          <el-checkbox-group v-model="selectedLibraryIds" class="library-checkbox-group">
-            <el-checkbox 
-              v-for="lib in availableLibraries" 
-              :key="lib.library_id" 
-              :label="lib.library_id"
-              class="library-checkbox"
-            >
-              {{ lib.name }}
-            </el-checkbox>
-          </el-checkbox-group>
-          <div class="form-help" v-if="availableLibraries.length === 0">
-            <el-icon><WarningFilled /></el-icon>
-            <span class="warning-text">请先配置Emby服务器地址并保存，然后执行一次同步以获取媒体库列表</span>
-          </div>
-        </el-form-item>
-      </el-card>
-
       <el-alert
         v-if="embyStatus"
         :title="embyStatus.title"

@@ -50,7 +50,8 @@ RUN apk add --no-cache ca-certificates tzdata ffmpeg inotify-tools postgresql15 
 WORKDIR /app
 COPY --from=backend-builder /app/backend/QMediaSync ./QMediaSync
 COPY --from=backend-builder /app/backend/web_statics ./web_statics/
-COPY backend/scripts/docker-entrypoint.sh backend/scripts/watch_update.sh ./scripts/
+COPY docker/entrypoint.sh ./scripts/docker-entrypoint.sh
+COPY docker/watch-update.sh ./scripts/watch_update.sh
 COPY backend/icon.ico ./icon.ico
 
 RUN chmod +x /app/scripts/docker-entrypoint.sh /app/scripts/watch_update.sh /app/QMediaSync && \

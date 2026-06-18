@@ -141,7 +141,7 @@ jobs:
           go build -trimpath -ldflags "$ldflags" -o "$GITHUB_WORKSPACE/$output" .
           cd "$GITHUB_WORKSPACE"
 
-          .github/scripts/package-release-asset.sh "$TAG" "$GOOS" "$GOARCH" "$output" backend/web_statics release-assets
+          scripts/release/package-release-asset.sh "$TAG" "$GOOS" "$GOARCH" "$output" backend/web_statics release-assets
 
           if [ "$GOOS" = "linux" ]; then
             cp "$output" "linux-binaries/QMediaSync_linux_${GOARCH}_exe"
@@ -192,10 +192,10 @@ jobs:
 
       - name: Prepare Docker context
         run: |
-          mkdir -p docker-context/backend/scripts docker-context/backend/assets
-          cp Dockerfile_local docker-context/Dockerfile_local
-          cp backend/scripts/docker-entrypoint.sh docker-context/backend/scripts/
-          cp backend/scripts/watch_update.sh docker-context/backend/scripts/
+          mkdir -p docker-context/docker docker-context/backend/assets
+          cp docker/release.Dockerfile docker-context/docker/release.Dockerfile
+          cp docker/entrypoint.sh docker-context/docker/entrypoint.sh
+          cp docker/watch-update.sh docker-context/docker/watch-update.sh
           cp backend/assets/db_config.html docker-context/backend/assets/
           cp backend/icon.ico docker-context/backend/icon.ico
 
@@ -232,7 +232,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: docker-context
-          file: docker-context/Dockerfile_local
+          file: docker-context/docker/release.Dockerfile
           push: true
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/qmediasync:${{ needs.metadata.outputs.tag }}
@@ -287,8 +287,8 @@ jobs:
           TAG: ${{ needs.metadata.outputs.tag }}
         run: |
           mkdir -p release-assets
-          .github/scripts/package-fnos.sh "$TAG" amd64 temp_build/QMediaSync_linux_amd64_exe backend/web_statics release-assets
-          .github/scripts/package-fnos.sh "$TAG" arm64 temp_build/QMediaSync_linux_arm64_exe backend/web_statics release-assets
+          scripts/release/package-fnos.sh "$TAG" amd64 temp_build/QMediaSync_linux_amd64_exe backend/web_statics release-assets
+          scripts/release/package-fnos.sh "$TAG" arm64 temp_build/QMediaSync_linux_arm64_exe backend/web_statics release-assets
 
       - uses: actions/upload-artifact@v4
         with:
@@ -301,6 +301,7 @@ jobs:
     needs:
       - metadata
       - packages
+      - docker
       - fpk
     steps:
       - uses: actions/checkout@v4
@@ -338,18 +339,3 @@ jobs:
           body_path: release_notes.md
           files: release-assets/*
           fail_on_unmatched_files: false
-
-      - name: Publish Gitee Release
-        env:
-          GITEE_ACCESS_TOKEN: ${{ secrets.GITEE_ACCESS_TOKEN }}
-          GITEE_REPO: qicfan/qmediasync
-        run: |
-          .github/scripts/publish-gitee-release.sh "${{ needs.metadata.outputs.tag }}" release_notes.md release-assets/*
-
-      - name: Send release notifications
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          MEOW_API_URL: ${{ secrets.MEOW_API_URL }}
-        run: |
-          .github/scripts/notify-release.sh "${{ needs.metadata.outputs.tag }}" release_notes.md

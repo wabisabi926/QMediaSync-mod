@@ -5,9 +5,9 @@
 AGENTS.md
 README.md
 docs
-Dockerfile
+Dockerfile*
 .dockerignore
-scripts/release
+scripts/install
 *.log
 data/*
 config/logs/*

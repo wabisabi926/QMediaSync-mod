@@ -42,7 +42,7 @@ jobs:
           context: .
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/qmediasync:beta
-          file: Dockerfile
+          file: docker/source.Dockerfile
           platforms: linux/amd64,linux/arm64
           build-args: |
             VERSION=${{ steps.meta.outputs.version }}

@@ -21,7 +21,8 @@ RUN apk add --no-cache ca-certificates tzdata ffmpeg inotify-tools postgresql15 
 WORKDIR /app
 COPY temp_build/QMediaSync_linux_${TARGETARCH}_exe ./QMediaSync
 COPY backend/web_statics ./web_statics/
-COPY backend/scripts/docker-entrypoint.sh backend/scripts/watch_update.sh ./scripts/
+COPY docker/entrypoint.sh ./scripts/docker-entrypoint.sh
+COPY docker/watch-update.sh ./scripts/watch_update.sh
 COPY backend/assets/db_config.html ./web_statics/
 COPY backend/icon.ico .
 

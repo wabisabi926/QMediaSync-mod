@@ -17,7 +17,8 @@ BINARY_PATH="$4"
 WEB_STATICS_DIR="$5"
 OUT_DIR="$6"
 
-SCRIPTS_DIR="${SCRIPTS_DIR:-backend/scripts}"
+DOCKER_ENTRYPOINT="${DOCKER_ENTRYPOINT:-docker/entrypoint.sh}"
+DOCKER_WATCH_UPDATE="${DOCKER_WATCH_UPDATE:-docker/watch-update.sh}"
 ICON_PATH="${ICON_PATH:-backend/icon.ico}"
 
 if [ ! -f "$BINARY_PATH" ]; then
@@ -70,9 +71,9 @@ fi
 
 cp -R "$WEB_STATICS_DIR" "$WORK_DIR/$ARCHIVE_NAME/web_statics"
 
-if [ -d "$SCRIPTS_DIR" ]; then
-  cp -R "$SCRIPTS_DIR" "$WORK_DIR/$ARCHIVE_NAME/scripts"
-fi
+mkdir -p "$WORK_DIR/$ARCHIVE_NAME/scripts"
+cp "$DOCKER_ENTRYPOINT" "$WORK_DIR/$ARCHIVE_NAME/scripts/docker-entrypoint.sh"
+cp "$DOCKER_WATCH_UPDATE" "$WORK_DIR/$ARCHIVE_NAME/scripts/watch_update.sh"
 
 if [ "$TARGET_OS" = "windows" ] && [ -f "$ICON_PATH" ]; then
   cp "$ICON_PATH" "$WORK_DIR/$ARCHIVE_NAME/icon.ico"

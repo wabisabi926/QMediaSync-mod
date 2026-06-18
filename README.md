@@ -48,16 +48,17 @@ npm run dev
 - linux: ```ctrl + c```
 - windows: 系统托盘找到QMediaSync图标，右键退出
 
-## 编译且发布新版本
+## 发布新版本
 
 ```bash
-cd scripts/release
-sudo ./build_and_release.sh -v vx.xx.xx
+git tag vx.xx.xx
+git push origin vx.xx.xx
 ```
 
-编译要求具有github命令行gh权限，且已经登录
-如果要发布docker镜像，需要提前登录docker hub
-该命令会编译打包所有平台的二进制文件，生成release版本，并且发布到github release页面，推送到docker hub（如果要推送到自己的仓库，请修改编译脚本中的用户名和仓库名）
+推送 `v*` 标签会触发 GitHub Actions 的 release 流程，生成 Windows/Linux 发布包、可选的飞牛 FPK，并创建 GitHub Release。
+如果配置了 `DOCKER_USERNAME` 和 `DOCKER_PASSWORD`，发布流程会同时推送 Docker Hub 镜像的版本标签和 `latest` 标签。
+
+也可以在 GitHub Actions 中手动触发 `release` workflow，并输入要发布的 Git tag。
 
 ## 数据库
 
@@ -75,9 +76,11 @@ sudo ./build_and_release.sh -v vx.xx.xx
 ## 仓库结构
 
 ```text
-backend/          Go 后端、运行脚本、内置静态前端产物
+backend/          Go 后端、内置静态前端产物
+docker/           Dockerfile、容器入口脚本和在线更新监视脚本
 frontend/         Vue/Vite 前端源码
-scripts/release/  发布、Docker 和 FPK 打包脚本
+scripts/release/  GitHub Actions 发布打包辅助脚本
+scripts/install/  Linux 裸机安装辅助脚本
 .github/          CI 构建流程
 ```
 

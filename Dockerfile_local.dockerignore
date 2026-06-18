@@ -1,0 +1,13 @@
+*
+!Dockerfile_local
+!temp_build
+!temp_build/**
+!backend
+!backend/web_statics
+!backend/web_statics/**
+!backend/scripts
+!backend/scripts/docker-entrypoint.sh
+!backend/scripts/watch_update.sh
+!backend/assets
+!backend/assets/db_config.html
+!backend/icon.ico

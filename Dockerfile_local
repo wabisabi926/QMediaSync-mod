@@ -1,10 +1,9 @@
-# 运行阶段
-FROM qicfan/qms-build-base:beta
+FROM alpine:3.20
 
-ARG TARGETARCH
-ARG TARGETOS
+ARG TARGETARCH=amd64
+ARG TARGETOS=linux
 
-# 设置时区
+ENV TZ=Asia/Shanghai
 ENV PATH=/app:$PATH
 ENV DB_HOST=localhost
 ENV DB_PORT=5432
@@ -13,34 +12,24 @@ ENV DB_PASSWORD=qms123456
 ENV DB_NAME=qms
 ENV DB_SSLMODE=disable
 
-# 添加用户和组（推荐方式）
-RUN addgroup -g 12331 qms && \
-    adduser -D -u 12331 -G qms qms
-# 验证用户创建
-RUN id qms
-# 配置免密码 sudo
-RUN echo 'qms ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
-# 创建共享内存目录
-RUN mkdir -p /dev/shm && chmod 1777 /dev/shm
-# 设置工作目录
+RUN apk add --no-cache ca-certificates tzdata ffmpeg inotify-tools postgresql15 && \
+    addgroup -S -g 12331 qms && \
+    adduser -S -D -H -u 12331 -G qms qms && \
+    mkdir -p /dev/shm /app/scripts && \
+    chmod 1777 /dev/shm
+
 WORKDIR /app
-# 复制可执行文件（根据架构自动选择）
 COPY temp_build/QMediaSync_linux_${TARGETARCH}_exe ./QMediaSync
 COPY backend/web_statics ./web_statics/
-COPY backend/scripts ./scripts/
+COPY backend/scripts/docker-entrypoint.sh backend/scripts/watch_update.sh ./scripts/
+COPY backend/assets/db_config.html ./web_statics/
 COPY backend/icon.ico .
 
-RUN chmod +x /app/scripts/docker-entrypoint.sh
-RUN chmod +x /app/scripts/watch_update.sh
-RUN chmod +x /app/QMediaSync
-RUN chmod 777 /app
+RUN chmod +x /app/scripts/docker-entrypoint.sh /app/scripts/watch_update.sh /app/QMediaSync && \
+    chmod 777 /app
 
 VOLUME ["/app/config", "/media"]
-# web ui端口
 EXPOSE 12333
-# 代理emby端口http
 EXPOSE 8095
-# 代理emby端口https
 EXPOSE 8094
-# 启动命令
-CMD ["/bin/sh", "-c", "/app/scripts/docker-entrypoint.sh"]
+CMD ["/app/scripts/docker-entrypoint.sh"]

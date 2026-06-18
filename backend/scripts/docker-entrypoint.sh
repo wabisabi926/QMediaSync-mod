@@ -21,9 +21,19 @@ else
 fi
 
 # 创建用户和组
+group_exists() {
+    GROUP_VALUE="$1"
+    if command -v getent >/dev/null 2>&1; then
+        getent group "$GROUP_VALUE" >/dev/null 2>&1
+        return $?
+    fi
+
+    awk -F: -v group_value="$GROUP_VALUE" '$1 == group_value || $3 == group_value { found = 1 } END { exit found ? 0 : 1 }' /etc/group
+}
+
 setup_user_and_group() {
     if [ -n "$GPID" ]; then
-        if ! getent group "$GPID" >/dev/null 2>&1; then
+        if ! group_exists "$GPID"; then
             echo "组 $GPID 不存在，创建组..."
             addgroup -g "$GPID" "$GPID" 2>/dev/null || addgroup "$GPID"
             echo "组 $GPID 创建完成"

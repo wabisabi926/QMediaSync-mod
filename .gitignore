@@ -31,6 +31,9 @@ backend/go.sum
 config/
 data/
 dist/
+docker-context/
+linux-binaries/
+release-assets/
 temp_build/
 update/
 QMediaSync

@@ -1,9 +1,13 @@
 .git
 .github
+.changes
 .gitignore
+AGENTS.md
 README.md
+docs
 Dockerfile
 .dockerignore
+scripts/release
 *.log
 data/*
 config/logs/*

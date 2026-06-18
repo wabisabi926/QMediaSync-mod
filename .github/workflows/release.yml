@@ -169,6 +169,7 @@ jobs:
       - packages
     permissions:
       contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -199,44 +200,28 @@ jobs:
           cp backend/assets/db_config.html docker-context/backend/assets/
           cp backend/icon.ico docker-context/backend/icon.ico
 
-      - name: Check Docker credentials
-        id: docker_credentials
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-        run: |
-          if [ -n "$DOCKER_USERNAME" ] && [ -n "$DOCKER_PASSWORD" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "Docker credentials are not set, skipping image publish"
-          fi
-
       - name: Set up QEMU
-        if: steps.docker_credentials.outputs.enabled == 'true'
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
-        if: steps.docker_credentials.outputs.enabled == 'true'
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to DockerHub
-        if: steps.docker_credentials.outputs.enabled == 'true'
+      - name: Login to GHCR
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push Docker image
-        if: steps.docker_credentials.outputs.enabled == 'true'
         uses: docker/build-push-action@v6
         with:
           context: docker-context
           file: docker-context/docker/release.Dockerfile
           push: true
           tags: |
-            ${{ secrets.DOCKER_USERNAME }}/qmediasync:${{ needs.metadata.outputs.tag }}
-            ${{ secrets.DOCKER_USERNAME }}/qmediasync:latest
+            ghcr.io/${{ github.repository_owner }}/qmediasync:${{ needs.metadata.outputs.tag }}
+            ghcr.io/${{ github.repository_owner }}/qmediasync:latest
           platforms: linux/amd64,linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max

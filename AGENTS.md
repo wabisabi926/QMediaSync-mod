@@ -228,7 +228,7 @@ helpers.V115Log.Debugf("115请求详情: %s", url)
 
 ## CI/CD
 
-- **feature 分支** 推送触发构建 → Docker 镜像 `qmediasync:<branch-name>`
-- **dev 分支** 推送触发构建 → Docker 镜像 `qmediasync:beta`
+- **feature 分支** 推送触发构建 → GHCR 镜像 `ghcr.io/<owner>/qmediasync:<branch-name>`
+- **dev 分支** 推送触发构建 → GHCR 镜像 `ghcr.io/<owner>/qmediasync:beta`
 - 正式发布通过推送 `v*` 标签或手动触发 `.github/workflows/release.yml` 执行
 - 变更日志使用 Changie（`.changes/` 目录）

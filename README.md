@@ -56,7 +56,7 @@ git push origin vx.xx.xx
 ```
 
 推送 `v*` 标签会触发 GitHub Actions 的 release 流程，生成 Windows/Linux 发布包、可选的飞牛 FPK，并创建 GitHub Release。
-如果配置了 `DOCKER_USERNAME` 和 `DOCKER_PASSWORD`，发布流程会同时推送 Docker Hub 镜像的版本标签和 `latest` 标签。
+发布流程会使用 `GITHUB_TOKEN` 推送 GHCR 镜像 `ghcr.io/<owner>/qmediasync:<tag>` 和 `ghcr.io/<owner>/qmediasync:latest`。
 
 也可以在 GitHub Actions 中手动触发 `release` workflow，并输入要发布的 Git tag。
 

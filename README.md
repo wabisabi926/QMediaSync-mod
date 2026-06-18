@@ -26,9 +26,22 @@
 
 ## 调试启动
 
+后端：
+
 ```bash
+cd backend
 go run .
 ```
+
+前端：
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+前端开发环境默认连接 `http://localhost:12333/api`。
 
 ## 退出
 
@@ -38,7 +51,7 @@ go run .
 ## 编译且发布新版本
 
 ```bash
-cd build_scripts
+cd scripts/release
 sudo ./build_and_release.sh -v vx.xx.xx
 ```
 
@@ -59,9 +72,16 @@ sudo ./build_and_release.sh -v vx.xx.xx
 
 全部都在main.go文件中开头的变量中设置，也可以在编译时通过ldflags传入
 
-## 配套前端
+## 仓库结构
 
-- [QMediaSync-Frontend](https://github.com/qicfan/q115-strm-frontend)
+```text
+backend/          Go 后端、运行脚本、内置静态前端产物
+frontend/         Vue/Vite 前端源码
+scripts/release/  发布、Docker 和 FPK 打包脚本
+.github/          CI 构建流程
+```
+
+前端生产构建会输出到 `backend/web_statics`，后端从该目录提供 Web UI。
 
 ## 贡献者
 

@@ -13,7 +13,9 @@ function Write-Colored($Color, $Message) {
 
 # 切换到项目根目录
 Write-Colored "cyan" "切换到项目根目录..."
-Set-Location -Path ".."
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$RepoRoot = Resolve-Path (Join-Path $ScriptDir "../..")
+Set-Location -Path $RepoRoot
 Write-Colored "green" "已切换工作目录：$(Get-Location)"
 
 Write-Colored "green" "========================================"
@@ -48,6 +50,30 @@ Write-Colored "green" "========================================"
 Write-Colored "green" "开始构建可执行文件..."
 Write-Colored "green" "========================================"
 
+Write-Colored "cyan" "构建前端静态文件..."
+Push-Location -Path "frontend"
+try {
+    if (Test-Path -Path "package-lock.json" -PathType Leaf) {
+        npm ci
+    } else {
+        npm install
+    }
+    if ($LASTEXITCODE -ne 0) {
+        throw "Frontend dependency installation failed"
+    }
+    npm run build
+    if ($LASTEXITCODE -ne 0) {
+        throw "Frontend build failed"
+    }
+    Write-Colored "green" "✓ 前端构建完成"
+} catch {
+    Write-Colored "red" "Error: Frontend build failed"
+    Write-Colored "red" $_.Exception.Message
+    exit 1
+} finally {
+    Pop-Location
+}
+
 # 创建temp_build目录
 if (Test-Path -Path "temp_build" -PathType Container) {
     Write-Colored "yellow" "清理现有temp_build目录..."
@@ -56,7 +82,9 @@ if (Test-Path -Path "temp_build" -PathType Container) {
 New-Item -Path "temp_build" -ItemType Directory -Force | Out-Null
 
 Write-Colored "cyan" "安装所有项目依赖..."
+Push-Location -Path "backend"
 go mod tidy
+Pop-Location
 
 # 编译Linux x86_64 (amd64)架构
 Write-Colored "cyan" "编译Linux x86_64 (amd64)架构可执行文件..."
@@ -93,7 +121,9 @@ $LDFLAGS = "-s -w -X main.Version=$TAG -X 'main.PublishDate=$PUBLISH_DATE' -X ma
 # 编译
 Write-Colored "cyan" "执行编译命令..."
 try {
-    go build -ldflags "$LDFLAGS" -o "temp_build/$EXE_NAME"
+    Push-Location -Path "backend"
+    go build -ldflags "$LDFLAGS" -o "../temp_build/$EXE_NAME"
+    Pop-Location
     if ($LASTEXITCODE -ne 0) {
         throw "Build failed"
     }
@@ -116,7 +146,9 @@ $env:CGO_ENABLED = "0"
 
 # 编译
 try {
-    go build -ldflags "$LDFLAGS" -o "temp_build/$EXE_NAME"
+    Push-Location -Path "backend"
+    go build -ldflags "$LDFLAGS" -o "../temp_build/$EXE_NAME"
+    Pop-Location
     if ($LASTEXITCODE -ne 0) {
         throw "Build failed"
     }
@@ -142,16 +174,16 @@ Write-Colored "cyan" "Starting FPK application build for 飞牛系统..."
 Write-Colored "cyan" "Building FPK for arm64 architecture..."
 
 # 检查FNOS目录是否存在
-if (!(Test-Path -Path "FNOS" -PathType Container)) {
+if (!(Test-Path -Path "backend/FNOS" -PathType Container)) {
     Write-Colored "red" "Error: FNOS directory not found"
     Write-Colored "yellow" "Please create FNOS directory structure first"
 } else {
     # 创建app目录
-    $arm64AppPath = "FNOS/qmediasync-arm64/app"
+    $arm64AppPath = "backend/FNOS/qmediasync-arm64/app"
     New-Item -Path $arm64AppPath -ItemType Directory -Force | Out-Null
     
     # 更新manifest文件中的version字段
-    $arm64ManifestPath = "FNOS/qmediasync-arm64/manifest"
+    $arm64ManifestPath = "backend/FNOS/qmediasync-arm64/manifest"
     if (Test-Path -Path $arm64ManifestPath -PathType Leaf) {
         (Get-Content -Path $arm64ManifestPath) | ForEach-Object {
             if ($_ -match '^version\s*=') {
@@ -160,7 +192,7 @@ if (!(Test-Path -Path "FNOS" -PathType Container)) {
                 $_
             }
         } | Set-Content -Path $arm64ManifestPath -Force
-        Write-Colored "green" "✓ Updated version in FNOS/qmediasync-arm64/manifest to $TAG"
+        Write-Colored "green" "✓ Updated version in backend/FNOS/qmediasync-arm64/manifest to $TAG"
     } else {
         Write-Colored "yellow" "Warning: FNOS/qmediasync-arm64/manifest not found"
     }
@@ -179,27 +211,27 @@ if (!(Test-Path -Path "FNOS" -PathType Container)) {
     # 复制arm64可执行文件和web_statics目录
     if (Test-Path -Path "temp_build/QMediaSync_linux_arm64_exe" -PathType Leaf) {
         Copy-Item -Path "temp_build/QMediaSync_linux_arm64_exe" -Destination "$arm64AppPath/QMediaSync" -Force
-        Write-Colored "green" "✓ Copied arm64 executable to FNOS/qmediasync-arm64/app/QMediaSync"
+        Write-Colored "green" "✓ Copied arm64 executable to backend/FNOS/qmediasync-arm64/app/QMediaSync"
     } else {
         Write-Colored "red" "Error: arm64 executable not found"
     }
     
-    if (Test-Path -Path "web_statics" -PathType Container) {
+    if (Test-Path -Path "backend/web_statics" -PathType Container) {
         # 从assets目录复制db_config.html到web_statics目录
-        if (Test-Path -Path "assets/db_config.html" -PathType Leaf) {
-            Copy-Item -Path "assets/db_config.html" -Destination "web_statics/" -Force
+        if (Test-Path -Path "backend/assets/db_config.html" -PathType Leaf) {
+            Copy-Item -Path "backend/assets/db_config.html" -Destination "backend/web_statics/" -Force
             Write-Colored "green" "✓ Copied db_config.html from assets to web_statics"
         } else {
-            Write-Colored "yellow" "Warning: assets/db_config.html not found"
+            Write-Colored "yellow" "Warning: backend/assets/db_config.html not found"
         }
-        Copy-Item -Path "web_statics" -Destination "$arm64AppPath/" -Recurse -Force
-        Write-Colored "green" "✓ Copied web_statics directory to FNOS/qmediasync-arm64/app/"
+        Copy-Item -Path "backend/web_statics" -Destination "$arm64AppPath/" -Recurse -Force
+        Write-Colored "green" "✓ Copied web_statics directory to backend/FNOS/qmediasync-arm64/app/"
     } else {
         Write-Colored "yellow" "Warning: web_statics directory not found"
     }
     
     # 切换到qmediasync-arm64目录并执行fnpack build
-    Set-Location -Path "FNOS/qmediasync-arm64"
+    Set-Location -Path "backend/FNOS/qmediasync-arm64"
     $fnpackExists = Get-Command "fnpack" -ErrorAction SilentlyContinue
     if ($fnpackExists) {
         Write-Colored "cyan" "Executing fnpack build for arm64..."
@@ -209,7 +241,7 @@ if (!(Test-Path -Path "FNOS" -PathType Container)) {
             
             # 复制fpk文件回qmediasync目录
             if (Test-Path -Path "qmediasync.fpk" -PathType Leaf) {
-                Copy-Item -Path "qmediasync.fpk" -Destination "../../QMediaSync_arm64.fpk" -Force
+                Copy-Item -Path "qmediasync.fpk" -Destination "../../../QMediaSync_arm64.fpk" -Force
                 Write-Colored "green" "✓ Copied arm64 FPK file back to qmediasync directory"
             } else {
                 Write-Colored "red" "Error: FPK file not generated for arm64"
@@ -222,23 +254,23 @@ if (!(Test-Path -Path "FNOS" -PathType Container)) {
     }
     
     # 切换回qmediasync目录
-    Set-Location -Path "../../"
+    Set-Location -Path $RepoRoot
 }
 
 # 构建amd64架构的FPK
 Write-Colored "cyan" "Building FPK for amd64 architecture..."
 
 # 检查FNOS目录是否存在
-if (!(Test-Path -Path "FNOS" -PathType Container)) {
+if (!(Test-Path -Path "backend/FNOS" -PathType Container)) {
     Write-Colored "red" "Error: FNOS directory not found"
     Write-Colored "yellow" "Please create FNOS directory structure first"
 } else {
     # 创建app目录
-    $amd64AppPath = "FNOS/qmediasync-amd64/app"
+    $amd64AppPath = "backend/FNOS/qmediasync-amd64/app"
     New-Item -Path $amd64AppPath -ItemType Directory -Force | Out-Null
     
     # 更新manifest文件中的version字段
-    $amd64ManifestPath = "FNOS/qmediasync-amd64/manifest"
+    $amd64ManifestPath = "backend/FNOS/qmediasync-amd64/manifest"
     if (Test-Path -Path $amd64ManifestPath -PathType Leaf) {
         (Get-Content -Path $amd64ManifestPath) | ForEach-Object {
             if ($_ -match '^version\s*=') {
@@ -247,7 +279,7 @@ if (!(Test-Path -Path "FNOS" -PathType Container)) {
                 $_
             }
         } | Set-Content -Path $amd64ManifestPath -Force
-        Write-Colored "green" "✓ Updated version in FNOS/qmediasync-amd64/manifest to $TAG"
+        Write-Colored "green" "✓ Updated version in backend/FNOS/qmediasync-amd64/manifest to $TAG"
     } else {
         Write-Colored "yellow" "Warning: FNOS/qmediasync-amd64/manifest not found"
     }
@@ -266,27 +298,27 @@ if (!(Test-Path -Path "FNOS" -PathType Container)) {
     # 复制amd64可执行文件和web_statics目录
     if (Test-Path -Path "temp_build/QMediaSync_linux_amd64_exe" -PathType Leaf) {
         Copy-Item -Path "temp_build/QMediaSync_linux_amd64_exe" -Destination "$amd64AppPath/QMediaSync" -Force
-        Write-Colored "green" "✓ Copied amd64 executable to FNOS/qmediasync-amd64/app/QMediaSync"
+        Write-Colored "green" "✓ Copied amd64 executable to backend/FNOS/qmediasync-amd64/app/QMediaSync"
     } else {
         Write-Colored "red" "Error: amd64 executable not found"
     }
     
-    if (Test-Path -Path "web_statics" -PathType Container) {
+    if (Test-Path -Path "backend/web_statics" -PathType Container) {
         # 从assets目录复制db_config.html到web_statics目录
-        if (Test-Path -Path "assets/db_config.html" -PathType Leaf) {
-            Copy-Item -Path "assets/db_config.html" -Destination "web_statics/" -Force
+        if (Test-Path -Path "backend/assets/db_config.html" -PathType Leaf) {
+            Copy-Item -Path "backend/assets/db_config.html" -Destination "backend/web_statics/" -Force
             Write-Colored "green" "✓ Copied db_config.html from assets to web_statics"
         } else {
-            Write-Colored "yellow" "Warning: assets/db_config.html not found"
+            Write-Colored "yellow" "Warning: backend/assets/db_config.html not found"
         }
-        Copy-Item -Path "web_statics" -Destination "$amd64AppPath/" -Recurse -Force
-        Write-Colored "green" "✓ Copied web_statics directory to FNOS/qmediasync-amd64/app/"
+        Copy-Item -Path "backend/web_statics" -Destination "$amd64AppPath/" -Recurse -Force
+        Write-Colored "green" "✓ Copied web_statics directory to backend/FNOS/qmediasync-amd64/app/"
     } else {
         Write-Colored "yellow" "Warning: web_statics directory not found"
     }
     
     # 切换到qmediasync-amd64目录并执行fnpack build
-    Set-Location -Path "FNOS/qmediasync-amd64"
+    Set-Location -Path "backend/FNOS/qmediasync-amd64"
     $fnpackExists = Get-Command "fnpack" -ErrorAction SilentlyContinue
     if ($fnpackExists) {
         Write-Colored "cyan" "Executing fnpack build for amd64..."
@@ -296,7 +328,7 @@ if (!(Test-Path -Path "FNOS" -PathType Container)) {
             
             # 复制fpk文件回qmediasync目录
             if (Test-Path -Path "qmediasync.fpk" -PathType Leaf) {
-                Copy-Item -Path "qmediasync.fpk" -Destination "../../QMediaSync_amd64.fpk" -Force
+                Copy-Item -Path "qmediasync.fpk" -Destination "../../../QMediaSync_amd64.fpk" -Force
                 Write-Colored "green" "✓ Copied amd64 FPK file back to qmediasync directory"
             } else {
                 Write-Colored "red" "Error: FPK file not generated for amd64"
@@ -309,7 +341,7 @@ if (!(Test-Path -Path "FNOS" -PathType Container)) {
     }
     
     # 切换回qmediasync目录
-    Set-Location -Path "../../"
+    Set-Location -Path $RepoRoot
 }
 
 Write-Colored "green" "========================================"

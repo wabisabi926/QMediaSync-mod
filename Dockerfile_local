@@ -26,9 +26,9 @@ RUN mkdir -p /dev/shm && chmod 1777 /dev/shm
 WORKDIR /app
 # 复制可执行文件（根据架构自动选择）
 COPY temp_build/QMediaSync_linux_${TARGETARCH}_exe ./QMediaSync
-COPY web_statics ./web_statics/
-COPY scripts ./scripts/
-COPY icon.ico .
+COPY backend/web_statics ./web_statics/
+COPY backend/scripts ./scripts/
+COPY backend/icon.ico .
 
 RUN chmod +x /app/scripts/docker-entrypoint.sh
 RUN chmod +x /app/scripts/watch_update.sh

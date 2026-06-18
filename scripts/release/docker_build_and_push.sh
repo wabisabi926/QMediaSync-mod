@@ -6,7 +6,9 @@
 
 set -e
 
-cd ../
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$REPO_ROOT"
 echo "已切换工作目录：$(pwd)"
 # 默认参数
 DOCKER_HUB_USERNAME="qicfan"

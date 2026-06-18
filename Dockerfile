@@ -1,4 +1,13 @@
-# 构建阶段
+# 前端构建阶段
+FROM node:22-alpine AS frontend-builder
+
+WORKDIR /app
+COPY frontend/package*.json ./frontend/
+RUN cd frontend && npm ci
+COPY frontend ./frontend
+RUN mkdir -p backend && cd frontend && npm run build
+
+# 后端构建阶段
 FROM qicfan/qms-build-base:latest AS builder
 # 设置时区
 ENV TZ=Asia/Shanghai
@@ -8,9 +17,10 @@ ENV GOPROXY=https://goproxy.cn,direct \
     CGO_ENABLED=0
 
 # 设置工作目录
-WORKDIR /app
-# 复制源代码
-COPY . ./
+WORKDIR /app/backend
+# 复制后端源代码
+COPY backend ./
+COPY --from=frontend-builder /app/backend/web_statics ./web_statics/
 # 设置构建参数
 # 下载依赖
 RUN go mod tidy
@@ -49,14 +59,14 @@ RUN mkdir -p /dev/shm && chmod 1777 /dev/shm
 # 设置工作目录
 WORKDIR /app
 # # 从构建阶段复制文件
-COPY --from=builder /app/QMediaSync .
-COPY --from=builder /app/web_statics ./web_statics/
-COPY --from=builder /app/scripts ./scripts/
-# COPY --from=builder /app/icon.ico .
+COPY --from=builder /app/backend/QMediaSync .
+COPY --from=builder /app/backend/web_statics ./web_statics/
+COPY --from=builder /app/backend/scripts ./scripts/
+# COPY --from=builder /app/backend/icon.ico .
 # COPY QMediaSync .
-# COPY web_statics ./web_statics/
-# COPY scripts ./scripts/
-# COPY icon.ico .
+# COPY backend/web_statics ./web_statics/
+# COPY backend/scripts ./scripts/
+# COPY backend/icon.ico .
 RUN chmod +x /app/scripts/docker-entrypoint.sh
 RUN chmod +x /app/scripts/watch_update.sh
 RUN chmod +x /app/QMediaSync

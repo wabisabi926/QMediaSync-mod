@@ -20,21 +20,32 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version: stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
       - name: Extract branch name
         id: branch
         run: echo "::set-output name=name::${GITHUB_REF#refs/heads/feature/}"
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
       - name: Build Go binary
         env:
           APP_VERSION: ${{ github.ref_name }}.${{ steps.time.outputs.date }}
-          PUBLISH_DATE: $${ steps.time.outputs.date }}
+          PUBLISH_DATE: ${{ steps.time.outputs.date }}
           FANART_API_KEY: ${{ secrets.FANART_API_KEY }}
           DEFAULT_TMDB_ACCESS_TOKEN: ${{ secrets.DEFAULT_TMDB_ACCESS_TOKEN }}
           DEFAULT_TMDB_API_KEY: ${{ secrets.DEFAULT_TMDB_API_KEY }}
           DEFAULT_SC_API_KEY: ${{ secrets.DEFAULT_SC_API_KEY }}
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
         run: |
+          cd backend
           go mod tidy
-          CGO_ENABLED=0 go build -ldflags="-s -w -X 'main.Version=${APP_VERSION}' -X 'main.PublishDate=${PUBLISH_DATE}' -X main.FANART_API_KEY=${FANART_API_KEY} -X main.DEFAULT_TMDB_ACCESS_TOKEN=${DEFAULT_TMDB_ACCESS_TOKEN} -X main.DEFAULT_TMDB_API_KEY=${DEFAULT_TMDB_API_KEY} -X main.DEFAULT_SC_API_KEY=${DEFAULT_SC_API_KEY} -X main.ENCRYPTION_KEY=${ENCRYPTION_KEY}" -o QMediaSync .
+          CGO_ENABLED=0 go build -ldflags="-s -w -X 'main.Version=${APP_VERSION}' -X 'main.PublishDate=${PUBLISH_DATE}' -X main.FANART_API_KEY=${FANART_API_KEY} -X main.DEFAULT_TMDB_ACCESS_TOKEN=${DEFAULT_TMDB_ACCESS_TOKEN} -X main.DEFAULT_TMDB_API_KEY=${DEFAULT_TMDB_API_KEY} -X main.DEFAULT_SC_API_KEY=${DEFAULT_SC_API_KEY} -X main.ENCRYPTION_KEY=${ENCRYPTION_KEY}" -o ../QMediaSync .
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
       - name: Set up Docker Buildx

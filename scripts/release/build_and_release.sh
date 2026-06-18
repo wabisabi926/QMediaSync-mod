@@ -1,8 +1,11 @@
 #!/bin/bash
 
 # QMediaSync Build and Release Shell Script
-# 切换到工作目录
-cd ../
+
+# 切换到仓库根目录
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$REPO_ROOT"
 echo "已切换工作目录：$(pwd)"
 # Function to print colored output
 print_colored() {
@@ -102,6 +105,14 @@ echo
 print_colored "green" "Starting build..."
 print_colored "green" "========================================"
 
+print_colored "cyan" "Building frontend..."
+if [ -f "frontend/package-lock.json" ]; then
+    (cd frontend && npm ci && npm run build)
+else
+    (cd frontend && npm install && npm run build)
+fi
+print_colored "green" "✓ Frontend build completed"
+
 # Create temp directory
 if [ -d "temp_build" ]; then
     rm -rf "temp_build"
@@ -109,7 +120,7 @@ fi
 mkdir -p "temp_build"
 
 echo "安装所有项目依赖"
-go mod tidy
+(cd backend && go mod tidy)
 
 # Supported platforms and architectures
 PLATFORMS=("windows" "linux")
@@ -159,7 +170,7 @@ for platform in "${PLATFORMS[@]}"; do
         fi
         
         # Build
-        go build -ldflags "$LDFLAGS" -o "temp_build/$EXE_NAME"
+        (cd backend && go build -ldflags "$LDFLAGS" -o "../temp_build/$EXE_NAME" .)
         if [ $? -ne 0 ]; then
             print_colored "red" "Error: Build failed for $platform/$arch"
             exit 1
@@ -184,17 +195,17 @@ for platform in "${PLATFORMS[@]}"; do
         # Copy files
         cp "temp_build/$EXE_NAME" "temp_build/$ARCHIVE_NAME/"
         
-        if [ -d "web_statics" ]; then
-            cp -r "web_statics" "temp_build/$ARCHIVE_NAME/"
+        if [ -d "backend/web_statics" ]; then
+            cp -r "backend/web_statics" "temp_build/$ARCHIVE_NAME/"
         fi
         
-        if [ -d "scripts" ]; then
-            cp -r "scripts" "temp_build/$ARCHIVE_NAME/"
+        if [ -d "backend/scripts" ]; then
+            cp -r "backend/scripts" "temp_build/$ARCHIVE_NAME/"
         fi
         
         # Windows specific files
-        if [ "$platform" = "windows" ] && [ -f "icon.ico" ]; then
-            cp "icon.ico" "temp_build/$ARCHIVE_NAME/"
+        if [ "$platform" = "windows" ] && [ -f "backend/icon.ico" ]; then
+            cp "backend/icon.ico" "temp_build/$ARCHIVE_NAME/"
         fi
         
         # PostgreSQL binaries
@@ -244,50 +255,50 @@ print_colored "cyan" "Starting FPK application build for 飞牛系统..."
 print_colored "cyan" "Building FPK for arm64 architecture..."
 
 # 检查FNOS目录是否存在
-if [ ! -d "FNOS" ]; then
+if [ ! -d "backend/FNOS" ]; then
     print_colored "red" "Error: FNOS directory not found"
     print_colored "yellow" "Please create FNOS directory structure first"
 else
     # 创建app目录
-    mkdir -p "FNOS/qmediasync-arm64/app"
+    mkdir -p "backend/FNOS/qmediasync-arm64/app"
     
     # 更新manifest文件中的version字段（去掉v前缀）
     FNOS_VERSION="${TAG#v}"
-    if [ -f "FNOS/qmediasync-arm64/manifest" ]; then
-        sed -i "s/^version\s*=.*/version = $FNOS_VERSION/g" "FNOS/qmediasync-arm64/manifest"
-        print_colored "green" "✓ Updated version in FNOS/qmediasync-arm64/manifest to $FNOS_VERSION"
+    if [ -f "backend/FNOS/qmediasync-arm64/manifest" ]; then
+        sed -i "s/^version\s*=.*/version = $FNOS_VERSION/g" "backend/FNOS/qmediasync-arm64/manifest"
+        print_colored "green" "✓ Updated version in backend/FNOS/qmediasync-arm64/manifest to $FNOS_VERSION"
     else
         print_colored "yellow" "Warning: FNOS/qmediasync-arm64/manifest not found"
     fi
     
     # 清理目标目录中的文件
-    if [ -f "FNOS/qmediasync-arm64/app/QMediaSync" ]; then
-        rm "FNOS/qmediasync-arm64/app/QMediaSync"
+    if [ -f "backend/FNOS/qmediasync-arm64/app/QMediaSync" ]; then
+        rm "backend/FNOS/qmediasync-arm64/app/QMediaSync"
         print_colored "yellow" "✓ Removed existing arm64 executable"
     fi
     
-    if [ -d "FNOS/qmediasync-arm64/app/web_statics" ]; then
-        rm -rf "FNOS/qmediasync-arm64/app/web_statics"
+    if [ -d "backend/FNOS/qmediasync-arm64/app/web_statics" ]; then
+        rm -rf "backend/FNOS/qmediasync-arm64/app/web_statics"
         print_colored "yellow" "✓ Removed existing web_statics directory"
     fi
     
     # 复制arm64可执行文件和web_statics目录
     if [ -f "temp_build/QMediaSync_linux_arm64_exe" ]; then
-        cp "temp_build/QMediaSync_linux_arm64_exe" "FNOS/qmediasync-arm64/app/QMediaSync"
-        print_colored "green" "✓ Copied arm64 executable to FNOS/qmediasync-arm64/app/QMediaSync"
+        cp "temp_build/QMediaSync_linux_arm64_exe" "backend/FNOS/qmediasync-arm64/app/QMediaSync"
+        print_colored "green" "✓ Copied arm64 executable to backend/FNOS/qmediasync-arm64/app/QMediaSync"
     else
         print_colored "red" "Error: arm64 executable not found"
     fi
     
-    if [ -d "web_statics" ]; then
-        cp -r "web_statics" "FNOS/qmediasync-arm64/app/"
-        print_colored "green" "✓ Copied web_statics directory to FNOS/qmediasync-arm64/app/"
+    if [ -d "backend/web_statics" ]; then
+        cp -r "backend/web_statics" "backend/FNOS/qmediasync-arm64/app/"
+        print_colored "green" "✓ Copied web_statics directory to backend/FNOS/qmediasync-arm64/app/"
     else
         print_colored "yellow" "Warning: web_statics directory not found"
     fi
     
     # 切换到qmediasync-arm64目录并执行fnpack build
-    cd "FNOS/qmediasync-arm64"
+    cd "backend/FNOS/qmediasync-arm64"
     if command -v "fnpack" >/dev/null 2>&1; then
         print_colored "cyan" "Executing fnpack build for arm64..."
         fnpack build
@@ -296,7 +307,7 @@ else
             
             # 复制fpk文件回qmediasync目录
             if [ -f "qmediasync.fpk" ]; then
-                cp "qmediasync.fpk" "../../QMediaSync_arm64.fpk"
+                cp "qmediasync.fpk" "../../../QMediaSync_arm64.fpk"
                 print_colored "green" "✓ Copied arm64 FPK file back to qmediasync directory"
             else
                 print_colored "red" "Error: FPK file not generated for arm64"
@@ -309,57 +320,57 @@ else
     fi
     
     # 切换回qmediasync目录
-    cd "../../"
+    cd "$REPO_ROOT"
 fi
 
 # 构建amd64架构的FPK
 print_colored "cyan" "Building FPK for amd64 architecture..."
 
 # 检查FNOS目录是否存在
-if [ ! -d "FNOS" ]; then
+if [ ! -d "backend/FNOS" ]; then
     print_colored "red" "Error: FNOS directory not found"
     print_colored "yellow" "Please create FNOS directory structure first"
 else
     # 创建app目录
-    mkdir -p "FNOS/qmediasync-amd64/app"
+    mkdir -p "backend/FNOS/qmediasync-amd64/app"
     
     # 更新manifest文件中的version字段（去掉v前缀）
     FNOS_VERSION="${TAG#v}"
-    if [ -f "FNOS/qmediasync-amd64/manifest" ]; then
-        sed -i "s/^version\s*=.*/version = $FNOS_VERSION/g" "FNOS/qmediasync-amd64/manifest"
-        print_colored "green" "✓ Updated version in FNOS/qmediasync-amd64/manifest to $FNOS_VERSION"
+    if [ -f "backend/FNOS/qmediasync-amd64/manifest" ]; then
+        sed -i "s/^version\s*=.*/version = $FNOS_VERSION/g" "backend/FNOS/qmediasync-amd64/manifest"
+        print_colored "green" "✓ Updated version in backend/FNOS/qmediasync-amd64/manifest to $FNOS_VERSION"
     else
         print_colored "yellow" "Warning: FNOS/qmediasync-amd64/manifest not found"
     fi
     
     # 清理目标目录中的文件
-    if [ -f "FNOS/qmediasync-amd64/app/QMediaSync" ]; then
-        rm "FNOS/qmediasync-amd64/app/QMediaSync"
+    if [ -f "backend/FNOS/qmediasync-amd64/app/QMediaSync" ]; then
+        rm "backend/FNOS/qmediasync-amd64/app/QMediaSync"
         print_colored "yellow" "✓ Removed existing amd64 executable"
     fi
     
-    if [ -d "FNOS/qmediasync-amd64/app/web_statics" ]; then
-        rm -rf "FNOS/qmediasync-amd64/app/web_statics"
+    if [ -d "backend/FNOS/qmediasync-amd64/app/web_statics" ]; then
+        rm -rf "backend/FNOS/qmediasync-amd64/app/web_statics"
         print_colored "yellow" "✓ Removed existing web_statics directory"
     fi
     
     # 复制amd64可执行文件和web_statics目录
     if [ -f "temp_build/QMediaSync_linux_amd64_exe" ]; then
-        cp "temp_build/QMediaSync_linux_amd64_exe" "FNOS/qmediasync-amd64/app/QMediaSync"
-        print_colored "green" "✓ Copied amd64 executable to FNOS/qmediasync-amd64/app/QMediaSync"
+        cp "temp_build/QMediaSync_linux_amd64_exe" "backend/FNOS/qmediasync-amd64/app/QMediaSync"
+        print_colored "green" "✓ Copied amd64 executable to backend/FNOS/qmediasync-amd64/app/QMediaSync"
     else
         print_colored "red" "Error: amd64 executable not found"
     fi
     
-    if [ -d "web_statics" ]; then
-        cp -r "web_statics" "FNOS/qmediasync-amd64/app/"
-        print_colored "green" "✓ Copied web_statics directory to FNOS/qmediasync-amd64/app/"
+    if [ -d "backend/web_statics" ]; then
+        cp -r "backend/web_statics" "backend/FNOS/qmediasync-amd64/app/"
+        print_colored "green" "✓ Copied web_statics directory to backend/FNOS/qmediasync-amd64/app/"
     else
         print_colored "yellow" "Warning: web_statics directory not found"
     fi
     
     # 切换到qmediasync-amd64目录并执行fnpack build
-    cd "FNOS/qmediasync-amd64"
+    cd "backend/FNOS/qmediasync-amd64"
     if command -v "fnpack" >/dev/null 2>&1; then
         print_colored "cyan" "Executing fnpack build for amd64..."
         fnpack build
@@ -368,7 +379,7 @@ else
             
             # 复制fpk文件回qmediasync目录
             if [ -f "qmediasync.fpk" ]; then
-                cp "qmediasync.fpk" "../../QMediaSync_amd64.fpk"
+                cp "qmediasync.fpk" "../../../QMediaSync_amd64.fpk"
                 print_colored "green" "✓ Copied amd64 FPK file back to qmediasync directory"
             else
                 print_colored "red" "Error: FPK file not generated for amd64"
@@ -381,7 +392,7 @@ else
     fi
     
     # 切换回qmediasync目录
-    cd "../../"
+    cd "$REPO_ROOT"
 fi
 
 print_colored "green" "========================================"
@@ -397,7 +408,7 @@ if ! command_exists "docker"; then
     print_colored "yellow" "Warning: Docker not found, skipping Docker build"
 else
     # Check if docker_build_and_push.sh exists
-    if [ -f "build_scripts/docker_build_and_push.sh" ]; then
+    if [ -f "scripts/release/docker_build_and_push.sh" ]; then
         print_colored "green" "Found docker build script, starting Docker image build..."
         
         # Set environment variables for Docker build
@@ -416,13 +427,11 @@ else
         # fi
         
         # Run Docker build script
-        cd build_scripts
-        BUILD_AND_RELEASE_CALL=1 ./docker_build_and_push.sh -v "$TAG"
-        cd ..
+        BUILD_AND_RELEASE_CALL=1 "$SCRIPT_DIR/docker_build_and_push.sh" -v "$TAG"
         
         print_colored "green" "✓ Docker image build completed"
     else
-        print_colored "yellow" "Warning: docker_build_and_push.sh not found in build_scripts/"
+        print_colored "yellow" "Warning: docker_build_and_push.sh not found in scripts/release/"
     fi
     
     # Cleanup temp files after Docker build

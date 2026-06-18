@@ -1,87 +1,89 @@
+# OS/editor files
+.DS_Store
+Thumbs.db
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.codebuddy
+
+# Logs and temporary files
+logs/
 *.log
-go.sum
-config/logs/*
-config/config.yml
-config/115-cookies.txt
-config/tmp/*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 *.tmp
+*.temp
 *.bak
+*.local
+*.mp4
+
+# Go/backend dependency metadata kept consistent with the original repository
+go.sum
+backend/go.sum
+
+# Root build and release outputs
+config/
+data/
+dist/
+temp_build/
+update/
+QMediaSync
+QMediaSync.exe
+Q115-STRM
 Q115-STRM.exe
-config/db.db
-config/db.db-journal
-config/libs/*
-config/logs/*
-config/logs/filepath*
-config/tmp/*
-*_README.md
-dist/*
-temp_build/*
-/config/postgres
-update/*
-QMediaSync.exe
-QMediaSync.exe
-verify_yaml.py
-*.tar.gz
-*.zip
-release_body.txt
-test_guid.sh
 q115strm_test.exe
 q115strm.exe
-/config/backups
-docs/FeHelper-20260123203742.json
-config/.env
-postgres/
-scripts/test_share_link.go
-scripts/test_delta_sync.go
-docs/sharepoint_azure_setup.md
-docs/sharepoint_usage.md
-config/qmediasync.db
+QMediaSync_*.zip
+QMediaSync_*.tar.gz
+QMediaSync_*.fpk
+*.zip
+*.tar.gz
 *.fpk
-*.DS_Store
-FNOS/qmediasync-arm64/app/QMediaSync
-FNOS/qmediasync-arm64/app/web_statics/
-FNOS/qmediasync-amd64/app/web_statics/
-FNOS/qmediasync-amd64/app/QMediaSync
-Q115-STRM
-config/qmediasync.db-shm
-config/qmediasync.db-wal
-config/config - 副本.yml
-QMediaSync
-*.mp4
-./docs/design/*
+release_body.txt
 
-# Monorepo runtime/build artifacts
-backend/config/logs/*
-backend/config/config.yml
-backend/config/115-cookies.txt
-backend/config/tmp/*
-backend/config/db.db
-backend/config/db.db-journal
-backend/config/libs/*
-backend/config/logs/filepath*
-backend/config/postgres
-backend/config/backups
-backend/config/.env
-backend/config/qmediasync.db
-backend/config/qmediasync.db-shm
-backend/config/qmediasync.db-wal
-backend/config/config - 副本.yml
-backend/update/*
+# Backend runtime data and generated files
+backend/config/
+backend/update/
 backend/QMediaSync
 backend/QMediaSync.exe
 backend/Q115-STRM
 backend/Q115-STRM.exe
 backend/q115strm_test.exe
 backend/q115strm.exe
-backend/postgres/
+backend/web_statics/
+
+# Backend local experiments and generated docs
 backend/scripts/test_share_link.go
 backend/scripts/test_delta_sync.go
+backend/docs/design/
+backend/docs/FeHelper-20260123203742.json
+backend/docs/sharepoint_azure_setup.md
+backend/docs/sharepoint_usage.md
+verify_yaml.py
+test_guid.sh
+
+# Optional local Postgres binaries/data
+postgres/
+backend/postgres/
+
+# FNOS packaging outputs
+FNOS/qmediasync-arm64/app/QMediaSync
+FNOS/qmediasync-arm64/app/web_statics/
+FNOS/qmediasync-amd64/app/QMediaSync
+FNOS/qmediasync-amd64/app/web_statics/
 backend/FNOS/qmediasync-arm64/app/QMediaSync
 backend/FNOS/qmediasync-arm64/app/web_statics/
 backend/FNOS/qmediasync-amd64/app/QMediaSync
 backend/FNOS/qmediasync-amd64/app/web_statics/
-backend/docs/design/*
 
+# Frontend dependencies and build outputs
+node_modules/
 frontend/node_modules/
 frontend/.vite/
 frontend/.trae/
@@ -89,3 +91,9 @@ frontend/dist/
 frontend/dist-ssr/
 frontend/coverage/
 frontend/*.tsbuildinfo
+frontend/cypress/videos/
+frontend/cypress/screenshots/
+
+# Frontend editor files
+frontend/.vscode/*
+!frontend/.vscode/extensions.json

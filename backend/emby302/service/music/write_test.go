@@ -1,16 +1,30 @@
 package music_test
 
 import (
-	"os"
-	"testing"
-
 	"Q115-STRM/emby302/service/lib/ffmpeg"
 	"Q115-STRM/emby302/service/music"
+	"Q115-STRM/internal/helpers"
+	"os"
+	"testing"
 )
 
 const host = "http://0.0.0.0:12345"
 
+func requireIntegration(t *testing.T) {
+	t.Helper()
+	if os.Getenv("QMS_INTEGRATION_TESTS") != "1" {
+		t.Skip("set QMS_INTEGRATION_TESTS=1 to run music integration tests")
+	}
+	helpers.ConfigDir = t.TempDir()
+	helpers.AppLogger = helpers.NewLogger("test.log", true, false)
+	t.Cleanup(func() {
+		helpers.AppLogger.Close()
+		helpers.AppLogger = nil
+	})
+}
+
 func TestWriteFakeMP3(t *testing.T) {
+	requireIntegration(t)
 	if err := ffmpeg.AutoDownloadExec("../../.."); err != nil {
 		t.Fatal(err)
 		return

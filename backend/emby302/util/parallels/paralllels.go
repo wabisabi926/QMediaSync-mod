@@ -14,15 +14,20 @@ func SliceChunk(size int) []Range {
 	// 计算分块数
 	chunkNum := min(runtime.NumCPU(), size)
 
-	// 根据分块数 判断每块大小 (向上取值)
-	chunkSize := (size + chunkNum - 1) / chunkNum
+	baseChunkSize := size / chunkNum
+	remainder := size % chunkNum
 
 	// 分块
 	ranges := make([]Range, 0, chunkNum)
+	start := 0
 	for i := range chunkNum {
-		start := i * chunkSize
-		end := min((i+1)*chunkSize, size)
+		chunkSize := baseChunkSize
+		if i < remainder {
+			chunkSize++
+		}
+		end := start + chunkSize
 		ranges = append(ranges, Range{Start: start, End: end})
+		start = end
 	}
 	return ranges
 }

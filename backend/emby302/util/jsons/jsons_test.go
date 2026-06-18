@@ -50,7 +50,7 @@ func TestMap(t *testing.T) {
 }
 
 func TestNativeUnmarshal(t *testing.T) {
-	str := `aaa`
+	str := `"aaa"`
 	var dest string
 	if err := json.Unmarshal([]byte(str), &dest); err != nil {
 		t.Fatal(err)

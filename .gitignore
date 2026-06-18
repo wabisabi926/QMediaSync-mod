@@ -62,6 +62,7 @@ backend/q115strm.exe
 backend/web_statics/
 
 # Backend local experiments and generated docs
+docs/superpowers/
 backend/scripts/test_share_link.go
 backend/scripts/test_delta_sync.go
 backend/docs/design/

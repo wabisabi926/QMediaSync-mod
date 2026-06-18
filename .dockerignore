@@ -14,7 +14,6 @@ node_modules
 *.temp
 .DS_Store
 Thumbs.db
-temp_build
 QMediaSync_*.zip
 QMediaSync_*.tar.gz
 QMediaSync_*.fpk
@@ -27,6 +26,10 @@ frontend/dist-ssr
 frontend/coverage
 backend/config
 backend/update
+backend/QMediaSync
+backend/QMediaSync.exe
+backend/Q115-STRM
+backend/Q115-STRM.exe
 backend/FNOS/qmediasync-arm64/app/QMediaSync
 backend/FNOS/qmediasync-arm64/app/web_statics
 backend/FNOS/qmediasync-amd64/app/QMediaSync

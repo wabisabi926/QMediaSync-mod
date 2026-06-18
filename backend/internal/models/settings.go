@@ -88,19 +88,19 @@ func (s SettingStrm) ToMap(isDb bool, isSetting bool) map[string]any {
 		if s.MetaExt != "" {
 			dataMap["meta_ext_arr"] = s.MetaExtArr
 		} else if isSetting {
-			// 从config.yml中读取默认的metaExt
+			// 从配置文件中读取默认的metaExt
 			dataMap["meta_ext_arr"] = helpers.GlobalConfig.Strm.MetaExt
 		}
 		if s.VideoExt != "" {
 			dataMap["video_ext_arr"] = s.VideoExtArr
 		} else if isSetting {
-			// 从config.yml中读取默认的视频扩展名
+			// 从配置文件中读取默认的视频扩展名
 			dataMap["video_ext_arr"] = helpers.GlobalConfig.Strm.VideoExt
 		}
 		if s.ExcludeName != "" {
 			dataMap["exclude_name_arr"] = s.ExcludeNameArr
 		} else {
-			// 从config.yml中读取默认的排除的文件名
+			// 从配置文件中读取默认的排除的文件名
 			dataMap["exclude_name_arr"] = []string{}
 		}
 	} else {

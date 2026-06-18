@@ -366,7 +366,7 @@ func getDataAndConfigDir() {
 	}
 }
 
-//go:embed emby302.yml
+//go:embed emby302.yaml
 //go:embed assets/db_config.html
 //go:embed assets/migrate.html
 var embedFiles embed.FS
@@ -377,7 +377,7 @@ func init() {
 
 func startEmby302() {
 	dataRoot := helpers.ConfigDir
-	data, err := embedFiles.ReadFile("emby302.yml")
+	data, err := embedFiles.ReadFile("emby302.yaml")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -760,8 +760,8 @@ func initEnv() bool {
 	ipv4, _ := helpers.GetLocalIP()
 	log.Printf("本机IPv4地址是 <%s>\n", ipv4)
 	// 检查配置文件是否存在
-	configPath := filepath.Join(helpers.ConfigDir, "config.yml")
-	helpers.IsFirstRun = !helpers.PathExists(configPath)
+	configPath := helpers.ExistingConfigFilePath()
+	helpers.IsFirstRun = !helpers.HasConfigFile()
 	// 如果不存在，启动一个简易web服务来配置数据库连接信息
 	if helpers.IsFirstRun {
 		// 检查是否有旧的数据库配置和记录，有的话生成配置文件，跳过配置流程
@@ -773,14 +773,16 @@ func initEnv() bool {
 				log.Printf("生成新的配置文件失败: %v", err)
 				return false
 			}
+			configPath = helpers.ConfigFilePath()
 			log.Printf("已生成配置文件: %s", configPath)
 			helpers.IsFirstRun = false
 		} else {
-			log.Printf("配置文件不存在，启动简单配置服务: %s", configPath)
+			log.Printf("配置文件不存在，启动简单配置服务: %s", helpers.ConfigFilePath())
 			StartConfigWebServer()
 			return false
 		}
 	}
+	configPath = helpers.ExistingConfigFilePath()
 	log.Printf("配置文件存在，加载配置文件: %s", configPath)
 	// 如果存在，则加载配置文件，进行其他的初始化工作
 	err := helpers.InitConfig()

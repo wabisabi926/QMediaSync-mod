@@ -94,8 +94,33 @@ var DEFAULT_TMDB_API_KEY = ""
 var DEFAULT_SC_API_KEY = ""
 var ENCRYPTION_KEY = ""
 
+const (
+	ConfigFileName       = "config.yaml"
+	legacyConfigFileName = "config.yml"
+)
+
+func ConfigFilePath() string {
+	return filepath.Join(ConfigDir, ConfigFileName)
+}
+
+func ExistingConfigFilePath() string {
+	configPath := ConfigFilePath()
+	if PathExists(configPath) {
+		return configPath
+	}
+	legacyConfigPath := filepath.Join(ConfigDir, legacyConfigFileName)
+	if PathExists(legacyConfigPath) {
+		return legacyConfigPath
+	}
+	return configPath
+}
+
+func HasConfigFile() bool {
+	return PathExists(ConfigFilePath()) || PathExists(filepath.Join(ConfigDir, legacyConfigFileName))
+}
+
 func InitConfig() error {
-	configPath := filepath.Join(ConfigDir, "config.yml")
+	configPath := ExistingConfigFilePath()
 	// 从配置文件加载
 	if err := loadYaml(configPath, &GlobalConfig); err != nil {
 		return err
@@ -196,7 +221,7 @@ func MakeOldConfig() error {
 }
 
 func SaveConfig(config *Config) error {
-	configPath := filepath.Join(ConfigDir, "config.yml")
+	configPath := ConfigFilePath()
 	configData, err := yaml.Marshal(config)
 	if err != nil {
 		return err

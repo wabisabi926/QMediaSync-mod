@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ### This script is called after the user installs the application.
-# 使用向导产生的环境变量生成配置文件config.yml，配置文件放置在$TRIM_PKGETC/config.yml
+# 使用向导产生的环境变量生成配置文件config.yaml，配置文件放置在$TRIM_PKGETC/config.yaml
 
 # 检查必要的环境变量
 if [ -z "$TRIM_PKGETC" ]; then
@@ -13,9 +13,7 @@ fi
 mkdir -p "$TRIM_PKGETC"
 
 # 如果配置文件已存在，先删除
-if [ -f "$TRIM_PKGETC/config.yml" ]; then
-    rm -f "$TRIM_PKGETC/config.yml"
-fi
+rm -f "$TRIM_PKGETC/config.yaml" "$TRIM_PKGETC/config.yml"
 
 # 读取向导产生的环境变量
 ADMIN_USERNAME="${wizard_admin_username:-admin}"
@@ -28,7 +26,7 @@ POSTGRES_PASSWORD="${wizard_postgres_password:-qms123456}"
 POSTGRES_DATABASE="${wizard_postgres_database:-qms}"
 
 # 生成配置文件
-cat > "$TRIM_PKGETC/config.yml" << 'EOF'
+cat > "$TRIM_PKGETC/config.yaml" << 'EOF'
 log:
   file: logs/app.log
   v115: logs/115.log
@@ -42,7 +40,7 @@ EOF
 
 # 根据数据库类型生成相应的配置
 if [ "$DATABASE_TYPE" = "sqlite" ]; then
-    cat >> "$TRIM_PKGETC/config.yml" << 'EOF'
+    cat >> "$TRIM_PKGETC/config.yaml" << 'EOF'
   engine: sqlite
   sqliteFile: qmediasync.db
   postgresType: external
@@ -56,7 +54,7 @@ if [ "$DATABASE_TYPE" = "sqlite" ]; then
     maxIdleConns: 25
 EOF
 else
-    cat >> "$TRIM_PKGETC/config.yml" << EOF
+    cat >> "$TRIM_PKGETC/config.yaml" << EOF
   engine: postgres
   sqliteFile: qmediasync.db
   postgresType: external
@@ -72,7 +70,7 @@ EOF
 fi
 
 # 添加其他默认配置
-cat >> "$TRIM_PKGETC/config.yml" << EOF
+cat >> "$TRIM_PKGETC/config.yaml" << EOF
 cacheSize: 20971520
 jwtSecret: Q115-STRM-JWT-TOKEN-250706
 httpHost: :12333
@@ -88,7 +86,7 @@ adminUsername: $ADMIN_USERNAME
 adminPassword: $ADMIN_PASSWORD
 EOF
 
-echo "Configuration file created at $TRIM_PKGETC/config.yml"
+echo "Configuration file created at $TRIM_PKGETC/config.yaml"
 echo "Database type: $DATABASE_TYPE"
 echo "Application port: $APP_PORT"
 echo "Admin username: $ADMIN_USERNAME"

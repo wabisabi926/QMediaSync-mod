@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket日志查看器</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .controls {
+            margin-bottom: 20px;
+        }
+        .logs {
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 400px;
+            overflow-y: scroll;
+            background-color: #f5f5f5;
+            font-family: monospace;
+        }
+        input {
+            padding: 5px;
+            margin-right: 10px;
+        }
+        button {
+            padding: 5px 10px;
+            margin-right: 5px;
+        }
+        .pagination {
+            margin-top: 10px;
+            text-align: center;
+        }
+        .pagination button {
+            margin: 0 2px;
+        }
+        .info {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>WebSocket日志查看器</h1>
+        <div class="controls">
+            <input type="text" id="logPath" placeholder="日志文件相对路径，例如：app.log" value="app.log">
+            <button id="connectBtn">连接</button>
+            <button id="disconnectBtn">断开</button>
+        </div>
+        <div class="logs" id="logs"></div>
+
+        <div class="info">
+            <span id="logCount">当前显示 0 行日志</span>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        const logsDiv = document.getElementById('logs');
+        const logPathInput = document.getElementById('logPath');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const logCount = document.getElementById('logCount');
+        
+        const MAX_LOG_LINES = 1000;
+        let logLines = []; // 存储日志行
+        let isLoadingOldLogs = false; // 标记是否正在加载旧记录
+        let currentOffset = 0; // 当前加载的旧日志偏移量
+        let isAtTop = true; // 标记是否在顶部
+        let lastScrollTop = 0; // 上次滚动位置
+
+        // 初始化
+        function init() {
+            // 添加滚动事件监听器
+            logsDiv.addEventListener('scroll', handleScroll);
+            // 连接和断开按钮事件
+            connectBtn.addEventListener('click', connect);
+            disconnectBtn.addEventListener('click', disconnect);
+        }
+
+        // 处理滚动事件
+        function handleScroll() {
+            const scrollTop = logsDiv.scrollTop;
+            const scrollHeight = logsDiv.scrollHeight;
+            const clientHeight = logsDiv.clientHeight;
+            
+            // 判断是否在顶部
+            isAtTop = scrollTop === 0;
+            
+            // 检查是否需要重新连接WebSocket（当回到顶部时）
+            if (isAtTop && lastScrollTop > 0) {
+                reconnectWebSocket();
+            }
+            
+            // 检查是否滚动到底部，需要加载更多旧日志
+            if (scrollHeight - scrollTop - clientHeight < 50 && !isLoadingOldLogs) {
+                loadOldLogs();
+            }
+            
+            lastScrollTop = scrollTop;
+        }
+
+        // 添加日志（纯文本）
+        function addLog(message) {
+            // 创建日志条目对象
+            const entry = {
+                level: 'info',
+                message: message,
+                timestamp: new Date()
+            };
+            addLogEntry(entry);
+        }
+        
+        // 添加日志条目（JSON格式）
+        function addLogEntry(entry) {
+            // 添加到日志数组前面（最新的日志在最前面）
+            logLines = [entry, ...logLines];
+            
+            // 只保留前1000行
+            if (logLines.length > MAX_LOG_LINES) {
+                logLines = logLines.slice(0, MAX_LOG_LINES);
+            }
+            
+            // 更新显示
+            updateLogDisplay();
+        }
+        
+        // 更新日志显示
+        function updateLogDisplay() {
+            // 清空当前显示
+            logsDiv.innerHTML = '';
+            
+            // 添加日志行
+            logLines.forEach(entry => {
+                const div = document.createElement('div');
+                // 格式化日志条目
+                const timestamp = new Date(entry.timestamp).toLocaleString();
+                div.textContent = `[${timestamp}] [${entry.level.toUpperCase()}] ${entry.message}`;
+                div.style.whiteSpace = 'pre-wrap'; // 允许换行
+                div.style.wordBreak = 'break-all'; // 长单词自动换行
+                
+                // 根据日志级别设置不同的颜色
+                switch (entry.level) {
+                    case 'error':
+                        div.style.color = 'red';
+                        break;
+                    case 'warn':
+                        div.style.color = 'orange';
+                        break;
+                    case 'debug':
+                        div.style.color = 'blue';
+                        break;
+                    default:
+                        div.style.color = 'black';
+                }
+                
+                logsDiv.appendChild(div);
+            });
+            
+            // 更新信息
+            logCount.textContent = `当前显示 ${logLines.length} 行日志`;
+        }
+
+        // 标记是否是主动断开连接
+        let isManualDisconnect = false;
+        
+        // 检查WebSocket是否已连接
+        function isWebSocketConnected() {
+            return ws !== null && ws.readyState === WebSocket.OPEN;
+        }
+
+        // 连接WebSocket
+        function connect() {
+            // 如果已经连接，直接返回
+            if (isWebSocketConnected()) {
+                return;
+            }
+            
+            const logPath = logPathInput.value.trim();
+            if (!logPath) {
+                alert('请输入日志文件路径');
+                return;
+            }
+
+            // 注意：根据实际情况修改WebSocket URL
+            const wsUrl = `ws://localhost:12333/api/logs/ws?path=${encodeURIComponent(logPath)}`;
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = function() {
+                addLog('WebSocket连接已建立');
+            };
+            
+            ws.onmessage = function(event) {
+                // 处理JSON格式的日志条目
+                try {
+                    // 解析JSON消息
+                    const entry = JSON.parse(event.data);
+                    // 添加日志条目
+                    addLogEntry(entry);
+                } catch (error) {
+                    // 如果不是JSON格式，作为纯文本处理
+                    console.error('解析日志条目失败:', error);
+                    addLog(event.data);
+                }
+            };
+            
+            ws.onclose = function() {
+                // 只有在主动断开连接时才显示关闭信息
+                if (isManualDisconnect) {
+                    addLog('WebSocket连接已关闭');
+                    isManualDisconnect = false;
+                }
+            };
+            
+            ws.onerror = function(event) {
+                let errorMsg = 'WebSocket错误: ';
+                if (event.message) {
+                    errorMsg += event.message;
+                } else if (event.type) {
+                    errorMsg += event.type;
+                } else {
+                    errorMsg += JSON.stringify(event);
+                }
+                addLog(errorMsg);
+            };
+        }
+
+        // 断开WebSocket连接
+        function disconnect() {
+            if (ws) {
+                isManualDisconnect = true;
+                ws.close();
+                ws = null;
+            }
+        }
+        
+        // 重新连接WebSocket
+        function reconnectWebSocket() {
+            // 如果已经连接，不需要重新连接
+            if (isWebSocketConnected()) {
+                return;
+            }
+            
+            // 断开现有连接（不显示关闭信息）
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            
+            // 清空日志，只保留最新的100行
+            if (logLines.length > 100) {
+                logLines = logLines.slice(0, 100);
+                updateLogDisplay();
+            }
+            
+            // 重新连接
+            setTimeout(() => {
+                connect();
+            }, 500);
+        }
+        
+        // 通过HTTP接口加载旧日志
+        function loadOldLogs() {
+            const logPath = logPathInput.value.trim();
+            if (!logPath) {
+                return;
+            }
+            
+            isLoadingOldLogs = true;
+            
+            // 构建HTTP请求URL
+            const apiUrl = `http://localhost:12333/api/logs/old?path=${encodeURIComponent(logPath)}&offset=${currentOffset}&limit=100`;
+            
+            // 发送HTTP请求
+            fetch(apiUrl)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('HTTP请求失败');
+                    }
+                    return response.json(); // 解析为JSON格式
+                })
+                .then(entries => {
+                    // 处理返回的旧日志条目
+                    if (Array.isArray(entries)) {
+                        // 添加到日志数组末尾（旧日志在后面）
+                        logLines = [...logLines, ...entries];
+                        
+                        // 更新偏移量
+                        currentOffset += entries.length;
+                        
+                        // 更新显示
+                        updateLogDisplay();
+                    }
+                    
+                    isLoadingOldLogs = false;
+                })
+                .catch(error => {
+                    console.error('加载旧日志失败:', error);
+                    isLoadingOldLogs = false;
+                });
+        }
+        
+        // 初始化
+        init();
+    </script>
+</body>
+</html>

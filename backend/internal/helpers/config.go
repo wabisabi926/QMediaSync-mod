@@ -88,11 +88,12 @@ var AccessiblePathes string
 var IsFnOS bool
 var IsRelease bool
 var Guid string
-var FANART_API_KEY = ""
+var FANART_API_KEY = "" // 生效值：Fanart 客户端读取，由 ScrapeSettings.ApplyKeyOverrides 按“UI>默认”刷新
 var DEFAULT_TMDB_ACCESS_TOKEN = ""
 var DEFAULT_TMDB_API_KEY = ""
 var DEFAULT_SC_API_KEY = ""
-var ENCRYPTION_KEY = ""
+var ENCRYPTION_KEY = ""         // 生效值：AES 加密读取；每实例密钥，由 InitEncryptionKey 解析
+var DEFAULT_FANART_API_KEY = "" // 默认基线：环境变量 > ldflags
 
 const (
 	ConfigFileName       = "config.yaml"
@@ -179,6 +180,31 @@ func LoadEnvFromFile(envPath string) error {
 	}
 
 	return scanner.Err()
+}
+
+// InitEncryptionKey 解析本实例的 AES 加密密钥并写入 ENCRYPTION_KEY。
+// 优先级：环境变量 ENCRYPTION_KEY > config 卷持久化文件 > 首次启动随机生成并落盘。
+// 不再使用编译期 ldflags 注入的共享默认值，每个实例使用各自的密钥，避免共享密钥被解密/伪造。
+// 须在 ConfigDir 确定之后调用。
+func InitEncryptionKey() {
+	if v := os.Getenv("ENCRYPTION_KEY"); v != "" {
+		ENCRYPTION_KEY = v
+		return
+	}
+	keyPath := filepath.Join(ConfigDir, "encryption.key")
+	if data, err := os.ReadFile(keyPath); err == nil {
+		if k := strings.TrimSpace(string(data)); k != "" {
+			ENCRYPTION_KEY = k
+			return
+		}
+	}
+	k := RandStr(32)
+	if err := os.WriteFile(keyPath, []byte(k), 0600); err != nil {
+		fmt.Printf("写入加密密钥文件失败 %s: %v（本次使用临时密钥，重启后会重新生成）\n", keyPath, err)
+	} else {
+		fmt.Printf("已生成本实例加密密钥并保存到: %s\n", keyPath)
+	}
+	ENCRYPTION_KEY = k
 }
 
 func loadYaml(configPath string, cfg interface{}) error {

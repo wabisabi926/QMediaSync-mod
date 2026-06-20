@@ -37,10 +37,9 @@ import (
 var Version string = "v0.0.1"
 var PublishDate string = "2025-08-08"
 var FANART_API_KEY = ""
-var DEFAULT_TMDB_ACCESS_TOKEN = ""
-var DEFAULT_TMDB_API_KEY = ""
-var DEFAULT_SC_API_KEY = ""
-var ENCRYPTION_KEY = ""
+var TMDB_ACCESS_TOKEN = ""
+var TMDB_API_KEY = ""
+var SC_API_KEY = ""
 var Update bool = false
 
 var AppName string = "QMediaSync"
@@ -720,6 +719,16 @@ func setRouter(r *gin.Engine) {
 	}
 }
 
+// firstNonEmpty 返回参数中第一个非空字符串，用于按优先级取环境变量/默认值。
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 func initEnv() bool {
 	log.Printf("当前版本号:%s, 发布日期:%s\n", Version, PublishDate)
 	// 将版本写入helper
@@ -727,33 +736,19 @@ func initEnv() bool {
 	helpers.ReleaseDate = PublishDate
 	// 加载环境变量配置
 	helpers.LoadEnvFromFile(filepath.Join(helpers.RootDir, "config", ".env"))
-	if DEFAULT_SC_API_KEY != "" {
-		helpers.DEFAULT_SC_API_KEY = DEFAULT_SC_API_KEY
-	} else {
-		helpers.DEFAULT_SC_API_KEY = os.Getenv("DEFAULT_SC_API_KEY")
-	}
-	if DEFAULT_TMDB_API_KEY != "" {
-		helpers.DEFAULT_TMDB_API_KEY = DEFAULT_TMDB_API_KEY
-	} else {
-		helpers.DEFAULT_TMDB_API_KEY = os.Getenv("DEFAULT_TMDB_API_KEY")
-	}
-	if DEFAULT_TMDB_ACCESS_TOKEN != "" {
-		helpers.DEFAULT_TMDB_ACCESS_TOKEN = DEFAULT_TMDB_ACCESS_TOKEN
-	} else {
-		helpers.DEFAULT_TMDB_ACCESS_TOKEN = os.Getenv("DEFAULT_TMDB_ACCESS_TOKEN")
-	}
-	if FANART_API_KEY != "" {
-		helpers.FANART_API_KEY = FANART_API_KEY
-	} else {
-		helpers.FANART_API_KEY = os.Getenv("FANART_API_KEY")
-	}
-	if ENCRYPTION_KEY != "" {
-		helpers.ENCRYPTION_KEY = ENCRYPTION_KEY
-	} else {
-		helpers.ENCRYPTION_KEY = os.Getenv("ENCRYPTION_KEY")
-	}
-	initTimeZone()        // 设置东8区
-	getDataAndConfigDir() // 获取数据库数据目录和配置文件目录
+	// 取值优先级：环境变量（config/.env 已经过上面的 LoadEnvFromFile 覆盖真实 env） > 编译期 ldflags 注入值。
+	helpers.DEFAULT_SC_API_KEY = firstNonEmpty(os.Getenv("SC_API_KEY"), SC_API_KEY)
+	helpers.DEFAULT_TMDB_API_KEY = firstNonEmpty(os.Getenv("TMDB_API_KEY"), TMDB_API_KEY)
+	helpers.DEFAULT_TMDB_ACCESS_TOKEN = firstNonEmpty(os.Getenv("TMDB_ACCESS_TOKEN"), TMDB_ACCESS_TOKEN)
+	// FANART_API_KEY：DEFAULT_FANART_API_KEY 保存“环境变量 > ldflags”的默认基线，
+	// 生效值先取默认基线，待加载刮削设置后再由 ScrapeSettings.ApplyKeyOverrides 按“UI 配置 > 默认”刷新。
+	helpers.DEFAULT_FANART_API_KEY = firstNonEmpty(os.Getenv("FANART_API_KEY"), FANART_API_KEY)
+	helpers.FANART_API_KEY = helpers.DEFAULT_FANART_API_KEY
+	// ENCRYPTION_KEY 不再使用共享的 ldflags 默认值，改为每实例密钥，
+	// 在下方 getDataAndConfigDir 确定 ConfigDir 之后由 helpers.InitEncryptionKey 解析。
+	initTimeZone()              // 设置东8区
+	getDataAndConfigDir()       // 获取数据库数据目录和配置文件目录
+	helpers.InitEncryptionKey() // 解析每实例 AES 加密密钥：env > config 卷持久化文件 > 首次随机生成并落盘
 	log.Printf("当前工作目录:%s\n", helpers.RootDir)
 	log.Printf("当前数据目录：%s\n", helpers.DataDir)
 	log.Printf("当前配置文件目录: %s\n", helpers.ConfigDir)

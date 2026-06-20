@@ -37,6 +37,7 @@ type TmdbSettings struct {
 	TmdbLanguage      string `json:"tmdb_language" form:"tmdb_language"`
 	TmdbImageLanguage string `json:"tmdb_image_language" form:"tmdb_image_language"`
 	TmdbEnableProxy   bool   `json:"tmdb_enable_proxy" form:"tmdb_enable_proxy"`
+	FanartApiKey      string `json:"fanart_api_key" form:"fanart_api_key"`
 }
 
 type AiSettings struct {
@@ -82,6 +83,7 @@ func GetTmdbSettings(c *gin.Context) {
 		TmdbLanguage:      models.GlobalScrapeSettings.TmdbLanguage,
 		TmdbImageLanguage: models.GlobalScrapeSettings.TmdbImageLanguage,
 		TmdbEnableProxy:   models.GlobalScrapeSettings.TmdbEnableProxy,
+		FanartApiKey:      models.GlobalScrapeSettings.FanartApiKey,
 	}
 	c.JSON(http.StatusOK, APIResponse[TmdbSettings]{Code: Success, Message: "", Data: tmdbSettings})
 }
@@ -111,6 +113,10 @@ func SaveTmdbSettings(c *gin.Context) {
 		return
 	}
 	if err := models.GlobalScrapeSettings.SaveTmdb(reqData.TmdbApiKey, reqData.TmdbAccessToken, reqData.TmdbUrl, reqData.TmdbImageUrl, reqData.TmdbLanguage, reqData.TmdbImageLanguage, reqData.TmdbEnableProxy); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
+	}
+	if err := models.GlobalScrapeSettings.SaveKeys(reqData.FanartApiKey); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}

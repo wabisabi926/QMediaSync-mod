@@ -33,6 +33,7 @@ type ScrapeSettings struct {
 	AiModelName       string   `json:"ai_model_name" form:"ai_model_name"`             // AI识别模型名称
 	AiPrompt          string   `json:"ai_prompt" form:"ai_prompt"`                     // AI识别提示词，如果留空则使用默认值
 	AiTimeout         int      `json:"ai_timeout" form:"ai_timeout"`                   // AI识别超时时间，单位秒，默认值为:120
+	FanartApiKey      string   `json:"fanart_api_key" form:"fanart_api_key"`           // Fanart.tv API KEY，如果不设置则使用默认值
 }
 
 const (
@@ -61,6 +62,7 @@ func LoadScrapeSettings() *ScrapeSettings {
 		return nil
 	}
 
+	GlobalScrapeSettings.ApplyKeyOverrides()
 	helpers.AppLogger.Infof("从数据库读取刮削设置成功，ID=%d", GlobalScrapeSettings.ID)
 	return GlobalScrapeSettings
 }
@@ -77,6 +79,19 @@ func (s *ScrapeSettings) GetTmdbAccessToken() string {
 		return helpers.DEFAULT_TMDB_ACCESS_TOKEN
 	}
 	return s.TmdbAccessToken
+}
+
+func (s *ScrapeSettings) GetFanartApiKey() string {
+	if s.FanartApiKey == "" {
+		return helpers.DEFAULT_FANART_API_KEY
+	}
+	return s.FanartApiKey
+}
+
+// ApplyKeyOverrides 用 UI 配置覆盖生效密钥（Fanart 客户端直接读取 helpers 包级变量）。
+// 取值优先级：UI 配置（数据库） > 默认基线（环境变量 > ldflags）。
+func (s *ScrapeSettings) ApplyKeyOverrides() {
+	helpers.FANART_API_KEY = s.GetFanartApiKey()
 }
 
 func (s *ScrapeSettings) GetTmdbLanguage() string {
@@ -153,6 +168,20 @@ func (s *ScrapeSettings) SaveTmdb(apiKey, accessToken string, apiUrl string, ima
 	}
 
 	helpers.AppLogger.Infof("TMDB设置已成功更新，ID=%d，影响行数=%d", s.ID, result.RowsAffected)
+	return nil
+}
+
+// SaveKeys 保存 Fanart 密钥，并立即刷新生效值。
+func (s *ScrapeSettings) SaveKeys(fanartApiKey string) error {
+	s.FanartApiKey = fanartApiKey
+	updateData := map[string]interface{}{
+		"fanart_api_key": fanartApiKey,
+	}
+	if err := db.Db.Model(s).Where("id = ?", s.ID).Updates(updateData).Error; err != nil {
+		helpers.AppLogger.Errorf("更新密钥设置失败: %v", err)
+		return err
+	}
+	s.ApplyKeyOverrides()
 	return nil
 }
 

@@ -13,22 +13,20 @@ ENV DB_PASSWORD=qms123456
 ENV DB_NAME=qms
 ENV DB_SSLMODE=disable
 
-RUN apk add --no-cache ca-certificates tzdata ffmpeg inotify-tools postgresql15 su-exec && \
+RUN apk add --no-cache ca-certificates tzdata inotify-tools postgresql15 su-exec && \
     addgroup -S -g 12331 qms && \
     adduser -S -D -H -u 12331 -G qms qms && \
     mkdir -p /dev/shm /app/scripts && \
-    chmod 1777 /dev/shm
+    chmod 1777 /dev/shm && \
+    chmod 777 /app
 
 WORKDIR /app
-COPY temp_build/QMediaSync_linux_${TARGETARCH}_exe ./QMediaSync
+COPY --chmod=0755 temp_build/QMediaSync_linux_${TARGETARCH}_exe ./QMediaSync
 COPY backend/web_statics ./web_statics/
-COPY docker/entrypoint.sh ./scripts/docker-entrypoint.sh
-COPY docker/watch-update.sh ./scripts/watch_update.sh
+COPY --chmod=0755 docker/entrypoint.sh ./scripts/docker-entrypoint.sh
+COPY --chmod=0755 docker/watch-update.sh ./scripts/watch_update.sh
 COPY backend/assets/db_config.html ./web_statics/
 COPY backend/icon.ico .
-
-RUN chmod +x /app/scripts/docker-entrypoint.sh /app/scripts/watch_update.sh /app/QMediaSync && \
-    chmod 777 /app
 
 VOLUME ["/app/config", "/media"]
 EXPOSE 12333

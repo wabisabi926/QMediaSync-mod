@@ -1,5 +1,9 @@
 # check=skip=SecretsUsedInArgOrEnv
+# 本地测试专用：apk / npm / Go 全部走国内镜像源，构建产物与 source.Dockerfile 完全一致。
+# 用法：docker build -f docker/source.local.Dockerfile -t qmediasync:local .
+# 注意：CI/正式构建请用 docker/source.Dockerfile（官方源），此文件勿用于发布。
 FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend-builder
+ENV npm_config_registry=https://registry.npmmirror.com
 
 WORKDIR /app
 COPY frontend/package*.json ./frontend/
@@ -9,10 +13,12 @@ RUN mkdir -p backend && cd frontend && npm run build
 
 FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS backend-builder
 ENV TZ=Asia/Shanghai
-ENV GOSUMDB=off \
+ENV GOPROXY=https://goproxy.cn,direct \
+    GOSUMDB=off \
     CGO_ENABLED=0
 
-RUN apk add --no-cache ca-certificates git
+RUN sed -i 's#https\?://dl-cdn.alpinelinux.org/alpine#https://mirrors.tuna.tsinghua.edu.cn/alpine#g' /etc/apk/repositories && \
+    apk add --no-cache ca-certificates git
 
 WORKDIR /app/backend
 COPY backend/go.mod backend/go.sum ./
@@ -44,7 +50,8 @@ ENV DB_PASSWORD=qms123456
 ENV DB_NAME=qms
 ENV DB_SSLMODE=disable
 
-RUN apk add --no-cache ca-certificates tzdata inotify-tools postgresql15 su-exec && \
+RUN sed -i 's#https\?://dl-cdn.alpinelinux.org/alpine#https://mirrors.tuna.tsinghua.edu.cn/alpine#g' /etc/apk/repositories && \
+    apk add --no-cache ca-certificates tzdata inotify-tools postgresql15 su-exec && \
     addgroup -S -g 12331 qms && \
     adduser -S -D -H -u 12331 -G qms qms && \
     mkdir -p /dev/shm /app/scripts && \

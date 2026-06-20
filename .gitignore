@@ -24,8 +24,7 @@ lerna-debug.log*
 *.mp4
 
 # Go/backend dependency metadata kept consistent with the original repository
-go.sum
-backend/go.sum
+
 
 # Root build and release outputs
 config/

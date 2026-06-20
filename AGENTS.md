@@ -202,8 +202,9 @@ type APIResponse[T any] struct {
 ## 配置管理
 
 - YAML 配置文件：`config/config.yaml`（通过 `helpers.InitConfig()` 加载，兼容旧 `config.yml`）
-- 敏感信息：`config/.env`（通过 `helpers.LoadEnvFromFile()` 加载）
-- 构建时注入：API 密钥通过 `-ldflags -X main.FANART_API_KEY=...` 注入
+- 敏感信息：`config/.env`（通过 `helpers.LoadEnvFromFile()` 加载，会覆盖真实环境变量）
+- 默认 API 密钥：`FANART_API_KEY`/`TMDB_API_KEY`/`TMDB_ACCESS_TOKEN`/`SC_API_KEY`，可编译期 ldflags（`-X main.<名>`）注入或运行时环境变量设置（无 `DEFAULT_` 前缀）；取值优先级 UI 配置(DB) > 环境变量 > ldflags
+- 加密密钥：`ENCRYPTION_KEY` 每实例自动生成并存于 `config/encryption.key`（`helpers.InitEncryptionKey`），不走 ldflags
 - 全局配置对象：`helpers.GlobalConfig`
 
 ## 日志规范

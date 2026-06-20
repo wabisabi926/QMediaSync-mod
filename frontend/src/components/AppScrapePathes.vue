@@ -286,7 +286,7 @@
                 <span class="tip-bullet">•</span>
                 <span
                   >如果要调整并发数需要在
-                  <router-link to="/settings/tmdb">TMDB设置</router-link> 中使用自己的TMDB API
+                  <router-link to="/settings/tmdb">刮削设置</router-link> 中使用自己的TMDB API
                   KEY，否则会使用默认并发数</span
                 >
               </div>

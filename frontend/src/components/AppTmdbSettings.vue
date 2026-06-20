@@ -48,6 +48,18 @@
         <div class="form-help">如果您没有申请TMDB API KEY则留空</div>
       </el-form-item>
 
+      <el-form-item label="Fanart密钥" prop="fanartApiKey">
+        <el-input
+          v-model="formData.fanartApiKey"
+          placeholder="系统内置，不填也可用，填自己的更稳定"
+          type="password"
+          :disabled="loading"
+          show-password
+          maxlength="255"
+        />
+        <div class="form-help">Fanart.tv 的 API KEY，用于刮削艺术图，不清楚则留空</div>
+      </el-form-item>
+
       <el-form-item label="首选元数据语言" prop="tmdbLanguage">
         <el-radio-group v-model="formData.tmdbLanguage" :disabled="loading" size="large">
           <el-radio-button label="zh-CN">中文</el-radio-button>
@@ -140,6 +152,7 @@ interface TmdbSettings {
   tmdbEnableProxy: boolean
   tmdbApiKey: string
   tmdbAccessToken: string
+  fanartApiKey: string
   tmdbLanguage: string
   tmdbImageLanguage: string
   local_max_threads: number
@@ -165,6 +178,7 @@ const formData = reactive<TmdbSettings>({
   tmdbEnableProxy: false,
   tmdbApiKey: '',
   tmdbAccessToken: '',
+  fanartApiKey: '',
   tmdbLanguage: 'zh-CN',
   tmdbImageLanguage: 'en-US',
   local_max_threads: 5,
@@ -190,12 +204,13 @@ async function fetchTmdbSettings() {
     formData.tmdbEnableProxy = response?.data.data.tmdb_enable_proxy || false
     formData.tmdbApiKey = response?.data.data.tmdb_api_key || ''
     formData.tmdbAccessToken = response?.data.data.tmdb_access_token || ''
+    formData.fanartApiKey = response?.data.data.fanart_api_key || ''
     formData.tmdbLanguage = response?.data.data.tmdb_language || 'zh-CN'
     formData.tmdbImageLanguage = response?.data.data.tmdb_image_language || 'en-US'
     formData.local_max_threads = response?.data.data.local_max_threads || 5
   } catch (error) {
     console.error('获取TMDB设置失败:', error)
-    ElMessage.error('获取TMDB设置失败，请稍后重试')
+    ElMessage.error('获取刮削设置失败，请稍后重试')
   } finally {
     loading.value = false
   }
@@ -212,6 +227,7 @@ async function saveSettings() {
       tmdb_enable_proxy: formData.tmdbEnableProxy,
       tmdb_api_key: formData.tmdbApiKey,
       tmdb_access_token: formData.tmdbAccessToken,
+      fanart_api_key: formData.fanartApiKey,
       tmdb_language: formData.tmdbLanguage,
       tmdb_image_language: formData.tmdbImageLanguage,
       local_max_threads: formData.local_max_threads,
@@ -229,7 +245,7 @@ async function saveSettings() {
     saveStatus.value = {
       title: '保存成功',
       type: 'success',
-      description: 'TMDB设置已成功保存',
+      description: '刮削设置已成功保存',
     }
 
     // 3秒后清除状态提示
@@ -241,7 +257,7 @@ async function saveSettings() {
     saveStatus.value = {
       title: '保存失败',
       type: 'error',
-      description: '保存TMDB设置失败，请稍后重试',
+      description: '保存刮削设置失败，请稍后重试',
     }
   } finally {
     loading.value = false

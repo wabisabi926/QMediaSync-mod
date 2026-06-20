@@ -209,7 +209,7 @@ const routes = [
     name: 'settings-tmdb',
     component: AppTmdbSettings,
     meta: {
-      title: 'TMDB设置',
+      title: '刮削设置',
       requiresAuth: true,
       parent: 'scrape',
       icon: 'Film',

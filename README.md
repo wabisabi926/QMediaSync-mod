@@ -1,28 +1,14 @@
 # QMediaSync
 
-![GitHub release (latest by date)](https://img.shields.io/github/v/release/qicfan/qmediasync)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/qicfan/qmediasync)
-
-## 讨论方式
-
-- 电报群：[http://t.me/q115_strm](https://t.me/q115_strm)
-- QQ群：1057459156
-- Meow官方频道：使用鸿蒙系统手机扫描下方二维码来关注频道（请用官方浏览器打开）
-  
-  <img src="https://s.mqfamily.top/meow.png" width="200" />
-
 ### 开源版本不包含115开放平台账号，需要自备
 
 ### 本项目接受除了资源（搜索、订阅、下载）、逆向接口的一切功能PR
-
-#### PR以后如果没有动静可以邮件、TG、QQ联系作者
 
 ## 介绍
 
 - **默认用户名 admin,密码 admin123**
 - 默认端口：http-12333   https-12332
 - emby代理端口默认：http-8095  https-8094
-- 其他见 [wiki](https://github.com/qicfan/qmediasync/wiki)
 
 ## 调试启动
 
@@ -62,7 +48,7 @@ git push origin vx.xx.xx
 
 ## 数据库
 
-开源版本不包含postgres数据库二进制文件，需要自己安装，建议版本15.x，然后配置环境变量使用。详见wiki中的[安装](https://github.com/qicfan/qmediasync/wiki/Linux-%E5%AE%89%E8%A3%85%E4%BD%BF%E7%94%A8)
+开源版本不包含postgres数据库二进制文件，需要自己安装，建议版本15.x，然后配置环境变量使用。
 
 ## 需要自备的密钥
 
@@ -88,14 +74,10 @@ scripts/install/  Linux 裸机安装辅助脚本
 
 前端生产构建会输出到 `backend/web_statics`，后端从该目录提供 Web UI。
 
-## 贡献者
+## 原项目地址
 
-![Contributors](https://contrib.rocks/image?repo=qicfan/qmediasync)
+本仓库基于以下原项目合并而来：
 
-## Star
-
-![Star History](https://api.star-history.com/svg?repos=qicfan/qmediasync&type=Date)
-
-## 请作者喝杯咖啡
-
-![请作者喝杯咖啡](http://s.mqfamily.top/alipay_wechat.jpg)
+- 后端：[qicfan/qmediasync](https://github.com/qicfan/qmediasync)
+- 前端：[qicfan/q115-strm-frontend](https://github.com/qicfan/q115-strm-frontend)
+- Wiki：[qicfan/qmediasync/wiki](https://github.com/qicfan/qmediasync/wiki)

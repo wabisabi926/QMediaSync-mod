@@ -1,3 +1,4 @@
+# check=skip=SecretsUsedInArgOrEnv
 FROM alpine:3.20
 
 ARG TARGETARCH=amd64

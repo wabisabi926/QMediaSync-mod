@@ -1,0 +1,47 @@
+# git-cliff 配置：从 conventional commits 自动生成 changelog
+# 文档：https://git-cliff.org/docs/configuration
+
+[changelog]
+header = "# Changelog\n\n"
+body = """
+{% if version %}\
+## [{{ version }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+## [未发布]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim }}
+{% for commit in commits %}\
+- {{ commit.message | upper_first }}
+{% endfor %}\
+{% endfor %}\n
+"""
+trim = true
+
+[git]
+# 启用 conventional commits 解析，message 取解析后的描述（去掉 feat:/fix: 等前缀）
+conventional_commits = true
+# 丢弃不符合 conventional commits 规范的提交（如 Merge、update、历史的自由文案提交）
+filter_unconventional = true
+# 不额外过滤已分组的提交
+filter_commits = false
+# 只把 v 开头的标签当作版本，避免仓库里 0.14.23 / v0.14.23 双标签造成区间错乱
+tag_pattern = "v[0-9]*"
+# 提交按时间从新到旧
+sort_commits = "newest"
+# 类型 -> 中文分组。只保留对用户有意义的类型；分组顺序由组名前的 <!-- N --> 排序前缀控制
+# （模板里用 striptags 去掉该前缀）。开发类提交默认注释掉即丢弃，需要时取消注释即可。
+commit_parsers = [
+    { message = "^feat", group = "<!-- 0 -->新功能" },
+    { message = "^fix", group = "<!-- 1 -->修复" },
+    { message = "^perf", group = "<!-- 2 -->性能" },
+    { message = "^revert", group = "<!-- 3 -->回滚" },
+    # { message = "^refactor", group = "<!-- 4 -->重构" },
+    # { message = "^docs", group = "<!-- 5 -->文档" },
+    # { message = "^style", group = "<!-- 6 -->样式" },
+    # { message = "^test", group = "<!-- 7 -->测试" },
+    # { message = "^ci", group = "<!-- 8 -->CI" },
+    # { message = "^build", group = "<!-- 9 -->构建" },
+    # { message = "^chore", group = "<!-- 10 -->杂项" },
+    { message = ".*", skip = true },
+]

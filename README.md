@@ -36,15 +36,41 @@ npm run dev
 
 ## 发布新版本
 
-```bash
-git tag vx.xx.xx
-git push origin vx.xx.xx
-```
+更新日志由 [git-cliff](https://git-cliff.org/) 从 git 提交记录自动生成，因此提交信息需遵循 [Conventional Commits](https://www.conventionalcommits.org/)（`feat:`、`fix:`、`docs:`、`chore:`、`ci:` 等前缀），不规范的提交（如 `Merge`、自由文案）会被自动忽略。
+
+发版步骤（本地执行）：
+
+1. 生成本版本 changelog（需先安装 git-cliff，见其[安装文档](https://git-cliff.org/docs/installation/)）：
+
+   ```bash
+   scripts/release/gen-changelog.sh v0.xx.xx
+   ```
+
+   该脚本会：
+   - 读取上一个 `v*` 标签至今的提交，按类型分组生成 `.changes/v0.xx.xx.md`（作为 GitHub Release 正文）；
+   - 把本版本段落插入 `CHANGELOG.md` 顶部，保留历史内容。
+
+2. 检查生成内容无误后提交：
+
+   ```bash
+   git add CHANGELOG.md .changes
+   git commit -m "chore: release v0.xx.xx"
+   ```
+
+3. 打标签并推送，触发发布：
+
+   ```bash
+   git tag v0.xx.xx
+   git push origin v0.xx.xx
+   ```
 
 推送 `v*` 标签会触发 GitHub Actions 的 release 流程，生成 Windows/Linux 发布包、可选的飞牛 FPK，并创建 GitHub Release。
-发布流程会使用 `GITHUB_TOKEN` 推送 GHCR 镜像 `ghcr.io/<owner>/qmediasync:<tag>` 和 `ghcr.io/<owner>/qmediasync:latest`。
+GitHub Release 的正文取自上一步提交的 `.changes/v0.xx.xx.md`；若该文件不存在，正文回退为占位文字 `Release <tag>`。
+发布流程还会使用 `GITHUB_TOKEN` 推送 GHCR 镜像 `ghcr.io/<owner>/qmediasync:<tag>` 和 `ghcr.io/<owner>/qmediasync:latest`。
 
-也可以在 GitHub Actions 中手动触发 `release` workflow，并输入要发布的 Git tag。
+也可以在 GitHub Actions 中手动触发 `release` workflow，并输入要发布的 Git tag（同样要求该 tag 对应的 `.changes/<tag>.md` 已提交）。
+
+> 调整 changelog 的分组、过滤规则可编辑仓库根目录的 `cliff.toml`。
 
 ## 数据库
 
@@ -67,9 +93,10 @@ git push origin vx.xx.xx
 backend/          Go 后端、内置静态前端产物
 docker/           Dockerfile、容器入口脚本和在线更新监视脚本
 frontend/         Vue/Vite 前端源码
-scripts/release/  GitHub Actions 发布打包辅助脚本
+scripts/release/  GitHub Actions 发布打包辅助脚本、changelog 生成脚本
 scripts/install/  Linux 裸机安装辅助脚本
 .github/          CI 构建流程
+cliff.toml        git-cliff 配置（从提交记录生成 changelog）
 ```
 
 前端生产构建会输出到 `backend/web_statics`，后端从该目录提供 Web UI。

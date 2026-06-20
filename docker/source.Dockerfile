@@ -25,12 +25,11 @@ ARG TARGETARCH=amd64
 ARG VERSION=v0.0.0
 ARG BUILD_DATE=0000-00-00T00:00:00
 ARG FANART_API_KEY
-ARG DEFAULT_TMDB_ACCESS_TOKEN
-ARG DEFAULT_TMDB_API_KEY
-ARG DEFAULT_SC_API_KEY
-ARG ENCRYPTION_KEY
+ARG TMDB_ACCESS_TOKEN
+ARG TMDB_API_KEY
+ARG SC_API_KEY
 
-RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags "-s -w -X main.Version=${VERSION} -X 'main.PublishDate=${BUILD_DATE}' -X main.FANART_API_KEY=${FANART_API_KEY} -X main.DEFAULT_TMDB_ACCESS_TOKEN=${DEFAULT_TMDB_ACCESS_TOKEN} -X main.DEFAULT_TMDB_API_KEY=${DEFAULT_TMDB_API_KEY} -X main.DEFAULT_SC_API_KEY=${DEFAULT_SC_API_KEY} -X main.ENCRYPTION_KEY=${ENCRYPTION_KEY}" -o QMediaSync .
+RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags "-s -w -X main.Version=${VERSION} -X 'main.PublishDate=${BUILD_DATE}' -X main.FANART_API_KEY=${FANART_API_KEY} -X main.TMDB_ACCESS_TOKEN=${TMDB_ACCESS_TOKEN} -X main.TMDB_API_KEY=${TMDB_API_KEY} -X main.SC_API_KEY=${SC_API_KEY}" -o QMediaSync .
 
 FROM alpine:3.20
 ENV TZ=Asia/Shanghai
@@ -42,7 +41,7 @@ ENV DB_PASSWORD=qms123456
 ENV DB_NAME=qms
 ENV DB_SSLMODE=disable
 
-RUN apk add --no-cache ca-certificates tzdata ffmpeg inotify-tools postgresql15 && \
+RUN apk add --no-cache ca-certificates tzdata ffmpeg inotify-tools postgresql15 su-exec && \
     addgroup -S -g 12331 qms && \
     adduser -S -D -H -u 12331 -G qms qms && \
     mkdir -p /dev/shm /app/scripts && \

@@ -13,7 +13,7 @@ ENV DB_PASSWORD=qms123456
 ENV DB_NAME=qms
 ENV DB_SSLMODE=disable
 
-RUN apk add --no-cache ca-certificates tzdata ffmpeg inotify-tools postgresql15 && \
+RUN apk add --no-cache ca-certificates tzdata ffmpeg inotify-tools postgresql15 su-exec && \
     addgroup -S -g 12331 qms && \
     adduser -S -D -H -u 12331 -G qms qms && \
     mkdir -p /dev/shm /app/scripts && \

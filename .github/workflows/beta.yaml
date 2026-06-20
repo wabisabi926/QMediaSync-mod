@@ -50,9 +50,8 @@ jobs:
             VERSION=${{ steps.meta.outputs.version }}
             BUILD_DATE=${{ steps.meta.outputs.build_date }}
             FANART_API_KEY=${{ secrets.FANART_API_KEY }}
-            DEFAULT_TMDB_ACCESS_TOKEN=${{ secrets.DEFAULT_TMDB_ACCESS_TOKEN }}
-            DEFAULT_TMDB_API_KEY=${{ secrets.DEFAULT_TMDB_API_KEY }}
-            DEFAULT_SC_API_KEY=${{ secrets.DEFAULT_SC_API_KEY }}
-            ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}
+            TMDB_ACCESS_TOKEN=${{ secrets.TMDB_ACCESS_TOKEN }}
+            TMDB_API_KEY=${{ secrets.TMDB_API_KEY }}
+            SC_API_KEY=${{ secrets.SC_API_KEY }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

@@ -119,7 +119,7 @@ while true; do
         echo "使用GUID=$GUID 启动主程序"
         if id "$GUID" >/dev/null 2>&1; then
             echo "切换到用户 $GUID 并启动主程序"
-            su - "$GUID" -c "/app/QMediaSync --guid $GUID &"
+            su-exec "$GUID" /app/QMediaSync --guid "$GUID" &
         else
             echo "用户 $GUID 不存在，直接启动主程序"
             /app/QMediaSync &

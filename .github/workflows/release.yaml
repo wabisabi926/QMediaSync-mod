@@ -118,10 +118,9 @@ jobs:
           TAG: ${{ needs.metadata.outputs.tag }}
           BUILD_DATE: ${{ needs.metadata.outputs.build_date }}
           FANART_API_KEY: ${{ secrets.FANART_API_KEY }}
-          DEFAULT_TMDB_ACCESS_TOKEN: ${{ secrets.DEFAULT_TMDB_ACCESS_TOKEN }}
-          DEFAULT_TMDB_API_KEY: ${{ secrets.DEFAULT_TMDB_API_KEY }}
-          DEFAULT_SC_API_KEY: ${{ secrets.DEFAULT_SC_API_KEY }}
-          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          TMDB_ACCESS_TOKEN: ${{ secrets.TMDB_ACCESS_TOKEN }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          SC_API_KEY: ${{ secrets.SC_API_KEY }}
         run: |
           mkdir -p dist release-assets linux-binaries
 
@@ -130,7 +129,7 @@ jobs:
             extra_ldflags="-H=windowsgui "
           fi
 
-          ldflags="${extra_ldflags}-s -w -X main.Version=${TAG} -X 'main.PublishDate=${BUILD_DATE}' -X main.FANART_API_KEY=${FANART_API_KEY} -X main.DEFAULT_TMDB_ACCESS_TOKEN=${DEFAULT_TMDB_ACCESS_TOKEN} -X main.DEFAULT_TMDB_API_KEY=${DEFAULT_TMDB_API_KEY} -X main.DEFAULT_SC_API_KEY=${DEFAULT_SC_API_KEY} -X main.ENCRYPTION_KEY=${ENCRYPTION_KEY}"
+          ldflags="${extra_ldflags}-s -w -X main.Version=${TAG} -X 'main.PublishDate=${BUILD_DATE}' -X main.FANART_API_KEY=${FANART_API_KEY} -X main.TMDB_ACCESS_TOKEN=${TMDB_ACCESS_TOKEN} -X main.TMDB_API_KEY=${TMDB_API_KEY} -X main.SC_API_KEY=${SC_API_KEY}"
           output="dist/QMediaSync_${GOOS}_${GOARCH}"
           if [ "$GOOS" = "windows" ]; then
             output="${output}.exe"

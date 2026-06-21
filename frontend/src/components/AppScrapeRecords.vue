@@ -1315,6 +1315,15 @@ const handleTruncateAll = async () => {
   }
 }
 
+const isMessageBoxCancelError = (error: unknown): boolean => {
+  if (error === 'cancel' || error === 'close') {
+    return true
+  }
+
+  const errorMessage = error instanceof Error ? error.message : String(error)
+  return errorMessage.includes('用户取消操作')
+}
+
 const markAsFinished = async (record: ScrapeRecord) => {
   const operationContext = startRecordActionContext(record)
 
@@ -1353,8 +1362,7 @@ const markAsFinished = async (record: ScrapeRecord) => {
       return
     }
     // 如果用户取消操作，不显示错误消息
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    if (!errorMessage.includes('用户取消操作')) {
+    if (!isMessageBoxCancelError(error)) {
       console.error('标记为已整理失败:', error)
       ElMessage.error('标记为已整理失败: 网络错误')
     }

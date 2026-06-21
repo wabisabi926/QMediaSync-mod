@@ -93,6 +93,7 @@ frontend/.trae/
 frontend/dist/
 frontend/dist-ssr/
 frontend/coverage/
+frontend/test/
 frontend/*.tsbuildinfo
 frontend/cypress/videos/
 frontend/cypress/screenshots/

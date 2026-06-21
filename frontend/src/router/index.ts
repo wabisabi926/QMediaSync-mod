@@ -21,7 +21,8 @@ import AppNotificationChannels from '@/components/AppNotificationChannels.vue'
 import AppApiKeys from '@/components/AppApiKeys.vue'
 import AppFileManager from '@/components/AppFileManager.vue'
 import AppUpdate from '@/components/AppUpdate.vue'
-import { createRouter, createWebHashHistory } from 'vue-router'
+import { createRouter } from 'vue-router'
+import { createQMediaSyncHashHistory } from './history'
 import { useAuthStore } from '@/stores/auth'
 
 // 定义路由元信息类型
@@ -443,7 +444,7 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHashHistory(),
+  history: createQMediaSyncHashHistory(),
   routes,
 })
 

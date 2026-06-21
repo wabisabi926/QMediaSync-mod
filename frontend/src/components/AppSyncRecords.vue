@@ -20,7 +20,7 @@
       </div>
     </div>
 
-    <div class="sync-content">
+    <div class="sync-content" v-loading="queryLoading">
       <!-- 批量删除控制 -->
       <div style="display: flex; align-items: center; margin-bottom: 8px; gap: 12px">
         <el-checkbox v-model="batchMode" size="large">批量删除</el-checkbox>
@@ -296,6 +296,7 @@ const pageContainerRef = ref<HTMLElement | null>(null)
 const getPageScrollContainer = () =>
   pageContainerRef.value?.closest<HTMLElement>('.main-content') ?? pageContainerRef.value
 const syncRecords = ref<SyncRecord[]>([])
+const queryLoading = ref(false)
 
 // 批量删除相关状态
 const batchMode = ref(false)
@@ -394,9 +395,25 @@ const handleExpandChange = (row: SyncRecord, expandedRows: SyncRecord[]) => {
   )
 }
 
+function clearSyncRecordsForQuerySwitch() {
+  queryLoading.value = true
+  syncRecordsRequestGate.invalidate()
+  syncRecords.value = []
+  total.value = 0
+  selectedIds.value = []
+  pageStateStore.setExpandedRowKeys('sync-records', [])
+}
+
+function finishSyncRecordsQuerySwitchLoading() {
+  if (!isRefreshing.value && !pendingSyncRecordsRefresh.value) {
+    queryLoading.value = false
+  }
+}
+
 // 加载同步记录
 const loadSyncRecords = async () => {
   if (!isPageActive) {
+    finishSyncRecordsQuerySwitchLoading()
     return
   }
 
@@ -456,6 +473,7 @@ const loadSyncRecords = async () => {
       pendingSyncRecordsRefresh.value = false
       await loadSyncRecords()
     }
+    finishSyncRecordsQuerySwitchLoading()
   }
 }
 
@@ -507,12 +525,14 @@ const viewTaskDetail = (taskId: number) => {
 // 分页大小改变
 const handleSizeChange = (newSize: number) => {
   pageStateStore.setPagination('sync-records', 1, newSize)
+  clearSyncRecordsForQuerySwitch()
   loadSyncRecords()
 }
 
 // 当前页改变
 const handleCurrentChange = (newPage: number) => {
   pageStateStore.setPagination('sync-records', newPage, pageState.pageSize)
+  clearSyncRecordsForQuerySwitch()
   loadSyncRecords()
 }
 
@@ -530,6 +550,7 @@ const deactivateSyncRecordsPage = () => {
   }
   isPageActive = false
   pendingSyncRecordsRefresh.value = false
+  queryLoading.value = false
   syncRecordsRequestGate.invalidate()
 }
 
@@ -557,6 +578,7 @@ onDeactivated(() => {
 onUnmounted(() => {
   isPageActive = false
   pendingSyncRecordsRefresh.value = false
+  queryLoading.value = false
   syncRecordsRequestGate.invalidate()
   // 旧的定时器清理，已不再需要
   if (refreshTimer.value) {

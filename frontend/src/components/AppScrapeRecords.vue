@@ -89,7 +89,7 @@
     </div>
 
     <div class="table-section">
-      <div class="table-container">
+      <div class="table-container" v-loading="queryLoading">
         <el-table
           v-loading="initialLoading"
           :data="records"
@@ -678,6 +678,7 @@ const records = ref<ScrapeRecord[]>([])
 const originalRecords = ref<ScrapeRecord[]>([])
 const isMerged = ref(false)
 const selectedRecords = ref<ScrapeRecord[]>([])
+const queryLoading = ref(false)
 const statusFilter = computed({
   get: () => String(pageState.filters.status ?? ''),
   set: (value) => pageStateStore.setFilter('scrape-records', 'status', value),
@@ -729,9 +730,32 @@ const handleExpandChange = (row: ScrapeRecord, expandedRows: ScrapeRecord[]) => 
   )
 }
 
+function clearRecordsForQuerySwitch() {
+  queryLoading.value = true
+  scrapeRecordsRequestGate.invalidate()
+  records.value = []
+  originalRecords.value = []
+  total.value = 0
+  selectedRecords.value = []
+  isMerged.value = false
+  pageStateStore.setExpandedRowKeys('scrape-records', [])
+}
+
+function finishRecordsQuerySwitchLoading() {
+  if (!isRefreshing.value && !pendingScrapeRecordsRefresh.value) {
+    queryLoading.value = false
+  }
+}
+
+async function loadRecordsForQuerySwitch() {
+  clearRecordsForQuerySwitch()
+  await loadRecords()
+}
+
 // 加载刮削记录
 const loadRecords = async () => {
   if (!isPageActive) {
+    finishRecordsQuerySwitchLoading()
     return
   }
 
@@ -797,6 +821,7 @@ const loadRecords = async () => {
       pendingScrapeRecordsRefresh.value = false
       await loadRecords()
     }
+    finishRecordsQuerySwitchLoading()
   }
 }
 
@@ -830,7 +855,7 @@ const toggleMergeEpisodes = () => {
 // 应用筛选
 const applyFilter = () => {
   pageStateStore.setPagination('scrape-records', 1, pageState.pageSize)
-  loadRecords() // 重新加载数据
+  loadRecordsForQuerySwitch() // 重新加载数据
   // 重置合并状态
   if (isMerged.value) {
     isMerged.value = false
@@ -870,18 +895,18 @@ const resetFilter = () => {
   typeFilter.value = ''
   nameFilter.value = '' // 重置名称搜索过滤器
   pageStateStore.setPagination('scrape-records', 1, pageState.pageSize)
-  loadRecords() // 重新加载数据
+  loadRecordsForQuerySwitch() // 重新加载数据
 }
 
 // 分页处理
 const handleSizeChange = (size: number) => {
   pageStateStore.setPagination('scrape-records', pageState.currentPage, size)
-  loadRecords() // 重新加载数据
+  loadRecordsForQuerySwitch() // 重新加载数据
 }
 
 const handleCurrentChange = (current: number) => {
   pageStateStore.setPagination('scrape-records', current, pageState.pageSize)
-  loadRecords() // 重新加载数据
+  loadRecordsForQuerySwitch() // 重新加载数据
 }
 
 // 处理选择变化
@@ -1393,6 +1418,7 @@ const deactivateScrapeRecordsPage = () => {
   }
   isPageActive = false
   pendingScrapeRecordsRefresh.value = false
+  queryLoading.value = false
   scrapeRecordsRequestGate.invalidate()
 }
 
@@ -1419,6 +1445,7 @@ onDeactivated(() => {
 onUnmounted(() => {
   isPageActive = false
   pendingScrapeRecordsRefresh.value = false
+  queryLoading.value = false
   scrapeRecordsRequestGate.invalidate()
 })
 </script>

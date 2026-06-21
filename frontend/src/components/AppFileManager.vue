@@ -392,7 +392,15 @@ const createRules = ref<FormRules>({
 const showStrmTargetDialog = ref(false)
 const strmTargetDir = ref<DirInfo | null>(null)
 const strmSourceItem = ref<FileSystemItem | null>(null)
+const strmOperationContext = ref<FileOperationContextSnapshot | null>(null)
 const strmGenerateLoading = ref(false)
+const contextVersion = ref(0)
+
+interface FileOperationContextSnapshot {
+  accountId: number | null
+  parentId: string
+  contextVersion: number
+}
 
 function parseStoredPathItems(): FileSystemItem[] {
   const value = pageState.filters.pathItems
@@ -431,11 +439,44 @@ function setPathItems(items: FileSystemItem[]) {
   pageStateStore.setFilter('file-manager', 'pathItems', JSON.stringify(items))
 }
 
+function getCurrentParentId() {
+  return pathItems.value.length > 0 ? pathItems.value[pathItems.value.length - 1].id : ''
+}
+
+function createFileOperationContextSnapshot(): FileOperationContextSnapshot {
+  return {
+    accountId: selectedAccountId.value,
+    parentId: getCurrentParentId(),
+    contextVersion: contextVersion.value,
+  }
+}
+
+function isFileOperationContextCurrent(
+  snapshot: FileOperationContextSnapshot | null,
+): snapshot is FileOperationContextSnapshot {
+  return (
+    !!snapshot &&
+    snapshot.accountId === selectedAccountId.value &&
+    snapshot.parentId === getCurrentParentId() &&
+    snapshot.contextVersion === contextVersion.value
+  )
+}
+
+function resetStrmTargetDialog() {
+  showStrmTargetDialog.value = false
+  strmSourceItem.value = null
+  strmTargetDir.value = null
+  strmOperationContext.value = null
+  strmGenerateLoading.value = false
+}
+
 function clearFileListForContextSwitch() {
+  contextVersion.value += 1
   fileListRequestGate.invalidate()
   fileList.value = []
   total.value = 0
   pageStateStore.setExpandedRowKeys('file-manager', [])
+  resetStrmTargetDialog()
 }
 
 // 计算属性
@@ -667,8 +708,15 @@ async function handleSingleOperation(operation: FileOperationType, item: FileSys
   }
 
   if (operation === 'STRM_GENERATE') {
+    const operationContext = createFileOperationContextSnapshot()
+    if (!operationContext.accountId) {
+      ElMessage.warning('请先选择网盘账号')
+      return
+    }
+
     strmSourceItem.value = item
     strmTargetDir.value = null
+    strmOperationContext.value = operationContext
     showStrmTargetDialog.value = true
     return
   }
@@ -695,6 +743,8 @@ async function handleSingleOperation(operation: FileOperationType, item: FileSys
 }
 
 async function handleDeleteItem(item: FileSystemItem) {
+  const operationContext = createFileOperationContextSnapshot()
+
   try {
     await ElMessageBox.confirm(
       `确认删除 "${item.name}" 吗？${item.is_directory ? '文件夹内的所有内容也将被删除。' : ''}`,
@@ -706,19 +756,20 @@ async function handleDeleteItem(item: FileSystemItem) {
       },
     )
 
-    if (!selectedAccountId.value) {
+    if (!isFileOperationContextCurrent(operationContext)) {
+      return
+    }
+
+    if (!operationContext.accountId) {
       ElMessage.warning('请先选择网盘账号')
       return
     }
 
-    const currentParentId =
-      pathItems.value.length > 0 ? pathItems.value[pathItems.value.length - 1].id : ''
-
     const response = await http?.delete(`${SERVER_URL}/path`, {
       params: {
-        parent_id: currentParentId,
+        parent_id: operationContext.parentId,
         file_id: item.id,
-        account_id: selectedAccountId.value,
+        account_id: operationContext.accountId,
       },
     })
 
@@ -785,7 +836,13 @@ async function confirmStrmGenerate() {
     return
   }
 
-  if (!selectedAccountId.value) {
+  const operationContext = strmOperationContext.value
+  if (!isFileOperationContextCurrent(operationContext)) {
+    resetStrmTargetDialog()
+    return
+  }
+
+  if (!operationContext.accountId) {
     ElMessage.warning('请先选择网盘账号')
     return
   }
@@ -801,14 +858,12 @@ async function confirmStrmGenerate() {
       // path: itemPath,
       target_path: strmTargetDir.value.path,
       // is_file: !strmSourceItem.value.is_directory,
-      account_id: selectedAccountId.value,
+      account_id: operationContext.accountId,
     })
 
     if (response?.data.code === 200) {
       ElMessage.success('STRM生成任务已提交')
-      showStrmTargetDialog.value = false
-      strmSourceItem.value = null
-      strmTargetDir.value = null
+      resetStrmTargetDialog()
     } else {
       ElMessage.error(response?.data.message || 'STRM生成失败')
     }

@@ -18,7 +18,7 @@
             v-model="loginForm.username"
             size="large"
             placeholder="请输入用户名"
-            prefix-icon="User"
+            :prefix-icon="User"
             :disabled="loading"
           />
         </el-form-item>
@@ -29,7 +29,7 @@
             type="password"
             size="large"
             placeholder="请输入密码"
-            prefix-icon="Lock"
+            :prefix-icon="Lock"
             show-password
             :disabled="loading"
             @keyup.enter="handleLogin"
@@ -60,6 +60,7 @@
 import { reactive, ref, inject, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { User, Lock } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import type { AxiosStatic } from 'axios'
 import { SERVER_URL } from '@/const'

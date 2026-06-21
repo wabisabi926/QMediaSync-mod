@@ -43,14 +43,14 @@
             <el-sub-menu v-if="menu.children && menu.children.length > 0" :index="menu.path">
               <template #title>
                 <el-icon>
-                  <component :is="Icons[menu.meta.icon as keyof typeof Icons]" />
+                  <component :is="getMenuIcon(menu.meta.icon)" />
                 </el-icon>
                 <span>{{ menu.meta.title }}</span>
               </template>
               <!-- 遍历子菜单 -->
               <el-menu-item v-for="child in menu.children" :key="child.path" :index="child.path">
                 <el-icon>
-                  <component :is="Icons[child.meta.icon as keyof typeof Icons]" />
+                  <component :is="getMenuIcon(child.meta.icon)" />
                 </el-icon>
                 <span>{{ child.meta.title }}</span>
               </el-menu-item>
@@ -58,7 +58,7 @@
             <!-- 如果是普通菜单 -->
             <el-menu-item v-else :index="menu.path">
               <el-icon>
-                <component :is="Icons[menu.meta.icon as keyof typeof Icons]" />
+                <component :is="getMenuIcon(menu.meta.icon)" />
               </el-icon>
               <span>{{ menu.meta.title }}</span>
             </el-menu-item>
@@ -100,7 +100,11 @@
             </template>
           </el-dropdown>
         </div>
-        <router-view />
+        <router-view v-slot="{ Component, route }">
+          <keep-alive :include="cachedComponentNames">
+            <component :is="Component" :key="getRouteViewKey(route.name, route.fullPath)" />
+          </keep-alive>
+        </router-view>
       </el-main>
     </el-container>
   </div>
@@ -168,7 +172,31 @@
 </template>
 
 <script setup lang="ts">
-import { User, Menu, Loading, QuestionFilled } from '@element-plus/icons-vue'
+import {
+  DataAnalysis,
+  DataLine,
+  DocumentCopy,
+  Download,
+  Film,
+  Folder,
+  FolderOpened,
+  House,
+  Key,
+  Link,
+  List,
+  Loading,
+  Menu,
+  Operation,
+  Promotion,
+  QuestionFilled,
+  RefreshLeft,
+  Setting,
+  Upload,
+  User,
+  UserFilled,
+  VideoPlay,
+  View,
+} from '@element-plus/icons-vue'
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
@@ -184,8 +212,56 @@ const backupStore = useBackupStore()
 const isMobile = ref(false)
 const isMenuOpen = ref(false)
 
-// 导入所有图标
-import * as Icons from '@element-plus/icons-vue'
+// KeepAlive include 匹配组件名，不匹配路由名
+const cachedComponentNames = [
+  'AppUploadQueue',
+  'AppDownloadQueue',
+  'AppSyncRecords',
+  'AppScrapeRecords',
+  'AppFileManager',
+]
+
+const cachedRouteNames = new Set([
+  'upload-queue',
+  'download-queue',
+  'sync-records',
+  'scrape-records',
+  'file-manager',
+])
+
+const getRouteViewKey = (routeName: unknown, fullPath: string) => {
+  if (typeof routeName === 'string' && cachedRouteNames.has(routeName)) {
+    return routeName
+  }
+  return fullPath
+}
+
+const menuIconMap = {
+  DataAnalysis,
+  DataLine,
+  DocumentCopy,
+  Download,
+  Film,
+  Folder,
+  FolderOpened,
+  House,
+  Key,
+  Link,
+  List,
+  Operation,
+  Promotion,
+  RefreshLeft,
+  Setting,
+  Upload,
+  User,
+  UserFilled,
+  VideoPlay,
+  View,
+} as const
+
+const getMenuIcon = (icon?: string) => {
+  return menuIconMap[icon as keyof typeof menuIconMap] || Setting
+}
 
 // 定义菜单项类型
 interface MenuItem {
@@ -343,7 +419,7 @@ const getDefaultOpeneds = () => {
     openeds.push('/scrape')
   }
   if (route.path.includes('upload-queue') || route.path.includes('download-queue')) {
-    openeds.push('/upload-queue')
+    openeds.push('/transfer')
   }
   if (route.path.startsWith('/database/backup')) {
     openeds.push('database')

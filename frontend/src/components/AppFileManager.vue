@@ -287,11 +287,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, inject } from 'vue'
+import { ref, computed, onMounted, onActivated, onDeactivated, onUnmounted, watch, inject } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, Files, FolderAdd } from '@element-plus/icons-vue'
 import type { FileSystemItem, FileOperationType, DirInfo } from '@/typing'
 import type { FormInstance, FormRules } from 'element-plus'
+import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
 import { getFileType, getFileIconByName } from '@/utils/fileIconUtils'
 import { formatFileSize } from '@/utils/fileSizeUtils'
 import { formatDateTime } from '@/utils/timeUtils'
@@ -326,6 +327,9 @@ const pathItems = ref<FileSystemItem[]>([])
 const http: AxiosStatic | undefined = inject('$http')
 const accountList = ref<NetdiskAccount[]>([])
 const selectedAccountId = ref<number | null>(null)
+let isPageActive = false
+const accountListRequestGate = createActiveRequestGate(() => isPageActive)
+const fileListRequestGate = createActiveRequestGate(() => isPageActive)
 
 const showCreateDialog = ref(false)
 const createLoading = ref(false)
@@ -357,6 +361,12 @@ const strmStorePath = computed(() => {
 
 // 加载网盘账号列表
 async function loadAccountList() {
+  const requestId = accountListRequestGate.next()
+
+  if (!accountListRequestGate.isCurrent(requestId)) {
+    return
+  }
+
   if (!http) {
     console.warn('HTTP客户端未注入，无法加载账号列表')
     return
@@ -364,6 +374,10 @@ async function loadAccountList() {
 
   try {
     const response = await http.get(`${SERVER_URL}/account/list`)
+
+    if (!accountListRequestGate.isCurrent(requestId)) {
+      return
+    }
 
     if (response?.data.code === 200) {
       const data = response.data.data
@@ -386,6 +400,9 @@ async function loadAccountList() {
       accountList.value = []
     }
   } catch (error) {
+    if (!accountListRequestGate.isCurrent(requestId)) {
+      return
+    }
     console.error('加载账号列表失败:', error)
     accountList.value = []
   }
@@ -422,6 +439,12 @@ function getAccountTypeName(sourceType: string): string {
 
 // 加载文件列表
 async function loadFileList() {
+  const requestId = fileListRequestGate.next()
+
+  if (!fileListRequestGate.isCurrent(requestId)) {
+    return
+  }
+
   if (!selectedAccountId.value) {
     fileList.value = []
     total.value = 0
@@ -433,6 +456,7 @@ async function loadFileList() {
     return
   }
 
+  const accountId = selectedAccountId.value
   loading.value = true
   try {
     const currentItemId =
@@ -440,13 +464,17 @@ async function loadFileList() {
 
     const response = await http.get(`${SERVER_URL}/path/files`, {
       params: {
-        account_id: selectedAccountId.value,
+        account_id: accountId,
         path: currentItemId,
         page: currentPage.value,
         page_size: pageSize.value,
       },
       timeout: 60000,
     })
+
+    if (!fileListRequestGate.isCurrent(requestId)) {
+      return
+    }
 
     if (response?.data.code === 200) {
       const items = response.data.data || []
@@ -467,9 +495,14 @@ async function loadFileList() {
       total.value = 0
     }
   } catch {
+    if (!fileListRequestGate.isCurrent(requestId)) {
+      return
+    }
     ElMessage.error('加载文件列表失败')
   } finally {
-    loading.value = false
+    if (fileListRequestGate.isCurrent(requestId)) {
+      loading.value = false
+    }
   }
 }
 
@@ -671,9 +704,37 @@ watch(
   { immediate: false },
 )
 
-// 组件挂载时加载数据
-onMounted(async () => {
+async function activateFileManagerPage() {
+  if (isPageActive) {
+    return
+  }
+  isPageActive = true
   await loadAccountList()
+  if (selectedAccountId.value) {
+    await loadFileList()
+  }
+}
+
+function deactivateFileManagerPage() {
+  if (!isPageActive) {
+    return
+  }
+  isPageActive = false
+  accountListRequestGate.invalidate()
+  fileListRequestGate.invalidate()
+}
+
+// 页面生命周期
+onMounted(activateFileManagerPage)
+
+onActivated(activateFileManagerPage)
+
+onDeactivated(deactivateFileManagerPage)
+
+onUnmounted(() => {
+  isPageActive = false
+  accountListRequestGate.invalidate()
+  fileListRequestGate.invalidate()
 })
 </script>
 

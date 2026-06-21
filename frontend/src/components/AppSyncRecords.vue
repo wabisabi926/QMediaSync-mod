@@ -229,8 +229,9 @@
 
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
+import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
 import type { AxiosStatic } from 'axios'
-import { inject, onMounted, onUnmounted, ref, computed, watch } from 'vue'
+import { inject, onActivated, onDeactivated, onMounted, onUnmounted, ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { formatDateTime } from '@/utils/timeUtils'
@@ -288,6 +289,8 @@ const total = ref(0)
 // 定时器相关 - 已停用，使用WebSocket替代
 const refreshTimer = ref<number | null>(null)
 const shouldAutoRefresh = ref(false)
+let isPageActive = false
+const syncRecordsRequestGate = createActiveRequestGate(() => isPageActive)
 
 // 计算是否有正在运行的同步任务
 const hasRunningSyncTask = computed(() => {
@@ -355,6 +358,8 @@ const getSubStatusText = (subStatus: number) => {
 
 // 加载同步记录
 const loadSyncRecords = async () => {
+  const requestId = syncRecordsRequestGate.next()
+
   try {
     tableLoading.value = true
     const response = await http?.get(`${SERVER_URL}/sync/records`, {
@@ -363,6 +368,10 @@ const loadSyncRecords = async () => {
         page_size: pageSize.value,
       },
     })
+
+    if (!syncRecordsRequestGate.isCurrent(requestId)) {
+      return
+    }
 
     if (response?.data.code === 200) {
       syncRecords.value = (response.data.data.records || []).map((item: ApiSyncRecord) => ({
@@ -382,9 +391,14 @@ const loadSyncRecords = async () => {
       total.value = response.data.data.total || 0
     }
   } catch (error) {
+    if (!syncRecordsRequestGate.isCurrent(requestId)) {
+      return
+    }
     console.error('加载同步记录错误:', error)
   } finally {
-    tableLoading.value = false
+    if (syncRecordsRequestGate.isCurrent(requestId)) {
+      tableLoading.value = false
+    }
   }
 }
 
@@ -446,13 +460,33 @@ const handleCurrentChange = (newPage: number) => {
   loadSyncRecords()
 }
 
-// 页面挂载时加载数据
-onMounted(() => {
+const activateSyncRecordsPage = () => {
+  if (isPageActive) {
+    return
+  }
+  isPageActive = true
   loadSyncRecords()
-})
+}
+
+const deactivateSyncRecordsPage = () => {
+  if (!isPageActive) {
+    return
+  }
+  isPageActive = false
+  syncRecordsRequestGate.invalidate()
+}
+
+// 页面生命周期
+onMounted(activateSyncRecordsPage)
+
+onActivated(activateSyncRecordsPage)
+
+onDeactivated(deactivateSyncRecordsPage)
 
 // 页面卸载时清理定时器（已停用）
 onUnmounted(() => {
+  isPageActive = false
+  syncRecordsRequestGate.invalidate()
   // 旧的定时器清理，已不再需要
   if (refreshTimer.value) {
     clearInterval(refreshTimer.value)

@@ -580,13 +580,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { inject, onActivated, onDeactivated, onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Film, Picture, Search } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
-import { inject } from 'vue'
 import { formatTimestamp } from '@/utils/timeUtils'
+import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
 import { useWSEvent } from '@/composables/useWebSocket'
 import 'element-plus/theme-chalk/display.css'
 
@@ -657,6 +657,8 @@ const nameFilter = ref('')
 const showDetailDialog = ref(false)
 const selectedRecord = ref<ScrapeRecord | null>(null)
 const showRollbackDialog = ref(false)
+let isPageActive = false
+const scrapeRecordsRequestGate = createActiveRequestGate(() => isPageActive)
 
 // 分页相关
 const pagination = ref({
@@ -667,6 +669,8 @@ const total = ref(0)
 
 // 加载刮削记录
 const loadRecords = async () => {
+  const requestId = scrapeRecordsRequestGate.next()
+
   try {
     loading.value = true
     // 构建查询参数
@@ -692,6 +696,10 @@ const loadRecords = async () => {
 
     const response = await http?.get(`${SERVER_URL}/scrape/records`, { params })
 
+    if (!scrapeRecordsRequestGate.isCurrent(requestId)) {
+      return
+    }
+
     if (response?.data.code === 200) {
       // 性能优化：使用展开运算符替代 JSON 深拷贝，减少性能开销
       records.value = response.data.data.list
@@ -701,10 +709,15 @@ const loadRecords = async () => {
       ElMessage.error(`加载刮削记录失败: ${response?.data.message || '未知错误'}`)
     }
   } catch (error) {
+    if (!scrapeRecordsRequestGate.isCurrent(requestId)) {
+      return
+    }
     console.error('加载刮削记录失败:', error)
     ElMessage.error('加载刮削记录失败: 网络错误')
   } finally {
-    loading.value = false
+    if (scrapeRecordsRequestGate.isCurrent(requestId)) {
+      loading.value = false
+    }
   }
 }
 
@@ -1287,12 +1300,33 @@ useWSEvent('scraper_task_complete', () => {
   loadRecords()
 })
 
-// 组件挂载时加载数据
-onMounted(() => {
+const activateScrapeRecordsPage = () => {
+  if (isPageActive) {
+    return
+  }
+  isPageActive = true
   loadRecords()
-})
+}
 
-onUnmounted(() => {})
+const deactivateScrapeRecordsPage = () => {
+  if (!isPageActive) {
+    return
+  }
+  isPageActive = false
+  scrapeRecordsRequestGate.invalidate()
+}
+
+// 页面生命周期
+onMounted(activateScrapeRecordsPage)
+
+onActivated(activateScrapeRecordsPage)
+
+onDeactivated(deactivateScrapeRecordsPage)
+
+onUnmounted(() => {
+  isPageActive = false
+  scrapeRecordsRequestGate.invalidate()
+})
 </script>
 
 <style scoped>

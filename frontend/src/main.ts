@@ -4,10 +4,10 @@ import axios from 'axios'
 
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import ElementPlus from 'element-plus'
-import 'element-plus/dist/index.css'
 import { ElMessage } from 'element-plus'
-import * as ElementPlusIconsVue from '@element-plus/icons-vue'
+import 'element-plus/theme-chalk/display.css'
+import 'element-plus/es/components/message/style/css'
+import 'element-plus/es/components/message-box/style/css'
 import App from './App.vue'
 
 import router from './router/index'
@@ -74,12 +74,6 @@ const app = createApp(App)
 app.use(pinia)
 app.use(router)
 app.provide('$http', axios)
-
-for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
-  app.component(key, component)
-}
-
-app.use(ElementPlus)
 
 // 初始化认证状态
 const authStore = useAuthStore()

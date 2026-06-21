@@ -1,29 +1,30 @@
-import AppHome from '@/components/AppHome.vue'
-import AppLogin from '@/components/AppLogin.vue'
-import AppUserSettings from '@/components/AppUserSettings.vue'
-import AppStrmSettings from '@/components/AppStrmSettings.vue'
-import AppEmbySettings from '@/components/AppEmbySettings.vue'
-import AppSyncRecords from '@/components/AppSyncRecords.vue'
-import AppSyncTaskDetail from '@/components/AppSyncTaskDetail.vue'
-import AppSyncDirectories from '@/components/AppSyncDirectories.vue'
-import AppSyncDirectoryForm from '@/components/AppSyncDirectoryForm.vue'
-import AppCloudAccounts from '@/components/AppCloudAccounts.vue'
-import AppThreadSettings from '@/components/AppThreadSettings.vue'
-import AppTmdbSettings from '@/components/AppTmdbSettings.vue'
-import AppAiSettings from '@/components/AppAiSettings.vue'
-import AppCategoryStrategy from '@/components/AppCategoryStrategy.vue'
-import AppScrapePathes from '@/components/AppScrapePathes.vue'
-import AppScrapePathForm from '@/components/AppScrapePathForm.vue'
-import AppScrapeRecords from '@/components/AppScrapeRecords.vue'
-import AppUploadQueue from '@/components/AppUploadQueue.vue'
-import AppDownloadQueue from '@/components/AppDownloadQueue.vue'
-import AppNotificationChannels from '@/components/AppNotificationChannels.vue'
-import AppApiKeys from '@/components/AppApiKeys.vue'
-import AppFileManager from '@/components/AppFileManager.vue'
-import AppUpdate from '@/components/AppUpdate.vue'
 import { createRouter } from 'vue-router'
 import { createQMediaSyncHashHistory } from './history'
 import { useAuthStore } from '@/stores/auth'
+
+const AppHome = () => import('@/components/AppHome.vue')
+const AppLogin = () => import('@/components/AppLogin.vue')
+const AppUserSettings = () => import('@/components/AppUserSettings.vue')
+const AppStrmSettings = () => import('@/components/AppStrmSettings.vue')
+const AppEmbySettings = () => import('@/components/AppEmbySettings.vue')
+const AppSyncRecords = () => import('@/components/AppSyncRecords.vue')
+const AppSyncTaskDetail = () => import('@/components/AppSyncTaskDetail.vue')
+const AppSyncDirectories = () => import('@/components/AppSyncDirectories.vue')
+const AppSyncDirectoryForm = () => import('@/components/AppSyncDirectoryForm.vue')
+const AppCloudAccounts = () => import('@/components/AppCloudAccounts.vue')
+const AppThreadSettings = () => import('@/components/AppThreadSettings.vue')
+const AppTmdbSettings = () => import('@/components/AppTmdbSettings.vue')
+const AppAiSettings = () => import('@/components/AppAiSettings.vue')
+const AppCategoryStrategy = () => import('@/components/AppCategoryStrategy.vue')
+const AppScrapePathes = () => import('@/components/AppScrapePathes.vue')
+const AppScrapePathForm = () => import('@/components/AppScrapePathForm.vue')
+const AppScrapeRecords = () => import('@/components/AppScrapeRecords.vue')
+const AppUploadQueue = () => import('@/components/AppUploadQueue.vue')
+const AppDownloadQueue = () => import('@/components/AppDownloadQueue.vue')
+const AppNotificationChannels = () => import('@/components/AppNotificationChannels.vue')
+const AppApiKeys = () => import('@/components/AppApiKeys.vue')
+const AppFileManager = () => import('@/components/AppFileManager.vue')
+const AppUpdate = () => import('@/components/AppUpdate.vue')
 
 // 定义路由元信息类型
 declare module 'vue-router' {
@@ -243,9 +244,9 @@ const routes = [
   },
 
   {
-    path: '/upload-queue',
-    name: 'upload-queue',
-    component: AppUploadQueue,
+    path: '/transfer',
+    name: 'transfer',
+    redirect: '/upload-queue',
     meta: {
       title: '上传下载',
       requiresAuth: true,
@@ -260,7 +261,7 @@ const routes = [
     meta: {
       title: '上传队列',
       requiresAuth: true,
-      parent: 'upload-queue',
+      parent: 'transfer',
       icon: 'Upload',
       showInMenu: true,
     },
@@ -272,7 +273,7 @@ const routes = [
     meta: {
       title: '下载队列',
       requiresAuth: true,
-      parent: 'upload-queue',
+      parent: 'transfer',
       icon: 'Download',
       showInMenu: true,
     },

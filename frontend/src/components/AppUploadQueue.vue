@@ -164,9 +164,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onActivated, onDeactivated, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { WarningFilled } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
+import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
 import type { AxiosStatic } from 'axios'
 import { inject } from 'vue'
 import { formatFileSize } from '@/utils/fileSizeUtils'
@@ -203,6 +205,9 @@ const queueStatus = ref<0 | 1>(1) // 0-停止，1-运行中
 
 // 定时器
 const refreshTimer = ref<number | null>(null)
+let isPageActive = false
+const queueDataRequestGate = createActiveRequestGate(() => isPageActive)
+const queueStatusRequestGate = createActiveRequestGate(() => isPageActive)
 
 // 获取状态文本
 const getStatusText = (status: number): string => {
@@ -289,6 +294,8 @@ const getSourceTypeTagType = (type: string): string => {
 
 // 加载队列数据
 const loadQueueData = async () => {
+  const requestId = queueDataRequestGate.next()
+
   try {
     loading.value = true
     const response = await http?.get(`${SERVER_URL}/upload/queue`, {
@@ -299,6 +306,10 @@ const loadQueueData = async () => {
       },
     })
 
+    if (!queueDataRequestGate.isCurrent(requestId)) {
+      return
+    }
+
     if (response?.data.code === 200) {
       queueData.value = response.data.data.list
       total.value = response.data.data.total
@@ -307,10 +318,15 @@ const loadQueueData = async () => {
       ElMessage.error('获取上传队列数据失败')
     }
   } catch (error) {
+    if (!queueDataRequestGate.isCurrent(requestId)) {
+      return
+    }
     console.error('加载上传队列数据错误:', error)
     ElMessage.error('加载上传队列数据失败')
   } finally {
-    loading.value = false
+    if (queueDataRequestGate.isCurrent(requestId)) {
+      loading.value = false
+    }
   }
 }
 
@@ -426,8 +442,14 @@ const resumeAllTasks = async () => {
 
 // 获取队列状态
 const loadQueueStatus = async () => {
+  const requestId = queueStatusRequestGate.next()
+
   try {
     const response = await http?.get(`${SERVER_URL}/upload/queue/status`)
+
+    if (!queueStatusRequestGate.isCurrent(requestId)) {
+      return
+    }
 
     if (response?.data.code === 200) {
       // 0-停止，1-运行中
@@ -436,6 +458,9 @@ const loadQueueStatus = async () => {
       console.error('获取队列状态失败:', response?.data.message)
     }
   } catch (error) {
+    if (!queueStatusRequestGate.isCurrent(requestId)) {
+      return
+    }
     console.error('获取队列状态错误:', error)
   }
 }
@@ -476,6 +501,26 @@ const stopAutoRefresh = () => {
   }
 }
 
+const activateQueuePage = () => {
+  if (isPageActive) {
+    return
+  }
+  isPageActive = true
+  loadQueueStatus()
+  loadQueueData()
+  startAutoRefresh()
+}
+
+const deactivateQueuePage = () => {
+  if (!isPageActive) {
+    return
+  }
+  isPageActive = false
+  queueDataRequestGate.invalidate()
+  queueStatusRequestGate.invalidate()
+  stopAutoRefresh()
+}
+
 // 处理状态筛选变更
 const handleStatusChange = (val: number) => {
   statusFilter.value = val
@@ -484,13 +529,16 @@ const handleStatusChange = (val: number) => {
 }
 
 // 页面生命周期
-onMounted(() => {
-  loadQueueStatus()
-  loadQueueData()
-  startAutoRefresh()
-})
+onMounted(activateQueuePage)
+
+onActivated(activateQueuePage)
+
+onDeactivated(deactivateQueuePage)
 
 onUnmounted(() => {
+  isPageActive = false
+  queueDataRequestGate.invalidate()
+  queueStatusRequestGate.invalidate()
   stopAutoRefresh()
 })
 </script>

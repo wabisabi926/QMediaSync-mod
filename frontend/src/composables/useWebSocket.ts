@@ -1,4 +1,4 @@
-import { ref, onBeforeUnmount } from 'vue'
+import { ref, onActivated, onBeforeUnmount, onDeactivated } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 
 // WebSocket 事件类型
@@ -144,11 +144,34 @@ export function off(eventType: WSEventType, callback: EventCallback) {
  * @param callback 回调函数
  */
 export function useWSEvent(eventType: WSEventType, callback: EventCallback) {
-  const unsubscribe = on(eventType, callback)
+  let unsubscribe: (() => void) | null = null
+  let stopped = false
 
-  onBeforeUnmount(() => {
+  const subscribe = () => {
+    if (stopped || unsubscribe) {
+      return
+    }
+    unsubscribe = on(eventType, callback)
+  }
+
+  const unsubscribeCurrent = () => {
+    if (!unsubscribe) {
+      return
+    }
     unsubscribe()
-  })
+    unsubscribe = null
+  }
 
-  return { unsubscribe }
+  const stop = () => {
+    stopped = true
+    unsubscribeCurrent()
+  }
+
+  subscribe()
+
+  onActivated(subscribe)
+  onDeactivated(unsubscribeCurrent)
+  onBeforeUnmount(stop)
+
+  return { unsubscribe: stop }
 }

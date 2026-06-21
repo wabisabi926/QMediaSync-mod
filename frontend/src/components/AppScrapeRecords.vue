@@ -573,8 +573,8 @@
       </p>
       <template #footer>
         <div class="dialog-footer">
-          <el-button @click="showRollbackDialog = false">取消</el-button>
-          <el-button type="primary" @click="showReScrapeDialog = true"> 确认 </el-button>
+          <el-button @click="invalidateRecordActionContext">取消</el-button>
+          <el-button type="primary" @click="openRollbackReScrapeDialog"> 确认 </el-button>
         </div>
       </template>
     </el-dialog>
@@ -659,6 +659,23 @@ interface TmdbSearchResult {
   selecting?: boolean
 }
 
+interface ReScrapeFormState {
+  type: ScrapeRecord['type'] | ''
+  id: number
+  name: string
+  year: string
+  tmdb_id: string
+  originalFileName: string
+  season: number
+  episode: number
+  status: ScrapeRecord['status'] | ''
+}
+
+interface RecordActionContextSnapshot {
+  recordId: number
+  contextVersion: number
+}
+
 // 状态变量
 const pageStateStore = usePageStateStore()
 const pageState = pageStateStore.getPageState('scrape-records', {
@@ -694,6 +711,8 @@ const nameFilter = computed({
 const showDetailDialog = ref(false)
 const selectedRecord = ref<ScrapeRecord | null>(null)
 const showRollbackDialog = ref(false)
+const recordActionContextVersion = ref(0)
+const activeRecordActionContext = ref<RecordActionContextSnapshot | null>(null)
 const pendingScrapeRecordsRefresh = ref(false)
 let isPageActive = false
 const scrapeRecordsRequestGate = createActiveRequestGate(() => isPageActive)
@@ -723,6 +742,70 @@ const pagination = {
 }
 const total = ref(0)
 
+function createDefaultReScrapeForm(): ReScrapeFormState {
+  return {
+    type: '',
+    id: 0,
+    name: '',
+    year: '',
+    tmdb_id: '',
+    originalFileName: '',
+    season: -1,
+    episode: -1,
+    status: '',
+  }
+}
+
+function createRecordActionContextSnapshot(record: ScrapeRecord): RecordActionContextSnapshot {
+  return {
+    recordId: record.id,
+    contextVersion: recordActionContextVersion.value,
+  }
+}
+
+function startRecordActionContext(record: ScrapeRecord): RecordActionContextSnapshot {
+  invalidateRecordActionContext()
+  const snapshot = createRecordActionContextSnapshot(record)
+  activeRecordActionContext.value = snapshot
+  return snapshot
+}
+
+function isRecordActionContextCurrent(
+  snapshot: RecordActionContextSnapshot | null,
+  recordId?: number,
+): snapshot is RecordActionContextSnapshot {
+  const activeSnapshot = activeRecordActionContext.value
+
+  return (
+    isPageActive &&
+    !!snapshot &&
+    !!activeSnapshot &&
+    activeSnapshot.recordId === snapshot.recordId &&
+    activeSnapshot.contextVersion === snapshot.contextVersion &&
+    snapshot.contextVersion === recordActionContextVersion.value &&
+    (recordId === undefined || snapshot.recordId === recordId) &&
+    records.value.some((record) => record.id === snapshot.recordId)
+  )
+}
+
+function resetRecordActionState() {
+  showDetailDialog.value = false
+  selectedRecord.value = null
+  showReScrapeDialog.value = false
+  showRollbackDialog.value = false
+  activeRecordActionContext.value = null
+  reScrapeForm.value = createDefaultReScrapeForm()
+  searchResults.value = []
+  searchLoading.value = false
+  hasSearched.value = false
+  searchMode.value = 'name'
+}
+
+function invalidateRecordActionContext() {
+  recordActionContextVersion.value += 1
+  resetRecordActionState()
+}
+
 const handleExpandChange = (row: ScrapeRecord, expandedRows: ScrapeRecord[]) => {
   pageStateStore.setExpandedRowKeys(
     'scrape-records',
@@ -733,6 +816,7 @@ const handleExpandChange = (row: ScrapeRecord, expandedRows: ScrapeRecord[]) => 
 function clearRecordsForQuerySwitch() {
   queryLoading.value = true
   scrapeRecordsRequestGate.invalidate()
+  invalidateRecordActionContext()
   records.value = []
   originalRecords.value = []
   total.value = 0
@@ -1005,23 +1089,14 @@ const handleRename = async () => {
 
 // 查看详情
 const handleDetail = (record: ScrapeRecord) => {
+  startRecordActionContext(record)
   selectedRecord.value = record
   showDetailDialog.value = true
 }
 
 // 重识别相关变量
 const showReScrapeDialog = ref(false)
-const reScrapeForm = ref({
-  type: '',
-  id: 0,
-  name: '',
-  year: '',
-  tmdb_id: '',
-  originalFileName: '',
-  season: -1,
-  episode: -1,
-  status: '',
-})
+const reScrapeForm = ref<ReScrapeFormState>(createDefaultReScrapeForm())
 const searchResults = ref<TmdbSearchResult[]>([])
 const searchLoading = ref(false)
 const hasSearched = ref(false)
@@ -1039,13 +1114,16 @@ const handleSearchModeChange = () => {
 }
 
 const closeReScrapeDialog = () => {
-  showReScrapeDialog.value = false
-  searchResults.value = []
-  hasSearched.value = false
-  searchMode.value = 'name'
+  invalidateRecordActionContext()
 }
 
 const searchTmdb = async () => {
+  const operationContext = activeRecordActionContext.value
+  const recordId = reScrapeForm.value.id
+  if (!isRecordActionContextCurrent(operationContext, recordId)) {
+    return
+  }
+
   if (searchMode.value === 'name') {
     if (!reScrapeForm.value.name) {
       ElMessage.warning('请输入影视剧名称')
@@ -1078,6 +1156,10 @@ const searchTmdb = async () => {
 
     const response = await http?.get(`${SERVER_URL}/scrape/tmdb-search`, { params, timeout: 30000 })
 
+    if (!isRecordActionContextCurrent(operationContext, recordId)) {
+      return
+    }
+
     if (response?.data.code === 200) {
       searchResults.value = (response.data.data || []).map((item: TmdbSearchResult) => ({
         ...item,
@@ -1088,36 +1170,56 @@ const searchTmdb = async () => {
       ElMessage.error(response?.data.message || '搜索失败')
     }
   } catch (error) {
+    if (!isRecordActionContextCurrent(operationContext, recordId)) {
+      return
+    }
     console.error('TMDB搜索失败:', error)
     ElMessage.error('搜索失败: 网络错误')
   } finally {
-    searchLoading.value = false
+    if (isRecordActionContextCurrent(operationContext, recordId)) {
+      searchLoading.value = false
+    }
   }
 }
 
 const selectSearchResult = async (item: TmdbSearchResult) => {
+  const operationContext = activeRecordActionContext.value
+  const recordId = reScrapeForm.value.id
+  if (!isRecordActionContextCurrent(operationContext, recordId)) {
+    return
+  }
+
   try {
     item.selecting = true
 
     const params = {
-      id: reScrapeForm.value.id,
+      id: recordId,
       tmdb_id: item.tmdb_id,
       season: reScrapeForm.value.season >= 0 ? parseInt(reScrapeForm.value.season + '') : -1,
       episode: reScrapeForm.value.episode >= 0 ? parseInt(reScrapeForm.value.episode + '') : -1,
     }
 
+    if (!isRecordActionContextCurrent(operationContext, recordId)) {
+      return
+    }
+
     const response = await http?.post(`${SERVER_URL}/scrape/re-scrape`, params, { timeout: 60000 })
+
+    if (!isRecordActionContextCurrent(operationContext, recordId)) {
+      return
+    }
 
     if (response?.data.code === 200) {
       ElMessage.success('重新识别请求已发送')
-      showReScrapeDialog.value = false
-      searchResults.value = []
-      hasSearched.value = false
+      invalidateRecordActionContext()
       loadRecords()
     } else {
       ElMessage.error(response?.data.message || '重新识别失败')
     }
   } catch (error) {
+    if (!isRecordActionContextCurrent(operationContext, recordId)) {
+      return
+    }
     console.error('重新识别失败:', error)
     ElMessage.error('重新识别失败: 网络错误')
   } finally {
@@ -1127,6 +1229,7 @@ const selectSearchResult = async (item: TmdbSearchResult) => {
 
 // 处理重新识别
 const reScrape = (record: ScrapeRecord) => {
+  startRecordActionContext(record)
   searchResults.value = []
   hasSearched.value = false
   searchMode.value = 'name'
@@ -1146,6 +1249,17 @@ const reScrape = (record: ScrapeRecord) => {
   } else {
     showReScrapeDialog.value = true
   }
+}
+
+const openRollbackReScrapeDialog = () => {
+  const operationContext = activeRecordActionContext.value
+  if (!isRecordActionContextCurrent(operationContext, reScrapeForm.value.id)) {
+    invalidateRecordActionContext()
+    return
+  }
+
+  showRollbackDialog.value = false
+  showReScrapeDialog.value = true
 }
 
 const handleDeleteFailedRecords = async () => {
@@ -1202,6 +1316,8 @@ const handleTruncateAll = async () => {
 }
 
 const markAsFinished = async (record: ScrapeRecord) => {
+  const operationContext = startRecordActionContext(record)
+
   try {
     // 显示确认对话框
     await ElMessageBox.confirm(
@@ -1214,8 +1330,16 @@ const markAsFinished = async (record: ScrapeRecord) => {
       },
     )
 
+    if (!isRecordActionContextCurrent(operationContext, record.id)) {
+      return
+    }
+
     // 发送POST请求到/scrape/finish接口
     const response = await http?.post(`${SERVER_URL}/scrape/finish`, { id: record.id })
+
+    if (!isRecordActionContextCurrent(operationContext, record.id)) {
+      return
+    }
 
     if (response?.data.code === 200) {
       ElMessage.success('标记为已整理成功')
@@ -1225,10 +1349,18 @@ const markAsFinished = async (record: ScrapeRecord) => {
       ElMessage.error(`标记为已整理失败: ${response?.data.message || '未知错误'}`)
     }
   } catch (error) {
+    if (!isRecordActionContextCurrent(operationContext, record.id)) {
+      return
+    }
     // 如果用户取消操作，不显示错误消息
-    if (!(error as Error).message.includes('用户取消操作')) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    if (!errorMessage.includes('用户取消操作')) {
       console.error('标记为已整理失败:', error)
       ElMessage.error('标记为已整理失败: 网络错误')
+    }
+  } finally {
+    if (isRecordActionContextCurrent(operationContext, record.id)) {
+      invalidateRecordActionContext()
     }
   }
 }
@@ -1413,13 +1545,11 @@ const activateScrapeRecordsPage = () => {
 }
 
 const deactivateScrapeRecordsPage = () => {
-  if (!isPageActive) {
-    return
-  }
   isPageActive = false
   pendingScrapeRecordsRefresh.value = false
   queryLoading.value = false
   scrapeRecordsRequestGate.invalidate()
+  invalidateRecordActionContext()
 }
 
 // 页面生命周期
@@ -1447,6 +1577,7 @@ onUnmounted(() => {
   pendingScrapeRecordsRefresh.value = false
   queryLoading.value = false
   scrapeRecordsRequestGate.invalidate()
+  invalidateRecordActionContext()
 })
 </script>
 

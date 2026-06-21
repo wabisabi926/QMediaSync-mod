@@ -455,6 +455,7 @@ function isFileOperationContextCurrent(
   snapshot: FileOperationContextSnapshot | null,
 ): snapshot is FileOperationContextSnapshot {
   return (
+    isPageActive &&
     !!snapshot &&
     snapshot.accountId === selectedAccountId.value &&
     snapshot.parentId === getCurrentParentId() &&
@@ -470,13 +471,17 @@ function resetStrmTargetDialog() {
   strmGenerateLoading.value = false
 }
 
-function clearFileListForContextSwitch() {
+function invalidateFileOperationContext() {
   contextVersion.value += 1
+  resetStrmTargetDialog()
+}
+
+function clearFileListForContextSwitch() {
+  invalidateFileOperationContext()
   fileListRequestGate.invalidate()
   fileList.value = []
   total.value = 0
   pageStateStore.setExpandedRowKeys('file-manager', [])
-  resetStrmTargetDialog()
 }
 
 // 计算属性
@@ -886,13 +891,11 @@ async function activateFileManagerPage() {
 }
 
 function deactivateFileManagerPage() {
-  if (!isPageActive) {
-    return
-  }
   isPageActive = false
   pendingFileListRefresh.value = false
   accountListRequestGate.invalidate()
   fileListRequestGate.invalidate()
+  invalidateFileOperationContext()
 }
 
 // 页面生命周期
@@ -920,6 +923,7 @@ onUnmounted(() => {
   pendingFileListRefresh.value = false
   accountListRequestGate.invalidate()
   fileListRequestGate.invalidate()
+  invalidateFileOperationContext()
 })
 </script>
 

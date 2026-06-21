@@ -80,8 +80,8 @@
                 需要下载的元数据数：{{ scope.row.downloaded_meta }}<br />
                 需要上传的元数据数：{{ scope.row.uploaded_meta }}
               </el-descriptions-item>
-              <el-descriptions-item label="失败原因" v-if="scope.row.error" :span="2">
-                {{ scope.row.error ? scope.row.error : '-' }}
+              <el-descriptions-item label="失败原因" v-if="scope.row.fail_reason" :span="2">
+                {{ scope.row.fail_reason }}
               </el-descriptions-item>
             </el-descriptions>
           </template>
@@ -293,6 +293,8 @@ const pageState = pageStateStore.getPageState('sync-records', {
 })
 const { initialLoading, isRefreshing, runRefresh } = useBackgroundRefresh()
 const pageContainerRef = ref<HTMLElement | null>(null)
+const getPageScrollContainer = () =>
+  pageContainerRef.value?.closest<HTMLElement>('.main-content') ?? pageContainerRef.value
 const syncRecords = ref<SyncRecord[]>([])
 
 // 批量删除相关状态
@@ -538,14 +540,16 @@ onActivated(activateSyncRecordsPage)
 
 onActivated(() => {
   nextTick(() => {
-    if (pageContainerRef.value) {
-      pageContainerRef.value.scrollTop = pageState.scrollTop
+    const scrollContainer = getPageScrollContainer()
+    if (scrollContainer) {
+      scrollContainer.scrollTop = pageState.scrollTop
     }
   })
 })
 
 onDeactivated(() => {
-  pageStateStore.setScrollTop('sync-records', pageContainerRef.value?.scrollTop || 0)
+  const scrollContainer = getPageScrollContainer()
+  pageStateStore.setScrollTop('sync-records', scrollContainer?.scrollTop || 0)
   deactivateSyncRecordsPage()
 })
 

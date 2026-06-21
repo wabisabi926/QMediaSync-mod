@@ -347,6 +347,8 @@ const pageState = pageStateStore.getPageState('file-manager', {
 })
 const { initialLoading, isRefreshing, runRefresh } = useBackgroundRefresh()
 const pageContainerRef = ref<HTMLElement | null>(null)
+const getPageScrollContainer = () =>
+  pageContainerRef.value?.closest<HTMLElement>('.main-content') ?? pageContainerRef.value
 const currentPath = computed({
   get: () => String(pageState.filters.currentPath ?? ''),
   set: (value) => pageStateStore.setFilter('file-manager', 'currentPath', value),
@@ -429,6 +431,13 @@ function setPathItems(items: FileSystemItem[]) {
   pageStateStore.setFilter('file-manager', 'pathItems', JSON.stringify(items))
 }
 
+function clearFileListForContextSwitch() {
+  fileListRequestGate.invalidate()
+  fileList.value = []
+  total.value = 0
+  pageStateStore.setExpandedRowKeys('file-manager', [])
+}
+
 // 计算属性
 const strmStorePath = computed(() => {
   if (!strmTargetDir.value || !strmSourceItem.value) return ''
@@ -495,7 +504,7 @@ function selectAccount(account: NetdiskAccount) {
   selectedAccountId.value = account.id
   setPathItems([])
   pageStateStore.setPagination('file-manager', 1, pageState.pageSize)
-  loadFileList()
+  loadFileListForContextSwitch()
 }
 
 // 获取账号图标
@@ -610,11 +619,16 @@ async function loadFileList() {
   }
 }
 
+function loadFileListForContextSwitch() {
+  clearFileListForContextSwitch()
+  loadFileList()
+}
+
 // 导航到指定路径
 function navigateToPath(index: number) {
   setPathItems(pathItems.value.slice(0, index + 1))
   pageStateStore.setPagination('file-manager', 1, pageState.pageSize)
-  loadFileList()
+  loadFileListForContextSwitch()
 }
 
 // 处理行双击事件（进入目录）
@@ -622,7 +636,7 @@ function handleRowDoubleClick(row: FileSystemItem) {
   if (row.is_directory) {
     setPathItems([...pathItems.value, row])
     pageStateStore.setPagination('file-manager', 1, pageState.pageSize)
-    loadFileList()
+    loadFileListForContextSwitch()
   }
 }
 
@@ -636,13 +650,13 @@ const handleExpandChange = (row: FileSystemItem, expandedRows: FileSystemItem[])
 // 处理分页大小变化
 function handlePageSizeChange(newSize: number) {
   pageStateStore.setPagination('file-manager', 1, newSize)
-  loadFileList()
+  loadFileListForContextSwitch()
 }
 
 // 处理页码变化
 function handlePageChange(newPage: number) {
   pageStateStore.setPagination('file-manager', newPage, pageState.pageSize)
-  loadFileList()
+  loadFileListForContextSwitch()
 }
 
 // 处理单个操作
@@ -833,14 +847,16 @@ onActivated(activateFileManagerPage)
 
 onActivated(() => {
   nextTick(() => {
-    if (pageContainerRef.value) {
-      pageContainerRef.value.scrollTop = pageState.scrollTop
+    const scrollContainer = getPageScrollContainer()
+    if (scrollContainer) {
+      scrollContainer.scrollTop = pageState.scrollTop
     }
   })
 })
 
 onDeactivated(() => {
-  pageStateStore.setScrollTop('file-manager', pageContainerRef.value?.scrollTop || 0)
+  const scrollContainer = getPageScrollContainer()
+  pageStateStore.setScrollTop('file-manager', scrollContainer?.scrollTop || 0)
   deactivateFileManagerPage()
 })
 

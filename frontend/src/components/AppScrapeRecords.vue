@@ -672,6 +672,8 @@ const pageState = pageStateStore.getPageState('scrape-records', {
 })
 const { initialLoading, isRefreshing, runRefresh } = useBackgroundRefresh()
 const pageContainerRef = ref<HTMLElement | null>(null)
+const getPageScrollContainer = () =>
+  pageContainerRef.value?.closest<HTMLElement>('.main-content') ?? pageContainerRef.value
 const records = ref<ScrapeRecord[]>([])
 const originalRecords = ref<ScrapeRecord[]>([])
 const isMerged = ref(false)
@@ -1401,14 +1403,16 @@ onActivated(activateScrapeRecordsPage)
 
 onActivated(() => {
   nextTick(() => {
-    if (pageContainerRef.value) {
-      pageContainerRef.value.scrollTop = pageState.scrollTop
+    const scrollContainer = getPageScrollContainer()
+    if (scrollContainer) {
+      scrollContainer.scrollTop = pageState.scrollTop
     }
   })
 })
 
 onDeactivated(() => {
-  pageStateStore.setScrollTop('scrape-records', pageContainerRef.value?.scrollTop || 0)
+  const scrollContainer = getPageScrollContainer()
+  pageStateStore.setScrollTop('scrape-records', scrollContainer?.scrollTop || 0)
   deactivateScrapeRecordsPage()
 })
 

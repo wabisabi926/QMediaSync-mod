@@ -1,13 +1,13 @@
 <template>
   <div class="main-content-container ai-settings-container">
-    <el-alert title="" type="error" :closable="false" style="margin-bottom: 20px">
+    <!-- <el-alert title="" type="error" :closable="false" style="margin-bottom: 20px">
       <template #default>
         推荐
         <a href="https://cloud.siliconflow.cn/i/fNSX73Tt" target="_blank">硅基流动</a>
         的模型，新号输我的邀请码送2000万 Tokens:
         <b>fNSX73Tt</b>
       </template>
-    </el-alert>
+    </el-alert> -->
     <el-form
       :model="formData"
       :label-position="checkIsMobile ? 'top' : 'left'"

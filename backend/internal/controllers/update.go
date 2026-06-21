@@ -118,15 +118,17 @@ func UpdateToVersion(c *gin.Context) {
 	var connType github.ConnectionType
 	var httpProxy string
 
-	if channel == "gitee" {
-		giteeUpdater := updater.NewGiteeUpdater("qicfan", "qmediasync", helpers.Version)
-		downloadURL, _, _, err = giteeUpdater.GetReleaseDownloadURL(version)
-		if err != nil {
-			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "版本不存在", Data: nil})
-			return
-		}
-	} else {
-		ghUpdater := updater.NewGitHubUpdater("qicfan", "qmediasync", helpers.Version)
+	// Gitee 渠道暂未启用：本仓库尚未在 Gitee 发布。保留实现，待建立 Gitee 镜像仓库后取消注释并恢复 if/else 即可。
+	// if channel == "gitee" {
+	// 	giteeUpdater := updater.NewGiteeUpdater("chen8945", "QMediaSync", helpers.Version)
+	// 	downloadURL, _, _, err = giteeUpdater.GetReleaseDownloadURL(version)
+	// 	if err != nil {
+	// 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "版本不存在", Data: nil})
+	// 		return
+	// 	}
+	// } else {
+	{
+		ghUpdater := updater.NewGitHubUpdater("chen8945", "QMediaSync", helpers.Version)
 		downloadURL, _, _, err = ghUpdater.GetReleaseDownloadURL(version)
 		if err != nil {
 			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "版本不存在", Data: nil})
@@ -403,16 +405,18 @@ func listReleases(passCache bool, channel string) []version {
 	var releases []updater.ReleaseInfo
 	var err error
 
-	if channel == "gitee" {
-		giteeUpdater := updater.NewGiteeUpdater("qicfan", "qmediasync", helpers.Version)
-		giteeUpdater.IncludePreRelease = false
-		releases, err = giteeUpdater.GetLatestStableReleases(5)
-		if err != nil {
-			helpers.AppLogger.Errorf("查找Gitee最新版本失败: %v", err)
-			return nil
-		}
-	} else {
-		ghUpdater := updater.NewGitHubUpdater("qicfan", "qmediasync", helpers.Version)
+	// Gitee 渠道暂未启用：本仓库尚未在 Gitee 发布。保留实现，待建立 Gitee 镜像仓库后取消注释并恢复 if/else 即可。
+	// if channel == "gitee" {
+	// 	giteeUpdater := updater.NewGiteeUpdater("chen8945", "QMediaSync", helpers.Version)
+	// 	giteeUpdater.IncludePreRelease = false
+	// 	releases, err = giteeUpdater.GetLatestStableReleases(5)
+	// 	if err != nil {
+	// 		helpers.AppLogger.Errorf("查找Gitee最新版本失败: %v", err)
+	// 		return nil
+	// 	}
+	// } else {
+	{
+		ghUpdater := updater.NewGitHubUpdater("chen8945", "QMediaSync", helpers.Version)
 		ghUpdater.IncludePreRelease = false
 		releases, err = ghUpdater.GetLatestStableReleases(5)
 		if err != nil {
@@ -426,7 +430,7 @@ func listReleases(passCache bool, channel string) []version {
 		return nil
 	}
 
-	helpers.AppLogger.Infof("找到 %s/%s 的 %d 个最新版本 (channel: %s)", "qicfan", "qmediasync", len(releases), channel)
+	helpers.AppLogger.Infof("找到 %s/%s 的 %d 个最新版本 (channel: %s)", "chen8945", "QMediaSync", len(releases), channel)
 	versionList := make([]version, 0)
 	for i, release := range releases {
 		versionList = append(versionList, version{

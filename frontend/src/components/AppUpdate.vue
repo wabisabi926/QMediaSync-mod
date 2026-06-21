@@ -97,7 +97,8 @@ const renderMarkdown = (content: string): string => {
           <div class="section-header-right" style="display: flex; align-items: center; gap: 8px;">
             <el-radio-group v-model="updateChannel" size="large" class="channel-selector" @change="handleChannelChange">
               <el-radio-button value="github">GitHub</el-radio-button>
-              <el-radio-button value="gitee">Gitee</el-radio-button>
+              <!-- Gitee 渠道暂未启用：本仓库尚未在 Gitee 发布，后端 update.go 已注释 Gitee 分支；建立 Gitee 镜像后取消注释即可恢复 -->
+              <!-- <el-radio-button value="gitee">Gitee</el-radio-button> -->
             </el-radio-group>
             <el-button type="primary" @click="loadUpdateList(true)" :loading="updateLoading" round>
               刷新

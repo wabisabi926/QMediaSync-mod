@@ -70,6 +70,8 @@ GitHub Release 的正文取自上一步提交的 `.changes/v0.xx.xx.md`；若该
 
 也可以在 GitHub Actions 中手动触发 `release` workflow，并输入要发布的 Git tag（同样要求该 tag 对应的 `.changes/<tag>.md` 已提交）。
 
+> 飞牛 FPK 打包依赖飞牛官方工具 `fnpack`（不公开分发）。release workflow 通过仓库 Secret `FNPACK_DOWNLOAD_URL`（指向可下载 `fnpack` 可执行文件的地址）下载安装，再用 `backend/FNOS/` 下的素材执行 `fnpack build` 生成 `*.fpk`。**未配置该 Secret 时，`fpk` job 和 `scripts/release/package-fnos.sh` 会自动跳过 FPK 打包**，其余 Windows/Linux 发布包、Docker 镜像不受影响；若希望缺少工具时直接报错（而非静默跳过），可在脚本环境设 `REQUIRE_FNPACK=1`。
+
 > 调整 changelog 的分组、过滤规则可编辑仓库根目录的 `cliff.toml`。
 
 ## 数据库

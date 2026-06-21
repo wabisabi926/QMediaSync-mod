@@ -1,5 +1,8 @@
 <template>
-  <div class="main-content-container file-manager-container full-width-container">
+  <div
+    class="main-content-container file-manager-container full-width-container"
+    ref="pageContainerRef"
+  >
     <el-card shadow="none" class="full-width-card">
       <template #header>
         <div class="card-header">
@@ -93,8 +96,9 @@
             <!-- 桌面端表格 -->
             <el-table
               class="hidden-md-and-down"
-              v-loading="loading"
+              v-loading="initialLoading"
               :data="fileList"
+              :row-key="(row: FileSystemItem) => String(row.id || row.path)"
               style="width: 100%"
               @row-dblclick="handleRowDoubleClick"
             >
@@ -154,8 +158,11 @@
             <!-- 移动端表格 -->
             <el-table
               class="hidden-md-and-up"
-              v-loading="loading"
+              v-loading="initialLoading"
               :data="fileList"
+              :row-key="(row: FileSystemItem) => String(row.id || row.path)"
+              :expand-row-keys="pageState.expandedRowKeys"
+              @expand-change="handleExpandChange"
               style="width: 100%"
               @row-dblclick="handleRowDoubleClick"
             >
@@ -217,7 +224,7 @@
             </el-table>
 
             <!-- 空状态 -->
-            <el-empty v-if="!loading && fileList.length === 0" description="当前目录为空" />
+            <el-empty v-if="!initialLoading && fileList.length === 0" description="当前目录为空" />
 
             <!-- 分页器 -->
             <div class="pagination-container" style="margin-top: 20px; text-align: center">
@@ -287,12 +294,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onActivated, onDeactivated, onUnmounted, watch, inject } from 'vue'
+import {
+  ref,
+  computed,
+  onMounted,
+  onActivated,
+  onDeactivated,
+  onUnmounted,
+  inject,
+  nextTick,
+} from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, Files, FolderAdd } from '@element-plus/icons-vue'
 import type { FileSystemItem, FileOperationType, DirInfo } from '@/typing'
 import type { FormInstance, FormRules } from 'element-plus'
 import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
+import { useBackgroundRefresh } from '@/composables/useBackgroundRefresh'
+import { mergeStableList, retainExistingKeys } from '@/composables/useStableList'
+import { usePageStateStore } from '@/stores/pageState'
 import { getFileType, getFileIconByName } from '@/utils/fileIconUtils'
 import { formatFileSize } from '@/utils/fileSizeUtils'
 import { formatDateTime } from '@/utils/timeUtils'
@@ -316,17 +335,43 @@ interface NetdiskAccount {
 }
 
 // 响应式数据
-const loading = ref(false)
-const currentPath = ref('')
-const currentPage = ref(1)
-const pageSize = ref(100)
+const pageStateStore = usePageStateStore()
+const pageState = pageStateStore.getPageState('file-manager', {
+  currentPage: 1,
+  pageSize: 100,
+  filters: {
+    currentPath: '',
+    pathItems: '[]',
+    selectedAccountId: null,
+  },
+})
+const { initialLoading, isRefreshing, runRefresh } = useBackgroundRefresh()
+const pageContainerRef = ref<HTMLElement | null>(null)
+const currentPath = computed({
+  get: () => String(pageState.filters.currentPath ?? ''),
+  set: (value) => pageStateStore.setFilter('file-manager', 'currentPath', value),
+})
+const currentPage = computed({
+  get: () => pageState.currentPage,
+  set: (value) => pageStateStore.setPagination('file-manager', value, pageState.pageSize),
+})
+const pageSize = computed({
+  get: () => pageState.pageSize,
+  set: (value) => pageStateStore.setPagination('file-manager', pageState.currentPage, value),
+})
 const total = ref(0)
 const fileList = ref<FileSystemItem[]>([])
-const pathItems = ref<FileSystemItem[]>([])
 
 const http: AxiosStatic | undefined = inject('$http')
 const accountList = ref<NetdiskAccount[]>([])
-const selectedAccountId = ref<number | null>(null)
+const selectedAccountId = computed<number | null>({
+  get: () => {
+    const value = pageState.filters.selectedAccountId
+    return typeof value === 'number' ? value : null
+  },
+  set: (value) => pageStateStore.setFilter('file-manager', 'selectedAccountId', value),
+})
+const pendingFileListRefresh = ref(false)
 let isPageActive = false
 const accountListRequestGate = createActiveRequestGate(() => isPageActive)
 const fileListRequestGate = createActiveRequestGate(() => isPageActive)
@@ -346,6 +391,43 @@ const showStrmTargetDialog = ref(false)
 const strmTargetDir = ref<DirInfo | null>(null)
 const strmSourceItem = ref<FileSystemItem | null>(null)
 const strmGenerateLoading = ref(false)
+
+function parseStoredPathItems(): FileSystemItem[] {
+  const value = pageState.filters.pathItems
+  if (typeof value !== 'string' || !value) {
+    return []
+  }
+
+  try {
+    const items = JSON.parse(value)
+    if (!Array.isArray(items)) {
+      return []
+    }
+
+    return items
+      .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+      .filter((item) => typeof item.name === 'string')
+      .map((item) => ({
+        id: typeof item.id === 'string' ? item.id : String(item.id ?? ''),
+        name: item.name as string,
+        path: typeof item.path === 'string' ? item.path : (item.name as string),
+        type: item.type === 'directory' ? 'directory' : getFileType(item.name as string),
+        size: typeof item.size === 'number' ? item.size : 0,
+        modified_time: typeof item.modified_time === 'number' ? item.modified_time : 0,
+        is_directory: item.is_directory === true,
+      }))
+  } catch {
+    return []
+  }
+}
+
+const pathItems = ref<FileSystemItem[]>(parseStoredPathItems())
+
+function setPathItems(items: FileSystemItem[]) {
+  pathItems.value = items
+  currentPath.value = items.map((item) => item.name).join('/')
+  pageStateStore.setFilter('file-manager', 'pathItems', JSON.stringify(items))
+}
 
 // 计算属性
 const strmStorePath = computed(() => {
@@ -411,8 +493,8 @@ async function loadAccountList() {
 // 选择账号
 function selectAccount(account: NetdiskAccount) {
   selectedAccountId.value = account.id
-  pathItems.value = []
-  currentPage.value = 1
+  setPathItems([])
+  pageStateStore.setPagination('file-manager', 1, pageState.pageSize)
   loadFileList()
 }
 
@@ -439,15 +521,21 @@ function getAccountTypeName(sourceType: string): string {
 
 // 加载文件列表
 async function loadFileList() {
+  if (!isPageActive) {
+    return
+  }
+
   const requestId = fileListRequestGate.next()
 
-  if (!fileListRequestGate.isCurrent(requestId)) {
+  if (isRefreshing.value) {
+    pendingFileListRefresh.value = true
     return
   }
 
   if (!selectedAccountId.value) {
     fileList.value = []
     total.value = 0
+    pageStateStore.setExpandedRowKeys('file-manager', [])
     return
   }
 
@@ -456,82 +544,104 @@ async function loadFileList() {
     return
   }
 
-  const accountId = selectedAccountId.value
-  loading.value = true
   try {
-    const currentItemId =
-      pathItems.value.length > 0 ? pathItems.value[pathItems.value.length - 1].id : ''
+    await runRefresh(async () => {
+      const accountId = selectedAccountId.value
+      if (!accountId) {
+        return
+      }
 
-    const response = await http.get(`${SERVER_URL}/path/files`, {
-      params: {
-        account_id: accountId,
-        path: currentItemId,
-        page: currentPage.value,
-        page_size: pageSize.value,
-      },
-      timeout: 60000,
+      const currentItemId =
+        pathItems.value.length > 0 ? pathItems.value[pathItems.value.length - 1].id : ''
+
+      const response = await http.get(`${SERVER_URL}/path/files`, {
+        params: {
+          account_id: accountId,
+          path: currentItemId,
+          page: currentPage.value,
+          page_size: pageSize.value,
+        },
+        timeout: 60000,
+      })
+
+      if (!fileListRequestGate.isCurrent(requestId)) {
+        return
+      }
+
+      if (response?.data.code === 200) {
+        const items = response.data.data || []
+
+        const rows = items.map((item: FileSystemItem) => ({
+          id: item.id,
+          name: item.name,
+          path: currentPath.value ? `${currentPath.value}/${item.name}` : item.name,
+          type: item.is_directory ? 'directory' : getFileType(item.name),
+          size: item.size,
+          modified_time: item.modified_time,
+          is_directory: item.is_directory,
+        }))
+
+        fileList.value = mergeStableList(fileList.value, rows, (row) => row.id || row.path)
+        pageStateStore.setExpandedRowKeys(
+          'file-manager',
+          retainExistingKeys(
+            pageState.expandedRowKeys,
+            fileList.value,
+            (row) => row.id || row.path,
+          ),
+        )
+        total.value = items.length
+      } else {
+        console.error('加载文件列表失败:', response?.data.message || '未知错误')
+        fileList.value = []
+        total.value = 0
+      }
     })
-
-    if (!fileListRequestGate.isCurrent(requestId)) {
-      return
-    }
-
-    if (response?.data.code === 200) {
-      const items = response.data.data || []
-
-      fileList.value = items.map((item: FileSystemItem) => ({
-        id: item.id,
-        name: item.name,
-        path: currentPath.value ? `${currentPath.value}/${item.name}` : item.name,
-        type: item.is_directory ? 'directory' : getFileType(item.name),
-        size: item.size,
-        modified_time: item.modified_time,
-        is_directory: item.is_directory,
-      }))
-      total.value = items.length
-    } else {
-      console.error('加载文件列表失败:', response?.data.message || '未知错误')
-      fileList.value = []
-      total.value = 0
-    }
   } catch {
     if (!fileListRequestGate.isCurrent(requestId)) {
       return
     }
     ElMessage.error('加载文件列表失败')
   } finally {
-    if (fileListRequestGate.isCurrent(requestId)) {
-      loading.value = false
+    if (pendingFileListRefresh.value && isPageActive) {
+      pendingFileListRefresh.value = false
+      await loadFileList()
     }
   }
 }
 
 // 导航到指定路径
 function navigateToPath(index: number) {
-  pathItems.value = pathItems.value.slice(0, index + 1)
-  currentPage.value = 1
+  setPathItems(pathItems.value.slice(0, index + 1))
+  pageStateStore.setPagination('file-manager', 1, pageState.pageSize)
   loadFileList()
 }
 
 // 处理行双击事件（进入目录）
 function handleRowDoubleClick(row: FileSystemItem) {
   if (row.is_directory) {
-    pathItems.value = [...pathItems.value, row]
-    currentPage.value = 1
+    setPathItems([...pathItems.value, row])
+    pageStateStore.setPagination('file-manager', 1, pageState.pageSize)
     loadFileList()
   }
 }
 
+const handleExpandChange = (row: FileSystemItem, expandedRows: FileSystemItem[]) => {
+  pageStateStore.setExpandedRowKeys(
+    'file-manager',
+    expandedRows.map((item) => String(item.id || item.path)),
+  )
+}
+
 // 处理分页大小变化
 function handlePageSizeChange(newSize: number) {
-  pageSize.value = newSize
-  currentPage.value = 1
+  pageStateStore.setPagination('file-manager', 1, newSize)
   loadFileList()
 }
 
 // 处理页码变化
 function handlePageChange(newPage: number) {
-  currentPage.value = newPage
+  pageStateStore.setPagination('file-manager', newPage, pageState.pageSize)
   loadFileList()
 }
 
@@ -695,15 +805,6 @@ async function confirmStrmGenerate() {
   }
 }
 
-// 监听路径变化
-watch(
-  [currentPath, currentPage, pageSize],
-  () => {
-    loadFileList()
-  },
-  { immediate: false },
-)
-
 async function activateFileManagerPage() {
   if (isPageActive) {
     return
@@ -720,6 +821,7 @@ function deactivateFileManagerPage() {
     return
   }
   isPageActive = false
+  pendingFileListRefresh.value = false
   accountListRequestGate.invalidate()
   fileListRequestGate.invalidate()
 }
@@ -729,10 +831,22 @@ onMounted(activateFileManagerPage)
 
 onActivated(activateFileManagerPage)
 
-onDeactivated(deactivateFileManagerPage)
+onActivated(() => {
+  nextTick(() => {
+    if (pageContainerRef.value) {
+      pageContainerRef.value.scrollTop = pageState.scrollTop
+    }
+  })
+})
+
+onDeactivated(() => {
+  pageStateStore.setScrollTop('file-manager', pageContainerRef.value?.scrollTop || 0)
+  deactivateFileManagerPage()
+})
 
 onUnmounted(() => {
   isPageActive = false
+  pendingFileListRefresh.value = false
   accountListRequestGate.invalidate()
   fileListRequestGate.invalidate()
 })

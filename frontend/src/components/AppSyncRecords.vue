@@ -1,5 +1,5 @@
 <template>
-  <div class="sync-records-container">
+  <div class="sync-records-container" ref="pageContainerRef">
     <!-- 同步记录卡片 -->
     <div class="sync-records-card">
       <div class="header-left">
@@ -37,12 +37,15 @@
       </div>
       <el-table
         :data="syncRecords"
-        v-loading="tableLoading"
+        v-loading="initialLoading"
         stripe
         class="sync-table mobile-table"
         empty-text="暂无同步记录"
         :show-overflow-tooltip="true"
+        :row-key="(row: SyncRecord) => String(row.id)"
+        :expand-row-keys="pageState.expandedRowKeys"
         @selection-change="handleSelectionChange"
+        @expand-change="handleExpandChange"
         height="calc(100vh - 250px)"
         style="width: 100%"
       >
@@ -111,7 +114,7 @@
       <!-- 同步记录表格 -->
       <el-table
         :data="syncRecords"
-        v-loading="tableLoading"
+        v-loading="initialLoading"
         stripe
         class="sync-table desktop-table"
         empty-text="暂无同步记录"
@@ -230,8 +233,21 @@
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
 import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
+import { useBackgroundRefresh } from '@/composables/useBackgroundRefresh'
+import { mergeStableList, retainExistingKeys } from '@/composables/useStableList'
+import { usePageStateStore } from '@/stores/pageState'
 import type { AxiosStatic } from 'axios'
-import { inject, onActivated, onDeactivated, onMounted, onUnmounted, ref, computed, watch } from 'vue'
+import {
+  computed,
+  inject,
+  nextTick,
+  onActivated,
+  onDeactivated,
+  onMounted,
+  onUnmounted,
+  ref,
+  watch,
+} from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { formatDateTime } from '@/utils/timeUtils'
@@ -241,7 +257,7 @@ interface SyncRecord {
   start_time: number
   end_time: number | null
   status: 0 | 1 | 2 | 3 // 0-待开始，1-运行中，2-完成，3-失败
-  sub_status: 0 | 1 | 2 // 0-待开始，1-正在处理网盘文件，2-正在处理本地文件
+  sub_status: 0 | 1 | 2 | 3 | 4 // 0-待开始，1-正在处理网盘文件，2-正在处理本地文件
   processed_files: number
   created_strm: number
   downloaded_meta: number
@@ -270,8 +286,14 @@ const http: AxiosStatic | undefined = inject('$http')
 const router = useRouter()
 
 // 数据状态
+const pageStateStore = usePageStateStore()
+const pageState = pageStateStore.getPageState('sync-records', {
+  currentPage: 1,
+  pageSize: 20,
+})
+const { initialLoading, isRefreshing, runRefresh } = useBackgroundRefresh()
+const pageContainerRef = ref<HTMLElement | null>(null)
 const syncRecords = ref<SyncRecord[]>([])
-const tableLoading = ref(false)
 
 // 批量删除相关状态
 const batchMode = ref(false)
@@ -282,13 +304,20 @@ const deleteLoading = ref(false)
 const batchDeleteLoading = ref(false)
 
 // 分页相关
-const currentPage = ref(1)
-const pageSize = ref(20)
+const currentPage = computed({
+  get: () => pageState.currentPage,
+  set: (value) => pageStateStore.setPagination('sync-records', value, pageState.pageSize),
+})
+const pageSize = computed({
+  get: () => pageState.pageSize,
+  set: (value) => pageStateStore.setPagination('sync-records', pageState.currentPage, value),
+})
 const total = ref(0)
 
 // 定时器相关 - 已停用，使用WebSocket替代
 const refreshTimer = ref<number | null>(null)
 const shouldAutoRefresh = ref(false)
+const pendingSyncRecordsRefresh = ref(false)
 let isPageActive = false
 const syncRecordsRequestGate = createActiveRequestGate(() => isPageActive)
 
@@ -356,48 +385,74 @@ const getSubStatusText = (subStatus: number) => {
   }
 }
 
+const handleExpandChange = (row: SyncRecord, expandedRows: SyncRecord[]) => {
+  pageStateStore.setExpandedRowKeys(
+    'sync-records',
+    expandedRows.map((item) => String(item.id)),
+  )
+}
+
 // 加载同步记录
 const loadSyncRecords = async () => {
+  if (!isPageActive) {
+    return
+  }
+
   const requestId = syncRecordsRequestGate.next()
 
+  if (isRefreshing.value) {
+    pendingSyncRecordsRefresh.value = true
+    return
+  }
+
   try {
-    tableLoading.value = true
-    const response = await http?.get(`${SERVER_URL}/sync/records`, {
-      params: {
-        page: currentPage.value,
-        page_size: pageSize.value,
-      },
+    await runRefresh(async () => {
+      try {
+        const response = await http?.get(`${SERVER_URL}/sync/records`, {
+          params: {
+            page: currentPage.value,
+            page_size: pageSize.value,
+          },
+        })
+
+        if (!syncRecordsRequestGate.isCurrent(requestId)) {
+          return
+        }
+
+        if (response?.data.code === 200) {
+          const rows = (response.data.data.records || []).map((item: ApiSyncRecord) => ({
+            id: item.id,
+            start_time: item.created_at,
+            end_time: item.finish_at,
+            status: item.status as 0 | 1 | 2 | 3,
+            sub_status: item.sub_status as 0 | 1 | 2 | 3 | 4,
+            processed_files: item.total,
+            created_strm: item.new_strm,
+            downloaded_meta: item.new_meta || 0,
+            uploaded_meta: item.new_upload || 0,
+            local_path: item.local_path || '',
+            remote_path: item.remote_path || '',
+            fail_reason: item.fail_reason || '',
+          }))
+
+          syncRecords.value = mergeStableList(syncRecords.value, rows, (row) => row.id)
+          pageStateStore.setExpandedRowKeys(
+            'sync-records',
+            retainExistingKeys(pageState.expandedRowKeys, syncRecords.value, (row) => row.id),
+          )
+          total.value = response.data.data.total || 0
+        }
+      } catch (error) {
+        if (!syncRecordsRequestGate.isCurrent(requestId)) {
+          return
+        }
+        console.error('加载同步记录错误:', error)
+      }
     })
-
-    if (!syncRecordsRequestGate.isCurrent(requestId)) {
-      return
-    }
-
-    if (response?.data.code === 200) {
-      syncRecords.value = (response.data.data.records || []).map((item: ApiSyncRecord) => ({
-        id: item.id,
-        start_time: item.created_at,
-        end_time: item.finish_at,
-        status: item.status as 0 | 1 | 2 | 3,
-        sub_status: item.sub_status as 0 | 1 | 2 | 3 | 4,
-        processed_files: item.total,
-        created_strm: item.new_strm,
-        downloaded_meta: item.new_meta || 0,
-        uploaded_meta: item.new_upload || 0,
-        local_path: item.local_path || '',
-        remote_path: item.remote_path || '',
-        fail_reason: item.fail_reason || '',
-      }))
-      total.value = response.data.data.total || 0
-    }
-  } catch (error) {
-    if (!syncRecordsRequestGate.isCurrent(requestId)) {
-      return
-    }
-    console.error('加载同步记录错误:', error)
   } finally {
-    if (syncRecordsRequestGate.isCurrent(requestId)) {
-      tableLoading.value = false
+    if (pendingSyncRecordsRefresh.value && isPageActive) {
+      pendingSyncRecordsRefresh.value = false
+      await loadSyncRecords()
     }
   }
 }
@@ -449,14 +504,13 @@ const viewTaskDetail = (taskId: number) => {
 
 // 分页大小改变
 const handleSizeChange = (newSize: number) => {
-  pageSize.value = newSize
-  currentPage.value = 1
+  pageStateStore.setPagination('sync-records', 1, newSize)
   loadSyncRecords()
 }
 
 // 当前页改变
 const handleCurrentChange = (newPage: number) => {
-  currentPage.value = newPage
+  pageStateStore.setPagination('sync-records', newPage, pageState.pageSize)
   loadSyncRecords()
 }
 
@@ -473,6 +527,7 @@ const deactivateSyncRecordsPage = () => {
     return
   }
   isPageActive = false
+  pendingSyncRecordsRefresh.value = false
   syncRecordsRequestGate.invalidate()
 }
 
@@ -481,11 +536,23 @@ onMounted(activateSyncRecordsPage)
 
 onActivated(activateSyncRecordsPage)
 
-onDeactivated(deactivateSyncRecordsPage)
+onActivated(() => {
+  nextTick(() => {
+    if (pageContainerRef.value) {
+      pageContainerRef.value.scrollTop = pageState.scrollTop
+    }
+  })
+})
+
+onDeactivated(() => {
+  pageStateStore.setScrollTop('sync-records', pageContainerRef.value?.scrollTop || 0)
+  deactivateSyncRecordsPage()
+})
 
 // 页面卸载时清理定时器（已停用）
 onUnmounted(() => {
   isPageActive = false
+  pendingSyncRecordsRefresh.value = false
   syncRecordsRequestGate.invalidate()
   // 旧的定时器清理，已不再需要
   if (refreshTimer.value) {

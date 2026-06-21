@@ -1,5 +1,5 @@
 <template>
-  <div class="scrape-records-container">
+  <div class="scrape-records-container" ref="pageContainerRef">
     <div class="header-section">
       <h2 class="page-title hidden-md-and-down">刮削记录</h2>
 
@@ -91,10 +91,12 @@
     <div class="table-section">
       <div class="table-container">
         <el-table
-          v-loading="loading"
+          v-loading="initialLoading"
           :data="records"
           @selection-change="handleSelectionChange"
-          :row-key="(row: ScrapeRecord) => row.id"
+          :row-key="(row: ScrapeRecord) => String(row.id)"
+          :expand-row-keys="pageState.expandedRowKeys"
+          @expand-change="handleExpandChange"
           style="width: 100%"
           class="mobile-table"
         >
@@ -185,10 +187,10 @@
           </el-table-column>
         </el-table>
         <el-table
-          v-loading="loading"
+          v-loading="initialLoading"
           :data="records"
           @selection-change="handleSelectionChange"
-          :row-key="(row: ScrapeRecord) => row.id"
+          :row-key="(row: ScrapeRecord) => String(row.id)"
           style="width: 100%"
           class="desktop-table"
         >
@@ -580,14 +582,26 @@
 </template>
 
 <script setup lang="ts">
-import { inject, onActivated, onDeactivated, onMounted, onUnmounted, ref } from 'vue'
+import {
+  computed,
+  inject,
+  nextTick,
+  onActivated,
+  onDeactivated,
+  onMounted,
+  onUnmounted,
+  ref,
+} from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Film, Picture, Search } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { formatTimestamp } from '@/utils/timeUtils'
 import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
+import { useBackgroundRefresh } from '@/composables/useBackgroundRefresh'
+import { mergeStableList, retainExistingKeys } from '@/composables/useStableList'
 import { useWSEvent } from '@/composables/useWebSocket'
+import { usePageStateStore } from '@/stores/pageState'
 import 'element-plus/theme-chalk/display.css'
 
 const http: AxiosStatic | undefined = inject('$http')
@@ -646,77 +660,140 @@ interface TmdbSearchResult {
 }
 
 // 状态变量
+const pageStateStore = usePageStateStore()
+const pageState = pageStateStore.getPageState('scrape-records', {
+  currentPage: 1,
+  pageSize: 20,
+  filters: {
+    status: '',
+    type: '',
+    name: '',
+  },
+})
+const { initialLoading, isRefreshing, runRefresh } = useBackgroundRefresh()
+const pageContainerRef = ref<HTMLElement | null>(null)
 const records = ref<ScrapeRecord[]>([])
 const originalRecords = ref<ScrapeRecord[]>([])
 const isMerged = ref(false)
-const loading = ref(false)
 const selectedRecords = ref<ScrapeRecord[]>([])
-const statusFilter = ref('')
-const typeFilter = ref('')
-const nameFilter = ref('')
+const statusFilter = computed({
+  get: () => String(pageState.filters.status ?? ''),
+  set: (value) => pageStateStore.setFilter('scrape-records', 'status', value),
+})
+const typeFilter = computed({
+  get: () => String(pageState.filters.type ?? ''),
+  set: (value) => pageStateStore.setFilter('scrape-records', 'type', value),
+})
+const nameFilter = computed({
+  get: () => String(pageState.filters.name ?? ''),
+  set: (value) => pageStateStore.setFilter('scrape-records', 'name', value),
+})
 const showDetailDialog = ref(false)
 const selectedRecord = ref<ScrapeRecord | null>(null)
 const showRollbackDialog = ref(false)
+const pendingScrapeRecordsRefresh = ref(false)
 let isPageActive = false
 const scrapeRecordsRequestGate = createActiveRequestGate(() => isPageActive)
 
 // 分页相关
-const pagination = ref({
-  currentPage: 1,
-  pageSize: 20,
+const currentPage = computed({
+  get: () => pageState.currentPage,
+  set: (value) => pageStateStore.setPagination('scrape-records', value, pageState.pageSize),
 })
+const pageSize = computed({
+  get: () => pageState.pageSize,
+  set: (value) => pageStateStore.setPagination('scrape-records', pageState.currentPage, value),
+})
+const pagination = {
+  get currentPage() {
+    return currentPage.value
+  },
+  set currentPage(value: number) {
+    currentPage.value = value
+  },
+  get pageSize() {
+    return pageSize.value
+  },
+  set pageSize(value: number) {
+    pageSize.value = value
+  },
+}
 const total = ref(0)
+
+const handleExpandChange = (row: ScrapeRecord, expandedRows: ScrapeRecord[]) => {
+  pageStateStore.setExpandedRowKeys(
+    'scrape-records',
+    expandedRows.map((item) => String(item.id)),
+  )
+}
 
 // 加载刮削记录
 const loadRecords = async () => {
+  if (!isPageActive) {
+    return
+  }
+
   const requestId = scrapeRecordsRequestGate.next()
 
+  if (isRefreshing.value) {
+    pendingScrapeRecordsRefresh.value = true
+    return
+  }
+
   try {
-    loading.value = true
-    // 构建查询参数
-    const params: Record<string, string | number> = {
-      page: pagination.value.currentPage,
-      pageSize: pagination.value.pageSize,
-    }
+    await runRefresh(async () => {
+      try {
+        // 构建查询参数
+        const params: Record<string, string | number> = {
+          page: currentPage.value,
+          pageSize: pageSize.value,
+        }
 
-    // 根据需求，将statusFilter映射到media_type参数
-    if (statusFilter.value) {
-      params.status = statusFilter.value
-    }
+        // 根据需求，将statusFilter映射到media_type参数
+        if (statusFilter.value) {
+          params.status = statusFilter.value
+        }
 
-    // 添加类型筛选参数
-    if (typeFilter.value) {
-      params.type = typeFilter.value
-    }
+        // 添加类型筛选参数
+        if (typeFilter.value) {
+          params.type = typeFilter.value
+        }
 
-    // 添加名称搜索参数
-    if (nameFilter.value) {
-      params.name = nameFilter.value
-    }
+        // 添加名称搜索参数
+        if (nameFilter.value) {
+          params.name = nameFilter.value
+        }
 
-    const response = await http?.get(`${SERVER_URL}/scrape/records`, { params })
+        const response = await http?.get(`${SERVER_URL}/scrape/records`, { params })
 
-    if (!scrapeRecordsRequestGate.isCurrent(requestId)) {
-      return
-    }
+        if (!scrapeRecordsRequestGate.isCurrent(requestId)) {
+          return
+        }
 
-    if (response?.data.code === 200) {
-      // 性能优化：使用展开运算符替代 JSON 深拷贝，减少性能开销
-      records.value = response.data.data.list
-      originalRecords.value = response.data.data.list.map((item: ScrapeRecord) => ({ ...item }))
-      total.value = response.data.data.total
-    } else {
-      ElMessage.error(`加载刮削记录失败: ${response?.data.message || '未知错误'}`)
-    }
-  } catch (error) {
-    if (!scrapeRecordsRequestGate.isCurrent(requestId)) {
-      return
-    }
-    console.error('加载刮削记录失败:', error)
-    ElMessage.error('加载刮削记录失败: 网络错误')
+        if (response?.data.code === 200) {
+          const rows = response.data.data.list || []
+          records.value = mergeStableList(records.value, rows, (row) => row.id)
+          originalRecords.value = rows.map((item: ScrapeRecord) => ({ ...item }))
+          pageStateStore.setExpandedRowKeys(
+            'scrape-records',
+            retainExistingKeys(pageState.expandedRowKeys, records.value, (row) => row.id),
+          )
+          total.value = response.data.data.total
+        } else {
+          ElMessage.error(`加载刮削记录失败: ${response?.data.message || '未知错误'}`)
+        }
+      } catch (error) {
+        if (!scrapeRecordsRequestGate.isCurrent(requestId)) {
+          return
+        }
+        console.error('加载刮削记录失败:', error)
+        ElMessage.error('加载刮削记录失败: 网络错误')
+      }
+    })
   } finally {
-    if (scrapeRecordsRequestGate.isCurrent(requestId)) {
-      loading.value = false
+    if (pendingScrapeRecordsRefresh.value && isPageActive) {
+      pendingScrapeRecordsRefresh.value = false
+      await loadRecords()
     }
   }
 }
@@ -750,7 +827,7 @@ const toggleMergeEpisodes = () => {
 
 // 应用筛选
 const applyFilter = () => {
-  pagination.value.currentPage = 1 // 重置为第一页
+  pageStateStore.setPagination('scrape-records', 1, pageState.pageSize)
   loadRecords() // 重新加载数据
   // 重置合并状态
   if (isMerged.value) {
@@ -790,18 +867,18 @@ const resetFilter = () => {
   statusFilter.value = ''
   typeFilter.value = ''
   nameFilter.value = '' // 重置名称搜索过滤器
-  pagination.value.currentPage = 1
+  pageStateStore.setPagination('scrape-records', 1, pageState.pageSize)
   loadRecords() // 重新加载数据
 }
 
 // 分页处理
 const handleSizeChange = (size: number) => {
-  pagination.value.pageSize = size
+  pageStateStore.setPagination('scrape-records', pageState.currentPage, size)
   loadRecords() // 重新加载数据
 }
 
 const handleCurrentChange = (current: number) => {
-  pagination.value.currentPage = current
+  pageStateStore.setPagination('scrape-records', current, pageState.pageSize)
   loadRecords() // 重新加载数据
 }
 
@@ -1313,6 +1390,7 @@ const deactivateScrapeRecordsPage = () => {
     return
   }
   isPageActive = false
+  pendingScrapeRecordsRefresh.value = false
   scrapeRecordsRequestGate.invalidate()
 }
 
@@ -1321,10 +1399,22 @@ onMounted(activateScrapeRecordsPage)
 
 onActivated(activateScrapeRecordsPage)
 
-onDeactivated(deactivateScrapeRecordsPage)
+onActivated(() => {
+  nextTick(() => {
+    if (pageContainerRef.value) {
+      pageContainerRef.value.scrollTop = pageState.scrollTop
+    }
+  })
+})
+
+onDeactivated(() => {
+  pageStateStore.setScrollTop('scrape-records', pageContainerRef.value?.scrollTop || 0)
+  deactivateScrapeRecordsPage()
+})
 
 onUnmounted(() => {
   isPageActive = false
+  pendingScrapeRecordsRefresh.value = false
   scrapeRecordsRequestGate.invalidate()
 })
 </script>

@@ -88,10 +88,11 @@ func (s *ScrapeSettings) GetFanartApiKey() string {
 	return s.FanartApiKey
 }
 
-// ApplyKeyOverrides 用 UI 配置覆盖生效密钥（Fanart 客户端直接读取 helpers 包级变量）。
+// ApplyKeyOverrides 用 UI 配置覆盖生效密钥/代理（Fanart 客户端直接读取 helpers 包级变量）。
 // 取值优先级：UI 配置（数据库） > 默认基线（环境变量 > ldflags）。
 func (s *ScrapeSettings) ApplyKeyOverrides() {
 	helpers.FANART_API_KEY = s.GetFanartApiKey()
+	helpers.HTTP_PROXY = s.GetProxyUrl()
 }
 
 func (s *ScrapeSettings) GetTmdbLanguage() string {
@@ -122,7 +123,8 @@ func (s *ScrapeSettings) GetTmdbImageUrl() string {
 	return s.TmdbImageUrl
 }
 
-func (s *ScrapeSettings) GetTmdbProxyUrl() string {
+// GetProxyUrl 返回生效的通用代理地址：代理开关开启时用全局 HttpProxy，否则返回空（直连）。TMDB、Fanart 等刮削客户端共用。
+func (s *ScrapeSettings) GetProxyUrl() string {
 	if s.TmdbEnableProxy {
 		return SettingsGlobal.HttpProxy
 	}
@@ -130,7 +132,7 @@ func (s *ScrapeSettings) GetTmdbProxyUrl() string {
 }
 
 func (s *ScrapeSettings) GetTmdbClient() *tmdb.Client {
-	return tmdb.NewClient(s.GetTmdbApiKey(), s.GetTmdbAccessToken(), s.GetTmdbApiUrl(), s.GetTmdbLanguage(), s.GetTmdbProxyUrl())
+	return tmdb.NewClient(s.GetTmdbApiKey(), s.GetTmdbAccessToken(), s.GetTmdbApiUrl(), s.GetTmdbLanguage(), s.GetProxyUrl())
 }
 
 // 保存tmdb设置

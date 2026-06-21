@@ -6,6 +6,16 @@
       :label-width="120"
       class="tmdb-form"
     >
+      <el-form-item label="是否启用代理" prop="tmdbEnableProxy">
+        <el-switch
+          v-model="formData.tmdbEnableProxy"
+          active-text="启用"
+          inactive-text="禁用"
+          :disabled="loading"
+        />
+        <div class="form-help">如果https://api.tmdb.org可以直连就禁用</div>
+      </el-form-item>
+
       <el-form-item label="TMDB接口地址" prop="tmdbUrl">
         <el-input
           v-model="formData.tmdbUrl"
@@ -26,17 +36,7 @@
         <div class="form-help">可以输入镜像地址，如果不清楚则留空</div>
       </el-form-item>
 
-      <el-form-item label="是否启用代理" prop="tmdbEnableProxy">
-        <el-switch
-          v-model="formData.tmdbEnableProxy"
-          active-text="启用"
-          inactive-text="禁用"
-          :disabled="loading"
-        />
-        <div class="form-help">如果https://api.tmdb.org可以直连就禁用</div>
-      </el-form-item>
-
-      <el-form-item label="API密钥" prop="tmdbApiKey">
+      <el-form-item label="TMDB密钥" prop="tmdbApiKey">
         <el-input
           v-model="formData.tmdbApiKey"
           placeholder="系统内置，不填也可用，填自己的更稳定"
@@ -45,7 +45,7 @@
           show-password
           maxlength="255"
         />
-        <div class="form-help">如果您没有申请TMDB API KEY则留空</div>
+        <div class="form-help">TMDB 的 API KEY，用于刮削元数据，不清楚则留空</div>
       </el-form-item>
 
       <el-form-item label="Fanart密钥" prop="fanartApiKey">

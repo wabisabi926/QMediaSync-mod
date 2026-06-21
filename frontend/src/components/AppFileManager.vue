@@ -894,8 +894,7 @@ function deactivateFileManagerPage() {
   isPageActive = false
   pendingFileListRefresh.value = false
   accountListRequestGate.invalidate()
-  fileListRequestGate.invalidate()
-  invalidateFileOperationContext()
+  clearFileListForContextSwitch()
 }
 
 // 页面生命周期
@@ -919,11 +918,7 @@ onDeactivated(() => {
 })
 
 onUnmounted(() => {
-  isPageActive = false
-  pendingFileListRefresh.value = false
-  accountListRequestGate.invalidate()
-  fileListRequestGate.invalidate()
-  invalidateFileOperationContext()
+  deactivateFileManagerPage()
 })
 </script>
 

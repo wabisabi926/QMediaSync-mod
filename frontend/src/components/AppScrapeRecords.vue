@@ -1308,7 +1308,7 @@ const handleTruncateAll = async () => {
     }
   } catch (error) {
     // 如果用户取消操作，不显示错误消息
-    if (error !== 'cancel') {
+    if (!isMessageBoxCancelError(error)) {
       console.error('清空记录失败:', error)
       ElMessage.error('清空记录失败: 网络错误')
     }

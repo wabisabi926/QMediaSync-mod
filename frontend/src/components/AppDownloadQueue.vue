@@ -9,7 +9,7 @@
         <p>来源是"Emby媒体信息提取"的记录不会真正下载，只是触发Emby媒体信息提取。</p>
       </div>
       <div class="header-actions">
-        <el-button type="info" @click="refreshQueue">刷新</el-button>
+        <el-button type="info" @click="refreshQueue" :loading="backgroundRefreshing">刷新</el-button>
         <el-button type="success" @click="pauseAllTasks" :disabled="queueStatus === 0"
           >全部暂停</el-button
         >
@@ -48,8 +48,11 @@
     <el-table
       :data="queueData"
       style="width: 100%"
-      v-loading="loading"
+      v-loading="initialLoading"
       empty-text="暂无下载任务"
+      :row-key="(row: DownloadTask) => String(row.id)"
+      :expand-row-keys="pageState.expandedRowKeys"
+      @expand-change="handleExpandChange"
       :row-class-name="tableRowClassName"
       height="calc(100vh - 500px)"
       class="hidden-md-and-up"
@@ -94,8 +97,11 @@
     <el-table
       :data="queueData"
       style="width: 100%"
-      v-loading="loading"
+      v-loading="initialLoading"
       empty-text="暂无下载任务"
+      :row-key="(row: DownloadTask) => String(row.id)"
+      :expand-row-keys="pageState.expandedRowKeys"
+      @expand-change="handleExpandChange"
       :row-class-name="tableRowClassName"
       height="calc(100vh - 300px)"
       class="hidden-md-and-down"
@@ -170,13 +176,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onActivated, onDeactivated, onMounted, onUnmounted } from 'vue'
+import { computed, inject, nextTick, onActivated, onDeactivated, onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { WarningFilled } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
 import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
+import { useBackgroundRefresh } from '@/composables/useBackgroundRefresh'
+import { mergeStableList, retainExistingKeys } from '@/composables/useStableList'
+import { usePageStateStore } from '@/stores/pageState'
 import type { AxiosStatic } from 'axios'
-import { inject } from 'vue'
 import { formatFileSize } from '@/utils/fileSizeUtils'
 import { formatDateTime } from '@/utils/timeUtils'
 import 'element-plus/theme-chalk/display.css'
@@ -199,18 +207,34 @@ interface DownloadTask {
 const http: AxiosStatic | undefined = inject('$http')
 
 // 数据状态
+const pageStateStore = usePageStateStore()
+const pageState = pageStateStore.getPageState('download-queue', {
+  currentPage: 1,
+  pageSize: 20,
+  filters: { status: -1 },
+})
+const { initialLoading, backgroundRefreshing, isRefreshing, runRefresh } = useBackgroundRefresh()
 const queueData = ref<DownloadTask[]>([])
-const loading = ref(false)
 const total = ref(0)
 const downloading = ref(0)
-const currentPage = ref(1)
-const pageSize = ref(20)
-const statusFilter = ref(-1)
 const queueStatus = ref<0 | 1>(1) // 0-停止，1-运行中
+const currentPage = computed({
+  get: () => pageState.currentPage,
+  set: (value) => pageStateStore.setPagination('download-queue', value, pageState.pageSize),
+})
+const pageSize = computed({
+  get: () => pageState.pageSize,
+  set: (value) => pageStateStore.setPagination('download-queue', pageState.currentPage, value),
+})
+const statusFilter = computed({
+  get: () => Number(pageState.filters.status ?? -1),
+  set: (value) => pageStateStore.setFilter('download-queue', 'status', value),
+})
 
 // 定时器
 const refreshTimer = ref<number | null>(null)
 const statusRefreshTimer = ref<number | null>(null)
+const pendingQueueDataRefresh = ref(false)
 let isPageActive = false
 const queueDataRequestGate = createActiveRequestGate(() => isPageActive)
 const queueStatusRequestGate = createActiveRequestGate(() => isPageActive)
@@ -266,6 +290,14 @@ const tableRowClassName = ({ row }: { row: DownloadTask }) => {
       return ''
   }
 }
+
+const handleExpandChange = (row: DownloadTask, expandedRows: DownloadTask[]) => {
+  pageStateStore.setExpandedRowKeys(
+    'download-queue',
+    expandedRows.map((item) => String(item.id)),
+  )
+}
+
 const getSourceTypeName = (type: string): string => {
   switch (type) {
     case 'local':
@@ -298,39 +330,56 @@ const getSourceTypeTagType = (type: string): string => {
 }
 // 加载队列数据
 const loadQueueData = async () => {
+  if (!isPageActive) {
+    return
+  }
+
   const requestId = queueDataRequestGate.next()
 
+  if (isRefreshing.value) {
+    pendingQueueDataRefresh.value = true
+    return
+  }
+
   try {
-    loading.value = true
-    const response = await http?.get(`${SERVER_URL}/download/queue`, {
-      params: {
-        page: currentPage.value,
-        page_size: pageSize.value,
-        status: statusFilter.value,
-      },
+    await runRefresh(async () => {
+      try {
+        const response = await http?.get(`${SERVER_URL}/download/queue`, {
+          params: {
+            page: currentPage.value,
+            page_size: pageSize.value,
+            status: statusFilter.value,
+          },
+        })
+
+        if (!queueDataRequestGate.isCurrent(requestId)) {
+          return
+        }
+
+        if (response?.data.code === 200) {
+          const rows = response.data.data.list || []
+          queueData.value = mergeStableList(queueData.value, rows, (row) => row.id)
+          total.value = response.data.data.total
+          downloading.value = response.data.data.downloading || 0
+          pageStateStore.setExpandedRowKeys(
+            'download-queue',
+            retainExistingKeys(pageState.expandedRowKeys, queueData.value, (row) => row.id),
+          )
+        } else {
+          ElMessage.error('获取下载队列数据失败')
+        }
+      } catch (error) {
+        if (!queueDataRequestGate.isCurrent(requestId)) {
+          return
+        }
+        console.error('加载下载队列数据错误:', error)
+        ElMessage.error('获取下载队列数据失败')
+      }
     })
-
-    if (!queueDataRequestGate.isCurrent(requestId)) {
-      return
-    }
-
-    if (response?.data.code === 200) {
-      console.log(response.data.data)
-      queueData.value = response.data.data.list
-      total.value = response.data.data.total
-      downloading.value = response.data.data.downloading
-    } else {
-      ElMessage.error('获取下载队列数据失败')
-    }
-  } catch (error) {
-    if (!queueDataRequestGate.isCurrent(requestId)) {
-      return
-    }
-    console.error('加载下载队列数据错误:', error)
-    ElMessage.error('加载下载队列数据失败')
   } finally {
-    if (queueDataRequestGate.isCurrent(requestId)) {
-      loading.value = false
+    if (pendingQueueDataRefresh.value && isPageActive) {
+      pendingQueueDataRefresh.value = false
+      await loadQueueData()
     }
   }
 }
@@ -520,6 +569,7 @@ const deactivateQueuePage = () => {
     return
   }
   isPageActive = false
+  pendingQueueDataRefresh.value = false
   queueDataRequestGate.invalidate()
   queueStatusRequestGate.invalidate()
   stopAutoRefresh()
@@ -530,10 +580,23 @@ onMounted(activateQueuePage)
 
 onActivated(activateQueuePage)
 
+onActivated(() => {
+  if (queueData.value.length > 0) {
+    pageStateStore.pruneExpandedRowKeys(
+      'download-queue',
+      queueData.value.map((row) => String(row.id)),
+    )
+  }
+  nextTick(() => {
+    window.dispatchEvent(new Event('resize'))
+  })
+})
+
 onDeactivated(deactivateQueuePage)
 
 onUnmounted(() => {
   isPageActive = false
+  pendingQueueDataRefresh.value = false
   queueDataRequestGate.invalidate()
   queueStatusRequestGate.invalidate()
   stopAutoRefresh()

@@ -6,7 +6,7 @@
         <p>这里包含strm同步时产生的元数据的上传和刮削产生的上传任务。</p>
       </div>
       <div class="header-actions">
-        <el-button type="info" @click="refreshQueue">刷新</el-button>
+        <el-button type="info" @click="refreshQueue" :loading="backgroundRefreshing">刷新</el-button>
         <el-button type="success" @click="pauseAllTasks" :disabled="queueStatus === 0"
           >全部暂停</el-button
         >
@@ -47,8 +47,11 @@
     <el-table
       :data="queueData"
       style="width: 100%"
-      v-loading="loading"
+      v-loading="initialLoading"
       empty-text="暂无上传任务"
+      :row-key="(row: UploadTask) => String(row.id)"
+      :expand-row-keys="pageState.expandedRowKeys"
+      @expand-change="handleExpandChange"
       :row-class-name="tableRowClassName"
       height="calc(100vh - 420px)"
       class="hidden-md-and-up"
@@ -95,8 +98,11 @@
     <el-table
       :data="queueData"
       style="width: 100%"
-      v-loading="loading"
+      v-loading="initialLoading"
       empty-text="暂无上传任务"
+      :row-key="(row: UploadTask) => String(row.id)"
+      :expand-row-keys="pageState.expandedRowKeys"
+      @expand-change="handleExpandChange"
       :row-class-name="tableRowClassName"
       height="calc(100vh - 300px)"
       class="hidden-md-and-down"
@@ -164,13 +170,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onActivated, onDeactivated, onMounted, onUnmounted } from 'vue'
+import { computed, inject, nextTick, onActivated, onDeactivated, onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { WarningFilled } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
 import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
+import { useBackgroundRefresh } from '@/composables/useBackgroundRefresh'
+import { mergeStableList, retainExistingKeys } from '@/composables/useStableList'
+import { usePageStateStore } from '@/stores/pageState'
 import type { AxiosStatic } from 'axios'
-import { inject } from 'vue'
 import { formatFileSize } from '@/utils/fileSizeUtils'
 import { formatDateTime } from '@/utils/timeUtils'
 import 'element-plus/theme-chalk/display.css'
@@ -194,17 +202,33 @@ interface UploadTask {
 const http: AxiosStatic | undefined = inject('$http')
 
 // 数据状态
+const pageStateStore = usePageStateStore()
+const pageState = pageStateStore.getPageState('upload-queue', {
+  currentPage: 1,
+  pageSize: 20,
+  filters: { status: -1 },
+})
+const { initialLoading, backgroundRefreshing, isRefreshing, runRefresh } = useBackgroundRefresh()
 const queueData = ref<UploadTask[]>([])
-const loading = ref(false)
 const total = ref(0)
 const uploading = ref(0)
-const currentPage = ref(1)
-const pageSize = ref(20)
-const statusFilter = ref(-1)
 const queueStatus = ref<0 | 1>(1) // 0-停止，1-运行中
+const currentPage = computed({
+  get: () => pageState.currentPage,
+  set: (value) => pageStateStore.setPagination('upload-queue', value, pageState.pageSize),
+})
+const pageSize = computed({
+  get: () => pageState.pageSize,
+  set: (value) => pageStateStore.setPagination('upload-queue', pageState.currentPage, value),
+})
+const statusFilter = computed({
+  get: () => Number(pageState.filters.status ?? -1),
+  set: (value) => pageStateStore.setFilter('upload-queue', 'status', value),
+})
 
 // 定时器
 const refreshTimer = ref<number | null>(null)
+const pendingQueueDataRefresh = ref(false)
 let isPageActive = false
 const queueDataRequestGate = createActiveRequestGate(() => isPageActive)
 const queueStatusRequestGate = createActiveRequestGate(() => isPageActive)
@@ -261,6 +285,13 @@ const tableRowClassName = ({ row }: { row: UploadTask }) => {
   }
 }
 
+const handleExpandChange = (row: UploadTask, expandedRows: UploadTask[]) => {
+  pageStateStore.setExpandedRowKeys(
+    'upload-queue',
+    expandedRows.map((item) => String(item.id)),
+  )
+}
+
 const getSourceTypeName = (type: string): string => {
   switch (type) {
     case 'local':
@@ -294,38 +325,56 @@ const getSourceTypeTagType = (type: string): string => {
 
 // 加载队列数据
 const loadQueueData = async () => {
+  if (!isPageActive) {
+    return
+  }
+
   const requestId = queueDataRequestGate.next()
 
+  if (isRefreshing.value) {
+    pendingQueueDataRefresh.value = true
+    return
+  }
+
   try {
-    loading.value = true
-    const response = await http?.get(`${SERVER_URL}/upload/queue`, {
-      params: {
-        page: currentPage.value,
-        page_size: pageSize.value,
-        status: statusFilter.value,
-      },
+    await runRefresh(async () => {
+      try {
+        const response = await http?.get(`${SERVER_URL}/upload/queue`, {
+          params: {
+            page: currentPage.value,
+            page_size: pageSize.value,
+            status: statusFilter.value,
+          },
+        })
+
+        if (!queueDataRequestGate.isCurrent(requestId)) {
+          return
+        }
+
+        if (response?.data.code === 200) {
+          const rows = response.data.data.list || []
+          queueData.value = mergeStableList(queueData.value, rows, (row) => row.id)
+          total.value = response.data.data.total
+          uploading.value = response.data.data.uploading || 0
+          pageStateStore.setExpandedRowKeys(
+            'upload-queue',
+            retainExistingKeys(pageState.expandedRowKeys, queueData.value, (row) => row.id),
+          )
+        } else {
+          ElMessage.error('获取上传队列数据失败')
+        }
+      } catch (error) {
+        if (!queueDataRequestGate.isCurrent(requestId)) {
+          return
+        }
+        console.error('加载上传队列数据错误:', error)
+        ElMessage.error('获取上传队列数据失败')
+      }
     })
-
-    if (!queueDataRequestGate.isCurrent(requestId)) {
-      return
-    }
-
-    if (response?.data.code === 200) {
-      queueData.value = response.data.data.list
-      total.value = response.data.data.total
-      uploading.value = response.data.data.uploading || 0
-    } else {
-      ElMessage.error('获取上传队列数据失败')
-    }
-  } catch (error) {
-    if (!queueDataRequestGate.isCurrent(requestId)) {
-      return
-    }
-    console.error('加载上传队列数据错误:', error)
-    ElMessage.error('加载上传队列数据失败')
   } finally {
-    if (queueDataRequestGate.isCurrent(requestId)) {
-      loading.value = false
+    if (pendingQueueDataRefresh.value && isPageActive) {
+      pendingQueueDataRefresh.value = false
+      await loadQueueData()
     }
   }
 }
@@ -516,6 +565,7 @@ const deactivateQueuePage = () => {
     return
   }
   isPageActive = false
+  pendingQueueDataRefresh.value = false
   queueDataRequestGate.invalidate()
   queueStatusRequestGate.invalidate()
   stopAutoRefresh()
@@ -533,10 +583,23 @@ onMounted(activateQueuePage)
 
 onActivated(activateQueuePage)
 
+onActivated(() => {
+  if (queueData.value.length > 0) {
+    pageStateStore.pruneExpandedRowKeys(
+      'upload-queue',
+      queueData.value.map((row) => String(row.id)),
+    )
+  }
+  nextTick(() => {
+    window.dispatchEvent(new Event('resize'))
+  })
+})
+
 onDeactivated(deactivateQueuePage)
 
 onUnmounted(() => {
   isPageActive = false
+  pendingQueueDataRefresh.value = false
   queueDataRequestGate.invalidate()
   queueStatusRequestGate.invalidate()
   stopAutoRefresh()

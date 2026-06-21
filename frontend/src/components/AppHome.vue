@@ -43,16 +43,6 @@ const handleLogDialogClose = () => {
       <div class="info-grid">
         <VersionManager />
 
-        <div class="info-card sponsor-card">
-          <div class="info-card-header">
-            <span class="info-icon">☕</span>
-            <span>支持作者</span>
-          </div>
-          <div class="sponsor-content">
-            <img src="https://s.mqfamily.top/alipay_wechat.jpg" alt="请作者喝杯咖啡" />
-          </div>
-        </div>
-
         <div class="info-card notice-card">
           <div class="info-card-header">
             <span class="info-icon">📝</span>
@@ -79,7 +69,7 @@ const handleLogDialogClose = () => {
               <span class="notice-number">5</span>
               <span
                 >问题请在
-                <a href="https://github.com/qicfan/qmediasync" target="_blank">GitHub</a> 提交issue
+                <a href="https://github.com/chen8945/QMediaSync" target="_blank">GitHub</a> 提交issue
               </span>
             </div>
           </div>
@@ -161,7 +151,7 @@ const handleLogDialogClose = () => {
 
 .info-grid {
   display: grid;
-  grid-template-columns: 280px 280px 1fr;
+  grid-template-columns: 280px 1fr;
   gap: 20px;
 }
 
@@ -187,16 +177,6 @@ const handleLogDialogClose = () => {
 
 .info-icon {
   font-size: 18px;
-}
-
-.sponsor-content {
-  display: flex;
-  justify-content: center;
-}
-
-.sponsor-content img {
-  max-width: 100%;
-  border-radius: 8px;
 }
 
 .notice-list {

@@ -108,7 +108,7 @@ func (m *Manager) TestConnection(connType ConnectionType, proxyURL string) bool 
 		client.Transport = transport
 	}
 
-	resp, err := client.Get("https://api.github.com/repos/qicfan/qmediasync/releases")
+	resp, err := client.Get("https://api.github.com/repos/chen8945/QMediaSync/releases")
 	if err != nil {
 		return false
 	}

@@ -263,11 +263,7 @@ func getRootDir() string {
 		}
 		exPath = filepath.Dir(ex)
 	} else {
-		if runtime.GOOS == "windows" {
-			exPath, _ = os.Getwd()
-		} else {
-			exPath = "/home/qicfan/dev/qmediasync"
-		}
+		exPath, _ = os.Getwd()
 	}
 	helpers.RootDir = exPath // 获取当前工作目录
 	return exPath

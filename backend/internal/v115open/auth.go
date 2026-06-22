@@ -95,6 +95,9 @@ func (c *OpenClient) QrCodeScanStatus(codeData *QrCodeData) (QrCodeScanStatus, e
 		return QrCodeScanStatusExpired, fmt.Errorf("获取二维码状态失败")
 	}
 	qrCodeStatus := qrStatusData.Value
+	if qrCodeStatus.Status == 0 {
+		return QrCodeScanStatusNotScanned, nil
+	}
 	if qrCodeStatus.Status == 1 {
 		helpers.V115Log.Info("二维码已扫码，待确认")
 		return QrCodeScanStatusScanned, nil
@@ -104,6 +107,32 @@ func (c *OpenClient) QrCodeScanStatus(codeData *QrCodeData) (QrCodeScanStatus, e
 		return QrCodeScanStatusConfirmed, nil
 	}
 	return QrCodeScanStatusExpired, nil
+}
+
+func (s QrCodeScanStatus) String() string {
+	switch s {
+	case QrCodeScanStatusNotScanned:
+		return "waiting"
+	case QrCodeScanStatusScanned:
+		return "scanned"
+	case QrCodeScanStatusConfirmed:
+		return "confirmed"
+	default:
+		return "expired"
+	}
+}
+
+func (s QrCodeScanStatus) Tip() string {
+	switch s {
+	case QrCodeScanStatusNotScanned:
+		return "等待扫码"
+	case QrCodeScanStatusScanned:
+		return "已扫码，请在 115 客户端确认"
+	case QrCodeScanStatusConfirmed:
+		return "授权成功"
+	default:
+		return "二维码已过期"
+	}
 }
 
 // 获取开放平台token

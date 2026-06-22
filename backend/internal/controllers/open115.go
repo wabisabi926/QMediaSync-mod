@@ -237,7 +237,7 @@ func Get115UrlByPickCode(c *gin.Context) {
 
 // GetLoginQrCodeOpen 获取115开放平台登录二维码
 // @Summary 获取115登录二维码
-// @Description 生成115开放平台登录二维码并异步轮询状态
+// @Description 生成115开放平台登录二维码
 // @Tags 115开放平台
 // @Accept json
 // @Produce json
@@ -267,48 +267,18 @@ func GetLoginQrCodeOpen(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取二维码失败: " + err.Error(), Data: nil})
 		return
 	}
-	// 轮询二维码状态
-	go func(codeData *v115open.QrCodeDataReturn) {
-		for {
-			status, err := client.QrCodeScanStatus(&codeData.QrCodeData)
-			if err != nil {
-				helpers.AppLogger.Errorf("刷新二维码状态失败: %v", err)
-				break
-			}
-			// 写入缓存（假设有 db.Cache.Set 方法，缓存60秒）
-			db.Cache.Set("qr_status:"+codeData.Uid, []byte(strconv.Itoa(int(status))), 60)
-			if status == v115open.QrCodeScanStatusExpired {
-				// 二维码已过期，重新获取
-				helpers.AppLogger.Info("二维码已过期，重新获取")
-				break
-			}
-			if status == v115open.QrCodeScanStatusConfirmed {
-				// 二维码已确认，结束轮询，并且获取token
-				helpers.AppLogger.Info("二维码已确认，结束轮询")
-				openToken, err := client.GetToken(codeData)
-				if err != nil || openToken == nil {
-					c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取token失败: " + err.Error(), Data: nil})
-					return
-				}
-				// 保存token
-				account.UpdateToken(openToken.AccessToken, openToken.RefreshToken, openToken.ExpiresIn)
-				userInfo, err := client.UserInfo()
-				if err != nil {
-					c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取115用户信息失败: " + err.Error(), Data: nil})
-					return
-				}
-				rs := account.UpdateUser(string(userInfo.UserId), userInfo.UserName)
-				if !rs {
-					c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "更新用户信息失败", Data: nil})
-					return
-				}
-				break
-			}
-			// 每5秒刷新一次
-			time.Sleep(5 * time.Second)
-		}
-	}(qrCodeData)
-	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取二维码成功", Data: qrCodeData})
+	saveOpen115AuthState(req.AccountId, qrCodeData)
+	c.JSON(http.StatusOK, APIResponse[any]{
+		Code:    Success,
+		Message: "获取二维码成功",
+		Data: gin.H{
+			"uid":     qrCodeData.Uid,
+			"time":    qrCodeData.Time,
+			"sign":    qrCodeData.Sign,
+			"qrcode":  qrCodeData.Qrcode,
+			"expires": 300,
+		},
+	})
 }
 
 // GetQrCodeStatus 查询二维码扫码状态
@@ -334,16 +304,71 @@ func GetQrCodeStatus(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "参数错误", Data: nil})
 		return
 	}
-	uid := req.Uid
-	s := v115open.QrCodeScanStatusNotScanned
-	cachedStatus := db.Cache.Get("qr_status:" + uid)
-	if cachedStatus != nil {
-		statusInt, err := strconv.Atoi(string(cachedStatus))
-		if err == nil {
-			s = v115open.QrCodeScanStatus(statusInt)
-		}
+	state, ok := getOpen115AuthState(req.AccountId, req.Uid)
+	if !ok {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "二维码授权状态不存在或已过期", Data: nil})
+		return
 	}
-	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "", Data: map[string]v115open.QrCodeScanStatus{"status": s}})
+	account, err := models.GetAccountById(req.AccountId)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "账号ID不存在", Data: nil})
+		return
+	}
+	client := account.Get115Client()
+	status, err := client.QrCodeScanStatus(&state.CodeData.QrCodeData)
+	if err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取二维码状态失败: " + err.Error(), Data: nil})
+		return
+	}
+	setOpen115AuthLastStatus(req.AccountId, req.Uid, status)
+	if status != v115open.QrCodeScanStatusConfirmed {
+		c.JSON(http.StatusOK, APIResponse[any]{
+			Code:    Success,
+			Message: "",
+			Data:    gin.H{"status": status.String(), "tip": status.Tip()},
+		})
+		return
+	}
+	if !markOpen115AuthTokenSaving(req.AccountId, req.Uid) {
+		c.JSON(http.StatusOK, APIResponse[any]{
+			Code:    Success,
+			Message: "",
+			Data:    gin.H{"status": "confirmed", "tip": "授权处理中"},
+		})
+		return
+	}
+	openToken, err := client.GetToken(state.CodeData)
+	if err != nil || openToken == nil {
+		resetOpen115AuthTokenSaving(req.AccountId, req.Uid)
+		errMsg := "获取token失败"
+		if err != nil {
+			errMsg += ": " + err.Error()
+		}
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: errMsg, Data: nil})
+		return
+	}
+	if !account.UpdateToken(openToken.AccessToken, openToken.RefreshToken, openToken.ExpiresIn) {
+		resetOpen115AuthTokenSaving(req.AccountId, req.Uid)
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "保存115访问凭证失败", Data: nil})
+		return
+	}
+	userInfo, err := client.UserInfo()
+	if err != nil {
+		resetOpen115AuthTokenSaving(req.AccountId, req.Uid)
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取115用户信息失败: " + err.Error(), Data: nil})
+		return
+	}
+	if !account.UpdateUser(string(userInfo.UserId), userInfo.UserName) {
+		resetOpen115AuthTokenSaving(req.AccountId, req.Uid)
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "更新用户信息失败", Data: nil})
+		return
+	}
+	deleteOpen115AuthState(req.AccountId, req.Uid)
+	c.JSON(http.StatusOK, APIResponse[any]{
+		Code:    Success,
+		Message: "",
+		Data:    gin.H{"status": "confirmed", "tip": "授权成功"},
+	})
 }
 
 // 生成并返回115 oauth登录地址

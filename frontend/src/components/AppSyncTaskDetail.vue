@@ -151,7 +151,6 @@ const infoLoading = ref(false)
 
 // 定时器相关 - 已停用，使用WebSocket替代
 const refreshTimer = ref<number | null>(null)
-const shouldAutoRefresh = ref(false)
 
 // WebSocket事件监听
 import { useWSEvent } from '@/composables/useWebSocket'
@@ -491,7 +490,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   margin-bottom: 12px;
-  transition: all 0.3s ease;
+  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
   z-index: 2;
   position: relative;
 }

@@ -32,7 +32,7 @@
 
         <el-menu
           :default-active="$route.path"
-          :default-openeds="getDefaultOpeneds()"
+          :default-openeds="defaultOpeneds"
           router
           class="el-menu-vertical"
           @select="handleMenuSelect"
@@ -404,29 +404,16 @@ const getCurrentPageTitle = (): string => {
   return (route.meta.title as string) || '首页'
 }
 
-// 获取默认展开的子菜单
-const getDefaultOpeneds = () => {
-  const openeds = []
-  if (route.path.startsWith('/settings') || route.path.startsWith('/proxy')) {
-    openeds.push('/settings')
-  }
-  if (route.path.startsWith('/instant-upload') || route.path.startsWith('/media-import')) {
-    openeds.push('/instant')
-  }
-  if (route.path.startsWith('/sync')) {
-    openeds.push('/sync')
-  }
-  if (route.path.startsWith('/scrape')) {
-    openeds.push('/scrape')
-  }
-  if (route.path.includes('upload-queue') || route.path.includes('download-queue')) {
-    openeds.push('/transfer')
-  }
-  if (route.path.startsWith('/database/backup')) {
-    openeds.push('database')
-  }
+const defaultOpeneds = computed(() => {
+  const openeds: string[] = []
+  if (route.path.startsWith('/settings') || route.path.startsWith('/proxy')) openeds.push('/settings')
+  if (route.path.startsWith('/instant-upload') || route.path.startsWith('/media-import')) openeds.push('/instant')
+  if (route.path.startsWith('/sync')) openeds.push('/sync')
+  if (route.path.startsWith('/scrape')) openeds.push('/scrape')
+  if (route.path.includes('upload-queue') || route.path.includes('download-queue')) openeds.push('/transfer')
+  if (route.path.startsWith('/database/backup')) openeds.push('/database')
   return openeds
-}
+})
 
 // 获取进度状态样式
 const getProgressStatus = () => {
@@ -495,7 +482,6 @@ onUnmounted(() => {
 
 .el-aside {
   background-color: rgb(244 244 245);
-  transition: transform 0.3s ease;
   z-index: 1000;
   display: flex;
   flex-direction: column;
@@ -556,7 +542,6 @@ onUnmounted(() => {
   padding: 20px;
   background-color: #ffffff;
   overflow-y: auto;
-  transition: margin-left 0.3s ease;
 }
 
 /* 移动端样式 */
@@ -567,6 +552,8 @@ onUnmounted(() => {
     left: 0;
     height: 100vh !important;
     transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    will-change: transform;
     z-index: 1001;
   }
 
@@ -638,6 +625,12 @@ onUnmounted(() => {
 
   .el-menu-item .el-icon {
     margin-right: 15px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-aside {
+    transition: none;
   }
 }
 

@@ -259,7 +259,7 @@
 
 .directory-card {
   height: 100%;
-  transition: all 0.3s;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .directory-card:hover {

@@ -121,7 +121,7 @@ const isExpanded = (index: number): boolean => {
   padding: 16px;
   background: #f8f9fa;
   border-radius: 12px;
-  transition: all 0.3s ease;
+  transition: background-color 0.2s ease;
 }
 
 .announcement-item:hover {

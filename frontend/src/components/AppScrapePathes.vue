@@ -509,7 +509,6 @@ const updatePathesStatus = async () => {
       }
     }
   }
-  autoRefreshEnabled = true
 }
 
 const loadAccounts = async (sourceType?: string) => {
@@ -692,13 +691,7 @@ const saveSyncPathRelation = async () => {
   }
 }
 
-let autoRefreshEnabled = true
 const autoRefreshTimer = ref<number | null>(null)
-
-const checkAndSetAutoRefresh = () => {
-  clearAutoRefreshTimer()
-  // 不再自动轮询，依赖WebSocket事件
-}
 
 const clearAutoRefreshTimer = () => {
   if (autoRefreshTimer.value) {
@@ -711,7 +704,6 @@ const clearAutoRefreshTimer = () => {
 import { useWSEvent } from '@/composables/useWebSocket'
 
 const onScraperEvent = () => {
-  autoRefreshEnabled = true
   updatePathesStatus()
 }
 
@@ -793,7 +785,7 @@ onUnmounted(() => {
 .add-btn {
   background: #409eff !important;
   border-color: #409eff !important;
-  transition: all 0.3s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .add-btn:hover {
@@ -880,7 +872,7 @@ onUnmounted(() => {
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-  transition: all 0.3s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
   position: relative;
 }
 

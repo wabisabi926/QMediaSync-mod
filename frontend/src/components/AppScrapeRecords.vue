@@ -1972,7 +1972,7 @@ onUnmounted(() => {
   border: 1px solid #ebeef5;
   border-radius: 8px;
   background: #fafafa;
-  transition: all 0.2s ease;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .result-item:hover {

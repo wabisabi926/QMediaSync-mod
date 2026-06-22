@@ -173,7 +173,7 @@ const { queueStats, queueStatsLoading } = useQueueStats()
   padding: 16px 8px;
   background: #f8f9fa;
   border-radius: 12px;
-  transition: all 0.3s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .metric-item:hover {

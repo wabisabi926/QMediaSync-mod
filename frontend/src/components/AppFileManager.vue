@@ -306,10 +306,9 @@ import {
   inject,
   nextTick,
 } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { ArrowDown, Files, FolderAdd } from '@element-plus/icons-vue'
 import type { FileSystemItem, FileOperationType, DirInfo } from '@/typing'
-import type { FormInstance, FormRules } from 'element-plus'
 import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
 import { useBackgroundRefresh } from '@/composables/useBackgroundRefresh'
 import { mergeStableList, retainExistingKeys } from '@/composables/useStableList'
@@ -1077,7 +1076,7 @@ onUnmounted(() => {
   background: #fff;
   border-bottom: 1px solid #e4e7ed;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .account-item:hover {

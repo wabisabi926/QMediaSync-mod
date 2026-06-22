@@ -185,7 +185,7 @@
                 v-if="row.is_running === 0"
               >
                 <el-icon><VideoPlay /></el-icon>
-                {{ row.source_type == '115' || row.source_type == 'baidupan' ? '增量' : '' }}同步
+                {{ row.source_type === '115' || row.source_type === 'baidupan' ? '增量' : '' }}同步
               </el-button>
 
               <el-button
@@ -451,7 +451,7 @@ const checkMobile = () => {
 
 const GetFullPath = (row: SyncDirectory) => {
   // const pathSeparator = row.local_path.startsWith('/') ? '/' : '\\'
-  if (row.source_type == 'local') {
+  if (row.source_type === 'local') {
     return row.local_path
   }
   // let remotePath = row.remote_path
@@ -503,7 +503,6 @@ const updatePathesStatus = async () => {
       }
     }
   }
-  autoRefreshEnabled = true
 }
 
 const handleAdd = () => {
@@ -737,13 +736,7 @@ const saveScrapePathRelation = async () => {
   }
 }
 
-let autoRefreshEnabled = true
 const autoRefreshTimer = ref<number | null>(null)
-
-const checkAndSetAutoRefresh = () => {
-  clearAutoRefreshTimer()
-  // 不再自动轮询，依赖WebSocket事件
-}
 
 const clearAutoRefreshTimer = () => {
   if (autoRefreshTimer.value) {
@@ -756,7 +749,6 @@ const clearAutoRefreshTimer = () => {
 import { useWSEvent } from '@/composables/useWebSocket'
 
 const onSyncEvent = () => {
-  autoRefreshEnabled = true
   updatePathesStatus()
 }
 
@@ -836,7 +828,7 @@ onUnmounted(() => {
 .add-btn {
   background: #409eff !important;
   border-color: #409eff !important;
-  transition: all 0.3s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .add-btn:hover {
@@ -923,7 +915,7 @@ onUnmounted(() => {
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-  transition: all 0.3s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
   position: relative;
 }
 

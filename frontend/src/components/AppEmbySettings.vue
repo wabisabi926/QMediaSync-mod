@@ -63,7 +63,10 @@
             </div>
             <div class="form-help author-credit">
               <span
-                >Strm信息提取功能由<a href="https://github.com/truewhile" target="_blank"
+                >Strm信息提取功能由<a
+                  href="https://github.com/truewhile"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   >@truewhile</a
                 >
                 提供，感谢其无私的分享。</span
@@ -102,12 +105,14 @@
               <a
                 href="https://github.com/qicfan/qmediasync/wiki/Emby-%E9%80%9A%E7%9F%A5%E9%85%8D%E7%BD%AE"
                 target="_blank"
+                rel="noopener noreferrer"
                 class="help-link"
                 >配置教程</a
               >
               <a
                 :href="embyData.emby_url + '/web/index.html#!/settings/notifications.html'"
                 target="_blank"
+                rel="noopener noreferrer"
                 class="help-link action-link"
                 >去配置</a
               >
@@ -229,12 +234,14 @@
                 <a
                   href="https://github.com/qicfan/qmediasync/wiki/Emby-%E9%80%9A%E7%9F%A5%E9%85%8D%E7%BD%AE"
                   target="_blank"
+                  rel="noopener noreferrer"
                   class="help-link"
                   >配置教程</a
                 >
                 <a
                   :href="embyData.emby_url + '/web/index.html#!/settings/notifications.html'"
                   target="_blank"
+                  rel="noopener noreferrer"
                   class="help-link action-link"
                   >去配置</a
                 >
@@ -414,12 +421,14 @@
                 <a
                   href="https://github.com/qicfan/qmediasync/wiki/Emby-%E9%80%9A%E7%9F%A5%E9%85%8D%E7%BD%AE"
                   target="_blank"
+                  rel="noopener noreferrer"
                   class="help-link"
                   >配置教程</a
                 >
                 <a
                   :href="embyData.emby_url + '/web/index.html#!/settings/notifications.html'"
                   target="_blank"
+                  rel="noopener noreferrer"
                   class="help-link action-link"
                   >去配置</a
                 >
@@ -630,8 +639,13 @@ const embyData = reactive({
   enable_playback_progress: 0,
 })
 
+interface EmbyLibraryOption {
+  library_id: string
+  name: string
+}
+
 // 媒体库选择相关数据
-const availableLibraries = ref<Array<{ library_id: string; name: string }>>([])
+const availableLibraries = ref<EmbyLibraryOption[]>([])
 const selectedLibraryIds = ref<string[]>([])
 
 const embyExample = ref('http://192.168.1.100:8096')
@@ -705,7 +719,7 @@ const loadEmbyConfig = async () => {
         // 解析选中的媒体库ID列表
         try {
           selectedLibraryIds.value = JSON.parse(embyData.selected_libraries)
-        } catch (e) {
+        } catch {
           selectedLibraryIds.value = []
         }
         
@@ -732,7 +746,7 @@ const loadEmbyLibraries = async () => {
   try {
     const response = await http?.get(`${SERVER_URL}/emby/libraries`)
     if (response?.data.code === 200 && response?.data.data) {
-      availableLibraries.value = response.data.data.map((lib: any) => ({
+      availableLibraries.value = (response.data.data as EmbyLibraryOption[]).map((lib) => ({
         library_id: lib.library_id,
         name: lib.name,
       }))
@@ -1021,7 +1035,7 @@ onBeforeUnmount(() => {
   border-radius: 12px;
   border: none;
   overflow: hidden;
-  transition: all 0.3s ease;
+  transition: transform 0.2s ease;
   width: 100%;
 }
 
@@ -1340,7 +1354,7 @@ onBeforeUnmount(() => {
   background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
   border-radius: 12px;
   border: 1px solid #ebeef5;
-  transition: all 0.3s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .sync-stat-card:hover {

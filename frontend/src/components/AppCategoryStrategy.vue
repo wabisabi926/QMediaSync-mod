@@ -248,11 +248,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, inject } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
-import { inject } from 'vue'
 import { Plus, Edit, Delete, Folder } from '@element-plus/icons-vue'
 
 // 响应式数据
@@ -573,7 +572,7 @@ onMounted(async () => {
   flex: 1;
   min-width: 320px;
   max-width: 320px;
-  transition: all 0.3s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .card-actions-header {

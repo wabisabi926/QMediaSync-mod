@@ -310,10 +310,18 @@ const renderMarkdown = (content: string): string => {
 
 .update-collapse :deep(.el-collapse-item__wrap) {
   border: none;
+  transition: height 0.22s ease;
+  will-change: height;
 }
 
 .update-collapse :deep(.el-collapse-item__content) {
   padding: 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update-collapse :deep(.el-collapse-item__wrap) {
+    transition: none;
+  }
 }
 
 .update-title-row {

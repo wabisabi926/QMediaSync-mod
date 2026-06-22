@@ -25,22 +25,30 @@
             :height="isMobile ? 'auto' : 400"
             style="width: 100%"
           >
+            <el-table-column type="expand" width="42">
+              <template #default="{ row }">
+                <el-descriptions :column="isMobile ? 1 : 2" border size="small">
+                  <el-descriptions-item label="文件路径" :span="2">
+                    <span class="backup-detail-long">{{ row.file_path || '-' }}</span>
+                  </el-descriptions-item>
+                  <el-descriptions-item label="文件大小">
+                    {{ row.file_size ? formatFileSize(row.file_size) : '-' }}
+                  </el-descriptions-item>
+                  <el-descriptions-item label="耗时">
+                    {{ row.backup_duration ? formatDuration(row.backup_duration) : '-' }}
+                  </el-descriptions-item>
+                  <el-descriptions-item label="原因" :span="2">
+                    <span class="backup-detail-long">{{ row.created_reason || '-' }}</span>
+                  </el-descriptions-item>
+                </el-descriptions>
+              </template>
+            </el-table-column>
             <el-table-column prop="id" label="ID" width="80" />
             <el-table-column prop="status" label="状态" width="100">
               <template #default="{ row }">
                 <el-tag :type="getStatusTagType(row.status)" size="small">
                   {{ getStatusText(row.status) }}
                 </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column v-if="!isMobile" prop="file_size" label="文件大小" width="120">
-              <template #default="{ row }">
-                {{ row.file_size ? formatFileSize(row.file_size) : '-' }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="backup_duration" label="耗时" width="100">
-              <template #default="{ row }">
-                {{ row.backup_duration ? formatDuration(row.backup_duration) : '-' }}
               </template>
             </el-table-column>
             <el-table-column prop="backup_type" label="类型" width="100">
@@ -50,19 +58,12 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column
-              v-if="!isMobile"
-              prop="created_reason"
-              label="原因"
-              min-width="120"
-              show-overflow-tooltip
-            />
             <el-table-column prop="created_at" label="创建时间" :width="isMobile ? 100 : 180">
               <template #default="{ row }">
                 {{ formatTimestamp(row.created_at) }}
               </template>
             </el-table-column>
-            <el-table-column label="操作" :width="isMobile ? 180 : 210" fixed="right">
+            <el-table-column label="操作" :width="isMobile ? 168 : 190" align="center">
               <template #default="{ row }">
                 <el-button
                   v-if="row.status === 'completed'"
@@ -361,6 +362,10 @@ onMounted(() => {
 .records-section {
   margin-bottom: 20px;
   max-width: 1400px;
+}
+
+.backup-detail-long {
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 768px) {

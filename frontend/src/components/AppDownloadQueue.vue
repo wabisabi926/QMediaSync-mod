@@ -88,9 +88,9 @@
       </el-table-column>
       <el-table-column prop="speed" label="下载链接">
         <template #default="scope">
-          <span>{{ scope.row.remote_file_id }}</span> <br />
+          <span class="queue-path-text">{{ scope.row.remote_file_id }}</span> <br />
           => <br />
-          <span>{{ scope.row.local_full_path }}</span>
+          <span class="queue-path-text">{{ scope.row.local_full_path }}</span>
         </template>
       </el-table-column>
     </el-table>
@@ -106,9 +106,9 @@
       height="calc(100vh - 300px)"
       class="hidden-md-and-down"
     >
-      <el-table-column prop="id" label="ID" width="80" />
-      <el-table-column prop="source" label="下载来源" width="80" />
-      <el-table-column prop="status" label="状态" width="120">
+      <el-table-column prop="id" label="ID" width="64" />
+      <el-table-column prop="source" label="来源" width="72" show-overflow-tooltip />
+      <el-table-column prop="status" label="状态" width="104">
         <template #default="scope">
           <div v-if="scope.row.error">
             <el-tooltip :content="scope.row.error" placement="top">
@@ -127,34 +127,34 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="size" label="文件大小" width="120">
+      <el-table-column prop="size" label="大小" width="104">
         <template #default="scope">
           {{ formatFileSize(scope.row.size) }}
         </template>
       </el-table-column>
-      <el-table-column prop="file_name" label="文件名" width="280">
+      <el-table-column prop="file_name" label="文件名" min-width="220" show-overflow-tooltip>
         <template #default="scope">
           <span class="filename">{{ scope.row.file_name }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="start_time" label="时间" width="260">
+      <el-table-column prop="start_time" label="时间" width="180">
         <template #default="scope">
           开始时间：{{ scope.row.start_time ? formatDateTime(scope.row.start_time) : '-' }}<br />
           结束时间：{{ scope.row.end_time ? formatDateTime(scope.row.end_time) : '-' }}
         </template>
       </el-table-column>
-      <el-table-column prop="source_type" label="类型" width="80">
+      <el-table-column prop="source_type" label="类型" width="72">
         <template #default="scope">
           <el-tag :type="getSourceTypeTagType(scope.row.source_type)">
             {{ getSourceTypeName(scope.row.source_type) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="speed" label="下载链接">
+      <el-table-column prop="speed" label="下载链接" min-width="240">
         <template #default="scope">
-          <span>{{ scope.row.remote_file_id }}</span> <br />
+          <span class="queue-path-text">{{ scope.row.remote_file_id }}</span> <br />
           => <br />
-          <span>{{ scope.row.local_full_path }}</span>
+          <span class="queue-path-text">{{ scope.row.local_full_path }}</span>
         </template>
       </el-table-column>
     </el-table>
@@ -768,6 +768,10 @@ onUnmounted(() => {
 
 .filename {
   font-weight: 500;
+}
+
+.queue-path-text {
+  overflow-wrap: anywhere;
 }
 
 .pagination-container {

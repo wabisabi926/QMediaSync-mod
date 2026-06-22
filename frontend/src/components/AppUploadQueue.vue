@@ -89,9 +89,10 @@
       <el-table-column prop="speed" label="上传文件">
         <template #default="scope">
           <p>
-            <el-text type="primary"># {{ scope.row.id }}</el-text> {{ scope.row.local_full_path }}
+            <el-text type="primary"># {{ scope.row.id }}</el-text>
+            <span class="queue-path-text">{{ scope.row.local_full_path }}</span>
           </p>
-          <p>=> {{ scope.row.remote_file_id }}</p>
+          <p>=> <span class="queue-path-text">{{ scope.row.remote_file_id }}</span></p>
         </template>
       </el-table-column>
     </el-table>
@@ -107,9 +108,9 @@
       height="calc(100vh - 300px)"
       class="hidden-md-and-down"
     >
-      <el-table-column prop="id" label="任务ID" width="60" />
-      <el-table-column prop="source" label="来源类型" width="80" />
-      <el-table-column prop="status" label="状态" width="100">
+      <el-table-column prop="id" label="任务ID" width="64" />
+      <el-table-column prop="source" label="来源" width="72" show-overflow-tooltip />
+      <el-table-column prop="status" label="状态" width="104">
         <template #default="scope">
           <div v-if="scope.row.error">
             <el-tooltip :content="scope.row.error" placement="top">
@@ -128,28 +129,28 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="file_size" label="文件大小" width="100">
+      <el-table-column prop="file_size" label="大小" width="104">
         <template #default="scope">
           {{ formatFileSize(scope.row.file_size) }}
         </template>
       </el-table-column>
-      <el-table-column prop="start_time" label="时间" width="260">
+      <el-table-column prop="start_time" label="时间" width="180">
         <template #default="scope">
           开始时间：{{ scope.row.start_time ? formatDateTime(scope.row.start_time) : '-' }} <br />
           完成时间：{{ scope.row.end_time ? formatDateTime(scope.row.end_time) : '-' }} <br />
         </template>
       </el-table-column>
-      <el-table-column prop="source_type" label="类型" width="80">
+      <el-table-column prop="source_type" label="类型" width="72">
         <template #default="scope">
           <el-tag :type="getSourceTypeTagType(scope.row.source_type)">
             {{ getSourceTypeName(scope.row.source_type) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="speed" label="上传文件">
+      <el-table-column prop="speed" label="上传文件" min-width="300">
         <template #default="scope">
-          <p>{{ scope.row.local_full_path }}</p>
-          <p>=> {{ scope.row.remote_file_id }}</p>
+          <p class="queue-path-text">{{ scope.row.local_full_path }}</p>
+          <p>=> <span class="queue-path-text">{{ scope.row.remote_file_id }}</span></p>
         </template>
       </el-table-column>
     </el-table>
@@ -781,6 +782,10 @@ onUnmounted(() => {
 
 .filename {
   font-weight: 500;
+}
+
+.queue-path-text {
+  overflow-wrap: anywhere;
 }
 
 .pagination-container {

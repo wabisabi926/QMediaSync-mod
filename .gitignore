@@ -9,6 +9,12 @@ Thumbs.db
 *.sw?
 .codebuddy
 
+# Local AI agent configuration and lock files
+.agents/
+.claude/
+.codex/
+skills-lock.json
+
 # Logs and temporary files
 logs/
 *.log
@@ -60,8 +66,9 @@ backend/q115strm_test.exe
 backend/q115strm.exe
 backend/web_statics/
 
-# Backend local experiments and generated docs
+# Backend local experiments, local-only tests, and generated docs
 docs/superpowers/
+backend/test/
 backend/scripts/test_share_link.go
 backend/scripts/test_delta_sync.go
 backend/docs/design/
@@ -93,6 +100,8 @@ frontend/.trae/
 frontend/dist/
 frontend/dist-ssr/
 frontend/coverage/
+
+# Frontend local-only tests and Playwright artifacts
 frontend/test/
 frontend/*.tsbuildinfo
 frontend/cypress/videos/

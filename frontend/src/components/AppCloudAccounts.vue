@@ -443,10 +443,18 @@
       </span>
     </template>
   </el-dialog>
+
+  <V115AuthorizationDialog
+    v-model:visible="showV115AuthDialog"
+    :account-id="selectedV115Account?.id ?? null"
+    :account-name="selectedV115Account?.name ?? ''"
+    @confirmed="loadAccounts"
+  />
 </template>
 
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
+import V115AuthorizationDialog from '@/components/cloud-auth/V115AuthorizationDialog.vue'
 import V115AppSelector from '@/components/cloud-auth/V115AppSelector.vue'
 import type { AxiosError, AxiosStatic } from 'axios'
 import { inject, ref, computed, onMounted, onUnmounted } from 'vue'
@@ -537,6 +545,9 @@ const editAccountForm = ref({
 
 const selectedAccountId = ref<number | undefined>(undefined)
 const show123AuthDialog = ref(false)
+const selectedV115Account = ref<CloudAccount | null>(null)
+const showV115AuthDialog = ref(false)
+const builtInV115Apps = new Set(['Q115-STRM', 'MQ的媒体库', 'QMediaSync'])
 
 const authorizedCount = computed(
   () => accounts.value.filter((a) => a.token && !a.token_failed_reason).length,
@@ -772,12 +783,25 @@ const handleUpdateAccount = async () => {
 
 const handleAuthorize = (row: CloudAccount) => {
   if (row.source_type === '115') {
-    handle115OAuth(row.id)
-  } else if (row.source_type === '123') {
+    if (row.app_id_name === '自定义') {
+      selectedV115Account.value = row
+      showV115AuthDialog.value = true
+      return
+    }
+    if (builtInV115Apps.has(row.app_id_name || 'QMediaSync')) {
+      void handle115OAuth(row.id)
+      return
+    }
+    ElMessage.error('不支持的 115 开放平台应用')
+    return
+  }
+  if (row.source_type === '123') {
     selectedAccountId.value = row.id
     show123AuthDialog.value = true
-  } else if (row.source_type === 'baidupan') {
-    handleBaiduOAuth(row.id)
+    return
+  }
+  if (row.source_type === 'baidupan') {
+    void handleBaiduOAuth(row.id)
   }
 }
 

@@ -482,6 +482,27 @@ function isFileOperationContextCurrent(
   )
 }
 
+function isStrmOperationContextCurrent(
+  snapshot: FileOperationContextSnapshot | null,
+): snapshot is FileOperationContextSnapshot {
+  return strmOperationContext.value === snapshot && isFileOperationContextCurrent(snapshot)
+}
+
+function isCreateDirectoryOperationContextCurrent(
+  snapshot: FileOperationContextSnapshot | null,
+): snapshot is FileOperationContextSnapshot {
+  return createDirectoryOperationContext.value === snapshot && isFileOperationContextCurrent(snapshot)
+}
+
+function isMessageBoxCancelError(error: unknown): boolean {
+  if (error === 'cancel' || error === 'close') {
+    return true
+  }
+
+  const errorMessage = error instanceof Error ? error.message : String(error)
+  return errorMessage.includes('用户取消操作')
+}
+
 function resetStrmTargetDialog() {
   showStrmTargetDialog.value = false
   strmSourceItem.value = null
@@ -814,14 +835,25 @@ async function handleDeleteItem(item: FileSystemItem) {
       },
     })
 
+    if (!isFileOperationContextCurrent(operationContext)) {
+      return
+    }
+
     if (response?.data.code === 200) {
       ElMessage.success('删除成功')
       loadFileList()
     } else {
       ElMessage.error(response?.data.message || '删除失败')
     }
-  } catch {
-    // 用户取消操作或删除失败
+  } catch (error) {
+    if (!isFileOperationContextCurrent(operationContext)) {
+      return
+    }
+
+    if (!isMessageBoxCancelError(error)) {
+      console.error('删除失败:', error)
+      ElMessage.error('删除失败')
+    }
   }
 }
 
@@ -842,7 +874,7 @@ async function handleCreateDirectory() {
   if (!createFormRef.value) return
 
   const operationContext = createDirectoryOperationContext.value
-  if (!isFileOperationContextCurrent(operationContext)) {
+  if (!isCreateDirectoryOperationContextCurrent(operationContext)) {
     resetCreateDirectoryDialog()
     return
   }
@@ -855,8 +887,7 @@ async function handleCreateDirectory() {
   try {
     await createFormRef.value.validate()
 
-    if (!isFileOperationContextCurrent(operationContext)) {
-      resetCreateDirectoryDialog()
+    if (!isCreateDirectoryOperationContextCurrent(operationContext)) {
       return
     }
 
@@ -870,8 +901,7 @@ async function handleCreateDirectory() {
       account_id: operationContext.accountId,
     })
 
-    if (!isFileOperationContextCurrent(operationContext)) {
-      resetCreateDirectoryDialog()
+    if (!isCreateDirectoryOperationContextCurrent(operationContext)) {
       return
     }
 
@@ -883,13 +913,15 @@ async function handleCreateDirectory() {
       ElMessage.error(response?.data.message || '创建文件夹失败')
     }
   } catch {
-    if (isFileOperationContextCurrent(operationContext)) {
-      ElMessage.error('创建文件夹失败')
-    } else {
-      resetCreateDirectoryDialog()
+    if (!isCreateDirectoryOperationContextCurrent(operationContext)) {
+      return
     }
+
+    ElMessage.error('创建文件夹失败')
   } finally {
-    createLoading.value = false
+    if (createDirectoryOperationContext.value === operationContext) {
+      createLoading.value = false
+    }
   }
 }
 
@@ -900,7 +932,7 @@ async function confirmStrmGenerate() {
   }
 
   const operationContext = strmOperationContext.value
-  if (!isFileOperationContextCurrent(operationContext)) {
+  if (!isStrmOperationContextCurrent(operationContext)) {
     resetStrmTargetDialog()
     return
   }
@@ -924,8 +956,7 @@ async function confirmStrmGenerate() {
       account_id: operationContext.accountId,
     })
 
-    if (!isFileOperationContextCurrent(operationContext)) {
-      resetStrmTargetDialog()
+    if (!isStrmOperationContextCurrent(operationContext)) {
       return
     }
 
@@ -936,13 +967,15 @@ async function confirmStrmGenerate() {
       ElMessage.error(response?.data.message || 'STRM生成失败')
     }
   } catch {
-    if (isFileOperationContextCurrent(operationContext)) {
-      ElMessage.error('STRM生成失败')
-    } else {
-      resetStrmTargetDialog()
+    if (!isStrmOperationContextCurrent(operationContext)) {
+      return
     }
+
+    ElMessage.error('STRM生成失败')
   } finally {
-    strmGenerateLoading.value = false
+    if (strmOperationContext.value === operationContext) {
+      strmGenerateLoading.value = false
+    }
   }
 }
 

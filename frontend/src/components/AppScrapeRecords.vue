@@ -427,6 +427,7 @@
       title="重新识别"
       width="700px"
       :close-on-click-modal="false"
+      :before-close="handleReScrapeDialogBeforeClose"
     >
       <div class="re-scrape-dialog-content">
         <div class="search-section">
@@ -567,7 +568,12 @@
     </div>
 
     <!-- 回滚对话框 -->
-    <el-dialog v-model="showRollbackDialog" title="注意" width="320px">
+    <el-dialog
+      v-model="showRollbackDialog"
+      title="注意"
+      width="320px"
+      :before-close="handleRollbackDialogBeforeClose"
+    >
       <p>
         确认回滚该刮削记录吗？回滚后视频+字幕会放回原目录并且根据查询到的tmdb信息重命名，刮削记录会被删除，后续扫描时会重新刮削该影片。
       </p>
@@ -675,6 +681,8 @@ interface RecordActionContextSnapshot {
   recordId: number
   contextVersion: number
 }
+
+type DialogCloseDone = () => void
 
 // 状态变量
 const pageStateStore = usePageStateStore()
@@ -1114,6 +1122,16 @@ const handleSearchModeChange = () => {
 }
 
 const closeReScrapeDialog = () => {
+  invalidateRecordActionContext()
+}
+
+const handleReScrapeDialogBeforeClose = (done: DialogCloseDone) => {
+  done()
+  invalidateRecordActionContext()
+}
+
+const handleRollbackDialogBeforeClose = (done: DialogCloseDone) => {
+  done()
   invalidateRecordActionContext()
 }
 

@@ -38,6 +38,7 @@ const visibleActions = computed(() => props.actions.filter(isVisible))
 <style scoped>
 .record-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 4px;

@@ -90,208 +90,64 @@
 
     <div class="table-section">
       <div class="table-container" v-loading="queryLoading">
-        <el-table
-          v-loading="initialLoading"
-          :data="records"
+        <ResponsiveRecordTable
+          class="scrape-record-table"
+          :rows="records"
+          :columns="scrapeRecordColumns"
+          :actions="scrapeRecordActions"
+          :row-key="getScrapeRecordRowKey"
+          :loading="initialLoading || queryLoading"
+          :is-mobile="isMobileView"
+          :expanded-row-keys="pageState.expandedRowKeys"
+          show-selection
           @selection-change="handleSelectionChange"
-          :row-key="(row: ScrapeRecord) => String(row.id)"
-          :expand-row-keys="pageState.expandedRowKeys"
           @expand-change="handleExpandChange"
-          style="width: 100%"
-          class="mobile-table"
+          @action="handleScrapeRecordAction"
         >
-          <el-table-column type="selection" width="30" />
-          <el-table-column type="expand" width="30">
-            <template #default="{ row }">
-              <el-descriptions
-                class="margin-top"
-                :column="2"
-                border
-                size="small"
-                label-width="50px"
-              >
-                <el-descriptions-item label="类型">
-                  <el-tag :type="getTypeTagType(row.type)">
-                    {{ getTypeName(row.type) }}
-                  </el-tag>
-                </el-descriptions-item>
-                <el-descriptions-item label="来源">
-                  <el-tag :type="getSourceTypeTagType(row.source_type)">
-                    {{ getSourceTypeName(row.source_type) }}
-                  </el-tag>
-                </el-descriptions-item>
-                <el-descriptions-item label="状态">
-                  <el-tag :type="getStatusTagType(row.status)">
-                    {{ getStatusName(row.status) }}
-                  </el-tag>
-                </el-descriptions-item>
-                <el-descriptions-item label="识别信息">
-                  <div>
-                    <p class="path-text">Tmdb ID: {{ row.tmdb_id }}</p>
-                    <p class="path-text">识别名称: {{ row.media_name }}</p>
-                    <p>年份：{{ row.year }}</p>
-                    <p class="path-text">原始名称: {{ row.original_name }}</p>
-                  </div>
-                </el-descriptions-item>
-                <el-descriptions-item label="时间" :span="2">
-                  <div>
-                    <p>创建：<br />{{ row.created_at ? formatTimestamp(row.created_at) : '-' }}</p>
-                    <p>刮削：<br />{{ row.scraped_at ? formatTimestamp(row.scraped_at) : '-' }}</p>
-                    <p>整理：<br />{{ row.renamed_at ? formatTimestamp(row.renamed_at) : '-' }}</p>
-                  </div>
-                </el-descriptions-item>
-                <el-descriptions-item label="失败原因" v-if="row.failed_reason" :span="2">
-                  {{ row.failed_reason ? row.failed_reason : '-' }}
-                </el-descriptions-item>
-                <el-descriptions-item label="操作" :span="2">
-                  <div>
-                    <el-button type="text" @click="handleDetail(row)">详情</el-button>
-                    <el-button
-                      type="warning"
-                      size="small"
-                      @click="reScrape(row)"
-                      v-if="
-                        (row.type == 'movie' &&
-                          (row.status == 'scrape_failed' ||
-                            row.status == 'scanned' ||
-                            row.status == 'renamed')) ||
-                        (row.type == 'tvshow' && row.status == 'scrape_failed')
-                      "
-                      >重新识别</el-button
-                    >
-                    <el-button
-                      type="success"
-                      size="small"
-                      @click="markAsFinished(row)"
-                      v-if="row.status == 'renaming' || row.status == 'scraped'"
-                      >标记为已整理</el-button
-                    >
-                  </div>
-                </el-descriptions-item>
-              </el-descriptions>
-            </template>
-          </el-table-column>
-          <el-table-column prop="path" label="文件路径">
-            <template #default="{ row }">
-              <div>
-                <p class="path-text">{{ row.source_full_path }}</p>
-                <p style="margin: 10px 0; display: flex; align-items: center; flex-wrap: wrap">
-                  <el-tag :type="getRenameTypeTagType(row.rename_type)">
-                    {{ getRenameTypeName(row.rename_type) }}
-                  </el-tag>
-                  <span style="margin-left: 12px">到</span>
-                </p>
-                <p class="path-text">{{ row.dest_full_path }}</p>
-              </div>
-            </template>
-          </el-table-column>
-        </el-table>
-        <el-table
-          v-loading="initialLoading"
-          :data="records"
-          @selection-change="handleSelectionChange"
-          :row-key="(row: ScrapeRecord) => String(row.id)"
-          style="width: 100%"
-          class="desktop-table"
-        >
-          <el-table-column type="selection" width="55" />
-          <el-table-column prop="path_is_scraping" label="运行状态" width="80">
-            <template #default="{ row }">
-              <span class="info-value" v-if="row.path_is_scraping">
-                <el-icon class="is-loading">
-                  <Loading />
+          <template #cell-path_is_scraping="{ row }">
+            <span class="info-value" v-if="row.path_is_scraping">
+              <el-icon class="is-loading">
+                <Loading />
+              </el-icon>
+              <el-text class="mx-1" type="primary">刮削中…</el-text>
+            </span>
+            <span class="info-value" v-else>
+              <el-text class="mx-1" type="info" size="small">未执行</el-text>
+            </span>
+          </template>
+          <template #cell-status="{ row }">
+            <el-tooltip :content="getStatusTooltip(row.status)" placement="top">
+              <el-tag :type="getStatusTagType(row.status)">
+                <el-icon>
+                  <Warning />
                 </el-icon>
-                <el-text class="mx-1" type="primary">刮削中...</el-text>
-              </span>
-              <span class="info-value" v-else>
-                <el-text class="mx-1" type="info" size="small">未执行</el-text>
-              </span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="status" label="文件状态" width="200">
-            <template #default="{ row }">
-              <el-tooltip :content="getStatusTooltip(row.status)" placement="top">
-                <el-tag :type="getStatusTagType(row.status)">
-                  <el-icon>
-                    <Warning />
-                  </el-icon>
-                  {{ getStatusName(row.status) }}
+                {{ getStatusName(row.status) }}
+              </el-tag>
+            </el-tooltip>
+          </template>
+          <template #cell-type="{ row }">
+            <el-tag :type="getTypeTagType(row.type)">
+              {{ getTypeName(row.type) }}
+            </el-tag>
+          </template>
+          <template #cell-source_type="{ row }">
+            <el-tag :type="getSourceTypeTagType(row.source_type)">
+              {{ getSourceTypeName(row.source_type) }}
+            </el-tag>
+          </template>
+          <template #cell-path="{ row }">
+            <div class="scrape-path-cell">
+              <p class="path-text">{{ row.source_full_path }}</p>
+              <p class="scrape-path-cell__rename">
+                <el-tag :type="getRenameTypeTagType(row.rename_type)">
+                  {{ getRenameTypeName(row.rename_type) }}
                 </el-tag>
-              </el-tooltip>
-              <p v-if="row.failed_reason" style="margin-top: 4px">{{ row.failed_reason }}</p>
-            </template>
-          </el-table-column>
-          <el-table-column prop="type" label="类型" width="80">
-            <template #default="{ row }">
-              <el-tag :type="getTypeTagType(row.type)">
-                {{ getTypeName(row.type) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="source_type" label="来源" width="80">
-            <template #default="{ row }">
-              <el-tag :type="getSourceTypeTagType(row.source_type)">
-                {{ getSourceTypeName(row.source_type) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-
-          <el-table-column prop="path" label="文件路径" width="400">
-            <template #default="{ row }">
-              <div>
-                <p class="path-text">{{ row.source_full_path }}</p>
-                <p style="margin: 10px 0; display: flex; align-items: center; flex-wrap: wrap">
-                  <el-tag :type="getRenameTypeTagType(row.rename_type)">
-                    {{ getRenameTypeName(row.rename_type) }}
-                  </el-tag>
-                  <span style="margin-left: 12px">到</span>
-                </p>
-                <p class="path-text">{{ row.dest_full_path }}</p>
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column label="识别信息" width="240">
-            <template #default="{ row }">
-              <div>
-                <p class="path-text">Tmdb ID: {{ row.tmdb_id }}</p>
-                <p class="path-text">识别名称: {{ row.media_name }} 年份：{{ row.year }}</p>
-                <p class="path-text">原始名称: {{ row.original_name }}</p>
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column prop="rename_time" label="时间" width="250">
-            <template #default="{ row }">
-              <p>创建时间：{{ row.created_at ? formatTimestamp(row.created_at) : '-' }}</p>
-              <p>刮削时间：{{ row.scraped_at ? formatTimestamp(row.scraped_at) : '-' }}</p>
-              <p>整理时间：{{ row.renamed_at ? formatTimestamp(row.renamed_at) : '-' }}</p>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="140" fixed="right">
-            <template #default="{ row }">
-              <el-button type="text" @click="handleDetail(row)">详情</el-button>
-              <el-button
-                type="warning"
-                size="small"
-                @click="reScrape(row)"
-                v-if="
-                  (row.type == 'movie' &&
-                    (row.status == 'scrape_failed' ||
-                      row.status == 'scanned' ||
-                      row.status == 'renamed')) ||
-                  (row.type == 'tvshow' && row.status == 'scrape_failed')
-                "
-                >重新识别</el-button
-              >
-              <el-button
-                type="success"
-                size="small"
-                @click="markAsFinished(row)"
-                v-if="row.status == 'renaming' || row.status == 'scraped'"
-                >标记为已整理</el-button
-              >
-            </template>
-          </el-table-column>
-        </el-table>
+                <span>到</span>
+              </p>
+              <p class="path-text">{{ row.dest_full_path }}</p>
+            </div>
+          </template>
+        </ResponsiveRecordTable>
 
         <div class="pagination-container mobile-pagination">
           <el-pagination
@@ -588,6 +444,16 @@
 </template>
 
 <script setup lang="ts">
+import ResponsiveRecordTable from '@/components/records/ResponsiveRecordTable.vue'
+import { SERVER_URL } from '@/const'
+import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
+import { useBackgroundRefresh } from '@/composables/useBackgroundRefresh'
+import { mergeStableList, retainExistingKeys } from '@/composables/useStableList'
+import { useWSEvent } from '@/composables/useWebSocket'
+import { usePageStateStore } from '@/stores/pageState'
+import type { RecordAction, RecordActionPayload, RecordColumn } from '@/types/recordTable'
+import { isMobile as checkIsMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
+import { formatTimestamp } from '@/utils/timeUtils'
 import {
   computed,
   inject,
@@ -598,16 +464,9 @@ import {
   onUnmounted,
   ref,
 } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Film, Picture, Search } from '@element-plus/icons-vue'
-import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
-import { formatTimestamp } from '@/utils/timeUtils'
-import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
-import { useBackgroundRefresh } from '@/composables/useBackgroundRefresh'
-import { mergeStableList, retainExistingKeys } from '@/composables/useStableList'
-import { useWSEvent } from '@/composables/useWebSocket'
-import { usePageStateStore } from '@/stores/pageState'
+import { Film, Finished, Picture, Refresh, Search, View } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import 'element-plus/theme-chalk/display.css'
 
 const http: AxiosStatic | undefined = inject('$http')
@@ -708,6 +567,7 @@ const originalRecords = ref<ScrapeRecord[]>([])
 const isMerged = ref(false)
 const selectedRecords = ref<ScrapeRecord[]>([])
 const queryLoading = ref(false)
+const isMobileView = ref(checkIsMobile())
 const statusFilter = computed({
   get: () => String(pageState.filters.status ?? ''),
   set: (value) => pageStateStore.setFilter('scrape-records', 'status', value),
@@ -730,6 +590,7 @@ const activeScrapeRecordsMutationContext = ref<ScrapeRecordsMutationContextSnaps
 const pendingScrapeRecordsRefresh = ref(false)
 let isPageActive = false
 const scrapeRecordsRequestGate = createActiveRequestGate(() => isPageActive)
+let stopDeviceTypeChange: (() => void) | null = null
 
 // 分页相关
 const currentPage = computed({
@@ -857,6 +718,132 @@ const handleExpandChange = (row: ScrapeRecord, expandedRows: ScrapeRecord[]) => 
     'scrape-records',
     expandedRows.map((item) => String(item.id)),
   )
+}
+
+const getScrapeRecordRowKey = (row: ScrapeRecord) => row.id
+
+function canReScrape(row: ScrapeRecord) {
+  return (
+    (row.type === 'movie' &&
+      (row.status === 'scrape_failed' || row.status === 'scanned' || row.status === 'renamed')) ||
+    (row.type === 'tvshow' && row.status === 'scrape_failed')
+  )
+}
+
+function canMarkAsFinished(row: ScrapeRecord) {
+  return row.status === 'renaming' || row.status === 'scraped'
+}
+
+const scrapeRecordColumns: RecordColumn<ScrapeRecord>[] = [
+  { key: 'path_is_scraping', label: '运行状态', priority: 'primary', width: 96, align: 'center' },
+  { key: 'status', label: '文件状态', priority: 'primary', minWidth: 132 },
+  { key: 'type', label: '类型', priority: 'secondary', width: 88, align: 'center' },
+  { key: 'source_type', label: '来源', priority: 'secondary', width: 88, align: 'center' },
+  {
+    key: 'path',
+    label: '文件路径',
+    priority: 'primary',
+    minWidth: 320,
+    detailField: {
+      key: 'path',
+      label: '文件路径',
+      value: (row) => row.path,
+      span: 2,
+      isLongText: true,
+    },
+  },
+  {
+    key: 'media_name',
+    label: '识别名称',
+    priority: 'detail',
+    detailField: {
+      key: 'media_name',
+      label: '识别名称',
+      value: (row) => row.media_name || '-',
+      span: 2,
+      isLongText: true,
+    },
+  },
+  {
+    key: 'original_name',
+    label: '原始名称',
+    priority: 'detail',
+    detailField: {
+      key: 'original_name',
+      label: '原始名称',
+      value: (row) => row.original_name || '-',
+      span: 2,
+      isLongText: true,
+    },
+  },
+  {
+    key: 'tmdb_id',
+    label: 'TMDB ID',
+    priority: 'detail',
+    detailField: { key: 'tmdb_id', label: 'TMDB ID', value: (row) => row.tmdb_id || '-' },
+  },
+  {
+    key: 'year',
+    label: '年份',
+    priority: 'detail',
+    detailField: { key: 'year', label: '年份', value: (row) => row.year || '-' },
+  },
+  {
+    key: 'times',
+    label: '时间',
+    priority: 'detail',
+    detailField: {
+      key: 'times',
+      label: '时间',
+      value: (row) =>
+        `创建 ${formatTimestamp(row.created_at)}，刮削 ${formatTimestamp(row.scraped_at)}，整理 ${formatTimestamp(row.renamed_at)}`,
+      span: 2,
+    },
+  },
+  {
+    key: 'failed_reason',
+    label: '失败原因',
+    priority: 'detail',
+    detailField: {
+      key: 'failed_reason',
+      label: '失败原因',
+      value: (row) => row.failed_reason || '-',
+      span: 2,
+      isLongText: true,
+    },
+  },
+]
+
+const scrapeRecordActions: RecordAction<ScrapeRecord>[] = [
+  { key: 'detail', label: '详情', type: 'primary', icon: View },
+  {
+    key: 'rescrape',
+    label: '重新识别',
+    type: 'warning',
+    icon: Refresh,
+    visible: canReScrape,
+  },
+  {
+    key: 'mark-finished',
+    label: '标记已整理',
+    type: 'success',
+    icon: Finished,
+    visible: canMarkAsFinished,
+  },
+]
+
+const handleScrapeRecordAction = ({ actionKey, row }: RecordActionPayload<ScrapeRecord>) => {
+  if (actionKey === 'detail') {
+    handleDetail(row)
+    return
+  }
+  if (actionKey === 'rescrape') {
+    reScrape(row)
+    return
+  }
+  if (actionKey === 'mark-finished') {
+    void markAsFinished(row)
+  }
 }
 
 function cloneScrapeRecords(rows: ScrapeRecord[]): ScrapeRecord[] {
@@ -1361,7 +1348,7 @@ const reScrape = (record: ScrapeRecord) => {
     episode: parseInt(record.episode_number + '') || -1,
     status: record.status || '',
   }
-  if (record.status == 'renamed') {
+  if (record.status === 'renamed') {
     showRollbackDialog.value = true
   } else {
     showReScrapeDialog.value = true
@@ -1726,6 +1713,12 @@ const deactivateScrapeRecordsPage = () => {
 // 页面生命周期
 onMounted(activateScrapeRecordsPage)
 
+onMounted(() => {
+  stopDeviceTypeChange = onDeviceTypeChange((nextIsMobile) => {
+    isMobileView.value = nextIsMobile
+  })
+})
+
 onActivated(activateScrapeRecordsPage)
 
 onActivated(() => {
@@ -1748,6 +1741,8 @@ onUnmounted(() => {
   isPageActive = false
   pendingScrapeRecordsRefresh.value = false
   queryLoading.value = false
+  stopDeviceTypeChange?.()
+  stopDeviceTypeChange = null
   scrapeRecordsRequestGate.invalidate()
   invalidateRecordActionContext()
   invalidateScrapeRecordsMutationContext()
@@ -1833,14 +1828,12 @@ onUnmounted(() => {
   display: block;
 }
 
-.mobile-table,
 .mobile-pagination {
   display: none;
 }
 
-.desktop-table,
 .desktop-pagination {
-  display: table;
+  display: flex;
 }
 
 .pagination-container {
@@ -1856,6 +1849,24 @@ onUnmounted(() => {
 
 .bottom-tips {
   margin-top: 20px;
+}
+
+.scrape-record-table {
+  width: 100%;
+}
+
+.scrape-path-cell {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.scrape-path-cell__rename {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
 }
 
 .tips-text {
@@ -2043,14 +2054,12 @@ onUnmounted(() => {
 }
 
 @media (min-width: 769px) {
-  .mobile-table,
   .mobile-pagination {
     display: none;
   }
 
-  .desktop-table,
   .desktop-pagination {
-    display: table;
+    display: flex;
   }
 }
 
@@ -2108,12 +2117,10 @@ onUnmounted(() => {
     margin-bottom: 0;
   }
 
-  .mobile-table,
   .mobile-pagination {
-    display: table;
+    display: flex;
   }
 
-  .desktop-table,
   .desktop-pagination {
     display: none;
   }

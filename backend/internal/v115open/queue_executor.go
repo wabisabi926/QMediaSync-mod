@@ -345,7 +345,9 @@ func (qe *QueueExecutor) executeRequest(req *QueuedRequest) (*resty.Response, *R
 		resp = &RespBaseBool[json.RawMessage]{
 			State:   respBase.State != 0,
 			Code:    respBase.Code,
+			Errno:   respBase.Errno,
 			Message: respBase.Message,
+			Error:   respBase.Error,
 			Data:    respBase.Data,
 		}
 	}
@@ -367,8 +369,7 @@ func (qe *QueueExecutor) executeRequest(req *QueuedRequest) (*resty.Response, *R
 	}
 
 	if resp.Code != 0 {
-		// helpers.V115Log.Errorf("错误码：%d，错误信息：%s", resp.Code, string(resBytes))
-		return response, resp, resBytes, fmt.Errorf("错误码：%d，错误信息：%s", resp.Code, resp.Message)
+		return response, resp, resBytes, NewOpenAPIResponseError(resp.Code, resp.Errno, resp.Message, resp.Error, "115接口请求失败")
 	}
 
 	return response, resp, resBytes, nil

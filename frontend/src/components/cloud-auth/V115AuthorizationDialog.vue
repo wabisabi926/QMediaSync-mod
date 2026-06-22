@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useV115DeviceAuthorization } from '@/composables/useV115DeviceAuthorization'
+import V115QrCode from './V115QrCode.vue'
 import { Refresh } from '@element-plus/icons-vue'
 import type { AxiosStatic } from 'axios'
 import { computed, inject, watch } from 'vue'
@@ -70,14 +71,7 @@ const handleClosed = () => {
   >
     <div class="v115-auth-dialog">
       <div class="v115-auth-dialog__name">{{ accountName }}</div>
-      <img
-        v-if="qrCode"
-        class="v115-auth-dialog__qr"
-        :src="qrCode.qrcode"
-        width="220"
-        height="220"
-        alt="115 授权二维码"
-      />
+      <V115QrCode v-if="qrCode" :content="qrCode.qrcode" />
       <el-skeleton v-else :rows="4" animated />
       <el-tag :type="statusType" class="v115-auth-dialog__status">
         {{ tip || '等待授权' }}
@@ -106,12 +100,6 @@ const handleClosed = () => {
   max-width: 100%;
   overflow-wrap: anywhere;
   color: #606266;
-}
-
-.v115-auth-dialog__qr {
-  display: block;
-  border: 1px solid #dcdfe6;
-  border-radius: 6px;
 }
 
 .v115-auth-dialog__status {

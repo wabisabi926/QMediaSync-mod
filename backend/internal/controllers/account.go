@@ -68,7 +68,10 @@ func GetAccountList(c *gin.Context) {
 			a.AppId = ""
 			a.AppIdName = "QMediaSync"
 		default:
-			a.AppIdName = "自定义"
+			a.AppIdName = strings.TrimSpace(account.AppIdName)
+			if a.AppIdName == "" {
+				a.AppIdName = "自定义"
+			}
 			a.AppId = account.AppId
 		}
 		if a.Name == "" {
@@ -104,10 +107,11 @@ func GetAccountList(c *gin.Context) {
 // @Security ApiKeyAuth
 func CreateTmpAccount(c *gin.Context) {
 	type tmpAccountReq struct {
-		SourceType models.SourceType `json:"source_type" form:"source_type"`
-		Name       string            `json:"name" form:"name"`
-		AppId      string            `json:"app_id" form:"app_id"`
-		AppIdName  string            `json:"app_id_name" form:"app_id_name"`
+		SourceType    models.SourceType `json:"source_type" form:"source_type"`
+		Name          string            `json:"name" form:"name"`
+		AppId         string            `json:"app_id" form:"app_id"`
+		AppIdName     string            `json:"app_id_name" form:"app_id_name"`
+		CustomAppName string            `json:"custom_app_name" form:"custom_app_name"`
 	}
 	tmpAccount := &tmpAccountReq{}
 	if err := c.ShouldBind(tmpAccount); err != nil {
@@ -116,6 +120,7 @@ func CreateTmpAccount(c *gin.Context) {
 	}
 	// 创建临时账号
 	var appId string
+	var appIdName string
 	if tmpAccount.SourceType == models.SourceTypeBaiduPan {
 		appId = helpers.GlobalConfig.BaiDuPanAppId
 	}
@@ -126,6 +131,7 @@ func CreateTmpAccount(c *gin.Context) {
 			appId = tmpAccount.AppIdName
 		case "自定义":
 			appId = strings.TrimSpace(tmpAccount.AppId)
+			appIdName = strings.TrimSpace(tmpAccount.CustomAppName)
 			if appId == "" {
 				c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "自定义应用ID不能为空", Data: nil})
 				return
@@ -135,12 +141,54 @@ func CreateTmpAccount(c *gin.Context) {
 			return
 		}
 	}
-	account, err := models.CreateAccountByName(tmpAccount.Name, tmpAccount.SourceType, appId)
+	account, err := models.CreateAccountByName(
+		strings.TrimSpace(tmpAccount.Name),
+		tmpAccount.SourceType,
+		appId,
+		appIdName,
+	)
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "创建开放平台账号失败", Data: nil})
 		return
 	}
 	c.JSON(http.StatusOK, APIResponse[models.Account]{Code: Success, Message: "创建开放平台账号成功", Data: *account})
+}
+
+// UpdateAccountInfo 更新账号资料
+// @Summary 更新账号资料
+// @Description 更新账号备注和自定义开放平台应用名，不修改授权凭据或OpenList连接配置
+// @Tags 账号管理
+// @Accept json
+// @Produce json
+// @Param id query integer true "账号ID"
+// @Param name query string false "账号备注"
+// @Param app_id_name query string false "自定义应用名"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /account/update [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
+func UpdateAccountInfo(c *gin.Context) {
+	type updateAccountInfoReq struct {
+		ID        uint   `json:"id" form:"id"`
+		Name      string `json:"name" form:"name"`
+		AppIdName string `json:"app_id_name" form:"app_id_name"`
+	}
+	req := &updateAccountInfoReq{}
+	if err := c.ShouldBind(req); err != nil || req.ID == 0 {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误", Data: nil})
+		return
+	}
+	account, err := models.GetAccountById(req.ID)
+	if err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "查询开放平台账号失败", Data: nil})
+		return
+	}
+	if err := account.UpdateInfo(strings.TrimSpace(req.Name), strings.TrimSpace(req.AppIdName)); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "更新开放平台账号资料失败", Data: nil})
+		return
+	}
+	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "更新开放平台账号资料成功", Data: nil})
 }
 
 // DeleteAccount 删除开放平台账号

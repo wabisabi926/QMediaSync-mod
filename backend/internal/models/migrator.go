@@ -18,7 +18,7 @@ type Migrator struct {
 	VersionCode int `json:"version_code"` // 版本号
 }
 
-var MaxVersionCode = 38
+var MaxVersionCode = 39
 var AllTables = []any{
 	BackupConfig{}, BackupRecord{},
 	ApiKey{}, Settings{}, Sync{}, User{}, Account{},
@@ -467,6 +467,13 @@ func Migrate() {
 		// 添加刮削失败通知类型到emby_config表
 		addNewNotificationRulesForExistingChannels(db.Db)
 		helpers.AppLogger.Info("已添加刮削整理失败通知类型")
+		migrator.UpdateVersionCode(db.Db)
+	}
+
+	if migrator.VersionCode == 39 {
+		// 添加自定义开放平台应用名字段到account表
+		db.Db.AutoMigrate(Account{})
+		helpers.AppLogger.Info("已添加account.app_id_name字段")
 		migrator.UpdateVersionCode(db.Db)
 	}
 	helpers.AppLogger.Infof("当前数据库版本 %d", migrator.VersionCode)

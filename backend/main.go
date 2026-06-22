@@ -644,6 +644,7 @@ func setRouter(r *gin.Engine) {
 
 		api.GET("/account/list", controllers.GetAccountList)             // 获取开放平台账号列表
 		api.POST("/account/add", controllers.CreateTmpAccount)           // 创建开放平台账号
+		api.POST("/account/update", controllers.UpdateAccountInfo)       // 更新开放平台账号资料
 		api.POST("/account/delete", controllers.DeleteAccount)           // 删除开放平台账号
 		api.POST("/account/openlist", controllers.CreateOpenListAccount) // 创建openlist账号
 

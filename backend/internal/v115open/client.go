@@ -96,7 +96,9 @@ func (c *OpenClient) doRequest(url string, req *resty.Request, options *RequestC
 			respBase := &RespBase[json.RawMessage]{
 				State:   0,
 				Code:    queueResp.RespData.Code,
+				Errno:   queueResp.RespData.Errno,
 				Message: queueResp.RespData.Message,
+				Error:   queueResp.RespData.Error,
 				Data:    queueResp.RespData.Data,
 			}
 			if queueResp.RespData.State {
@@ -115,7 +117,9 @@ func (c *OpenClient) doRequest(url string, req *resty.Request, options *RequestC
 				respBase := &RespBase[json.RawMessage]{
 					State:   0,
 					Code:    queueResp.RespData.Code,
+					Errno:   queueResp.RespData.Errno,
 					Message: queueResp.RespData.Message,
+					Error:   queueResp.RespData.Error,
 					Data:    queueResp.RespData.Data,
 				}
 				if queueResp.RespData.State {
@@ -132,7 +136,9 @@ func (c *OpenClient) doRequest(url string, req *resty.Request, options *RequestC
 				respBase := &RespBase[json.RawMessage]{
 					State:   0,
 					Code:    queueResp.RespData.Code,
+					Errno:   queueResp.RespData.Errno,
 					Message: queueResp.RespData.Message,
+					Error:   queueResp.RespData.Error,
 					Data:    queueResp.RespData.Data,
 				}
 				if queueResp.RespData.State {

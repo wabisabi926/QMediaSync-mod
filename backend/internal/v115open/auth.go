@@ -55,7 +55,7 @@ func (c *OpenClient) GetQrCode() (*QrCodeDataReturn, error) {
 	}
 	if respData.State != 1 {
 		helpers.V115Log.Errorf("获取开放平台授权二维码失败: %+v", respData)
-		return nil, fmt.Errorf("获取开放平台授权二维码失败")
+		return nil, NewOpenAPIResponseError(respData.Code, respData.Errno, respData.Message, respData.Error, "获取开放平台授权二维码失败")
 	}
 	// 解析respData.Data
 	qrData.UnmarshalJSON(respData.Data)
@@ -86,7 +86,7 @@ func (c *OpenClient) QrCodeScanStatus(codeData *QrCodeData) (QrCodeScanStatus, e
 	}
 	if respData.State != 1 {
 		helpers.V115Log.Errorf("获取二维码状态失败: %+v", respData)
-		return QrCodeScanStatusExpired, fmt.Errorf("获取二维码状态失败")
+		return QrCodeScanStatusExpired, NewOpenAPIResponseError(respData.Code, respData.Errno, respData.Message, respData.Error, "获取二维码状态失败")
 	}
 	qrStatusData := StructOrArray[QrCodeStatus]{}
 	qrStatusData.UnmarshalJSON(respData.Data)
@@ -195,7 +195,7 @@ func (c *OpenClient) RefreshToken(refreshToken string) (*TokenData, error) {
 			"account_id": c.AccountId,
 			"reason":     respData.Message,
 		})
-		return nil, fmt.Errorf("115开放平台刷新访问凭证失败")
+		return nil, NewOpenAPIResponseError(respData.Code, respData.Errno, respData.Message, respData.Error, "115开放平台刷新访问凭证失败")
 	}
 	tokenDataOrArray := StructOrArray[TokenData]{}
 	tokenDataOrArray.UnmarshalJSON(respData.Data)

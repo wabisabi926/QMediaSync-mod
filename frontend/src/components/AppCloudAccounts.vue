@@ -95,15 +95,19 @@
             </div>
 
             <div class="card-body">
-              <div class="info-row" v-if="account.source_type === '115'">
+              <div
+                class="info-row"
+                v-for="appInfo in account.source_type === '115' ? getV115AppInfoRows(account) : []"
+                :key="appInfo.label"
+              >
                 <div class="info-icon">
                   <el-icon>
                     <Key />
                   </el-icon>
                 </div>
                 <div class="info-content">
-                  <span class="info-label">开放平台应用</span>
-                  <span class="info-value">{{ account.app_id_name || '-' }}</span>
+                  <span class="info-label">{{ appInfo.label }}</span>
+                  <span class="info-value">{{ appInfo.value }}</span>
                 </div>
               </div>
 
@@ -309,13 +313,7 @@
                 授权
               </el-button>
 
-              <el-button
-                type="primary"
-                size="small"
-                plain
-                @click="handleEdit(account)"
-                v-if="account.source_type === 'openlist'"
-              >
+              <el-button type="primary" size="small" plain @click="handleEdit(account)">
                 <el-icon>
                   <Edit />
                 </el-icon>
@@ -459,6 +457,7 @@
         v-if="newAccountForm.type === '115'"
         v-model:app-name="newAccountForm.app_id_name"
         v-model:app-id="newAccountForm.app_id"
+        v-model:custom-app-name="newAccountForm.custom_app_name"
       />
     </el-form>
     <template #footer>
@@ -473,37 +472,54 @@
 
   <el-dialog
     v-model="showEditAccountDialog"
-    title="编辑OpenList账号"
+    :title="editDialogTitle"
     :width="isMobile ? '90%' : '500px'"
   >
-    <el-form :model="editAccountForm" label-width="80px">
-      <el-form-item label="访问地址" prop="baseUrl">
-        <el-input
-          v-model="editAccountForm.base_url"
-          placeholder="请输入OpenList地址:http://ip:5244"
-        />
+    <el-form :model="editAccountForm" label-width="100px">
+      <el-form-item label="账号备注">
+        <el-input v-model="editAccountForm.name" placeholder="请输入账号备注" />
       </el-form-item>
-      <el-form-item label="认证方式">
-        <el-select v-model="editAccountForm.auth_type" placeholder="请选择认证方式">
-          <el-option label="用户名密码" value="password"></el-option>
-          <el-option label="令牌" value="token"></el-option>
-        </el-select>
-      </el-form-item>
-      <template v-if="editAccountForm.auth_type === 'password'">
-        <el-form-item label="用户名">
-          <el-input v-model="editAccountForm.username" placeholder="请输入用户名" />
-        </el-form-item>
-        <el-form-item label="密码">
+      <template v-if="canEditCustomAppName">
+        <el-form-item label="应用名">
           <el-input
-            type="password"
-            v-model="editAccountForm.password"
-            placeholder="请输入密码（留空则不修改）"
+            v-model="editAccountForm.app_id_name"
+            placeholder="请输入应用名，可留空"
+            clearable
           />
         </el-form-item>
+        <el-form-item label="APPID">
+          <el-input v-model="editAccountForm.app_id" disabled />
+        </el-form-item>
       </template>
-      <el-form-item label="令牌" v-if="editAccountForm.auth_type === 'token'">
-        <el-input type="password" v-model="editAccountForm.token" placeholder="请输入令牌" />
-      </el-form-item>
+      <template v-if="editAccountForm.source_type === 'openlist'">
+        <el-form-item label="访问地址" prop="baseUrl">
+          <el-input
+            v-model="editAccountForm.base_url"
+            placeholder="请输入OpenList地址:http://ip:5244"
+          />
+        </el-form-item>
+        <el-form-item label="认证方式">
+          <el-select v-model="editAccountForm.auth_type" placeholder="请选择认证方式">
+            <el-option label="用户名密码" value="password"></el-option>
+            <el-option label="令牌" value="token"></el-option>
+          </el-select>
+        </el-form-item>
+        <template v-if="editAccountForm.auth_type === 'password'">
+          <el-form-item label="用户名">
+            <el-input v-model="editAccountForm.username" placeholder="请输入用户名" />
+          </el-form-item>
+          <el-form-item label="密码">
+            <el-input
+              type="password"
+              v-model="editAccountForm.password"
+              placeholder="请输入密码（留空则不修改）"
+            />
+          </el-form-item>
+        </template>
+        <el-form-item label="令牌" v-if="editAccountForm.auth_type === 'token'">
+          <el-input type="password" v-model="editAccountForm.token" placeholder="请输入令牌" />
+        </el-form-item>
+      </template>
     </el-form>
     <template #footer>
       <span class="dialog-footer">
@@ -550,6 +566,7 @@ import { ElMessageBox, ElMessage } from 'element-plus'
 import { formatTimestamp } from '@/utils/timeUtils'
 import { sourceTypeMap, sourceTypeOptions, sourceTypeTagMap } from '@/utils/sourceTypeUtils'
 import { isMobile as checkIsMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
+import { getV115AppInfoRows, isBuiltInV115App, isCustomV115App } from '@/utils/cloudAccountUtils'
 
 const isMobile = ref(checkIsMobile())
 
@@ -597,6 +614,7 @@ const newAccountForm = ref({
   auth_type: 'password',
   app_id_name: 'QMediaSync',
   app_id: '',
+  custom_app_name: '',
 })
 
 const showEditAccountDialog = ref(false)
@@ -610,13 +628,15 @@ const editAccountForm = ref({
   token: '',
   auth_type: 'password',
   token_failed_reason: '',
+  name: '',
+  app_id: '',
+  app_id_name: '',
 })
 
 const selectedAccountId = ref<number | undefined>(undefined)
 const show123AuthDialog = ref(false)
 const selectedV115Account = ref<CloudAccount | null>(null)
 const showV115AuthDialog = ref(false)
-const builtInV115Apps = new Set(['Q115-STRM', 'MQ的媒体库', 'QMediaSync'])
 
 const authorizedCount = computed(
   () => accounts.value.filter((a) => a.token && !a.token_failed_reason).length,
@@ -626,6 +646,15 @@ const unauthorizedCount = computed(
 )
 const failedCount = computed(
   () => accounts.value.filter((a) => a.token_failed_reason && !a.token).length,
+)
+const editDialogTitle = computed(() =>
+  editAccountForm.value.source_type === 'openlist' ? '编辑OpenList账号' : '编辑账号',
+)
+const canEditCustomAppName = computed(() =>
+  isCustomV115App({
+    source_type: editAccountForm.value.source_type,
+    app_id: editAccountForm.value.app_id,
+  }),
 )
 
 let removeDeviceTypeListener: (() => void) | null = null
@@ -809,32 +838,78 @@ const handleEdit = (account: CloudAccount) => {
   editAccountForm.value = {
     id: account.id,
     source_type: account.source_type,
+    name: account.name,
     base_url: account.base_url,
     username: account.username,
-    password: account.password,
+    password: account.password || '',
     token: account.token || '',
     auth_type: authType,
     token_failed_reason: account.token_failed_reason || '',
+    app_id: account.app_id || '',
+    app_id_name: account.app_id_name || '',
   }
   showEditAccountDialog.value = true
 }
 
+const hasOpenListConfigChanged = (): boolean => {
+  const original = currentEditAccount.value
+  if (!original || editAccountForm.value.source_type !== 'openlist') {
+    return false
+  }
+  return (
+    editAccountForm.value.base_url !== original.base_url ||
+    editAccountForm.value.auth_type !== original.auth_type ||
+    editAccountForm.value.username !== original.username ||
+    editAccountForm.value.token !== (original.token || '') ||
+    editAccountForm.value.password !== ''
+  )
+}
+
 const handleUpdateAccount = async () => {
   try {
-    const requestData = {
-      id: editAccountForm.value.id,
-      base_url: editAccountForm.value.base_url,
-      auth_type: editAccountForm.value.auth_type,
-      ...(editAccountForm.value.auth_type === 'token'
-        ? { token: editAccountForm.value.token }
-        : { username: editAccountForm.value.username, password: editAccountForm.value.password }),
+    if (hasOpenListConfigChanged()) {
+      const openListRequestData = {
+        id: editAccountForm.value.id,
+        base_url: editAccountForm.value.base_url,
+        auth_type: editAccountForm.value.auth_type,
+        ...(editAccountForm.value.auth_type === 'token'
+          ? { token: editAccountForm.value.token }
+          : {
+              username: editAccountForm.value.username,
+              password: editAccountForm.value.password,
+            }),
+      }
+
+      const openListResponse = await http?.post(
+        `${SERVER_URL}/account/openlist`,
+        openListRequestData,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        },
+      )
+
+      if (openListResponse?.data.code !== 200) {
+        console.error('更新OpenList账号失败:', openListResponse?.data.message || '未知错误')
+        ElMessage.error(openListResponse?.data.message || '更新账号失败')
+        return
+      }
     }
 
-    const response = await http?.post(`${SERVER_URL}/account/openlist`, requestData, {
-      headers: {
-        'Content-Type': 'application/json',
+    const response = await http?.post(
+      `${SERVER_URL}/account/update`,
+      {
+        id: editAccountForm.value.id,
+        name: editAccountForm.value.name,
+        app_id_name: editAccountForm.value.app_id_name,
       },
-    })
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    )
 
     if (response?.data.code === 200) {
       showEditAccountDialog.value = false
@@ -852,12 +927,12 @@ const handleUpdateAccount = async () => {
 
 const handleAuthorize = (row: CloudAccount) => {
   if (row.source_type === '115') {
-    if (row.app_id_name === '自定义') {
+    if (isCustomV115App(row)) {
       selectedV115Account.value = row
       showV115AuthDialog.value = true
       return
     }
-    if (builtInV115Apps.has(row.app_id_name || 'QMediaSync')) {
+    if (isBuiltInV115App(row.app_id_name)) {
       void handle115OAuth(row.id)
       return
     }
@@ -951,6 +1026,7 @@ const resetForm = () => {
     auth_type: 'password',
     app_id_name: 'QMediaSync',
     app_id: '',
+    custom_app_name: '',
   }
 }
 
@@ -968,6 +1044,7 @@ const handleAddAccount = async () => {
         password: newAccountForm.value.password,
         app_id_name: newAccountForm.value.app_id_name,
         app_id: newAccountForm.value.app_id,
+        custom_app_name: newAccountForm.value.custom_app_name,
       })
     } else if (newAccountForm.value.type === 'openlist') {
       url = `${SERVER_URL}/account/openlist`

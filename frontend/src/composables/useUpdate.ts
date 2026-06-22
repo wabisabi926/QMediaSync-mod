@@ -39,8 +39,8 @@ export function useUpdate() {
   const countdown = ref(30)
   const updateChannel = ref<UpdateChannel>('github')
 
-  let progressTimer: number | null = null
-  let countdownTimer: number | null = null
+  let progressTimer: ReturnType<typeof setInterval> | null = null
+  let countdownTimer: ReturnType<typeof setInterval> | null = null
 
   const loadUpdateList = async (force = false) => {
     try {

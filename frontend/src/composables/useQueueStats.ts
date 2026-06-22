@@ -23,7 +23,7 @@ export function useQueueStats(pollingInterval = 3000) {
   const queueStats = ref<QueueStats | null>(null)
   const queueStatsLoading = ref(false)
   const hasLoaded = ref(false)
-  let queueStatsTimer: number | null = null
+  let queueStatsTimer: ReturnType<typeof setInterval> | null = null
 
   const loadQueueStats = async () => {
     try {

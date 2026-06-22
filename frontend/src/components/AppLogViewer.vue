@@ -92,7 +92,7 @@ const logsContainer = useTemplateRef<HTMLElement>('logsContainer')
 // 日志数量限制配置
 const MAX_LOG_ENTRIES = 2000
 const CLEANUP_THRESHOLD = 2500
-let cleanupTimer: number | null = null
+let cleanupTimer: ReturnType<typeof setTimeout> | null = null
 
 // 日志配置
 let isLoadingOldLogs = false

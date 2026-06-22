@@ -17,6 +17,7 @@ type Account struct {
 	Name              string     `json:"name"` // 账号备注，仅供用户自己识别账号使用，唯一
 	SourceType        SourceType `json:"source_type"`
 	AppId             string     `json:"app_id"`
+	AppIdName         string     `json:"app_id_name"` // 自定义开放平台应用名，仅供显示
 	Token             string     `json:"token" gorm:"type:string;size:512"`
 	RefreshToken      string     `json:"refresh_token" gorm:"type:string;size:512"`
 	TokenExpiriesTime int64      `json:"token_expiries_time"`
@@ -29,6 +30,15 @@ type Account struct {
 
 func (account *Account) TableName() string {
 	return "account"
+}
+
+func isBuiltIn115AppId(appId string) bool {
+	switch appId {
+	case "Q115-STRM", "MQ的媒体库", "QMediaSync":
+		return true
+	default:
+		return false
+	}
 }
 
 // 更新token和refreshToken
@@ -149,7 +159,6 @@ func (account *Account) UpdateOpenList(baseUrl string, username string, password
 		}
 	}
 	account.UserId = fmt.Sprintf("%d", userInfo.ID)
-	account.Name = userInfo.Username
 	// 保存到数据库
 	err := db.Db.Save(account).Error
 	if err != nil {
@@ -161,11 +170,12 @@ func (account *Account) UpdateOpenList(baseUrl string, username string, password
 
 // 使用name创建一个临时账号，用户后续授权绑定
 // name: 账号备注
-func CreateAccountByName(name string, srouceType SourceType, appId string) (*Account, error) {
+func CreateAccountByName(name string, srouceType SourceType, appId string, appIdName string) (*Account, error) {
 	account := &Account{}
 	account.Name = name
 	account.SourceType = srouceType
 	account.AppId = appId
+	account.AppIdName = appIdName
 	account.Token = ""
 	account.RefreshToken = ""
 	account.TokenExpiriesTime = 0
@@ -179,6 +189,24 @@ func CreateAccountByName(name string, srouceType SourceType, appId string) (*Acc
 		return nil, err
 	}
 	return account, nil
+}
+
+// 更新账号资料，不修改授权凭据和连接配置
+func (account *Account) UpdateInfo(name string, appIdName string) error {
+	account.Name = name
+	updateData := map[string]any{
+		"name": name,
+	}
+	if account.SourceType == SourceType115 && account.AppId != "" && !isBuiltIn115AppId(account.AppId) {
+		account.AppIdName = appIdName
+		updateData["app_id_name"] = appIdName
+	}
+	err := db.Db.Model(account).Where("id = ?", account.ID).Updates(updateData).Error
+	if err != nil {
+		helpers.AppLogger.Errorf("更新开放平台账号资料失败: %v", err)
+		return err
+	}
+	return nil
 }
 
 // 创建openlist账号

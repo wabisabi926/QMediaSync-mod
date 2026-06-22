@@ -8,7 +8,9 @@ import (
 type RespBase[T any] struct {
 	State   int    `json:"state"`
 	Code    int    `json:"code"`
+	Errno   int    `json:"errno"`
 	Message string `json:"message"`
+	Error   string `json:"error"`
 	Data    T      `json:"data"`
 }
 
@@ -16,7 +18,9 @@ type RespBase[T any] struct {
 type RespBaseBool[T any] struct {
 	State   bool   `json:"state"`
 	Code    int    `json:"code"`
+	Errno   int    `json:"errno"`
 	Message string `json:"message"`
+	Error   string `json:"error"`
 	Data    T      `json:"data"`
 }
 

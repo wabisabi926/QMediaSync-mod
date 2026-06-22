@@ -1,0 +1,25 @@
+export interface CloudAccountAppInfo {
+  source_type: string
+  app_id?: string
+  app_id_name?: string
+}
+
+const builtInV115Apps = new Set(['Q115-STRM', 'MQ的媒体库', 'QMediaSync'])
+
+export const isCustomV115App = (account: CloudAccountAppInfo): boolean =>
+  account.source_type === '115' && Boolean(account.app_id)
+
+export const isBuiltInV115App = (appName?: string): boolean =>
+  builtInV115Apps.has(appName || 'QMediaSync')
+
+export const getV115AppInfoRows = (
+  account: CloudAccountAppInfo,
+): Array<{ label: string; value: string }> => {
+  if (!isCustomV115App(account)) {
+    return [{ label: '开放平台应用', value: account.app_id_name || '-' }]
+  }
+  return [
+    { label: '应用名', value: account.app_id_name || '自定义' },
+    { label: 'APPID', value: account.app_id || '-' },
+  ]
+}

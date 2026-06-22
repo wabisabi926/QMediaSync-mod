@@ -45,19 +45,23 @@ export function useHourlyStats() {
   const http = inject<AxiosStatic>('$http')
   const hourlyStats = ref<HourlyStatsData | null>(null)
   const hourlyStatsLoading = ref(false)
+  const hasLoaded = ref(false)
 
   const loadHourlyStats = async () => {
     try {
-      hourlyStatsLoading.value = true
+      hourlyStatsLoading.value = !hasLoaded.value
       const response = await http?.get(`${SERVER_URL}/115/stats/hourly`)
       if (response && response.data && response.data.code === 200) {
         hourlyStats.value = response.data.data
-      } else {
+        hasLoaded.value = true
+      } else if (!hasLoaded.value) {
         hourlyStats.value = null
       }
     } catch (error) {
       console.error('加载每小时请求统计错误:', error)
-      hourlyStats.value = null
+      if (!hasLoaded.value) {
+        hourlyStats.value = null
+      }
     } finally {
       hourlyStatsLoading.value = false
     }

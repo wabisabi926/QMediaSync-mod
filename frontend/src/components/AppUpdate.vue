@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, inject } from 'vue'
+import { ref, onMounted, inject, watch } from 'vue'
 import { useUpdate } from '@/composables/useUpdate'
 import { useVersion } from '@/composables/useVersion'
 import { formatFileSize } from '@/utils/fileSizeUtils'
@@ -11,7 +11,8 @@ import type { AxiosStatic } from 'axios'
 
 const http: AxiosStatic | undefined = inject('$http')
 
-const activeNames = ref<string[]>(['update-0'])
+const activeNames = ref<string[]>([])
+const hasInitializedActiveNames = ref(false)
 
 const { versionInfo, versionLoading } = useVersion()
 
@@ -30,6 +31,15 @@ const {
   handleDownloadClick,
   manuallyRefresh,
 } = useUpdate()
+
+watch(updateList, (updates) => {
+  if (hasInitializedActiveNames.value || activeNames.value.length > 0 || updates.length === 0) {
+    return
+  }
+
+  activeNames.value = [`update-${updates[0].version}`]
+  hasInitializedActiveNames.value = true
+})
 
 const handleChannelChange = (channel: string) => {
   updateChannel.value = channel as 'github' | 'gitee'
@@ -108,7 +118,11 @@ const renderMarkdown = (content: string): string => {
 
         <div v-if="updateList.length > 0" class="update-list">
           <el-collapse v-model="activeNames" class="update-collapse">
-            <el-collapse-item v-for="(update, index) in updateList" :key="index" :name="`update-${index}`">
+            <el-collapse-item
+              v-for="update in updateList"
+              :key="update.version"
+              :name="`update-${update.version}`"
+            >
               <template #title>
                 <div class="update-title-row">
                   <div class="update-version">

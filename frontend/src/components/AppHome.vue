@@ -1,19 +1,18 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { defineAsyncComponent, ref } from 'vue'
 import { Document } from '@element-plus/icons-vue'
 import VersionManager from './VersionManager.vue'
 import QueueStatsCard from './QueueStatsCard.vue'
-import HourlyStatsChart from './HourlyStatsChart.vue'
 import AnnouncementCard from './AnnouncementCard.vue'
-import AppLogViewer from './AppLogViewer.vue'
+
+const HourlyStatsChart = defineAsyncComponent(() => import('./HourlyStatsChart.vue'))
+const AppLogViewer = defineAsyncComponent(() => import('./AppLogViewer.vue'))
 
 const showLogDialog = ref(false)
-const logViewerRef = ref<InstanceType<typeof AppLogViewer> | null>(null)
+const logViewerRef = ref<{ disconnect?: () => void } | null>(null)
 
 const handleLogDialogClose = () => {
-  if (logViewerRef.value) {
-    logViewerRef.value.disconnect()
-  }
+  logViewerRef.value?.disconnect?.()
 }
 </script>
 
@@ -91,7 +90,12 @@ const handleLogDialogClose = () => {
     @close="handleLogDialogClose"
   >
     <div class="log-dialog-content">
-      <AppLogViewer ref="logViewerRef" log-path="app.log" :is-real-time="true" />
+      <AppLogViewer
+        v-if="showLogDialog"
+        ref="logViewerRef"
+        log-path="app.log"
+        :is-real-time="true"
+      />
     </div>
   </el-dialog>
 </template>

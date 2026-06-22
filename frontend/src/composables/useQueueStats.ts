@@ -23,20 +23,24 @@ export function useQueueStats(pollingInterval = 3000) {
   const http = inject<AxiosStatic>('$http')
   const queueStats = ref<QueueStats | null>(null)
   const queueStatsLoading = ref(false)
+  const hasLoaded = ref(false)
   let queueStatsTimer: number | null = null
 
   const loadQueueStats = async () => {
     try {
-      queueStatsLoading.value = true
+      queueStatsLoading.value = !hasLoaded.value
       const response = await http?.get(`${SERVER_URL}/115/queue/stats`)
       if (response && response.data && response.data.code === 200) {
         queueStats.value = response.data.data
-      } else {
+        hasLoaded.value = true
+      } else if (!hasLoaded.value) {
         queueStats.value = null
       }
     } catch (error) {
       console.error('加载115接口请求统计错误:', error)
-      queueStats.value = null
+      if (!hasLoaded.value) {
+        queueStats.value = null
+      }
     } finally {
       queueStatsLoading.value = false
     }

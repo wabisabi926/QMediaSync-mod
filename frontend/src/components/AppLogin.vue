@@ -17,7 +17,9 @@
           <el-input
             v-model="loginForm.username"
             size="large"
-            placeholder="请输入用户名"
+            name="username"
+            autocomplete="username"
+            placeholder="请输入用户名…"
             :prefix-icon="User"
             :disabled="loading"
           />
@@ -28,7 +30,9 @@
             v-model="loginForm.password"
             type="password"
             size="large"
-            placeholder="请输入密码"
+            name="password"
+            autocomplete="current-password"
+            placeholder="请输入密码…"
             :prefix-icon="Lock"
             show-password
             :disabled="loading"
@@ -37,7 +41,9 @@
         </el-form-item>
 
         <el-form-item>
-          <el-checkbox v-model="loginForm.rememberMe" :disabled="loading"> 记住我 </el-checkbox>
+          <el-checkbox v-model="loginForm.rememberMe" :disabled="loading">
+            保持登录状态
+          </el-checkbox>
         </el-form-item>
 
         <el-form-item>
@@ -48,7 +54,7 @@
             :loading="loading"
             @click="handleLogin"
           >
-            {{ loading ? '登录中...' : '登录' }}
+            {{ loading ? '登录中…' : '登录' }}
           </el-button>
         </el-form-item>
       </el-form>

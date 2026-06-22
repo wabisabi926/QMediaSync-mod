@@ -197,6 +197,7 @@ import {
   VideoPlay,
   View,
 } from '@element-plus/icons-vue'
+import axios from 'axios'
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
@@ -390,7 +391,7 @@ const handleLogout = async () => {
       type: 'warning',
     })
 
-    authStore.logout()
+    await authStore.logoutWithServer(axios)
     ElMessage.success('已退出登录')
     router.push('/login')
   } catch {

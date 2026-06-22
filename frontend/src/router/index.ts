@@ -1,6 +1,7 @@
 import { createRouter } from 'vue-router'
 import { createQMediaSyncHashHistory } from './history'
 import { useAuthStore } from '@/stores/auth'
+import axios from 'axios'
 
 const AppHome = () => import('@/components/AppHome.vue')
 const AppLogin = () => import('@/components/AppLogin.vue')
@@ -453,21 +454,19 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
 
-  // 初始化认证状态
-  authStore.initAuth()
-
   // 如果要访问的页面需要认证
-  if (to.meta.requiresAuth) {
-    if (!authStore.isAuthenticated) {
-      // 未登录，跳转到登录页面
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+    const restored = await authStore.restoreSession(axios)
+    if (!restored) {
       next({
         name: 'login',
         query: { redirect: to.fullPath },
       })
       return
     }
+  }
 
-    // 验证token有效性
+  if (to.meta.requiresAuth) {
     const isValid = await authStore.checkTokenValidity()
     if (!isValid) {
       next({
@@ -479,9 +478,12 @@ router.beforeEach(async (to, from, next) => {
   }
 
   // 如果已登录用户访问登录页面，重定向到首页
-  if (to.name === 'login' && authStore.isAuthenticated) {
-    next({ name: 'home' })
-    return
+  if (to.name === 'login') {
+    await authStore.restoreSession(axios)
+    if (authStore.isAuthenticated) {
+      next({ name: 'home' })
+      return
+    }
   }
 
   // 设置页面标题

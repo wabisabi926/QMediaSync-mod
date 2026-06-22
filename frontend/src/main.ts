@@ -16,6 +16,7 @@ import { useAuthStore } from '@/stores/auth'
 // 配置axios
 axios.defaults.timeout = 10000
 axios.defaults.headers.common['Content-Type'] = 'application/json'
+axios.defaults.withCredentials = true
 
 // 请求拦截器
 axios.interceptors.request.use(
@@ -39,8 +40,8 @@ axios.interceptors.response.use(
       const authStore = useAuthStore()
       if (!authStore.isLoggingOut) {
         ElMessage.error('登录已失效，请重新登录')
-        authStore.logout()
-        router.push('/login')
+        void authStore.logoutWithServer(axios)
+        void router.push('/login')
       }
       return Promise.reject(new Error('登录已失效，请重新登录'))
     }
@@ -52,16 +53,16 @@ axios.interceptors.response.use(
     if (error.response?.status === 401) {
       if (!authStore.isLoggingOut) {
         ElMessage.error('登录已失效，请重新登录')
-        authStore.logout()
-        router.push('/login')
+        void authStore.logoutWithServer(axios)
+        void router.push('/login')
       }
     }
     // 检查响应数据中的code字段
     else if (error.response?.data?.code === 401) {
       if (!authStore.isLoggingOut) {
         ElMessage.error('登录已失效，请重新登录')
-        authStore.logout()
-        router.push('/login')
+        void authStore.logoutWithServer(axios)
+        void router.push('/login')
       }
     }
     return Promise.reject(error)
@@ -75,8 +76,7 @@ app.use(pinia)
 app.use(router)
 app.provide('$http', axios)
 
-// 初始化认证状态
-const authStore = useAuthStore()
-authStore.initAuth()
+// 初始化本地认证缓存
+useAuthStore().initAuth()
 
 app.mount('#app')

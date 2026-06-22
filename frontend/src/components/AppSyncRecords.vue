@@ -35,184 +35,46 @@
           批量删除
         </el-button>
       </div>
-      <el-table
-        :data="syncRecords"
-        v-loading="initialLoading"
-        stripe
-        class="sync-table mobile-table"
-        empty-text="暂无同步记录"
-        :show-overflow-tooltip="true"
-        :row-key="(row: SyncRecord) => String(row.id)"
-        :expand-row-keys="pageState.expandedRowKeys"
+      <ResponsiveRecordTable
+        class="sync-table"
+        :rows="syncRecords"
+        :columns="syncRecordColumns"
+        :actions="syncRecordActions"
+        :row-key="getSyncRecordRowKey"
+        :loading="initialLoading || queryLoading"
+        :is-mobile="isMobileView"
+        :expanded-row-keys="pageState.expandedRowKeys"
+        :show-selection="batchMode"
+        :selectable="isDeletableRecord"
+        :height="isMobileView ? 'calc(100vh - 250px)' : 'calc(100vh - 350px)'"
         @selection-change="handleSelectionChange"
         @expand-change="handleExpandChange"
-        height="calc(100vh - 250px)"
-        style="width: 100%"
+        @action="handleSyncRecordAction"
       >
-        <el-table-column
-          v-if="batchMode"
-          type="selection"
-          width="30"
-          align="center"
-          :selectable="isDeletableRecord"
-        />
-        <el-table-column type="expand" width="30">
-          <template #default="scope">
-            <el-descriptions class="margin-top" :column="2" border size="small">
-              <el-descriptions-item label="来源类型">{{ scope.row.source }}</el-descriptions-item>
-              <el-descriptions-item label="状态">
-                <el-tag
-                  :type="getStatusType(scope.row.status)"
-                  :effect="scope.row.status === 1 ? 'dark' : 'light'"
-                >
-                  {{ getStatusText(scope.row.status) }}
-                </el-tag>
-              </el-descriptions-item>
-              <el-descriptions-item label="开始时间">
-                {{ scope.row.start_time ? formatDateTime(scope.row.start_time) : '-' }}
-              </el-descriptions-item>
-              <el-descriptions-item label="完成时间">
-                {{ scope.row.end_time ? formatDateTime(scope.row.end_time) : '-' }}
-              </el-descriptions-item>
-              <el-descriptions-item label="文件数" :span="2">
-                扫描的总文件数：{{ scope.row.processed_files }} <br />
-                生成strm数：{{ scope.row.created_strm }} <br />
-                需要下载的元数据数：{{ scope.row.downloaded_meta }}<br />
-                需要上传的元数据数：{{ scope.row.uploaded_meta }}
-              </el-descriptions-item>
-              <el-descriptions-item label="失败原因" v-if="scope.row.fail_reason" :span="2">
-                {{ scope.row.fail_reason }}
-              </el-descriptions-item>
-            </el-descriptions>
-          </template>
-        </el-table-column>
-        <el-table-column prop="local_path" label="同步路径" show-overflow-tooltip>
-          <template #default="scope">
-            <el-text type="primary" class="hidden-md-and-up"># {{ scope.row.id }}</el-text>
-            {{ scope.row.remote_path || '-' }} => {{ scope.row.local_path || '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="120" align="center" fixed="right">
-          <template #default="scope">
-            <el-button type="primary" size="small" @click="viewTaskDetail(scope.row.id)" link>
-              查看
-            </el-button>
-            <el-button
-              v-if="isDeletableRecord(scope.row) && !batchMode"
-              type="danger"
-              size="small"
-              style="margin-left: 4px"
-              :loading="deleteLoading"
-              @click="deleteRecord(scope.row.id)"
-              link
-            >
-              删除
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-      <!-- 同步记录表格 -->
-      <el-table
-        :data="syncRecords"
-        v-loading="initialLoading"
-        stripe
-        class="sync-table desktop-table"
-        empty-text="暂无同步记录"
-        :show-overflow-tooltip="true"
-        @selection-change="handleSelectionChange"
-        height="calc(100vh - 350px)"
-      >
-        <el-table-column
-          v-if="batchMode"
-          type="selection"
-          width="50"
-          align="center"
-          :selectable="isDeletableRecord"
-        />
-        <el-table-column prop="id" label="任务ID" width="80" />
-        <el-table-column prop="status" label="状态" width="90">
-          <template #default="scope">
-            <el-tag
-              :type="getStatusType(scope.row.status)"
-              :effect="scope.row.status === 1 ? 'dark' : 'light'"
-            >
-              {{ getStatusText(scope.row.status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="sub_status" label="子状态" width="120" class-name="hidden-xs">
-          <template #default="scope">
-            <el-tag v-if="scope.row.status === 1" type="primary" size="small" effect="light">
-              {{ getSubStatusText(scope.row.sub_status) }}
-            </el-tag>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="start_time" label="开始时间" width="180">
-          <template #default="scope">
-            {{ formatDateTime(scope.row.start_time) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="end_time" label="结束时间" width="180">
-          <template #default="scope">
-            {{ scope.row.end_time ? formatDateTime(scope.row.end_time) : '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="local_path" label="本地路径" width="150" show-overflow-tooltip>
-          <template #default="scope">
-            {{ scope.row.local_path || '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="remote_path" label="网盘路径" width="150" show-overflow-tooltip>
-          <template #default="scope">
-            {{ scope.row.remote_path || '-' }}
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="processed_files" label="总文件数" width="120" align="center" />
-        <el-table-column prop="created_strm" label="新增STRM数" width="120" align="center" />
-        <el-table-column
-          prop="downloaded_meta"
-          label="下载元数据数"
-          width="140"
-          align="center"
-          class-name="hidden-xs"
-        />
-        <el-table-column
-          prop="uploaded_meta"
-          label="上传元数据数"
-          width="140"
-          align="center"
-          class-name="hidden-xs"
-        />
-        <el-table-column prop="fail_reason" label="失败原因" width="200" show-overflow-tooltip>
-          <template #default="scope">
-            <span v-if="scope.row.status === 3 && scope.row.fail_reason" class="fail-reason-text">
-              {{ scope.row.fail_reason }}
+        <template #cell-id="{ row }"> #{{ row.id }} </template>
+        <template #cell-status="{ row }">
+          <el-tag :type="getStatusType(row.status)" :effect="row.status === 1 ? 'dark' : 'light'">
+            {{ getStatusText(row.status) }}
+          </el-tag>
+        </template>
+        <template #cell-sub_status="{ row }">
+          <el-tag v-if="row.status === 1" type="primary" size="small" effect="light">
+            {{ getSubStatusText(row.sub_status) }}
+          </el-tag>
+          <span v-else class="sync-sub-status">-</span>
+        </template>
+        <template #cell-start_time="{ row }">
+          {{ row.start_time ? formatDateTime(row.start_time) : '-' }}
+        </template>
+        <template #cell-local_path="{ row }">
+          <div class="sync-path-cell">
+            <el-text type="primary" class="sync-path-cell__id hidden-md-and-up">#{{ row.id }}</el-text>
+            <span class="sync-path-cell__route">
+              {{ row.remote_path || '-' }} => {{ row.local_path || '-' }}
             </span>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="120" align="center" fixed="right">
-          <template #default="scope">
-            <el-button type="primary" size="small" @click="viewTaskDetail(scope.row.id)" link>
-              查看
-            </el-button>
-            <el-button
-              v-if="isDeletableRecord(scope.row) && !batchMode"
-              type="danger"
-              size="small"
-              style="margin-left: 4px"
-              :loading="deleteLoading"
-              @click="deleteRecord(scope.row.id)"
-              link
-            >
-              删除
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+          </div>
+        </template>
+      </ResponsiveRecordTable>
 
       <!-- 分页器 -->
       <el-pagination
@@ -231,12 +93,18 @@
 </template>
 
 <script setup lang="ts">
+import ResponsiveRecordTable from '@/components/records/ResponsiveRecordTable.vue'
 import { SERVER_URL } from '@/const'
 import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
 import { useBackgroundRefresh } from '@/composables/useBackgroundRefresh'
 import { mergeStableList, retainExistingKeys } from '@/composables/useStableList'
 import { usePageStateStore } from '@/stores/pageState'
+import type { RecordAction, RecordActionPayload, RecordColumn } from '@/types/recordTable'
+import { isMobile as checkIsMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
+import { formatDateTime } from '@/utils/timeUtils'
 import type { AxiosStatic } from 'axios'
+import { Delete, View } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   computed,
   inject,
@@ -249,8 +117,6 @@ import {
   watch,
 } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { formatDateTime } from '@/utils/timeUtils'
 
 interface SyncRecord {
   id: number
@@ -302,6 +168,7 @@ const getPageScrollContainer = () =>
   pageContainerRef.value?.closest<HTMLElement>('.main-content') ?? pageContainerRef.value
 const syncRecords = ref<SyncRecord[]>([])
 const queryLoading = ref(false)
+const isMobileView = ref(checkIsMobile())
 
 // 批量删除相关状态
 const batchMode = ref(false)
@@ -326,15 +193,10 @@ const total = ref(0)
 
 // 定时器相关 - 已停用，使用WebSocket替代
 const refreshTimer = ref<number | null>(null)
-const shouldAutoRefresh = ref(false)
 const pendingSyncRecordsRefresh = ref(false)
 let isPageActive = false
 const syncRecordsRequestGate = createActiveRequestGate(() => isPageActive)
-
-// 计算是否有正在运行的同步任务
-const hasRunningSyncTask = computed(() => {
-  return syncRecords.value.some((record) => record.status === 1) // 1-运行中
-})
+let stopDeviceTypeChange: (() => void) | null = null
 
 // WebSocket事件监听
 import { useWSEvent } from '@/composables/useWebSocket'
@@ -394,6 +256,82 @@ const getSubStatusText = (subStatus: number) => {
       return '未知'
   }
 }
+
+const syncRecordColumns: RecordColumn<SyncRecord>[] = [
+  { key: 'id', label: '任务ID', priority: 'primary', width: 88, align: 'center' },
+  { key: 'status', label: '状态', priority: 'primary', width: 96, align: 'center' },
+  { key: 'sub_status', label: '子状态', priority: 'secondary', minWidth: 132 },
+  {
+    key: 'start_time',
+    label: '开始时间',
+    priority: 'secondary',
+    minWidth: 168,
+    detailField: {
+      key: 'start_time',
+      label: '开始时间',
+      value: (row) => (row.start_time ? formatDateTime(row.start_time) : '-'),
+    },
+  },
+  {
+    key: 'local_path',
+    label: '同步路径',
+    priority: 'primary',
+    minWidth: 260,
+    detailField: {
+      key: 'local_path',
+      label: '本地路径',
+      value: (row) => row.local_path,
+      span: 2,
+      isLongText: true,
+    },
+  },
+  {
+    key: 'remote_path',
+    label: '网盘路径',
+    priority: 'detail',
+    detailField: {
+      key: 'remote_path',
+      label: '网盘路径',
+      value: (row) => row.remote_path,
+      span: 2,
+      isLongText: true,
+    },
+  },
+  {
+    key: 'end_time',
+    label: '结束时间',
+    priority: 'detail',
+    detailField: {
+      key: 'end_time',
+      label: '结束时间',
+      value: (row) => (row.end_time ? formatDateTime(row.end_time) : '-'),
+    },
+  },
+  {
+    key: 'stats',
+    label: '统计',
+    priority: 'detail',
+    detailField: {
+      key: 'stats',
+      label: '统计',
+      value: (row) =>
+        `总文件 ${row.processed_files}，STRM ${row.created_strm}，元数据 ${row.downloaded_meta}，上传 ${row.uploaded_meta}`,
+      span: 2,
+    },
+  },
+  {
+    key: 'fail_reason',
+    label: '失败原因',
+    priority: 'detail',
+    detailField: {
+      key: 'fail_reason',
+      label: '失败原因',
+      value: (row) => row.fail_reason || '-',
+      span: 2,
+      isLongText: true,
+    },
+  },
+]
 
 const handleExpandChange = (row: SyncRecord, expandedRows: SyncRecord[]) => {
   pageStateStore.setExpandedRowKeys(
@@ -572,6 +510,8 @@ const viewTaskDetail = (taskId: number) => {
   })
 }
 
+const getSyncRecordRowKey = (row: SyncRecord) => row.id
+
 // 分页大小改变
 const handleSizeChange = (newSize: number) => {
   pageStateStore.setPagination('sync-records', 1, newSize)
@@ -608,6 +548,12 @@ const deactivateSyncRecordsPage = () => {
 // 页面生命周期
 onMounted(activateSyncRecordsPage)
 
+onMounted(() => {
+  stopDeviceTypeChange = onDeviceTypeChange((nextIsMobile) => {
+    isMobileView.value = nextIsMobile
+  })
+})
+
 onActivated(activateSyncRecordsPage)
 
 onActivated(() => {
@@ -631,6 +577,8 @@ onUnmounted(() => {
   isPageActive = false
   pendingSyncRecordsRefresh.value = false
   queryLoading.value = false
+  stopDeviceTypeChange?.()
+  stopDeviceTypeChange = null
   syncRecordsRequestGate.invalidate()
   invalidateDeleteOperationContext()
   // 旧的定时器清理，已不再需要
@@ -643,6 +591,28 @@ onUnmounted(() => {
 // 判断记录是否可删除（完成或失败）
 const isDeletableRecord = (row: SyncRecord) =>
   row.status === 2 || row.status === 3 || row.status === 0
+
+const syncRecordActions: RecordAction<SyncRecord>[] = [
+  { key: 'detail', label: '详情', type: 'primary', icon: View },
+  {
+    key: 'delete',
+    label: '删除',
+    type: 'danger',
+    icon: Delete,
+    visible: (row) => !batchMode.value && isDeletableRecord(row),
+    disabled: () => deleteLoading.value,
+  },
+]
+
+const handleSyncRecordAction = ({ actionKey, row }: RecordActionPayload<SyncRecord>) => {
+  if (actionKey === 'detail') {
+    viewTaskDetail(row.id)
+    return
+  }
+  if (actionKey === 'delete') {
+    void deleteRecord(row.id)
+  }
+}
 
 // 单条删除，无需确认
 const deleteRecord = async (id: number) => {
@@ -823,20 +793,6 @@ watch(batchMode, (val) => {
   margin-bottom: 20px;
 }
 
-/* 强制固定操作列 */
-.sync-table :deep(.el-table__fixed-right) {
-  position: sticky !important;
-  right: 0 !important;
-  z-index: 10 !important;
-}
-
-/* 路径列样式 */
-.sync-table :deep(.el-table__cell) .cell {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .sync-pagination {
   display: flex;
   justify-content: center;
@@ -878,25 +834,24 @@ watch(batchMode, (val) => {
   margin-left: 8px;
 }
 
-.sync-status {
-  margin-top: 16px;
+.sync-path-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 
-.fail-reason-text {
-  color: #f56c6c;
-  font-size: 12px;
-  line-height: 1.4;
-  word-break: break-all;
+.sync-path-cell__id {
+  flex: 0 0 auto;
 }
 
-.mobile-table,
-.mobile-pagination {
-  display: none;
+.sync-path-cell__route {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
-.desktop-table,
-.desktop-pagination {
-  display: table;
+.sync-sub-status {
+  color: #909399;
 }
 
 /* 移动端适配 */
@@ -927,56 +882,9 @@ watch(batchMode, (val) => {
     font-size: 12px;
   }
 
-  /* 移动端表格滚动优化 */
-  .sync-table :deep(.el-table__body-wrapper) {
-    overflow-x: auto;
-  }
-
-  /* 固定操作列的样式优化 */
-  .sync-table :deep(.el-table__fixed-right) {
-    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
-    background-color: #fff;
-  }
-
-  .sync-table :deep(.el-table__fixed-right-patch) {
-    background-color: #f5f7fa;
-    border-left: 1px solid #ebeef5;
-  }
-
-  /* 确保固定列在移动端正确显示 */
-  .sync-table :deep(.el-table__fixed-right .el-table__cell) {
-    background-color: #fff;
-  }
-
-  /* 在移动端隐藏子状态和下载元数据列以节省空间 */
-  .sync-table :deep(.hidden-xs) {
-    display: none !important;
-  }
-
   .sync-pagination {
     flex-wrap: wrap;
     gap: 8px;
-  }
-  .mobile-table,
-  .mobile-pagination {
-    display: table;
-  }
-
-  .desktop-table,
-  .desktop-pagination {
-    display: none;
-  }
-}
-
-@media (min-width: 769px) {
-  .mobile-table,
-  .mobile-pagination {
-    display: none;
-  }
-
-  .desktop-table,
-  .desktop-pagination {
-    display: table;
   }
 }
 
@@ -984,24 +892,6 @@ watch(batchMode, (val) => {
 @media (max-width: 480px) {
   .card-title {
     font-size: 18px;
-  }
-
-  /* 进一步优化固定列在小屏幕上的显示 */
-  .sync-table :deep(.el-table__fixed-right) {
-    right: 0 !important;
-    box-shadow: -1px 0 4px rgba(0, 0, 0, 0.08);
-    z-index: 3;
-  }
-
-  .sync-table :deep(.el-table__fixed-right .el-table__cell) {
-    background-color: #fff !important;
-    border-left: 1px solid #ebeef5;
-  }
-
-  /* 确保操作按钮在小屏幕上的大小合适 */
-  .sync-table :deep(.el-table__fixed-right .el-button) {
-    padding: 4px 8px;
-    font-size: 11px;
   }
 }
 </style>

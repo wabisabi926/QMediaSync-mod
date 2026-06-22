@@ -622,8 +622,9 @@ onActivated(() => {
 onDeactivated(() => {
   const scrollContainer = getPageScrollContainer()
   pageStateStore.setScrollTop('sync-records', scrollContainer?.scrollTop || 0)
-  deactivateSyncRecordsPage()
 })
+
+onDeactivated(deactivateSyncRecordsPage)
 
 // 页面卸载时清理定时器（已停用）
 onUnmounted(() => {

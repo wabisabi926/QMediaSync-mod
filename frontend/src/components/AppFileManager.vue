@@ -1015,11 +1015,14 @@ onActivated(() => {
 onDeactivated(() => {
   const scrollContainer = getPageScrollContainer()
   pageStateStore.setScrollTop('file-manager', scrollContainer?.scrollTop || 0)
-  deactivateFileManagerPage()
 })
+
+onDeactivated(deactivateFileManagerPage)
 
 onUnmounted(() => {
   deactivateFileManagerPage()
+  accountListRequestGate.invalidate()
+  fileListRequestGate.invalidate()
 })
 </script>
 

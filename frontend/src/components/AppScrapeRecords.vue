@@ -1695,6 +1695,9 @@ const activateScrapeRecordsPage = () => {
 }
 
 const deactivateScrapeRecordsPage = () => {
+  if (!isPageActive) {
+    return
+  }
   isPageActive = false
   pendingScrapeRecordsRefresh.value = false
   queryLoading.value = false
@@ -1720,8 +1723,9 @@ onActivated(() => {
 onDeactivated(() => {
   const scrollContainer = getPageScrollContainer()
   pageStateStore.setScrollTop('scrape-records', scrollContainer?.scrollTop || 0)
-  deactivateScrapeRecordsPage()
 })
+
+onDeactivated(deactivateScrapeRecordsPage)
 
 onUnmounted(() => {
   isPageActive = false

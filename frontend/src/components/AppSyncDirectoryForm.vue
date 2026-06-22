@@ -685,7 +685,7 @@
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
-import { inject, onMounted, onUnmounted, ref, reactive, watch, type Ref } from 'vue'
+import { inject, onMounted, onUnmounted, ref, reactive, watch, useTemplateRef, type Ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
@@ -720,7 +720,7 @@ const checkIsMobile = ref(isMobile())
 const isEditMode = ref(false)
 const loading = ref(false)
 
-const formRef = ref<FormInstance>()
+const formRef = useTemplateRef<FormInstance>('formRef')
 const form = reactive({
   id: 0,
   local_path: '',

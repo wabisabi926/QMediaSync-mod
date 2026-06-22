@@ -50,7 +50,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, inject, watch } from 'vue'
+import { ref, onMounted, inject, watch, useTemplateRef } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import type { AxiosStatic } from 'axios'
 import type { DirInfo } from '@/typing'
@@ -81,7 +81,7 @@ const http: AxiosStatic | undefined = inject('$http')
 
 const showCreateDialog = ref(false)
 const createLoading = ref(false)
-const createFormRef = ref<FormInstance>()
+const createFormRef = useTemplateRef<FormInstance>('createFormRef')
 const createForm = ref({ name: '' })
 const createRules = ref<FormRules>({
   name: [

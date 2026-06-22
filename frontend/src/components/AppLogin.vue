@@ -63,7 +63,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, inject, onMounted } from 'vue'
+import { reactive, ref, inject, onMounted, useTemplateRef } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
@@ -75,7 +75,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 const http: AxiosStatic | undefined = inject('$http')
 
-const loginFormRef = ref<FormInstance>()
+const loginFormRef = useTemplateRef<FormInstance>('loginFormRef')
 const loading = ref(false)
 
 const loginForm = reactive({

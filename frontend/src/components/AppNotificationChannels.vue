@@ -493,8 +493,8 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted, inject, computed, type Component } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { reactive, ref, onMounted, inject, computed, useTemplateRef, type Component } from 'vue'
+import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import {
   Plus,
   Refresh,
@@ -581,7 +581,7 @@ const editingChannel = ref<NotificationChannel | null>(null)
 const currentChannel = ref<NotificationChannel | null>(null)
 const currentRules = ref<NotificationRule[]>([])
 const rulesLoading = ref(false)
-const channelFormRef = ref()
+const channelFormRef = useTemplateRef<FormInstance>('channelFormRef')
 
 // 所有渠道类型选项
 const allChannelTypes = [

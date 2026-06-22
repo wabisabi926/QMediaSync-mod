@@ -463,6 +463,7 @@ import {
   onMounted,
   onUnmounted,
   ref,
+  useTemplateRef,
 } from 'vue'
 import type { AxiosStatic } from 'axios'
 import { Film, Finished, Picture, Refresh, Search, View } from '@element-plus/icons-vue'
@@ -559,7 +560,7 @@ const pageState = pageStateStore.getPageState('scrape-records', {
   },
 })
 const { initialLoading, isRefreshing, runRefresh } = useBackgroundRefresh()
-const pageContainerRef = ref<HTMLElement | null>(null)
+const pageContainerRef = useTemplateRef<HTMLElement>('pageContainerRef')
 const getPageScrollContainer = () =>
   pageContainerRef.value?.closest<HTMLElement>('.main-content') ?? pageContainerRef.value
 const records = ref<ScrapeRecord[]>([])

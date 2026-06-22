@@ -235,7 +235,7 @@
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { Check } from '@element-plus/icons-vue'
-import { inject, onMounted, reactive, ref, watch } from 'vue'
+import { inject, onMounted, reactive, ref, watch, useTemplateRef } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { isMobile } from '@/utils/deviceUtils'
 import MetadataExtInput from './MetadataExtInput.vue'
@@ -263,7 +263,7 @@ const checkIsMobile = ref(isMobile())
 const http: AxiosStatic | undefined = inject('$http')
 
 // 表单引用
-const formRef = ref<FormInstance>()
+const formRef = useTemplateRef<FormInstance>('formRef')
 
 // STRM配置相关状态
 const strmLoading = ref(false)

@@ -32,7 +32,6 @@ export default [
       '@typescript-eslint/no-import-type-side-effects': 'error',
 
       'vue/html-button-has-type': 'warn',
-      'vue/no-ref-object-destructure': 'error',
       'vue/no-ref-object-reactivity-loss': 'error',
       'vue/no-setup-props-reactivity-loss': 'error',
       'vue/no-template-shadow': 'warn',
@@ -40,6 +39,8 @@ export default [
       'vue/no-unused-refs': 'warn',
       'vue/no-useless-v-bind': 'warn',
       'vue/no-v-html': 'warn',
+      'vue/prefer-use-template-ref': 'warn',
+      'vue/require-typed-ref': 'warn',
     },
   },
   skipFormatting,

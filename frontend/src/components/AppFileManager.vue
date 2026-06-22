@@ -305,6 +305,7 @@ import {
   onUnmounted,
   inject,
   nextTick,
+  useTemplateRef,
 } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { ArrowDown, Files, FolderAdd } from '@element-plus/icons-vue'
@@ -347,7 +348,7 @@ const pageState = pageStateStore.getPageState('file-manager', {
   },
 })
 const { initialLoading, isRefreshing, runRefresh } = useBackgroundRefresh()
-const pageContainerRef = ref<HTMLElement | null>(null)
+const pageContainerRef = useTemplateRef<HTMLElement>('pageContainerRef')
 const getPageScrollContainer = () =>
   pageContainerRef.value?.closest<HTMLElement>('.main-content') ?? pageContainerRef.value
 const currentPath = computed({
@@ -381,7 +382,7 @@ const fileListRequestGate = createActiveRequestGate(() => isPageActive)
 
 const showCreateDialog = ref(false)
 const createLoading = ref(false)
-const createFormRef = ref<FormInstance>()
+const createFormRef = useTemplateRef<FormInstance>('createFormRef')
 const createForm = ref({ name: '' })
 const createRules = ref<FormRules>({
   name: [

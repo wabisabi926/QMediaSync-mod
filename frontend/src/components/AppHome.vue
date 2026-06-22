@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { defineAsyncComponent, ref } from 'vue'
+import { defineAsyncComponent, ref, useTemplateRef } from 'vue'
 import { Document } from '@element-plus/icons-vue'
 import VersionManager from './VersionManager.vue'
 import QueueStatsCard from './QueueStatsCard.vue'
@@ -9,7 +9,7 @@ const HourlyStatsChart = defineAsyncComponent(() => import('./HourlyStatsChart.v
 const AppLogViewer = defineAsyncComponent(() => import('./AppLogViewer.vue'))
 
 const showLogDialog = ref(false)
-const logViewerRef = ref<{ disconnect?: () => void } | null>(null)
+const logViewerRef = useTemplateRef<{ disconnect?: () => void }>('logViewerRef')
 
 const handleLogDialogClose = () => {
   logViewerRef.value?.disconnect?.()

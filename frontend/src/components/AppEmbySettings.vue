@@ -615,12 +615,12 @@ import {
   Calendar,
 } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { inject, onMounted, ref, reactive, onBeforeUnmount } from 'vue'
+import { inject, onMounted, ref, reactive, onBeforeUnmount, useTemplateRef } from 'vue'
 import { isMobile as checkIsMobile } from '@/utils/deviceUtils'
 
 const http: AxiosStatic | undefined = inject('$http')
 
-const formRef = ref<FormInstance>()
+const formRef = useTemplateRef<FormInstance>('formRef')
 
 const isMobile = ref(checkIsMobile())
 

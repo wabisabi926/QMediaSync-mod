@@ -248,8 +248,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, inject } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ref, reactive, computed, onMounted, inject, useTemplateRef } from 'vue'
+import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { Plus, Edit, Delete, Folder } from '@element-plus/icons-vue'
@@ -260,7 +260,7 @@ const dialogVisible = ref(false)
 const dialogType = ref<'add' | 'edit'>('add')
 const editingId = ref<number | null>(null)
 const editingType = ref<'movie' | 'tvshow'>('movie')
-const formRef = ref()
+const formRef = useTemplateRef<FormInstance>('formRef')
 const http: AxiosStatic | undefined = inject('$http')
 
 interface category {

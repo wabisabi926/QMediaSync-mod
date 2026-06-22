@@ -76,7 +76,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, inject } from 'vue'
+import { ref, inject, useTemplateRef } from 'vue'
 import { UploadFilled, CircleCheck } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox, type UploadFile, type UploadInstance } from 'element-plus'
 import type { AxiosStatic } from 'axios'
@@ -91,7 +91,7 @@ const backupStore = useBackupStore()
 const isMobile = checkIsMobile()
 const API_SUCCESS_CODE = 200
 
-const uploadRef = ref<UploadInstance>()
+const uploadRef = useTemplateRef<UploadInstance>('uploadRef')
 const selectedFile = ref<File | null>(null)
 const restoreStarting = ref(false)
 

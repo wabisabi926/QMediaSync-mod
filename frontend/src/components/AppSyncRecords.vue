@@ -116,6 +116,7 @@ import {
   onMounted,
   onUnmounted,
   ref,
+  useTemplateRef,
   watch,
 } from 'vue'
 import { useRouter } from 'vue-router'
@@ -165,7 +166,7 @@ const pageState = pageStateStore.getPageState('sync-records', {
   pageSize: 20,
 })
 const { initialLoading, isRefreshing, runRefresh } = useBackgroundRefresh()
-const pageContainerRef = ref<HTMLElement | null>(null)
+const pageContainerRef = useTemplateRef<HTMLElement>('pageContainerRef')
 const getPageScrollContainer = () =>
   pageContainerRef.value?.closest<HTMLElement>('.main-content') ?? pageContainerRef.value
 const syncRecords = ref<SyncRecord[]>([])

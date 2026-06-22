@@ -59,7 +59,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, useTemplateRef } from 'vue'
 import { Connection, Close, Delete, Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { SERVER_URL } from '@/const'
@@ -87,7 +87,7 @@ const ws = ref<WebSocket | null>(null)
 const logLines = ref<LogEntry[]>([])
 const isConnected = ref(false)
 const loading = ref(false)
-const logsContainer = ref<HTMLElement | null>(null)
+const logsContainer = useTemplateRef<HTMLElement>('logsContainer')
 
 // 日志数量限制配置
 const MAX_LOG_ENTRIES = 2000

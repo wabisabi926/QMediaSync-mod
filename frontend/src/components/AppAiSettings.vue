@@ -127,7 +127,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, inject, onMounted, computed } from 'vue'
+import { reactive, ref, inject, onMounted, computed, useTemplateRef } from 'vue'
 import { ElMessage, type FormInstance } from 'element-plus'
 import { Check, Refresh } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
@@ -154,7 +154,7 @@ const loading = ref(false)
 const testing = ref(false)
 const saveStatus = ref<SaveStatus | null>(null)
 const testStatus = ref<SaveStatus | null>(null)
-const formRef = ref<FormInstance>()
+const formRef = useTemplateRef<FormInstance>('formRef')
 
 // 表单数据
 const formData = reactive<AiSettings>({

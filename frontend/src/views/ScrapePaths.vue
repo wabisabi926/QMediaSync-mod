@@ -483,7 +483,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted, watch, h, computed, inject } from 'vue'
+import {
+  ref,
+  reactive,
+  onMounted,
+  onUnmounted,
+  watch,
+  h,
+  computed,
+  inject,
+  useTemplateRef,
+} from 'vue'
 import {
   ElMessage,
   ElMessageBox,
@@ -549,8 +559,8 @@ const isSelectSource = ref(false)
 const tempVideoExt = ref('')
 
 // 表单引用
-const addFormRef = ref<FormInstance>()
-const editFormRef = ref<FormInstance>()
+const addFormRef = useTemplateRef<FormInstance>('addFormRef')
+const editFormRef = useTemplateRef<FormInstance>('editFormRef')
 
 // 表单数据
 const addForm = reactive<ScrapePath>({

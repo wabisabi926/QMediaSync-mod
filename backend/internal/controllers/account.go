@@ -121,8 +121,19 @@ func CreateTmpAccount(c *gin.Context) {
 	}
 
 	if models.SourceType115 == tmpAccount.SourceType {
-		// 检查appIDName是否有效
-		appId = tmpAccount.AppIdName
+		switch tmpAccount.AppIdName {
+		case "Q115-STRM", "MQ的媒体库", "QMediaSync":
+			appId = tmpAccount.AppIdName
+		case "自定义":
+			appId = strings.TrimSpace(tmpAccount.AppId)
+			if appId == "" {
+				c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "自定义应用ID不能为空", Data: nil})
+				return
+			}
+		default:
+			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "不支持的115开放平台应用", Data: nil})
+			return
+		}
 	}
 	account, err := models.CreateAccountByName(tmpAccount.Name, tmpAccount.SourceType, appId)
 	if err != nil {

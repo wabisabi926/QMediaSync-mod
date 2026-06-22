@@ -399,11 +399,11 @@
       <el-form-item label="令牌" v-if="newAccountForm.type === 'openlist' && newAccountForm.auth_type === 'token'">
         <el-input type="password" v-model="newAccountForm.token" placeholder="请输入令牌" />
       </el-form-item>
-      <el-form-item label="115开放平台应用" v-if="newAccountForm.type === '115'">
-        <el-select v-model="newAccountForm.app_id_name" placeholder="请选择APP ID">
-          <el-option label="QMediaSync" value="QMediaSync"></el-option>
-        </el-select>
-      </el-form-item>
+      <V115AppSelector
+        v-if="newAccountForm.type === '115'"
+        v-model:app-name="newAccountForm.app_id_name"
+        v-model:app-id="newAccountForm.app_id"
+      />
     </el-form>
     <template #footer>
       <span class="dialog-footer">
@@ -447,6 +447,7 @@
 
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
+import V115AppSelector from '@/components/cloud-auth/V115AppSelector.vue'
 import type { AxiosError, AxiosStatic } from 'axios'
 import { inject, ref, computed, onMounted, onUnmounted } from 'vue'
 
@@ -855,7 +856,7 @@ const resetForm = () => {
     password: '',
     token: '',
     auth_type: 'password',
-    app_id_name: 'Q115-STRM',
+    app_id_name: 'QMediaSync',
     app_id: '',
   }
 }

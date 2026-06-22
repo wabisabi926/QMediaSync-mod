@@ -15,5 +15,32 @@ export default [
 
   ...pluginVue.configs['flat/essential'],
   ...vueTsEslintConfig(),
+  {
+    name: 'app/project-rules',
+    files: ['**/*.{ts,mts,tsx,vue}'],
+    rules: {
+      'no-alert': 'warn',
+      'no-console': ['warn', { allow: ['warn', 'error'] }],
+      'no-debugger': 'error',
+      'no-duplicate-imports': 'error',
+      eqeqeq: ['error', 'smart'],
+
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        { prefer: 'type-imports', fixStyle: 'inline-type-imports' },
+      ],
+      '@typescript-eslint/no-import-type-side-effects': 'error',
+
+      'vue/html-button-has-type': 'warn',
+      'vue/no-ref-object-destructure': 'error',
+      'vue/no-ref-object-reactivity-loss': 'error',
+      'vue/no-setup-props-reactivity-loss': 'error',
+      'vue/no-template-shadow': 'warn',
+      'vue/no-template-target-blank': 'error',
+      'vue/no-unused-refs': 'warn',
+      'vue/no-useless-v-bind': 'warn',
+      'vue/no-v-html': 'warn',
+    },
+  },
   skipFormatting,
 ]

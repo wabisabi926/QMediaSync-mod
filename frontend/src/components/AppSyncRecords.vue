@@ -621,6 +621,15 @@ const deleteRecord = async (id: number) => {
   }
 }
 
+const isMessageBoxCancelError = (error: unknown): boolean => {
+  if (error === 'cancel' || error === 'close') {
+    return true
+  }
+
+  const errorMessage = error instanceof Error ? error.message : String(error)
+  return errorMessage.includes('用户取消操作')
+}
+
 // 批量删除
 const batchDeleteRecords = async () => {
   if (selectedIds.value.length === 0) return
@@ -657,7 +666,7 @@ const batchDeleteRecords = async () => {
       ElMessage.error(response?.data.message || '批量删除失败')
     }
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isMessageBoxCancelError(error)) {
       ElMessage.error('批量删除出错')
     }
   } finally {

@@ -248,6 +248,7 @@
       title="新建文件夹"
       width="400px"
       :close-on-click-modal="false"
+      @closed="resetCreateDirectoryDialog"
     >
       <el-form ref="createFormRef" :model="createForm" :rules="createRules" label-width="80px">
         <el-form-item label="文件夹名称" prop="name">
@@ -256,7 +257,7 @@
       </el-form>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="showCreateDialog = false">取消</el-button>
+          <el-button @click="resetCreateDirectoryDialog">取消</el-button>
           <el-button type="primary" @click="handleCreateDirectory" :loading="createLoading">
             确定
           </el-button>
@@ -269,6 +270,7 @@
       title="选择STRM目标目录"
       width="600px"
       :close-on-click-modal="false"
+      @closed="resetStrmTargetDialog"
     >
       <div class="strm-target-dialog-content">
         <p class="dialog-tip">请选择STRM文件的目标存放目录：</p>
@@ -280,7 +282,7 @@
           <DirectorySelector
             v-model="strmTargetDir"
             source-type="local"
-            @cancel="showStrmTargetDialog = false"
+            @cancel="resetStrmTargetDialog"
             @select="confirmStrmGenerate"
           />
         </div>
@@ -324,7 +326,7 @@ interface NetdiskAccount {
   name: string
   username: string
   user_id: string
-  source_type: '115' | '123' | 'openlist'
+  source_type: '115' | '123' | 'openlist' | 'baidupan'
   token: string
   created_at: number
   base_url?: string
@@ -393,12 +395,15 @@ const showStrmTargetDialog = ref(false)
 const strmTargetDir = ref<DirInfo | null>(null)
 const strmSourceItem = ref<FileSystemItem | null>(null)
 const strmOperationContext = ref<FileOperationContextSnapshot | null>(null)
+const createDirectoryOperationContext = ref<FileOperationContextSnapshot | null>(null)
 const strmGenerateLoading = ref(false)
 const contextVersion = ref(0)
 
 interface FileOperationContextSnapshot {
   accountId: number | null
   parentId: string
+  parentPath: string
+  sourceType: NetdiskAccount['source_type'] | null
   contextVersion: number
 }
 
@@ -443,10 +448,24 @@ function getCurrentParentId() {
   return pathItems.value.length > 0 ? pathItems.value[pathItems.value.length - 1].id : ''
 }
 
+function getCurrentParentPath() {
+  return pathItems.value.length > 0 ? pathItems.value[pathItems.value.length - 1].path : ''
+}
+
+function getSelectedAccount() {
+  return selectedAccountId.value
+    ? accountList.value.find((account) => account.id === selectedAccountId.value)
+    : undefined
+}
+
 function createFileOperationContextSnapshot(): FileOperationContextSnapshot {
+  const account = getSelectedAccount()
+
   return {
     accountId: selectedAccountId.value,
     parentId: getCurrentParentId(),
+    parentPath: getCurrentParentPath(),
+    sourceType: account?.source_type ?? null,
     contextVersion: contextVersion.value,
   }
 }
@@ -471,9 +490,17 @@ function resetStrmTargetDialog() {
   strmGenerateLoading.value = false
 }
 
+function resetCreateDirectoryDialog() {
+  showCreateDialog.value = false
+  createForm.value.name = ''
+  createDirectoryOperationContext.value = null
+  createLoading.value = false
+}
+
 function invalidateFileOperationContext() {
   contextVersion.value += 1
   resetStrmTargetDialog()
+  resetCreateDirectoryDialog()
 }
 
 function clearFileListForContextSwitch() {
@@ -532,6 +559,15 @@ async function loadAccountList() {
         app_id: item.app_id,
         token_failed_reason: item.token_failed_reason || '',
       }))
+
+      if (
+        selectedAccountId.value &&
+        !accountList.value.some((account) => account.id === selectedAccountId.value)
+      ) {
+        selectedAccountId.value = null
+        setPathItems([])
+        clearFileListForContextSwitch()
+      }
     } else {
       console.error('加载账号列表失败:', response?.data.message || '未知错误')
       accountList.value = []
@@ -790,46 +826,68 @@ async function handleDeleteItem(item: FileSystemItem) {
 }
 
 function openCreateDialog() {
+  const operationContext = createFileOperationContextSnapshot()
+
+  if (!operationContext.accountId || !operationContext.sourceType) {
+    ElMessage.warning('请先选择网盘账号')
+    return
+  }
+
   createForm.value.name = ''
+  createDirectoryOperationContext.value = operationContext
   showCreateDialog.value = true
 }
 
 async function handleCreateDirectory() {
   if (!createFormRef.value) return
-  if (!selectedAccountId.value) {
+
+  const operationContext = createDirectoryOperationContext.value
+  if (!isFileOperationContextCurrent(operationContext)) {
+    resetCreateDirectoryDialog()
+    return
+  }
+
+  if (!operationContext.accountId || !operationContext.sourceType) {
     ElMessage.warning('请先选择网盘账号')
     return
   }
 
   try {
     await createFormRef.value.validate()
+
+    if (!isFileOperationContextCurrent(operationContext)) {
+      resetCreateDirectoryDialog()
+      return
+    }
+
     createLoading.value = true
 
-    const currentParentId =
-      pathItems.value.length > 0 ? pathItems.value[pathItems.value.length - 1].id : ''
-    const currentParentPath =
-      pathItems.value.length > 0 ? pathItems.value[pathItems.value.length - 1].path : ''
-
-    const account = accountList.value.find((a) => a.id === selectedAccountId.value)
-
     const response = await http?.post(`${SERVER_URL}/path/create`, {
-      parent_id: currentParentId,
-      parent_path: currentParentPath,
+      parent_id: operationContext.parentId,
+      parent_path: operationContext.parentPath,
       name: createForm.value.name.trim(),
-      source_type: account?.source_type || '115',
-      account_id: selectedAccountId.value,
+      source_type: operationContext.sourceType,
+      account_id: operationContext.accountId,
     })
+
+    if (!isFileOperationContextCurrent(operationContext)) {
+      resetCreateDirectoryDialog()
+      return
+    }
 
     if (response?.data.code === 200) {
       ElMessage.success('创建文件夹成功')
-      showCreateDialog.value = false
-      createForm.value.name = ''
+      resetCreateDirectoryDialog()
       loadFileList()
     } else {
       ElMessage.error(response?.data.message || '创建文件夹失败')
     }
   } catch {
-    ElMessage.error('创建文件夹失败')
+    if (isFileOperationContextCurrent(operationContext)) {
+      ElMessage.error('创建文件夹失败')
+    } else {
+      resetCreateDirectoryDialog()
+    }
   } finally {
     createLoading.value = false
   }
@@ -866,6 +924,11 @@ async function confirmStrmGenerate() {
       account_id: operationContext.accountId,
     })
 
+    if (!isFileOperationContextCurrent(operationContext)) {
+      resetStrmTargetDialog()
+      return
+    }
+
     if (response?.data.code === 200) {
       ElMessage.success('STRM生成任务已提交')
       resetStrmTargetDialog()
@@ -873,7 +936,11 @@ async function confirmStrmGenerate() {
       ElMessage.error(response?.data.message || 'STRM生成失败')
     }
   } catch {
-    ElMessage.error('STRM生成失败')
+    if (isFileOperationContextCurrent(operationContext)) {
+      ElMessage.error('STRM生成失败')
+    } else {
+      resetStrmTargetDialog()
+    }
   } finally {
     strmGenerateLoading.value = false
   }
@@ -894,7 +961,8 @@ function deactivateFileManagerPage() {
   isPageActive = false
   pendingFileListRefresh.value = false
   accountListRequestGate.invalidate()
-  clearFileListForContextSwitch()
+  fileListRequestGate.invalidate()
+  invalidateFileOperationContext()
 }
 
 // 页面生命周期

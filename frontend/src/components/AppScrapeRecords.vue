@@ -984,7 +984,7 @@ const resetFilter = () => {
 
 // 分页处理
 const handleSizeChange = (size: number) => {
-  pageStateStore.setPagination('scrape-records', pageState.currentPage, size)
+  pageStateStore.setPagination('scrape-records', 1, size)
   loadRecordsForQuerySwitch() // 重新加载数据
 }
 

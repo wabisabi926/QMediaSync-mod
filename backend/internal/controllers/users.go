@@ -5,6 +5,7 @@ import (
 	"Q115-STRM/internal/models"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -51,10 +52,12 @@ func LoginAction(c *gin.Context) {
 		return
 	}
 
-	// 根据 rememberMe 参数设置 token 有效期
-	tokenExpire := time.Hour * 24 // 默认24小时
+	// 根据 rememberMe 参数设置 token 和 Cookie 有效期
+	tokenExpire := time.Hour * 24
+	cookieMaxAge := 0
 	if req.RememberMe {
-		tokenExpire = time.Hour * 24 * 30 // 记住我：30天
+		tokenExpire = time.Hour * 24 * 30
+		cookieMaxAge = int(tokenExpire.Seconds())
 	}
 
 	claims := &LoginUser{
@@ -74,13 +77,13 @@ func LoginAction(c *gin.Context) {
 
 	// 设置 HttpOnly Cookie
 	c.SetCookie(
-		"auth_token",               // Cookie 名称
-		tokenString,                // Cookie 值
-		int(tokenExpire.Seconds()), // MaxAge（秒）
-		"/",                        // Path
-		"",                         // Domain（空表示当前域名）
-		false,                      // Secure（false 兼容飞牛 HTTP 环境）
-		true,                       // HttpOnly（防止 XSS 攻击）
+		"auth_token", // Cookie 名称
+		tokenString,  // Cookie 值
+		cookieMaxAge, // MaxAge（秒），0 表示会话 Cookie
+		"/",          // Path
+		"",           // Domain（空表示当前域名）
+		false,        // Secure（false 兼容飞牛 HTTP 环境）
+		true,         // HttpOnly（防止 XSS 攻击）
 	)
 	LoginedUser = user
 	res := make(map[string]interface{})
@@ -92,6 +95,56 @@ func LoginAction(c *gin.Context) {
 	res["user"] = u
 	res["token"] = tokenString
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "登录成功", Data: res})
+}
+
+func getTokenFromRequest(c *gin.Context) string {
+	if cookie, err := c.Request.Cookie("auth_token"); err == nil && cookie.Value != "" {
+		return cookie.Value
+	}
+	authHeader := c.Request.Header.Get("Authorization")
+	if strings.HasPrefix(authHeader, "Bearer ") {
+		return strings.TrimPrefix(authHeader, "Bearer ")
+	}
+	return ""
+}
+
+// SessionAction 返回当前登录会话
+func SessionAction(c *gin.Context) {
+	tokenString := getTokenFromRequest(c)
+	if tokenString == "" {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "Token不存在", Data: nil})
+		return
+	}
+	loginUser, err := ValidateJWT(tokenString)
+	if err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("Token无效：%v", err), Data: nil})
+		return
+	}
+	user, err := models.GetUserById(loginUser.ID)
+	if err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("获取用户信息失败：%v", err), Data: nil})
+		return
+	}
+	c.JSON(http.StatusOK, APIResponse[any]{
+		Code:    Success,
+		Message: "获取会话成功",
+		Data: map[string]any{
+			"token": tokenString,
+			"user": map[string]string{
+				"id":       fmt.Sprintf("%d", user.ID),
+				"username": user.Username,
+				"email":    "",
+				"role":     "admin",
+			},
+		},
+	})
+}
+
+// LogoutAction 清除登录 Cookie
+func LogoutAction(c *gin.Context) {
+	c.SetCookie("auth_token", "", -1, "/", "", false, true)
+	LoginedUser = nil
+	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "退出登录成功", Data: nil})
 }
 
 // ChangePassword 修改密码或用户名

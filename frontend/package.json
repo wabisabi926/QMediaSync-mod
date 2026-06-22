@@ -14,7 +14,7 @@
     "format": "prettier --write src/",
     "format:check": "prettier --check src/",
     "preview": "vite preview",
-    "test:unit": "vitest run src/**/*.test.ts",
+    "test:unit": "vitest run src",
     "type-check": "vue-tsc --build"
   },
   "dependencies": {
@@ -38,9 +38,11 @@
     "@vitejs/plugin-vue": "^6.0.7",
     "@vue/eslint-config-prettier": "^10.1.0",
     "@vue/eslint-config-typescript": "^14.9.0",
+    "@vue/test-utils": "^2.4.11",
     "@vue/tsconfig": "^0.9.1",
     "eslint": "^10.5.0",
     "eslint-plugin-vue": "^10.9.2",
+    "happy-dom": "^20.10.6",
     "prettier": "^3.8.4",
     "typescript": "~6.0.3",
     "unplugin-auto-import": "^21.0.0",

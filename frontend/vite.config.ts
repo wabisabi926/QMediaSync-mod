@@ -46,10 +46,10 @@ type ElementPlusResolverItem = {
   resolve: (name: string) => unknown | Promise<unknown>
 }
 
-const createElementPlusResolver = () => {
+const createElementPlusResolver = (importStyle: 'css' | false = 'css') => {
   const resolvers = ElementPlusResolver({
     directives: true,
-    importStyle: 'css',
+    importStyle,
   }) as ElementPlusResolverItem[]
 
   return resolvers.map((resolver) => ({
@@ -126,17 +126,17 @@ const elementPlusRuntimeImportPlugin = (): Plugin => ({
 })
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     vue(),
     elementPlusRuntimeImportPlugin(),
     AutoImport({
       dts: false,
-      resolvers: createElementPlusResolver(),
+      resolvers: createElementPlusResolver(mode === 'test' ? false : 'css'),
     }),
     Components({
       dts: false,
-      resolvers: createElementPlusResolver(),
+      resolvers: createElementPlusResolver(mode === 'test' ? false : 'css'),
     }),
   ],
   resolve: {
@@ -185,4 +185,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

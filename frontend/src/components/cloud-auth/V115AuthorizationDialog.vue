@@ -48,6 +48,7 @@ watch(
 
 watch(status, (value) => {
   if (value === 'confirmed') {
+    visible.value = false
     emit('confirmed')
   }
 })

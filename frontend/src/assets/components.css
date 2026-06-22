@@ -210,11 +210,11 @@
 }
 
 /* 确保表格容器也占满宽度 */
-.directories-table :deep(.el-table) {
+.directories-table .el-table {
   width: 100% !important;
 }
 
-.directories-table :deep(.el-table__inner-wrapper) {
+.directories-table .el-table__inner-wrapper {
   width: 100% !important;
 }
 

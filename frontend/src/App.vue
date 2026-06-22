@@ -24,7 +24,7 @@
           </div>
           <div class="user-details">
             <div class="username">{{ authStore.user?.username || '用户' }}</div>
-            <el-button type="text" size="small" class="logout-btn" @click="handleLogout">
+            <el-button link size="small" class="logout-btn" @click="handleLogout">
               退出登录
             </el-button>
           </div>
@@ -79,7 +79,7 @@
         <!-- 移动端顶部栏 -->
         <div v-if="isMobile" class="mobile-header">
           <div class="left-section">
-            <el-button type="text" class="menu-toggle" @click="toggleMenu">
+            <el-button link class="menu-toggle" @click="toggleMenu">
               <el-icon size="20">
                 <Menu />
               </el-icon>
@@ -87,7 +87,7 @@
             <h2 class="page-title">{{ getCurrentPageTitle() }}</h2>
           </div>
           <el-dropdown class="user-dropdown">
-            <el-button type="text" class="user-btn">
+            <el-button link class="user-btn">
               <el-icon>
                 <User />
               </el-icon>

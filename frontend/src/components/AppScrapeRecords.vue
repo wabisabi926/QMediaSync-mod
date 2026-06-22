@@ -682,6 +682,10 @@ interface RecordActionContextSnapshot {
   contextVersion: number
 }
 
+interface ScrapeRecordsMutationContextSnapshot {
+  contextVersion: number
+}
+
 type DialogCloseDone = () => void
 
 // 状态变量
@@ -721,6 +725,8 @@ const selectedRecord = ref<ScrapeRecord | null>(null)
 const showRollbackDialog = ref(false)
 const recordActionContextVersion = ref(0)
 const activeRecordActionContext = ref<RecordActionContextSnapshot | null>(null)
+const scrapeRecordsMutationContextVersion = ref(0)
+const activeScrapeRecordsMutationContext = ref<ScrapeRecordsMutationContextSnapshot | null>(null)
 const pendingScrapeRecordsRefresh = ref(false)
 let isPageActive = false
 const scrapeRecordsRequestGate = createActiveRequestGate(() => isPageActive)
@@ -814,6 +820,38 @@ function invalidateRecordActionContext() {
   resetRecordActionState()
 }
 
+function invalidateScrapeRecordsMutationContext() {
+  scrapeRecordsMutationContextVersion.value += 1
+  activeScrapeRecordsMutationContext.value = null
+}
+
+function startScrapeRecordsMutationContext(): ScrapeRecordsMutationContextSnapshot {
+  invalidateScrapeRecordsMutationContext()
+  const snapshot = {
+    contextVersion: scrapeRecordsMutationContextVersion.value,
+  }
+  activeScrapeRecordsMutationContext.value = snapshot
+  return snapshot
+}
+
+function isScrapeRecordsMutationContextCurrent(
+  snapshot: ScrapeRecordsMutationContextSnapshot | null,
+): snapshot is ScrapeRecordsMutationContextSnapshot {
+  return (
+    isPageActive &&
+    !!snapshot &&
+    !!activeScrapeRecordsMutationContext.value &&
+    activeScrapeRecordsMutationContext.value.contextVersion === snapshot.contextVersion &&
+    snapshot.contextVersion === scrapeRecordsMutationContextVersion.value
+  )
+}
+
+function finishScrapeRecordsMutationContext(snapshot: ScrapeRecordsMutationContextSnapshot) {
+  if (isScrapeRecordsMutationContextCurrent(snapshot)) {
+    activeScrapeRecordsMutationContext.value = null
+  }
+}
+
 const handleExpandChange = (row: ScrapeRecord, expandedRows: ScrapeRecord[]) => {
   pageStateStore.setExpandedRowKeys(
     'scrape-records',
@@ -825,6 +863,7 @@ function clearRecordsForQuerySwitch() {
   queryLoading.value = true
   scrapeRecordsRequestGate.invalidate()
   invalidateRecordActionContext()
+  invalidateScrapeRecordsMutationContext()
   records.value = []
   originalRecords.value = []
   total.value = 0
@@ -1031,7 +1070,13 @@ const handleExportErrors = async () => {
 
 // 删除所选刮削记录
 const handleDeleteSelectedRecords = async () => {
+  const operationContext = startScrapeRecordsMutationContext()
+
   try {
+    if (!isScrapeRecordsMutationContextCurrent(operationContext)) {
+      return
+    }
+
     if (selectedRecords.value.length === 0) {
       ElMessage.warning('请选择记录')
       return
@@ -1042,11 +1087,19 @@ const handleDeleteSelectedRecords = async () => {
       return
     }
 
+    if (!isScrapeRecordsMutationContextCurrent(operationContext)) {
+      return
+    }
+
     const ids = selectedRecords.value.map((record) => record.id)
     // 发送DELETE请求，参数与导出识别错误文件接口一致
     // 构造URL，将ids作为GET参数传递
     const idsQuery = ids.join(',')
     const response = await http?.delete(`${SERVER_URL}/scrape/records?ids=${idsQuery}`)
+
+    if (!isScrapeRecordsMutationContextCurrent(operationContext)) {
+      return
+    }
 
     if (response?.data.code === 200) {
       ElMessage.success('删除成功')
@@ -1058,19 +1111,37 @@ const handleDeleteSelectedRecords = async () => {
       ElMessage.error(`删除失败: ${response?.data.message || '未知错误'}`)
     }
   } catch (error) {
+    if (!isScrapeRecordsMutationContextCurrent(operationContext)) {
+      return
+    }
     console.error('删除失败:', error)
     ElMessage.error('删除失败: 网络错误')
+  } finally {
+    if (isScrapeRecordsMutationContextCurrent(operationContext)) {
+      finishScrapeRecordsMutationContext(operationContext)
+    }
   }
 }
 
 const handleRename = async () => {
+  const operationContext = startScrapeRecordsMutationContext()
+
   try {
+    if (!isScrapeRecordsMutationContextCurrent(operationContext)) {
+      return
+    }
+
     if (selectedRecords.value.length === 0) {
       ElMessage.warning('请选择记录')
       return
     }
+
     // 确认删除操作
     if (!confirm(`确定要重新整理选中的 ${selectedRecords.value.length} 条记录吗？`)) {
+      return
+    }
+
+    if (!isScrapeRecordsMutationContextCurrent(operationContext)) {
       return
     }
 
@@ -1079,6 +1150,10 @@ const handleRename = async () => {
     // 构造URL，将ids作为GET参数传递
     const idsQuery = ids.join(',')
     const response = await http?.post(`${SERVER_URL}/scrape/rename-failed?ids=${idsQuery}`)
+
+    if (!isScrapeRecordsMutationContextCurrent(operationContext)) {
+      return
+    }
 
     if (response?.data.code === 200) {
       ElMessage.success('重新整理成功')
@@ -1090,8 +1165,15 @@ const handleRename = async () => {
       ElMessage.error(`重新整理失败: ${response?.data.message || '未知错误'}`)
     }
   } catch (error) {
+    if (!isScrapeRecordsMutationContextCurrent(operationContext)) {
+      return
+    }
     console.error('重新整理失败:', error)
     ElMessage.error('重新整理失败: 网络错误')
+  } finally {
+    if (isScrapeRecordsMutationContextCurrent(operationContext)) {
+      finishScrapeRecordsMutationContext(operationContext)
+    }
   }
 }
 
@@ -1281,8 +1363,18 @@ const openRollbackReScrapeDialog = () => {
 }
 
 const handleDeleteFailedRecords = async () => {
+  const operationContext = startScrapeRecordsMutationContext()
+
   try {
+    if (!isScrapeRecordsMutationContextCurrent(operationContext)) {
+      return
+    }
+
     const response = await http?.post(`${SERVER_URL}/scrape/clear-failed`)
+
+    if (!isScrapeRecordsMutationContextCurrent(operationContext)) {
+      return
+    }
 
     if (response?.data.code === 200) {
       ElMessage.success('清除所有刮削失败的记录成功')
@@ -1291,19 +1383,36 @@ const handleDeleteFailedRecords = async () => {
       ElMessage.error(`清除所有刮削失败的记录失败: ${response?.data.message || '未知错误'}`)
     }
   } catch (error) {
+    if (!isScrapeRecordsMutationContextCurrent(operationContext)) {
+      return
+    }
     console.error('清除所有刮削失败的记录失败:', error)
     ElMessage.error('清除所有刮削失败的记录失败: 网络错误')
+  } finally {
+    if (isScrapeRecordsMutationContextCurrent(operationContext)) {
+      finishScrapeRecordsMutationContext(operationContext)
+    }
   }
 }
 
 const handleTruncateAll = async () => {
+  const operationContext = startScrapeRecordsMutationContext()
+
   try {
+    if (!isScrapeRecordsMutationContextCurrent(operationContext)) {
+      return
+    }
+
     // 第一次确认
     await ElMessageBox.confirm('此操作将删除所有刮削记录，是否继续？', '警告', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning',
     })
+
+    if (!isScrapeRecordsMutationContextCurrent(operationContext)) {
+      return
+    }
 
     // 第二次确认
     await ElMessageBox.confirm('确认要清空所有刮削记录吗？此操作不可恢复！', '二次确认', {
@@ -1312,8 +1421,16 @@ const handleTruncateAll = async () => {
       type: 'error',
     })
 
+    if (!isScrapeRecordsMutationContextCurrent(operationContext)) {
+      return
+    }
+
     // 发送请求
     const response = await http?.post(`${SERVER_URL}/scrape/truncate-all`)
+
+    if (!isScrapeRecordsMutationContextCurrent(operationContext)) {
+      return
+    }
 
     if (response?.data.code === 200) {
       ElMessage.success('清空记录成功')
@@ -1325,10 +1442,17 @@ const handleTruncateAll = async () => {
       ElMessage.error(`清空记录失败: ${response?.data.message || '未知错误'}`)
     }
   } catch (error) {
+    if (!isScrapeRecordsMutationContextCurrent(operationContext)) {
+      return
+    }
     // 如果用户取消操作，不显示错误消息
     if (!isMessageBoxCancelError(error)) {
       console.error('清空记录失败:', error)
       ElMessage.error('清空记录失败: 网络错误')
+    }
+  } finally {
+    if (isScrapeRecordsMutationContextCurrent(operationContext)) {
+      finishScrapeRecordsMutationContext(operationContext)
     }
   }
 }
@@ -1576,6 +1700,7 @@ const deactivateScrapeRecordsPage = () => {
   queryLoading.value = false
   scrapeRecordsRequestGate.invalidate()
   invalidateRecordActionContext()
+  invalidateScrapeRecordsMutationContext()
 }
 
 // 页面生命周期
@@ -1604,6 +1729,7 @@ onUnmounted(() => {
   queryLoading.value = false
   scrapeRecordsRequestGate.invalidate()
   invalidateRecordActionContext()
+  invalidateScrapeRecordsMutationContext()
 })
 </script>
 

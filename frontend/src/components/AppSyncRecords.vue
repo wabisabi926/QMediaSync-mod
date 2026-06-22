@@ -282,6 +282,11 @@ interface ApiSyncRecord {
   fail_reason: string
 }
 
+interface SyncRecordDeleteContextSnapshot {
+  contextVersion: number
+  mode: 'single' | 'batch'
+}
+
 const http: AxiosStatic | undefined = inject('$http')
 const router = useRouter()
 
@@ -305,6 +310,8 @@ const selectedIds = ref<number[]>([])
 // 删除loading状态
 const deleteLoading = ref(false)
 const batchDeleteLoading = ref(false)
+const deleteOperationContextVersion = ref(0)
+const activeDeleteOperationContext = ref<SyncRecordDeleteContextSnapshot | null>(null)
 
 // 分页相关
 const currentPage = computed({
@@ -395,9 +402,52 @@ const handleExpandChange = (row: SyncRecord, expandedRows: SyncRecord[]) => {
   )
 }
 
+function invalidateDeleteOperationContext() {
+  deleteOperationContextVersion.value += 1
+  activeDeleteOperationContext.value = null
+  deleteLoading.value = false
+  batchDeleteLoading.value = false
+}
+
+function startDeleteOperationContext(
+  mode: SyncRecordDeleteContextSnapshot['mode'],
+): SyncRecordDeleteContextSnapshot {
+  invalidateDeleteOperationContext()
+  const snapshot = {
+    contextVersion: deleteOperationContextVersion.value,
+    mode,
+  }
+  activeDeleteOperationContext.value = snapshot
+  return snapshot
+}
+
+function isDeleteOperationContextCurrent(
+  snapshot: SyncRecordDeleteContextSnapshot | null,
+  mode?: SyncRecordDeleteContextSnapshot['mode'],
+): snapshot is SyncRecordDeleteContextSnapshot {
+  return (
+    isPageActive &&
+    !!snapshot &&
+    !!activeDeleteOperationContext.value &&
+    activeDeleteOperationContext.value.contextVersion === snapshot.contextVersion &&
+    snapshot.contextVersion === deleteOperationContextVersion.value &&
+    (mode === undefined || snapshot.mode === mode)
+  )
+}
+
+function finishDeleteOperationContext(
+  snapshot: SyncRecordDeleteContextSnapshot,
+  mode: SyncRecordDeleteContextSnapshot['mode'],
+) {
+  if (isDeleteOperationContextCurrent(snapshot, mode)) {
+    activeDeleteOperationContext.value = null
+  }
+}
+
 function clearSyncRecordsForQuerySwitch() {
   queryLoading.value = true
   syncRecordsRequestGate.invalidate()
+  invalidateDeleteOperationContext()
   syncRecords.value = []
   total.value = 0
   selectedIds.value = []
@@ -552,6 +602,7 @@ const deactivateSyncRecordsPage = () => {
   pendingSyncRecordsRefresh.value = false
   queryLoading.value = false
   syncRecordsRequestGate.invalidate()
+  invalidateDeleteOperationContext()
 }
 
 // 页面生命周期
@@ -580,6 +631,7 @@ onUnmounted(() => {
   pendingSyncRecordsRefresh.value = false
   queryLoading.value = false
   syncRecordsRequestGate.invalidate()
+  invalidateDeleteOperationContext()
   // 旧的定时器清理，已不再需要
   if (refreshTimer.value) {
     clearInterval(refreshTimer.value)
@@ -593,10 +645,14 @@ const isDeletableRecord = (row: SyncRecord) =>
 
 // 单条删除，无需确认
 const deleteRecord = async (id: number) => {
+  const operationContext = startDeleteOperationContext('single')
+
   try {
+    if (!isDeleteOperationContextCurrent(operationContext, 'single')) {
+      return
+    }
+
     deleteLoading.value = true
-    const formData = new FormData()
-    formData.append('ids', id.toString())
     const response = await http?.post(
       `${SERVER_URL}/sync/delete-records`,
       {
@@ -608,6 +664,10 @@ const deleteRecord = async (id: number) => {
         },
       },
     )
+    if (!isDeleteOperationContextCurrent(operationContext, 'single')) {
+      return
+    }
+
     if (response?.data.code === 200) {
       ElMessage.success('删除成功')
       await loadSyncRecords()
@@ -615,9 +675,15 @@ const deleteRecord = async (id: number) => {
       ElMessage.error(response?.data.message || '删除失败')
     }
   } catch {
+    if (!isDeleteOperationContextCurrent(operationContext, 'single')) {
+      return
+    }
     ElMessage.error('删除出错')
   } finally {
-    deleteLoading.value = false
+    if (isDeleteOperationContextCurrent(operationContext, 'single')) {
+      deleteLoading.value = false
+      finishDeleteOperationContext(operationContext, 'single')
+    }
   }
 }
 
@@ -634,9 +700,12 @@ const isMessageBoxCancelError = (error: unknown): boolean => {
 const batchDeleteRecords = async () => {
   if (selectedIds.value.length === 0) return
 
+  const ids = [...selectedIds.value]
+  const operationContext = startDeleteOperationContext('batch')
+
   try {
     await ElMessageBox.confirm(
-      `确定要批量删除选中的 ${selectedIds.value.length} 条同步记录吗？此操作不可恢复。`,
+      `确定要批量删除选中的 ${ids.length} 条同步记录吗？此操作不可恢复。`,
       '确认批量删除',
       {
         confirmButtonText: '确定删除',
@@ -645,11 +714,15 @@ const batchDeleteRecords = async () => {
       },
     )
 
+    if (!isDeleteOperationContextCurrent(operationContext, 'batch')) {
+      return
+    }
+
     batchDeleteLoading.value = true
     const response = await http?.post(
       `${SERVER_URL}/sync/delete-records`,
       {
-        ids: selectedIds.value,
+        ids,
       },
       {
         headers: {
@@ -658,6 +731,10 @@ const batchDeleteRecords = async () => {
         timeout: 60000, // 1分钟超时
       },
     )
+    if (!isDeleteOperationContextCurrent(operationContext, 'batch')) {
+      return
+    }
+
     if (response?.data.code === 200) {
       ElMessage.success('批量删除成功')
       selectedIds.value = []
@@ -666,11 +743,17 @@ const batchDeleteRecords = async () => {
       ElMessage.error(response?.data.message || '批量删除失败')
     }
   } catch (error) {
+    if (!isDeleteOperationContextCurrent(operationContext, 'batch')) {
+      return
+    }
     if (!isMessageBoxCancelError(error)) {
       ElMessage.error('批量删除出错')
     }
   } finally {
-    batchDeleteLoading.value = false
+    if (isDeleteOperationContextCurrent(operationContext, 'batch')) {
+      batchDeleteLoading.value = false
+      finishDeleteOperationContext(operationContext, 'batch')
+    }
   }
 }
 

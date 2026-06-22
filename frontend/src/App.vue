@@ -406,11 +406,14 @@ const getCurrentPageTitle = (): string => {
 
 const defaultOpeneds = computed(() => {
   const openeds: string[] = []
-  if (route.path.startsWith('/settings') || route.path.startsWith('/proxy')) openeds.push('/settings')
-  if (route.path.startsWith('/instant-upload') || route.path.startsWith('/media-import')) openeds.push('/instant')
+  if (route.path.startsWith('/settings') || route.path.startsWith('/proxy'))
+    openeds.push('/settings')
+  if (route.path.startsWith('/instant-upload') || route.path.startsWith('/media-import'))
+    openeds.push('/instant')
   if (route.path.startsWith('/sync')) openeds.push('/sync')
   if (route.path.startsWith('/scrape')) openeds.push('/scrape')
-  if (route.path.includes('upload-queue') || route.path.includes('download-queue')) openeds.push('/transfer')
+  if (route.path.includes('upload-queue') || route.path.includes('download-queue'))
+    openeds.push('/transfer')
   if (route.path.startsWith('/database/backup')) openeds.push('/database')
   return openeds
 })

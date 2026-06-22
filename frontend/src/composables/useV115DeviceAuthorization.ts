@@ -1,9 +1,5 @@
 import { SERVER_URL } from '@/const'
-import type {
-  V115AuthStatus,
-  V115QrCodePayload,
-  V115QrCodeStatusPayload,
-} from '@/types/v115Auth'
+import type { V115AuthStatus, V115QrCodePayload, V115QrCodeStatusPayload } from '@/types/v115Auth'
 import type { AxiosStatic } from 'axios'
 import { computed, onBeforeUnmount, shallowRef } from 'vue'
 

@@ -6,7 +6,9 @@
         <p>这里包含strm同步时产生的元数据的上传和刮削产生的上传任务。</p>
       </div>
       <div class="header-actions">
-        <el-button type="info" @click="refreshQueue" :loading="backgroundRefreshing">刷新</el-button>
+        <el-button type="info" @click="refreshQueue" :loading="backgroundRefreshing"
+          >刷新</el-button
+        >
         <el-button type="success" @click="pauseAllTasks" :disabled="queueStatus === 0"
           >全部暂停</el-button
         >
@@ -92,7 +94,9 @@
             <el-text type="primary"># {{ scope.row.id }}</el-text>
             <span class="queue-path-text">{{ scope.row.local_full_path }}</span>
           </p>
-          <p>=> <span class="queue-path-text">{{ scope.row.remote_file_id }}</span></p>
+          <p>
+            => <span class="queue-path-text">{{ scope.row.remote_file_id }}</span>
+          </p>
         </template>
       </el-table-column>
     </el-table>
@@ -150,7 +154,9 @@
       <el-table-column prop="speed" label="上传文件" min-width="300">
         <template #default="scope">
           <p class="queue-path-text">{{ scope.row.local_full_path }}</p>
-          <p>=> <span class="queue-path-text">{{ scope.row.remote_file_id }}</span></p>
+          <p>
+            => <span class="queue-path-text">{{ scope.row.remote_file_id }}</span>
+          </p>
         </template>
       </el-table-column>
     </el-table>
@@ -171,7 +177,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, nextTick, onActivated, onDeactivated, onMounted, onUnmounted, ref } from 'vue'
+import {
+  computed,
+  inject,
+  nextTick,
+  onActivated,
+  onDeactivated,
+  onMounted,
+  onUnmounted,
+  ref,
+} from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { WarningFilled } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
@@ -254,9 +269,7 @@ const startQueueMutationContext = (): QueueMutationContextSnapshot => {
   return snapshot
 }
 
-const isQueueMutationContextCurrent = (
-  snapshot: QueueMutationContextSnapshot | null,
-) => {
+const isQueueMutationContextCurrent = (snapshot: QueueMutationContextSnapshot | null) => {
   return (
     isPageActive &&
     !!snapshot &&

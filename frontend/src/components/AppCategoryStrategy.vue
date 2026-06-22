@@ -572,7 +572,9 @@ onMounted(async () => {
   flex: 1;
   min-width: 320px;
   max-width: 320px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .card-actions-header {

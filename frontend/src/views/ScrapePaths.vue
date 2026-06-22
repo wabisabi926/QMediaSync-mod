@@ -484,7 +484,14 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted, watch, h, computed, inject } from 'vue'
-import { ElMessage, ElMessageBox, ElButton, ElTag, type FormInstance, type FormRules } from 'element-plus'
+import {
+  ElMessage,
+  ElMessageBox,
+  ElButton,
+  ElTag,
+  type FormInstance,
+  type FormRules,
+} from 'element-plus'
 import { isMobile } from '@/utils/deviceUtils'
 import DirectorySelector from '@/components/DirectorySelector.vue'
 

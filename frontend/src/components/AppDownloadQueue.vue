@@ -9,7 +9,9 @@
         <p>来源是"Emby媒体信息提取"的记录不会真正下载，只是触发Emby媒体信息提取。</p>
       </div>
       <div class="header-actions">
-        <el-button type="info" @click="refreshQueue" :loading="backgroundRefreshing">刷新</el-button>
+        <el-button type="info" @click="refreshQueue" :loading="backgroundRefreshing"
+          >刷新</el-button
+        >
         <el-button type="success" @click="pauseAllTasks" :disabled="queueStatus === 0"
           >全部暂停</el-button
         >
@@ -176,7 +178,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, nextTick, onActivated, onDeactivated, onMounted, onUnmounted, ref } from 'vue'
+import {
+  computed,
+  inject,
+  nextTick,
+  onActivated,
+  onDeactivated,
+  onMounted,
+  onUnmounted,
+  ref,
+} from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { WarningFilled } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
@@ -259,9 +270,7 @@ const startQueueMutationContext = (): QueueMutationContextSnapshot => {
   return snapshot
 }
 
-const isQueueMutationContextCurrent = (
-  snapshot: QueueMutationContextSnapshot | null,
-) => {
+const isQueueMutationContextCurrent = (snapshot: QueueMutationContextSnapshot | null) => {
   return (
     isPageActive &&
     !!snapshot &&

@@ -165,7 +165,10 @@
                 active-color="#67c23a"
                 inactive-color="#dcdfe6"
               />
-              <span class="switch-label" :class="{ 'is-active': embyData.enable_playback_overview }">
+              <span
+                class="switch-label"
+                :class="{ 'is-active': embyData.enable_playback_overview }"
+              >
                 {{ embyData.enable_playback_overview ? '已启用' : '已禁用' }}
               </span>
             </div>
@@ -185,7 +188,10 @@
                 active-color="#67c23a"
                 inactive-color="#dcdfe6"
               />
-              <span class="switch-label" :class="{ 'is-active': embyData.enable_playback_progress }">
+              <span
+                class="switch-label"
+                :class="{ 'is-active': embyData.enable_playback_progress }"
+              >
                 {{ embyData.enable_playback_progress ? '已启用' : '已禁用' }}
               </span>
             </div>
@@ -278,7 +284,11 @@
           </div>
 
           <!-- 媒体库同步选择卡片 - 只有启用同步时才显示 -->
-          <el-card v-if="embyData.sync_enabled === 1" class="settings-card library-selection-card" shadow="hover">
+          <el-card
+            v-if="embyData.sync_enabled === 1"
+            class="settings-card library-selection-card"
+            shadow="hover"
+          >
             <template #header>
               <div class="card-header-wrapper">
                 <div class="card-header-icon library-icon">
@@ -298,15 +308,17 @@
               </el-radio-group>
               <div class="form-help">
                 <el-icon><InfoFilled /></el-icon>
-                <span>选择"全部媒体库"将同步所有媒体库（包括未来新增的），选择"指定媒体库"可手动选择需要同步的媒体库</span>
+                <span
+                  >选择"全部媒体库"将同步所有媒体库（包括未来新增的），选择"指定媒体库"可手动选择需要同步的媒体库</span
+                >
               </div>
             </el-form-item>
 
             <el-form-item label="选择媒体库" v-if="embyData.sync_all_libraries === 0">
               <el-checkbox-group v-model="selectedLibraryIds" class="library-checkbox-group">
-                <el-checkbox 
-                  v-for="lib in availableLibraries" 
-                  :key="lib.library_id" 
+                <el-checkbox
+                  v-for="lib in availableLibraries"
+                  :key="lib.library_id"
                   :label="lib.library_id"
                   class="library-checkbox"
                 >
@@ -315,7 +327,9 @@
               </el-checkbox-group>
               <div class="form-help" v-if="availableLibraries.length === 0">
                 <el-icon><WarningFilled /></el-icon>
-                <span class="warning-text">请先配置Emby服务器地址并保存，然后执行一次同步以获取媒体库列表</span>
+                <span class="warning-text"
+                  >请先配置Emby服务器地址并保存，然后执行一次同步以获取媒体库列表</span
+                >
               </div>
             </el-form-item>
           </el-card>
@@ -714,14 +728,14 @@ const loadEmbyConfig = async () => {
         embyData.selected_libraries = config.selected_libraries || '[]'
         embyData.enable_playback_overview = config.enable_playback_overview ?? 0
         embyData.enable_playback_progress = config.enable_playback_progress ?? 0
-        
+
         // 解析选中的媒体库ID列表
         try {
           selectedLibraryIds.value = JSON.parse(embyData.selected_libraries)
         } catch {
           selectedLibraryIds.value = []
         }
-        
+
         // 加载媒体库列表
         await loadEmbyLibraries()
       } else {
@@ -1352,7 +1366,9 @@ onBeforeUnmount(() => {
   background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
   border-radius: 12px;
   border: 1px solid #ebeef5;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .sync-stat-card:hover {

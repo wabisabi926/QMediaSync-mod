@@ -490,7 +490,9 @@ function isStrmOperationContextCurrent(
 function isCreateDirectoryOperationContextCurrent(
   snapshot: FileOperationContextSnapshot | null,
 ): snapshot is FileOperationContextSnapshot {
-  return createDirectoryOperationContext.value === snapshot && isFileOperationContextCurrent(snapshot)
+  return (
+    createDirectoryOperationContext.value === snapshot && isFileOperationContextCurrent(snapshot)
+  )
 }
 
 function isMessageBoxCancelError(error: unknown): boolean {
@@ -1076,7 +1078,9 @@ onUnmounted(() => {
   background: #fff;
   border-bottom: 1px solid #e4e7ed;
   cursor: pointer;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .account-item:hover {

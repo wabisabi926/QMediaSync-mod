@@ -58,7 +58,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isPageStatePrimitive(value: unknown): value is PageStatePrimitive {
-  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || value === null
+  return (
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    value === null
+  )
 }
 
 function normalizePageState(value: unknown): PageState | null {

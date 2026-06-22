@@ -34,7 +34,10 @@ function getWsUrl(): string {
 }
 
 function connect() {
-  if (wsInstance && (wsInstance.readyState === WebSocket.OPEN || wsInstance.readyState === WebSocket.CONNECTING)) {
+  if (
+    wsInstance &&
+    (wsInstance.readyState === WebSocket.OPEN || wsInstance.readyState === WebSocket.CONNECTING)
+  ) {
     return
   }
 
@@ -63,7 +66,7 @@ function connect() {
       const eventType = wsEvent.event_type as WSEventType
       const callbacks = listeners.get(eventType)
       if (callbacks) {
-        callbacks.forEach(cb => cb(wsEvent.data))
+        callbacks.forEach((cb) => cb(wsEvent.data))
       }
     } catch {
       // 忽略解析失败的消息

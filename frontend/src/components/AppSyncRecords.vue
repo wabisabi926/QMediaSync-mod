@@ -68,7 +68,9 @@
         </template>
         <template #cell-local_path="{ row }">
           <div class="sync-path-cell">
-            <el-text type="primary" class="sync-path-cell__id hidden-md-and-up">#{{ row.id }}</el-text>
+            <el-text type="primary" class="sync-path-cell__id hidden-md-and-up"
+              >#{{ row.id }}</el-text
+            >
             <span class="sync-path-cell__route">
               {{ row.remote_path || '-' }} => {{ row.local_path || '-' }}
             </span>

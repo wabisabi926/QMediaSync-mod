@@ -70,7 +70,12 @@
 
     <div class="accounts-content">
       <div class="accounts-grid" v-if="accounts.length > 0">
-        <div class="account-card" v-for="account in accounts" :key="account.id" :class="getCardStatusClass(account)">
+        <div
+          class="account-card"
+          v-for="account in accounts"
+          :key="account.id"
+          :class="getCardStatusClass(account)"
+        >
           <div class="card-status-bar" :class="getStatusClass(account)"></div>
           <div class="card-main">
             <div class="card-header">
@@ -80,7 +85,11 @@
                 </el-tooltip>
                 <span class="card-name">{{ account.name }}</span>
               </div>
-              <el-tag :type="sourceTypeTagMap[account.source_type]" class="source-tag" effect="light">
+              <el-tag
+                :type="sourceTypeTagMap[account.source_type]"
+                class="source-tag"
+                effect="light"
+              >
                 {{ sourceTypeMap[account.source_type] }}
               </el-tag>
             </div>
@@ -135,16 +144,23 @@
                 </div>
               </div>
 
-              <template v-if="
-                (account.source_type === '115' || account.source_type === 'baidupan') &&
-                account.token
-              ">
+              <template
+                v-if="
+                  (account.source_type === '115' || account.source_type === 'baidupan') &&
+                  account.token
+                "
+              >
                 <div class="status-divider"></div>
                 <div class="disk-status-section">
                   <div class="status-header">
                     <span class="status-title">网盘状态</span>
-                    <el-button type="primary" size="small" text :loading="account.statusLoading"
-                      @click="loadAccountStatus(account)">
+                    <el-button
+                      type="primary"
+                      size="small"
+                      text
+                      :loading="account.statusLoading"
+                      @click="loadAccountStatus(account)"
+                    >
                       <el-icon v-if="!account.statusLoading">
                         <RefreshRight />
                       </el-icon>
@@ -183,15 +199,25 @@
                       <div class="info-content space-content">
                         <span class="info-label">空间使用</span>
                         <div class="space-info">
-                          <el-progress style="width: 80%" :percentage="account.status.total_space > 0
-                              ? Math.round(
-                                (account.status.used_space / account.status.total_space) * 100,
-                              )
-                              : 0
-                            " :stroke-width="10" :show-text="false" :color="getSpaceColor(account.status.used_space, account.status.total_space)
-                              " />
-                          <span class="space-text">{{ formatFileSize(account.status.used_space) }} /
-                            {{ formatFileSize(account.status.total_space) }}</span>
+                          <el-progress
+                            style="width: 80%"
+                            :percentage="
+                              account.status.total_space > 0
+                                ? Math.round(
+                                    (account.status.used_space / account.status.total_space) * 100,
+                                  )
+                                : 0
+                            "
+                            :stroke-width="10"
+                            :show-text="false"
+                            :color="
+                              getSpaceColor(account.status.used_space, account.status.total_space)
+                            "
+                          />
+                          <span class="space-text"
+                            >{{ formatFileSize(account.status.used_space) }} /
+                            {{ formatFileSize(account.status.total_space) }}</span
+                          >
                         </div>
                       </div>
                     </div>
@@ -208,10 +234,13 @@
                         }}</el-tag>
                       </div>
                     </div>
-                    <div class="info-row" v-if="
-                      account.status.expire_time &&
-                      account.status.expire_time !== '0001-01-01T00:00:00Z'
-                    ">
+                    <div
+                      class="info-row"
+                      v-if="
+                        account.status.expire_time &&
+                        account.status.expire_time !== '0001-01-01T00:00:00Z'
+                      "
+                    >
                       <div class="info-icon expire-icon">
                         <el-icon>
                           <Calendar />
@@ -219,8 +248,10 @@
                       </div>
                       <div class="info-content">
                         <span class="info-label">到期时间</span>
-                        <span class="info-value"
-                          :class="{ 'expire-warning': isExpiringSoon(account.status.expire_time) }">
+                        <span
+                          class="info-value"
+                          :class="{ 'expire-warning': isExpiringSoon(account.status.expire_time) }"
+                        >
                           {{ formatExpireTime(account.status.expire_time) }}
                         </span>
                       </div>
@@ -245,8 +276,11 @@
                   </el-icon>
                   <span>{{ getStatusText(account) }}</span>
                 </div>
-                <el-tooltip v-if="account.token_failed_reason && !account.token" :content="account.token_failed_reason"
-                  placement="top">
+                <el-tooltip
+                  v-if="account.token_failed_reason && !account.token"
+                  :content="account.token_failed_reason"
+                  placement="top"
+                >
                   <el-icon class="error-help-icon">
                     <QuestionFilled />
                   </el-icon>
@@ -262,16 +296,26 @@
                 删除
               </el-button>
 
-              <el-button type="warning" size="small" plain @click="handleAuthorize(account)"
-                v-if="account.source_type !== 'openlist'">
+              <el-button
+                type="warning"
+                size="small"
+                plain
+                @click="handleAuthorize(account)"
+                v-if="account.source_type !== 'openlist'"
+              >
                 <el-icon>
                   <Key />
                 </el-icon>
                 授权
               </el-button>
 
-              <el-button type="primary" size="small" plain @click="handleEdit(account)"
-                v-if="account.source_type === 'openlist'">
+              <el-button
+                type="primary"
+                size="small"
+                plain
+                @click="handleEdit(account)"
+                v-if="account.source_type === 'openlist'"
+              >
                 <el-icon>
                   <Edit />
                 </el-icon>
@@ -372,7 +416,11 @@
       <el-form-item label="网盘类型">
         <el-select v-model="newAccountForm.type" placeholder="请选择网盘类型">
           <template v-for="typeItem in sourceTypeOptions" :key="typeItem.value">
-            <el-option v-if="typeItem.value !== 'local'" :label="typeItem.label" :value="typeItem.value"></el-option>
+            <el-option
+              v-if="typeItem.value !== 'local'"
+              :label="typeItem.label"
+              :value="typeItem.value"
+            ></el-option>
           </template>
         </el-select>
       </el-form-item>
@@ -380,7 +428,10 @@
         <el-input v-model="newAccountForm.name" placeholder="请输入账号备注" />
       </el-form-item>
       <el-form-item label="访问地址" v-if="newAccountForm.type === 'openlist'">
-        <el-input v-model="newAccountForm.base_url" placeholder="请输入OpenList地址:http://ip:5244" />
+        <el-input
+          v-model="newAccountForm.base_url"
+          placeholder="请输入OpenList地址:http://ip:5244"
+        />
       </el-form-item>
       <el-form-item label="认证方式" v-if="newAccountForm.type === 'openlist'">
         <el-select v-model="newAccountForm.auth_type" placeholder="请选择认证方式">
@@ -388,7 +439,9 @@
           <el-option label="令牌" value="token"></el-option>
         </el-select>
       </el-form-item>
-      <template v-if="newAccountForm.type === 'openlist' && newAccountForm.auth_type === 'password'">
+      <template
+        v-if="newAccountForm.type === 'openlist' && newAccountForm.auth_type === 'password'"
+      >
         <el-form-item label="用户名">
           <el-input v-model="newAccountForm.username" placeholder="请输入用户名" />
         </el-form-item>
@@ -396,7 +449,10 @@
           <el-input type="password" v-model="newAccountForm.password" placeholder="请输入密码" />
         </el-form-item>
       </template>
-      <el-form-item label="令牌" v-if="newAccountForm.type === 'openlist' && newAccountForm.auth_type === 'token'">
+      <el-form-item
+        label="令牌"
+        v-if="newAccountForm.type === 'openlist' && newAccountForm.auth_type === 'token'"
+      >
         <el-input type="password" v-model="newAccountForm.token" placeholder="请输入令牌" />
       </el-form-item>
       <V115AppSelector
@@ -408,15 +464,24 @@
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="showAddAccountDialog = false">取消</el-button>
-        <el-button type="primary" @click="handleAddAccount" :loading="addAccountLoading">确定</el-button>
+        <el-button type="primary" @click="handleAddAccount" :loading="addAccountLoading"
+          >确定</el-button
+        >
       </span>
     </template>
   </el-dialog>
 
-  <el-dialog v-model="showEditAccountDialog" title="编辑OpenList账号" :width="isMobile ? '90%' : '500px'">
+  <el-dialog
+    v-model="showEditAccountDialog"
+    title="编辑OpenList账号"
+    :width="isMobile ? '90%' : '500px'"
+  >
     <el-form :model="editAccountForm" label-width="80px">
       <el-form-item label="访问地址" prop="baseUrl">
-        <el-input v-model="editAccountForm.base_url" placeholder="请输入OpenList地址:http://ip:5244" />
+        <el-input
+          v-model="editAccountForm.base_url"
+          placeholder="请输入OpenList地址:http://ip:5244"
+        />
       </el-form-item>
       <el-form-item label="认证方式">
         <el-select v-model="editAccountForm.auth_type" placeholder="请选择认证方式">
@@ -429,7 +494,11 @@
           <el-input v-model="editAccountForm.username" placeholder="请输入用户名" />
         </el-form-item>
         <el-form-item label="密码">
-          <el-input type="password" v-model="editAccountForm.password" placeholder="请输入密码（留空则不修改）" />
+          <el-input
+            type="password"
+            v-model="editAccountForm.password"
+            placeholder="请输入密码（留空则不修改）"
+          />
         </el-form-item>
       </template>
       <el-form-item label="令牌" v-if="editAccountForm.auth_type === 'token'">
@@ -961,7 +1030,7 @@ const confirmOAuth = async (
     )
 
     if (response?.data.code === 200) {
-      ElMessage.success({message: '授权成功，2秒后将自动刷新页面', duration: 2000})
+      ElMessage.success({ message: '授权成功，2秒后将自动刷新页面', duration: 2000 })
       setTimeout(() => {
         const hash = window.location.hash
         const cleanHash = hash.split('?')[0]
@@ -1059,7 +1128,9 @@ onUnmounted(() => {
 .add-btn {
   background: #409eff !important;
   border-color: #409eff !important;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .add-btn:hover {
@@ -1146,7 +1217,9 @@ onUnmounted(() => {
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
   position: relative;
 }
 
@@ -1451,7 +1524,6 @@ onUnmounted(() => {
 }
 
 @keyframes bounce {
-
   0%,
   80%,
   100% {

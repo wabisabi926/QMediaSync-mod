@@ -490,7 +490,10 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   margin-bottom: 12px;
-  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    color 0.2s ease;
   z-index: 2;
   position: relative;
 }

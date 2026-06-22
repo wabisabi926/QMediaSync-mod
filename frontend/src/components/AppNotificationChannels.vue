@@ -1204,7 +1204,9 @@ onMounted(() => {
 .channel-card {
   border-radius: 12px;
   border: 1px solid var(--el-border-color-lighter);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .channel-card:hover {
@@ -1332,7 +1334,9 @@ onMounted(() => {
   border-radius: 12px;
   border: 2px solid var(--el-border-color-lighter);
   cursor: pointer;
-  transition: border-color 0.2s ease, background-color 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease;
   background: var(--el-bg-color);
 }
 

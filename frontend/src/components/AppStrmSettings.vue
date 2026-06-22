@@ -350,7 +350,7 @@ const updateStrmExample = () => {
     // 生成示例STRM文件内容
     const baseUrl = strmData.strm_base_url.replace(/\/$/, '') // 移除末尾斜杠
     strmExample.value = `${baseUrl}/115/video.mp4?pick_code=d6tkyd62bmngxx5bg&userid=5323423`
-    if (strmData.add_path == 1) {
+    if (strmData.add_path === 1) {
       strmExample.value += '&path=Media%2F电影%2F华语电影%2F让子弹飞%2F让子弹飞.mp4'
     }
   } else {
@@ -366,7 +366,7 @@ const saveStrmConfig = async () => {
   try {
     await formRef.value.validate()
   } catch (error) {
-    console.log('表单验证失败:', error)
+    console.warn('表单验证失败:', error)
     return
   }
 
@@ -463,7 +463,6 @@ const loadCronTimes = async () => {
 }
 
 const changeDownloadMeta = () => {
-  console.log('改变是否下载元数据')
   if (strmData.download_meta === 0) {
     strmData.upload_meta = 0
   }

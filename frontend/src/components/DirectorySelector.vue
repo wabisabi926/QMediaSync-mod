@@ -51,9 +51,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted, inject, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import type { AxiosStatic } from 'axios'
-import type { FormInstance, FormRules } from 'element-plus'
 import type { DirInfo } from '@/typing'
 import TreeNode from './TreeNode.vue'
 import { SERVER_URL } from '@/const'
@@ -99,7 +98,7 @@ interface TreeNodeData extends DirInfo {
 }
 
 const treeData = ref<TreeNodeData[]>([])
-const selectedDir = ref<DirInfo | null>(props.modelValue)
+const selectedDir = ref<DirInfo | null>(null)
 const loading = ref(false)
 
 const loadSubdirectories = async (parentNode: TreeNodeData): Promise<TreeNodeData[]> => {
@@ -235,6 +234,7 @@ watch(
   (newValue) => {
     selectedDir.value = newValue
   },
+  { immediate: true },
 )
 
 onMounted(() => {

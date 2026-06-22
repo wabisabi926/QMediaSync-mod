@@ -1,5 +1,4 @@
-import { ref, onMounted, onUnmounted } from 'vue'
-import { inject } from 'vue'
+import { inject, onMounted, onUnmounted, ref } from 'vue'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { ElMessage } from 'element-plus'
@@ -62,7 +61,6 @@ export function useUpdate() {
         })
       } else {
         updateList.value = []
-        console.log('未获取到版本列表数据')
       }
     } catch (error) {
       console.error('加载最新版本列表错误:', error)
@@ -296,7 +294,7 @@ export function useUpdate() {
   const handleDownloadClick = (update: UpdateInfo) => {
     if (!update.url) {
       console.error('下载链接不存在:', update)
-      alert('下载链接不存在，请稍后重试')
+      ElMessage.error('下载链接不存在，请稍后重试')
       return false
     }
     window.open(update.url, '_blank')

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DOMPurify from 'dompurify'
 import { ref, onMounted, inject, watch } from 'vue'
 import { useUpdate } from '@/composables/useUpdate'
 import { useVersion } from '@/composables/useVersion'
@@ -74,7 +75,7 @@ const md = new MarkdownIt({
 })
 
 const renderMarkdown = (content: string): string => {
-  return md.render(content || '')
+  return DOMPurify.sanitize(md.render(content || ''))
 }
 </script>
 
@@ -136,6 +137,7 @@ const renderMarkdown = (content: string): string => {
                 </div>
               </template>
               <div class="update-detail">
+                <!-- eslint-disable-next-line vue/no-v-html -->
                 <div class="update-note markdown-body" v-html="renderMarkdown(update.note)"></div>
                 <div class="update-actions" v-if="!update.current">
                   <el-button type="default" size="small" @click="handleDownloadClick(update)" round>

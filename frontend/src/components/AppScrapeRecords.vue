@@ -1086,8 +1086,17 @@ const handleDeleteSelectedRecords = async () => {
       return
     }
 
-    // 确认删除操作
-    if (!confirm(`确定要删除选中的 ${selectedRecords.value.length} 条记录吗？`)) {
+    try {
+      await ElMessageBox.confirm(
+        `确定要删除选中的 ${selectedRecords.value.length} 条记录吗？`,
+        '确认删除',
+        {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning',
+        },
+      )
+    } catch {
       return
     }
 
@@ -1140,8 +1149,17 @@ const handleRename = async () => {
       return
     }
 
-    // 确认删除操作
-    if (!confirm(`确定要重新整理选中的 ${selectedRecords.value.length} 条记录吗？`)) {
+    try {
+      await ElMessageBox.confirm(
+        `确定要重新整理选中的 ${selectedRecords.value.length} 条记录吗？`,
+        '确认重新整理',
+        {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning',
+        },
+      )
+    } catch {
       return
     }
 

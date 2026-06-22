@@ -23,7 +23,7 @@
       action="#"
       :auto-upload="false"
       :limit="1"
-      :accept="'.sql,.zip'"
+      accept=".sql,.zip"
       :on-change="handleFileChange"
       :on-exceed="handleExceed"
       :disabled="backupStore.isRunning"
@@ -78,8 +78,7 @@
 <script setup lang="ts">
 import { ref, inject } from 'vue'
 import { UploadFilled, CircleCheck } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import type { UploadInstance, UploadFile } from 'element-plus'
+import { ElMessage, ElMessageBox, type UploadFile, type UploadInstance } from 'element-plus'
 import type { AxiosStatic } from 'axios'
 import { SERVER_URL } from '@/const'
 import { useBackupStore } from '@/stores/backup'

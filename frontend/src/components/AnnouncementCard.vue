@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DOMPurify from 'dompurify'
 import { ref } from 'vue'
 import { useAnnouncement } from '@/composables/useAnnouncement'
 
@@ -21,6 +22,10 @@ const expandedItems = ref<Set<number>>(new Set())
 
 const isExpanded = (index: number): boolean => {
   return expandedItems.value.has(index)
+}
+
+const sanitizeHtml = (content: string): string => {
+  return DOMPurify.sanitize(content || '')
 }
 
 // const getDisplayContent = (content: string, index: number): string => {
@@ -63,7 +68,8 @@ const isExpanded = (index: number): boolean => {
         </div>
         <div class="announcement-content">
           <div class="content-text" :class="{ 'is-expanded': isExpanded(index) }">
-            <div v-html="announcement.content"></div>
+            <!-- eslint-disable-next-line vue/no-v-html -->
+            <div v-html="sanitizeHtml(announcement.content)"></div>
           </div>
           <!-- <el-button
             v-if="isContentLong(announcement.content)"

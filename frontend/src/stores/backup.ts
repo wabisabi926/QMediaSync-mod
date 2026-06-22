@@ -89,7 +89,7 @@ export const useBackupStore = defineStore('backup', () => {
             running: statusData.is_running,
             status: statusData.is_running ? 'running' : 'completed',
             progress:
-              statusData.count == 0
+              statusData.count === 0
                 ? 0
                 : parseInt((statusData.count / statusData.total) * 100 + '', 10),
             elapsed_seconds: statusData.elapsed,

@@ -483,13 +483,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted, watch, h, computed } from 'vue'
-import { ElMessage, ElMessageBox, ElButton, ElTag } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
+import { ref, reactive, onMounted, onUnmounted, watch, h, computed, inject } from 'vue'
+import { ElMessage, ElMessageBox, ElButton, ElTag, type FormInstance, type FormRules } from 'element-plus'
 import { isMobile } from '@/utils/deviceUtils'
 import DirectorySelector from '@/components/DirectorySelector.vue'
 
-import { inject } from 'vue'
 import type { AxiosStatic } from 'axios'
 import type { CloudAccount, DirInfo } from '@/typing'
 const http: AxiosStatic | undefined = inject('$http')
@@ -866,7 +864,7 @@ const loadAccounts = async (sourceType?: string) => {
 // 处理添加刮削目录
 const handleAdd = async () => {
   if (!addFormRef.value) return
-  if (addForm.scrape_type !== 'only_scrape' && addForm.dest_path_id == '') {
+  if (addForm.scrape_type !== 'only_scrape' && addForm.dest_path_id === '') {
     ElMessage.error('请选择目标路径且填写文件夹重命名模板和文件重命名模板')
     return
   }
@@ -989,7 +987,7 @@ const handleEdit = (row: ScrapePath) => {
 // 处理保存编辑
 const handleEditSave = async () => {
   if (!editFormRef.value) return
-  if (editForm.scrape_type !== 'only_scrape' && editForm.dest_path_id == '') {
+  if (editForm.scrape_type !== 'only_scrape' && editForm.dest_path_id === '') {
     ElMessage.error('请选择目标路径')
     return
   }
@@ -1147,13 +1145,19 @@ const confirmSelectDir = () => {
 // 添加自动刷新相关变量
 const autoRefreshTimer = ref<number | null>(null)
 
+interface ScrapePathCellRendererParams {
+  rowData: ScrapePath
+  rowIndex: number
+  cellData: string
+}
+
 // 虚拟滚动表格列配置
 const columns = computed(() => [
   {
     key: 'account_name',
     title: '账号',
     width: 120,
-    cellRenderer: ({ rowData }: any) => {
+    cellRenderer: ({ rowData }: ScrapePathCellRendererParams) => {
       return getAccountName(rowData.account_id)
     },
   },
@@ -1161,7 +1165,7 @@ const columns = computed(() => [
     key: 'media_type',
     title: '媒体类型',
     width: 100,
-    cellRenderer: ({ rowData }: any) => {
+    cellRenderer: ({ rowData }: ScrapePathCellRendererParams) => {
       return getMediaTypeText(rowData.media_type)
     },
   },
@@ -1169,19 +1173,19 @@ const columns = computed(() => [
     key: 'source_path',
     title: '来源路径',
     width: 200,
-    cellRenderer: ({ cellData }: any) => cellData,
+    cellRenderer: ({ cellData }: ScrapePathCellRendererParams) => cellData,
   },
   {
     key: 'dest_path',
     title: '目标路径',
     width: 200,
-    cellRenderer: ({ cellData }: any) => cellData,
+    cellRenderer: ({ cellData }: ScrapePathCellRendererParams) => cellData,
   },
   {
     key: 'scrape_type',
     title: '操作方式',
     width: 120,
-    cellRenderer: ({ rowData }: any) => {
+    cellRenderer: ({ rowData }: ScrapePathCellRendererParams) => {
       return getScrapeTypeText(rowData.scrape_type)
     },
   },
@@ -1189,7 +1193,7 @@ const columns = computed(() => [
     key: 'rename_type',
     title: '整理方式',
     width: 100,
-    cellRenderer: ({ rowData }: any) => {
+    cellRenderer: ({ rowData }: ScrapePathCellRendererParams) => {
       return getRenameTypeText(rowData.rename_type)
     },
   },
@@ -1197,7 +1201,7 @@ const columns = computed(() => [
     key: 'status',
     title: '状态',
     width: 120,
-    cellRenderer: ({ rowData }: any) => {
+    cellRenderer: ({ rowData }: ScrapePathCellRendererParams) => {
       if (rowData.is_scraping) {
         return h(ElTag, { type: 'warning' }, () => '刮削中')
       }
@@ -1212,7 +1216,7 @@ const columns = computed(() => [
     title: '操作',
     width: 250,
     fixed: 'right' as const,
-    cellRenderer: ({ rowData, rowIndex }: any) => {
+    cellRenderer: ({ rowData, rowIndex }: ScrapePathCellRendererParams) => {
       return h('div', { class: 'action-buttons' }, [
         h(
           ElButton,

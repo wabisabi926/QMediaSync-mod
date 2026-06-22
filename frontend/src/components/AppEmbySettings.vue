@@ -658,7 +658,6 @@ const updateWebhookUrl = () => {
   } else {
     baseUrl = SERVER_URL.replace(/\/api$/, '')
   }
-  console.log(baseUrl)
   webhookUrl.value = `${baseUrl}/emby/webhook`
 }
 
@@ -955,7 +954,6 @@ const startSyncPolling = () => {
       if (response?.data.code === 200) {
         syncInfo.value = response.data.data
         syncPolling.value = response.data.data?.is_running
-        console.log(syncPolling.value)
         if (!syncPolling.value) {
           stopSyncPolling()
         }

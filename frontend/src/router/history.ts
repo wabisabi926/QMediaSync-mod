@@ -1,5 +1,4 @@
-import { createWebHashHistory } from 'vue-router'
-import type { RouterHistory } from 'vue-router'
+import { createWebHashHistory, type RouterHistory } from 'vue-router'
 
 export function runWithoutHiddenScrollListeners<T>(factory: () => T): T {
   const originalDocumentAddEventListener =

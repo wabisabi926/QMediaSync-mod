@@ -7,12 +7,7 @@
       <span>备份配置</span>
     </div>
 
-    <el-form
-      ref="configFormRef"
-      :model="configForm"
-      label-width="120px"
-      :label-position="isMobile ? 'top' : 'right'"
-    >
+    <el-form :model="configForm" label-width="120px" :label-position="isMobile ? 'top' : 'right'">
       <el-form-item label="启用自动备份">
         <el-switch v-model="configForm.backup_enabled" :active-value="1" :inactive-value="0" />
       </el-form-item>

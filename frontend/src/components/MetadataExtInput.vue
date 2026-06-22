@@ -39,8 +39,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import type { Ref } from 'vue'
+import { ref, watch, type Ref } from 'vue'
 
 // 定义组件属性
 interface Props {
@@ -68,7 +67,7 @@ const inputValue: Ref<string> = ref('')
 const showInput: Ref<boolean> = ref(false)
 
 // 标签值
-const tags: Ref<string[]> = ref([...props.modelValue])
+const tags: Ref<string[]> = ref([])
 
 // 监听外部传入的值变化
 watch(
@@ -76,7 +75,7 @@ watch(
   (newVal) => {
     tags.value = [...newVal]
   },
-  { deep: true },
+  { deep: true, immediate: true },
 )
 
 // 处理回车事件

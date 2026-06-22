@@ -1,5 +1,4 @@
-import { ref, onMounted } from 'vue'
-import { inject } from 'vue'
+import { inject, onMounted, ref } from 'vue'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 

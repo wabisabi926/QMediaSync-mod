@@ -201,7 +201,7 @@ onMounted(() => {
 // 加载当前用户名
 const loadCurrentUsername = async () => {
   formData.username = authStore.user?.username || ''
-  if (formData.username == '') {
+  if (formData.username === '') {
     try {
       const response = await http?.get(`${SERVER_URL}/user/info`)
       if (response?.data.code === 200 && response.data.data?.username) {

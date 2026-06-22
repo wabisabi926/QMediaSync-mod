@@ -184,6 +184,7 @@
             详细请参考：<a
               href="https://github.com/qicfan/qmediasync/wiki/%E6%95%B4%E7%90%86%E6%96%87%E4%BB%B6%EF%BC%88%E5%A4%B9%EF%BC%89%E6%A8%A1%E6%9D%BF%E5%8F%AF%E7%94%A8%E5%8F%98%E9%87%8F"
               target="_blank"
+              rel="noopener noreferrer"
               >文件夹重命名模板</a
             >
           </div>
@@ -202,6 +203,7 @@
             详细请参考：<a
               href="https://github.com/qicfan/qmediasync/wiki/%E6%95%B4%E7%90%86%E6%96%87%E4%BB%B6%EF%BC%88%E5%A4%B9%EF%BC%89%E6%A8%A1%E6%9D%BF%E5%8F%AF%E7%94%A8%E5%8F%98%E9%87%8F"
               target="_blank"
+              rel="noopener noreferrer"
               >文件重命名模板</a
             >
           </div>
@@ -552,6 +554,7 @@
             详细请参考：<a
               href="https://github.com/qicfan/qmediasync/wiki/%E6%95%B4%E7%90%86%E6%96%87%E4%BB%B6%EF%BC%88%E5%A4%B9%EF%BC%89%E6%A8%A1%E6%9D%BF%E5%8F%AF%E7%94%A8%E5%8F%98%E9%87%8F"
               target="_blank"
+              rel="noopener noreferrer"
               >文件夹重命名模板</a
             >
           </div>
@@ -570,6 +573,7 @@
             详细请参考：<a
               href="https://github.com/qicfan/qmediasync/wiki/%E6%95%B4%E7%90%86%E6%96%87%E4%BB%B6%EF%BC%88%E5%A4%B9%EF%BC%89%E6%A8%A1%E6%9D%BF%E5%8F%AF%E7%94%A8%E5%8F%98%E9%87%8F"
               target="_blank"
+              rel="noopener noreferrer"
               >文件重命名模板</a
             >
           </div>
@@ -764,9 +768,8 @@ import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { inject, onMounted, onUnmounted, ref, reactive, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
-import type { FormInstance, FormRules } from 'element-plus'
 import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 import { sourceTypeOptions } from '@/utils/sourceTypeUtils'
 import MetadataExtInput from './MetadataExtInput.vue'
@@ -897,7 +900,6 @@ const formRules: FormRules = {
 const accounts = ref<CloudAccount[]>([])
 const accountsLoading = ref(false)
 
-const selectedPreset = ref('')
 const selectedCronPreset = ref('')
 
 const showDirDialog = ref(false)
@@ -947,7 +949,6 @@ const loadDirectoryData = async (id: number) => {
       // if (directory) {
       // 将res.data.data赋值给form
       const directory = response.data.data
-      console.log('接口数据：', directory)
       form.id = directory.id || 0
       form.source_type = directory.source_type
       form.account_id = directory.account_id
@@ -957,8 +958,6 @@ const loadDirectoryData = async (id: number) => {
       form.dest_path = directory.dest_path
       form.dest_path_id = directory.dest_path_id
       form.scrape_type = directory.scrape_type
-      console.log('接口 scrape_type: ', directory.scrape_type)
-      console.log('form scrape_type: ', form.scrape_type)
       form.rename_type = directory.rename_type
       form.enable_category = directory.enable_category
       form.folder_name_template = directory.folder_name_template
@@ -976,7 +975,6 @@ const loadDirectoryData = async (id: number) => {
       form.enable_fanart_tv = directory.enable_fanart_tv || false
       form.max_threads = parseInt(directory.max_threads + '') || 5
 
-      console.log('form: ', form)
       // } else {
       //   ElMessage.error('未找到该刮削目录')
       //   goBack()
@@ -1004,7 +1002,6 @@ const openDirSelector = (isSource: boolean = false) => {
 
 const confirmSelectDir = () => {
   if (!tempSelectedDir.value) return
-  console.log('tempSelectedDir.value', tempSelectedDir.value)
   if (isSelectSource.value) {
     form.source_path = tempSelectedDir.value.path
     form.source_path_id = tempSelectedDir.value.id
@@ -1040,17 +1037,6 @@ const validateCronExpression = async () => {
   }
 }
 
-// 应用预设的 Cron 表达式
-const applyPreset = () => {
-  if (!selectedPreset.value) {
-    return
-  }
-
-  form.cron_expression = selectedPreset.value
-  selectedPreset.value = ''
-  validateCronExpression()
-}
-
 // 应用预设的 Cron 表达式（快速选择）
 const applyCronPreset = () => {
   if (!selectedCronPreset.value) {
@@ -1064,7 +1050,7 @@ const applyCronPreset = () => {
 
 const handleSubmit = async () => {
   if (!formRef.value) return
-  if (form.scrape_type !== 'only_scrape' && form.dest_path_id == '') {
+  if (form.scrape_type !== 'only_scrape' && form.dest_path_id === '') {
     ElMessage.error('请选择目标路径且填写文件夹重命名模板和文件重命名模板')
     return
   }

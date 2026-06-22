@@ -125,7 +125,6 @@ watch(
 
 // 初始化
 onMounted(async () => {
-  console.log('isRealTime:', props.isRealTime)
   // 如果提供了日志路径，先加载历史日志
   if (props.logPath) {
     // 设置初始偏移量为0

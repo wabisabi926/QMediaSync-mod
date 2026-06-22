@@ -68,7 +68,13 @@ const handleLogDialogClose = () => {
               <span class="notice-number">5</span>
               <span
                 >问题请在
-                <a href="https://github.com/chen8945/QMediaSync" target="_blank">GitHub</a> 提交issue
+                <a
+                  href="https://github.com/chen8945/QMediaSync"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >GitHub</a
+                >
+                提交issue
               </span>
             </div>
           </div>

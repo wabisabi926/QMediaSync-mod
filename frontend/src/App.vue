@@ -100,9 +100,9 @@
             </template>
           </el-dropdown>
         </div>
-        <router-view v-slot="{ Component, route }">
+        <router-view v-slot="{ Component, route: routeView }">
           <keep-alive :include="cachedComponentNames">
-            <component :is="Component" :key="getRouteViewKey(route.name, route.fullPath)" />
+            <component :is="Component" :key="getRouteViewKey(routeView.name, routeView.fullPath)" />
           </keep-alive>
         </router-view>
       </el-main>

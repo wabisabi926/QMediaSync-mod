@@ -23,8 +23,10 @@ go run .
 
 ```bash
 cd frontend
-npm install
-npm run dev
+corepack enable
+corepack prepare pnpm@11 --activate
+pnpm install
+pnpm run dev
 ```
 
 前端开发环境默认连接 `http://localhost:12333/api`。

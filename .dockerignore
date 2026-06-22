@@ -30,6 +30,7 @@ frontend/dist-ssr
 frontend/coverage
 backend/config
 backend/update
+backend/web_statics
 backend/QMediaSync
 backend/QMediaSync.exe
 backend/Q115-STRM

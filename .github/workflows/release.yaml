@@ -47,17 +47,22 @@ jobs:
           ref: ${{ needs.metadata.outputs.tag }}
           fetch-depth: 0
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: Build frontend
         working-directory: frontend
         run: |
-          npm ci
-          npm run build
+          pnpm install --frozen-lockfile
+          pnpm run build
 
       - name: Include standalone backend assets
         run: |

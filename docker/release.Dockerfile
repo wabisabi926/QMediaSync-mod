@@ -4,14 +4,14 @@ FROM alpine:3.20
 ARG TARGETARCH=amd64
 ARG TARGETOS=linux
 
-ENV TZ=Asia/Shanghai
-ENV PATH=/app:$PATH
-ENV DB_HOST=localhost
-ENV DB_PORT=5432
-ENV DB_USER=qms
-ENV DB_PASSWORD=qms123456
-ENV DB_NAME=qms
-ENV DB_SSLMODE=disable
+ENV TZ=Asia/Shanghai \
+    PATH=/app:$PATH \
+    DB_HOST=localhost \
+    DB_PORT=5432 \
+    DB_USER=qms \
+    DB_PASSWORD=qms123456 \
+    DB_NAME=qms \
+    DB_SSLMODE=disable
 
 RUN apk add --no-cache ca-certificates tzdata inotify-tools postgresql15 su-exec && \
     addgroup -S -g 12331 qms && \
@@ -29,7 +29,5 @@ COPY backend/assets/db_config.html ./web_statics/
 COPY backend/icon.ico .
 
 VOLUME ["/app/config", "/media"]
-EXPOSE 12333
-EXPOSE 8095
-EXPOSE 8094
+EXPOSE 12333 8095 8094
 CMD ["/app/scripts/docker-entrypoint.sh"]

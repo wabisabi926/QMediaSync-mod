@@ -1,22 +1,142 @@
 import { fileURLToPath, URL } from 'node:url'
 
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 
+const elementPlusComponentModules: Record<string, string> = {
+  ElAside: 'container',
+  ElBreadcrumbItem: 'breadcrumb',
+  ElButtonGroup: 'button',
+  ElCheckboxGroup: 'checkbox',
+  ElCollapseItem: 'collapse',
+  ElContainer: 'container',
+  ElDescriptionsItem: 'descriptions',
+  ElDropdownItem: 'dropdown',
+  ElDropdownMenu: 'dropdown',
+  ElFormItem: 'form',
+  ElLoadingDirective: 'loading',
+  ElMain: 'container',
+  ElMenuItem: 'menu',
+  ElOption: 'select',
+  ElRadioButton: 'radio',
+  ElRadioGroup: 'radio',
+  ElSubMenu: 'menu',
+  ElTabPane: 'tabs',
+  ElTableColumn: 'table',
+}
+
+const elementPlusRuntimeModules: Record<string, string> = {
+  ElButton: 'button',
+  ElMessage: 'message',
+  ElMessageBox: 'message-box',
+  ElTag: 'tag',
+}
+
+const toKebab = (name: string) =>
+  name
+    .replace(/^El/, '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .toLowerCase()
+
+type ElementPlusResolverItem = {
+  type: 'component' | 'directive'
+  resolve: (name: string) => unknown | Promise<unknown>
+}
+
+const createElementPlusResolver = () => {
+  const resolvers = ElementPlusResolver({
+    directives: true,
+    importStyle: 'css',
+  }) as ElementPlusResolverItem[]
+
+  return resolvers.map((resolver) => ({
+    type: resolver.type,
+    async resolve(name: string) {
+      const result = (await resolver.resolve(name)) as
+        | { name?: string; from?: string; sideEffects?: string | string[] }
+        | undefined
+
+      if (result && result.from === 'element-plus/es' && result.name?.startsWith('El')) {
+        const moduleName = elementPlusComponentModules[result.name] ?? toKebab(result.name)
+        return {
+          ...result,
+          from: `element-plus/es/components/${moduleName}/index.mjs`,
+        }
+      }
+
+      return result
+    },
+  })) as ReturnType<typeof ElementPlusResolver>
+}
+
+const elementPlusRuntimeImportPlugin = (): Plugin => ({
+  name: 'qms-element-plus-runtime-imports',
+  enforce: 'pre',
+  transform(code, id) {
+    if (!id.includes('/src/') || !/\.(vue|ts)$/.test(id) || !code.includes('element-plus')) {
+      return null
+    }
+
+    const nextCode = code.replace(
+      /import\s*\{([^}]+)\}\s*from\s*['"]element-plus['"]/g,
+      (statement, imports: string) => {
+        const runtimeImports: string[] = []
+        const typeImports: string[] = []
+        const passthroughImports: string[] = []
+
+        for (const rawImport of imports.split(',')) {
+          const importName = rawImport.trim()
+
+          if (!importName) {
+            continue
+          }
+
+          if (importName.startsWith('type ')) {
+            typeImports.push(importName.replace(/^type\s+/, ''))
+            continue
+          }
+
+          const moduleName = elementPlusRuntimeModules[importName]
+          if (moduleName) {
+            runtimeImports.push(
+              `import { ${importName} } from 'element-plus/es/components/${moduleName}/index.mjs'`,
+            )
+          } else {
+            passthroughImports.push(importName)
+          }
+        }
+
+        const importsToWrite = [
+          ...runtimeImports,
+          passthroughImports.length
+            ? `import { ${passthroughImports.join(', ')} } from 'element-plus'`
+            : '',
+          typeImports.length ? `import type { ${typeImports.join(', ')} } from 'element-plus'` : '',
+        ].filter(Boolean)
+
+        return importsToWrite.length ? importsToWrite.join('\n') : statement
+      },
+    )
+
+    return nextCode === code ? null : nextCode
+  },
+})
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     vue(),
+    elementPlusRuntimeImportPlugin(),
     AutoImport({
       dts: false,
-      resolvers: [ElementPlusResolver()],
+      resolvers: createElementPlusResolver(),
     }),
     Components({
       dts: false,
-      resolvers: [ElementPlusResolver({ directives: true, importStyle: 'css' })],
+      resolvers: createElementPlusResolver(),
     }),
   ],
   resolve: {
@@ -25,6 +145,7 @@ export default defineConfig({
     },
   },
   build: {
+    chunkSizeWarningLimit: 650,
     rollupOptions: {
       output: {
         manualChunks(id) {

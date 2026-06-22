@@ -1,3 +1,5 @@
+import { SERVER_URL } from '@/const'
+import type { AxiosStatic } from 'axios'
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
@@ -14,12 +16,14 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null)
   const isLoading = ref(false)
   const isLoggingOut = ref(false) // 防止重复登出
+  const hasInitialized = ref(false)
 
   // 计算属性
   const isAuthenticated = computed(() => !!token.value)
 
   // 从localStorage恢复登录状态
   const initAuth = () => {
+    if (hasInitialized.value) return
     const savedToken = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token')
     const savedUser = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user')
 
@@ -32,15 +36,30 @@ export const useAuthStore = defineStore('auth', () => {
         clearAuth()
       }
     }
+    hasInitialized.value = true
+  }
+
+  const restoreSession = async (http: AxiosStatic) => {
+    initAuth()
+    if (token.value) return true
+    try {
+      const response = await http.get(`${SERVER_URL}/session`, { withCredentials: true })
+      if (response.data?.code === 200 && response.data.data?.token && response.data.data?.user) {
+        login(response.data.data.token, response.data.data.user, false)
+        return true
+      }
+    } catch (error) {
+      console.error('恢复登录会话失败:', error)
+    }
+    clearAuth()
+    return false
   }
 
   // 登录
   const login = (authToken: string, userData: User, rememberMe: boolean = false) => {
     token.value = authToken
     user.value = userData
-    console.log('登录成功1:', authToken, userData)
     const jsonUser = JSON.stringify(userData)
-    console.log('登录成功2:', jsonUser)
     const storage = rememberMe ? localStorage : sessionStorage
     storage.setItem('auth_token', authToken)
     storage.setItem('auth_user', jsonUser)
@@ -64,6 +83,21 @@ export const useAuthStore = defineStore('auth', () => {
     setTimeout(() => {
       isLoggingOut.value = false
     }, 1000) // 1秒后重置标志
+  }
+
+  const logoutWithServer = async (http: AxiosStatic) => {
+    if (isLoggingOut.value) return
+    isLoggingOut.value = true
+    try {
+      await http.post(`${SERVER_URL}/logout`, undefined, { withCredentials: true })
+    } catch (error) {
+      console.error('服务端退出登录失败:', error)
+    } finally {
+      clearAuth()
+      setTimeout(() => {
+        isLoggingOut.value = false
+      }, 1000)
+    }
   }
 
   // 清除认证信息
@@ -113,14 +147,17 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     isLoading,
     isLoggingOut,
+    hasInitialized,
 
     // 计算属性
     isAuthenticated,
 
     // 方法
     initAuth,
+    restoreSession,
     login,
     logout,
+    logoutWithServer,
     clearAuth,
     updateUser,
     checkTokenValidity,

@@ -204,6 +204,10 @@ interface DownloadTask {
   source_type: string
 }
 
+interface QueueMutationContextSnapshot {
+  contextVersion: number
+}
+
 const http: AxiosStatic | undefined = inject('$http')
 
 // 数据状态
@@ -238,6 +242,49 @@ const pendingQueueDataRefresh = ref(false)
 let isPageActive = false
 const queueDataRequestGate = createActiveRequestGate(() => isPageActive)
 const queueStatusRequestGate = createActiveRequestGate(() => isPageActive)
+const queueMutationContextVersion = ref(0)
+const activeQueueMutationContext = ref<QueueMutationContextSnapshot | null>(null)
+
+const invalidateQueueMutationContext = () => {
+  queueMutationContextVersion.value += 1
+  activeQueueMutationContext.value = null
+}
+
+const startQueueMutationContext = (): QueueMutationContextSnapshot => {
+  invalidateQueueMutationContext()
+  const snapshot = {
+    contextVersion: queueMutationContextVersion.value,
+  }
+  activeQueueMutationContext.value = snapshot
+  return snapshot
+}
+
+const isQueueMutationContextCurrent = (
+  snapshot: QueueMutationContextSnapshot | null,
+) => {
+  return (
+    isPageActive &&
+    !!snapshot &&
+    !!activeQueueMutationContext.value &&
+    activeQueueMutationContext.value.contextVersion === snapshot.contextVersion &&
+    snapshot.contextVersion === queueMutationContextVersion.value
+  )
+}
+
+const finishQueueMutationContext = (snapshot: QueueMutationContextSnapshot) => {
+  if (isQueueMutationContextCurrent(snapshot)) {
+    activeQueueMutationContext.value = null
+  }
+}
+
+const isMessageBoxCancelError = (error: unknown): boolean => {
+  if (error === 'cancel' || error === 'close') {
+    return true
+  }
+
+  const errorMessage = error instanceof Error ? error.message : String(error)
+  return errorMessage.includes('用户取消操作')
+}
 
 // 获取状态文本
 const getStatusText = (status: number): string => {
@@ -391,6 +438,8 @@ const refreshQueue = () => {
 
 // 清空队列
 const clearQueue = async () => {
+  const operationContext = startQueueMutationContext()
+
   try {
     await ElMessageBox.confirm('只能清空所有等待下载的数据，此操作不可恢复，是否继续？', '提示', {
       confirmButtonText: '确定',
@@ -398,7 +447,15 @@ const clearQueue = async () => {
       type: 'warning',
     })
 
+    if (!isQueueMutationContextCurrent(operationContext)) {
+      return
+    }
+
     const response = await http?.post(`${SERVER_URL}/download/queue/clear-pending`)
+
+    if (!isQueueMutationContextCurrent(operationContext)) {
+      return
+    }
 
     if (response?.data.code === 200) {
       ElMessage.success('队列已清空')
@@ -406,12 +463,24 @@ const clearQueue = async () => {
     } else {
       ElMessage.error('清空队列失败')
     }
-  } catch {
-    // 用户取消或请求失败
+  } catch (error) {
+    if (!isQueueMutationContextCurrent(operationContext)) {
+      return
+    }
+    if (!isMessageBoxCancelError(error)) {
+      console.error('清空队列失败:', error)
+      ElMessage.error('清空队列失败')
+    }
+  } finally {
+    if (isQueueMutationContextCurrent(operationContext)) {
+      finishQueueMutationContext(operationContext)
+    }
   }
 }
 
 const clearSuccessAndFailedTasks = async () => {
+  const operationContext = startQueueMutationContext()
+
   try {
     await ElMessageBox.confirm(
       '只能清空所有已完成和失败的数据，此操作不可恢复，是否继续？',
@@ -423,7 +492,15 @@ const clearSuccessAndFailedTasks = async () => {
       },
     )
 
+    if (!isQueueMutationContextCurrent(operationContext)) {
+      return
+    }
+
     const response = await http?.post(`${SERVER_URL}/download/queue/clear-success-failed`)
+
+    if (!isQueueMutationContextCurrent(operationContext)) {
+      return
+    }
 
     if (response?.data.code === 200) {
       ElMessage.success('队列已清空')
@@ -431,15 +508,31 @@ const clearSuccessAndFailedTasks = async () => {
     } else {
       ElMessage.error(`清空队列失败: ${response?.data.message || ''}`)
     }
-  } catch {
-    // 用户取消或请求失败
+  } catch (error) {
+    if (!isQueueMutationContextCurrent(operationContext)) {
+      return
+    }
+    if (!isMessageBoxCancelError(error)) {
+      console.error('清空队列失败:', error)
+      ElMessage.error('清空队列失败')
+    }
+  } finally {
+    if (isQueueMutationContextCurrent(operationContext)) {
+      finishQueueMutationContext(operationContext)
+    }
   }
 }
 
 // 全局暂停所有任务
 const pauseAllTasks = async () => {
+  const operationContext = startQueueMutationContext()
+
   try {
     const response = await http?.post(`${SERVER_URL}/download/queue/stop`)
+
+    if (!isQueueMutationContextCurrent(operationContext)) {
+      return
+    }
 
     if (response?.data.code === 200) {
       ElMessage.success('已暂停所有任务')
@@ -448,15 +541,28 @@ const pauseAllTasks = async () => {
       ElMessage.error(`暂停所有任务失败: ${response?.data.message || ''}`)
     }
   } catch (error) {
+    if (!isQueueMutationContextCurrent(operationContext)) {
+      return
+    }
     console.error('暂停所有任务失败:', error)
     ElMessage.error('暂停所有任务失败')
+  } finally {
+    if (isQueueMutationContextCurrent(operationContext)) {
+      finishQueueMutationContext(operationContext)
+    }
   }
 }
 
 // 全局继续所有任务
 const resumeAllTasks = async () => {
+  const operationContext = startQueueMutationContext()
+
   try {
     const response = await http?.post(`${SERVER_URL}/download/queue/start`)
+
+    if (!isQueueMutationContextCurrent(operationContext)) {
+      return
+    }
 
     if (response?.data.code === 200) {
       ElMessage.success('已开始所有任务')
@@ -465,8 +571,15 @@ const resumeAllTasks = async () => {
       ElMessage.error(`开始所有任务失败: ${response?.data.message || ''}`)
     }
   } catch (error) {
+    if (!isQueueMutationContextCurrent(operationContext)) {
+      return
+    }
     console.error('开始所有任务失败:', error)
     ElMessage.error('开始所有任务失败')
+  } finally {
+    if (isQueueMutationContextCurrent(operationContext)) {
+      finishQueueMutationContext(operationContext)
+    }
   }
 }
 
@@ -572,6 +685,7 @@ const deactivateQueuePage = () => {
   pendingQueueDataRefresh.value = false
   queueDataRequestGate.invalidate()
   queueStatusRequestGate.invalidate()
+  invalidateQueueMutationContext()
   stopAutoRefresh()
 }
 
@@ -599,6 +713,7 @@ onUnmounted(() => {
   pendingQueueDataRefresh.value = false
   queueDataRequestGate.invalidate()
   queueStatusRequestGate.invalidate()
+  invalidateQueueMutationContext()
   stopAutoRefresh()
 })
 </script>

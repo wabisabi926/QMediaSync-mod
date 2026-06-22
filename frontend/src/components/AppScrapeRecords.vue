@@ -859,6 +859,33 @@ const handleExpandChange = (row: ScrapeRecord, expandedRows: ScrapeRecord[]) => 
   )
 }
 
+function cloneScrapeRecords(rows: ScrapeRecord[]): ScrapeRecord[] {
+  return rows.map((item: ScrapeRecord) => ({ ...item }))
+}
+
+function mergeEpisodeRecords(sourceRecords: ScrapeRecord[]): ScrapeRecord[] {
+  const mergedMap = new Map<string, ScrapeRecord>()
+
+  sourceRecords.forEach((record) => {
+    if (record.type === 'tvshow' && record.tmdb_id && record.season_number) {
+      const key = `${record.tmdb_id}-${record.season_number}`
+      if (!mergedMap.has(key)) {
+        mergedMap.set(key, record)
+      }
+    } else {
+      mergedMap.set(`unique-${record.id}`, record)
+    }
+  })
+
+  return Array.from(mergedMap.values())
+}
+
+function applyLoadedScrapeRecords(rows: ScrapeRecord[]) {
+  originalRecords.value = cloneScrapeRecords(rows)
+  const visibleRows = isMerged.value ? mergeEpisodeRecords(rows) : rows
+  records.value = mergeStableList(records.value, visibleRows, (row) => row.id)
+}
+
 function clearRecordsForQuerySwitch() {
   queryLoading.value = true
   scrapeRecordsRequestGate.invalidate()
@@ -929,8 +956,7 @@ const loadRecords = async () => {
 
         if (response?.data.code === 200) {
           const rows = response.data.data.list || []
-          records.value = mergeStableList(records.value, rows, (row) => row.id)
-          originalRecords.value = rows.map((item: ScrapeRecord) => ({ ...item }))
+          applyLoadedScrapeRecords(rows)
           pageStateStore.setExpandedRowKeys(
             'scrape-records',
             retainExistingKeys(pageState.expandedRowKeys, records.value, (row) => row.id),
@@ -959,28 +985,19 @@ const loadRecords = async () => {
 // 合并/显示电视剧集
 const toggleMergeEpisodes = () => {
   if (!isMerged.value) {
-    // 合并电视剧集：根据tmdb_id和season_number分组，相同值只保留一份
-    const mergedMap = new Map<string, ScrapeRecord>()
-
-    records.value.forEach((record) => {
-      if (record.type === 'tvshow' && record.tmdb_id && record.season_number) {
-        const key = `${record.tmdb_id}-${record.season_number}`
-        if (!mergedMap.has(key)) {
-          mergedMap.set(key, record)
-        }
-      } else {
-        // 非电视剧或信息不完整的记录直接保留
-        mergedMap.set(`unique-${record.id}`, record)
-      }
-    })
-
-    records.value = Array.from(mergedMap.values())
     isMerged.value = true
+    const visibleRows = mergeEpisodeRecords(originalRecords.value)
+    records.value = mergeStableList(records.value, visibleRows, (row) => row.id)
   } else {
-    // 还原回原始列表
-    records.value = JSON.parse(JSON.stringify(originalRecords.value))
     isMerged.value = false
+    const rows = originalRecords.value
+    originalRecords.value = rows.map((item: ScrapeRecord) => ({ ...item }))
+    records.value = mergeStableList(records.value, originalRecords.value, (row) => row.id)
   }
+  pageStateStore.setExpandedRowKeys(
+    'scrape-records',
+    retainExistingKeys(pageState.expandedRowKeys, records.value, (row) => row.id),
+  )
 }
 
 // 应用筛选

@@ -40,6 +40,20 @@
           />
         </el-form-item>
 
+        <el-form-item prop="totpCode">
+          <el-input
+            v-model="loginForm.totpCode"
+            size="large"
+            name="one-time-code"
+            autocomplete="one-time-code"
+            placeholder="动态验证码"
+            :prefix-icon="Key"
+            :disabled="loading"
+            maxlength="6"
+            inputmode="numeric"
+          />
+        </el-form-item>
+
         <el-form-item>
           <el-checkbox v-model="loginForm.rememberMe" :disabled="loading">
             保持登录状态
@@ -63,10 +77,10 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, inject, onMounted, useTemplateRef } from 'vue'
+import { reactive, shallowRef, inject, onMounted, useTemplateRef } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { User, Lock } from '@element-plus/icons-vue'
+import { User, Lock, Key } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import type { AxiosStatic } from 'axios'
 import { SERVER_URL } from '@/const'
@@ -76,11 +90,12 @@ const authStore = useAuthStore()
 const http: AxiosStatic | undefined = inject('$http')
 
 const loginFormRef = useTemplateRef<FormInstance>('loginFormRef')
-const loading = ref(false)
+const loading = shallowRef(false)
 
 const loginForm = reactive({
   username: '',
   password: '',
+  totpCode: '',
   rememberMe: false,
 })
 
@@ -110,6 +125,7 @@ const handleLogin = async () => {
       {
         username: loginForm.username,
         password: loginForm.password,
+        totp_code: loginForm.totpCode,
         rememberMe: loginForm.rememberMe,
       },
       {

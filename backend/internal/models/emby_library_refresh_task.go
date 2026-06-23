@@ -18,15 +18,23 @@ const (
 	EmbyLibraryRefreshStatusRefreshing = "refreshing"
 	EmbyLibraryRefreshStatusCompleted  = "completed"
 	EmbyLibraryRefreshStatusFailed     = "failed"
+	EmbyLibraryRefreshStatusCancelled  = "cancelled"
 
-	DefaultEmbyRefreshDebounceSeconds = int64(10)
-	DefaultEmbyRefreshMaxWaitSeconds  = int64(60 * 60)
-	DefaultEmbyRefreshScanSeconds     = int64(60)
+	DefaultEmbyRefreshDebounceSeconds           = int64(10)
+	DefaultEmbyRefreshMaxWaitSeconds            = int64(6 * 60 * 60)
+	DefaultEmbyRefreshScanSeconds               = int64(60)
+	DefaultEmbyRefreshDownloadEventBatchSeconds = int64(5)
 )
 
 var IsStrmSyncTaskActiveFunc func(syncPathId uint) bool
 var embyRefreshCheckChan = make(chan struct{}, 1)
 var embyRefreshCoordinatorOnce sync.Once
+var embyRefreshDownloadEventBatch = &downloadEventBatch{syncFileIds: make(map[uint]struct{})}
+
+type downloadEventBatch struct {
+	mutex       sync.Mutex
+	syncFileIds map[uint]struct{}
+}
 
 type EmbyLibraryRefreshTask struct {
 	BaseModel
@@ -162,7 +170,7 @@ func upsertEmbyLibraryRefreshTaskWithDB(tx *gorm.DB, libraryId string, libraryNa
 	task.Status = EmbyLibraryRefreshStatusPending
 	task.LastEventAt = now
 	task.RefreshAfterAt = now + DefaultEmbyRefreshDebounceSeconds
-	if len(mergedIds) > len(existingIds) || task.DeadlineAt <= now || oldStatus == EmbyLibraryRefreshStatusCompleted || oldStatus == EmbyLibraryRefreshStatusFailed {
+	if len(mergedIds) > len(existingIds) || task.DeadlineAt <= now || oldStatus == EmbyLibraryRefreshStatusCompleted || oldStatus == EmbyLibraryRefreshStatusFailed || oldStatus == EmbyLibraryRefreshStatusCancelled {
 		task.DeadlineAt = now + DefaultEmbyRefreshMaxWaitSeconds
 	}
 	task.LastCheckedAt = 0
@@ -246,6 +254,9 @@ func IsEmbyLibraryRefreshTaskReady(task *EmbyLibraryRefreshTask, now int64) (boo
 	if task.Status != EmbyLibraryRefreshStatusPending {
 		return false, "not_pending", nil
 	}
+	if task.DeadlineAt > 0 && task.DeadlineAt <= now {
+		return false, "deadline_expired", nil
+	}
 	if task.RefreshAfterAt > now && task.DeadlineAt > now {
 		return false, "debounce", nil
 	}
@@ -255,10 +266,6 @@ func IsEmbyLibraryRefreshTaskReady(task *EmbyLibraryRefreshTask, now int64) (boo
 		return false, "empty_sync_paths", nil
 	}
 	waitSyncPathIds := mergeSyncPathIds(syncPathIds, GetEmbySyncPathIdsByLibraryId(task.LibraryId))
-
-	if task.DeadlineAt > 0 && task.DeadlineAt <= now {
-		return true, "deadline", nil
-	}
 
 	if HasActiveStrmSyncTask(waitSyncPathIds) {
 		return false, "sync_running", nil
@@ -279,22 +286,56 @@ func NotifyEmbyRefreshDownloadTaskChanged(syncFileId uint) error {
 	if syncFileId == 0 {
 		return nil
 	}
-	var syncFile SyncFile
-	if err := db.Db.Select("id", "sync_path_id").First(&syncFile, syncFileId).Error; err != nil {
+	return NotifyEmbyRefreshDownloadTasksChanged([]uint{syncFileId})
+}
+
+func NotifyEmbyRefreshDownloadTasksChanged(syncFileIds []uint) error {
+	syncFileIds = uniqueUintIds(syncFileIds)
+	if len(syncFileIds) == 0 {
 		return nil
 	}
+
+	var syncFiles []SyncFile
+	if err := db.Db.Select("id", "sync_path_id").Where("id IN ?", syncFileIds).Find(&syncFiles).Error; err != nil {
+		return err
+	}
+	syncPathIds := make([]uint, 0, len(syncFiles))
+	for _, syncFile := range syncFiles {
+		if syncFile.SyncPathId > 0 {
+			syncPathIds = append(syncPathIds, syncFile.SyncPathId)
+		}
+	}
+	syncPathIds = mergeSyncPathIds(syncPathIds, nil)
+	if len(syncPathIds) == 0 {
+		return nil
+	}
+
+	var relations []EmbyLibrarySyncPath
+	if err := db.Db.Where("sync_path_id IN ?", syncPathIds).Find(&relations).Error; err != nil {
+		return err
+	}
+	libraryIdSet := make(map[string]struct{})
+	for _, relation := range relations {
+		if relation.LibraryId != "" {
+			libraryIdSet[relation.LibraryId] = struct{}{}
+		}
+	}
+	libraryIds := make([]string, 0, len(libraryIdSet))
+	for libraryId := range libraryIdSet {
+		libraryIds = append(libraryIds, libraryId)
+	}
+	if len(libraryIds) == 0 {
+		return nil
+	}
+
 	now := nowUnix()
-	libraries := GetEmbyLibraryIdsBySyncPathId(syncFile.SyncPathId)
-	for libraryId := range libraries {
-		var task EmbyLibraryRefreshTask
-		if err := db.Db.Where("library_id = ? AND status = ?", libraryId, EmbyLibraryRefreshStatusPending).First(&task).Error; err != nil {
-			continue
-		}
-		task.LastEventAt = now
-		task.RefreshAfterAt = now + DefaultEmbyRefreshDebounceSeconds
-		if err := saveEmbyLibraryRefreshTask(&task); err != nil {
-			return err
-		}
+	if err := db.Db.Model(&EmbyLibraryRefreshTask{}).
+		Where("library_id IN ? AND status = ?", libraryIds, EmbyLibraryRefreshStatusPending).
+		Updates(map[string]interface{}{
+			"last_event_at":    now,
+			"refresh_after_at": now + DefaultEmbyRefreshDebounceSeconds,
+		}).Error; err != nil {
+		return err
 	}
 	TriggerEmbyLibraryRefreshCheck()
 	return nil
@@ -305,8 +346,47 @@ func HandleDownloadTaskStatusChanged(event helpers.Event) {
 	if !ok {
 		return
 	}
-	if err := NotifyEmbyRefreshDownloadTaskChanged(payload.SyncFileId); err != nil {
-		helpers.AppLogger.Errorf("处理下载任务状态变化事件失败: %v", err)
+	enqueueEmbyRefreshDownloadTaskChanged(payload.SyncFileId)
+}
+
+func enqueueEmbyRefreshDownloadTaskChanged(syncFileId uint) {
+	if syncFileId == 0 {
+		return
+	}
+	embyRefreshDownloadEventBatch.mutex.Lock()
+	defer embyRefreshDownloadEventBatch.mutex.Unlock()
+	embyRefreshDownloadEventBatch.syncFileIds[syncFileId] = struct{}{}
+}
+
+func drainPendingEmbyRefreshDownloadTaskChanges() []uint {
+	embyRefreshDownloadEventBatch.mutex.Lock()
+	defer embyRefreshDownloadEventBatch.mutex.Unlock()
+	if len(embyRefreshDownloadEventBatch.syncFileIds) == 0 {
+		return nil
+	}
+	syncFileIds := make([]uint, 0, len(embyRefreshDownloadEventBatch.syncFileIds))
+	for syncFileId := range embyRefreshDownloadEventBatch.syncFileIds {
+		syncFileIds = append(syncFileIds, syncFileId)
+	}
+	embyRefreshDownloadEventBatch.syncFileIds = make(map[uint]struct{})
+	return syncFileIds
+}
+
+func flushPendingEmbyRefreshDownloadTaskChanges() error {
+	syncFileIds := drainPendingEmbyRefreshDownloadTaskChanges()
+	if len(syncFileIds) == 0 {
+		return nil
+	}
+	return NotifyEmbyRefreshDownloadTasksChanged(syncFileIds)
+}
+
+func runEmbyLibraryRefreshDownloadEventBatcher() {
+	ticker := time.NewTicker(time.Duration(DefaultEmbyRefreshDownloadEventBatchSeconds) * time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		if err := flushPendingEmbyRefreshDownloadTaskChanges(); err != nil {
+			helpers.AppLogger.Errorf("批量处理下载任务状态变化事件失败: %v", err)
+		}
 	}
 }
 
@@ -314,6 +394,7 @@ func InitEmbyLibraryRefreshCoordinator() {
 	embyRefreshCoordinatorOnce.Do(func() {
 		resetRefreshingEmbyLibraryRefreshTasks()
 		helpers.Subscribe(helpers.DownloadTaskStatusChangedEvent, HandleDownloadTaskStatusChanged)
+		go runEmbyLibraryRefreshDownloadEventBatcher()
 		go runEmbyLibraryRefreshScanner()
 	})
 }
@@ -350,6 +431,9 @@ func CheckPendingEmbyLibraryRefreshTasks() {
 		helpers.AppLogger.Infof("Emby未配置或未启用刷新媒体库，跳过待刷新任务扫描")
 		return
 	}
+	if err := flushPendingEmbyRefreshDownloadTaskChanges(); err != nil {
+		helpers.AppLogger.Errorf("扫描Emby媒体库刷新任务前批量处理下载事件失败: %v", err)
+	}
 
 	var tasks []EmbyLibraryRefreshTask
 	now := nowUnix()
@@ -370,13 +454,17 @@ func CheckPendingEmbyLibraryRefreshTasks() {
 			saveEmbyLibraryRefreshTask(&task)
 			continue
 		}
+		if reason == "deadline_expired" {
+			if err := markEmbyRefreshTaskCancelled(&task, "等待超过最大时长，取消刷新"); err != nil {
+				helpers.AppLogger.Errorf("取消Emby媒体库 %s 刷新任务失败: %v", task.LibraryName, err)
+			}
+			helpers.AppLogger.Warnf("Emby媒体库 %s 等待超过最大时长，取消刷新", task.LibraryName)
+			continue
+		}
 		if !ready {
 			saveEmbyLibraryRefreshTask(&task)
 			helpers.AppLogger.Debugf("Emby媒体库 %s 暂不刷新，原因: %s", task.LibraryName, reason)
 			continue
-		}
-		if reason == "deadline" {
-			helpers.AppLogger.Warnf("Emby媒体库 %s 等待超过最大时长，执行兜底刷新", task.LibraryName)
 		}
 		if err := refreshEmbyLibraryTask(&task); err != nil {
 			helpers.AppLogger.Errorf("刷新Emby媒体库 %s 失败: %v", task.LibraryName, err)
@@ -419,6 +507,17 @@ func markEmbyRefreshTaskCompleted(task *EmbyLibraryRefreshTask) error {
 	task.LastRefreshAt = nowUnix()
 	task.Error = ""
 	return saveEmbyLibraryRefreshTask(task)
+}
+
+func markEmbyRefreshTaskCancelled(task *EmbyLibraryRefreshTask, reason string) error {
+	task.Status = EmbyLibraryRefreshStatusCancelled
+	task.LastCheckedAt = nowUnix()
+	task.Error = reason
+	return saveEmbyLibraryRefreshTask(task)
+}
+
+func uniqueUintIds(ids []uint) []uint {
+	return mergeSyncPathIds(ids, nil)
 }
 
 func nowUnix() int64 {

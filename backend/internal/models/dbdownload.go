@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"time"
-
 	"gorm.io/gorm"
 )
 
@@ -136,6 +135,7 @@ func publishDownloadTaskStatusChanged(task *DbDownloadTask) {
 	if task == nil {
 		return
 	}
+	enqueueEmbyRefreshDownloadTaskChanged(task.SyncFileId)
 	helpers.Publish(helpers.DownloadTaskStatusChangedEvent, DownloadTaskStatusChangedPayload{
 		TaskId:     task.ID,
 		SyncFileId: task.SyncFileId,

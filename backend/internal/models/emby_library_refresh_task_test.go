@@ -5,7 +5,10 @@ import (
 	"Q115-STRM/internal/helpers"
 	"io"
 	"log"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
+	"sync/atomic"
 	"testing"
 	"time"
 	"github.com/glebarez/sqlite"
@@ -39,6 +42,9 @@ func setupEmbyRefreshTestDB(t *testing.T) {
 		EnableRefreshLibrary: 1,
 	}
 	IsStrmSyncTaskActiveFunc = nil
+	embyRefreshDownloadEventBatch.mutex.Lock()
+	embyRefreshDownloadEventBatch.syncFileIds = make(map[uint]struct{})
+	embyRefreshDownloadEventBatch.mutex.Unlock()
 }
 
 func TestMergeSyncPathIds(t *testing.T) {
@@ -70,6 +76,9 @@ func TestRefreshTaskDefaultTimings(t *testing.T) {
 	}
 	if task.DeadlineAt != now+DefaultEmbyRefreshMaxWaitSeconds {
 		t.Fatalf("deadline_at = %d，期望 %d", task.DeadlineAt, now+DefaultEmbyRefreshMaxWaitSeconds)
+	}
+	if DefaultEmbyRefreshDownloadEventBatchSeconds != 5 {
+		t.Fatalf("下载事件批量处理间隔 = %d，期望 5", DefaultEmbyRefreshDownloadEventBatchSeconds)
 	}
 }
 
@@ -213,30 +222,38 @@ func TestRefreshTaskWaitsForRetryableFailedDownload(t *testing.T) {
 	}
 }
 
-func TestRefreshTaskIsReadyAfterDeadline(t *testing.T) {
+func TestRefreshTaskCancelsAfterDeadline(t *testing.T) {
 	setupEmbyRefreshTestDB(t)
+	var refreshCalled atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		refreshCalled.Store(true)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+	GlobalEmbyConfig.EmbyUrl = server.URL
+
 	now := nowUnix()
 	task := newPendingEmbyLibraryRefreshTask("lib-movie", "电影", []uint{10}, now-DefaultEmbyRefreshMaxWaitSeconds-1)
 	task.RefreshAfterAt = now - 1
 	task.DeadlineAt = now - 1
 	db.Db.Create(task)
-	db.Db.Create(&SyncFile{BaseModel: BaseModel{ID: 1}, SyncPathId: 10})
-	db.Db.Create(&DbDownloadTask{SyncFileId: 1, Status: DownloadStatusDownloading})
-	IsStrmSyncTaskActiveFunc = func(syncPathId uint) bool { return true }
 
-	ready, reason, err := IsEmbyLibraryRefreshTaskReady(task, now)
-	if err != nil {
-		t.Fatalf("判断刷新任务失败: %v", err)
+	CheckPendingEmbyLibraryRefreshTasks()
+
+	var updated EmbyLibraryRefreshTask
+	db.Db.First(&updated, task.ID)
+	if updated.Status != EmbyLibraryRefreshStatusCancelled {
+		t.Fatalf("deadline 到期后状态 = %s，期望 cancelled", updated.Status)
 	}
-	if !ready {
-		t.Fatalf("超过最大等待时间后应兜底刷新，实际 reason=%s", reason)
+	if updated.LastRefreshAt != 0 {
+		t.Fatalf("取消刷新后不应记录刷新时间，实际 last_refresh_at=%d", updated.LastRefreshAt)
 	}
-	if reason != "deadline" {
-		t.Fatalf("兜底原因 = %s，期望 deadline", reason)
+	if refreshCalled.Load() {
+		t.Fatal("deadline 到期取消刷新时不应调用 Emby 刷新接口")
 	}
 }
 
-func TestNotifyDownloadTaskChangedExtendsDebounceForPendingLibrary(t *testing.T) {
+func TestDownloadTaskChangedEventIsBatched(t *testing.T) {
 	setupEmbyRefreshTestDB(t)
 	now := nowUnix()
 	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-movie", LibraryName: "电影", SyncPathId: 10})
@@ -245,14 +262,21 @@ func TestNotifyDownloadTaskChangedExtendsDebounceForPendingLibrary(t *testing.T)
 	db.Db.Create(task)
 	db.Db.Create(&SyncFile{BaseModel: BaseModel{ID: 1}, SyncPathId: 10})
 
-	if err := NotifyEmbyRefreshDownloadTaskChanged(1); err != nil {
-		t.Fatalf("下载事件唤醒失败: %v", err)
-	}
+	HandleDownloadTaskStatusChanged(helpers.Event{Data: DownloadTaskStatusChangedPayload{SyncFileId: 1}})
 
 	var updated EmbyLibraryRefreshTask
 	db.Db.Where("library_id = ?", "lib-movie").First(&updated)
+	if updated.RefreshAfterAt > now {
+		t.Fatalf("下载事件应先进入批量队列，不应立即更新DB，实际 refresh_after_at=%d now=%d", updated.RefreshAfterAt, now)
+	}
+
+	if err := flushPendingEmbyRefreshDownloadTaskChanges(); err != nil {
+		t.Fatalf("批量处理下载事件失败: %v", err)
+	}
+
+	db.Db.Where("library_id = ?", "lib-movie").First(&updated)
 	if updated.RefreshAfterAt <= now {
-		t.Fatalf("下载事件后应延长稳定窗口，实际 refresh_after_at=%d now=%d", updated.RefreshAfterAt, now)
+		t.Fatalf("批量处理下载事件后应延长稳定窗口，实际 refresh_after_at=%d now=%d", updated.RefreshAfterAt, now)
 	}
 }
 

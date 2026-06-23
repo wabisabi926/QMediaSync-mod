@@ -1,9 +1,10 @@
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
-import { computed, readonly, shallowRef, toValue } from 'vue'
-import type { MaybeRefOrGetter } from 'vue'
+import { computed, readonly, shallowRef, toValue, unref } from 'vue'
+import type { MaybeRef, MaybeRefOrGetter } from 'vue'
 
 const V115_APPID_PAGE_SIZE = 50
+const V115_APPID_SEARCH_FALLBACK_SERVER_URL = '/api'
 
 export interface V115AppIDOption {
   app_id: string
@@ -12,8 +13,17 @@ export interface V115AppIDOption {
 }
 
 export interface UseV115AppIdSearchOptions {
-  http: MaybeRefOrGetter<AxiosStatic | undefined>
+  http: MaybeRef<AxiosStatic | undefined>
   pageSize?: MaybeRefOrGetter<number>
+}
+
+export function resolveV115AppIdSearchBaseURL(serverURL?: unknown): string {
+  const value = arguments.length === 0 ? SERVER_URL : serverURL
+  const normalized = typeof value === 'string' ? value.trim() : ''
+  if (!normalized || normalized === 'undefined' || normalized === 'null') {
+    return V115_APPID_SEARCH_FALLBACK_SERVER_URL
+  }
+  return normalized.replace(/\/+$/, '')
 }
 
 export function useV115AppIdSearch(options: UseV115AppIdSearchOptions) {
@@ -30,13 +40,13 @@ export function useV115AppIdSearch(options: UseV115AppIdSearchOptions) {
   })
 
   const search = async () => {
-    const http = toValue(options.http)
+    const http = unref(options.http)
     if (!http) return
     const runId = requestRunId.value + 1
     requestRunId.value = runId
     loading.value = true
     try {
-      const response = await http.get(`${SERVER_URL}/115/appids`, {
+      const response = await http.get(`${resolveV115AppIdSearchBaseURL()}/115/appids`, {
         params: { keyword: keyword.value, offset: 0, limit: pageSize.value },
       })
       if (runId !== requestRunId.value) return
@@ -49,13 +59,13 @@ export function useV115AppIdSearch(options: UseV115AppIdSearchOptions) {
   }
 
   const loadMore = async () => {
-    const http = toValue(options.http)
+    const http = unref(options.http)
     if (!http || !hasMore.value) return
     const runId = requestRunId.value + 1
     requestRunId.value = runId
     loading.value = true
     try {
-      const response = await http.get(`${SERVER_URL}/115/appids`, {
+      const response = await http.get(`${resolveV115AppIdSearchBaseURL()}/115/appids`, {
         params: { keyword: keyword.value, offset: offset.value, limit: pageSize.value },
       })
       if (runId !== requestRunId.value) return

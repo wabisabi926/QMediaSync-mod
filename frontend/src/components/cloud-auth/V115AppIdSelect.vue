@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { AxiosStatic } from 'axios'
-import { computed, inject, watch } from 'vue'
+import { computed, inject, shallowRef, watch } from 'vue'
 
 import { useV115AppIdSearch } from '@/composables/useV115AppIdSearch'
 import {
@@ -17,12 +17,16 @@ const http = inject<AxiosStatic | undefined>('$http')
 const { keyword, items, total, loading, hasMore, search, loadMore, reset } = useV115AppIdSearch({
   http,
 })
+const dropdownVisible = shallowRef(false)
+const showDefaultRemoteOptions = shallowRef(false)
+const remoteSearchHint = '输入应用名或 APPID 搜索更多内置应用'
 
 const defaultOptions = computed(() => [
   ...pinnedBuiltInAppIDs,
   ...featuredBuiltInAppIDs,
   { label: '自定义 APPID', value: 'custom', appName: '自定义 APPID' },
 ])
+const defaultOptionValues = computed(() => new Set(defaultOptions.value.map((item) => item.value)))
 const remoteOptions = computed(() =>
   items.value.map((item) => ({
     label: item.display_name || item.app_name,
@@ -30,19 +34,34 @@ const remoteOptions = computed(() =>
     appName: item.app_name,
   })),
 )
+const defaultRemoteOptions = computed(() =>
+  remoteOptions.value.filter((item) => !defaultOptionValues.value.has(item.value)),
+)
 const selectOptions = computed(() => {
   if (keyword.value.trim()) {
     return remoteOptions.value
   }
+  if (showDefaultRemoteOptions.value) {
+    return [...defaultOptions.value, ...defaultRemoteOptions.value]
+  }
   return defaultOptions.value
 })
-const resultSummary = computed(() => {
-  if (!keyword.value.trim() || total.value === 0) return ''
-  return `已显示 ${items.value.length} / ${total.value}`
+const visibleRemoteCount = computed(() => {
+  if (keyword.value.trim() || showDefaultRemoteOptions.value) {
+    return items.value.length
+  }
+  return 0
 })
-const showDropdownFooter = computed(() =>
-  Boolean(keyword.value.trim() && (hasMore.value || resultSummary.value)),
+const resultSummary = computed(() => {
+  if (total.value === 0) return ''
+  if (!keyword.value.trim() && !showDefaultRemoteOptions.value) return ''
+  return `已显示 ${visibleRemoteCount.value} / ${total.value}`
+})
+const hasBufferedDefaultResults = computed(
+  () => !keyword.value.trim() && !showDefaultRemoteOptions.value && items.value.length > 0,
 )
+const showLoadMoreButton = computed(() => hasBufferedDefaultResults.value || hasMore.value)
+const showDropdownFooter = computed(() => Boolean(showLoadMoreButton.value || resultSummary.value))
 const selectedValue = computed({
   get: () => selectedQrApp.value.appId,
   set: (value) => {
@@ -72,16 +91,35 @@ const normalizeSearchInput = (value: unknown) => {
 
 const handleSearch = (value: unknown) => {
   const nextKeyword = normalizeSearchInput(value)
+  showDefaultRemoteOptions.value = false
   keyword.value = nextKeyword
   if (!nextKeyword.trim()) {
     reset()
+    if (dropdownVisible.value) {
+      void search()
+    }
     return
   }
   void search()
 }
 
 const handleLoadMore = () => {
+  if (!keyword.value.trim() && !showDefaultRemoteOptions.value) {
+    showDefaultRemoteOptions.value = true
+    if (items.value.length === 0) {
+      void search()
+    }
+    return
+  }
   void loadMore()
+}
+
+const handleVisibleChange = (visible: boolean) => {
+  dropdownVisible.value = visible
+  if (visible && !keyword.value.trim() && total.value === 0 && !loading.value) {
+    showDefaultRemoteOptions.value = false
+    void search()
+  }
 }
 
 watch(showCustomFields, (visible) => {
@@ -102,10 +140,14 @@ watch(showCustomFields, (visible) => {
       clearable
       reserve-keyword
       remote-show-suffix
-      placeholder="搜索应用名或 APPID"
+      placeholder="选择或搜索 115 开放平台 APPID"
       :remote-method="handleSearch"
       :loading="loading"
+      @visible-change="handleVisibleChange"
     >
+      <template v-if="dropdownVisible" #header>
+        <div class="v115-select-hint">{{ remoteSearchHint }}</div>
+      </template>
       <el-option
         v-for="option in selectOptions"
         :key="option.value"
@@ -116,7 +158,7 @@ watch(showCustomFields, (visible) => {
         <div class="v115-select-footer">
           <span class="v115-result-summary">{{ resultSummary }}</span>
           <el-button
-            v-if="hasMore"
+            v-if="showLoadMoreButton"
             class="v115-load-more-button"
             text
             type="primary"
@@ -154,6 +196,13 @@ watch(showCustomFields, (visible) => {
 <style scoped>
 .v115-app-select {
   width: 100%;
+}
+
+.v115-select-hint {
+  color: #909399;
+  font-size: 12px;
+  line-height: 18px;
+  padding: 4px 0;
 }
 
 .v115-select-footer {

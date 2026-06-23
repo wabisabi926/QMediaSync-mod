@@ -21,6 +21,41 @@ func TestBuiltInAppIDOrder(t *testing.T) {
 	}
 }
 
+func TestBuiltInAppIDCatalogCompleteness(t *testing.T) {
+	sources := BuiltInAppIDSources()
+	if len(sources) != 1128 {
+		t.Fatalf("内置 APPID 目录数量 = %d，期望 1128", len(sources))
+	}
+
+	seen := make(map[string]struct{}, len(sources))
+	for _, source := range sources {
+		if _, ok := seen[source.AppID]; ok {
+			t.Fatalf("内置 APPID 目录存在重复项: %s", source.AppID)
+		}
+		seen[source.AppID] = struct{}{}
+	}
+
+	if _, ok := seen["100197925"]; !ok {
+		t.Fatal("内置 APPID 目录缺少 p115client OPEN_APP_IDS 尾部项 100197925")
+	}
+}
+
+func TestSearchBuiltInAppIDSourcesFindsTailAppID(t *testing.T) {
+	result := SearchBuiltInAppIDSources("100197925", 0, 50)
+	if result.Total != 1 {
+		t.Fatalf("搜索尾部 APPID 总数 = %d，期望 1", result.Total)
+	}
+	if len(result.Items) != 1 {
+		t.Fatalf("搜索尾部 APPID 返回数量 = %d，期望 1", len(result.Items))
+	}
+	if result.Items[0].AppID != "100197925" {
+		t.Fatalf("搜索尾部 APPID 返回 %s，期望 100197925", result.Items[0].AppID)
+	}
+	if result.Items[0].AppName != "自己文件处理2" {
+		t.Fatalf("搜索尾部 APPID 名称 = %s，期望 自己文件处理2", result.Items[0].AppName)
+	}
+}
+
 func TestKnownThirdPartySources(t *testing.T) {
 	cases := map[AuthProvider]string{
 		ProviderMoviePilot: "100197847",

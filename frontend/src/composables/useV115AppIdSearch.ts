@@ -1,0 +1,88 @@
+import { SERVER_URL } from '@/const'
+import type { AxiosStatic } from 'axios'
+import { computed, readonly, shallowRef, toValue } from 'vue'
+import type { MaybeRefOrGetter } from 'vue'
+
+const V115_APPID_PAGE_SIZE = 50
+
+export interface V115AppIDOption {
+  app_id: string
+  app_name: string
+  display_name: string
+}
+
+export interface UseV115AppIdSearchOptions {
+  http: MaybeRefOrGetter<AxiosStatic | undefined>
+  pageSize?: MaybeRefOrGetter<number>
+}
+
+export function useV115AppIdSearch(options: UseV115AppIdSearchOptions) {
+  const keyword = shallowRef('')
+  const items = shallowRef<V115AppIDOption[]>([])
+  const total = shallowRef(0)
+  const loading = shallowRef(false)
+  const requestRunId = shallowRef(0)
+  const offset = computed(() => items.value.length)
+  const hasMore = computed(() => items.value.length < total.value)
+  const pageSize = computed(() => {
+    const raw = toValue(options.pageSize) || V115_APPID_PAGE_SIZE
+    return Math.min(Math.max(raw, 1), 100)
+  })
+
+  const search = async () => {
+    const http = toValue(options.http)
+    if (!http) return
+    const runId = requestRunId.value + 1
+    requestRunId.value = runId
+    loading.value = true
+    try {
+      const response = await http.get(`${SERVER_URL}/115/appids`, {
+        params: { keyword: keyword.value, offset: 0, limit: pageSize.value },
+      })
+      if (runId !== requestRunId.value) return
+      const data = response.data?.data
+      items.value = data?.items || []
+      total.value = data?.total || 0
+    } finally {
+      if (runId === requestRunId.value) loading.value = false
+    }
+  }
+
+  const loadMore = async () => {
+    const http = toValue(options.http)
+    if (!http || !hasMore.value) return
+    const runId = requestRunId.value + 1
+    requestRunId.value = runId
+    loading.value = true
+    try {
+      const response = await http.get(`${SERVER_URL}/115/appids`, {
+        params: { keyword: keyword.value, offset: offset.value, limit: pageSize.value },
+      })
+      if (runId !== requestRunId.value) return
+      const data = response.data?.data
+      items.value = [...items.value, ...(data?.items || [])]
+      total.value = data?.total || total.value
+    } finally {
+      if (runId === requestRunId.value) loading.value = false
+    }
+  }
+
+  const reset = () => {
+    requestRunId.value += 1
+    keyword.value = ''
+    items.value = []
+    total.value = 0
+    loading.value = false
+  }
+
+  return {
+    keyword,
+    items: readonly(items),
+    total: readonly(total),
+    loading: readonly(loading),
+    hasMore,
+    search,
+    loadMore,
+    reset,
+  }
+}

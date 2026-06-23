@@ -37,6 +37,10 @@ const selectOptions = computed(() => {
 const selectedValue = computed({
   get: () => selectedQrApp.value.appId,
   set: (value) => {
+    if (value === '__load_more') {
+      void loadMore()
+      return
+    }
     const option = [...defaultOptions.value, ...remoteOptions.value].find((item) => item.value === value)
     selectedQrApp.value = {
       appId: value,
@@ -46,13 +50,31 @@ const selectedValue = computed({
 })
 const showCustomFields = computed(() => selectedQrApp.value.appId === 'custom')
 
-const handleSearch = (value: string) => {
-  keyword.value = value
-  if (!value.trim()) {
+const normalizeSearchInput = (value: unknown) => {
+  if (typeof value === 'string') {
+    return value
+  }
+  if (value instanceof Event) {
+    const target = value.target
+    if (target instanceof HTMLInputElement) {
+      return target.value
+    }
+  }
+  return ''
+}
+
+const handleSearch = (value: unknown) => {
+  const nextKeyword = normalizeSearchInput(value)
+  keyword.value = nextKeyword
+  if (!nextKeyword.trim()) {
     reset()
     return
   }
   void search()
+}
+
+const handleLoadMore = () => {
+  void loadMore()
 }
 
 watch(showCustomFields, (visible) => {
@@ -90,9 +112,19 @@ watch(showCustomFields, (visible) => {
         :value="option.value"
       />
       <el-option v-if="hasMore" class="v115-load-more-option" label="加载更多" value="__load_more">
-        <el-button text type="primary" @click.stop="loadMore">加载更多</el-button>
+        <el-button text type="primary" @click.stop="handleLoadMore">加载更多</el-button>
       </el-option>
     </el-select>
+    <el-button
+      v-if="hasMore"
+      class="v115-load-more-button"
+      text
+      type="primary"
+      :loading="loading"
+      @click="handleLoadMore"
+    >
+      加载更多
+    </el-button>
   </el-form-item>
   <template v-if="showCustomFields">
     <el-form-item label="应用名">
@@ -123,5 +155,10 @@ watch(showCustomFields, (visible) => {
 
 .v115-load-more-option {
   text-align: center;
+}
+
+.v115-load-more-button {
+  margin-top: 8px;
+  padding-left: 0;
 }
 </style>

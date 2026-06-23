@@ -51,6 +51,7 @@ export interface V115WebAuthProviderOption {
   provider: V115AuthProvider
   appId?: string
   appName: string
+  disabled?: boolean
 }
 
 export const pinnedBuiltInAppIDs = [
@@ -100,11 +101,12 @@ export const webAuthProviders: V115WebAuthProviderOption[] = [
     appName: 'OpenList',
   },
   {
-    label: 'CloudDrive',
+    label: 'CloudDrive（请用扫码授权）',
     sourceType: 'third_party_service',
     provider: 'clouddrive',
     appId: '100195313',
     appName: 'CloudDrive',
+    disabled: true,
   },
 ]
 

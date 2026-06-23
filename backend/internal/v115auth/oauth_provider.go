@@ -51,7 +51,7 @@ func GetOAuthProvider(provider AuthProvider) (OAuthProvider, bool) {
 	case ProviderMoviePilot:
 		return moviePilotOAuthProvider{authServer: "https://movie-pilot.org", client: defaultOAuthHTTPClient()}, true
 	case ProviderOpenList:
-		return openListOAuthProvider{client: defaultOAuthHTTPClient()}, true
+		return openListOAuthProvider{authServer: "https://api.oplist.org", client: defaultOAuthHTTPClient()}, true
 	case ProviderCloudDrive:
 		return cloudDriveOAuthProvider{}, true
 	default:
@@ -181,14 +181,31 @@ func (provider moviePilotOAuthProvider) Poll(ctx context.Context, state string) 
 }
 
 type openListOAuthProvider struct {
-	client *http.Client
+	authServer string
+	client     *http.Client
 }
 
-func (provider openListOAuthProvider) BuildAuth(_ context.Context, req OAuthURLRequest) (OAuthURLResult, error) {
-	state := helpers.RandStr(16)
+func (provider openListOAuthProvider) BuildAuth(ctx context.Context, req OAuthURLRequest) (OAuthURLResult, error) {
+	authServer := strings.TrimRight(provider.authServer, "/")
+	if authServer == "" {
+		authServer = "https://api.oplist.org"
+	}
+	endpoint := authServer + "/115cloud/requests?driver_txt=115cloud_go&server_use=true"
+	resp, err := httpGetJSON(ctx, provider.client, endpoint)
+	if err != nil {
+		return OAuthURLResult{}, err
+	}
+	authURL := stringField(resp, "text")
+	if authURL == "" {
+		return OAuthURLResult{}, fmt.Errorf("OpenList 授权服务响应缺少 text")
+	}
+	state := extractOpenListState(authURL)
+	if state == "" {
+		return OAuthURLResult{}, fmt.Errorf("OpenList 授权服务响应缺少 state")
+	}
 	SaveOAuthState(OAuthState{State: state, AccountID: req.AccountID, Provider: ProviderOpenList, RedirectURL: req.RedirectURL})
 	return OAuthURLResult{
-		AuthURL:   "https://api.oplist.org/115cloud/requests?driver_txt=115cloud_go&server_use=true",
+		AuthURL:   authURL,
 		State:     state,
 		ExpiresIn: OAuthStateTTLSeconds,
 	}, nil
@@ -235,19 +252,8 @@ func (provider openListOAuthProvider) Poll(_ context.Context, _ string) (OAuthTo
 
 type cloudDriveOAuthProvider struct{}
 
-func (provider cloudDriveOAuthProvider) BuildAuth(_ context.Context, req OAuthURLRequest) (OAuthURLResult, error) {
-	state := helpers.RandStr(16)
-	SaveOAuthState(OAuthState{State: state, AccountID: req.AccountID, Provider: ProviderCloudDrive, RedirectURL: req.RedirectURL})
-	values := url.Values{}
-	values.Set("client_id", "100195313")
-	values.Set("redirect_uri", "https://redirect115.zhenyunpan.com")
-	values.Set("response_type", "code")
-	values.Set("state", state)
-	return OAuthURLResult{
-		AuthURL:   "https://qrcodeapi.115.com/open/authorize?" + values.Encode(),
-		State:     state,
-		ExpiresIn: OAuthStateTTLSeconds,
-	}, nil
+func (provider cloudDriveOAuthProvider) BuildAuth(_ context.Context, _ OAuthURLRequest) (OAuthURLResult, error) {
+	return OAuthURLResult{}, fmt.Errorf("CloudDrive 网页授权服务当前不可用，请使用扫码授权中的 CloudDrive APPID")
 }
 
 func (provider cloudDriveOAuthProvider) Confirm(_ context.Context, payload map[string]string) (OAuthTokenResult, error) {
@@ -350,4 +356,20 @@ func stringField(data map[string]any, key string) string {
 	default:
 		return fmt.Sprint(v)
 	}
+}
+
+func extractOpenListState(authURL string) string {
+	outer, err := url.Parse(authURL)
+	if err != nil {
+		return ""
+	}
+	redirectURI := outer.Query().Get("redirect_uri")
+	if redirectURI == "" {
+		return outer.Query().Get("state")
+	}
+	inner, err := url.Parse(redirectURI)
+	if err != nil {
+		return ""
+	}
+	return inner.Query().Get("state")
 }

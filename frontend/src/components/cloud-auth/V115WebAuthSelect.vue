@@ -14,6 +14,7 @@ const selectedWebProvider = defineModel<V115AuthProvider>('selectedWebProvider',
         :key="`${provider.provider}-${provider.label}`"
         :label="provider.label"
         :value="provider.provider"
+        :disabled="provider.disabled"
       />
     </el-select>
   </el-form-item>

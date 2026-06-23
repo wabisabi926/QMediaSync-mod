@@ -468,6 +468,10 @@ func InitNewSyncQueueManager() *NewSyncQueueManager {
 	models.ResumeSyncQueuesFunc = func() {
 		ResumeAllNewSyncQueues()
 	}
+	models.IsStrmSyncTaskActiveFunc = func(syncPathId uint) bool {
+		status := CheckNewTaskStatus(syncPathId, SyncTaskTypeStrm)
+		return status == TaskStatusWaiting || status == TaskStatusRunning
+	}
 	return GlobalNewSyncQueueManager
 }
 

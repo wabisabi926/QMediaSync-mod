@@ -64,6 +64,16 @@ watch(showCustomFields, (visible) => {
 </script>
 
 <template>
+  <el-form-item label="搜索 APPID">
+    <el-input
+      v-model="keyword"
+      name="v115-appid-search"
+      autocomplete="off"
+      placeholder="输入应用名或 APPID"
+      clearable
+      @input="handleSearch"
+    />
+  </el-form-item>
   <el-form-item label="APPID">
     <el-select
       v-model="selectedValue"

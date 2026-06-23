@@ -54,8 +54,15 @@ describe('v115AuthSources', () => {
       auth_provider: 'qmediasync',
       app_id_name: 'QMediaSync',
     }
+    const thirdPartyAccount: V115AccountAuthInfo = {
+      source_type: '115',
+      auth_source_type: 'third_party_service',
+      auth_provider: 'moviepilot',
+      app_id: '100197847',
+    }
 
     expect(getV115AuthAction(qrAccount)).toBe('pkce')
     expect(getV115AuthAction(oauthAccount)).toBe('oauth')
+    expect(getV115AuthAction(thirdPartyAccount)).toBe('oauth')
   })
 })

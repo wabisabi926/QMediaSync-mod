@@ -10,23 +10,26 @@ import (
 	"Q115-STRM/internal/v115open"
 	"context"
 	"fmt"
+	"strings"
 	"time"
 )
 
 type Account struct {
 	BaseModel
-	Name              string     `json:"name"` // 账号备注，仅供用户自己识别账号使用，唯一
-	SourceType        SourceType `json:"source_type"`
-	AppId             string     `json:"app_id"`
-	AppIdName         string     `json:"app_id_name"` // 自定义开放平台应用显示名，内置应用不使用该字段
-	Token             string     `json:"token" gorm:"type:string;size:512"`
-	RefreshToken      string     `json:"refresh_token" gorm:"type:string;size:512"`
-	TokenExpiriesTime int64      `json:"token_expiries_time"`
-	UserId            string     `json:"user_id"`                                         // 账号对应的用户id，唯一
-	Username          string     `json:"username" gorm:"type:string;size:32"`             // 网盘对应的用户名或者openlist的登录用户名
-	Password          string     `json:"password" gorm:"type:string;size:256"`            // openlist的用户密码
-	BaseUrl           string     `json:"base_url" gorm:"type:string;size:1024"`           // openlist的访问地址http[s]://ip:port
-	TokenFailedReason string     `json:"token_failed_reason" gorm:"type:string;size:256"` // 刷新token失败的原因
+	Name              string                  `json:"name"` // 账号备注，仅供用户自己识别账号使用，唯一
+	SourceType        SourceType              `json:"source_type"`
+	AppId             string                  `json:"app_id"`
+	AppIdName         string                  `json:"app_id_name"` // 自定义开放平台应用显示名，内置应用不使用该字段
+	AuthSourceType    v115auth.AuthSourceType `json:"auth_source_type" gorm:"type:string;size:64"`
+	AuthProvider      v115auth.AuthProvider   `json:"auth_provider" gorm:"type:string;size:64"`
+	Token             string                  `json:"token" gorm:"type:string;size:512"`
+	RefreshToken      string                  `json:"refresh_token" gorm:"type:string;size:512"`
+	TokenExpiriesTime int64                   `json:"token_expiries_time"`
+	UserId            string                  `json:"user_id"`                                         // 账号对应的用户id，唯一
+	Username          string                  `json:"username" gorm:"type:string;size:32"`             // 网盘对应的用户名或者openlist的登录用户名
+	Password          string                  `json:"password" gorm:"type:string;size:256"`            // openlist的用户密码
+	BaseUrl           string                  `json:"base_url" gorm:"type:string;size:1024"`           // openlist的访问地址http[s]://ip:port
+	TokenFailedReason string                  `json:"token_failed_reason" gorm:"type:string;size:256"` // 刷新token失败的原因
 }
 
 const (
@@ -93,6 +96,28 @@ func (account *Account) Get115Client() *v115open.OpenClient {
 }
 
 func (account *Account) V115AuthSource() v115auth.Source {
+	if account.AuthSourceType != "" || account.AuthProvider != "" {
+		switch account.AuthSourceType {
+		case v115auth.SourceTypeBuiltInAppID:
+			if source, ok := v115auth.FindSource(v115auth.SourceTypeBuiltInAppID, account.AuthProvider, account.AppId); ok {
+				return source
+			}
+		case v115auth.SourceTypeBuiltInRelay:
+			if source, ok := v115auth.FindSource(v115auth.SourceTypeBuiltInRelay, account.AuthProvider, account.AppId); ok {
+				return source
+			}
+		case v115auth.SourceTypeThirdPartyService:
+			if source, ok := v115auth.FindSource(v115auth.SourceTypeThirdPartyService, account.AuthProvider, account.AppId); ok {
+				return source
+			}
+		case v115auth.SourceTypeCustomAppID:
+			name := strings.TrimSpace(account.AppIdName)
+			if name == "" {
+				name = v115auth.CustomAppName
+			}
+			return v115auth.Source{SourceType: v115auth.SourceTypeCustomAppID, Provider: v115auth.ProviderOfficialPKCE, AppID: account.AppId, AppName: name, DisplayName: name}
+		}
+	}
 	return v115auth.ResolveAccountSource(account.AppId, account.AppIdName)
 }
 
@@ -184,11 +209,17 @@ func (account *Account) UpdateOpenList(baseUrl string, username string, password
 // 使用name创建一个临时账号，用户后续授权绑定
 // name: 账号备注
 func CreateAccountByName(name string, srouceType SourceType, appId string, appIdName string) (*Account, error) {
+	return CreateAccountWithAuthSource(name, srouceType, appId, appIdName, "", "")
+}
+
+func CreateAccountWithAuthSource(name string, srouceType SourceType, appId string, appIdName string, authSourceType v115auth.AuthSourceType, authProvider v115auth.AuthProvider) (*Account, error) {
 	account := &Account{}
 	account.Name = name
 	account.SourceType = srouceType
 	account.AppId = appId
 	account.AppIdName = appIdName
+	account.AuthSourceType = authSourceType
+	account.AuthProvider = authProvider
 	account.Token = ""
 	account.RefreshToken = ""
 	account.TokenExpiriesTime = 0

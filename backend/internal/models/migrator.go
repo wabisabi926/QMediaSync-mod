@@ -18,8 +18,9 @@ type Migrator struct {
 	VersionCode int `json:"version_code"` // 版本号
 }
 
-var MaxVersionCode = 39
+var MaxVersionCode = 41
 var AllTables = []any{
+	Migrator{},
 	BackupConfig{}, BackupRecord{},
 	ApiKey{}, Settings{}, Sync{}, User{}, Account{},
 	SyncPath{}, SyncFile{}, SyncPathScrapePath{},
@@ -474,6 +475,12 @@ func Migrate() {
 		// 添加自定义开放平台应用名字段到account表
 		db.Db.AutoMigrate(Account{})
 		helpers.AppLogger.Info("已添加account.app_id_name字段")
+		migrator.UpdateVersionCode(db.Db)
+	}
+	if migrator.VersionCode == 40 {
+		// 添加115授权来源类型和provider字段到account表
+		db.Db.AutoMigrate(Account{})
+		helpers.AppLogger.Info("已添加account.auth_source_type和account.auth_provider字段")
 		migrator.UpdateVersionCode(db.Db)
 	}
 	helpers.AppLogger.Infof("当前数据库版本 %d", migrator.VersionCode)

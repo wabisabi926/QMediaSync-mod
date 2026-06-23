@@ -138,11 +138,24 @@ func CreateTmpAccount(c *gin.Context) {
 		appId = source.StorageAppID()
 		appIdName = source.StorageAppName()
 	}
-	account, err := models.CreateAccountByName(
+	authSourceType := v115auth.AuthSourceType("")
+	authProvider := v115auth.AuthProvider("")
+	if models.SourceType115 == tmpAccount.SourceType {
+		source := v115auth.ResolveAccountSource(appId, appIdName)
+		authSourceType = source.SourceType
+		authProvider = source.Provider
+		if tmpAccount.AuthSourceType != "" {
+			authSourceType = tmpAccount.AuthSourceType
+			authProvider = tmpAccount.AuthProvider
+		}
+	}
+	account, err := models.CreateAccountWithAuthSource(
 		strings.TrimSpace(tmpAccount.Name),
 		tmpAccount.SourceType,
 		appId,
 		appIdName,
+		authSourceType,
+		authProvider,
 	)
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "创建开放平台账号失败", Data: nil})

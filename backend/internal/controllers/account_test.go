@@ -119,6 +119,7 @@ func TestCreateTmpAccountV115AuthSource(t *testing.T) {
 		payload       map[string]any
 		wantAppID     string
 		wantAppIDName string
+		wantProvider  string
 	}{
 		{
 			name: "内置 APPID 保存数字 APPID",
@@ -132,6 +133,7 @@ func TestCreateTmpAccountV115AuthSource(t *testing.T) {
 			},
 			wantAppID:     "100197849",
 			wantAppIDName: "QMediaSync",
+			wantProvider:  "official_pkce",
 		},
 		{
 			name: "内置中转保存兼容字符串",
@@ -144,6 +146,7 @@ func TestCreateTmpAccountV115AuthSource(t *testing.T) {
 			},
 			wantAppID:     "QMediaSync",
 			wantAppIDName: "QMediaSync",
+			wantProvider:  "qmediasync",
 		},
 		{
 			name: "自定义 APPID 保存用户输入",
@@ -157,6 +160,21 @@ func TestCreateTmpAccountV115AuthSource(t *testing.T) {
 			},
 			wantAppID:     "100000000",
 			wantAppIDName: "我的应用",
+			wantProvider:  "official_pkce",
+		},
+		{
+			name: "第三方授权服务保存显式 provider",
+			payload: map[string]any{
+				"source_type":      "115",
+				"name":             "moviepilot",
+				"auth_source_type": "third_party_service",
+				"auth_provider":    "moviepilot",
+				"app_id":           "100197847",
+				"app_id_name":      "MoviePilot-115",
+			},
+			wantAppID:     "100197847",
+			wantAppIDName: "MoviePilot-115",
+			wantProvider:  "moviepilot",
 		},
 	}
 
@@ -189,6 +207,9 @@ func TestCreateTmpAccountV115AuthSource(t *testing.T) {
 			if account.AppIdName != tt.wantAppIDName {
 				t.Fatalf("app_id_name = %q，期望 %q", account.AppIdName, tt.wantAppIDName)
 			}
+			if string(account.AuthProvider) != tt.wantProvider {
+				t.Fatalf("auth_provider = %q，期望 %q", account.AuthProvider, tt.wantProvider)
+			}
 		})
 	}
 
@@ -213,5 +234,34 @@ func TestCreateTmpAccountV115AuthSource(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), `"code":500`) {
 		t.Fatalf("不支持的授权来源未返回 BadRequest: %s", w.Body.String())
+	}
+}
+
+func TestGetAccountListKeepsThirdPartyProvider(t *testing.T) {
+	setupAccountControllerTest(t)
+	account := models.Account{
+		Name:           "MoviePilot",
+		SourceType:     models.SourceType115,
+		AppId:          "100197847",
+		AppIdName:      "MoviePilot-115",
+		AuthSourceType: "third_party_service",
+		AuthProvider:   "moviepilot",
+	}
+	if err := db.Db.Create(&account).Error; err != nil {
+		t.Fatalf("创建测试账号失败: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/account/list", nil)
+
+	GetAccountList(c)
+
+	body := w.Body.String()
+	if !strings.Contains(body, `"auth_source_type":"third_party_service"`) {
+		t.Fatalf("第三方来源未保留: %s", body)
+	}
+	if !strings.Contains(body, `"auth_provider":"moviepilot"`) {
+		t.Fatalf("第三方 provider 未保留: %s", body)
 	}
 }

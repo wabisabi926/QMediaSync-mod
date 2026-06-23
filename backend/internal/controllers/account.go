@@ -1,12 +1,12 @@
 package controllers
 
 import (
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/models"
+	"Q115-STRM/internal/v115auth"
 	"fmt"
 	"net/http"
 	"strings"
-
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
 
 	"github.com/gin-gonic/gin"
 )
@@ -29,18 +29,23 @@ func GetAccountList(c *gin.Context) {
 		return
 	}
 	type accountResp struct {
-		ID                uint              `json:"id"`
-		SourceType        models.SourceType `json:"source_type"`
-		Name              string            `json:"name"`
-		AppId             string            `json:"app_id"`
-		AppName           string            `json:"app_id_name"`
-		Username          string            `json:"username"`
-		UserId            string            `json:"user_id"`
-		Token             string            `json:"token"`
-		CreatedAt         int64             `json:"created_at"`
-		TokenFailedReason string            `json:"token_failed_reason"`
-		BaseUrl           string            `json:"base_url"`
-		AuthType          string            `json:"auth_type"`
+		ID                    uint                    `json:"id"`
+		SourceType            models.SourceType       `json:"source_type"`
+		Name                  string                  `json:"name"`
+		AppId                 string                  `json:"app_id"`
+		AppIdName             string                  `json:"app_id_name"`
+		AppName               string                  `json:"app_name"`
+		DisplayName           string                  `json:"display_name"`
+		AuthSourceType        v115auth.AuthSourceType `json:"auth_source_type"`
+		AuthProvider          v115auth.AuthProvider   `json:"auth_provider"`
+		RequiresEncryptionKey bool                    `json:"requires_encryption_key"`
+		Username              string                  `json:"username"`
+		UserId                string                  `json:"user_id"`
+		Token                 string                  `json:"token"`
+		CreatedAt             int64                   `json:"created_at"`
+		TokenFailedReason     string                  `json:"token_failed_reason"`
+		BaseUrl               string                  `json:"base_url"`
+		AuthType              string                  `json:"auth_type"`
 	}
 	resp := make([]accountResp, 0, len(accounts))
 	for _, account := range accounts {
@@ -48,8 +53,10 @@ func GetAccountList(c *gin.Context) {
 			ID:                account.ID,
 			SourceType:        account.SourceType,
 			Name:              account.Name,
-			AppId:             "",
-			AppName:           "",
+			AppId:             account.AppId,
+			AppIdName:         strings.TrimSpace(account.AppIdName),
+			AppName:           strings.TrimSpace(account.AppIdName),
+			DisplayName:       strings.TrimSpace(account.AppIdName),
 			Username:          account.Username,
 			UserId:            string(account.UserId),
 			Token:             account.Token,
@@ -57,22 +64,17 @@ func GetAccountList(c *gin.Context) {
 			TokenFailedReason: account.TokenFailedReason,
 			BaseUrl:           account.BaseUrl,
 		}
-		switch account.AppId {
-		case models.BuiltIn115AppQ115STRM:
-			a.AppId = ""
-			a.AppName = models.BuiltIn115AppQ115STRM
-		case models.BuiltIn115AppMQMediaLibrary:
-			a.AppId = ""
-			a.AppName = models.BuiltIn115AppMQMediaLibrary
-		case models.BuiltIn115AppQMediaSync:
-			a.AppId = ""
-			a.AppName = models.BuiltIn115AppQMediaSync
-		default:
-			a.AppName = strings.TrimSpace(account.AppIdName)
-			if a.AppName == "" {
-				a.AppName = models.Custom115AppName
+		if account.SourceType == models.SourceType115 {
+			source := account.V115AuthSource()
+			a.AuthSourceType = source.SourceType
+			a.AuthProvider = source.Provider
+			a.AppName = source.AppName
+			a.AppIdName = source.AppName
+			a.DisplayName = source.DisplayName
+			a.RequiresEncryptionKey = source.RequiresEncryptionKey
+			if source.SourceType == v115auth.SourceTypeBuiltInRelay {
+				a.AppId = ""
 			}
-			a.AppId = account.AppId
 		}
 		if a.Name == "" {
 			a.Name = account.Username
@@ -107,11 +109,13 @@ func GetAccountList(c *gin.Context) {
 // @Security ApiKeyAuth
 func CreateTmpAccount(c *gin.Context) {
 	type tmpAccountReq struct {
-		SourceType    models.SourceType `json:"source_type" form:"source_type"`
-		Name          string            `json:"name" form:"name"`
-		AppId         string            `json:"app_id" form:"app_id"`
-		SelectedApp   string            `json:"app_id_name" form:"app_id_name"`
-		CustomAppName string            `json:"custom_app_name" form:"custom_app_name"`
+		SourceType     models.SourceType       `json:"source_type" form:"source_type"`
+		Name           string                  `json:"name" form:"name"`
+		AppId          string                  `json:"app_id" form:"app_id"`
+		AuthSourceType v115auth.AuthSourceType `json:"auth_source_type" form:"auth_source_type"`
+		AuthProvider   v115auth.AuthProvider   `json:"auth_provider" form:"auth_provider"`
+		SelectedApp    string                  `json:"app_id_name" form:"app_id_name"`
+		CustomAppName  string                  `json:"custom_app_name" form:"custom_app_name"`
 	}
 	tmpAccount := &tmpAccountReq{}
 	if err := c.ShouldBind(tmpAccount); err != nil {
@@ -126,20 +130,13 @@ func CreateTmpAccount(c *gin.Context) {
 	}
 
 	if models.SourceType115 == tmpAccount.SourceType {
-		switch tmpAccount.SelectedApp {
-		case models.BuiltIn115AppQ115STRM, models.BuiltIn115AppMQMediaLibrary, models.BuiltIn115AppQMediaSync:
-			appId = tmpAccount.SelectedApp
-		case models.Custom115AppName:
-			appId = strings.TrimSpace(tmpAccount.AppId)
-			appIdName = strings.TrimSpace(tmpAccount.CustomAppName)
-			if appId == "" {
-				c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "自定义应用ID不能为空", Data: nil})
-				return
-			}
-		default:
-			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "不支持的115开放平台应用", Data: nil})
+		source, err := v115auth.SourceFromCreateRequest(tmpAccount.AuthSourceType, tmpAccount.AuthProvider, tmpAccount.AppId, tmpAccount.SelectedApp, tmpAccount.CustomAppName)
+		if err != nil {
+			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 			return
 		}
+		appId = source.StorageAppID()
+		appIdName = source.StorageAppName()
 	}
 	account, err := models.CreateAccountByName(
 		strings.TrimSpace(tmpAccount.Name),

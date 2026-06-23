@@ -415,8 +415,8 @@ func GetOAuthUrl(c *gin.Context) {
 	})
 	if err != nil {
 		message := "生成OAuth登录地址失败: " + err.Error()
-		if source.SourceType == v115auth.SourceTypeBuiltInRelay && helpers.ENCRYPTION_KEY == "" {
-			message = "内置中转未配置 ENCRYPTION_KEY"
+		if source.SourceType == v115auth.SourceTypeBuiltInRelay && helpers.OAuthRelayEncryptionKey == "" {
+			message = "OAuth 中转未配置 OAUTH_RELAY_ENCRYPTION_KEY"
 		}
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: message, Data: nil})
 		return

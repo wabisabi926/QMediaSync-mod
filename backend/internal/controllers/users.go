@@ -75,7 +75,7 @@ func LoginAction(c *gin.Context) {
 	}
 
 	if user.IsTwoFactorEnabled() {
-		secret, err := helpers.Decrypt(user.TwoFactorSecret)
+		secret, err := helpers.DecryptLocalSecret(user.TwoFactorSecret)
 		if err != nil || !helpers.ValidateTOTPCode(secret, req.TOTPCode) {
 			writeLoginFailure(c)
 			return
@@ -246,17 +246,17 @@ func SetupTwoFactor(c *gin.Context) {
 	}
 	secret, otpURL, err := helpers.GenerateTOTPSecret("QMediaSync", user.Username)
 	if err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "生成两步验证密钥失败", Data: nil})
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "生成两步验证配置失败", Data: nil})
 		return
 	}
-	encryptedSecret, err := helpers.Encrypt(secret)
+	encryptedSecret, err := helpers.EncryptLocalSecret(secret)
 	if err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "保存两步验证密钥失败", Data: nil})
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "生成两步验证配置失败，请检查配置目录是否可写", Data: nil})
 		return
 	}
 	user.TwoFactorPendingSecret = encryptedSecret
 	if err := models.SaveUser(user); err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "保存两步验证密钥失败", Data: nil})
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "保存两步验证配置失败，请检查数据库状态", Data: nil})
 		return
 	}
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "生成两步验证密钥成功", Data: gin.H{
@@ -281,7 +281,7 @@ func EnableTwoFactor(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请先生成两步验证密钥", Data: nil})
 		return
 	}
-	secret, err := helpers.Decrypt(user.TwoFactorPendingSecret)
+	secret, err := helpers.DecryptLocalSecret(user.TwoFactorPendingSecret)
 	if err != nil || !helpers.ValidateTOTPCode(secret, req.TOTPCode) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "验证码错误", Data: nil})
 		return
@@ -314,7 +314,7 @@ func DisableTwoFactor(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "关闭两步验证失败", Data: nil})
 		return
 	}
-	secret, err := helpers.Decrypt(user.TwoFactorSecret)
+	secret, err := helpers.DecryptLocalSecret(user.TwoFactorSecret)
 	if err != nil || !helpers.ValidateTOTPCode(secret, req.TOTPCode) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "关闭两步验证失败", Data: nil})
 		return

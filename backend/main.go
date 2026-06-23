@@ -40,7 +40,7 @@ var FANART_API_KEY = ""
 var TMDB_ACCESS_TOKEN = ""
 var TMDB_API_KEY = ""
 var SC_API_KEY = ""
-var ENCRYPTION_KEY = ""
+var OAuthRelayEncryptionKey = ""
 var Update bool = false
 
 var AppName string = "QMediaSync"
@@ -751,12 +751,16 @@ func initEnv() bool {
 	// 生效值先取默认基线，待加载刮削设置后再由 ScrapeSettings.ApplyKeyOverrides 按“UI 配置 > 默认”刷新。
 	helpers.DEFAULT_FANART_API_KEY = firstNonEmpty(os.Getenv("FANART_API_KEY"), FANART_API_KEY)
 	helpers.FANART_API_KEY = helpers.DEFAULT_FANART_API_KEY
-	helpers.ENCRYPTION_KEY = firstNonEmpty(os.Getenv("ENCRYPTION_KEY"), ENCRYPTION_KEY)
+	helpers.OAuthRelayEncryptionKey = firstNonEmpty(os.Getenv("OAUTH_RELAY_ENCRYPTION_KEY"), OAuthRelayEncryptionKey)
 	initTimeZone()        // 设置东8区
 	getDataAndConfigDir() // 获取数据库数据目录和配置文件目录
 	log.Printf("当前工作目录:%s\n", helpers.RootDir)
 	log.Printf("当前数据目录：%s\n", helpers.DataDir)
 	log.Printf("当前配置文件目录: %s\n", helpers.ConfigDir)
+	if err := helpers.InitEncryptionKey(); err != nil {
+		log.Printf("初始化本机加密密钥失败: %v\n", err)
+		return false
+	}
 	ipv4, _ := helpers.GetLocalIP()
 	log.Printf("本机IPv4地址是 <%s>\n", ipv4)
 	// 检查配置文件是否存在

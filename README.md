@@ -89,7 +89,7 @@ GitHub Release 的正文取自上一步提交的 `.changes/v0.xx.xx.md`；若该
 
 以上 key 可在 `backend/main.go` 开头的变量中设置、编译时通过 ldflags 传入，或运行时通过环境变量 / `config/.env` 注入（变量名 `TMDB_API_KEY`、`TMDB_ACCESS_TOKEN`、`SC_API_KEY`、`FANART_API_KEY`，无 `DEFAULT_` 前缀）。取值优先级：web UI > 环境变量 > ldflags。
 
-> 网盘 OAuth 加密密钥 `ENCRYPTION_KEY` 无需自备：每个实例首次启动自动生成并保存到 `config/encryption.key`，也可用环境变量 `ENCRYPTION_KEY` 覆盖。
+> 两步验证等本机敏感数据使用实例本地密钥：每个实例首次启动自动生成并保存到 `config/encryption.key`。网盘 OAuth 中转使用共享密钥 `OAUTH_RELAY_ENCRYPTION_KEY`，可编译时通过 ldflags 变量 `main.OAuthRelayEncryptionKey` 传入，或运行时通过环境变量 / `config/.env` 注入。
 
 ## 仓库结构
 

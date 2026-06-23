@@ -25,16 +25,16 @@ func TestOAuthProviderRegistry(t *testing.T) {
 }
 
 func TestOAuthProviderRelayBuildAuth(t *testing.T) {
-	oldKey := helpers.ENCRYPTION_KEY
+	oldKey := helpers.OAuthRelayEncryptionKey
 	oldAuthServer := helpers.GlobalConfig.AuthServer
 	oldNewAuthServer := helpers.GlobalConfig.NewAuthServer
 	t.Cleanup(func() {
-		helpers.ENCRYPTION_KEY = oldKey
+		helpers.OAuthRelayEncryptionKey = oldKey
 		helpers.GlobalConfig.AuthServer = oldAuthServer
 		helpers.GlobalConfig.NewAuthServer = oldNewAuthServer
 	})
 
-	helpers.ENCRYPTION_KEY = "shared-secret"
+	helpers.OAuthRelayEncryptionKey = "shared-secret"
 	helpers.GlobalConfig.NewAuthServer = "https://oauth.qmediasync.cn"
 	provider, ok := GetOAuthProvider(ProviderQMediaSync)
 	if !ok {
@@ -58,9 +58,9 @@ func TestOAuthProviderRelayBuildAuth(t *testing.T) {
 }
 
 func TestOAuthProviderRelayRequiresEncryptionKey(t *testing.T) {
-	oldKey := helpers.ENCRYPTION_KEY
-	t.Cleanup(func() { helpers.ENCRYPTION_KEY = oldKey })
-	helpers.ENCRYPTION_KEY = ""
+	oldKey := helpers.OAuthRelayEncryptionKey
+	t.Cleanup(func() { helpers.OAuthRelayEncryptionKey = oldKey })
+	helpers.OAuthRelayEncryptionKey = ""
 
 	provider, ok := GetOAuthProvider(ProviderMQFamily)
 	if !ok {
@@ -73,7 +73,7 @@ func TestOAuthProviderRelayRequiresEncryptionKey(t *testing.T) {
 		Provider:    ProviderMQFamily,
 	})
 	if err == nil {
-		t.Fatal("缺少 ENCRYPTION_KEY 时应返回错误")
+		t.Fatal("缺少 OAUTH_RELAY_ENCRYPTION_KEY 时应返回错误")
 	}
 }
 

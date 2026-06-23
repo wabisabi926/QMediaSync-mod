@@ -16,7 +16,7 @@ func TestBuiltInAppIDOrder(t *testing.T) {
 			t.Fatalf("授权 provider = %s，期望 %s", sources[i].Provider, ProviderOfficialPKCE)
 		}
 		if sources[i].RequiresEncryptionKey {
-			t.Fatal("内置 APPID 不应要求共享 ENCRYPTION_KEY")
+			t.Fatal("内置 APPID 不应要求共享 OAUTH_RELAY_ENCRYPTION_KEY")
 		}
 	}
 }
@@ -70,7 +70,7 @@ func TestKnownThirdPartySources(t *testing.T) {
 			t.Fatalf("%s APPID = %s，期望 %s", provider, source.AppID, appID)
 		}
 		if source.RequiresEncryptionKey {
-			t.Fatalf("%s 不应要求共享 ENCRYPTION_KEY", provider)
+			t.Fatalf("%s 不应要求共享 OAUTH_RELAY_ENCRYPTION_KEY", provider)
 		}
 	}
 }

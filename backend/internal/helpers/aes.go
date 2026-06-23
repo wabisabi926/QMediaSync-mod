@@ -13,12 +13,12 @@ import (
 
 // AES-256-CBC 加密（URL安全）
 func Encrypt(plaintext string) (string, error) {
-	return EncryptWithKey(plaintext, ENCRYPTION_KEY)
+	return EncryptWithKey(plaintext, OAuthRelayEncryptionKey)
 }
 
 func EncryptWithKey(plaintext string, keyText string) (string, error) {
 	if keyText == "" {
-		return "", errors.New("ENCRYPTION_KEY 不能为空")
+		return "", errors.New("加密密钥不能为空")
 	}
 	keyHash := sha256.Sum256([]byte(keyText))
 	key := keyHash[:]
@@ -57,12 +57,12 @@ func EncryptWithKey(plaintext string, keyText string) (string, error) {
 
 // AES-256-CBC 解密（URL安全）
 func Decrypt(encrypted string) (string, error) {
-	return DecryptWithKey(encrypted, ENCRYPTION_KEY)
+	return DecryptWithKey(encrypted, OAuthRelayEncryptionKey)
 }
 
 func DecryptWithKey(encrypted string, keyText string) (string, error) {
 	if keyText == "" {
-		return "", errors.New("ENCRYPTION_KEY 不能为空")
+		return "", errors.New("加密密钥不能为空")
 	}
 	keyHash := sha256.Sum256([]byte(keyText))
 	key := keyHash[:]

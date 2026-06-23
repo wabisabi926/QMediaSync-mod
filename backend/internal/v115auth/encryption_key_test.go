@@ -8,7 +8,7 @@ import (
 func TestSharedEncryptionKeyMissing(t *testing.T) {
 	_, err := helpers.EncryptWithKey("{}", "")
 	if err == nil {
-		t.Fatal("ENCRYPTION_KEY 为空时应返回错误")
+		t.Fatal("OAUTH_RELAY_ENCRYPTION_KEY 为空时应返回错误")
 	}
 }
 

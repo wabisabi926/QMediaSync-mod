@@ -93,8 +93,8 @@ var HTTP_PROXY = ""     // 生效的通用刮削代理：由 ScrapeSettings.Appl
 var DEFAULT_TMDB_ACCESS_TOKEN = ""
 var DEFAULT_TMDB_API_KEY = ""
 var DEFAULT_SC_API_KEY = ""
-var ENCRYPTION_KEY = ""         // 生效值：115 内置中转共享 AES 密钥，环境变量优先于 ldflags 注入
-var DEFAULT_FANART_API_KEY = "" // 默认基线：环境变量 > ldflags
+var OAuthRelayEncryptionKey = "" // 生效值：网盘 OAuth 中转共享 AES 密钥，环境变量优先于 ldflags 注入
+var DEFAULT_FANART_API_KEY = ""  // 默认基线：环境变量 > ldflags
 
 const (
 	ConfigFileName       = "config.yaml"

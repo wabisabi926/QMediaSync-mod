@@ -63,6 +63,7 @@
       show-icon
       class="save-status"
     />
+    <TwoFactorSettings />
     <div class="security-content">
       <div class="warning-section">
         <el-alert title="重要提醒" type="warning" :closable="false" show-icon>
@@ -76,7 +77,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, inject, onMounted } from 'vue'
+import { reactive, shallowRef, inject, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Check } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
@@ -84,6 +85,7 @@ import type { AxiosStatic } from 'axios'
 import { isMobile } from '@/utils/deviceUtils'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
+import TwoFactorSettings from '@/components/user-settings/TwoFactorSettings.vue'
 interface UserSettings {
   username: string
   password: string
@@ -97,10 +99,10 @@ interface SaveStatus {
 }
 const authStore = useAuthStore()
 const router = useRouter()
-const checkIsMobile = ref(isMobile())
+const checkIsMobile = shallowRef(isMobile())
 const http: AxiosStatic | undefined = inject('$http')
-const loading = ref(false)
-const saveStatus = ref<SaveStatus | null>(null)
+const loading = shallowRef(false)
+const saveStatus = shallowRef<SaveStatus | null>(null)
 
 const formData = reactive<UserSettings>({
   username: '',

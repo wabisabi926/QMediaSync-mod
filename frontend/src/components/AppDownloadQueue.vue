@@ -21,6 +21,7 @@
           >
         </div>
         <div class="queue-cleanup-actions">
+          <el-button type="warning" @click="retryFailedTasks">重试失败任务</el-button>
           <el-button type="warning" @click="clearQueue">清空等待中的任务</el-button>
           <el-button type="danger" @click="clearSuccessAndFailedTasks"
             >清空成功和失败的任务</el-button
@@ -86,6 +87,9 @@
             <el-descriptions-item label="完成时间">
               {{ scope.row.end_time ? formatDateTime(scope.row.end_time) : '-' }}
             </el-descriptions-item>
+            <el-descriptions-item label="重试次数">
+              {{ scope.row.retry_count || 0 }}
+            </el-descriptions-item>
             <el-descriptions-item label="失败原因" v-if="scope.row.error" :span="2">
               {{ scope.row.error ? scope.row.error : '-' }}
             </el-descriptions-item>
@@ -146,7 +150,8 @@
       <el-table-column prop="start_time" label="时间" width="180">
         <template #default="scope">
           开始时间：{{ scope.row.start_time ? formatDateTime(scope.row.start_time) : '-' }}<br />
-          结束时间：{{ scope.row.end_time ? formatDateTime(scope.row.end_time) : '-' }}
+          结束时间：{{ scope.row.end_time ? formatDateTime(scope.row.end_time) : '-' }}<br />
+          <span v-if="scope.row.retry_count">重试次数：{{ scope.row.retry_count }}</span>
         </template>
       </el-table-column>
       <el-table-column prop="source_type" label="类型" width="72">
@@ -217,6 +222,8 @@ interface DownloadTask {
   remote_file_id: string
   error: string
   source_type: string
+  retry_count: number
+  last_retry_time: number
 }
 
 interface QueueMutationContextSnapshot {
@@ -528,6 +535,47 @@ const clearSuccessAndFailedTasks = async () => {
     if (!isMessageBoxCancelError(error)) {
       console.error('清空队列失败:', error)
       ElMessage.error('清空队列失败')
+    }
+  } finally {
+    if (isQueueMutationContextCurrent(operationContext)) {
+      finishQueueMutationContext(operationContext)
+    }
+  }
+}
+
+const retryFailedTasks = async () => {
+  const operationContext = startQueueMutationContext()
+
+  try {
+    await ElMessageBox.confirm('是否重试失败任务？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+
+    if (!isQueueMutationContextCurrent(operationContext)) {
+      return
+    }
+
+    const response = await http?.post(`${SERVER_URL}/download/queue/retry-failed`)
+
+    if (!isQueueMutationContextCurrent(operationContext)) {
+      return
+    }
+
+    if (response?.data.code === 200) {
+      ElMessage.success('失败任务已重新加入队列')
+      loadQueueData()
+    } else {
+      ElMessage.error(response?.data.message || '重试失败任务失败')
+    }
+  } catch (error) {
+    if (!isQueueMutationContextCurrent(operationContext)) {
+      return
+    }
+    if (!isMessageBoxCancelError(error)) {
+      console.error('重试失败任务失败:', error)
+      ElMessage.error('重试失败任务失败')
     }
   } finally {
     if (isQueueMutationContextCurrent(operationContext)) {

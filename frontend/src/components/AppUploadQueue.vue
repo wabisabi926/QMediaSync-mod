@@ -85,6 +85,9 @@
             <el-descriptions-item label="完成时间">
               {{ scope.row.end_time ? formatDateTime(scope.row.end_time) : '-' }}
             </el-descriptions-item>
+            <el-descriptions-item label="重试次数">
+              {{ scope.row.retry_count || 0 }}
+            </el-descriptions-item>
             <el-descriptions-item label="失败原因" v-if="scope.row.error" :span="2">
               {{ scope.row.error ? scope.row.error : '-' }}
             </el-descriptions-item>
@@ -146,6 +149,7 @@
         <template #default="scope">
           开始时间：{{ scope.row.start_time ? formatDateTime(scope.row.start_time) : '-' }} <br />
           完成时间：{{ scope.row.end_time ? formatDateTime(scope.row.end_time) : '-' }} <br />
+          <span v-if="scope.row.retry_count">重试次数：{{ scope.row.retry_count }}</span>
         </template>
       </el-table-column>
       <el-table-column prop="source_type" label="类型" width="72">
@@ -216,6 +220,8 @@ interface UploadTask {
   end_time: number
   remote_file_id: string
   error: string
+  retry_count: number
+  last_retry_time: number
   is_season_or_tvshow_file: boolean
 }
 

@@ -563,6 +563,7 @@ func setRouter(r *gin.Engine) {
 		api.GET("/115/appids", controllers.GetV115AppIDSources)             // 查询115 Open APPID目录
 		api.GET("/115/oauth-url", controllers.GetOAuthUrl)                  // 获取115 OAuth登录地址
 		api.POST("115/oauth-confirm", controllers.ConfirmOAuthCode)         // 确认OAuth登录
+		api.GET("/115/oauth-status", controllers.GetOAuthStatus)            // 查询115 OAuth授权状态
 		api.GET("/115/queue/stats", controllers.GetQueueStats)              // 获取115 OpenAPI请求队列统计数据
 		api.POST("/115/queue/rate-limit", controllers.SetQueueRateLimit)    // 设置115 OpenAPI请求队列速率限制
 		api.GET("/115/stats/daily", controllers.GetRequestStatsByDay)       // 获取115请求统计（按天）

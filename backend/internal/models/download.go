@@ -210,6 +210,7 @@ func (dq *DQ) moveTasksToChannel() {
 			helpers.AppLogger.Errorf("下载队列自动重试失败任务失败: %v", err)
 			return
 		}
+		TriggerEmbyLibraryRefreshCheck()
 		dq.retryTriggered = true
 		return
 	}

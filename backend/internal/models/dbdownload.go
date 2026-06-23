@@ -93,7 +93,9 @@ func (task *DbDownloadTask) Complete() {
 	err := db.Db.Save(task).Error
 	if err != nil {
 		helpers.AppLogger.Warnf("[下载] 标记为已完成失败: %s", err.Error())
+		return
 	}
+	publishDownloadTaskStatusChanged(task)
 }
 
 func (task *DbDownloadTask) Fail(err error) {
@@ -104,7 +106,9 @@ func (task *DbDownloadTask) Fail(err error) {
 	err = db.Db.Save(task).Error
 	if err != nil {
 		helpers.AppLogger.Warnf("[下载] 标记为失败失败: %s", err.Error())
+		return
 	}
+	publishDownloadTaskStatusChanged(task)
 }
 
 func (task *DbDownloadTask) Cancel() {
@@ -114,7 +118,9 @@ func (task *DbDownloadTask) Cancel() {
 	err := db.Db.Save(task).Error
 	if err != nil {
 		helpers.AppLogger.Warnf("[下载] 标记为已取消失败: %s", err.Error())
+		return
 	}
+	publishDownloadTaskStatusChanged(task)
 }
 
 func (task *DbDownloadTask) Downloading() {
@@ -124,6 +130,18 @@ func (task *DbDownloadTask) Downloading() {
 	if err != nil {
 		helpers.AppLogger.Warnf("[下载] 标记为下载中失败: %s", err.Error())
 	}
+}
+
+func publishDownloadTaskStatusChanged(task *DbDownloadTask) {
+	if task == nil {
+		return
+	}
+	helpers.Publish(helpers.DownloadTaskStatusChangedEvent, DownloadTaskStatusChangedPayload{
+		TaskId:     task.ID,
+		SyncFileId: task.SyncFileId,
+		Status:     task.Status,
+		Source:     task.Source,
+	})
 }
 
 // 执行下载

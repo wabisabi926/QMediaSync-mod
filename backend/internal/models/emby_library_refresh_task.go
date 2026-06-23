@@ -2,11 +2,13 @@ package models
 
 import (
 	"Q115-STRM/internal/db"
+	embyclientrestgo "Q115-STRM/internal/embyclient-rest-go"
 	"Q115-STRM/internal/helpers"
 	"encoding/json"
 	"errors"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 	"gorm.io/gorm"
 )
@@ -23,6 +25,8 @@ const (
 )
 
 var IsStrmSyncTaskActiveFunc func(syncPathId uint) bool
+var embyRefreshCheckChan = make(chan struct{}, 1)
+var embyRefreshCoordinatorOnce sync.Once
 
 type EmbyLibraryRefreshTask struct {
 	BaseModel
@@ -176,7 +180,18 @@ func isUniqueConstraintError(err error) bool {
 		strings.Contains(message, "UNIQUE constraint failed: emby_library_refresh_tasks.library_id")
 }
 
+type DownloadTaskStatusChangedPayload struct {
+	TaskId     uint           `json:"task_id"`
+	SyncFileId uint           `json:"sync_file_id"`
+	Status     DownloadStatus `json:"status"`
+	Source     DownloadSource `json:"source"`
+}
+
 func TriggerEmbyLibraryRefreshCheck() {
+	select {
+	case embyRefreshCheckChan <- struct{}{}:
+	default:
+	}
 }
 
 func CountActiveDownloadTasksBySyncPathIds(syncPathIds []uint) (int64, error) {
@@ -258,6 +273,152 @@ func IsEmbyLibraryRefreshTaskReady(task *EmbyLibraryRefreshTask, now int64) (boo
 	}
 
 	return true, "ready", nil
+}
+
+func NotifyEmbyRefreshDownloadTaskChanged(syncFileId uint) error {
+	if syncFileId == 0 {
+		return nil
+	}
+	var syncFile SyncFile
+	if err := db.Db.Select("id", "sync_path_id").First(&syncFile, syncFileId).Error; err != nil {
+		return nil
+	}
+	now := nowUnix()
+	libraries := GetEmbyLibraryIdsBySyncPathId(syncFile.SyncPathId)
+	for libraryId := range libraries {
+		var task EmbyLibraryRefreshTask
+		if err := db.Db.Where("library_id = ? AND status = ?", libraryId, EmbyLibraryRefreshStatusPending).First(&task).Error; err != nil {
+			continue
+		}
+		task.LastEventAt = now
+		task.RefreshAfterAt = now + DefaultEmbyRefreshDebounceSeconds
+		if err := saveEmbyLibraryRefreshTask(&task); err != nil {
+			return err
+		}
+	}
+	TriggerEmbyLibraryRefreshCheck()
+	return nil
+}
+
+func HandleDownloadTaskStatusChanged(event helpers.Event) {
+	payload, ok := event.Data.(DownloadTaskStatusChangedPayload)
+	if !ok {
+		return
+	}
+	if err := NotifyEmbyRefreshDownloadTaskChanged(payload.SyncFileId); err != nil {
+		helpers.AppLogger.Errorf("处理下载任务状态变化事件失败: %v", err)
+	}
+}
+
+func InitEmbyLibraryRefreshCoordinator() {
+	embyRefreshCoordinatorOnce.Do(func() {
+		resetRefreshingEmbyLibraryRefreshTasks()
+		helpers.Subscribe(helpers.DownloadTaskStatusChangedEvent, HandleDownloadTaskStatusChanged)
+		go runEmbyLibraryRefreshScanner()
+	})
+}
+
+func resetRefreshingEmbyLibraryRefreshTasks() {
+	now := nowUnix()
+	if err := db.Db.Model(&EmbyLibraryRefreshTask{}).
+		Where("status = ?", EmbyLibraryRefreshStatusRefreshing).
+		Updates(map[string]interface{}{
+			"status":           EmbyLibraryRefreshStatusPending,
+			"last_event_at":    now,
+			"refresh_after_at": now + DefaultEmbyRefreshDebounceSeconds,
+			"error":            "服务重启后重置刷新中任务",
+		}).Error; err != nil {
+		helpers.AppLogger.Errorf("重置Emby媒体库刷新中任务失败: %v", err)
+	}
+}
+
+func runEmbyLibraryRefreshScanner() {
+	ticker := time.NewTicker(time.Duration(DefaultEmbyRefreshScanSeconds) * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-embyRefreshCheckChan:
+			CheckPendingEmbyLibraryRefreshTasks()
+		case <-ticker.C:
+			CheckPendingEmbyLibraryRefreshTasks()
+		}
+	}
+}
+
+func CheckPendingEmbyLibraryRefreshTasks() {
+	if GlobalEmbyConfig == nil || GlobalEmbyConfig.EmbyUrl == "" || GlobalEmbyConfig.EmbyApiKey == "" || GlobalEmbyConfig.EnableRefreshLibrary == 0 {
+		helpers.AppLogger.Infof("Emby未配置或未启用刷新媒体库，跳过待刷新任务扫描")
+		return
+	}
+
+	var tasks []EmbyLibraryRefreshTask
+	now := nowUnix()
+	if err := db.Db.Where("status = ?", EmbyLibraryRefreshStatusPending).
+		Where("refresh_after_at <= ? OR deadline_at <= ?", now, now).
+		Order("updated_at ASC").
+		Find(&tasks).Error; err != nil {
+		helpers.AppLogger.Errorf("查询Emby媒体库待刷新任务失败: %v", err)
+		return
+	}
+
+	for i := range tasks {
+		task := tasks[i]
+		ready, reason, err := IsEmbyLibraryRefreshTaskReady(&task, now)
+		task.LastCheckedAt = now
+		if err != nil {
+			task.Error = err.Error()
+			saveEmbyLibraryRefreshTask(&task)
+			continue
+		}
+		if !ready {
+			saveEmbyLibraryRefreshTask(&task)
+			helpers.AppLogger.Debugf("Emby媒体库 %s 暂不刷新，原因: %s", task.LibraryName, reason)
+			continue
+		}
+		if reason == "deadline" {
+			helpers.AppLogger.Warnf("Emby媒体库 %s 等待超过最大时长，执行兜底刷新", task.LibraryName)
+		}
+		if err := refreshEmbyLibraryTask(&task); err != nil {
+			helpers.AppLogger.Errorf("刷新Emby媒体库 %s 失败: %v", task.LibraryName, err)
+		}
+	}
+}
+
+func refreshEmbyLibraryTask(task *EmbyLibraryRefreshTask) error {
+	if GlobalEmbyConfig == nil || GlobalEmbyConfig.EmbyUrl == "" || GlobalEmbyConfig.EmbyApiKey == "" || GlobalEmbyConfig.EnableRefreshLibrary == 0 {
+		return nil
+	}
+	now := nowUnix()
+	result := db.Db.Model(&EmbyLibraryRefreshTask{}).
+		Where("id = ? AND status = ?", task.ID, EmbyLibraryRefreshStatusPending).
+		Updates(map[string]interface{}{
+			"status":          EmbyLibraryRefreshStatusRefreshing,
+			"last_checked_at": now,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil
+	}
+	task.Status = EmbyLibraryRefreshStatusRefreshing
+	task.LastCheckedAt = now
+
+	client := embyclientrestgo.NewClient(GlobalEmbyConfig.EmbyUrl, GlobalEmbyConfig.EmbyApiKey)
+	if err := client.RefreshLibrary(task.LibraryId, task.LibraryName); err != nil {
+		task.Status = EmbyLibraryRefreshStatusFailed
+		task.Error = err.Error()
+		saveEmbyLibraryRefreshTask(task)
+		return err
+	}
+	return markEmbyRefreshTaskCompleted(task)
+}
+
+func markEmbyRefreshTaskCompleted(task *EmbyLibraryRefreshTask) error {
+	task.Status = EmbyLibraryRefreshStatusCompleted
+	task.LastRefreshAt = nowUnix()
+	task.Error = ""
+	return saveEmbyLibraryRefreshTask(task)
 }
 
 func nowUnix() int64 {

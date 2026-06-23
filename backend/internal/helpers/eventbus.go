@@ -19,6 +19,8 @@ const (
 	BackupCronEevent EventType = "backup_cron_event"
 	// strm同步完成后通知刮削任务
 	StrmSyncCompleteEvent EventType = "strm_sync_complete"
+	// 下载任务状态变化事件
+	DownloadTaskStatusChangedEvent EventType = "download_task_status_changed"
 )
 
 // 事件数据

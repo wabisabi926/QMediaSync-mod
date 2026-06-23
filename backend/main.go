@@ -457,6 +457,7 @@ func initOthers() {
 
 	// 启动同步任务队列管理器
 	synccron.InitNewSyncQueueManager()
+	models.InitEmbyLibraryRefreshCoordinator()
 	// 初始化WebSocket事件中心
 	wsHub := websocket.NewEventHub()
 	websocket.GlobalEventHub = wsHub

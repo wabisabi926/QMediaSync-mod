@@ -235,3 +235,42 @@ func TestRefreshTaskIsReadyAfterDeadline(t *testing.T) {
 		t.Fatalf("兜底原因 = %s，期望 deadline", reason)
 	}
 }
+
+func TestNotifyDownloadTaskChangedExtendsDebounceForPendingLibrary(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	now := nowUnix()
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-movie", LibraryName: "电影", SyncPathId: 10})
+	task := newPendingEmbyLibraryRefreshTask("lib-movie", "电影", []uint{10}, now-100)
+	task.RefreshAfterAt = now - 1
+	db.Db.Create(task)
+	db.Db.Create(&SyncFile{BaseModel: BaseModel{ID: 1}, SyncPathId: 10})
+
+	if err := NotifyEmbyRefreshDownloadTaskChanged(1); err != nil {
+		t.Fatalf("下载事件唤醒失败: %v", err)
+	}
+
+	var updated EmbyLibraryRefreshTask
+	db.Db.Where("library_id = ?", "lib-movie").First(&updated)
+	if updated.RefreshAfterAt <= now {
+		t.Fatalf("下载事件后应延长稳定窗口，实际 refresh_after_at=%d now=%d", updated.RefreshAfterAt, now)
+	}
+}
+
+func TestMarkEmbyRefreshTaskCompleted(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	task := newPendingEmbyLibraryRefreshTask("lib-movie", "电影", []uint{10}, nowUnix())
+	db.Db.Create(task)
+
+	if err := markEmbyRefreshTaskCompleted(task); err != nil {
+		t.Fatalf("标记完成失败: %v", err)
+	}
+
+	var updated EmbyLibraryRefreshTask
+	db.Db.First(&updated, task.ID)
+	if updated.Status != EmbyLibraryRefreshStatusCompleted {
+		t.Fatalf("完成后状态 = %s，期望 completed", updated.Status)
+	}
+	if updated.LastRefreshAt == 0 {
+		t.Fatal("完成后应记录 last_refresh_at")
+	}
+}

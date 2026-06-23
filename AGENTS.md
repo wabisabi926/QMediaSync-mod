@@ -79,6 +79,7 @@ backend/
   web_statics/           # 前端生产构建产物
   FNOS/                  # 飞牛应用打包目录
 frontend/                # Vue/Vite 前端源码
+frontend/test/           # 前端本地测试目录（被忽略，不提交）
 docker/                  # Dockerfile、容器入口脚本和在线更新监视脚本
 scripts/release/         # GitHub Actions 发布打包辅助脚本
 scripts/install/         # Linux 裸机安装辅助脚本
@@ -226,6 +227,24 @@ helpers.V115Log.Debugf("115请求详情: %s", url)
 - 使用 table-driven 测试模式
 - 测试名称使用中文描述：`TestOldSyntax_BasicMovie`
 - 测试文件位于对应包目录下：`internal/helpers/extract_test.go`
+
+前端测试约定：
+- 前端测试文件统一放在 `frontend/test/` 下按类型归类，例如 `components/`、`composables/`、`utils/`、`unit/`、`e2e/`、`regression/`。
+- `frontend/test/` 是本地测试目录，保持被 `.gitignore` 忽略，不提交测试文件。
+- 不使用 `package.json` 的 `test:unit` 脚本；需要跑前端测试时直接用裸命令。
+- 常用 Vitest 命令：
+  ```bash
+  (cd frontend && pnpm exec vitest run test/components test/composables test/utils test/unit/const.test.ts)
+  (cd frontend && pnpm exec vitest run test/components/AppLogin.test.ts)
+  ```
+- 不要直接对整个 `frontend/test` 跑 Vitest；该目录里可能包含 Playwright、源码检查脚本或其他非 Vitest suite。
+
+## 前端约定
+
+- Vue 代码使用 Vue 3 Composition API 和 `<script setup lang="ts">`。
+- 组合式函数接收 maybe-reactive 参数时，普通值（如 `pageSize`）可以使用 `MaybeRefOrGetter` + `toValue()`。
+- axios 实例、回调函数、SDK client、handler 等“值本身可能是函数或可调用对象”的参数，不要使用 `MaybeRefOrGetter` + `toValue()`；应使用 `MaybeRef` + `unref()`，避免把可调用对象当 getter 执行。
+- `$http` 注入名保持不变；此前 `/undefined` 请求问题的根因不是注入名冲突，而是对可调用 axios 对象使用了 `toValue()`。
 
 ## CI/CD
 

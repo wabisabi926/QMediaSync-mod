@@ -14,7 +14,6 @@
     "format": "prettier --write src/",
     "format:check": "prettier --check src/",
     "preview": "vite preview",
-    "test:unit": "vitest run src",
     "type-check": "vue-tsc --build"
   },
   "dependencies": {

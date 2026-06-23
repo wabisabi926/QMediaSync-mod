@@ -10,13 +10,35 @@ import (
 
 type User struct {
 	BaseModel
-	Username string `gorm:"unique;not null" json:"username"`
-	Password string `gorm:"not null"`
+	Username               string `gorm:"unique;not null" json:"username"`
+	Password               string `gorm:"not null"`
+	TwoFactorEnabled       bool   `gorm:"default:false" json:"two_factor_enabled"` // 是否启用两步验证
+	TwoFactorSecret        string `gorm:"type:text" json:"-"`                      // 加密后的 TOTP 密钥
+	TwoFactorPendingSecret string `gorm:"type:text" json:"-"`                      // 启用确认前的加密 TOTP 密钥
 }
 
 // 表名
 func (User) TableName() string {
 	return "users"
+}
+
+// IsTwoFactorEnabled 判断用户是否启用两步验证
+func (user *User) IsTwoFactorEnabled() bool {
+	return user != nil && user.TwoFactorEnabled && user.TwoFactorSecret != ""
+}
+
+// EnableTwoFactor 启用两步验证
+func (user *User) EnableTwoFactor(encryptedSecret string) {
+	user.TwoFactorEnabled = true
+	user.TwoFactorSecret = encryptedSecret
+	user.TwoFactorPendingSecret = ""
+}
+
+// DisableTwoFactor 关闭两步验证
+func (user *User) DisableTwoFactor() {
+	user.TwoFactorEnabled = false
+	user.TwoFactorSecret = ""
+	user.TwoFactorPendingSecret = ""
 }
 
 // 修改用户密码

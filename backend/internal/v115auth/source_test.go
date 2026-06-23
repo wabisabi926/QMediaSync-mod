@@ -40,3 +40,33 @@ func TestKnownThirdPartySources(t *testing.T) {
 		}
 	}
 }
+
+func TestResolveLegacyRelayAccount(t *testing.T) {
+	cases := []struct {
+		appID    string
+		provider AuthProvider
+	}{
+		{"QMediaSync", ProviderQMediaSync},
+		{"Q115-STRM", ProviderMQFamily},
+		{"MQ的媒体库", ProviderMQFamily},
+	}
+	for _, tt := range cases {
+		source := ResolveAccountSource(tt.appID, "")
+		if source.SourceType != SourceTypeBuiltInRelay {
+			t.Fatalf("%s 来源类型 = %s，期望 %s", tt.appID, source.SourceType, SourceTypeBuiltInRelay)
+		}
+		if source.Provider != tt.provider {
+			t.Fatalf("%s provider = %s，期望 %s", tt.appID, source.Provider, tt.provider)
+		}
+	}
+}
+
+func TestResolveNumericAppIDAccount(t *testing.T) {
+	source := ResolveAccountSource("100197849", "QMediaSync")
+	if source.SourceType != SourceTypeBuiltInAppID {
+		t.Fatalf("来源类型 = %s，期望 %s", source.SourceType, SourceTypeBuiltInAppID)
+	}
+	if source.Provider != ProviderOfficialPKCE {
+		t.Fatalf("provider = %s，期望 %s", source.Provider, ProviderOfficialPKCE)
+	}
+}

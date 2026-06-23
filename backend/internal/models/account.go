@@ -6,6 +6,7 @@ import (
 	"Q115-STRM/internal/helpers"
 	"Q115-STRM/internal/notificationmanager"
 	"Q115-STRM/internal/openlist"
+	"Q115-STRM/internal/v115auth"
 	"Q115-STRM/internal/v115open"
 	"context"
 	"fmt"
@@ -89,6 +90,10 @@ func (account *Account) UpdateUser(userId string, username string) bool {
 // 如果是normal模式，创建一个新的客户端，不启用限速器
 func (account *Account) Get115Client() *v115open.OpenClient {
 	return v115open.GetClient(account.ID, account.AppId, account.Token, account.RefreshToken)
+}
+
+func (account *Account) V115AuthSource() v115auth.Source {
+	return v115auth.ResolveAccountSource(account.AppId, account.AppIdName)
 }
 
 func (account *Account) GetOpenListClient() *openlist.Client {
@@ -205,7 +210,8 @@ func (account *Account) UpdateInfo(name string, appIdName string) error {
 	updateData := map[string]any{
 		"name": name,
 	}
-	if account.SourceType == SourceType115 && account.AppId != "" && !IsBuiltIn115AppId(account.AppId) {
+	source := account.V115AuthSource()
+	if account.SourceType == SourceType115 && source.SourceType == v115auth.SourceTypeCustomAppID {
 		account.AppIdName = appIdName
 		updateData["app_id_name"] = appIdName
 	}

@@ -1337,6 +1337,26 @@ func SearchBuiltInAppIDSources(keyword string, offset int, limit int) AppIDSearc
 	return AppIDSearchResult{Items: items, Total: total, Offset: offset, Limit: limit}
 }
 
+func ResolveAccountSource(appID string, appIDName string) Source {
+	switch appID {
+	case BuiltInRelayQMediaSync:
+		return Source{SourceType: SourceTypeBuiltInRelay, Provider: ProviderQMediaSync, AppID: appID, AppName: appID, DisplayName: appID, RequiresEncryptionKey: true}
+	case BuiltInRelayQ115STRM, BuiltInRelayMQMediaLibrary:
+		return Source{SourceType: SourceTypeBuiltInRelay, Provider: ProviderMQFamily, AppID: appID, AppName: appID, DisplayName: appID, RequiresEncryptionKey: true}
+	}
+	if source, ok := FindSource(SourceTypeBuiltInAppID, ProviderOfficialPKCE, appID); ok {
+		return source
+	}
+	if source, ok := FindSource(SourceTypeThirdPartyService, "", appID); ok {
+		return source
+	}
+	name := strings.TrimSpace(appIDName)
+	if name == "" {
+		name = CustomAppName
+	}
+	return Source{SourceType: SourceTypeCustomAppID, Provider: ProviderOfficialPKCE, AppID: appID, AppName: name, DisplayName: name}
+}
+
 func sourceFromLegacyCreateRequest(appID string, selectedApp string, customAppName string) (Source, error) {
 	selectedApp = strings.TrimSpace(selectedApp)
 	switch selectedApp {

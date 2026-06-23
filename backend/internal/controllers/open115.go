@@ -4,6 +4,7 @@ import (
 	"Q115-STRM/internal/db"
 	"Q115-STRM/internal/helpers"
 	"Q115-STRM/internal/models"
+	"Q115-STRM/internal/v115auth"
 	"Q115-STRM/internal/v115open"
 	"context"
 	"encoding/json"
@@ -385,11 +386,16 @@ func GetOAuthUrl(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "账号ID不存在", Data: nil})
 		return
 	}
-	clientId := account.AppId
-	if clientId != "Q115-STRM" && clientId != "MQ的媒体库" && clientId != "QMediaSync" {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "自定义的APPID无法授权", Data: nil})
+	source := account.V115AuthSource()
+	if source.SourceType != v115auth.SourceTypeBuiltInRelay {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "当前账号不是内置中转授权来源", Data: nil})
 		return
 	}
+	if helpers.ENCRYPTION_KEY == "" {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "内置中转未配置 ENCRYPTION_KEY", Data: nil})
+		return
+	}
+	clientId := source.AppID
 	baseUrl := helpers.GlobalConfig.AuthServer
 	type stateData struct {
 		State       string `json:"state"`
@@ -432,6 +438,14 @@ func ConfirmOAuthCode(c *gin.Context) {
 	account, err := models.GetAccountById(req.AccountId)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "账号ID不存在", Data: nil})
+		return
+	}
+	if account.V115AuthSource().SourceType != v115auth.SourceTypeBuiltInRelay {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "当前账号不是内置中转授权来源", Data: nil})
+		return
+	}
+	if helpers.ENCRYPTION_KEY == "" {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "内置中转未配置 ENCRYPTION_KEY", Data: nil})
 		return
 	}
 	// 对req.Data解密

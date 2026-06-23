@@ -40,6 +40,7 @@ var FANART_API_KEY = ""
 var TMDB_ACCESS_TOKEN = ""
 var TMDB_API_KEY = ""
 var SC_API_KEY = ""
+var ENCRYPTION_KEY = ""
 var Update bool = false
 
 var AppName string = "QMediaSync"
@@ -744,11 +745,9 @@ func initEnv() bool {
 	// 生效值先取默认基线，待加载刮削设置后再由 ScrapeSettings.ApplyKeyOverrides 按“UI 配置 > 默认”刷新。
 	helpers.DEFAULT_FANART_API_KEY = firstNonEmpty(os.Getenv("FANART_API_KEY"), FANART_API_KEY)
 	helpers.FANART_API_KEY = helpers.DEFAULT_FANART_API_KEY
-	// ENCRYPTION_KEY 不再使用共享的 ldflags 默认值，改为每实例密钥，
-	// 在下方 getDataAndConfigDir 确定 ConfigDir 之后由 helpers.InitEncryptionKey 解析。
-	initTimeZone()              // 设置东8区
-	getDataAndConfigDir()       // 获取数据库数据目录和配置文件目录
-	helpers.InitEncryptionKey() // 解析每实例 AES 加密密钥：env > config 卷持久化文件 > 首次随机生成并落盘
+	helpers.ENCRYPTION_KEY = firstNonEmpty(os.Getenv("ENCRYPTION_KEY"), ENCRYPTION_KEY)
+	initTimeZone()        // 设置东8区
+	getDataAndConfigDir() // 获取数据库数据目录和配置文件目录
 	log.Printf("当前工作目录:%s\n", helpers.RootDir)
 	log.Printf("当前数据目录：%s\n", helpers.DataDir)
 	log.Printf("当前配置文件目录: %s\n", helpers.ConfigDir)

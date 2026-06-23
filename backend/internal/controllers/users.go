@@ -15,10 +15,32 @@ import (
 type LoginRequest struct {
 	Username   string `json:"username" form:"username"`
 	Password   string `json:"password" form:"password"`
+	TOTPCode   string `json:"totp_code" form:"totp_code"`
 	RememberMe bool   `json:"rememberMe" form:"rememberMe"`
 }
 
 var LoginedUser *models.User = nil
+
+type EnableTwoFactorRequest struct {
+	TOTPCode string `json:"totp_code" form:"totp_code"`
+}
+
+type DisableTwoFactorRequest struct {
+	Password string `json:"password" form:"password"`
+	TOTPCode string `json:"totp_code" form:"totp_code"`
+}
+
+func (req DisableTwoFactorRequest) IsValid() bool {
+	return req.Password != "" && req.TOTPCode != ""
+}
+
+func loginFailureMessage() string {
+	return "登录失败"
+}
+
+func writeLoginFailure(c *gin.Context) {
+	c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: loginFailureMessage(), Data: nil})
+}
 
 // LoginAction 用户登录
 // @Summary 用户登录
@@ -35,21 +57,29 @@ func LoginAction(c *gin.Context) {
 	user := &models.User{}
 	var req LoginRequest
 	if err := c.ShouldBind(&req); err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("参数错误：%v", err), Data: nil})
+		writeLoginFailure(c)
 		return
 	}
 	username := req.Username
 	password := req.Password
 	if username == "" || password == "" {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "用户名或密码不能为空", Data: nil})
+		writeLoginFailure(c)
 		return
 	}
 
 	// 查询用户是否存在
 	user, userErr := models.CheckLogin(username, password)
 	if userErr != nil || user.ID == 0 {
-		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("用户不存在或者密码错误: %v", userErr), Data: nil})
+		writeLoginFailure(c)
 		return
+	}
+
+	if user.IsTwoFactorEnabled() {
+		secret, err := helpers.Decrypt(user.TwoFactorSecret)
+		if err != nil || !helpers.ValidateTOTPCode(secret, req.TOTPCode) {
+			writeLoginFailure(c)
+			return
+		}
 	}
 
 	// 根据 rememberMe 参数设置 token 和 Cookie 有效期
@@ -71,7 +101,7 @@ func LoginAction(c *gin.Context) {
 	tokenString, err := token.SignedString([]byte(helpers.GlobalConfig.JwtSecret))
 	if err != nil {
 		helpers.AppLogger.Errorf("LoginAction: %v", err)
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "登录失败，请重试", Data: nil})
+		writeLoginFailure(c)
 		return
 	}
 
@@ -185,6 +215,116 @@ func ChangePassword(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "修改成功", Data: isChange || isChange2})
+}
+
+// GetTwoFactorStatus 获取两步验证状态
+func GetTwoFactorStatus(c *gin.Context) {
+	if LoginedUser == nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取两步验证状态失败", Data: nil})
+		return
+	}
+	user, err := models.GetUserById(LoginedUser.ID)
+	if err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取两步验证状态失败", Data: nil})
+		return
+	}
+	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取两步验证状态成功", Data: gin.H{
+		"enabled": user.IsTwoFactorEnabled(),
+	}})
+}
+
+// SetupTwoFactor 创建两步验证配置草稿
+func SetupTwoFactor(c *gin.Context) {
+	if LoginedUser == nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取用户失败", Data: nil})
+		return
+	}
+	user, err := models.GetUserById(LoginedUser.ID)
+	if err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取用户失败", Data: nil})
+		return
+	}
+	secret, otpURL, err := helpers.GenerateTOTPSecret("QMediaSync", user.Username)
+	if err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "生成两步验证密钥失败", Data: nil})
+		return
+	}
+	encryptedSecret, err := helpers.Encrypt(secret)
+	if err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "保存两步验证密钥失败", Data: nil})
+		return
+	}
+	user.TwoFactorPendingSecret = encryptedSecret
+	if err := models.SaveUser(user); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "保存两步验证密钥失败", Data: nil})
+		return
+	}
+	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "生成两步验证密钥成功", Data: gin.H{
+		"secret":      secret,
+		"otpauth_url": otpURL,
+	}})
+}
+
+// EnableTwoFactor 启用两步验证
+func EnableTwoFactor(c *gin.Context) {
+	var req EnableTwoFactorRequest
+	if err := c.ShouldBind(&req); err != nil || req.TOTPCode == "" {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "验证码错误", Data: nil})
+		return
+	}
+	if LoginedUser == nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请先生成两步验证密钥", Data: nil})
+		return
+	}
+	user, err := models.GetUserById(LoginedUser.ID)
+	if err != nil || user.TwoFactorPendingSecret == "" {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请先生成两步验证密钥", Data: nil})
+		return
+	}
+	secret, err := helpers.Decrypt(user.TwoFactorPendingSecret)
+	if err != nil || !helpers.ValidateTOTPCode(secret, req.TOTPCode) {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "验证码错误", Data: nil})
+		return
+	}
+	user.EnableTwoFactor(user.TwoFactorPendingSecret)
+	if err := models.SaveUser(user); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "启用两步验证失败", Data: nil})
+		return
+	}
+	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "启用两步验证成功", Data: nil})
+}
+
+// DisableTwoFactor 关闭两步验证
+func DisableTwoFactor(c *gin.Context) {
+	var req DisableTwoFactorRequest
+	if err := c.ShouldBind(&req); err != nil || !req.IsValid() {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "关闭两步验证失败", Data: nil})
+		return
+	}
+	if LoginedUser == nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "关闭两步验证失败", Data: nil})
+		return
+	}
+	user, err := models.GetUserById(LoginedUser.ID)
+	if err != nil || !user.IsTwoFactorEnabled() {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "关闭两步验证失败", Data: nil})
+		return
+	}
+	if _, err := models.CheckLogin(user.Username, req.Password); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "关闭两步验证失败", Data: nil})
+		return
+	}
+	secret, err := helpers.Decrypt(user.TwoFactorSecret)
+	if err != nil || !helpers.ValidateTOTPCode(secret, req.TOTPCode) {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "关闭两步验证失败", Data: nil})
+		return
+	}
+	user.DisableTwoFactor()
+	if err := models.SaveUser(user); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "关闭两步验证失败", Data: nil})
+		return
+	}
+	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "关闭两步验证成功", Data: nil})
 }
 
 // GetUserInfo 获取当前用户信息

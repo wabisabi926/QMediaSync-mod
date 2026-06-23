@@ -41,6 +41,15 @@ func (user *User) DisableTwoFactor() {
 	user.TwoFactorPendingSecret = ""
 }
 
+// SaveUser 保存用户
+func SaveUser(user *User) error {
+	if err := db.Db.Save(user).Error; err != nil {
+		helpers.AppLogger.Errorf("保存用户失败: %v", err)
+		return err
+	}
+	return nil
+}
+
 // 修改用户密码
 // 传入用户ID和新密码，更新用户的密码
 func (user *User) ChangeUsernameAndPassword(username, newPassword string) (bool, error) {

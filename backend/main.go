@@ -580,6 +580,10 @@ func setRouter(r *gin.Engine) {
 		api.POST("/update/cancel", controllers.CancelUpdate)        // 取消更新
 
 		api.GET("/user/info", controllers.GetUserInfo)
+		api.GET("/user/two-factor/status", controllers.GetTwoFactorStatus)
+		api.POST("/user/two-factor/setup", controllers.SetupTwoFactor)
+		api.POST("/user/two-factor/enable", controllers.EnableTwoFactor)
+		api.POST("/user/two-factor/disable", controllers.DisableTwoFactor)
 		api.GET("/path/list", controllers.GetPathList)     // 目录列表
 		api.POST("/path/create", controllers.CreateDir)    // 创建目录接口
 		api.DELETE("/path", controllers.DeleteDir)         // 删除目录接口

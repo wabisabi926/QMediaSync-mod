@@ -5,6 +5,8 @@ const customAppName = defineModel<string>('customAppName', { required: true })
 
 const appOptions = [
   { label: 'QMediaSync', value: 'QMediaSync' },
+  { label: 'Q115-STRM', value: 'Q115-STRM' },
+  { label: 'MQ的媒体库', value: 'MQ的媒体库' },
   { label: '自定义 APPID', value: '自定义' },
 ]
 </script>

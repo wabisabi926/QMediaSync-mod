@@ -620,14 +620,16 @@ onUnmounted(() => {
     font-size: 18px;
   }
 
-  .el-menu-item {
-    padding: 0 20px !important;
+  .mobile-aside .el-menu-item,
+  .mobile-aside .el-sub-menu__title {
     height: 56px !important;
     line-height: 56px !important;
   }
 
-  .el-menu-item .el-icon {
-    margin-right: 15px;
+  .mobile-aside .el-menu-item > .el-icon,
+  .mobile-aside .el-sub-menu__title > .el-icon:not(.el-sub-menu__icon-arrow) {
+    width: 24px;
+    margin-right: 12px;
   }
 }
 

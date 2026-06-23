@@ -6,20 +6,24 @@
         <p>这里包含strm同步时产生的元数据的上传和刮削产生的上传任务。</p>
       </div>
       <div class="header-actions">
-        <el-button type="info" @click="refreshQueue" :loading="backgroundRefreshing"
-          >刷新</el-button
-        >
-        <el-button type="success" @click="pauseAllTasks" :disabled="queueStatus === 0"
-          >全部暂停</el-button
-        >
-        <el-button type="primary" @click="resumeAllTasks" :disabled="queueStatus === 1"
-          >全部开始</el-button
-        >
-        <el-button type="warning" @click="retryAllFailedTasks">重试所有失败的任务</el-button>
-        <el-button type="warning" @click="clearQueue">清空等待中的任务</el-button>
-        <el-button type="danger" @click="clearSuccessAndFailedTasks"
-          >清空成功和失败的任务</el-button
-        >
+        <div class="queue-control-actions">
+          <el-button type="info" @click="refreshQueue" :loading="backgroundRefreshing"
+            >刷新</el-button
+          >
+          <el-button type="success" @click="pauseAllTasks" :disabled="queueStatus === 0"
+            >全部暂停</el-button
+          >
+          <el-button type="primary" @click="resumeAllTasks" :disabled="queueStatus === 1"
+            >全部开始</el-button
+          >
+        </div>
+        <div class="queue-cleanup-actions">
+          <el-button type="warning" @click="retryAllFailedTasks">重试所有失败的任务</el-button>
+          <el-button type="warning" @click="clearQueue">清空等待中的任务</el-button>
+          <el-button type="danger" @click="clearSuccessAndFailedTasks"
+            >清空成功和失败的任务</el-button
+          >
+        </div>
       </div>
     </div>
 
@@ -113,7 +117,7 @@
       class="hidden-md-and-down"
     >
       <el-table-column prop="id" label="任务ID" width="64" />
-      <el-table-column prop="source" label="来源" width="72" show-overflow-tooltip />
+      <el-table-column prop="source" label="来源" width="96" show-overflow-tooltip />
       <el-table-column prop="status" label="状态" width="104">
         <template #default="scope">
           <div v-if="scope.row.error">
@@ -786,6 +790,17 @@ onUnmounted(() => {
   gap: 12px;
 }
 
+.queue-control-actions,
+.queue-cleanup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.header-actions :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+
 .queue-stats {
   display: flex;
   gap: 16px;
@@ -834,7 +849,26 @@ onUnmounted(() => {
 
   .header-actions {
     width: 100%;
-    justify-content: space-between;
+    display: grid;
+    gap: 8px;
+  }
+
+  .queue-control-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .queue-cleanup-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .queue-control-actions :deep(.el-button),
+  .queue-cleanup-actions :deep(.el-button) {
+    width: 100%;
+    min-width: 0;
   }
 
   .queue-stats {

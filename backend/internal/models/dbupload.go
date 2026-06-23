@@ -540,11 +540,7 @@ func UpdateUploadingToPending() error {
 	return err
 }
 
-func RetryFailedUploadTasks(maxRetryValues ...int) error {
-	maxRetry := 1
-	if len(maxRetryValues) > 0 {
-		maxRetry = maxRetryValues[0]
-	}
+func RetryFailedUploadTasks(maxRetry int) error {
 	updateData := map[string]interface{}{
 		"status":          UploadStatusPending,
 		"error":           "",

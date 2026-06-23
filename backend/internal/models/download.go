@@ -12,12 +12,15 @@ import (
 
 // DownloadQueue 下载队列
 type DQ struct {
-	tasks      chan *DbDownloadTask // 所有待下载任务
-	numWorkers int                  // 工作线程数
-	mutex      sync.RWMutex         // 读写锁，保护TaskMap
-	running    bool                 // 队列是否正在运行
-	limiter    *rate.Limiter        // 限速器，控制QPS
+	tasks          chan *DbDownloadTask // 所有待下载任务
+	numWorkers     int                  // 工作线程数
+	mutex          sync.RWMutex         // 读写锁，保护TaskMap
+	running        bool                 // 队列是否正在运行
+	limiter        *rate.Limiter        // 限速器，控制QPS
+	retryTriggered bool                 // 当前空闲周期是否已触发失败重试
 }
+
+const DefaultQueueRetryMax = 1
 
 // String 返回状态的字符串表示
 func (s DownloadStatus) String() string {
@@ -197,8 +200,20 @@ func (dq *DQ) moveTasksToChannel() {
 	var total int64
 	db.Db.Model(&DbDownloadTask{}).Where("status = ?", DownloadStatusPending).Count(&total)
 	if total == 0 {
+		if dq.retryTriggered {
+			return
+		}
+		if GetDownloadingCount() > 0 {
+			return
+		}
+		if err := RetryFailedDownloadTasks(DefaultQueueRetryMax); err != nil {
+			helpers.AppLogger.Errorf("下载队列自动重试失败任务失败: %v", err)
+			return
+		}
+		dq.retryTriggered = true
 		return
 	}
+	dq.retryTriggered = false
 	// 计算需要移动的任务数量
 	availableSpace := cap(dq.tasks) - len(dq.tasks)
 	tasksToMove := min(availableSpace, int(total))

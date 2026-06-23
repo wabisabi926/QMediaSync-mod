@@ -709,6 +709,7 @@ func setRouter(r *gin.Engine) {
 		api.POST("/download/queue/stop", controllers.StopDownloadQueue)                                  // 停止下载队列
 		api.GET("/download/queue/status", controllers.DownloadQueueStatus)                               // 查询下载队列状态
 		api.POST("/download/queue/clear-success-failed", controllers.ClearDownloadSuccessAndFailedTasks) // 清除下载队列中已完成和失败的任务
+		api.POST("/download/queue/retry-failed", controllers.RetryFailedDownloadTasks)                   // 重试所有失败的下载任务
 
 		// 备份与恢复相关路由
 		api.GET("/backup/list", controllers.GetBackupList)               // 获取备份列表

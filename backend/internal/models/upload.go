@@ -1,6 +1,7 @@
 package models
 
 import (
+	"Q115-STRM/internal/db"
 	"Q115-STRM/internal/helpers"
 	"sync"
 	"time"
@@ -8,10 +9,11 @@ import (
 
 // UploadQueue 上传队列
 type UQ struct {
-	tasks      chan *DbUploadTask // 所有待上传任务
-	numWorkers int                // 工作线程数
-	mutex      sync.RWMutex       // 读写锁，保护TaskMap
-	running    bool               // 队列是否正在运行
+	tasks          chan *DbUploadTask // 所有待上传任务
+	numWorkers     int                // 工作线程数
+	mutex          sync.RWMutex       // 读写锁，保护TaskMap
+	running        bool               // 队列是否正在运行
+	retryTriggered bool               // 当前空闲周期是否已触发失败重试
 }
 
 // 全局上传队列实例
@@ -111,9 +113,27 @@ func (uq *UQ) moveTasksToChannel() {
 	uq.mutex.Lock()
 	defer uq.mutex.Unlock()
 
+	var total int64
+	db.Db.Model(&DbUploadTask{}).Where("status = ?", UploadStatusPending).Count(&total)
+	if total == 0 {
+		if uq.retryTriggered {
+			return
+		}
+		if GetUploadingCount() > 0 {
+			return
+		}
+		if err := RetryFailedUploadTasks(DefaultQueueRetryMax); err != nil {
+			helpers.AppLogger.Errorf("上传队列自动重试失败任务失败: %v", err)
+			return
+		}
+		uq.retryTriggered = true
+		return
+	}
+	uq.retryTriggered = false
+
 	// 计算需要移动的任务数量
 	availableSpace := cap(uq.tasks) - len(uq.tasks)
-	tasksToMove := availableSpace
+	tasksToMove := min(availableSpace, int(total))
 	// 从数据库中查询tasksToMove条待上传的记录
 	tasks := GetPendingUploadTasks(tasksToMove)
 	if len(tasks) == 0 {

@@ -111,7 +111,28 @@ func ClearUploadSuccessAndFailedTasks(ctx *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func RetryFailedUploadTasks(ctx *gin.Context) {
-	err := models.RetryFailedUploadTasks()
+	err := models.RetryFailedUploadTasks(models.DefaultQueueRetryMax)
+	if err != nil {
+		ctx.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "重试失败任务失败", Data: nil})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "重试失败任务成功", Data: nil})
+}
+
+// RetryFailedDownloadTasks 重试所有失败的下载任务
+// @Summary 重试失败的下载任务
+// @Description 将未超过最大重试次数的失败下载任务状态改为等待中，会自动触发重试
+// @Tags 队列管理
+// @Accept json
+// @Produce json
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /download/queue/retry-failed [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
+func RetryFailedDownloadTasks(ctx *gin.Context) {
+	err := models.RetryFailedDownloadTasks(models.DefaultQueueRetryMax)
 	if err != nil {
 		ctx.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "重试失败任务失败", Data: nil})
 		return

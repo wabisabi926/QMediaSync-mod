@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type DownloadSource string
@@ -49,7 +51,25 @@ type DbDownloadTask struct {
 	EndTime       int64          `json:"end_time"`                               // 结束时间
 	Error         string         `json:"error"`                                  // 错误信息
 	MTime         int64          `json:"mtime"`                                  // 文件修改时间，下载完文件后要设置为这个时间
+	RetryCount    int            `json:"retry_count" gorm:"default:0"`           // 已重试次数
+	LastRetryTime int64          `json:"last_retry_time" gorm:"default:0"`       // 最近重试时间
 	Account       *Account       `json:"-" gorm:"-"`                             // 账户信息
+}
+
+// CanRetry 判断下载任务是否还能重试
+func (task *DbDownloadTask) CanRetry(maxRetry int) bool {
+	return task != nil && task.Status == DownloadStatusFailed && task.RetryCount < maxRetry
+}
+
+// PrepareDownloadRetry 将下载失败任务重新放回等待中
+func (task *DbDownloadTask) PrepareDownloadRetry(maxRetry int) {
+	if !task.CanRetry(maxRetry) {
+		return
+	}
+	task.Status = DownloadStatusPending
+	task.Error = ""
+	task.RetryCount++
+	task.LastRetryTime = time.Now().Unix()
 }
 
 func (task *DbDownloadTask) GetAccount() *Account {
@@ -405,6 +425,25 @@ func GetDownloadingCount() int64 {
 		Where("status = ?", DownloadStatusDownloading).
 		Count(&count)
 	return count
+}
+
+// RetryFailedDownloadTasks 重试失败的下载任务
+func RetryFailedDownloadTasks(maxRetry int) error {
+	updateData := map[string]interface{}{
+		"status":          DownloadStatusPending,
+		"error":           "",
+		"retry_count":     gorm.Expr("retry_count + 1"),
+		"last_retry_time": time.Now().Unix(),
+	}
+	err := db.Db.Model(&DbDownloadTask{}).
+		Where("status = ? AND retry_count < ?", DownloadStatusFailed, maxRetry).
+		Updates(updateData).Error
+	if err != nil {
+		helpers.AppLogger.Errorf("重试失败的下载任务失败: %v", err)
+		return err
+	}
+	helpers.AppLogger.Infof("重试失败的下载任务成功")
+	return nil
 }
 
 // 查询下载队列任务列表

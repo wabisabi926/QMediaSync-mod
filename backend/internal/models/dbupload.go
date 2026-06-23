@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // UploadStatus 上传状态
@@ -45,6 +47,8 @@ type DbUploadTask struct {
 	Error                string           `json:"error"`                                            // 错误信息
 	StartTime            int64            `json:"start_time"`                                       // 开始时间
 	EndTime              int64            `json:"end_time"`                                         // 结束时间
+	RetryCount           int              `json:"retry_count" gorm:"default:0"`                     // 已重试次数
+	LastRetryTime        int64            `json:"last_retry_time" gorm:"default:0"`                 // 最近重试时间
 	IsSeasonOrTvshowFile bool             `json:"is_season_or_tvshow_file"`                         // 是否是剧集或电视剧文件
 	SyncFile             *SyncFile        `json:"-" gorm:"-"`                                       // 同步文件
 	ScrapeMediaFile      *ScrapeMediaFile `json:"-" gorm:"-"`                                       // 刮削文件
@@ -67,6 +71,22 @@ func (s UploadStatus) String() string {
 	default:
 		return "unknown"
 	}
+}
+
+// CanRetry 判断上传任务是否还能重试
+func (task *DbUploadTask) CanRetry(maxRetry int) bool {
+	return task != nil && task.Status == UploadStatusFailed && task.RetryCount < maxRetry
+}
+
+// PrepareUploadRetry 将上传失败任务重新放回等待中
+func (task *DbUploadTask) PrepareUploadRetry(maxRetry int) {
+	if !task.CanRetry(maxRetry) {
+		return
+	}
+	task.Status = UploadStatusPending
+	task.Error = ""
+	task.RetryCount++
+	task.LastRetryTime = time.Now().Unix()
 }
 
 func (task *DbUploadTask) Complete() {
@@ -520,21 +540,26 @@ func UpdateUploadingToPending() error {
 	return err
 }
 
-func RetryFailedUploadTasks() error {
-	udpateData := map[string]interface{}{
-		"status": UploadStatusPending,
-		"error":  "",
+func RetryFailedUploadTasks(maxRetryValues ...int) error {
+	maxRetry := 1
+	if len(maxRetryValues) > 0 {
+		maxRetry = maxRetryValues[0]
+	}
+	updateData := map[string]interface{}{
+		"status":          UploadStatusPending,
+		"error":           "",
+		"retry_count":     gorm.Expr("retry_count + 1"),
+		"last_retry_time": time.Now().Unix(),
 	}
 	err := db.Db.Model(&DbUploadTask{}).
-		Where("status = ?", UploadStatusFailed).
-		Updates(udpateData).Error
+		Where("status = ? AND retry_count < ?", UploadStatusFailed, maxRetry).
+		Updates(updateData).Error
 	if err != nil {
 		helpers.AppLogger.Errorf("重试失败的上传任务失败: %v", err)
 		return err
-	} else {
-		helpers.AppLogger.Infof("重试失败的上传任务成功")
 	}
-	return err
+	helpers.AppLogger.Infof("重试失败的上传任务成功")
+	return nil
 }
 
 func GetUnFinishUploadTaskCountByScrapeMediaId(scrapeMediaFileId uint) int64 {

@@ -3,7 +3,7 @@
     <div class="card-header">
       <div>
         <h2 class="hidden-md-and-down">上传队列</h2>
-        <p>这里包含strm同步时产生的元数据的上传和刮削产生的上传任务。</p>
+        <p>上传队列包含 STRM 同步和刮削流程产生的元数据上传任务，可在这里查看进度、重试失败任务或清理记录。</p>
       </div>
       <div class="header-actions">
         <div class="queue-control-actions">
@@ -18,10 +18,10 @@
           >
         </div>
         <div class="queue-cleanup-actions">
-          <el-button type="warning" @click="retryAllFailedTasks">重试所有失败的任务</el-button>
-          <el-button type="warning" @click="clearQueue">清空等待中的任务</el-button>
+          <el-button type="warning" @click="retryAllFailedTasks">重试失败</el-button>
+          <el-button type="warning" @click="clearQueue">清空等待</el-button>
           <el-button type="danger" @click="clearSuccessAndFailedTasks"
-            >清空成功和失败的任务</el-button
+            >清空完成/失败</el-button
           >
         </div>
       </div>

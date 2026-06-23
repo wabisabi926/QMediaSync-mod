@@ -28,7 +28,7 @@
         <div class="form-help">建议使用强密码，包含大小写字母、数字和特殊字符</div>
       </el-form-item>
 
-      <el-form-item label="确认密码" prop="confirmPassword" required>
+      <el-form-item label="确认密码" prop="confirmPassword">
         <el-input
           v-model="formData.confirmPassword"
           placeholder="请再次输入密码"
@@ -42,11 +42,9 @@
 
       <div class="form-actions">
         <el-button
-          type="success"
+          type="primary"
           @click="saveSettings"
           :loading="loading"
-          size="large"
-          :icon="Check"
         >
           保存设置
         </el-button>
@@ -79,7 +77,6 @@
 <script setup lang="ts">
 import { reactive, shallowRef, inject, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Check } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { isMobile } from '@/utils/deviceUtils'
@@ -271,7 +268,7 @@ const loadCurrentUsername = async () => {
 
 .form-actions {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 12px;
   flex-wrap: nowrap;
   margin-top: 20px;

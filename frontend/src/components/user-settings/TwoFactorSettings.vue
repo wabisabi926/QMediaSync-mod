@@ -102,15 +102,20 @@ onMounted(() => {
   <section class="two-factor-section">
     <h3 class="two-factor-title">两步验证</h3>
     <el-alert
-      :title="twoFactorStatus.enabled ? '两步验证已启用' : '两步验证未启用'"
+      :title="twoFactorStatus.enabled ? '已启用' : '未启用'"
       :type="twoFactorStatus.enabled ? 'success' : 'info'"
       :closable="false"
       class="two-factor-status"
     />
 
     <template v-if="!twoFactorStatus.enabled">
-      <el-button type="primary" :loading="twoFactorLoading" @click="setupTwoFactor">
-        生成验证器配置
+      <el-button
+        type="primary"
+        :loading="twoFactorLoading"
+        class="two-factor-setup-button"
+        @click="setupTwoFactor"
+      >
+        生成配置
       </el-button>
       <div v-if="twoFactorQrCode" class="two-factor-setup">
         <img :src="twoFactorQrCode" alt="TOTP QR Code" class="two-factor-qr" />
@@ -160,13 +165,20 @@ onMounted(() => {
 }
 
 .two-factor-status {
+  width: fit-content;
+  max-width: 100%;
   margin-bottom: 4px;
+}
+
+.two-factor-setup-button {
+  justify-self: start;
 }
 
 .two-factor-setup,
 .two-factor-disable {
   display: grid;
   gap: 12px;
+  width: 100%;
   max-width: 360px;
 }
 

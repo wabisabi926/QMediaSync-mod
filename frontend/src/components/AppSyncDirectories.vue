@@ -308,7 +308,7 @@
                 <span class="tip-bullet">•</span>
                 <span
                   >无法感知网盘的文件夹重命名等操作，如果发现文件夹名字不对可以手动点击：<strong
-                    >重置&同步</strong
+                    >全量同步</strong
                   ></span
                 >
               </div>

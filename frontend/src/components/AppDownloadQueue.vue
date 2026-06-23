@@ -4,9 +4,9 @@
       <div>
         <h2 class="hidden-md-and-down">下载队列</h2>
         <p>
-          strm同步时会下载元数据，这里是下载队列，可以观察下载进度或者清空下载队列（每隔一段时间会继续未完成的下载，除非关闭元数据下载）
+          STRM 同步会把需要的元数据加入下载队列，可在这里查看进度、重试失败任务或清理已完成记录。
         </p>
-        <p>来源是"Emby媒体信息提取"的记录不会真正下载，只是触发Emby媒体信息提取。</p>
+        <p>来源为“Emby 媒体信息提取”的记录只用于触发提取流程，不会产生实际文件下载。</p>
       </div>
       <div class="header-actions">
         <div class="queue-control-actions">
@@ -21,10 +21,10 @@
           >
         </div>
         <div class="queue-cleanup-actions">
-          <el-button type="warning" @click="retryFailedTasks">重试失败任务</el-button>
-          <el-button type="warning" @click="clearQueue">清空等待中的任务</el-button>
+          <el-button type="warning" @click="retryFailedTasks">重试失败</el-button>
+          <el-button type="warning" @click="clearQueue">清空等待</el-button>
           <el-button type="danger" @click="clearSuccessAndFailedTasks"
-            >清空成功和失败的任务</el-button
+            >清空完成/失败</el-button
           >
         </div>
       </div>
@@ -811,15 +811,16 @@ onUnmounted(() => {
 
 .header-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-start;
+  align-items: center;
   gap: 12px;
 }
 
 .queue-control-actions,
 .queue-cleanup-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 12px;
 }
 
@@ -880,6 +881,7 @@ onUnmounted(() => {
   .header-actions {
     width: 100%;
     display: grid;
+    align-items: stretch;
     gap: 8px;
   }
 

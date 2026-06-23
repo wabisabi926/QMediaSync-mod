@@ -1,4 +1,5 @@
 name: release
+run-name: ${{ github.event.head_commit.message || inputs.tag || github.ref_name }}
 
 on:
   push:
@@ -24,7 +25,7 @@ jobs:
       tag: ${{ steps.meta.outputs.tag }}
       build_date: ${{ steps.meta.outputs.build_date }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ env.RELEASE_TAG }}
           fetch-depth: 0
@@ -42,17 +43,17 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.metadata.outputs.tag }}
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 11
           run_install: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
@@ -69,7 +70,7 @@ jobs:
           mkdir -p backend/web_statics
           cp backend/assets/db_config.html backend/web_statics/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: web-statics
           path: backend/web_statics
@@ -99,17 +100,17 @@ jobs:
             goarch: arm64
             binary: QMediaSync
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.metadata.outputs.tag }}
           fetch-depth: 0
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.mod
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: web-statics
           path: backend/web_statics
@@ -152,13 +153,13 @@ jobs:
             chmod +x "linux-binaries/QMediaSync_linux_${GOARCH}_exe"
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-asset-${{ matrix.goos }}-${{ matrix.goarch }}
           path: release-assets/*
           if-no-files-found: error
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: matrix.goos == 'linux'
         with:
           name: linux-binary-${{ matrix.goarch }}
@@ -175,22 +176,22 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.metadata.outputs.tag }}
           fetch-depth: 0
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: web-statics
           path: docker-context/backend/web_statics
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: linux-binary-amd64
           path: docker-context/temp_build
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: linux-binary-arm64
           path: docker-context/temp_build
@@ -205,20 +206,20 @@ jobs:
           cp backend/icon.ico docker-context/backend/icon.ico
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Login to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: docker-context
           file: docker-context/docker/release.Dockerfile
@@ -238,23 +239,25 @@ jobs:
       - packages
     permissions:
       contents: read
+    outputs:
+      has_assets: ${{ steps.fpk_assets.outputs.has_assets }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.metadata.outputs.tag }}
           fetch-depth: 0
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: web-statics
           path: backend/web_statics
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: linux-binary-amd64
           path: temp_build
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: linux-binary-arm64
           path: temp_build
@@ -279,11 +282,26 @@ jobs:
           scripts/release/package-fnos.sh "$TAG" amd64 temp_build/QMediaSync_linux_amd64_exe backend/web_statics release-assets
           scripts/release/package-fnos.sh "$TAG" arm64 temp_build/QMediaSync_linux_arm64_exe backend/web_statics release-assets
 
-      - uses: actions/upload-artifact@v4
+      - name: Detect FNOS packages
+        id: fpk_assets
+        run: |
+          shopt -s nullglob
+          assets=(release-assets/*.fpk)
+          if [ "${#assets[@]}" -gt 0 ]; then
+            printf 'has_assets=true\n' >> "$GITHUB_OUTPUT"
+            printf 'Generated %s FNOS package(s):\n' "${#assets[@]}"
+            printf '%s\n' "${assets[@]}"
+          else
+            printf 'has_assets=false\n' >> "$GITHUB_OUTPUT"
+            printf 'No FNOS packages generated; skipping fpk-assets artifact.\n'
+          fi
+
+      - uses: actions/upload-artifact@v7
+        if: steps.fpk_assets.outputs.has_assets == 'true'
         with:
           name: fpk-assets
           path: release-assets/*.fpk
-          if-no-files-found: ignore
+          if-no-files-found: error
 
   github-release:
     runs-on: ubuntu-latest
@@ -293,19 +311,19 @@ jobs:
       - docker
       - fpk
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.metadata.outputs.tag }}
           fetch-depth: 0
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: release-asset-*
           path: release-assets
           merge-multiple: true
 
-      - uses: actions/download-artifact@v4
-        continue-on-error: true
+      - uses: actions/download-artifact@v8
+        if: needs.fpk.outputs.has_assets == 'true'
         with:
           name: fpk-assets
           path: release-assets
@@ -321,7 +339,7 @@ jobs:
           fi
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.metadata.outputs.tag }}
           name: Release ${{ needs.metadata.outputs.tag }}

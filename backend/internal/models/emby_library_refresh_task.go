@@ -4,8 +4,11 @@ import (
 	"Q115-STRM/internal/db"
 	"Q115-STRM/internal/helpers"
 	"encoding/json"
+	"errors"
 	"sort"
+	"strings"
 	"time"
+	"gorm.io/gorm"
 )
 
 const (
@@ -97,6 +100,83 @@ func newPendingEmbyLibraryRefreshTask(libraryId string, libraryName string, sync
 
 func saveEmbyLibraryRefreshTask(task *EmbyLibraryRefreshTask) error {
 	return db.Db.Save(task).Error
+}
+
+func RequestEmbyLibraryRefreshBySyncPathId(syncPathId uint) error {
+	if syncPathId == 0 {
+		helpers.AppLogger.Infof("临时同步路径不触发Emby媒体库刷新")
+		return nil
+	}
+	if GlobalEmbyConfig == nil || GlobalEmbyConfig.EmbyUrl == "" || GlobalEmbyConfig.EmbyApiKey == "" || GlobalEmbyConfig.EnableRefreshLibrary == 0 {
+		helpers.AppLogger.Infof("Emby未配置或未启用刷新媒体库，跳过提交刷新任务")
+		return nil
+	}
+
+	libraries := GetEmbyLibraryIdsBySyncPathId(syncPathId)
+	if len(libraries) == 0 {
+		helpers.AppLogger.Infof("同步目录 %d 未关联Emby媒体库，跳过提交刷新任务", syncPathId)
+		return nil
+	}
+
+	now := nowUnix()
+	for libraryId, libraryName := range libraries {
+		if err := upsertEmbyLibraryRefreshTask(libraryId, libraryName, syncPathId, now); err != nil {
+			return err
+		}
+	}
+	TriggerEmbyLibraryRefreshCheck()
+	return nil
+}
+
+func upsertEmbyLibraryRefreshTask(libraryId string, libraryName string, syncPathId uint, now int64) error {
+	return db.Db.Transaction(func(tx *gorm.DB) error {
+		return upsertEmbyLibraryRefreshTaskWithDB(tx, libraryId, libraryName, syncPathId, now)
+	})
+}
+
+func upsertEmbyLibraryRefreshTaskWithDB(tx *gorm.DB, libraryId string, libraryName string, syncPathId uint, now int64) error {
+	var task EmbyLibraryRefreshTask
+	err := tx.Where("library_id = ?", libraryId).First(&task).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		task = *newPendingEmbyLibraryRefreshTask(libraryId, libraryName, []uint{syncPathId}, now)
+		if err := tx.Create(&task).Error; err != nil {
+			if isUniqueConstraintError(err) {
+				return upsertEmbyLibraryRefreshTaskWithDB(tx, libraryId, libraryName, syncPathId, now)
+			}
+			return err
+		}
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	existingIds := task.GetSyncPathIds()
+	mergedIds := mergeSyncPathIds(existingIds, []uint{syncPathId})
+	oldStatus := task.Status
+	task.LibraryName = libraryName
+	task.Status = EmbyLibraryRefreshStatusPending
+	task.LastEventAt = now
+	task.RefreshAfterAt = now + DefaultEmbyRefreshDebounceSeconds
+	if len(mergedIds) > len(existingIds) || task.DeadlineAt <= now || oldStatus == EmbyLibraryRefreshStatusCompleted || oldStatus == EmbyLibraryRefreshStatusFailed {
+		task.DeadlineAt = now + DefaultEmbyRefreshMaxWaitSeconds
+	}
+	task.LastCheckedAt = 0
+	task.Error = ""
+	task.SetSyncPathIds(mergedIds)
+	return tx.Save(&task).Error
+}
+
+func isUniqueConstraintError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := err.Error()
+	return errors.Is(err, gorm.ErrDuplicatedKey) ||
+		strings.Contains(message, "UNIQUE constraint failed: emby_library_refresh_tasks.library_id")
+}
+
+func TriggerEmbyLibraryRefreshCheck() {
 }
 
 func nowUnix() int64 {

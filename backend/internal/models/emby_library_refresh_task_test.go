@@ -2,16 +2,23 @@ package models
 
 import (
 	"Q115-STRM/internal/db"
+	"Q115-STRM/internal/helpers"
+	"io"
+	"log"
 	"reflect"
 	"testing"
 	"time"
-
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
 
 func setupEmbyRefreshTestDB(t *testing.T) {
 	t.Helper()
+	if helpers.AppLogger == nil {
+		helpers.AppLogger = &helpers.QLogger{
+			Logger: log.New(io.Discard, "", 0),
+		}
+	}
 	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
@@ -63,5 +70,77 @@ func TestRefreshTaskDefaultTimings(t *testing.T) {
 	}
 	if task.DeadlineAt != now+DefaultEmbyRefreshMaxWaitSeconds {
 		t.Fatalf("deadline_at = %d，期望 %d", task.DeadlineAt, now+DefaultEmbyRefreshMaxWaitSeconds)
+	}
+}
+
+func TestRequestEmbyLibraryRefreshBySyncPathCreatesTask(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-movie", LibraryName: "电影", SyncPathId: 10})
+
+	if err := RequestEmbyLibraryRefreshBySyncPathId(10); err != nil {
+		t.Fatalf("提交刷新任务失败: %v", err)
+	}
+
+	var task EmbyLibraryRefreshTask
+	if err := db.Db.Where("library_id = ?", "lib-movie").First(&task).Error; err != nil {
+		t.Fatalf("查询刷新任务失败: %v", err)
+	}
+	if task.Status != EmbyLibraryRefreshStatusPending {
+		t.Fatalf("刷新任务状态 = %s，期望 pending", task.Status)
+	}
+	if !reflect.DeepEqual(task.GetSyncPathIds(), []uint{10}) {
+		t.Fatalf("sync_path_ids = %v，期望 [10]", task.GetSyncPathIds())
+	}
+}
+
+func TestRequestEmbyLibraryRefreshMergesSameLibrary(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-movie", LibraryName: "电影", SyncPathId: 10})
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-movie", LibraryName: "电影", SyncPathId: 11})
+
+	if err := RequestEmbyLibraryRefreshBySyncPathId(10); err != nil {
+		t.Fatalf("第一次提交刷新任务失败: %v", err)
+	}
+	if err := RequestEmbyLibraryRefreshBySyncPathId(11); err != nil {
+		t.Fatalf("第二次提交刷新任务失败: %v", err)
+	}
+
+	var tasks []EmbyLibraryRefreshTask
+	db.Db.Find(&tasks)
+	if len(tasks) != 1 {
+		t.Fatalf("同一媒体库应合并为1条任务，实际 %d", len(tasks))
+	}
+	if !reflect.DeepEqual(tasks[0].GetSyncPathIds(), []uint{10, 11}) {
+		t.Fatalf("sync_path_ids = %v，期望 [10 11]", tasks[0].GetSyncPathIds())
+	}
+}
+
+func TestRequestEmbyLibraryRefreshSkipsDisabledConfig(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	GlobalEmbyConfig.EnableRefreshLibrary = 0
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-movie", LibraryName: "电影", SyncPathId: 10})
+
+	if err := RequestEmbyLibraryRefreshBySyncPathId(10); err != nil {
+		t.Fatalf("关闭刷新时应安静跳过，实际错误: %v", err)
+	}
+
+	var total int64
+	db.Db.Model(&EmbyLibraryRefreshTask{}).Count(&total)
+	if total != 0 {
+		t.Fatalf("关闭刷新时不应创建任务，实际 %d", total)
+	}
+}
+
+func TestRequestEmbyLibraryRefreshSkipsUnlinkedSyncPath(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+
+	if err := RequestEmbyLibraryRefreshBySyncPathId(99); err != nil {
+		t.Fatalf("无媒体库关联时应安静跳过，实际错误: %v", err)
+	}
+
+	var total int64
+	db.Db.Model(&EmbyLibraryRefreshTask{}).Count(&total)
+	if total != 0 {
+		t.Fatalf("无关联时不应创建任务，实际 %d", total)
 	}
 }

@@ -11,6 +11,7 @@
         :rules="loginRules"
         ref="loginFormRef"
         class="login-form"
+        autocomplete="on"
         @submit.prevent="handleLogin"
       >
         <el-form-item prop="username">
@@ -36,7 +37,6 @@
             :prefix-icon="Lock"
             show-password
             :disabled="loading"
-            @keyup.enter="handleLogin"
           />
         </el-form-item>
 
@@ -51,8 +51,8 @@
             type="primary"
             size="large"
             class="login-button"
+            native-type="submit"
             :loading="loading"
-            @click="handleLogin"
           >
             {{ loading ? '登录中…' : '登录' }}
           </el-button>

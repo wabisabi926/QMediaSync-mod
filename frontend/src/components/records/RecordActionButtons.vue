@@ -44,4 +44,8 @@ const visibleActions = computed(() => props.actions.filter(isVisible))
   gap: 4px;
   min-width: 0;
 }
+
+.record-actions :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
 </style>

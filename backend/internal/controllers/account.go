@@ -33,7 +33,7 @@ func GetAccountList(c *gin.Context) {
 		SourceType        models.SourceType `json:"source_type"`
 		Name              string            `json:"name"`
 		AppId             string            `json:"app_id"`
-		AppIdName         string            `json:"app_id_name"`
+		AppName           string            `json:"app_id_name"`
 		Username          string            `json:"username"`
 		UserId            string            `json:"user_id"`
 		Token             string            `json:"token"`
@@ -49,7 +49,7 @@ func GetAccountList(c *gin.Context) {
 			SourceType:        account.SourceType,
 			Name:              account.Name,
 			AppId:             "",
-			AppIdName:         "",
+			AppName:           "",
 			Username:          account.Username,
 			UserId:            string(account.UserId),
 			Token:             account.Token,
@@ -58,19 +58,19 @@ func GetAccountList(c *gin.Context) {
 			BaseUrl:           account.BaseUrl,
 		}
 		switch account.AppId {
-		case "Q115-STRM":
+		case models.BuiltIn115AppQ115STRM:
 			a.AppId = ""
-			a.AppIdName = "Q115-STRM"
-		case "MQ的媒体库":
+			a.AppName = models.BuiltIn115AppQ115STRM
+		case models.BuiltIn115AppMQMediaLibrary:
 			a.AppId = ""
-			a.AppIdName = "MQ的媒体库"
-		case "QMediaSync":
+			a.AppName = models.BuiltIn115AppMQMediaLibrary
+		case models.BuiltIn115AppQMediaSync:
 			a.AppId = ""
-			a.AppIdName = "QMediaSync"
+			a.AppName = models.BuiltIn115AppQMediaSync
 		default:
-			a.AppIdName = strings.TrimSpace(account.AppIdName)
-			if a.AppIdName == "" {
-				a.AppIdName = "自定义"
+			a.AppName = strings.TrimSpace(account.AppIdName)
+			if a.AppName == "" {
+				a.AppName = models.Custom115AppName
 			}
 			a.AppId = account.AppId
 		}
@@ -99,7 +99,7 @@ func GetAccountList(c *gin.Context) {
 // @Param source_type query string true "账号源类型"
 // @Param name query string true "账号名称"
 // @Param app_id query string false "应用ID（自定义时必需）"
-// @Param app_id_name query string false "应用ID名称（Q115-STRM、MQ的媒体库、自定义）"
+// @Param app_id_name query string false "选择的115开放平台应用（QMediaSync、Q115-STRM、MQ的媒体库、自定义）"
 // @Success 200 {object} object
 // @Failure 200 {object} object
 // @Router /account/create [post]
@@ -110,7 +110,7 @@ func CreateTmpAccount(c *gin.Context) {
 		SourceType    models.SourceType `json:"source_type" form:"source_type"`
 		Name          string            `json:"name" form:"name"`
 		AppId         string            `json:"app_id" form:"app_id"`
-		AppIdName     string            `json:"app_id_name" form:"app_id_name"`
+		SelectedApp   string            `json:"app_id_name" form:"app_id_name"`
 		CustomAppName string            `json:"custom_app_name" form:"custom_app_name"`
 	}
 	tmpAccount := &tmpAccountReq{}
@@ -126,10 +126,10 @@ func CreateTmpAccount(c *gin.Context) {
 	}
 
 	if models.SourceType115 == tmpAccount.SourceType {
-		switch tmpAccount.AppIdName {
-		case "Q115-STRM", "MQ的媒体库", "QMediaSync":
-			appId = tmpAccount.AppIdName
-		case "自定义":
+		switch tmpAccount.SelectedApp {
+		case models.BuiltIn115AppQ115STRM, models.BuiltIn115AppMQMediaLibrary, models.BuiltIn115AppQMediaSync:
+			appId = tmpAccount.SelectedApp
+		case models.Custom115AppName:
 			appId = strings.TrimSpace(tmpAccount.AppId)
 			appIdName = strings.TrimSpace(tmpAccount.CustomAppName)
 			if appId == "" {
@@ -170,9 +170,9 @@ func CreateTmpAccount(c *gin.Context) {
 // @Security ApiKeyAuth
 func UpdateAccountInfo(c *gin.Context) {
 	type updateAccountInfoReq struct {
-		ID        uint   `json:"id" form:"id"`
-		Name      string `json:"name" form:"name"`
-		AppIdName string `json:"app_id_name" form:"app_id_name"`
+		ID            uint   `json:"id" form:"id"`
+		Name          string `json:"name" form:"name"`
+		CustomAppName string `json:"app_id_name" form:"app_id_name"`
 	}
 	req := &updateAccountInfoReq{}
 	if err := c.ShouldBind(req); err != nil || req.ID == 0 {
@@ -184,7 +184,7 @@ func UpdateAccountInfo(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "查询开放平台账号失败", Data: nil})
 		return
 	}
-	if err := account.UpdateInfo(strings.TrimSpace(req.Name), strings.TrimSpace(req.AppIdName)); err != nil {
+	if err := account.UpdateInfo(strings.TrimSpace(req.Name), strings.TrimSpace(req.CustomAppName)); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "更新开放平台账号资料失败", Data: nil})
 		return
 	}

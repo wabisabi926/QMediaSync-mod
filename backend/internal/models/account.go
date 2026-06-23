@@ -17,7 +17,7 @@ type Account struct {
 	Name              string     `json:"name"` // 账号备注，仅供用户自己识别账号使用，唯一
 	SourceType        SourceType `json:"source_type"`
 	AppId             string     `json:"app_id"`
-	AppIdName         string     `json:"app_id_name"` // 自定义开放平台应用名，仅供显示
+	AppIdName         string     `json:"app_id_name"` // 自定义开放平台应用显示名，内置应用不使用该字段
 	Token             string     `json:"token" gorm:"type:string;size:512"`
 	RefreshToken      string     `json:"refresh_token" gorm:"type:string;size:512"`
 	TokenExpiriesTime int64      `json:"token_expiries_time"`
@@ -28,13 +28,21 @@ type Account struct {
 	TokenFailedReason string     `json:"token_failed_reason" gorm:"type:string;size:256"` // 刷新token失败的原因
 }
 
+const (
+	BuiltIn115AppQ115STRM       = "Q115-STRM"
+	BuiltIn115AppMQMediaLibrary = "MQ的媒体库"
+	BuiltIn115AppQMediaSync     = "QMediaSync"
+	Custom115AppName            = "自定义"
+)
+
 func (account *Account) TableName() string {
 	return "account"
 }
 
-func isBuiltIn115AppId(appId string) bool {
+// IsBuiltIn115AppId 判断是否为系统内置 115 开放平台应用标识。
+func IsBuiltIn115AppId(appId string) bool {
 	switch appId {
-	case "Q115-STRM", "MQ的媒体库", "QMediaSync":
+	case BuiltIn115AppQ115STRM, BuiltIn115AppMQMediaLibrary, BuiltIn115AppQMediaSync:
 		return true
 	default:
 		return false
@@ -197,7 +205,7 @@ func (account *Account) UpdateInfo(name string, appIdName string) error {
 	updateData := map[string]any{
 		"name": name,
 	}
-	if account.SourceType == SourceType115 && account.AppId != "" && !isBuiltIn115AppId(account.AppId) {
+	if account.SourceType == SourceType115 && account.AppId != "" && !IsBuiltIn115AppId(account.AppId) {
 		account.AppIdName = appIdName
 		updateData["app_id_name"] = appIdName
 	}

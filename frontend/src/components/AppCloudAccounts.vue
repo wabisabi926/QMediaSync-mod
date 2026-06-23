@@ -455,7 +455,7 @@
       </el-form-item>
       <V115AppSelector
         v-if="newAccountForm.type === '115'"
-        v-model:app-name="newAccountForm.app_id_name"
+        v-model:app-name="newAccountForm.selected_v115_app"
         v-model:app-id="newAccountForm.app_id"
         v-model:custom-app-name="newAccountForm.custom_app_name"
       />
@@ -612,7 +612,7 @@ const newAccountForm = ref({
   password: '',
   token: '',
   auth_type: 'password',
-  app_id_name: 'QMediaSync',
+  selected_v115_app: 'QMediaSync',
   app_id: '',
   custom_app_name: '',
 })
@@ -1024,7 +1024,7 @@ const resetForm = () => {
     password: '',
     token: '',
     auth_type: 'password',
-    app_id_name: 'QMediaSync',
+    selected_v115_app: 'QMediaSync',
     app_id: '',
     custom_app_name: '',
   }
@@ -1042,7 +1042,7 @@ const handleAddAccount = async () => {
         base_url: newAccountForm.value.base_url,
         username: newAccountForm.value.username,
         password: newAccountForm.value.password,
-        app_id_name: newAccountForm.value.app_id_name,
+        app_id_name: newAccountForm.value.selected_v115_app,
         app_id: newAccountForm.value.app_id,
         custom_app_name: newAccountForm.value.custom_app_name,
       })

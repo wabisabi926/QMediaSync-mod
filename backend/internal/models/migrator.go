@@ -18,7 +18,7 @@ type Migrator struct {
 	VersionCode int `json:"version_code"` // 版本号
 }
 
-var MaxVersionCode = 42
+var MaxVersionCode = 43
 var AllTables = []any{
 	Migrator{},
 	BackupConfig{}, BackupRecord{},
@@ -26,7 +26,7 @@ var AllTables = []any{
 	SyncPath{}, SyncFile{}, SyncPathScrapePath{},
 	ScrapeSettings{}, ScrapePath{}, MovieCategory{}, TvShowCategory{}, ScrapePathCategory{},
 	ScrapeMediaFile{}, Media{}, MediaSeason{}, MediaEpisode{}, ScrapeStrmPath{},
-	RequestStat{}, EmbyConfig{}, EmbyMediaItem{}, EmbyMediaSyncFile{}, EmbyLibrary{}, EmbyLibrarySyncPath{},
+	RequestStat{}, EmbyConfig{}, EmbyMediaItem{}, EmbyMediaSyncFile{}, EmbyLibrary{}, EmbyLibrarySyncPath{}, EmbyLibraryRefreshTask{},
 	DbDownloadTask{}, DbUploadTask{}, NotificationChannel{}, TelegramChannelConfig{}, MeoWChannelConfig{}, BarkChannelConfig{},
 	ServerChanChannelConfig{}, CustomWebhookChannelConfig{}, NotificationRule{},
 }
@@ -487,6 +487,12 @@ func Migrate() {
 		// 添加两步验证和队列重试字段
 		db.Db.AutoMigrate(User{}, DbDownloadTask{}, DbUploadTask{})
 		helpers.AppLogger.Info("已添加两步验证和队列重试字段")
+		migrator.UpdateVersionCode(db.Db)
+	}
+	if migrator.VersionCode == 42 {
+		// 添加Emby媒体库刷新任务表
+		db.Db.AutoMigrate(EmbyLibraryRefreshTask{})
+		helpers.AppLogger.Info("已添加emby_library_refresh_tasks表")
 		migrator.UpdateVersionCode(db.Db)
 	}
 	helpers.AppLogger.Infof("当前数据库版本 %d", migrator.VersionCode)

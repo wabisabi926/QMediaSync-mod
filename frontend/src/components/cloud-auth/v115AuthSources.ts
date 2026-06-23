@@ -11,7 +11,6 @@ export type V115AuthProvider =
   | 'mqfamily'
   | 'qmediasync'
   | 'moviepilot'
-  | 'openlist'
   | 'clouddrive'
 
 export interface V115SelectedQrApp {
@@ -94,25 +93,19 @@ export const webAuthProviders: V115WebAuthProviderOption[] = [
     appName: 'MoviePilot-115',
   },
   {
-    label: 'OpenList',
-    sourceType: 'third_party_service',
-    provider: 'openlist',
-    appId: '100197303',
-    appName: 'OpenList',
-  },
-  {
-    label: 'CloudDrive（请用扫码授权）',
+    label: 'CloudDrive',
     sourceType: 'third_party_service',
     provider: 'clouddrive',
     appId: '100195313',
     appName: 'CloudDrive',
-    disabled: true,
   },
 ]
 
 export const buildV115CreatePayload = (selection: V115CreateSelection): V115CreatePayload => {
   if (selection.authMode === 'oauth') {
-    const provider = webAuthProviders.find((item) => item.provider === selection.selectedWebProvider)
+    const provider = webAuthProviders.find(
+      (item) => item.provider === selection.selectedWebProvider,
+    )
     return {
       auth_source_type: provider?.sourceType ?? 'built_in_relay',
       auth_provider: provider?.provider ?? 'qmediasync',

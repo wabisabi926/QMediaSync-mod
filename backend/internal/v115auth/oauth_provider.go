@@ -3,7 +3,6 @@ package v115auth
 import (
 	"Q115-STRM/internal/helpers"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -50,8 +49,6 @@ func GetOAuthProvider(provider AuthProvider) (OAuthProvider, bool) {
 		return relayOAuthProvider{}, true
 	case ProviderMoviePilot:
 		return moviePilotOAuthProvider{authServer: "https://movie-pilot.org", client: defaultOAuthHTTPClient()}, true
-	case ProviderOpenList:
-		return openListOAuthProvider{authServer: "https://api.oplist.org", client: defaultOAuthHTTPClient()}, true
 	case ProviderCloudDrive:
 		return cloudDriveOAuthProvider{}, true
 	default:
@@ -180,90 +177,28 @@ func (provider moviePilotOAuthProvider) Poll(ctx context.Context, state string) 
 	return token, nil
 }
 
-type openListOAuthProvider struct {
-	authServer string
-	client     *http.Client
-}
+type cloudDriveOAuthProvider struct{}
 
-func (provider openListOAuthProvider) BuildAuth(ctx context.Context, req OAuthURLRequest) (OAuthURLResult, error) {
-	authServer := strings.TrimRight(provider.authServer, "/")
-	if authServer == "" {
-		authServer = "https://api.oplist.org"
-	}
-	endpoint := authServer + "/115cloud/requests?driver_txt=115cloud_go&server_use=true"
-	resp, err := httpGetJSON(ctx, provider.client, endpoint)
+func (provider cloudDriveOAuthProvider) BuildAuth(_ context.Context, req OAuthURLRequest) (OAuthURLResult, error) {
+	state, err := cloudDriveCallbackState(req.RedirectURL, req.AccountID)
 	if err != nil {
 		return OAuthURLResult{}, err
 	}
-	authURL := stringField(resp, "text")
-	if authURL == "" {
-		return OAuthURLResult{}, fmt.Errorf("OpenList 授权服务响应缺少 text")
+	clientID := strings.TrimSpace(req.AppID)
+	if clientID == "" {
+		clientID = "100195313"
 	}
-	state := extractOpenListState(authURL)
-	if state == "" {
-		return OAuthURLResult{}, fmt.Errorf("OpenList 授权服务响应缺少 state")
-	}
-	SaveOAuthState(OAuthState{State: state, AccountID: req.AccountID, Provider: ProviderOpenList, RedirectURL: req.RedirectURL})
-	return OAuthURLResult{
-		AuthURL:   authURL,
-		State:     state,
-		ExpiresIn: OAuthStateTTLSeconds,
-	}, nil
-}
-
-func (provider openListOAuthProvider) Confirm(_ context.Context, payload map[string]string) (OAuthTokenResult, error) {
-	state := payload["state"]
-	if state != "" {
-		if _, ok := GetOAuthState(state, ProviderOpenList); !ok {
-			return OAuthTokenResult{}, fmt.Errorf("授权状态不存在或已过期")
-		}
-		defer DeleteOAuthState(state)
-	}
-	if token := tokenResultFromPayload(payload); token.Done {
-		return token, nil
-	}
-	encoded := strings.TrimPrefix(payload["location"], "#")
-	if encoded == "" {
-		encoded = strings.TrimPrefix(payload["data"], "#")
-	}
-	if encoded == "" {
-		return OAuthTokenResult{}, fmt.Errorf("OpenList 回调缺少 token 数据")
-	}
-	raw, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil {
-		if raw, err = base64.RawStdEncoding.DecodeString(encoded); err != nil {
-			return OAuthTokenResult{}, err
-		}
-	}
-	var decoded map[string]any
-	if err := json.Unmarshal(raw, &decoded); err != nil {
-		return OAuthTokenResult{}, err
-	}
-	token := tokenResultFromMap(decoded)
-	if !token.Done {
-		return OAuthTokenResult{}, fmt.Errorf("OpenList 回调未返回访问凭证")
-	}
-	return token, nil
-}
-
-func (provider openListOAuthProvider) Poll(_ context.Context, _ string) (OAuthTokenResult, error) {
-	return OAuthTokenResult{}, errUnsupportedOAuthOperation
-}
-
-type cloudDriveOAuthProvider struct{}
-
-func (provider cloudDriveOAuthProvider) BuildAuth(_ context.Context, _ OAuthURLRequest) (OAuthURLResult, error) {
-	return OAuthURLResult{}, fmt.Errorf("CloudDrive 网页授权服务当前不可用，请使用扫码授权中的 CloudDrive APPID")
+	authURL, _ := url.Parse("https://passportapi.115.com/open/authorize")
+	query := authURL.Query()
+	query.Set("client_id", clientID)
+	query.Set("redirect_uri", "https://redirect115.zhenyunpan.com")
+	query.Set("response_type", "code")
+	query.Set("state", state)
+	authURL.RawQuery = query.Encode()
+	return OAuthURLResult{AuthURL: authURL.String(), State: state, ExpiresIn: OAuthStateTTLSeconds}, nil
 }
 
 func (provider cloudDriveOAuthProvider) Confirm(_ context.Context, payload map[string]string) (OAuthTokenResult, error) {
-	state := payload["state"]
-	if state != "" {
-		if _, ok := GetOAuthState(state, ProviderCloudDrive); !ok {
-			return OAuthTokenResult{}, fmt.Errorf("授权状态不存在或已过期")
-		}
-		defer DeleteOAuthState(state)
-	}
 	token := tokenResultFromPayload(payload)
 	if !token.Done {
 		return OAuthTokenResult{}, fmt.Errorf("CloudDrive 回调未返回访问凭证")
@@ -273,6 +208,35 @@ func (provider cloudDriveOAuthProvider) Confirm(_ context.Context, payload map[s
 
 func (provider cloudDriveOAuthProvider) Poll(_ context.Context, _ string) (OAuthTokenResult, error) {
 	return OAuthTokenResult{}, errUnsupportedOAuthOperation
+}
+
+func cloudDriveCallbackState(redirectURL string, accountID uint) (string, error) {
+	redirectURL = strings.TrimSpace(redirectURL)
+	if redirectURL == "" {
+		return "", fmt.Errorf("CloudDrive 授权缺少回跳地址")
+	}
+	callbackURL, err := url.Parse(redirectURL)
+	if err != nil || callbackURL.Scheme == "" || callbackURL.Host == "" {
+		return "", fmt.Errorf("CloudDrive 授权回跳地址无效")
+	}
+	values := url.Values{}
+	values.Set("source", "115")
+	values.Set("account_id", strconv.FormatUint(uint64(accountID), 10))
+	if callbackURL.Fragment != "" {
+		fragmentPath, fragmentQuery, hasQuery := strings.Cut(callbackURL.Fragment, "?")
+		if hasQuery {
+			values, _ = url.ParseQuery(fragmentQuery)
+			values.Set("source", "115")
+			values.Set("account_id", strconv.FormatUint(uint64(accountID), 10))
+		}
+		callbackURL.Fragment = fragmentPath + "?" + values.Encode()
+		return callbackURL.String(), nil
+	}
+	query := callbackURL.Query()
+	query.Set("source", "115")
+	query.Set("account_id", strconv.FormatUint(uint64(accountID), 10))
+	callbackURL.RawQuery = query.Encode()
+	return callbackURL.String(), nil
 }
 
 func httpGetJSON(ctx context.Context, client *http.Client, endpoint string) (map[string]any, error) {
@@ -356,20 +320,4 @@ func stringField(data map[string]any, key string) string {
 	default:
 		return fmt.Sprint(v)
 	}
-}
-
-func extractOpenListState(authURL string) string {
-	outer, err := url.Parse(authURL)
-	if err != nil {
-		return ""
-	}
-	redirectURI := outer.Query().Get("redirect_uri")
-	if redirectURI == "" {
-		return outer.Query().Get("state")
-	}
-	inner, err := url.Parse(redirectURI)
-	if err != nil {
-		return ""
-	}
-	return inner.Query().Get("state")
 }

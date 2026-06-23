@@ -24,7 +24,6 @@ func TestBuiltInAppIDOrder(t *testing.T) {
 func TestKnownThirdPartySources(t *testing.T) {
 	cases := map[AuthProvider]string{
 		ProviderMoviePilot: "100197847",
-		ProviderOpenList:   "100197303",
 		ProviderCloudDrive: "100195313",
 	}
 	for provider, appID := range cases {

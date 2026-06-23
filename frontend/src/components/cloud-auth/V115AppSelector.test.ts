@@ -52,7 +52,7 @@ describe('V115AppSelector', () => {
     expect(wrapper.text()).toContain('自定义 APPID')
   })
 
-  it('扫码授权提供明确的 APPID 搜索入口', () => {
+  it('扫码授权把 APPID 搜索内置在下拉框里', () => {
     const wrapper = mount(V115AppSelector, {
       props: {
         authMode: 'qr',
@@ -79,7 +79,11 @@ describe('V115AppSelector', () => {
             template:
               '<div><button v-for="option in options" :key="option.value">{{ option.label }}</button></div>',
           },
-          ElSelect: { template: '<div><slot /></div>' },
+          ElSelect: {
+            props: ['placeholder'],
+            template:
+              '<div><input name="v115-appid-search" :placeholder="placeholder" /><slot /></div>',
+          },
           ElOption: { props: ['label'], template: '<div>{{ label }}<slot /></div>' },
           ElInput: {
             props: ['name', 'placeholder', 'modelValue'],
@@ -91,8 +95,11 @@ describe('V115AppSelector', () => {
       },
     })
 
-    expect(wrapper.text()).toContain('搜索 APPID')
+    expect(wrapper.text()).not.toContain('搜索 APPID')
     expect(wrapper.find('input[name="v115-appid-search"]').exists()).toBe(true)
+    expect(wrapper.find('input[name="v115-appid-search"]').attributes('placeholder')).toBe(
+      '搜索应用名或 APPID',
+    )
   })
 
   it('扫码授权搜索结果存在下一页时显示加载更多入口', async () => {
@@ -128,7 +135,11 @@ describe('V115AppSelector', () => {
             template:
               '<div><button v-for="option in options" :key="option.value">{{ option.label }}</button></div>',
           },
-          ElSelect: { template: '<div><slot /></div>' },
+          ElSelect: {
+            props: ['placeholder', 'remoteMethod'],
+            template:
+              '<div><input name="v115-appid-search" :placeholder="placeholder" @input="remoteMethod?.($event.target.value)" /><slot /><slot name="footer" /></div>',
+          },
           ElOption: { props: ['label'], template: '<div>{{ label }}<slot /></div>' },
           ElInput: {
             props: ['name', 'placeholder', 'modelValue'],

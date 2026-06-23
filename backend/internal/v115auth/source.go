@@ -1218,7 +1218,6 @@ func BuiltInRelaySources() []Source {
 func ThirdPartySources() []Source {
 	return []Source{
 		{SourceType: SourceTypeThirdPartyService, Provider: ProviderMoviePilot, AppID: "100197847", AppName: "MoviePilot-115", DisplayName: "MoviePilot", AuthServer: "https://movie-pilot.org"},
-		{SourceType: SourceTypeThirdPartyService, Provider: ProviderOpenList, AppID: "100197303", AppName: "OpenList", DisplayName: "OpenList", AuthServer: "https://api.oplist.org"},
 		{SourceType: SourceTypeThirdPartyService, Provider: ProviderCloudDrive, AppID: "100195313", AppName: "CloudDrive", DisplayName: "CloudDrive", RedirectURI: "https://redirect115.zhenyunpan.com"},
 	}
 }

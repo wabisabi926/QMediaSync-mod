@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildV115CreatePayload,
   getV115AuthAction,
+  webAuthProviders,
   type V115AccountAuthInfo,
 } from './v115AuthSources'
 
@@ -29,16 +30,23 @@ describe('v115AuthSources', () => {
       buildV115CreatePayload({
         authMode: 'oauth',
         selectedQrApp: { appId: '100197849', appName: 'QMediaSync' },
-        selectedWebProvider: 'moviepilot',
+        selectedWebProvider: 'clouddrive',
         customAppId: '',
         customAppName: '',
       }),
     ).toEqual({
       auth_source_type: 'third_party_service',
-      auth_provider: 'moviepilot',
-      app_id: '100197847',
-      app_id_name: 'MoviePilot-115',
+      auth_provider: 'clouddrive',
+      app_id: '100195313',
+      app_id_name: 'CloudDrive',
     })
+  })
+
+  it('网页授权不再展示 OpenList', () => {
+    expect(webAuthProviders.some((provider) => provider.provider === 'openlist')).toBe(false)
+    expect(
+      webAuthProviders.find((provider) => provider.provider === 'clouddrive')?.disabled,
+    ).not.toBe(true)
   })
 
   it('授权动作按 auth_provider 分发', () => {

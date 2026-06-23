@@ -504,12 +504,11 @@ import {
 } from 'element-plus'
 import { isMobile } from '@/utils/deviceUtils'
 import DirectorySelector from '@/components/DirectorySelector.vue'
+import { SERVER_URL } from '@/const'
 
 import type { AxiosStatic } from 'axios'
 import type { CloudAccount, DirInfo } from '@/typing'
 const http: AxiosStatic | undefined = inject('$http')
-// 依赖注入
-const SERVER_URL = inject('SERVER_URL')
 
 // 接口定义
 interface ScrapePath {

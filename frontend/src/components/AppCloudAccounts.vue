@@ -569,6 +569,7 @@ import { formatTimestamp } from '@/utils/timeUtils'
 import { sourceTypeMap, sourceTypeOptions, sourceTypeTagMap } from '@/utils/sourceTypeUtils'
 import { isMobile as checkIsMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 import { getV115AppInfoRows, isCustomV115App } from '@/utils/cloudAccountUtils'
+import { collectOAuthCallbackParams } from '@/utils/oauthCallback'
 import {
   buildV115CreatePayload,
   getV115AuthAction,
@@ -610,6 +611,12 @@ interface CloudAccount {
   token_failed_reason?: string
   status?: CloudDiskStatus
   statusLoading?: boolean
+}
+
+interface V115OAuthURLData {
+  auth_url?: string
+  state?: string
+  polling?: boolean
 }
 
 const http: AxiosStatic | undefined = inject('$http')
@@ -993,7 +1000,7 @@ const handle115OAuth = async (accountId?: number) => {
     })
 
     if (response?.data.code === 200 && response.data.data) {
-      const data = response.data.data
+      const data = response.data.data as V115OAuthURLData | string
       if (typeof data === 'string') {
         window.location.href = data
         return
@@ -1199,9 +1206,7 @@ const confirmOAuth = async (
 }
 
 const checkOAuthCallback = async () => {
-  const hash = window.location.hash
-  const hashQueryIndex = hash.indexOf('?')
-  const urlParams = new URLSearchParams(hashQueryIndex >= 0 ? hash.substring(hashQueryIndex) : '')
+  const urlParams = collectOAuthCallbackParams(window.location.search, window.location.hash)
   const accountId = urlParams.get('account_id')
   const tokenData = urlParams.get('token_data')
   const source = urlParams.get('source') || '115'

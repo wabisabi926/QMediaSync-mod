@@ -12,6 +12,7 @@ import App from './App.vue'
 
 import router from './router/index'
 import { useAuthStore } from '@/stores/auth'
+import { SERVER_URL } from '@/const'
 
 // 配置axios
 axios.defaults.timeout = 10000
@@ -75,6 +76,7 @@ const app = createApp(App)
 app.use(pinia)
 app.use(router)
 app.provide('$http', axios)
+app.provide('SERVER_URL', SERVER_URL)
 
 // 初始化本地认证缓存
 useAuthStore().initAuth()

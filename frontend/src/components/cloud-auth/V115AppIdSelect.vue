@@ -14,7 +14,9 @@ const customAppId = defineModel<string>('customAppId', { required: true })
 const customAppName = defineModel<string>('customAppName', { required: true })
 
 const http = inject<AxiosStatic | undefined>('$http')
-const { keyword, items, loading, hasMore, search, loadMore, reset } = useV115AppIdSearch({ http })
+const { keyword, items, total, loading, hasMore, search, loadMore, reset } = useV115AppIdSearch({
+  http,
+})
 
 const defaultOptions = computed(() => [
   ...pinnedBuiltInAppIDs,
@@ -34,14 +36,19 @@ const selectOptions = computed(() => {
   }
   return defaultOptions.value
 })
+const resultSummary = computed(() => {
+  if (!keyword.value.trim() || total.value === 0) return ''
+  return `已显示 ${items.value.length} / ${total.value}`
+})
+const showDropdownFooter = computed(() =>
+  Boolean(keyword.value.trim() && (hasMore.value || resultSummary.value)),
+)
 const selectedValue = computed({
   get: () => selectedQrApp.value.appId,
   set: (value) => {
-    if (value === '__load_more') {
-      void loadMore()
-      return
-    }
-    const option = [...defaultOptions.value, ...remoteOptions.value].find((item) => item.value === value)
+    const option = [...defaultOptions.value, ...remoteOptions.value].find(
+      (item) => item.value === value,
+    )
     selectedQrApp.value = {
       appId: value,
       appName: option?.appName || option?.label || value,
@@ -86,22 +93,16 @@ watch(showCustomFields, (visible) => {
 </script>
 
 <template>
-  <el-form-item label="搜索 APPID">
-    <el-input
-      v-model="keyword"
-      name="v115-appid-search"
-      autocomplete="off"
-      placeholder="输入应用名或 APPID"
-      clearable
-      @input="handleSearch"
-    />
-  </el-form-item>
   <el-form-item label="APPID">
     <el-select
       v-model="selectedValue"
       class="v115-app-select"
       filterable
       remote
+      clearable
+      reserve-keyword
+      remote-show-suffix
+      placeholder="搜索应用名或 APPID"
       :remote-method="handleSearch"
       :loading="loading"
     >
@@ -111,20 +112,22 @@ watch(showCustomFields, (visible) => {
         :label="option.label"
         :value="option.value"
       />
-      <el-option v-if="hasMore" class="v115-load-more-option" label="加载更多" value="__load_more">
-        <el-button text type="primary" @click.stop="handleLoadMore">加载更多</el-button>
-      </el-option>
+      <template v-if="showDropdownFooter" #footer>
+        <div class="v115-select-footer">
+          <span class="v115-result-summary">{{ resultSummary }}</span>
+          <el-button
+            v-if="hasMore"
+            class="v115-load-more-button"
+            text
+            type="primary"
+            :loading="loading"
+            @click.stop="handleLoadMore"
+          >
+            加载更多
+          </el-button>
+        </div>
+      </template>
     </el-select>
-    <el-button
-      v-if="hasMore"
-      class="v115-load-more-button"
-      text
-      type="primary"
-      :loading="loading"
-      @click="handleLoadMore"
-    >
-      加载更多
-    </el-button>
   </el-form-item>
   <template v-if="showCustomFields">
     <el-form-item label="应用名">
@@ -153,12 +156,21 @@ watch(showCustomFields, (visible) => {
   width: 100%;
 }
 
-.v115-load-more-option {
-  text-align: center;
+.v115-select-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+}
+
+.v115-result-summary {
+  color: #909399;
+  font-size: 12px;
 }
 
 .v115-load-more-button {
-  margin-top: 8px;
   padding-left: 0;
+  padding-right: 0;
 }
 </style>

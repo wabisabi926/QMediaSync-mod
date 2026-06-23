@@ -414,12 +414,11 @@ func runStrmThenScrape(extractedIDs []uint) string {
 
 				// 如果有需要刷新的目录，等待30秒后执行刷新
 				if len(refreshIDs) > 0 {
-					// 等待30秒，确保文件操作完成
 					go func(ids []uint) {
-						time.Sleep(30 * time.Second)
-						// 对需要刷新的目录触发Emby媒体库刷新
 						for _, taskID := range ids {
-							models.RefreshEmbyLibraryBySyncPathId(taskID)
+							if err := models.RequestEmbyLibraryRefreshBySyncPathId(taskID); err != nil {
+								helpers.AppLogger.Errorf("提交Emby媒体库刷新任务失败，同步目录ID %d: %v", taskID, err)
+							}
 						}
 					}(refreshIDs)
 				}

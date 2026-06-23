@@ -312,13 +312,13 @@ func (s *SyncStrm) Start() error {
 			db.Db.Model(&models.SyncPath{}).Where("id = ?", s.SyncPathId).Update("is_full_sync", false)
 		}
 		db.Db.Model(&models.SyncPath{}).Where("id = ?", s.SyncPathId).Update("last_sync_at", s.Sync.FinishAt)
-		// 触发刷新Emby媒体库，延迟30s，等待文件下载完成
+		// 提交Emby媒体库刷新任务，由协调器等待相关下载任务完成
 		go func() {
-			time.Sleep(30 * time.Second)
 			if s.NewMeta > 0 || s.NewStrm > 0 {
-				s.Sync.Logger.Info("有新的元数据文件或STRM文件，触发刷新Emby媒体库，是否可以刷新受到 Emby设置 - STRM同步完成后刷新媒体库 选项是否开启的影响")
-				models.RefreshEmbyLibraryBySyncPathId(s.SyncPathId)
-
+				s.Sync.Logger.Info("有新的元数据文件或STRM文件，提交Emby媒体库刷新任务")
+				if err := models.RequestEmbyLibraryRefreshBySyncPathId(s.SyncPathId); err != nil {
+					s.Sync.Logger.Errorf("提交Emby媒体库刷新任务失败: %v", err)
+				}
 			}
 			if s.NewStrm > 0 {
 				s.Sync.Logger.Info("准备触发关联的刮削任务")

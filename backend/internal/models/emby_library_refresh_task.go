@@ -179,6 +179,87 @@ func isUniqueConstraintError(err error) bool {
 func TriggerEmbyLibraryRefreshCheck() {
 }
 
+func CountActiveDownloadTasksBySyncPathIds(syncPathIds []uint) (int64, error) {
+	if len(syncPathIds) == 0 {
+		return 0, nil
+	}
+	var count int64
+	err := db.Db.Model(&DbDownloadTask{}).
+		Joins("JOIN sync_files ON sync_files.id = db_download_tasks.sync_file_id").
+		Where("sync_files.sync_path_id IN ?", syncPathIds).
+		Where(
+			"(db_download_tasks.status IN ? OR (db_download_tasks.status = ? AND db_download_tasks.retry_count < ?))",
+			[]DownloadStatus{DownloadStatusPending, DownloadStatusDownloading},
+			DownloadStatusFailed,
+			DefaultQueueRetryMax,
+		).
+		Count(&count).Error
+	return count, err
+}
+
+func HasActiveStrmSyncTask(syncPathIds []uint) bool {
+	if IsStrmSyncTaskActiveFunc == nil {
+		return false
+	}
+	for _, syncPathId := range syncPathIds {
+		if IsStrmSyncTaskActiveFunc(syncPathId) {
+			return true
+		}
+	}
+	return false
+}
+
+func GetEmbySyncPathIdsByLibraryId(libraryId string) []uint {
+	var relations []EmbyLibrarySyncPath
+	if err := db.Db.Where("library_id = ?", libraryId).Find(&relations).Error; err != nil {
+		helpers.AppLogger.Errorf("查询Emby媒体库 %s 关联同步目录失败: %v", libraryId, err)
+		return []uint{}
+	}
+	ids := make([]uint, 0, len(relations))
+	for _, rel := range relations {
+		if rel.SyncPathId > 0 {
+			ids = append(ids, rel.SyncPathId)
+		}
+	}
+	return mergeSyncPathIds(ids, nil)
+}
+
+func IsEmbyLibraryRefreshTaskReady(task *EmbyLibraryRefreshTask, now int64) (bool, string, error) {
+	if task == nil {
+		return false, "empty_task", nil
+	}
+	if task.Status != EmbyLibraryRefreshStatusPending {
+		return false, "not_pending", nil
+	}
+	if task.RefreshAfterAt > now && task.DeadlineAt > now {
+		return false, "debounce", nil
+	}
+
+	syncPathIds := task.GetSyncPathIds()
+	if len(syncPathIds) == 0 {
+		return false, "empty_sync_paths", nil
+	}
+	waitSyncPathIds := mergeSyncPathIds(syncPathIds, GetEmbySyncPathIdsByLibraryId(task.LibraryId))
+
+	if task.DeadlineAt > 0 && task.DeadlineAt <= now {
+		return true, "deadline", nil
+	}
+
+	if HasActiveStrmSyncTask(waitSyncPathIds) {
+		return false, "sync_running", nil
+	}
+
+	activeDownloads, err := CountActiveDownloadTasksBySyncPathIds(syncPathIds)
+	if err != nil {
+		return false, "download_query_error", err
+	}
+	if activeDownloads > 0 {
+		return false, "download_running", nil
+	}
+
+	return true, "ready", nil
+}
+
 func nowUnix() int64 {
 	return time.Now().Unix()
 }

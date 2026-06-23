@@ -144,3 +144,94 @@ func TestRequestEmbyLibraryRefreshSkipsUnlinkedSyncPath(t *testing.T) {
 		t.Fatalf("无关联时不应创建任务，实际 %d", total)
 	}
 }
+
+func TestRefreshTaskWaitsForRelatedDownloadsOnly(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	db.Db.Create(&SyncFile{BaseModel: BaseModel{ID: 1}, SyncPathId: 10})
+	db.Db.Create(&SyncFile{BaseModel: BaseModel{ID: 2}, SyncPathId: 20})
+	db.Db.Create(&DbDownloadTask{SyncFileId: 1, Status: DownloadStatusPending})
+	db.Db.Create(&DbDownloadTask{SyncFileId: 2, Status: DownloadStatusPending})
+
+	count, err := CountActiveDownloadTasksBySyncPathIds([]uint{10})
+	if err != nil {
+		t.Fatalf("统计下载任务失败: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("只应统计当前媒体库相关下载任务，实际 %d", count)
+	}
+}
+
+func TestRefreshTaskWaitsForActiveSyncTask(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	IsStrmSyncTaskActiveFunc = func(syncPathId uint) bool {
+		return syncPathId == 10
+	}
+
+	if !HasActiveStrmSyncTask([]uint{10, 11}) {
+		t.Fatal("存在活跃同步任务时应等待")
+	}
+	if HasActiveStrmSyncTask([]uint{11}) {
+		t.Fatal("无活跃同步任务时不应等待")
+	}
+}
+
+func TestRefreshTaskWaitsForSameLibraryQueuedSyncPath(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	now := nowUnix()
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-movie", LibraryName: "电影", SyncPathId: 10})
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-movie", LibraryName: "电影", SyncPathId: 11})
+	task := newPendingEmbyLibraryRefreshTask("lib-movie", "电影", []uint{10}, now-100)
+	task.RefreshAfterAt = now - 1
+	db.Db.Create(task)
+	IsStrmSyncTaskActiveFunc = func(syncPathId uint) bool {
+		return syncPathId == 11
+	}
+
+	ready, reason, err := IsEmbyLibraryRefreshTaskReady(task, now)
+	if err != nil {
+		t.Fatalf("判断刷新任务失败: %v", err)
+	}
+	if ready {
+		t.Fatalf("同一媒体库还有同步目录在队列中时不应刷新")
+	}
+	if reason != "sync_running" {
+		t.Fatalf("等待原因 = %s，期望 sync_running", reason)
+	}
+}
+
+func TestRefreshTaskWaitsForRetryableFailedDownload(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	db.Db.Create(&SyncFile{BaseModel: BaseModel{ID: 1}, SyncPathId: 10})
+	db.Db.Create(&DbDownloadTask{SyncFileId: 1, Status: DownloadStatusFailed, RetryCount: 0})
+
+	count, err := CountActiveDownloadTasksBySyncPathIds([]uint{10})
+	if err != nil {
+		t.Fatalf("统计下载任务失败: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("可自动重试的失败任务应继续阻塞刷新，实际 %d", count)
+	}
+}
+
+func TestRefreshTaskIsReadyAfterDeadline(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	now := nowUnix()
+	task := newPendingEmbyLibraryRefreshTask("lib-movie", "电影", []uint{10}, now-DefaultEmbyRefreshMaxWaitSeconds-1)
+	task.RefreshAfterAt = now - 1
+	task.DeadlineAt = now - 1
+	db.Db.Create(task)
+	db.Db.Create(&SyncFile{BaseModel: BaseModel{ID: 1}, SyncPathId: 10})
+	db.Db.Create(&DbDownloadTask{SyncFileId: 1, Status: DownloadStatusDownloading})
+	IsStrmSyncTaskActiveFunc = func(syncPathId uint) bool { return true }
+
+	ready, reason, err := IsEmbyLibraryRefreshTaskReady(task, now)
+	if err != nil {
+		t.Fatalf("判断刷新任务失败: %v", err)
+	}
+	if !ready {
+		t.Fatalf("超过最大等待时间后应兜底刷新，实际 reason=%s", reason)
+	}
+	if reason != "deadline" {
+		t.Fatalf("兜底原因 = %s，期望 deadline", reason)
+	}
+}

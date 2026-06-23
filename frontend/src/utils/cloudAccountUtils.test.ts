@@ -9,6 +9,18 @@ describe('cloudAccountUtils', () => {
     expect(isCustomV115App({ source_type: 'openlist', app_id: 'custom-app-id' })).toBe(false)
   })
 
+  it('数字内置 APPID 不应按自定义应用处理', () => {
+    expect(
+      isCustomV115App({
+        source_type: '115',
+        app_id: '100197849',
+        app_id_name: 'QMediaSync',
+        auth_source_type: 'built_in_appid',
+        auth_provider: 'official_pkce',
+      }),
+    ).toBe(false)
+  })
+
   it('自定义 115 应用展示应用名和 APPID', () => {
     expect(
       getV115AppInfoRows({

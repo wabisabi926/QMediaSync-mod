@@ -455,9 +455,11 @@
       </el-form-item>
       <V115AppSelector
         v-if="newAccountForm.type === '115'"
-        v-model:app-name="newAccountForm.selected_v115_app"
-        v-model:app-id="newAccountForm.app_id"
-        v-model:custom-app-name="newAccountForm.custom_app_name"
+        v-model:auth-mode="newAccountForm.auth_mode"
+        v-model:selected-qr-app="newAccountForm.selected_qr_app"
+        v-model:selected-web-provider="newAccountForm.selected_web_provider"
+        v-model:custom-app-id="newAccountForm.custom_v115_app_id"
+        v-model:custom-app-name="newAccountForm.custom_v115_app_name"
       />
     </el-form>
     <template #footer>
@@ -566,7 +568,15 @@ import { ElMessageBox, ElMessage } from 'element-plus'
 import { formatTimestamp } from '@/utils/timeUtils'
 import { sourceTypeMap, sourceTypeOptions, sourceTypeTagMap } from '@/utils/sourceTypeUtils'
 import { isMobile as checkIsMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
-import { getV115AppInfoRows, isBuiltInV115App, isCustomV115App } from '@/utils/cloudAccountUtils'
+import { getV115AppInfoRows, isCustomV115App } from '@/utils/cloudAccountUtils'
+import {
+  buildV115CreatePayload,
+  getV115AuthAction,
+  type V115AuthMode,
+  type V115AuthProvider,
+  type V115AuthSourceType,
+  type V115SelectedQrApp,
+} from '@/components/cloud-auth/v115AuthSources'
 
 const isMobile = ref(checkIsMobile())
 
@@ -591,7 +601,12 @@ interface CloudAccount {
   token: string
   auth_type?: string
   app_id_name?: string
+  app_name?: string
+  display_name?: string
   app_id?: string
+  auth_source_type?: V115AuthSourceType
+  auth_provider?: V115AuthProvider
+  requires_encryption_key?: boolean
   token_failed_reason?: string
   status?: CloudDiskStatus
   statusLoading?: boolean
@@ -612,9 +627,11 @@ const newAccountForm = ref({
   password: '',
   token: '',
   auth_type: 'password',
-  selected_v115_app: 'QMediaSync',
-  app_id: '',
-  custom_app_name: '',
+  auth_mode: 'qr' as V115AuthMode,
+  selected_qr_app: { appId: '100197849', appName: 'QMediaSync' } as V115SelectedQrApp,
+  selected_web_provider: 'qmediasync' as V115AuthProvider,
+  custom_v115_app_id: '',
+  custom_v115_app_name: '',
 })
 
 const showEditAccountDialog = ref(false)
@@ -696,7 +713,12 @@ const loadAccounts = async () => {
         password: item.password,
         auth_type: item.auth_type,
         app_id_name: item.app_id_name,
+        app_name: item.app_name,
+        display_name: item.display_name,
         app_id: item.app_id,
+        auth_source_type: item.auth_source_type,
+        auth_provider: item.auth_provider,
+        requires_encryption_key: item.requires_encryption_key,
         token_failed_reason: item.token_failed_reason || '',
         status: undefined,
         statusLoading: false,
@@ -927,12 +949,13 @@ const handleUpdateAccount = async () => {
 
 const handleAuthorize = (row: CloudAccount) => {
   if (row.source_type === '115') {
-    if (isCustomV115App(row)) {
+    const action = getV115AuthAction(row)
+    if (action === 'pkce') {
       selectedV115Account.value = row
       showV115AuthDialog.value = true
       return
     }
-    if (isBuiltInV115App(row.app_id_name)) {
+    if (action === 'oauth') {
       void handle115OAuth(row.id)
       return
     }
@@ -970,7 +993,23 @@ const handle115OAuth = async (accountId?: number) => {
     })
 
     if (response?.data.code === 200 && response.data.data) {
-      window.location.href = response.data.data
+      const data = response.data.data
+      if (typeof data === 'string') {
+        window.location.href = data
+        return
+      }
+      if (data.polling && data.state) {
+        if (data.auth_url) {
+          window.open(data.auth_url, '_blank', 'noopener,noreferrer')
+        }
+        poll115OAuthStatus(accountId, data.state)
+        return
+      }
+      if (data.auth_url) {
+        window.location.href = data.auth_url
+        return
+      }
+      ElMessage.error('授权服务未返回授权地址')
     } else {
       ElMessage.error(response?.data.message || '获取授权地址失败')
     }
@@ -980,6 +1019,39 @@ const handle115OAuth = async (accountId?: number) => {
       ElMessage.error('获取授权地址失败')
     }
   }
+}
+
+const poll115OAuthStatus = (accountId: number | undefined, state: string) => {
+  if (!accountId) return
+  let retries = 0
+  const maxRetries = 60
+  const timer = window.setInterval(async () => {
+    retries += 1
+    try {
+      const response = await http?.get(`${SERVER_URL}/115/oauth-status`, {
+        params: { account_id: accountId, state },
+      })
+      if (response?.data.code === 200 && response.data.data?.done) {
+        window.clearInterval(timer)
+        ElMessage.success('授权成功')
+        await loadAccounts()
+        return
+      }
+      if (response?.data.code !== 200) {
+        window.clearInterval(timer)
+        ElMessage.error(response?.data.message || '授权状态查询失败')
+        return
+      }
+      if (retries >= maxRetries) {
+        window.clearInterval(timer)
+        ElMessage.error('授权等待超时')
+      }
+    } catch (error) {
+      window.clearInterval(timer)
+      console.error('115 OAuth状态查询错误:', error)
+      ElMessage.error('授权状态查询失败')
+    }
+  }, 3000)
 }
 
 const handleBaiduOAuth = async (accountId?: number) => {
@@ -1024,9 +1096,11 @@ const resetForm = () => {
     password: '',
     token: '',
     auth_type: 'password',
-    selected_v115_app: 'QMediaSync',
-    app_id: '',
-    custom_app_name: '',
+    auth_mode: 'qr',
+    selected_qr_app: { appId: '100197849', appName: 'QMediaSync' },
+    selected_web_provider: 'qmediasync',
+    custom_v115_app_id: '',
+    custom_v115_app_name: '',
   }
 }
 
@@ -1039,12 +1113,13 @@ const handleAddAccount = async () => {
     let url = `${SERVER_URL}/account/add`
     if (newAccountForm.value.type === '115') {
       Object.assign(data, {
-        base_url: newAccountForm.value.base_url,
-        username: newAccountForm.value.username,
-        password: newAccountForm.value.password,
-        app_id_name: newAccountForm.value.selected_v115_app,
-        app_id: newAccountForm.value.app_id,
-        custom_app_name: newAccountForm.value.custom_app_name,
+        ...buildV115CreatePayload({
+          authMode: newAccountForm.value.auth_mode,
+          selectedQrApp: newAccountForm.value.selected_qr_app,
+          selectedWebProvider: newAccountForm.value.selected_web_provider,
+          customAppId: newAccountForm.value.custom_v115_app_id,
+          customAppName: newAccountForm.value.custom_v115_app_name,
+        }),
       })
     } else if (newAccountForm.value.type === 'openlist') {
       url = `${SERVER_URL}/account/openlist`
@@ -1082,6 +1157,7 @@ const confirmOAuth = async (
   source: string,
   accountId: number,
   tokenData: string,
+  payload: Record<string, string> = {},
 ): Promise<void> => {
   try {
     let url = ''
@@ -1097,7 +1173,7 @@ const confirmOAuth = async (
       url,
       {
         account_id: accountId,
-        data: tokenData,
+        ...(tokenData ? { data: tokenData } : { payload }),
       },
       {
         headers: {
@@ -1130,8 +1206,9 @@ const checkOAuthCallback = async () => {
   const tokenData = urlParams.get('token_data')
   const source = urlParams.get('source') || '115'
 
-  if (accountId && tokenData) {
-    await confirmOAuth(source, parseInt(accountId), tokenData)
+  if (accountId && (tokenData || urlParams.get('access_token') || urlParams.get('state'))) {
+    const payload = Object.fromEntries(urlParams.entries())
+    await confirmOAuth(source, parseInt(accountId), tokenData || '', payload)
   }
 }
 

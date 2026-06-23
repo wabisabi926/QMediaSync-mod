@@ -19,6 +19,40 @@ export interface V115SelectedQrApp {
   appName: string
 }
 
+export interface V115CreateSelection {
+  authMode: V115AuthMode
+  selectedQrApp: V115SelectedQrApp
+  selectedWebProvider: V115AuthProvider
+  customAppId: string
+  customAppName: string
+}
+
+export interface V115CreatePayload {
+  auth_source_type: V115AuthSourceType
+  auth_provider: V115AuthProvider
+  app_id: string
+  app_id_name: string
+  custom_app_name?: string
+}
+
+export interface V115AccountAuthInfo {
+  source_type: string
+  app_id?: string
+  app_id_name?: string
+  auth_source_type?: V115AuthSourceType
+  auth_provider?: V115AuthProvider
+}
+
+export type V115AuthAction = 'pkce' | 'oauth' | 'unsupported'
+
+export interface V115WebAuthProviderOption {
+  label: string
+  sourceType: V115AuthSourceType
+  provider: V115AuthProvider
+  appId?: string
+  appName: string
+}
+
 export const pinnedBuiltInAppIDs = [
   { label: 'QMediaSync', value: '100197849', appName: 'QMediaSync' },
   { label: 'Q115-STRM', value: '100197665', appName: 'Q115-STRM' },
@@ -32,7 +66,7 @@ export const featuredBuiltInAppIDs = [
   { label: '媒体播放器', value: '100195125', appName: '媒体播放器' },
 ] as const
 
-export const webAuthProviders = [
+export const webAuthProviders: V115WebAuthProviderOption[] = [
   {
     label: 'QMediaSync',
     sourceType: 'built_in_relay',
@@ -72,10 +106,57 @@ export const webAuthProviders = [
     appId: '100195313',
     appName: 'CloudDrive',
   },
-] as const satisfies readonly {
-  label: string
-  sourceType: V115AuthSourceType
-  provider: V115AuthProvider
-  appId?: string
-  appName: string
-}[]
+]
+
+export const buildV115CreatePayload = (selection: V115CreateSelection): V115CreatePayload => {
+  if (selection.authMode === 'oauth') {
+    const provider = webAuthProviders.find((item) => item.provider === selection.selectedWebProvider)
+    return {
+      auth_source_type: provider?.sourceType ?? 'built_in_relay',
+      auth_provider: provider?.provider ?? 'qmediasync',
+      app_id: provider?.appId || '',
+      app_id_name: provider?.appName || provider?.label || '',
+    }
+  }
+
+  if (selection.selectedQrApp.appId === 'custom') {
+    return {
+      auth_source_type: 'custom_appid',
+      auth_provider: 'official_pkce',
+      app_id: selection.customAppId,
+      app_id_name: selection.customAppName,
+      custom_app_name: selection.customAppName,
+    }
+  }
+
+  return {
+    auth_source_type: 'built_in_appid',
+    auth_provider: 'official_pkce',
+    app_id: selection.selectedQrApp.appId,
+    app_id_name: selection.selectedQrApp.appName,
+  }
+}
+
+export const getV115AuthAction = (account: V115AccountAuthInfo): V115AuthAction => {
+  if (account.source_type !== '115') {
+    return 'unsupported'
+  }
+  if (account.auth_provider === 'official_pkce') {
+    return 'pkce'
+  }
+  if (
+    account.auth_source_type === 'built_in_relay' ||
+    account.auth_source_type === 'third_party_service'
+  ) {
+    return 'oauth'
+  }
+  if (!account.auth_source_type) {
+    if (account.app_id) {
+      return 'pkce'
+    }
+    if (['QMediaSync', 'Q115-STRM', 'MQ的媒体库'].includes(account.app_id_name || 'QMediaSync')) {
+      return 'oauth'
+    }
+  }
+  return 'unsupported'
+}

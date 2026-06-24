@@ -51,6 +51,7 @@ pnpm run dev
    该脚本会：
    - 读取上一个 `v*` 标签至今的提交，按类型分组生成 `.changes/v0.xx.xx.md`（作为 GitHub Release 正文）；
    - 把本版本段落插入 `CHANGELOG.md` 顶部，保留历史内容。
+   - 拒绝重复版本：如果本地已存在同名 git tag、`.changes/<tag>.md`，或 `CHANGELOG.md` 已包含该版本段落，命令会直接失败。
 
 2. 检查生成内容无误后提交：
 
@@ -67,7 +68,7 @@ pnpm run dev
    ```
 
 推送 `v*` 标签会触发 GitHub Actions 的 release 流程，生成 Windows/Linux 发布包、可选的飞牛 FPK，并创建 GitHub Release。
-GitHub Release 的正文取自上一步提交的 `.changes/v0.xx.xx.md`；若该文件不存在，正文回退为占位文字 `Release <tag>`。
+GitHub Release 的正文取自上一步提交的 `.changes/v0.xx.xx.md`；release workflow 会拒绝重复 GitHub Release 和缺失 `.changes/<tag>.md` 的发布。
 发布流程还会使用 `GITHUB_TOKEN` 推送 GHCR 镜像 `ghcr.io/<owner>/qmediasync:<tag>` 和 `ghcr.io/<owner>/qmediasync:latest`。
 
 也可以在 GitHub Actions 中手动触发 `release` workflow，并输入要发布的 Git tag（同样要求该 tag 对应的 `.changes/<tag>.md` 已提交）。

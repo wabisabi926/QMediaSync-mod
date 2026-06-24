@@ -26,9 +26,12 @@ fi
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
+source "$ROOT/scripts/release/changelog_guard.sh"
 
 CHANGELOG="CHANGELOG.md"
 NOTES=".changes/${TAG}.md"
+
+ensure_new_changelog_version "$TAG" "$CHANGELOG" ".changes"
 
 mkdir -p .changes
 

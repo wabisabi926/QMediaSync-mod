@@ -1,114 +1,21 @@
 # QMediaSync
 
-### 开源版本不包含115开放平台账号，需要自备
+QMediaSync 是一个媒体同步和刮削系统，用于管理 115 网盘、百度网盘、OpenList 等云存储与 Emby 媒体服务器之间的文件同步、STRM 生成、媒体刮削等流程。
 
-### 本项目接受除了资源（搜索、订阅、下载）、逆向接口的一切功能PR
+## 快速信息
 
-## 介绍
+- 默认用户名：`admin`
+- 默认密码：`admin123`
+- Web 默认端口：HTTP `12333`，HTTPS `12332`
+- Emby 代理默认端口：HTTP `8095`，HTTPS `8094`
 
-- **默认用户名 admin,密码 admin123**
-- 默认端口：http-12333   https-12332
-- emby代理端口默认：http-8095  https-8094
+## 文档
 
-## 调试启动
-
-后端：
-
-```bash
-cd backend
-go run .
-```
-
-前端：
-
-```bash
-cd frontend
-corepack enable
-corepack prepare pnpm@11 --activate
-pnpm install
-pnpm run dev
-```
-
-前端开发环境默认连接 `http://localhost:12333/api`。
-
-## 退出
-
-- linux: ```ctrl + c```
-- windows: 系统托盘找到QMediaSync图标，右键退出
-
-## 发布新版本
-
-更新日志由 [git-cliff](https://git-cliff.org/) 从 git 提交记录自动生成，因此提交信息需遵循 [Conventional Commits](https://www.conventionalcommits.org/)（`feat:`、`fix:`、`docs:`、`chore:`、`ci:` 等前缀），不规范的提交（如 `Merge`、自由文案）会被自动忽略。
-
-发版步骤（本地执行，推荐使用脚本）：
-
-1. 确认当前工作区干净，并确认 `dev` 是准备发布的内容。
-
-2. 执行发布脚本（需先安装 git-cliff，见其[安装文档](https://git-cliff.org/docs/installation/)）：
-
-   ```bash
-   scripts/release/release.sh v0.xx.xx
-   ```
-
-   也可以用 `patch`、`minor`、`major` 根据当前最新版本自动推导下一个版本：
-
-   ```bash
-   scripts/release/release.sh patch
-   scripts/release/release.sh minor
-   scripts/release/release.sh major
-   ```
-
-   该脚本会：
-   - 校验 tag 格式必须为 `v<major>.<minor>.<patch>`，例如 `v0.15.3`；
-   - 校验 tag 必须大于当前最新版本；如果 minor 或 major 版本增加，还会分别要求输入 `minor yes` 或 `major yes` 额外确认；
-   - 同步 `main`，并把本地 `dev` 快进合入 `main`；
-   - 读取上一个 `v*` 标签至今的提交，按类型分组生成 `.changes/v0.xx.xx.md`（作为 GitHub Release 正文）；
-   - 把本版本段落插入 `CHANGELOG.md` 顶部，保留历史内容。
-   - 拒绝重复版本：如果本地已存在同名 git tag、`.changes/<tag>.md`，或 `CHANGELOG.md` 已包含该版本段落，命令会直接失败。
-   - 展示 `CHANGELOG.md` 和 `.changes/<tag>.md` 的 diff，等待输入 `yes` 确认；
-   - 在 `main` 上提交 `chore: release <tag>`；
-   - 创建 annotated tag：`git tag -a <tag> -m "Release <tag>"`；
-   - 推送 `main` 和 tag 触发 release workflow；
-   - 将 release commit 快进同步回 `dev` 并推送 `dev`。
-
-推送 `v*` 标签会触发 GitHub Actions 的 release 流程，生成 Windows/Linux 发布包、可选的飞牛 FPK，并创建 GitHub Release。
-GitHub Release 的正文取自上一步提交的 `.changes/v0.xx.xx.md`；release workflow 会拒绝重复 GitHub Release 和缺失 `.changes/<tag>.md` 的发布。
-发布流程还会使用 `GITHUB_TOKEN` 推送 GHCR 镜像 `ghcr.io/<owner>/qmediasync:<tag>` 和 `ghcr.io/<owner>/qmediasync:latest`。
-
-也可以在 GitHub Actions 中手动触发 `release` workflow，并输入要发布的 Git tag（同样要求该 tag 对应的 `.changes/<tag>.md` 已提交）。
-
-> 飞牛 FPK 打包依赖飞牛官方工具 `fnpack`（不公开分发）。release workflow 通过仓库 Secret `FNPACK_DOWNLOAD_URL`（指向可下载 `fnpack` 可执行文件的地址）下载安装，再用 `backend/FNOS/` 下的素材执行 `fnpack build` 生成 `*.fpk`。**未配置该 Secret 时，`fpk` job 和 `scripts/release/package-fnos.sh` 会自动跳过 FPK 打包**，其余 Windows/Linux 发布包、Docker 镜像不受影响；若希望缺少工具时直接报错（而非静默跳过），可在脚本环境设 `REQUIRE_FNPACK=1`。
-
-> 调整 changelog 的分组、过滤规则可编辑仓库根目录的 `cliff.toml`。
-
-## 数据库
-
-开源版本不包含postgres数据库二进制文件，需要自己安装，建议版本15.x，然后配置环境变量使用。
-
-## 需要自备的密钥
-
-- 115开放平台 AppID，现在改为使用OAuth授权方式，开发者需要根据代码自己实现OAUTH服务端来和115通信，或者改为二维码扫码登录授权。
-- TMDB API KEY，可在 web 页面（刮削设置）填写；刮削实际使用 v3 API Key
-- OpenAI兼容的 API KEY，目前用的硅基流动，可在 web 页面（刮削设置）填写
-- Fanart.tv API KEY，可在 web 页面（刮削设置）填写
-
-以上 key 可在 `backend/main.go` 开头的变量中设置、编译时通过 ldflags 传入，或运行时通过环境变量 / `config/.env` 注入（变量名 `TMDB_API_KEY`、`TMDB_ACCESS_TOKEN`、`SC_API_KEY`、`FANART_API_KEY`，无 `DEFAULT_` 前缀）。取值优先级：web UI > 环境变量 > ldflags。
-
-> 两步验证等本机敏感数据使用实例本地密钥：每个实例首次启动自动生成并保存到 `config/encryption.key`。网盘 OAuth 中转使用共享密钥 `OAUTH_RELAY_ENCRYPTION_KEY`，可编译时通过 ldflags 变量 `main.OAuthRelayEncryptionKey` 传入，或运行时通过环境变量 / `config/.env` 注入。
-
-## 仓库结构
-
-```text
-backend/          Go 后端、内置静态前端产物
-docker/           Dockerfile、容器入口脚本和在线更新监视脚本
-frontend/         Vue/Vite 前端源码
-scripts/release/  GitHub Actions 发布打包辅助脚本、changelog 生成脚本
-scripts/install/  Linux 裸机安装辅助脚本
-.github/          CI 构建流程
-cliff.toml        git-cliff 配置（从提交记录生成 changelog）
-```
-
-前端生产构建会输出到 `backend/web_statics`，后端从该目录提供 Web UI。
+- [文档索引](docs/README.md)
+- [开发调试](docs/development.md)
+- [配置和密钥](docs/configuration.md)
+- [发布流程](docs/release.md)
+- [项目结构](docs/project-structure.md)
 
 ## 原项目地址
 

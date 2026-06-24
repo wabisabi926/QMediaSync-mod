@@ -1,75 +1,107 @@
 # 工具函数目录
 
+`frontend/src/utils` 存放前端跨组件复用的小工具。当前目录按功能拆分为以下文件。
+
+## cloudAccountUtils.ts
+
+云盘账号和 115 开放平台应用信息展示辅助：
+
+- `CloudAccountAppInfo`
+- `isCustomV115App(account)`
+- `isBuiltInV115App(appName)`
+- `getV115AppInfoRows(account)`
+
 ## deviceUtils.ts
 
-该文件包含设备相关的工具函数：
+设备类型判断和窗口尺寸变化监听：
 
-### isMobile()
-
-检测当前设备是否为移动端。
-
-```typescript
-import { isMobile } from '@/utils/deviceUtils'
-
-// 检测是否为移动端
-cosnt mobile = isMobile()
-```
-
-### onDeviceTypeChange(callback)
-
-监听设备类型变化，当设备类型从移动端切换到桌面端或反之亦然时触发回调。
+- `isMobile()`
+- `onDeviceTypeChange(callback)`
 
 ```typescript
-import { onDeviceTypeChange } from '@/utils/deviceUtils'
+import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 
-// 监听设备类型变化
-const removeListener = onDeviceTypeChange((isMobile) => {
-  console.log('设备类型变化:', isMobile ? '移动端' : '桌面端')
+const mobile = isMobile()
+
+const removeListener = onDeviceTypeChange((nextIsMobile) => {
+  console.log('设备类型变化:', nextIsMobile ? '移动端' : '桌面端')
 })
 
-// 在组件卸载时移除监听器
-// removeListener()
+removeListener()
 ```
 
 ## fileIconUtils.ts
 
-该文件包含文件类型识别和图标映射功能：
+文件类型识别和 Element Plus 图标名称映射：
 
-### getFileType(filename)
-
-根据文件名识别文件类型。
-
-```typescript
-import { getFileType } from '@/utils/fileIconUtils'
-
-const type = getFileType('movie.mp4') // returns 'video'
-const type2 = getFileType('image.jpg') // returns 'image'
-const type3 = getFileType('info.nfo') // returns 'nfo'
-```
-
-### getFileIcon(type, isDirectory)
-
-根据文件类型获取Element Plus图标名称。
+- `getFileType(filename)`
+- `getFileIcon(type, isDirectory)`
+- `getFileIconByName(filename, isDirectory)`
 
 ```typescript
-import { getFileIcon } from '@/utils/fileIconUtils'
+import { getFileIconByName, getFileType } from '@/utils/fileIconUtils'
 
-const icon = getFileIcon('video') // returns 'VideoPlay'
-const icon2 = getFileIcon('directory', true) // returns 'Folder'
+const type = getFileType('movie.mp4')
+const icon = getFileIconByName('movie.mp4')
 ```
 
-### getFileIconByName(filename, isDirectory)
+支持的视频扩展名：`mp4`、`mkv`、`avi`、`mov`、`wmv`、`flv`、`m4v`、`webm`、`ts`、`rmvb`、`rm`、`3gp`、`mpg`、`mpeg`。
 
-根据文件名直接获取图标名称（组合了getFileType和getFileIcon）。
+支持的图片扩展名：`jpg`、`jpeg`、`png`、`gif`、`bmp`、`webp`、`svg`、`ico`、`tiff`、`tga`。
 
-```typescript
-import { getFileIconByName } from '@/utils/fileIconUtils'
+## fileSizeUtils.ts
 
-const icon = getFileIconByName('movie.mp4') // returns 'VideoPlay'
-```
+文件大小格式化：
 
-**支持的文件类型：**
+- `formatFileSize(bytes)`
 
-- **视频文件**：mp4, mkv, avi, mov, wmv, flv, m4v, webm, ts, rmvb, rm, 3gp, mpg, mpeg
-- **图片文件**：jpg, jpeg, png, gif, bmp, webp, svg, ico, tiff, tga
-- **NFO文件**：nfo
+## notificationUtils.ts
+
+通知渠道、事件类型和展示文本辅助：
+
+- `ChannelType`
+- `EventType`
+- `NotificationChannel`
+- `NotificationConfig`
+- `NotificationRule`
+- `getChannelTypeName(type)`
+- `getChannelTypeColor(type)`
+- `getEventTypeName(type)`
+- `getEventTypeDescription(type)`
+
+## oauthCallback.ts
+
+OAuth 回调参数收集：
+
+- `collectOAuthCallbackParams(search, hash)`
+
+该函数会合并普通 query string 和 hash 中的 query 参数。
+
+## sourceTypeUtils.ts
+
+同步来源类型展示配置：
+
+- `sourceTypeOptions`
+- `sourceTypeTagMap`
+- `sourceTypeMap`
+
+当前启用的来源类型包括 `115`、`baidupan`、`openlist`、`local`。
+
+## timeUtils.ts
+
+时间、存储空间和状态样式辅助：
+
+- `formatTimestamp(timestamp)`
+- `formatDateTime(timestamp)`
+- `formatTime(timestamp)`
+- `formatStorage(bytes)`
+- `getStoragePercent(used, total)`
+- `getProgressColor(used, total)`
+- `getMemberClass(level)`
+- `formatExpireTime(expireTime)`
+- `getExpireClass(expireTime)`
+- `formatDuration(seconds)`
+
+## mockAPI.ts
+
+当前为空文件，保留为本地开发或后续模拟接口辅助的占位文件。

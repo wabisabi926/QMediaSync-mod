@@ -1,33 +1,45 @@
 # AGENTS.md - QMediaSync
 
-本文档为 AI 编码代理提供项目约定和指南。
+本文档是 AI 编码助手在本仓库工作的约束文档。优先遵循用户当前请求；当请求未明确细节时，按本文档和现有代码风格做保守实现。
 
-## 项目概述
+## 工作原则
 
-QMediaSync 是一个媒体同步和刮削系统，用于管理 115网盘/百度网盘/OpenList 等云存储与 Emby 媒体服务器之间的文件同步、STRM 生成、媒体刮削（TMDB/Fanart）等功能。
+- 先阅读相关代码、文档和现有调用方，再修改文件。
+- 保持改动聚焦在用户请求范围内，不做无关重构、格式化或依赖更新。
+- 工作区可能有用户未提交改动；不要回滚、覆盖或整理与任务无关的修改。
+- 修改已有接口、模型、配置或前端交互时，优先保持所在模块的既有模式。
+- 修改代码、配置、接口、命令或流程时，必须同步更新对应文档，保持文档和实现实时一致；README 是正式文档索引入口，新增或迁移文档时同步维护其中的链接。
+- 新增行为必须有相应验证；无法运行验证时，在最终回复中说明原因和剩余风险。
+- 不要把被忽略的本地辅助目录作为正式项目文档入口，例如 `docs/superpowers/`。
 
-- **语言:** Go 1.25
-- **模块名:** `Q115-STRM`
-- **Web 框架:** Gin
-- **ORM:** GORM
-- **数据库:** SQLite / PostgreSQL（支持内嵌和外部）
-- **后端:** `backend/`
-- **前端:** `frontend/`，Vue/Vite，生产构建输出到 `backend/web_statics/`
+## 项目事实
 
-## 构建命令
+QMediaSync 是媒体同步和刮削系统，用于管理 115 网盘、百度网盘、OpenList 等云存储与 Emby 媒体服务器之间的文件同步、STRM 生成、媒体刮削（TMDB/Fanart）等功能。
+
+- 语言：Go 1.25
+- 模块名：`Q115-STRM`
+- Web 框架：Gin
+- ORM：GORM
+- 数据库：SQLite / PostgreSQL（支持内嵌和外部）
+- 后端目录：`backend/`
+- 前端目录：`frontend/`，Vue/Vite，生产构建输出到 `backend/web_statics/`
+
+## 常用命令
+
+按任务选择最小必要命令，不要为了无关验证运行大范围构建。
 
 ```bash
 # 构建前端静态文件
 (cd frontend && corepack enable && corepack prepare pnpm@11 --activate && pnpm install --frozen-lockfile && pnpm run build)
 
-# 本地构建
+# 本地构建后端
 (cd backend && go build -o QMediaSync .)
 
 # 构建并注入版本信息
 (cd backend && CGO_ENABLED=0 go build -ldflags="-s -w -X main.Version=v1.0.0 -X 'main.PublishDate=2026-01-01'" -o QMediaSync .)
 
-# 下载依赖
-cd backend && go mod tidy
+# 下载 / 整理 Go 依赖
+(cd backend && go mod tidy)
 
 # 跨平台构建（正式发布由 .github/workflows/release.yaml 执行）
 (cd backend && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o QMediaSync.exe .)
@@ -37,13 +49,15 @@ cd backend && go mod tidy
 docker build -f docker/source.Dockerfile -t qmediasync .
 ```
 
-## 测试命令
+## 验证要求
+
+后端常用验证：
 
 ```bash
 # 运行所有测试
 (cd backend && go test ./...)
 
-# 运行单个包的测试
+# 运行单个包测试
 (cd backend && go test ./internal/helpers/)
 (cd backend && go test ./internal/models/)
 (cd backend && go test ./internal/synccron/)
@@ -52,27 +66,42 @@ docker build -f docker/source.Dockerfile -t qmediasync .
 (cd backend && go test ./internal/helpers/ -run TestExtractFilename)
 (cd backend && go test ./internal/models/ -run TestOldSyntax_BasicMovie)
 
-# 运行测试并显示详细输出
-(cd backend && go test -v ./internal/helpers/)
-
 # 运行测试并显示覆盖率
 (cd backend && go test -cover ./...)
 ```
 
-## 代码检查
-
-本项目没有配置 lint 工具（无 `.golangci.yml`、无 Makefile）。使用标准 Go 工具和 `goimports`：
+代码检查：
 
 ```bash
 (cd backend && go vet ./...)
 (cd backend && goimports -local Q115-STRM -w .)
 ```
 
-`goimports` 会执行 gofmt 级别的格式化，并额外维护 import 的增删和分组；格式化统一使用 `goimports -local Q115-STRM -w .`。
+本项目没有配置 lint 工具（无 `.golangci.yml`、无 Makefile）。Go 格式化统一使用 `goimports -local Q115-STRM -w .`，不要手工维护 import 分组。
+
+前端测试约束：
+
+- 前端测试文件统一放在 `frontend/test/` 下按类型归类，例如 `components/`、`composables/`、`utils/`、`unit/`、`e2e/`、`regression/`。
+- `frontend/test/` 是本地测试目录，保持被 `.gitignore` 忽略，不提交测试文件。
+- 不使用 `package.json` 的 `test:unit` 脚本；需要跑前端测试时直接用裸命令。
+- 不要直接对整个 `frontend/test` 跑 Vitest；该目录里可能包含 Playwright、源码检查脚本或其他非 Vitest suite。
+
+常用 Vitest 命令：
+
+```bash
+(cd frontend && pnpm exec vitest run test/components test/composables test/utils test/unit/const.test.ts)
+(cd frontend && pnpm exec vitest run test/components/AppLogin.test.ts)
+```
+
+Go 测试约束：
+
+- 使用 table-driven 测试模式。
+- 测试名称使用中文描述，例如 `TestOldSyntax_BasicMovie`。
+- 测试文件位于对应包目录下，例如 `internal/helpers/extract_test.go`。
 
 ## 项目结构
 
-```
+```text
 backend/
   main.go                # 入口，初始化环境、数据库、路由、启动服务
   internal/              # Gin 控制器、模型、同步、刮削、通知等后端逻辑
@@ -88,16 +117,15 @@ scripts/install/         # Linux 裸机安装辅助脚本
 .github/workflows/       # CI 构建流程
 ```
 
-## 导入顺序
+## Go 代码约束
 
-Go 文件使用 `goimports` 维护 import，不再手工维护自定义顺序：
+### 导入和格式化
 
-```bash
-go install golang.org/x/tools/cmd/goimports@latest
-(cd backend && goimports -local Q115-STRM -w .)
-```
+- Go 文件使用 `goimports` 维护 import，不要手工调整 import 分组。
+- `-local Q115-STRM` 用于识别本项目包。
+- 由于模块名 `Q115-STRM` 不是域名式路径，导入分组以 `goimports -local Q115-STRM` 的实际输出为准。
 
-`-local Q115-STRM` 用于识别本项目包。由于模块名 `Q115-STRM` 不是域名式路径，导入分组以 `goimports -local Q115-STRM` 的实际输出为准；不要手工调整 import 分组。当前常见输出为标准库、本项目包、第三方包三组。示例：
+常见输出为标准库、本项目包、第三方包三组：
 
 ```go
 import (
@@ -113,27 +141,28 @@ import (
 )
 ```
 
-## 命名约定
+### 命名
 
-- **导出类型/函数:** `PascalCase` — `SyncPath`, `GetSyncPathById`, `CreateSyncPath`
-- **未导出字段/函数:** `camelCase` — `isRelease`, `httpServer`, `loadYaml`
-- **常量:** 导出用 `PascalCase`（`SourceType115`, `ScrapeMediaStatusScanned`），未导出用 `camelCase`
-- **接口:** `PascalCase`，带描述性后缀 — `IdentifyImpl`, `driverImpl`, `EventHandler`
-- **布尔字段:** 使用 `Is`/`Enable`/`Has` 前缀 — `IsRunning`, `EnableCron`, `HasRemoteSeasonPath`
-- **包级全局变量:** `PascalCase` — `GlobalConfig`, `AppLogger`, `SettingsGlobal`, `GlobalDownloadQueue`
-- **所有 Go 标识符使用英文**，中文仅出现在注释和字符串字面量中
+- 导出类型 / 函数使用 `PascalCase`，例如 `SyncPath`、`GetSyncPathById`、`CreateSyncPath`。
+- 未导出字段 / 函数使用 `camelCase`，例如 `isRelease`、`httpServer`、`loadYaml`。
+- 常量导出用 `PascalCase`，未导出用 `camelCase`。
+- 接口使用 `PascalCase`，带描述性后缀，例如 `IdentifyImpl`、`driverImpl`、`EventHandler`。
+- 布尔字段使用 `Is` / `Enable` / `Has` 前缀，例如 `IsRunning`、`EnableCron`、`HasRemoteSeasonPath`。
+- 包级全局变量使用 `PascalCase`，例如 `GlobalConfig`、`AppLogger`、`SettingsGlobal`、`GlobalDownloadQueue`。
+- 所有 Go 标识符使用英文，中文仅出现在注释和字符串字面量中。
 
-## 注释语言
+### 注释
 
-- **注释使用中文**，这是项目的主要约定
-- 导出函数应有中文文档注释：`// 修改同步路径`
-- Swagger 注解使用英文标签 + 中文描述
-- 结构体字段注释使用中文：`// 是否自定义配置`
-- 不写无意义的注释
+- 注释使用中文，这是项目的主要约定。
+- 导出函数应有中文文档注释，例如 `// 修改同步路径`。
+- Swagger 注解使用英文标签 + 中文描述。
+- 结构体字段注释使用中文，例如 `// 是否自定义配置`。
+- 不写无意义注释。
 
-## 错误处理
+### 错误处理和控制器响应
 
-**模式 A — 返回错误 + 记录日志（最常见）：**
+常见错误处理模式：
+
 ```go
 if err := tx.Where("id = ?", id).Delete(&SyncPath{}).Error; err != nil {
     tx.Rollback()
@@ -141,7 +170,6 @@ if err := tx.Where("id = ?", id).Delete(&SyncPath{}).Error; err != nil {
 }
 ```
 
-**模式 B — 记录日志 + 返回 nil（调用方需检查 nil）：**
 ```go
 if result.Error != nil {
     helpers.AppLogger.Errorf("创建同步路径失败: %v", result.Error)
@@ -149,19 +177,24 @@ if result.Error != nil {
 }
 ```
 
-**模式 C — panic（仅用于不可恢复的启动错误）：**
+`panic` 仅用于不可恢复的启动错误：
+
 ```go
 panic("创建数据目录失败")
 ```
 
-**控制器中的错误响应 — 始终使用 HTTP 200 + APIResponse.Code 传递错误：**
+控制器中的错误响应以现有控制器模式为准。多数业务接口使用 `APIResponse` 包装响应，并通过 `Code` 字段表达业务成功 / 失败；但当前代码并不是所有错误都返回 HTTP 200。认证、参数校验、文件 / 日志、部分历史接口会直接使用 `http.StatusBadRequest`、`http.StatusUnauthorized`、`http.StatusNotFound`、`http.StatusConflict` 或 `gin.H`。
+
+修改现有接口时，先保持所在控制器的既有响应模式。常见 `APIResponse` 写法：
+
 ```go
 c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请求参数错误", Data: nil})
 ```
 
-## 数据模型约定
+### 数据模型
 
-**基础模型（所有表都嵌入）：**
+所有表嵌入基础模型：
+
 ```go
 type BaseModel struct {
     ID        uint  `gorm:"primaryKey" json:"id"`
@@ -170,27 +203,32 @@ type BaseModel struct {
 }
 ```
 
-- 时间戳使用 `int64`（Unix 秒），**不使用** `time.Time`
-- JSON 标签使用 `snake_case`
-- GORM 标签指定约束：`gorm:"primaryKey"`, `gorm:"unique"`, `gorm:"index"`, `gorm:"type:text;size:512"`
+- 时间戳使用 `int64`（Unix 秒），不使用 `time.Time`。
+- JSON 标签使用 `snake_case`。
+- GORM 标签指定约束：`gorm:"primaryKey"`、`gorm:"unique"`、`gorm:"index"`、`gorm:"type:text;size:512"`。
 - 数组字段使用双存储模式（JSON 切片 + JSON 字符串）：
+
   ```go
   VideoExt    []string `json:"video_ext_arr" gorm:"-"`
   VideoExtStr string   `json:"-"`
   ```
+
 - 枚举类型使用 `string` 类型 + 常量：
+
   ```go
   type SourceType string
+
   const (
       SourceType115      SourceType = "115"
       SourceTypeBaiduPan SourceType = "baidupan"
   )
   ```
-- 非标准表名使用 `TableName()` 方法
 
-## API 响应格式
+- 非标准表名使用 `TableName()` 方法。
 
-统一使用泛型响应类型，**HTTP 状态码始终为 200**，通过 `Code` 字段区分成功/失败：
+### API 响应和绑定
+
+多数业务接口使用泛型响应类型，通过 `Code` 字段区分成功 / 失败：
 
 ```go
 type APIResponse[T any] struct {
@@ -201,19 +239,20 @@ type APIResponse[T any] struct {
 ```
 
 请求参数绑定：
-- 查询参数：`c.ShouldBindQuery(&req)` — struct 标签 `form:"field"`
-- JSON Body：`c.ShouldBindJSON(&req)` — struct 标签 `json:"field"`
-- 路径参数：`c.Param("id")`
 
-## 配置管理
+- 查询参数：`c.ShouldBindQuery(&req)`，struct 标签使用 `form:"field"`。
+- JSON Body：`c.ShouldBindJSON(&req)`，struct 标签使用 `json:"field"`。
+- 路径参数：`c.Param("id")`。
 
-- YAML 配置文件：`config/config.yaml`（通过 `helpers.InitConfig()` 加载，兼容旧 `config.yml`）
-- 敏感信息：`config/.env`（通过 `helpers.LoadEnvFromFile()` 加载，会覆盖真实环境变量）
-- 默认 API 密钥：`FANART_API_KEY`/`TMDB_API_KEY`/`TMDB_ACCESS_TOKEN`/`SC_API_KEY`，可编译期 ldflags（`-X main.<名>`）注入或运行时环境变量设置（无 `DEFAULT_` 前缀）；取值优先级 UI 配置(DB) > 环境变量 > ldflags
-- 加密密钥：`ENCRYPTION_KEY` 每实例自动生成并存于 `config/encryption.key`（`helpers.InitEncryptionKey`），不走 ldflags
-- 全局配置对象：`helpers.GlobalConfig`
+## 配置和日志
 
-## 日志规范
+- YAML 配置文件：`config/config.yaml`（通过 `helpers.InitConfig()` 加载，兼容旧 `config.yml`）。
+- 敏感信息：`config/.env`（通过 `helpers.LoadEnvFromFile()` 加载，会覆盖真实环境变量）。
+- 默认 API 密钥：`FANART_API_KEY` / `TMDB_API_KEY` / `TMDB_ACCESS_TOKEN` / `SC_API_KEY`，可编译期 ldflags（`-X main.<名>`）注入或运行时环境变量设置（无 `DEFAULT_` 前缀）。
+- 默认 API 密钥取值优先级：UI 配置（DB）> 环境变量 > ldflags。
+- 本机敏感数据密钥：由 `helpers.InitEncryptionKey()` 每实例自动生成并保存到 `config/encryption.key`，不使用 `ENCRYPTION_KEY` 环境变量，也不走 ldflags。
+- OAuth 中转共享密钥：`OAUTH_RELAY_ENCRYPTION_KEY`，可通过环境变量 / `config/.env` 设置，或通过 ldflags 变量 `main.OAuthRelayEncryptionKey` 注入；环境变量优先于 ldflags。
+- 全局配置对象：`helpers.GlobalConfig`。
 
 使用自定义 `QLogger`（封装 `log.Logger` + lumberjack 日志轮转）：
 
@@ -223,37 +262,26 @@ helpers.AppLogger.Errorf("操作失败: %v", err)
 helpers.V115Log.Debugf("115请求详情: %s", url)
 ```
 
-日志级别：`Infof`, `Warnf`, `Errorf`, `Debugf`, `Fatalf`
+日志级别：`Infof`、`Warnf`、`Errorf`、`Debugf`、`Fatalf`。
 
-按子系统使用不同 logger：`AppLogger`（主日志）、`V115Log`、`OpenListLog`、`BaiduPanLog`、`TMDBLog`
+按子系统使用不同 logger：`AppLogger`（主日志）、`V115Log`、`OpenListLog`、`BaiduPanLog`、`TMDBLog`。
 
-## 测试约定
-
-- 使用 table-driven 测试模式
-- 测试名称使用中文描述：`TestOldSyntax_BasicMovie`
-- 测试文件位于对应包目录下：`internal/helpers/extract_test.go`
-
-前端测试约定：
-- 前端测试文件统一放在 `frontend/test/` 下按类型归类，例如 `components/`、`composables/`、`utils/`、`unit/`、`e2e/`、`regression/`。
-- `frontend/test/` 是本地测试目录，保持被 `.gitignore` 忽略，不提交测试文件。
-- 不使用 `package.json` 的 `test:unit` 脚本；需要跑前端测试时直接用裸命令。
-- 常用 Vitest 命令：
-  ```bash
-  (cd frontend && pnpm exec vitest run test/components test/composables test/utils test/unit/const.test.ts)
-  (cd frontend && pnpm exec vitest run test/components/AppLogin.test.ts)
-  ```
-- 不要直接对整个 `frontend/test` 跑 Vitest；该目录里可能包含 Playwright、源码检查脚本或其他非 Vitest suite。
-
-## 前端约定
+## 前端约束
 
 - Vue 代码使用 Vue 3 Composition API 和 `<script setup lang="ts">`。
 - 组合式函数接收 maybe-reactive 参数时，普通值（如 `pageSize`）可以使用 `MaybeRefOrGetter` + `toValue()`。
 - axios 实例、回调函数、SDK client、handler 等“值本身可能是函数或可调用对象”的参数，不要使用 `MaybeRefOrGetter` + `toValue()`；应使用 `MaybeRef` + `unref()`，避免把可调用对象当 getter 执行。
-- `$http` 注入名保持不变；此前 `/undefined` 请求问题的根因不是注入名冲突，而是对可调用 axios 对象使用了 `toValue()`。
+
+## 文档约束
+
+- README 只保留项目介绍、快速入口和正式文档索引。
+- 使用者、开发、配置、发布类说明放入 `docs/`。
+- 不要在正式文档索引中引用被忽略的本地工作目录。
+- 中文文档遵循中英文、中文与数字之间加空格的排版习惯。
 
 ## CI/CD
 
-- **feature 分支** 推送触发构建 → GHCR 镜像 `ghcr.io/<owner>/qmediasync:<branch-name>`
-- **dev 分支** 推送触发构建 → GHCR 镜像 `ghcr.io/<owner>/qmediasync:beta`
-- 正式发布通过推送 `v*` 标签或手动触发 `.github/workflows/release.yaml` 执行
-- 变更日志使用 Changie（`.changes/` 目录）
+- `feature` 分支推送触发构建，生成 GHCR 镜像 `ghcr.io/<owner>/qmediasync:<branch-name>`。
+- `dev` 分支推送触发构建，生成 GHCR 镜像 `ghcr.io/<owner>/qmediasync:beta`。
+- 正式发布通过推送 `v*` 标签或手动触发 `.github/workflows/release.yaml` 执行。
+- 变更日志使用 `git-cliff` 从 conventional commits 生成，发布脚本会更新 `CHANGELOG.md` 并写入 `.changes/<tag>.md`。

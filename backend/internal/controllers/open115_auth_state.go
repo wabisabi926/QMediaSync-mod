@@ -1,10 +1,11 @@
 package controllers
 
 import (
-	"Q115-STRM/internal/v115open"
 	"fmt"
 	"sync"
 	"time"
+
+	"Q115-STRM/internal/v115open"
 )
 
 type open115AuthState struct {

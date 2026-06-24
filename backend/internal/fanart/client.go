@@ -1,10 +1,11 @@
 package fanart
 
 import (
-	"Q115-STRM/internal/helpers"
 	"fmt"
 	"net/http"
 	"time"
+
+	"Q115-STRM/internal/helpers"
 
 	"resty.dev/v3"
 )

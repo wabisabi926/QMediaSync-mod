@@ -1,16 +1,17 @@
 package scrape
 
 import (
+	"context"
+	"fmt"
+	"net/url"
+	"path/filepath"
+
 	"Q115-STRM/internal/baidupan"
 	"Q115-STRM/internal/helpers"
 	"Q115-STRM/internal/models"
 	"Q115-STRM/internal/openlist"
 	"Q115-STRM/internal/tmdb"
 	"Q115-STRM/internal/v115open"
-	"context"
-	"fmt"
-	"net/url"
-	"path/filepath"
 )
 
 type uploadFile struct {

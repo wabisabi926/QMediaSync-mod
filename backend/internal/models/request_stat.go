@@ -1,8 +1,9 @@
 package models
 
 import (
-	"Q115-STRM/internal/db"
 	"time"
+
+	"Q115-STRM/internal/db"
 )
 
 // RequestStat 请求统计记录

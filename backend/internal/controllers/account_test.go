@@ -1,17 +1,19 @@
 package controllers
 
 import (
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/models"
 	"bytes"
 	"encoding/json"
-	"github.com/gin-gonic/gin"
-	"github.com/glebarez/sqlite"
-	"gorm.io/gorm"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
+
+	"Q115-STRM/internal/db"
+	"Q115-STRM/internal/models"
 )
 
 func setupAccountControllerTest(t *testing.T) {

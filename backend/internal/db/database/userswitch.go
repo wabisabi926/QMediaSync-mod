@@ -1,12 +1,13 @@
 package database
 
 import (
-	"Q115-STRM/internal/helpers"
 	"fmt"
 	"os"
 	"os/exec"
 	"runtime"
 	"strings"
+
+	"Q115-STRM/internal/helpers"
 )
 
 // UserSwitcher 用户切换器

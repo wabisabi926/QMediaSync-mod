@@ -1,9 +1,6 @@
 package scan
 
 import (
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,6 +9,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"Q115-STRM/internal/db"
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/models"
 )
 
 type localFile struct {

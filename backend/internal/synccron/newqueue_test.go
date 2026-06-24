@@ -1,9 +1,10 @@
 package synccron
 
 import (
-	"Q115-STRM/internal/models"
 	"testing"
 	"time"
+
+	"Q115-STRM/internal/models"
 )
 
 func TestNewSyncQueuePerType(t *testing.T) {

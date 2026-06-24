@@ -1,14 +1,15 @@
 package syncstrm
 
 import (
-	"Q115-STRM/internal/baidupan"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/v115open"
 	"context"
 	"fmt"
 	"net/url"
 	"path/filepath"
 	"sync/atomic"
+
+	"Q115-STRM/internal/baidupan"
+	"Q115-STRM/internal/models"
+	"Q115-STRM/internal/v115open"
 )
 
 type BaiduPanDriver struct {

@@ -1,12 +1,6 @@
 package controllers
 
 import (
-	"Q115-STRM/internal/emby"
-	embyclientrestgo "Q115-STRM/internal/embyclient-rest-go"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/notification"
-	"Q115-STRM/internal/notificationmanager"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -19,6 +13,13 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"Q115-STRM/internal/emby"
+	embyclientrestgo "Q115-STRM/internal/embyclient-rest-go"
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/models"
+	"Q115-STRM/internal/notification"
+	"Q115-STRM/internal/notificationmanager"
 
 	"github.com/gin-gonic/gin"
 )

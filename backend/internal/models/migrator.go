@@ -1,13 +1,14 @@
 package models
 
 import (
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/notification"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
+
+	"Q115-STRM/internal/db"
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/notification"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"

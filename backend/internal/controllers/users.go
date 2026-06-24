@@ -1,12 +1,13 @@
 package controllers
 
 import (
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
+
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"

@@ -1,12 +1,6 @@
 package controllers
 
 import (
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/github"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/updater"
-	"Q115-STRM/internal/v115open"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -15,6 +9,13 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"Q115-STRM/internal/db"
+	"Q115-STRM/internal/github"
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/models"
+	"Q115-STRM/internal/updater"
+	"Q115-STRM/internal/v115open"
 
 	"github.com/gin-gonic/gin"
 )

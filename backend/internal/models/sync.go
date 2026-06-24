@@ -1,14 +1,15 @@
 package models
 
 import (
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/notificationmanager"
 	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
+
+	"Q115-STRM/internal/db"
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/notificationmanager"
 
 	"gorm.io/gorm"
 )

@@ -1,10 +1,11 @@
 package syncstrm
 
 import (
-	"Q115-STRM/internal/models"
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"Q115-STRM/internal/models"
 )
 
 // 允许上传的目录，网盘中哪怕没有这些目录，也可以上传这些目录下的文件到网盘

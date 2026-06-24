@@ -1,17 +1,18 @@
 package backup
 
 import (
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/emby"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/synccron"
 	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"sync/atomic"
 	"time"
+
+	"Q115-STRM/internal/db"
+	"Q115-STRM/internal/emby"
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/models"
+	"Q115-STRM/internal/synccron"
 )
 
 var isRuning int32 = 0

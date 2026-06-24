@@ -1,13 +1,6 @@
 package scrape
 
 import (
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/notificationmanager"
-	"Q115-STRM/internal/syncstrm"
-	"Q115-STRM/internal/tmdb"
-	"Q115-STRM/internal/v115open"
-	ws "Q115-STRM/internal/websocket"
 	"context"
 	"fmt"
 	"os"
@@ -17,6 +10,14 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/models"
+	"Q115-STRM/internal/notificationmanager"
+	"Q115-STRM/internal/syncstrm"
+	"Q115-STRM/internal/tmdb"
+	"Q115-STRM/internal/v115open"
+	ws "Q115-STRM/internal/websocket"
 )
 
 // 处理集的刮削任务，启动N个协程

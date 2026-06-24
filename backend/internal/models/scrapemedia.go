@@ -1,10 +1,6 @@
 package models
 
 import (
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/notificationmanager"
-	"Q115-STRM/internal/tmdb"
 	"context"
 	"errors"
 	"fmt"
@@ -14,6 +10,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"Q115-STRM/internal/db"
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/notificationmanager"
+	"Q115-STRM/internal/tmdb"
 
 	"github.com/flosch/pongo2/v5"
 	"gorm.io/gorm"

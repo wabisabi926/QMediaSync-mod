@@ -1,8 +1,6 @@
 package baidupan
 
 import (
-	"Q115-STRM/internal/helpers"
-	openapiclient "Q115-STRM/openxpanapi"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -13,6 +11,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"Q115-STRM/internal/helpers"
+	openapiclient "Q115-STRM/openxpanapi"
 )
 
 type Client struct {

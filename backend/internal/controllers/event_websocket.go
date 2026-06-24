@@ -1,9 +1,11 @@
 package controllers
 
 import (
-	"Q115-STRM/internal/websocket"
-	gorillaws "github.com/gorilla/websocket"
 	"net/http"
+
+	gorillaws "github.com/gorilla/websocket"
+
+	"Q115-STRM/internal/websocket"
 
 	"github.com/gin-gonic/gin"
 )

@@ -1,16 +1,18 @@
 package models
 
 import (
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/v115open"
 	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"time"
+
 	"gorm.io/gorm"
+
+	"Q115-STRM/internal/db"
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/v115open"
 )
 
 type DownloadSource string

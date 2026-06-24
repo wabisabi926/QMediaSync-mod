@@ -1,16 +1,18 @@
 package models
 
 import (
-	"Q115-STRM/internal/db"
-	embyclientrestgo "Q115-STRM/internal/embyclient-rest-go"
-	"Q115-STRM/internal/helpers"
 	"encoding/json"
 	"errors"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+
 	"gorm.io/gorm"
+
+	"Q115-STRM/internal/db"
+	embyclientrestgo "Q115-STRM/internal/embyclient-rest-go"
+	"Q115-STRM/internal/helpers"
 )
 
 const (

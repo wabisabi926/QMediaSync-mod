@@ -61,12 +61,14 @@ docker build -f docker/source.Dockerfile -t qmediasync .
 
 ## 代码检查
 
-本项目没有配置 lint 工具（无 `.golangci.yml`、无 Makefile）。使用标准 Go 工具：
+本项目没有配置 lint 工具（无 `.golangci.yml`、无 Makefile）。使用标准 Go 工具和 `goimports`：
 
 ```bash
 (cd backend && go vet ./...)
-(cd backend && go fmt ./...)
+(cd backend && goimports -local Q115-STRM -w .)
 ```
+
+`goimports` 会执行 gofmt 级别的格式化，并额外维护 import 的增删和分组；格式化统一使用 `goimports -local Q115-STRM -w .`。
 
 ## 项目结构
 
@@ -88,21 +90,24 @@ scripts/install/         # Linux 裸机安装辅助脚本
 
 ## 导入顺序
 
-本项目有特定的导入排序约定，**与 `goimports` 默认分组不同**：
+Go 文件使用 `goimports` 维护 import，不再手工维护自定义顺序：
 
-1. **内部包** (`Q115-STRM/internal/...`, `Q115-STRM/emby302/...`)
-2. **标准库** (`context`, `fmt`, `net/http` ...)
-3. **第三方包** (`github.com/...`, `gopkg.in/...`, `resty.dev/...`)
+```bash
+go install golang.org/x/tools/cmd/goimports@latest
+(cd backend && goimports -local Q115-STRM -w .)
+```
 
-**各组之间没有空行分隔。** 示例：
+`-local Q115-STRM` 用于识别本项目包。由于模块名 `Q115-STRM` 不是域名式路径，导入分组以 `goimports -local Q115-STRM` 的实际输出为准；不要手工调整 import 分组。当前常见输出为标准库、本项目包、第三方包三组。示例：
 
 ```go
 import (
-    "Q115-STRM/internal/db"
-    "Q115-STRM/internal/helpers"
     "context"
     "fmt"
     "net/http"
+
+    "Q115-STRM/internal/db"
+    "Q115-STRM/internal/helpers"
+
     "github.com/gin-gonic/gin"
     "gorm.io/gorm"
 )

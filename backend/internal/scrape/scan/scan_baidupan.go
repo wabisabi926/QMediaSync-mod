@@ -1,9 +1,6 @@
 package scan
 
 import (
-	"Q115-STRM/internal/baidupan"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
 	"context"
 	"errors"
 	"fmt"
@@ -12,6 +9,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"Q115-STRM/internal/baidupan"
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/models"
 )
 
 // 从百度网盘扫描需要刮削的文件入库

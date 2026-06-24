@@ -1,12 +1,13 @@
 package syncstrm
 
 import (
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/models"
 )
 
 func (s *SyncStrm) checkPathExists(path string) bool {

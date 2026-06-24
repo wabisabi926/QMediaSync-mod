@@ -1,10 +1,11 @@
 package controllers
 
 import (
-	"Q115-STRM/internal/models"
 	"fmt"
 	"net/http"
 	"strconv"
+
+	"Q115-STRM/internal/models"
 
 	"github.com/gin-gonic/gin"
 )

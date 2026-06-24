@@ -1,11 +1,12 @@
 package v115auth
 
 import (
-	"Q115-STRM/internal/helpers"
 	"context"
 	"net/url"
 	"strings"
 	"testing"
+
+	"Q115-STRM/internal/helpers"
 )
 
 func TestOAuthProviderRegistry(t *testing.T) {

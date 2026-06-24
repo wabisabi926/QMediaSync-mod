@@ -1,11 +1,6 @@
 package controllers
 
 import (
-	"Q115-STRM/internal/backup"
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/synccron"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +9,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"Q115-STRM/internal/backup"
+	"Q115-STRM/internal/db"
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/models"
+	"Q115-STRM/internal/synccron"
 
 	"github.com/gin-gonic/gin"
 )

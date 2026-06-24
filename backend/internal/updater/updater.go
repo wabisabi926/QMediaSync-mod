@@ -2,8 +2,6 @@
 package updater
 
 import (
-	"Q115-STRM/internal/github"
-	"Q115-STRM/internal/helpers"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -11,6 +9,9 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"Q115-STRM/internal/github"
+	"Q115-STRM/internal/helpers"
 
 	"github.com/hashicorp/go-version"
 )

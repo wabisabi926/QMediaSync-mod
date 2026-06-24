@@ -1,7 +1,6 @@
 package openlist
 
 import (
-	"Q115-STRM/internal/helpers"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -13,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"Q115-STRM/internal/helpers"
 )
 
 type FileListItemInfo struct {

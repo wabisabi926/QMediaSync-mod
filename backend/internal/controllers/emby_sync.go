@@ -1,11 +1,12 @@
 package controllers
 
 import (
+	"net/http"
+
 	"Q115-STRM/internal/emby"
 	embyclientrestgo "Q115-STRM/internal/embyclient-rest-go"
 	"Q115-STRM/internal/helpers"
 	"Q115-STRM/internal/models"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"

@@ -1,9 +1,6 @@
 package scan
 
 import (
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/v115open"
 	"context"
 	"errors"
 	"fmt"
@@ -12,6 +9,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/models"
+	"Q115-STRM/internal/v115open"
 )
 
 // 从115扫描需要刮削的文件入库

@@ -1,9 +1,6 @@
 package emby
 
 import (
-	embyclientrestgo "Q115-STRM/internal/embyclient-rest-go"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
 	"encoding/json"
 	"errors"
 	"net/url"
@@ -11,6 +8,10 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	embyclientrestgo "Q115-STRM/internal/embyclient-rest-go"
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/models"
 )
 
 var embySyncRunning int32

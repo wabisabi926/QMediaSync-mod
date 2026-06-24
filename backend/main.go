@@ -1,20 +1,6 @@
 package main
 
 import (
-	"Q115-STRM/emby302/config"
-	"Q115-STRM/emby302/util/logs/colors"
-	"Q115-STRM/emby302/web"
-	"Q115-STRM/internal/backup"
-	"Q115-STRM/internal/controllers"
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/db/database"
-	"Q115-STRM/internal/github"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/migrate"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/synccron"
-	"Q115-STRM/internal/v115open"
-	"Q115-STRM/internal/websocket"
 	"context"
 	"database/sql"
 	"embed"
@@ -30,6 +16,21 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"Q115-STRM/emby302/config"
+	"Q115-STRM/emby302/util/logs/colors"
+	"Q115-STRM/emby302/web"
+	"Q115-STRM/internal/backup"
+	"Q115-STRM/internal/controllers"
+	"Q115-STRM/internal/db"
+	"Q115-STRM/internal/db/database"
+	"Q115-STRM/internal/github"
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/migrate"
+	"Q115-STRM/internal/models"
+	"Q115-STRM/internal/synccron"
+	"Q115-STRM/internal/v115open"
+	"Q115-STRM/internal/websocket"
 
 	"github.com/gin-gonic/gin"
 )

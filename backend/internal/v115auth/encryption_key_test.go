@@ -1,8 +1,9 @@
 package v115auth
 
 import (
-	"Q115-STRM/internal/helpers"
 	"testing"
+
+	"Q115-STRM/internal/helpers"
 )
 
 func TestSharedEncryptionKeyMissing(t *testing.T) {

@@ -1,12 +1,13 @@
 package syncstrm
 
 import (
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/v115open"
 	"fmt"
 	"path/filepath"
 	"sync/atomic"
 	"time"
+
+	"Q115-STRM/internal/models"
+	"Q115-STRM/internal/v115open"
 )
 
 // 启动百度网盘同步

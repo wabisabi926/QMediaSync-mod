@@ -1,14 +1,15 @@
 package syncstrm
 
 import (
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/v115open"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	"Q115-STRM/internal/models"
+	"Q115-STRM/internal/v115open"
 
 	"golang.org/x/sync/errgroup"
 )

@@ -1,16 +1,17 @@
 package scrape
 
 import (
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/tmdb"
-	"Q115-STRM/internal/v115open"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
+
+	"Q115-STRM/internal/db"
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/models"
+	"Q115-STRM/internal/tmdb"
+	"Q115-STRM/internal/v115open"
 )
 
 func (t tvShowScrapeImpl) GetSeasonUploadFiles(seasonMediaFile *models.ScrapeMediaFile) []uploadFile {

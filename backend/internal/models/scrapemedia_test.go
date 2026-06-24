@@ -1,8 +1,9 @@
 package models
 
 import (
-	"Q115-STRM/internal/helpers"
 	"testing"
+
+	"Q115-STRM/internal/helpers"
 )
 
 func createTestMovieData() *ScrapeMediaFile {

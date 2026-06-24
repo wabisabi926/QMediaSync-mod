@@ -1,11 +1,6 @@
 package migrate
 
 import (
-	"Q115-STRM/internal/backup"
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/db/database"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
 	"context"
 	"database/sql"
 	"embed"
@@ -17,6 +12,12 @@ import (
 	"path/filepath"
 	"runtime"
 	"time"
+
+	"Q115-STRM/internal/backup"
+	"Q115-STRM/internal/db"
+	"Q115-STRM/internal/db/database"
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/models"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"

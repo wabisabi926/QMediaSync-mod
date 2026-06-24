@@ -1,9 +1,6 @@
 package controllers
 
 import (
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/synccron"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -12,6 +9,10 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/models"
+	"Q115-STRM/internal/synccron"
 
 	"github.com/gin-gonic/gin"
 )

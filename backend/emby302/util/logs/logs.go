@@ -1,10 +1,11 @@
 package logs
 
 import (
-	"Q115-STRM/emby302/util/logs/colors"
-	"Q115-STRM/internal/helpers"
 	"fmt"
 	"time"
+
+	"Q115-STRM/emby302/util/logs/colors"
+	"Q115-STRM/internal/helpers"
 )
 
 // Info 输出蓝色 Info 日志

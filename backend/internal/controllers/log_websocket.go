@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"Q115-STRM/internal/helpers"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"Q115-STRM/internal/helpers"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/gin-gonic/gin"

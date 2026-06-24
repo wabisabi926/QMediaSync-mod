@@ -1,8 +1,9 @@
 package scrape
 
 import (
-	"Q115-STRM/internal/models"
 	"context"
+
+	"Q115-STRM/internal/models"
 )
 
 type IdBase struct {

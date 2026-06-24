@@ -1,9 +1,10 @@
 package controllers
 
 import (
-	"Q115-STRM/internal/v115open"
 	"testing"
 	"time"
+
+	"Q115-STRM/internal/v115open"
 )
 
 func TestOpen115AuthStateExpires(t *testing.T) {

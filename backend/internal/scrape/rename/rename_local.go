@@ -1,12 +1,13 @@
 package rename
 
 import (
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
 	"context"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/models"
 )
 
 type RenameLocal struct {

@@ -1,8 +1,9 @@
 package tmdb
 
 import (
-	"Q115-STRM/internal/helpers"
 	"fmt"
+
+	"Q115-STRM/internal/helpers"
 )
 
 type SearchMovie struct {

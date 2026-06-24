@@ -1,7 +1,6 @@
 package embyclientrestgo
 
 import (
-	"Q115-STRM/internal/helpers"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -10,6 +9,8 @@ import (
 	"net/url"
 	"slices"
 	"time"
+
+	"Q115-STRM/internal/helpers"
 )
 
 // Client 是与 Emby API 交互的客户端。

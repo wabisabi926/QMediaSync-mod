@@ -1,10 +1,12 @@
 package models
 
 import (
-	"Q115-STRM/internal/db"
 	"testing"
+
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
+
+	"Q115-STRM/internal/db"
 )
 
 func TestBatchCreateTableCreatesMigratorTable(t *testing.T) {

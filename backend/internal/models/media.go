@@ -1,12 +1,13 @@
 package models
 
 import (
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/tmdb"
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"Q115-STRM/internal/db"
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/tmdb"
 )
 
 type MediaStatus string

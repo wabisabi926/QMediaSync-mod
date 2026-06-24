@@ -1,16 +1,17 @@
 package synccron
 
 import (
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/scrape"
-	"Q115-STRM/internal/syncstrm"
-	ws "Q115-STRM/internal/websocket"
 	"context"
 	"fmt"
 	"runtime"
 	"sync"
 	"sync/atomic"
+
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/models"
+	"Q115-STRM/internal/scrape"
+	"Q115-STRM/internal/syncstrm"
+	ws "Q115-STRM/internal/websocket"
 )
 
 type SyncTaskType string

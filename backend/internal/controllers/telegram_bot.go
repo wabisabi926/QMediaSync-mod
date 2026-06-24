@@ -1,14 +1,15 @@
 package controllers
 
 import (
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/notificationmanager"
-	"Q115-STRM/internal/synccron"
 	"context"
 	"fmt"
 	"strconv"
 	"time"
+
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/models"
+	"Q115-STRM/internal/notificationmanager"
+	"Q115-STRM/internal/synccron"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )

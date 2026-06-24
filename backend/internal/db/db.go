@@ -1,8 +1,6 @@
 package db
 
 import (
-	"Q115-STRM/internal/db/database"
-	"Q115-STRM/internal/helpers"
 	"database/sql"
 	"fmt"
 	"log"
@@ -11,6 +9,9 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"Q115-STRM/internal/db/database"
+	"Q115-STRM/internal/helpers"
 
 	"github.com/glebarez/sqlite"
 	_ "github.com/lib/pq"

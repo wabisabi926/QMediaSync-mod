@@ -1,12 +1,13 @@
 package models
 
 import (
+	"encoding/json"
+	"fmt"
+
 	"Q115-STRM/internal/db"
 	"Q115-STRM/internal/helpers"
 	"Q115-STRM/internal/openai"
 	"Q115-STRM/internal/tmdb"
-	"encoding/json"
-	"fmt"
 )
 
 type AiAction string

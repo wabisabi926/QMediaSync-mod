@@ -1,8 +1,6 @@
 package syncstrm
 
 import (
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
 	"fmt"
 	"net/url"
 	"os"
@@ -10,6 +8,9 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/models"
 )
 
 type StrmData struct {

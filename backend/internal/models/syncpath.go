@@ -1,8 +1,6 @@
 package models
 
 import (
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/helpers"
 	"errors"
 	"maps"
 	"os"
@@ -11,6 +9,9 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"Q115-STRM/internal/db"
+	"Q115-STRM/internal/helpers"
 )
 
 type SourceType string

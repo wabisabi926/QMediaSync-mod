@@ -1,13 +1,14 @@
 package rename
 
 import (
-	"Q115-STRM/internal/baidupan"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
 	"context"
 	"errors"
 	"path/filepath"
 	"strings"
+
+	"Q115-STRM/internal/baidupan"
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/models"
 )
 
 type RenameBaiduPan struct {

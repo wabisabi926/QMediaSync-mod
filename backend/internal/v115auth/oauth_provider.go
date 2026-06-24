@@ -1,7 +1,6 @@
 package v115auth
 
 import (
-	"Q115-STRM/internal/helpers"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"Q115-STRM/internal/helpers"
 )
 
 type OAuthURLRequest struct {

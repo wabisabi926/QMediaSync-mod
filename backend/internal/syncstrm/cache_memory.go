@@ -1,13 +1,14 @@
 package syncstrm
 
 import (
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/v115open"
 	"fmt"
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/models"
+	"Q115-STRM/internal/v115open"
 )
 
 // SyncFileCache 完整缓存结构（主要用于115网盘）

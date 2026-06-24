@@ -1,11 +1,12 @@
 package models
 
 import (
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/helpers"
 	"context"
 	"sync"
 	"time"
+
+	"Q115-STRM/internal/db"
+	"Q115-STRM/internal/helpers"
 
 	"golang.org/x/time/rate"
 )

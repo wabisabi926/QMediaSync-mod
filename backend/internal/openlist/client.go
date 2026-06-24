@@ -1,12 +1,13 @@
 package openlist
 
 import (
-	"Q115-STRM/internal/helpers"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"sync"
 	"time"
+
+	"Q115-STRM/internal/helpers"
 
 	"resty.dev/v3"
 )

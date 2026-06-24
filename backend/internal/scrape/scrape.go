@@ -1,6 +1,12 @@
 package scrape
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+
 	"Q115-STRM/internal/baidupan"
 	"Q115-STRM/internal/helpers"
 	"Q115-STRM/internal/models"
@@ -8,11 +14,6 @@ import (
 	"Q115-STRM/internal/scrape/scan"
 	"Q115-STRM/internal/tmdb"
 	"Q115-STRM/internal/v115open"
-	"context"
-	"errors"
-	"fmt"
-	"os"
-	"path/filepath"
 )
 
 // 刮削入口

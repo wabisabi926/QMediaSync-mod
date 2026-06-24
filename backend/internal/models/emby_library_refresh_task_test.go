@@ -1,8 +1,6 @@
 package models
 
 import (
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/helpers"
 	"io"
 	"log"
 	"net/http"
@@ -11,8 +9,12 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
+
+	"Q115-STRM/internal/db"
+	"Q115-STRM/internal/helpers"
 )
 
 func setupEmbyRefreshTestDB(t *testing.T) {

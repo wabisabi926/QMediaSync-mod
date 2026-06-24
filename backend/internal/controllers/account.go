@@ -1,12 +1,13 @@
 package controllers
 
 import (
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/v115auth"
 	"fmt"
 	"net/http"
 	"strings"
+
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/models"
+	"Q115-STRM/internal/v115auth"
 
 	"github.com/gin-gonic/gin"
 )

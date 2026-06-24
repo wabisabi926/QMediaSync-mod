@@ -1,9 +1,10 @@
 package tmdb
 
 import (
-	"Q115-STRM/internal/helpers"
 	"fmt"
 	"net/url"
+
+	"Q115-STRM/internal/helpers"
 )
 
 // https://api.themoviedb.org/3/search/tv

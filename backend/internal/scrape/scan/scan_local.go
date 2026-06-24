@@ -1,8 +1,6 @@
 package scan
 
 import (
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
 	"context"
 	"errors"
 	"fmt"
@@ -11,6 +9,9 @@ import (
 	"slices"
 	"sync"
 	"time"
+
+	"Q115-STRM/internal/helpers"
+	"Q115-STRM/internal/models"
 )
 
 // 从openlist扫描需要刮削的文件入库

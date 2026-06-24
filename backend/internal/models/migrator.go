@@ -596,6 +596,9 @@ func InitUser() {
 	if defaultUser.Password == "" {
 		defaultUser.Password = "admin123"
 	}
+	if err := ValidateUserPassword(defaultUser.Password); err != nil {
+		panic(fmt.Sprintf("管理员初始密码无效: %v", err))
+	}
 	password, _ := bcrypt.GenerateFromPassword([]byte(defaultUser.Password), bcrypt.MinCost)
 	defaultUser.Password = string(password)
 	uerr := db.Db.Model(&User{}).First(&defaultUser).Error

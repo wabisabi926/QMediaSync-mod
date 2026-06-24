@@ -230,11 +230,11 @@
             </div>
             <div class="form-group">
                 <label for="adminPassword">管理员密码</label>
-                <input type="password" id="adminPassword" placeholder="输入密码">
+                <input type="password" id="adminPassword" placeholder="输入密码" minlength="6">
             </div>
             <div class="form-group">
                 <label for="adminPasswordConfirm">确认密码</label>
-                <input type="password" id="adminPasswordConfirm" placeholder="再次输入密码">
+                <input type="password" id="adminPasswordConfirm" placeholder="再次输入密码" minlength="6">
             </div>
             <div class="btn-group">
                 <button class="btn" onclick="goToEngineSelect()">下一步</button>
@@ -310,6 +310,10 @@
             }
             if (!adminPassword) {
                 showMessage('error', '请输入管理员密码');
+                return;
+            }
+            if (adminPassword.length < 6) {
+                showMessage('error', '管理员密码长度至少6位');
                 return;
             }
             if (adminPassword !== adminPasswordConfirm) {

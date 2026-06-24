@@ -46,6 +46,16 @@ var Update bool = false
 var AppName string = "QMediaSync"
 var QMSApp *App
 
+func validateInitialAdminCredentials(username string, password string) error {
+	if strings.TrimSpace(username) == "" {
+		return fmt.Errorf("管理员用户名不能为空")
+	}
+	if err := models.ValidateUserPassword(password); err != nil {
+		return err
+	}
+	return nil
+}
+
 type App struct {
 	isRelease   bool
 	dbManager   *database.EmbeddedManager
@@ -1172,6 +1182,10 @@ func StartConfigWebServer() {
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(400, gin.H{"error": err.Error()})
+			return
+		}
+		if err := validateInitialAdminCredentials(req.AdminUsername, req.AdminPassword); err != nil {
+			c.JSON(200, gin.H{"error": err.Error()})
 			return
 		}
 		yamlConfig := helpers.MakeDefaultConfig()

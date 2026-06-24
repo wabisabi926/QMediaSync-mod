@@ -58,6 +58,9 @@ func (user *User) ChangeUsernameAndPassword(username, newPassword string) (bool,
 	}
 	isChange := false
 	if newPassword != "" {
+		if err := ValidateUserPassword(newPassword); err != nil {
+			return false, err
+		}
 		hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.MinCost)
 		if err != nil {
 			helpers.AppLogger.Warnf("生成用户新密码失败: %v", err)

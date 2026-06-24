@@ -1,0 +1,347 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+用法:
+  scripts/release/release.sh <tag|patch|minor|major>
+
+示例:
+  scripts/release/release.sh v0.15.3
+  scripts/release/release.sh patch
+  scripts/release/release.sh minor
+
+流程:
+  1. 检查 tag 格式和版本递增关系
+  2. 同步 main，并把 dev 快进合入 main
+  3. 生成 CHANGELOG.md 和 .changes/<tag>.md
+  4. 人工确认 changelog diff
+  5. 提交 release commit 到 main
+  6. 创建 annotated tag: git tag -a <tag> -m "Release <tag>"
+  7. 推送 main 和 tag，触发 release workflow
+  8. 将 release commit 快进同步回 dev 并推送 dev
+EOF
+}
+
+die() {
+  echo "错误: $*" >&2
+  exit 1
+}
+
+require_command() {
+  local name="$1"
+  if ! command -v "$name" >/dev/null 2>&1; then
+    die "未找到命令 ${name}"
+  fi
+}
+
+validate_release_tag() {
+  local tag="$1"
+  if [[ ! "$tag" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    die "tag 格式必须是 v<major>.<minor>.<patch>，例如 v0.15.3；大版本请使用 v16.0.0"
+  fi
+  TARGET_MAJOR="${BASH_REMATCH[1]}"
+  TARGET_MINOR="${BASH_REMATCH[2]}"
+  TARGET_PATCH="${BASH_REMATCH[3]}"
+}
+
+validate_release_input() {
+  local value="$1"
+  case "$value" in
+    patch|minor|major)
+      return
+      ;;
+  esac
+
+  validate_release_tag "$value"
+}
+
+parse_version_parts() {
+  local tag="$1"
+  if [[ ! "$tag" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    return 1
+  fi
+  printf '%s %s %s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}"
+}
+
+compare_versions() {
+  local left_major="$1"
+  local left_minor="$2"
+  local left_patch="$3"
+  local right_major="$4"
+  local right_minor="$5"
+  local right_patch="$6"
+
+  if (( left_major > right_major )); then
+    printf '1\n'
+    return
+  fi
+  if (( left_major < right_major )); then
+    printf -- '-1\n'
+    return
+  fi
+  if (( left_minor > right_minor )); then
+    printf '1\n'
+    return
+  fi
+  if (( left_minor < right_minor )); then
+    printf -- '-1\n'
+    return
+  fi
+  if (( left_patch > right_patch )); then
+    printf '1\n'
+    return
+  fi
+  if (( left_patch < right_patch )); then
+    printf -- '-1\n'
+    return
+  fi
+  printf '0\n'
+}
+
+latest_semver_tag() {
+  local tag
+  while IFS= read -r tag; do
+    if [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      printf '%s\n' "$tag"
+      return
+    fi
+  done < <(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname)
+}
+
+derive_release_tag() {
+  local bump="$1"
+  local current_tag
+  local current_major
+  local current_minor
+  local current_patch
+
+  current_tag="$(latest_semver_tag)"
+  if [ -z "$current_tag" ]; then
+    die "无法根据最新版本推导 ${bump} 版本：仓库没有 v<major>.<minor>.<patch> 格式的 tag"
+  fi
+
+  read -r current_major current_minor current_patch < <(parse_version_parts "$current_tag")
+  case "$bump" in
+    patch)
+      TARGET_MAJOR="$current_major"
+      TARGET_MINOR="$current_minor"
+      TARGET_PATCH="$((current_patch + 1))"
+      ;;
+    minor)
+      TARGET_MAJOR="$current_major"
+      TARGET_MINOR="$((current_minor + 1))"
+      TARGET_PATCH="0"
+      ;;
+    major)
+      TARGET_MAJOR="$((current_major + 1))"
+      TARGET_MINOR="0"
+      TARGET_PATCH="0"
+      ;;
+    *)
+      die "未知版本推导参数 ${bump}"
+      ;;
+  esac
+
+  TAG="v${TARGET_MAJOR}.${TARGET_MINOR}.${TARGET_PATCH}"
+  echo "根据当前最新版本 ${current_tag} 推导发布版本: ${TAG}"
+}
+
+confirm_major_release() {
+  local current_tag="$1"
+  local target_tag="$2"
+
+  echo
+  echo "检测到大版本发布: ${current_tag} -> ${target_tag}"
+  echo "大版本发布通常表示兼容性或发布节奏变化，需要额外确认。"
+  printf '输入 major yes 继续大版本发布: '
+  read -r answer
+  if [ "$answer" != "major yes" ]; then
+    die "已取消大版本发布"
+  fi
+}
+
+confirm_minor_release() {
+  local current_tag="$1"
+  local target_tag="$2"
+
+  echo
+  echo "检测到 minor 版本发布: ${current_tag} -> ${target_tag}"
+  echo "minor 版本发布通常表示功能级更新，需要额外确认。"
+  printf '输入 minor yes 继续 minor 版本发布: '
+  read -r answer
+  if [ "$answer" != "minor yes" ]; then
+    die "已取消 minor 版本发布"
+  fi
+}
+
+resolve_release_tag() {
+  local value="$1"
+
+  case "$value" in
+    patch|minor|major)
+      derive_release_tag "$value"
+      ;;
+    *)
+      validate_release_tag "$value"
+      TAG="$value"
+      ;;
+  esac
+}
+
+ensure_tag_newer_than_current() {
+  local tag="$1"
+  local current_tag
+  local current_major
+  local current_minor
+  local current_patch
+  local comparison
+
+  current_tag="$(latest_semver_tag)"
+  if [ -z "$current_tag" ]; then
+    return
+  fi
+
+  read -r current_major current_minor current_patch < <(parse_version_parts "$current_tag")
+  comparison="$(compare_versions "$TARGET_MAJOR" "$TARGET_MINOR" "$TARGET_PATCH" "$current_major" "$current_minor" "$current_patch")"
+  if [ "$comparison" -le 0 ]; then
+    die "tag ${tag} 必须大于当前最新版本 ${current_tag}"
+  fi
+
+  if (( TARGET_MAJOR > current_major )); then
+    confirm_major_release "$current_tag" "$tag"
+  elif (( TARGET_MINOR > current_minor )); then
+    confirm_minor_release "$current_tag" "$tag"
+  fi
+}
+
+ensure_clean_worktree() {
+  if ! git diff --quiet || ! git diff --cached --quiet; then
+    die "工作区不干净，请先提交或暂存现有改动"
+  fi
+}
+
+ensure_branch_exists() {
+  local branch="$1"
+  if ! git show-ref --verify --quiet "refs/heads/${branch}"; then
+    die "本地分支 ${branch} 不存在"
+  fi
+}
+
+ensure_remote_branch_exists() {
+  local remote="$1"
+  local branch="$2"
+  if ! git show-ref --verify --quiet "refs/remotes/${remote}/${branch}"; then
+    die "远端分支 ${remote}/${branch} 不存在"
+  fi
+}
+
+ensure_branch_contains_remote() {
+  local remote="$1"
+  local branch="$2"
+  if ! git merge-base --is-ancestor "${remote}/${branch}" "$branch"; then
+    die "本地 ${branch} 不包含 ${remote}/${branch}，请先同步或处理分叉"
+  fi
+}
+
+ensure_no_remote_tag() {
+  local remote="$1"
+  local tag="$2"
+  if git ls-remote --exit-code --tags "$remote" "refs/tags/${tag}" >/dev/null 2>&1; then
+    die "远端 tag ${tag} 已存在"
+  fi
+}
+
+confirm_release() {
+  local tag="$1"
+  echo
+  echo "将执行以下外部动作:"
+  echo "  - 提交 chore: release ${tag} 到 main"
+  echo "  - 创建 annotated tag ${tag}"
+  echo "  - 推送 main"
+  echo "  - 推送 tag ${tag} 触发 release workflow"
+  echo "  - 将 release commit 同步回 dev 并推送 dev"
+  echo
+  printf '输入 yes 继续发布: '
+  read -r answer
+  if [ "$answer" != "yes" ]; then
+    echo "已停止。生成的 changelog 改动保留在工作区，可检查后手动处理。"
+    exit 1
+  fi
+}
+
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+  usage
+  exit 0
+fi
+
+if [ "$#" -ne 1 ]; then
+  usage >&2
+  exit 1
+fi
+
+RELEASE_INPUT="$1"
+TAG="$RELEASE_INPUT"
+REMOTE="origin"
+MAIN_BRANCH="main"
+DEV_BRANCH="dev"
+TARGET_MAJOR=""
+TARGET_MINOR=""
+TARGET_PATCH=""
+
+validate_release_input "$RELEASE_INPUT"
+
+require_command git
+require_command git-cliff
+
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$ROOT"
+
+git fetch "$REMOTE" --tags
+resolve_release_tag "$RELEASE_INPUT"
+ensure_tag_newer_than_current "$TAG"
+
+ensure_clean_worktree
+ensure_branch_exists "$MAIN_BRANCH"
+ensure_branch_exists "$DEV_BRANCH"
+
+ensure_remote_branch_exists "$REMOTE" "$MAIN_BRANCH"
+ensure_remote_branch_exists "$REMOTE" "$DEV_BRANCH"
+ensure_branch_contains_remote "$REMOTE" "$DEV_BRANCH"
+ensure_no_remote_tag "$REMOTE" "$TAG"
+
+git checkout "$MAIN_BRANCH"
+git pull --ff-only "$REMOTE" "$MAIN_BRANCH"
+git merge --ff-only "$DEV_BRANCH"
+
+ensure_no_remote_tag "$REMOTE" "$TAG"
+
+scripts/release/gen-changelog.sh "$TAG"
+
+echo
+echo "生成的发布说明变更:"
+git diff -- "CHANGELOG.md" ".changes/${TAG}.md"
+
+confirm_release "$TAG"
+
+git add "CHANGELOG.md" ".changes/${TAG}.md"
+git commit -m "chore: release ${TAG}"
+git tag -a "$TAG" -m "Release $TAG"
+
+git push "$REMOTE" "$MAIN_BRANCH"
+git push "$REMOTE" "$TAG"
+
+git checkout "$DEV_BRANCH"
+git pull --ff-only "$REMOTE" "$DEV_BRANCH"
+git merge --ff-only "$MAIN_BRANCH"
+git push "$REMOTE" "$DEV_BRANCH"
+
+cat <<EOF
+
+发布流程已提交并触发:
+  main: 已推送到 ${REMOTE}/${MAIN_BRANCH}
+  tag:  已推送 ${TAG}
+  dev:  已同步 release commit 并推送到 ${REMOTE}/${DEV_BRANCH}
+
+release workflow 会由 tag 自动触发，请到 GitHub Actions 页面查看执行结果。
+EOF

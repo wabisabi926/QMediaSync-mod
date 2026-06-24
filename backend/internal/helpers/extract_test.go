@@ -1353,24 +1353,24 @@ func TestExtractMediaInfoRe_Movie(t *testing.T) {
 	for _, tc := range testCases {
 		info := ExtractMediaInfoRe(tc.filename, true, false, []string{".strm", ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".flv", ".avi", ".ts", ".m4v", ".iso"})
 		if info == nil {
-			t.Fatalf("正则提取视频信息失败： '%s'", tc.filename)
+			t.Fatalf("正则提取视频信息失败：'%s'", tc.filename)
 			continue
 		}
-		// 验证函数能够正常工作，并且返回的MediaInfo结构有效
+		// 验证函数能够正常工作，并且返回的 MediaInfo 结构有效
 		if !strings.EqualFold(info.Name, tc.expectedMediaInfo.Name) {
-			t.Errorf("正则提取视频信息失败： '%s', 视频名称 '%s' 与预期 '%s' 不符", tc.filename, info.Name, tc.expectedMediaInfo.Name)
+			t.Errorf("正则提取视频信息失败：'%s', 视频名称 '%s' 与预期 '%s' 不符", tc.filename, info.Name, tc.expectedMediaInfo.Name)
 			continue
 		}
 		if info.Year != tc.expectedMediaInfo.Year {
-			t.Errorf("正则提取视频信息失败： '%s', 视频年份 %d 与预期 %d 不符", tc.filename, info.Year, tc.expectedMediaInfo.Year)
+			t.Errorf("正则提取视频信息失败：'%s', 视频年份 %d 与预期 %d 不符", tc.filename, info.Year, tc.expectedMediaInfo.Year)
 			continue
 		}
 		// if info.Season != tc.expectedMediaInfo.Season {
-		// 	t.Errorf("正则提取视频信息失败： '%s', 视频季数 %d 与预期 %d 不符", tc.filename, info.Season, tc.expectedMediaInfo.Season)
+		// 	t.Errorf("正则提取视频信息失败：'%s', 视频季数 %d 与预期 %d 不符", tc.filename, info.Season, tc.expectedMediaInfo.Season)
 		// 	continue
 		// }
 		// if info.Episode != tc.expectedMediaInfo.Episode {
-		// 	t.Errorf("正则提取视频信息失败： '%s', 视频集数 %d 与预期 %d 不符", tc.filename, info.Episode, tc.expectedMediaInfo.Episode)
+		// 	t.Errorf("正则提取视频信息失败：'%s', 视频集数 %d 与预期 %d 不符", tc.filename, info.Episode, tc.expectedMediaInfo.Episode)
 		// 	continue
 		// }
 		i++
@@ -1512,27 +1512,27 @@ func TestExtractMediaInfoRe_Tvshow(t *testing.T) {
 		i++
 		info := ExtractMediaInfoRe(tc.filename, false, false, []string{".strm", ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".flv", ".avi", ".ts", ".m4v", ".iso"})
 		if info == nil {
-			t.Fatalf("正则提取视频信息失败： '%s'", tc.filename)
+			t.Fatalf("正则提取视频信息失败：'%s'", tc.filename)
 			continue
 		}
-		// 验证函数能够正常工作，并且返回的MediaInfo结构有效
+		// 验证函数能够正常工作，并且返回的 MediaInfo 结构有效
 		if !strings.EqualFold(info.Name, tc.expectedMediaInfo.Name) {
-			t.Errorf("正则提取视频信息失败： '%s', 视频名称 '%s' 与预期 '%s' 不符", tc.filename, info.Name, tc.expectedMediaInfo.Name)
+			t.Errorf("正则提取视频信息失败：'%s', 视频名称 '%s' 与预期 '%s' 不符", tc.filename, info.Name, tc.expectedMediaInfo.Name)
 			continue
 		}
 		if info.Year != tc.expectedMediaInfo.Year {
-			t.Errorf("正则提取视频信息失败： '%s', 视频年份 %d 与预期 %d 不符", tc.filename, info.Year, tc.expectedMediaInfo.Year)
+			t.Errorf("正则提取视频信息失败：'%s', 视频年份 %d 与预期 %d 不符", tc.filename, info.Year, tc.expectedMediaInfo.Year)
 			continue
 		}
 		if info.Season != tc.expectedMediaInfo.Season {
-			t.Errorf("正则提取视频信息失败： '%s', 视频季数 %d 与预期 %d 不符", tc.filename, info.Season, tc.expectedMediaInfo.Season)
+			t.Errorf("正则提取视频信息失败：'%s', 视频季数 %d 与预期 %d 不符", tc.filename, info.Season, tc.expectedMediaInfo.Season)
 			continue
 		}
 		if info.Episode != tc.expectedMediaInfo.Episode {
-			t.Errorf("正则提取视频信息失败： '%s', 视频集数 %d 与预期 %d 不符", tc.filename, info.Episode, tc.expectedMediaInfo.Episode)
+			t.Errorf("正则提取视频信息失败：'%s', 视频集数 %d 与预期 %d 不符", tc.filename, info.Episode, tc.expectedMediaInfo.Episode)
 			continue
 		}
-		// fmt.Printf("正则提取视频信息成功： '%s', 影视剧名称：%s, 年份：%d, 季: %d, 集：%d\n\n", tc.filename, info.Name, info.Year, info.Season, info.Episode)
+		// fmt.Printf("正则提取视频信息成功：'%s', 影视剧名称：%s, 年份：%d, 季: %d, 集：%d\n\n", tc.filename, info.Name, info.Year, info.Season, info.Episode)
 	}
 	fmt.Printf("共测试完成 %d 个电视剧标题\n", i)
 }
@@ -1698,15 +1698,15 @@ func TestExtractMediaInfoRe_TvshowSeasonEpisode(t *testing.T) {
 		i++
 		info := ExtractMediaInfoRe(tc.filename, false, true, []string{".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".flv", ".avi", ".ts", ".m4v", ".iso"})
 		if info == nil {
-			t.Fatalf("正则提取视频信息失败： '%s'", tc.filename)
+			t.Fatalf("正则提取视频信息失败：'%s'", tc.filename)
 			continue
 		}
 		if info.Season != tc.expectedMediaInfo.Season {
-			t.Errorf("正则提取视频信息失败： '%s', 视频季数 %d 与预期 %d 不符", tc.filename, info.Season, tc.expectedMediaInfo.Season)
+			t.Errorf("正则提取视频信息失败：'%s', 视频季数 %d 与预期 %d 不符", tc.filename, info.Season, tc.expectedMediaInfo.Season)
 			continue
 		}
 		if info.Episode != tc.expectedMediaInfo.Episode {
-			t.Errorf("正则提取视频信息失败： '%s', 视频集数 %d 与预期 %d 不符", tc.filename, info.Episode, tc.expectedMediaInfo.Episode)
+			t.Errorf("正则提取视频信息失败：'%s', 视频集数 %d 与预期 %d 不符", tc.filename, info.Episode, tc.expectedMediaInfo.Episode)
 			continue
 		}
 	}
@@ -1730,7 +1730,7 @@ func TestExtractMediaInfoRe_TvshowSeason(t *testing.T) {
 		i++
 		info := ExtractSeasonsFromSeasonPath(tc.filename)
 		if info != tc.expectedMediaInfo.Season {
-			t.Errorf("正则提取视频信息失败： '%s', 视频季数 %d 与预期 %d 不符", tc.filename, info, tc.expectedMediaInfo.Season)
+			t.Errorf("正则提取视频信息失败：'%s', 视频季数 %d 与预期 %d 不符", tc.filename, info, tc.expectedMediaInfo.Season)
 			continue
 		}
 	}
@@ -1761,11 +1761,11 @@ func TestExtractMediaInfoRe_Tmdb(t *testing.T) {
 		i++
 		info := ExtractMediaInfoRe(tc.filename, false, true, []string{".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".flv", ".avi", ".ts", ".m4v", ".iso"})
 		if info == nil {
-			t.Fatalf("正则提取视频信息失败： '%s'", tc.filename)
+			t.Fatalf("正则提取视频信息失败：'%s'", tc.filename)
 			continue
 		}
 		if info.TmdbId != tc.expectedMediaInfo.TmdbId {
-			t.Errorf("正则提取视频信息失败： '%s', 视频tmdb id %d 与预期 %d 不符", tc.filename, info.TmdbId, tc.expectedMediaInfo.TmdbId)
+			t.Errorf("正则提取视频信息失败：'%s', 视频 TMDB ID %d 与预期 %d 不符", tc.filename, info.TmdbId, tc.expectedMediaInfo.TmdbId)
 			continue
 		}
 	}

@@ -52,7 +52,7 @@ func UUID() (string, error) {
 		return "", err
 	}
 
-	// 设置UUID版本(4)和变体(2)
+	// 设置 UUID 版本（4）和变体（2）
 	b[6] = (b[6] & 0x0f) | 0x40 // Version 4
 	b[8] = (b[8] & 0x3f) | 0x80 // Variant is 10
 
@@ -60,7 +60,7 @@ func UUID() (string, error) {
 }
 
 func RandStr(length int) string {
-	// 生成size长度的随机字符串
+	// 生成指定长度的随机字符串
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	b := make([]byte, length)
 	for i := range b {
@@ -150,7 +150,7 @@ func FirstLetterUpper(s string) string {
 	return string(r)
 }
 
-// 将00000.00000格式的时长转为秒
+// 将 00000.00000 格式的时长转为秒
 func DurationStringToSecond(duration string) int64 {
 	if duration == "" {
 		return 0
@@ -163,7 +163,7 @@ func DurationStringToSecond(duration string) int64 {
 	return seconds
 }
 
-// 根据宽和高计算宽高比,返回一个小数点后三位的float64
+// 根据宽和高计算宽高比，返回 float64
 func CalculateAspectRatio(width, height int64) float64 {
 	if width == 0 || height == 0 {
 		return 0
@@ -172,7 +172,7 @@ func CalculateAspectRatio(width, height int64) float64 {
 }
 
 func JsonString(v any) string {
-	// json编码v
+	// JSON 编码 v
 	jsonStr, err := json.Marshal(v)
 	if err != nil {
 		return ""

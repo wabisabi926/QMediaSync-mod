@@ -45,7 +45,7 @@ func writeLoginFailure(c *gin.Context) {
 
 // LoginAction 用户登录
 // @Summary 用户登录
-// @Description 用户登录并返回JWT Token
+// @Description 用户登录并返回 JWT Token
 // @Tags 用户管理
 // @Accept json
 // @Produce json
@@ -101,7 +101,7 @@ func LoginAction(c *gin.Context) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString([]byte(helpers.GlobalConfig.JwtSecret))
 	if err != nil {
-		helpers.AppLogger.Errorf("LoginAction: %v", err)
+		helpers.AppLogger.Errorf("登录签名失败：%v", err)
 		writeLoginFailure(c)
 		return
 	}
@@ -143,12 +143,12 @@ func getTokenFromRequest(c *gin.Context) string {
 func SessionAction(c *gin.Context) {
 	tokenString := getTokenFromRequest(c)
 	if tokenString == "" {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "Token不存在", Data: nil})
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "登录凭证不存在", Data: nil})
 		return
 	}
 	loginUser, err := ValidateJWT(tokenString)
 	if err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("Token无效：%v", err), Data: nil})
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("登录凭证无效：%v", err), Data: nil})
 		return
 	}
 	user, err := models.GetUserById(loginUser.ID)
@@ -212,7 +212,7 @@ func ChangePassword(c *gin.Context) {
 	}
 	isChange2, err = LoginedUser.ChangeUsernameAndPassword(req.Username, req.NewPassword)
 	if err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "修改失败: " + err.Error(), Data: nil})
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "修改失败：" + err.Error(), Data: nil})
 		return
 	}
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "修改成功", Data: isChange || isChange2})
@@ -330,7 +330,7 @@ func DisableTwoFactor(c *gin.Context) {
 
 // GetUserInfo 获取当前用户信息
 // @Summary 获取用户信息
-// @Description 获取当前登录用户的ID和用户名
+// @Description 获取当前登录用户的 ID 和用户名
 // @Tags 用户管理
 // @Accept json
 // @Produce json
@@ -340,7 +340,7 @@ func DisableTwoFactor(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func GetUserInfo(c *gin.Context) {
-	// 返回当前用户ID和用户名
+	// 返回当前用户 ID 和用户名
 	respData := make(map[string]string)
 	respData["id"] = fmt.Sprintf("%d", LoginedUser.ID)
 	respData["username"] = LoginedUser.Username

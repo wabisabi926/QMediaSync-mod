@@ -4,22 +4,22 @@ import (
 	"Q115-STRM/internal/notification"
 )
 
-// NotificationChannel 通知渠道基础配置 - 别名供models包使用
+// NotificationChannel 通知渠道基础配置 - 别名供 models 包使用
 type NotificationChannel = notification.NotificationChannel
 
-// TelegramChannelConfig Telegram渠道配置 - 别名供models包使用
+// TelegramChannelConfig Telegram 渠道配置 - 别名供 models 包使用
 type TelegramChannelConfig = notification.TelegramChannelConfig
 
-// MeoWChannelConfig MeoW渠道配置 - 别名供models包使用
+// MeoWChannelConfig MeoW 渠道配置 - 别名供 models 包使用
 type MeoWChannelConfig = notification.MeoWChannelConfig
 
-// BarkChannelConfig Bark渠道配置 - 别名供models包使用
+// BarkChannelConfig Bark 渠道配置 - 别名供 models 包使用
 type BarkChannelConfig = notification.BarkChannelConfig
 
-// ServerChanChannelConfig Server酱渠道配置 - 别名供models包使用
+// ServerChanChannelConfig Server酱渠道配置 - 别名供 models 包使用
 type ServerChanChannelConfig = notification.ServerChanChannelConfig
 
-// NotificationRule 通知规则 - 别名供models包使用
+// NotificationRule 通知规则 - 别名供 models 包使用
 type NotificationRule = notification.NotificationRule
 
 // NotificationType 通知类型枚举 - 从 internal/notification 导入
@@ -50,5 +50,5 @@ const (
 // Notification 统一通知对象 - 从 internal/notification 导入
 type Notification = notification.Notification
 
-// CustomWebhookChannelConfig 自定义Webhook渠道配置 - 别名供models包使用
+// CustomWebhookChannelConfig 自定义 Webhook 渠道配置 - 别名供 models 包使用
 type CustomWebhookChannelConfig = notification.CustomWebhookChannelConfig

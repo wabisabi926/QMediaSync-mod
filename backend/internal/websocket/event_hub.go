@@ -17,21 +17,21 @@ const (
 	EventStrmSyncTaskComplete = "strm_sync_task_complete"
 )
 
-// WSEvent WebSocket事件结构
+// WSEvent WebSocket 事件结构
 type WSEvent struct {
 	EventType string    `json:"event_type"`
 	Timestamp time.Time `json:"timestamp"`
 	Data      any       `json:"data"`
 }
 
-// Client WebSocket客户端
+// Client WebSocket 客户端
 type Client struct {
 	Hub  *EventHub
 	Conn *websocket.Conn
 	Send chan []byte
 }
 
-// EventHub WebSocket事件中心，管理所有连接和事件广播
+// EventHub WebSocket 事件中心，管理所有连接和事件广播
 type EventHub struct {
 	clients    map[*Client]bool
 	broadcast  chan []byte
@@ -124,7 +124,7 @@ func (h *EventHub) ClientCount() int {
 	return len(h.clients)
 }
 
-// WritePump 从hub读取消息并发送到WebSocket连接
+// WritePump 从 hub 读取消息并发送到 WebSocket 连接
 func (c *Client) WritePump() {
 	defer func() {
 		c.Conn.Close()
@@ -132,7 +132,7 @@ func (c *Client) WritePump() {
 	for {
 		message, ok := <-c.Send
 		if !ok {
-			// channel已关闭
+			// channel 已关闭
 			c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
 			return
 		}
@@ -142,7 +142,7 @@ func (c *Client) WritePump() {
 	}
 }
 
-// ReadPump 从WebSocket连接读取消息（心跳/断开检测）
+// ReadPump 从 WebSocket 连接读取消息（心跳/断开检测）
 func (c *Client) ReadPump() {
 	defer func() {
 		c.Hub.UnregisterClient(c)

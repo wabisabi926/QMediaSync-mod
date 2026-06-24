@@ -2,7 +2,7 @@
 
 /**
  * 格式化时间戳为日期时间字符串 (YYYY-MM-DD HH:MM:SS)
- * @param timestamp 时间戳(秒)
+ * @param timestamp 时间戳 (秒)
  * @returns 格式化后的日期时间字符串
  */
 export const formatTimestamp = (timestamp: number): string => {
@@ -22,7 +22,7 @@ export const formatTimestamp = (timestamp: number): string => {
 
 /**
  * 格式化日期时间戳为可读字符串
- * @param timestamp 时间戳(秒)
+ * @param timestamp 时间戳 (秒)
  * @returns 格式化后的日期时间字符串
  */
 export const formatDateTime = (timestamp: number): string => {
@@ -41,7 +41,7 @@ export const formatDateTime = (timestamp: number): string => {
 
 /**
  * 格式化时间戳为时间字符串
- * @param timestamp 时间戳(秒)
+ * @param timestamp 时间戳 (秒)
  * @returns 格式化后的时间字符串
  */
 export const formatTime = (timestamp: number): string => {
@@ -127,7 +127,7 @@ export const formatExpireTime = (expireTime: string): string => {
 
   if (diffDays < 0) return '已过期'
   if (diffDays === 0) return '今天到期'
-  if (diffDays <= 30) return `${diffDays}天后到期`
+  if (diffDays <= 30) return `${diffDays} 天后到期`
 
   return date.toLocaleDateString('zh-CN')
 }
@@ -160,16 +160,16 @@ export const getExpireClass = (expireTime: string): string => {
  * @returns 格式化后的时间字符串
  */
 export const formatDuration = (seconds: number): string => {
-  if (!seconds || seconds <= 0) return '0秒'
+  if (!seconds || seconds <= 0) return '0 秒'
 
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
   const secs = Math.floor(seconds % 60)
 
   const parts: string[] = []
-  if (hours > 0) parts.push(`${hours}小时`)
-  if (minutes > 0) parts.push(`${minutes}分`)
-  if (secs > 0 || parts.length === 0) parts.push(`${secs}秒`)
+  if (hours > 0) parts.push(`${hours} 小时`)
+  if (minutes > 0) parts.push(`${minutes} 分`)
+  if (secs > 0 || parts.length === 0) parts.push(`${secs} 秒`)
 
-  return parts.join('')
+  return parts.join(' ')
 }

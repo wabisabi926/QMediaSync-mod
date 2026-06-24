@@ -2,7 +2,7 @@
   <div class="main-content-container api-keys-container">
     <el-alert type="info" :closable="false" show-icon>
       <template #title>
-        API Key 认证已启用，可通过在请求中追加 api_key 使用所有需要认证的接口。
+        API Key 认证已启用，在请求中追加 api_key 参数即可访问需要认证的接口。
       </template>
       <p class="alert-tip">完整密钥仅在创建时显示一次，请妥善保存。</p>
     </el-alert>
@@ -21,7 +21,7 @@
       empty-text="暂无 API Key"
     >
       <el-table-column prop="name" label="名称" min-width="80" />
-      <el-table-column prop="key_prefix" label="Key 前缀" width="160">
+      <el-table-column prop="key_prefix" label="API Key 前缀" width="160">
         <template #default="{ row }">
           <el-tag type="info">{{ row.key_prefix }}</el-tag>
         </template>
@@ -71,7 +71,7 @@
       <el-form-item label="名称" required>
         <el-input
           v-model="createForm.name"
-          placeholder="用于区分用途的名称，例如: CI 脚本"
+          placeholder="用于区分用途的名称，例如：CI 脚本"
           maxlength="60"
           show-word-limit
         />
@@ -94,7 +94,7 @@
     <el-alert type="warning" show-icon :closable="false" class="created-warning">
       <template #title> 只会显示一次，关闭后无法再次查看完整密钥。 </template>
       <p class="alert-tip">
-        调用接口时在 URL 追加 api_key 参数即可使用，例如 /api/user/info?api_key=...
+        调用接口时在 URL 中追加 api_key 参数即可使用，例如：/api/user/info?api_key=YOUR_API_KEY
       </p>
     </el-alert>
 
@@ -173,7 +173,7 @@ const loadKeys = async () => {
       ElMessage.error(response?.data.message || '加载 API Key 列表失败')
     }
   } catch (error) {
-    console.error('加载 API Key 失败:', error)
+    console.error('加载 API Key 失败：', error)
     apiKeys.value = []
     ElMessage.error('加载失败，请稍后重试')
   } finally {
@@ -207,7 +207,7 @@ const createKey = async () => {
       ElMessage.error(response?.data.message || '创建失败')
     }
   } catch (error) {
-    console.error('创建 API Key 失败:', error)
+    console.error('创建 API Key 失败：', error)
     ElMessage.error('创建失败，请稍后重试')
   } finally {
     creating.value = false
@@ -231,7 +231,7 @@ const toggleStatus = async (row: ApiKeyItem) => {
       ElMessage.error(response?.data.message || '状态更新失败')
     }
   } catch (error) {
-    console.error('更新 API Key 状态失败:', error)
+    console.error('更新 API Key 状态失败：', error)
     row.is_active = original
     ElMessage.error('状态更新失败，请稍后重试')
   } finally {
@@ -242,7 +242,7 @@ const toggleStatus = async (row: ApiKeyItem) => {
 const confirmDelete = async (row: ApiKey) => {
   try {
     await ElMessageBox.confirm(
-      `确认删除【${row.name}】(前缀 ${row.key_prefix}) 吗？删除后无法恢复。`,
+      `确认删除“${row.name}”（前缀 ${row.key_prefix}）吗？删除后无法恢复。`,
       '删除确认',
       {
         type: 'warning',
@@ -260,7 +260,7 @@ const confirmDelete = async (row: ApiKey) => {
     }
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
-      console.error('删除 API Key 失败:', error)
+      console.error('删除 API Key 失败：', error)
       ElMessage.error('删除失败，请稍后重试')
     }
   }
@@ -272,7 +272,7 @@ const copyContent = async (content?: string) => {
     await navigator.clipboard.writeText(content)
     ElMessage.success('已复制到剪贴板')
   } catch (error) {
-    console.error('复制失败:', error)
+    console.error('复制失败：', error)
     ElMessage.error('复制失败，请手动复制')
   }
 }

@@ -50,7 +50,7 @@
           </div>
           <div class="stat-info">
             <span class="stat-value">{{ cronEnabledCount }}</span>
-            <span class="stat-label">定时同步</span>
+            <span class="stat-label">定时任务</span>
           </div>
         </div>
       </div>
@@ -68,7 +68,7 @@
           <div class="card-main">
             <div class="card-header">
               <div class="card-title-wrapper">
-                <el-tooltip :content="'目录ID：' + row.id" placement="bottom">
+                <el-tooltip :content="'目录 ID：' + row.id" placement="bottom">
                   <span class="card-id">#{{ row.id }}</span>
                 </el-tooltip>
                 <span class="card-path">{{ row.source_path }}</span>
@@ -136,7 +136,7 @@
                   <el-icon><Timer /></el-icon>
                 </div>
                 <div class="info-content">
-                  <span class="info-label">定时同步</span>
+                  <span class="info-label">定时任务</span>
                   <el-switch
                     v-model="row.enable_cron"
                     :active-value="true"
@@ -234,7 +234,7 @@
           </div>
         </div>
         <h3 class="empty-title">暂无刮削目录</h3>
-        <p class="empty-description">点击上方按钮添加您的第一个刮削目录</p>
+        <p class="empty-description">点击上方按钮添加第一个刮削目录</p>
         <el-button type="primary" @click="goToAdd">
           <el-icon><Plus /></el-icon>
           添加刮削目录
@@ -243,7 +243,7 @@
 
       <div class="loading-state" v-if="loading">
         <el-icon class="loading-icon rotating"><Loading /></el-icon>
-        <span>加载中...</span>
+        <span>加载中…</span>
       </div>
 
       <div class="page-footer-tips">
@@ -268,7 +268,7 @@
               </div>
               <div class="tip-item">
                 <span class="tip-bullet">•</span>
-                <span>如果开启了定时任务则是每13分钟运行一次</span>
+                <span>开启定时任务后，每 13 分钟执行一次</span>
               </div>
             </div>
           </div>
@@ -280,21 +280,23 @@
             <div class="tip-group-items">
               <div class="tip-item">
                 <span class="tip-bullet">•</span>
-                <span>刮削默认并发数为5，并发数越高越快，但也会增加TMDB或网盘限制的概率</span>
-              </div>
-              <div class="tip-item">
-                <span class="tip-bullet">•</span>
                 <span
-                  >如果要调整并发数需要在
-                  <router-link to="/settings/tmdb">刮削设置</router-link> 中使用自己的TMDB API
-                  KEY，否则会使用默认并发数</span
+                  >默认刮削并发数为 5；并发越高速度越快，但触发 TMDB 或网盘限流的概率也会增加</span
                 >
               </div>
               <div class="tip-item">
                 <span class="tip-bullet">•</span>
                 <span
-                  >刮削流程：扫描文件夹下所有待刮削文件 - 刮削 -
-                  整理。如果文件很多，首次刮削可能需要较长时间，请耐心等待</span
+                  >如需调整并发数，请在
+                  <router-link to="/settings/tmdb">刮削设置</router-link> 中配置自己的 TMDB API
+                  Key；否则会使用默认并发数</span
+                >
+              </div>
+              <div class="tip-item">
+                <span class="tip-bullet">•</span>
+                <span
+                  >刮削流程：扫描待刮削文件 → 刮削 →
+                  整理。文件较多时，首次刮削可能需要较长时间</span
                 >
               </div>
             </div>
@@ -305,14 +307,14 @@
 
     <el-dialog
       v-model="showSyncPathDialog"
-      title="关联STRM同步目录"
+      title="关联 STRM 同步目录"
       width="500px"
       :close-on-click-modal="false"
     >
       <div class="sync-path-dialog-content">
-        <p class="dialog-tip">请选择要关联的STRM同步目录：</p>
+        <p class="dialog-tip">请选择要关联的 STRM 同步目录：</p>
         <el-alert
-          title="刮削完毕会自动将元数据放入STRM同步目录并生成STRM文件"
+          title="刮削完成后，会自动将元数据放入 STRM 同步目录并生成 STRM 文件"
           type="info"
           :closable="false"
           show-icon
@@ -571,10 +573,10 @@ const handleScan = async (row: ScrapePath) => {
   try {
     row.scanning = true
     await http.post(`${SERVER_URL}/scrape/pathes/start`, { id: row.id })
-    ElMessage.success('任务已开始')
+    ElMessage.success('刮削任务已开始')
   } catch (error) {
-    ElMessage.error('任务启动失败')
-    console.error('Scan error:', error)
+    ElMessage.error('启动刮削任务失败')
+    console.error('启动刮削任务错误：', error)
   } finally {
     row.scanning = false
   }
@@ -586,10 +588,10 @@ const handleStop = async (row: ScrapePath) => {
   try {
     row.scanning = true
     await http.post(`${SERVER_URL}/scrape/pathes/stop`, { id: row.id })
-    ElMessage.success('任务已停止')
+    ElMessage.success('刮削任务已停止')
   } catch (error) {
-    ElMessage.error('任务停止失败')
-    console.error('Stop error:', error)
+    ElMessage.error('停止刮削任务失败')
+    console.error('停止刮削任务错误：', error)
   } finally {
     row.scanning = false
   }
@@ -608,15 +610,15 @@ const toggleCron = async (row: ScrapePath) => {
     })
 
     if (response?.data.code === 200) {
-      ElMessage.success(row.enable_cron ? '开启定时同步成功' : '关闭定时同步成功')
+      ElMessage.success(row.enable_cron ? '开启定时任务成功' : '关闭定时任务成功')
     } else {
       row.enable_cron = !row.enable_cron
-      ElMessage.error(response?.data.message || '切换定时同步状态失败')
+      ElMessage.error(response?.data.message || '切换定时任务状态失败')
     }
   } catch {
-    console.error('切换定时同步状态错误')
+    console.error('切换定时任务状态错误')
     row.enable_cron = !row.enable_cron
-    ElMessage.error('切换定时同步状态失败')
+    ElMessage.error('切换定时任务状态失败')
   }
 }
 
@@ -666,7 +668,7 @@ const openSyncPathDialog = async (row: ScrapePath) => {
 
 const saveSyncPathRelation = async () => {
   if (!currentScrapePath.value?.id) {
-    ElMessage.error('刮削目录ID不存在')
+    ElMessage.error('刮削目录 ID 不存在')
     return
   }
 
@@ -700,7 +702,7 @@ const clearAutoRefreshTimer = () => {
   }
 }
 
-// WebSocket事件监听
+// WebSocket 事件监听
 import { useWSEvent } from '@/composables/useWebSocket'
 
 const onScraperEvent = () => {

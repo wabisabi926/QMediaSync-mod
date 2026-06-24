@@ -215,7 +215,7 @@ func WriteMovieNfo(m *Movie, filename string) error {
 
 	data, err := xml.MarshalIndent(m, "", "  ")
 	if err != nil {
-		return fmt.Errorf("序列化 XML 失败: %v", err)
+		return fmt.Errorf("序列化 XML 失败：%v", err)
 	}
 
 	content := append(xmlHeader, data...)
@@ -224,7 +224,7 @@ func WriteMovieNfo(m *Movie, filename string) error {
 	strOutput = strings.Replace(strOutput, "]]&gt;", "]]>", -1)
 	err = os.WriteFile(filename, []byte(strOutput), 0766)
 	if err != nil {
-		return fmt.Errorf("写入文件失败: %v", err)
+		return fmt.Errorf("写入文件失败：%v", err)
 	}
 
 	return nil

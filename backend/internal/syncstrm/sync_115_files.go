@@ -9,8 +9,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// 启动115文件处理调度器
-// 启动N个文件处理，将所有文件查询回来入临时表
+// 启动 115 文件处理调度器
+// 启动 N 个文件处理器，将所有文件查询回来并写入同步缓存
 func (s *SyncStrm) Start115FileDispathcer(total int64) error {
 	limit := models.GetFileListPageSize()
 	// 根据文件总数来计算需要多少个处理器
@@ -22,7 +22,7 @@ func (s *SyncStrm) Start115FileDispathcer(total int64) error {
 		s.Sync.Logger.Infof("无需处理文件列表，总数为 0")
 		return nil
 	}
-	// 取pageCount和s.PathWorkerMax之间的较小值
+	// 取 pageCount 和 s.PathWorkerMax 之间的较小值
 	workerMax := min(pageCount, s.PathWorkerMax)
 
 	// 使用 errgroup 管理并发
@@ -40,7 +40,7 @@ func (s *SyncStrm) Start115FileDispathcer(total int64) error {
 	return eg.Wait()
 }
 
-// 115文件页处理器
+// 115 文件页处理器
 func (s *SyncStrm) process115FilePage(ctx context.Context, page, limit int) error {
 	// 检查 context 是否已取消
 	select {
@@ -50,13 +50,13 @@ func (s *SyncStrm) process115FilePage(ctx context.Context, page, limit int) erro
 	}
 
 	offset := page * int(limit)
-	s.Sync.Logger.Infof("文件处理器开始处理文件列表，offset=%d, limit=%d", offset, limit)
-	// 查询115网盘文件
+	s.Sync.Logger.Infof("文件处理器开始处理文件列表，offset=%d，limit=%d", offset, limit)
+	// 查询 115 网盘文件
 	var files []v115open.File
 	var err error
 	files, err = s.SyncDriver.GetFilesByPathId(ctx, s.SourcePathId, offset, limit)
 	if err != nil {
-		s.Sync.Logger.Errorf("获取115网盘文件列表失败: 目录ID %s, offset=%d, limit=%d, %v", s.SourcePathId, offset, limit, err)
+		s.Sync.Logger.Errorf("获取 115 网盘文件列表失败：目录 ID %s，offset=%d，limit=%d，%v", s.SourcePathId, offset, limit, err)
 		return err
 	}
 	// 处理查询到的文件
@@ -67,13 +67,13 @@ func (s *SyncStrm) process115FilePage(ctx context.Context, page, limit int) erro
 			s.Sync.Logger.Warnf("文件 %s 被排除", file.FileName)
 			continue
 		}
-		// 检查目录ID是否被排除
+		// 检查目录 ID 是否被排除
 		if _, excluded := s.sync115.excludePathId.Load(file.Pid); excluded {
-			s.Sync.Logger.Warnf("文件 %s 的父目录ID %s 被排除", file.FileName, file.Pid)
+			s.Sync.Logger.Warnf("文件 %s 的父目录 ID %s 被排除", file.FileName, file.Pid)
 			continue
 		}
 		// 处理文件
-		// 生成一个临时的SyncFile
+		// 生成一个临时的 SyncFile
 		syncFile := SyncFileCache{
 			Path:       "",
 			FileId:     file.FileId,
@@ -104,16 +104,16 @@ func (s *SyncStrm) process115FilePage(ctx context.Context, page, limit int) erro
 		// 放入同步缓存
 		err := s.memSyncCache.Insert(&syncFile)
 		if err != nil {
-			s.Sync.Logger.Errorf("文件 %s => %s 插入同步缓存失败: %v", syncFile.FileId, syncFile.FileName, err)
+			s.Sync.Logger.Errorf("文件 %s => %s 插入同步缓存失败：%v", syncFile.FileId, syncFile.FileName, err)
 			return err
 		}
-		// s.Sync.Logger.Infof("文件 %s => %s 插入同步缓存成功, 路径 %s", syncFile.FileId, syncFile.FileName, syncFile.LocalFilePath)
+		// s.Sync.Logger.Infof("文件 %s => %s 插入同步缓存成功，路径 %s", syncFile.FileId, syncFile.FileName, syncFile.LocalFilePath)
 		// 如果路径完整，直接处理文件
 		if syncFile.LocalFilePath != "" {
 			s.processNetFile(&syncFile)
 		}
 		// s.Sync.Logger.Infof("文件 %s => %s 处理完成", syncFile.FileId, syncFile.FileName)
 	}
-	s.Sync.Logger.Infof("文件处理器处理完成offset=%d, limit=%d，共处理 %d 个文件", offset, limit, len(files))
+	s.Sync.Logger.Infof("文件处理器处理完成，offset=%d，limit=%d，共处理 %d 个文件", offset, limit, len(files))
 	return nil
 }

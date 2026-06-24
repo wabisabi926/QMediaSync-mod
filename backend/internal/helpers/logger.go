@@ -83,10 +83,10 @@ func NewLogger(logFileName string, isConsole bool, rotate bool) *QLogger {
 	if rotate {
 		lumLogger = &lumberjack.Logger{
 			Filename:   logFile,
-			MaxSize:    10,   // 最大10MB
-			MaxBackups: 3,    // 3个备份
-			MaxAge:     7,    //days
-			Compress:   true, // disabled by default
+			MaxSize:    10,   // 最大 10 MB
+			MaxBackups: 3,    // 3 个备份
+			MaxAge:     7,    // 天
+			Compress:   true, // 默认关闭
 		}
 		if isConsole {
 			// 同时写入文件和控制台

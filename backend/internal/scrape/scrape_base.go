@@ -46,7 +46,7 @@ func (s *ScrapeBase) DownloadImages(parentPath, ua string, fileList map[string]s
 		}
 		err := helpers.DownloadFile(url, filePath, ua)
 		if err != nil {
-			helpers.AppLogger.Errorf("下载图片 %s 失败: %v", filePath, err)
+			helpers.AppLogger.Errorf("下载图片 %s 失败：%v", filePath, err)
 		}
 	}
 }
@@ -63,16 +63,16 @@ func (s *ScrapeBase) GetMovieRealName(sm *models.ScrapeMediaFile, name string, f
 }
 
 func (s *ScrapeBase) FFprobe(mediaFile *models.ScrapeMediaFile) error {
-	// 如果是strm则不提取
+	// 如果是 STRM 则不提取
 	if filepath.Ext(mediaFile.VideoFilename) == ".strm" {
-		helpers.AppLogger.Infof("strm文件或网盘文件，跳过ffprobe阶段, 文件名: %s", mediaFile.VideoFilename)
+		helpers.AppLogger.Infof("STRM 文件或网盘文件，跳过 ffprobe 阶段，文件名：%s", mediaFile.VideoFilename)
 		return nil
 	}
 	// 解析视频文件包含的视频、音频、字幕流
 	videoPathOrUrl := s.GetDownloadUrl(mediaFile)
 	if videoPathOrUrl == "" {
-		helpers.AppLogger.Errorf("获取视频的下载连接失败, PickCode: %s", mediaFile.VideoPickCode)
-		return fmt.Errorf("获取视频的下载连接失败, PickCode: %s", mediaFile.VideoPickCode)
+		helpers.AppLogger.Errorf("获取视频下载链接失败，PickCode：%s", mediaFile.VideoPickCode)
+		return fmt.Errorf("获取视频下载链接失败，PickCode：%s", mediaFile.VideoPickCode)
 	}
 	if mediaFile.SourceType == models.SourceType115 {
 		// 代理访问
@@ -91,14 +91,14 @@ func (sm *ScrapeBase) GetFFprobeInfoFromFileOrUrl(mediaFile *models.ScrapeMediaF
 	var err error
 	ffprobeJson, err = helpers.GetFFprobeJson(videoPathOrUrl)
 	if err != nil {
-		helpers.AppLogger.Errorf("获取ffprobe数据文件失败: %v", err)
+		helpers.AppLogger.Errorf("获取 ffprobe 数据文件失败：%v", err)
 		return
 	}
 	// }
 	mediaFile.AudioCodec = make([]*models.AudioCodec, 0)
 	mediaFile.SubtitleCodec = make([]*models.Subtitle, 0)
 	if ffprobeJson == nil {
-		helpers.AppLogger.Error("获取ffprobe数据失败，数据为空")
+		helpers.AppLogger.Error("获取 ffprobe 数据失败，数据为空")
 		return
 	}
 	for index, stream := range ffprobeJson.Streams {
@@ -165,7 +165,7 @@ func (sm *ScrapeBase) GetFFprobeInfoFromFileOrUrl(mediaFile *models.ScrapeMediaF
 		resolution := helpers.GetResolutionLevel(mediaFile.VideoCodec.Width, mediaFile.VideoCodec.Height)
 		mediaFile.ResolutionLevel = resolution.CommonName
 		mediaFile.Resolution = resolution.StandardName
-		// 计算是否HDR视频
+		// 计算是否 HDR 视频
 		mediaFile.IsHDR = helpers.IsHDRFormat(mediaFile.VideoCodec.PixelFormat)
 	}
 }
@@ -200,7 +200,7 @@ func (m *ScrapeBase) MoveLocalTempFileToDest(mediaFile *models.ScrapeMediaFile, 
 		destPath := filepath.Join(file.DestPath, file.FileName)
 		err := helpers.MoveFile(tempPath, destPath, true)
 		if err != nil {
-			helpers.AppLogger.Errorf("移动刮削临时文件 %s 到整理目标位置 %s 失败: %v", tempPath, destPath, err)
+			helpers.AppLogger.Errorf("移动刮削临时文件 %s 到整理目标位置 %s 失败：%v", tempPath, destPath, err)
 			return false, err
 		}
 		helpers.AppLogger.Infof("移动刮削临时文件 %s 到整理目标位置 %s 成功", tempPath, destPath)

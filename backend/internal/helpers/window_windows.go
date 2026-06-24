@@ -84,7 +84,7 @@ func setupFullFeaturedTray(parent walk.Form, stopFunc func()) error {
 	if err = notifyIcon.SetIcon(icon); err != nil {
 		return err
 	}
-	if err = notifyIcon.SetToolTip("QMediaSync正在后台运行中"); err != nil {
+	if err = notifyIcon.SetToolTip("QMediaSync 正在后台运行中"); err != nil {
 		return err
 	}
 
@@ -108,7 +108,7 @@ func setupFullFeaturedTray(parent walk.Form, stopFunc func()) error {
 		exitApp()
 	})
 
-	// We put an exit action into the context menu.
+	// 将退出动作加入右键菜单
 	exitAction.Triggered().Attach(func() { walk.App().Exit(0) })
 	if err := notifyIcon.ContextMenu().Actions().Add(exitAction); err != nil {
 		log.Fatal(err)
@@ -134,7 +134,7 @@ func OpenBrowser(url string) error {
 }
 
 func StartNewProcess(exePath, updateDir string) bool {
-	// 复制一个临时的exe文件，启动这个临时文件，更新完成后删除
+	// 复制一个临时的 exe 文件，启动这个临时文件，更新完成后删除
 	var cmd *exec.Cmd
 	if updateDir != "" {
 		cmd = exec.Command(exePath, "-update", updateDir)
@@ -149,7 +149,7 @@ func StartNewProcess(exePath, updateDir string) bool {
 	}
 
 	if err := cmd.Start(); err != nil {
-		AppLogger.Errorf("启动更新进程失败: %v", err)
+		AppLogger.Errorf("启动更新进程失败：%v", err)
 		return false
 	}
 	return true

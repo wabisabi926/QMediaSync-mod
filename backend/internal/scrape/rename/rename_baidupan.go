@@ -55,7 +55,7 @@ func (r *RenameBaiduPan) RenameAndMove(mediaFile *models.ScrapeMediaFile, destPa
 }
 
 func (r *RenameBaiduPan) move(mediaFile *models.ScrapeMediaFile, newName, newPathId, oldPath string) error {
-	helpers.AppLogger.Infof("百度网盘 准备将文件 %s 从 %s 移动到新文件夹 %s", newName, oldPath, newPathId)
+	helpers.AppLogger.Infof("百度网盘准备将文件 %s 从 %s 移动到新文件夹 %s", newName, oldPath, newPathId)
 	// 检查是否存在
 	destFullPath := filepath.ToSlash(filepath.Join(newPathId, newName))
 	fsDetail, _ := r.client.FileExists(r.ctx, destFullPath)
@@ -111,7 +111,7 @@ func (r *RenameBaiduPan) move(mediaFile *models.ScrapeMediaFile, newName, newPat
 	}
 
 	if mediaFile.ScrapeType == models.ScrapeTypeOnlyRename && mediaFile.MediaType == models.MediaTypeOther {
-		// 其他类型仅整理要把图片和nfo也转移过去
+		// 其他类型仅整理时，也需要把图片和 NFO 一起转移过去
 		if mediaFile.ImageFilesJson != "" {
 			for _, imageFile := range mediaFile.ImageFiles {
 				newImageName := strings.Replace(imageFile.FileName, oldBaseName, mediaFile.NewVideoBaseName, 1)
@@ -122,7 +122,7 @@ func (r *RenameBaiduPan) move(mediaFile *models.ScrapeMediaFile, newName, newPat
 				})
 			}
 		}
-		// 移动nfo文件
+		// 移动 NFO 文件
 		if mediaFile.NfoFileId != "" {
 			newNfoName := strings.Replace(mediaFile.NfoFileName, oldBaseName, mediaFile.NewVideoBaseName, 1)
 			fileList = append(fileList, baidupan.MoveOrCopyItem{
@@ -135,7 +135,7 @@ func (r *RenameBaiduPan) move(mediaFile *models.ScrapeMediaFile, newName, newPat
 	// 移动文件
 	err := r.client.MoveBatch(r.ctx, fileList)
 	if err != nil {
-		helpers.AppLogger.Errorf("百度网盘移动文件失败: %v", err)
+		helpers.AppLogger.Errorf("百度网盘移动文件失败：%v", err)
 		return err
 	}
 	return nil
@@ -179,7 +179,7 @@ func (r *RenameBaiduPan) copy(mediaFile *models.ScrapeMediaFile, newName, newPat
 		}
 	}
 	if mediaFile.ScrapeType == models.ScrapeTypeOnlyRename && mediaFile.MediaType == models.MediaTypeOther {
-		// 其他类型仅整理要把图片和nfo也转移过去
+		// 其他类型仅整理时，也需要把图片和 NFO 一起转移过去
 		if mediaFile.ImageFilesJson != "" {
 			for _, imageFile := range mediaFile.ImageFiles {
 				newImageName := strings.Replace(imageFile.FileName, oldBaseName, mediaFile.NewVideoBaseName, 1)
@@ -190,7 +190,7 @@ func (r *RenameBaiduPan) copy(mediaFile *models.ScrapeMediaFile, newName, newPat
 				})
 			}
 		}
-		// 移动nfo文件
+		// 移动 NFO 文件
 		if mediaFile.NfoFileId != "" {
 			newNfoName := strings.Replace(mediaFile.NfoFileName, oldBaseName, mediaFile.NewVideoBaseName, 1)
 			fileList = append(fileList, baidupan.MoveOrCopyItem{
@@ -203,15 +203,15 @@ func (r *RenameBaiduPan) copy(mediaFile *models.ScrapeMediaFile, newName, newPat
 	// 复制文件
 	err := r.client.CopyBatch(r.ctx, fileList)
 	if err != nil {
-		helpers.AppLogger.Errorf("百度网盘 复制文件失败: %v", err)
+		helpers.AppLogger.Errorf("百度网盘复制文件失败：%v", err)
 		return err
 	}
 	start := 0
 	for {
-		// 查询新的fsid
+		// 查询新的 fs_id
 		fsList, err := r.client.GetFileList(r.ctx, newPathId, 1, 1, int32(start), 1000)
 		if err != nil {
-			helpers.AppLogger.Errorf("百度网盘 获取文件列表失败: id=%s %v", newPathId, err)
+			helpers.AppLogger.Errorf("百度网盘获取文件列表失败：ID=%s，%v", newPathId, err)
 			return err
 		}
 		for _, file := range fsList {
@@ -253,7 +253,7 @@ func (r *RenameBaiduPan) copy(mediaFile *models.ScrapeMediaFile, newName, newPat
 		// 保存
 		mediaFile.MediaEpisode.Save()
 	}
-	helpers.AppLogger.Infof("百度网盘 文件 %s 成功复制到 %s", oldPath+"/"+mediaFile.VideoFilename, newPathId+"/"+newName)
+	helpers.AppLogger.Infof("百度网盘文件 %s 成功复制到 %s", oldPath+"/"+mediaFile.VideoFilename, newPathId+"/"+newName)
 	return nil
 }
 
@@ -263,7 +263,7 @@ func (r *RenameBaiduPan) CheckAndMkDir(destFullPath string, rootPath, rootPathId
 		// 创建文件夹
 		err = r.client.Mkdir(r.ctx, destFullPath)
 		if err != nil {
-			helpers.AppLogger.Errorf("11百度网盘 创建文件夹失败: %s 错误：%v", destFullPath, err)
+			helpers.AppLogger.Errorf("百度网盘创建文件夹失败：%s，错误：%v", destFullPath, err)
 			return destFullPath, err
 		}
 	}
@@ -277,7 +277,7 @@ func (r *RenameBaiduPan) RemoveMediaSourcePath(mediaFile *models.ScrapeMediaFile
 	}
 	fsList, err := r.client.GetFileList(r.ctx, sourcePath, 1, 1, 0, 1000)
 	if err != nil {
-		helpers.AppLogger.Errorf("百度网盘 获取文件列表失败: id=%s %v", mediaFile.PathId, err)
+		helpers.AppLogger.Errorf("百度网盘获取文件列表失败：ID=%s，%v", mediaFile.PathId, err)
 		return err
 	}
 	if len(fsList) > 0 {
@@ -296,10 +296,10 @@ func (r *RenameBaiduPan) RemoveMediaSourcePath(mediaFile *models.ScrapeMediaFile
 		// 删除目录
 		err := r.client.Del(r.ctx, []string{sourcePath})
 		if err != nil {
-			helpers.AppLogger.Errorf("百度网盘 删除文件夹失败: %s %v", sourcePath, err)
+			helpers.AppLogger.Errorf("百度网盘删除文件夹失败：%s，%v", sourcePath, err)
 			return err
 		}
-		helpers.AppLogger.Infof("刮削完成，尝试删除百度网盘文件夹成功, 路径：%s", sourcePath)
+		helpers.AppLogger.Infof("刮削完成，已尝试删除百度网盘文件夹，路径：%s", sourcePath)
 	}
 	// 再删除电视剧文件夹
 	if mediaFile.PathId != "" {
@@ -311,17 +311,17 @@ func (r *RenameBaiduPan) RemoveMediaSourcePath(mediaFile *models.ScrapeMediaFile
 		}
 		fsList, err := r.client.GetFileList(r.ctx, tvshowParentId, 1, 1, 0, 1000)
 		if err != nil {
-			helpers.AppLogger.Errorf("删除Openlist文件失败: %s %v", mediaFile.PathId, err)
+			helpers.AppLogger.Errorf("删除百度网盘文件失败：%s，%v", mediaFile.PathId, err)
 			return err
 		}
 		if len(fsList) == 0 || sp.ForceDeleteSourcePath {
 			// 删除目录
 			err := r.client.Del(r.ctx, []string{tvshowParentId})
 			if err != nil {
-				helpers.AppLogger.Errorf("删除百度网盘电视剧文件夹失败: %s %v", mediaFile.TvshowPathId, err)
+				helpers.AppLogger.Errorf("删除百度网盘电视剧文件夹失败：%s，%v", mediaFile.TvshowPathId, err)
 				return err
 			}
-			helpers.AppLogger.Infof("刮削完成，尝试删除百度网盘电视剧文件夹成功, 路径：%s", mediaFile.TvshowPathId)
+			helpers.AppLogger.Infof("刮削完成，已尝试删除百度网盘电视剧文件夹，路径：%s", mediaFile.TvshowPathId)
 		}
 
 	}
@@ -331,13 +331,13 @@ func (r *RenameBaiduPan) RemoveMediaSourcePath(mediaFile *models.ScrapeMediaFile
 func (r *RenameBaiduPan) ReadFileContent(fileId string) ([]byte, error) {
 	fsDetail, err := r.client.GetFileDetail(r.ctx, fileId, 1)
 	if err != nil || fsDetail == nil || fsDetail.Dlink == "" {
-		helpers.AppLogger.Errorf("获取百度网盘文件下载链接失败: fileId=%s, url为空", fileId)
-		return nil, errors.New("获取百度网盘文件下载链接失败, url为空")
+		helpers.AppLogger.Errorf("获取百度网盘文件下载链接失败：fileId=%s，URL 为空", fileId)
+		return nil, errors.New("获取百度网盘文件下载链接失败，URL 为空")
 	}
-	// 读取url的内容
+	// 读取 URL 的内容
 	content, err := helpers.ReadFromUrl(fsDetail.Dlink, "pan.baidu.com")
 	if err != nil {
-		helpers.AppLogger.Errorf("百度网盘读取文件下载链接内容失败: fileId=%s, url=%s, %v", fileId, fsDetail.Dlink, err)
+		helpers.AppLogger.Errorf("百度网盘读取文件下载链接内容失败：fileId=%s，URL=%s，%v", fileId, fsDetail.Dlink, err)
 		return nil, err
 	}
 	return content, nil
@@ -348,15 +348,15 @@ func (r *RenameBaiduPan) CheckAndDeleteFiles(mediaFile *models.ScrapeMediaFile, 
 		// 检查是否存在
 		fsDetail, err := r.client.FileExists(r.ctx, f.FullFilePath)
 		if err != nil || (fsDetail != nil && fsDetail.ServerFilename == "") {
-			helpers.AppLogger.Infof("百度网盘 文件不存在，无需删除: 路径：%s", f.FullFilePath)
+			helpers.AppLogger.Infof("百度网盘文件不存在，无需删除：路径：%s", f.FullFilePath)
 			continue
 		}
 		err = r.client.Del(r.ctx, []string{filepath.Dir(f.FullFilePath)})
 		if err != nil {
-			helpers.AppLogger.Errorf("删除百度网盘文件失败: 路径：%s %v", f.FullFilePath, err)
+			helpers.AppLogger.Errorf("删除百度网盘文件失败：路径：%s，%v", f.FullFilePath, err)
 			continue
 		}
-		helpers.AppLogger.Infof("删除百度网盘文件成功, 路径：%s", f.FullFilePath)
+		helpers.AppLogger.Infof("删除百度网盘文件成功，路径：%s", f.FullFilePath)
 	}
 	return nil
 }
@@ -366,16 +366,16 @@ func (r *RenameBaiduPan) MoveFiles(f models.MoveNewFileToSourceFile) error {
 	newFileId := filepath.ToSlash(filepath.Join(f.PathId, filepath.Base(f.FileId)))
 	fsDetail, err := r.client.FileExists(r.ctx, newFileId)
 	if err == nil || (fsDetail != nil && fsDetail.ServerFilename != "") {
-		helpers.AppLogger.Infof("百度网盘 文件存在，无需移动: 路径：%s", newFileId)
+		helpers.AppLogger.Infof("百度网盘文件存在，无需移动：路径：%s", newFileId)
 		return nil
 	}
 	// 移动文件
 	err = r.client.Move(r.ctx, filepath.Dir(f.FileId), f.PathId, filepath.Base(f.FileId))
 	if err != nil {
-		helpers.AppLogger.Errorf("移动百度网盘文件失败: %s => %s 错误：%v", f.FileId, newFileId, err)
+		helpers.AppLogger.Errorf("移动百度网盘文件失败：%s => %s，错误：%v", f.FileId, newFileId, err)
 		return err
 	}
-	helpers.AppLogger.Infof("移动百度网盘文件成功: %s => %s", f.FileId, newFileId)
+	helpers.AppLogger.Infof("移动百度网盘文件成功：%s => %s", f.FileId, newFileId)
 	return nil
 }
 
@@ -387,25 +387,25 @@ func (r *RenameBaiduPan) Rename(fileId, newName string) error {
 	return r.client.Rename(r.ctx, filepath.Dir(fileId), newName)
 }
 
-// 检查是否存在，存在就改名字，然后返回新的fileId
+// 检查文件是否存在，存在就重命名，并返回新的文件 ID
 func (r *RenameBaiduPan) ExistsAndRename(fileId, newName string) (string, error) {
 	// 检查是否存在
 	fsDetail, err := r.client.FileExists(r.ctx, fileId)
 	if err != nil || fsDetail == nil || fsDetail.ServerFilename == "" {
-		helpers.AppLogger.Infof("百度网盘 文件不存在，无需重命名: 文件ID：%s", fileId)
+		helpers.AppLogger.Infof("百度网盘文件不存在，无需重命名：文件 ID：%s", fileId)
 		return "", nil
 	}
-	// 如果名字没变则不需要改名字
+	// 如果文件名未变化，则不需要重命名
 	if fsDetail.ServerFilename == newName {
-		helpers.AppLogger.Infof("百度网盘 文件名字没变，无需重命名: 文件ID：%s", fileId)
+		helpers.AppLogger.Infof("百度网盘文件名未变化，无需重命名：文件 ID：%s", fileId)
 		return fileId, nil
 	}
 	// 重命名文件
 	err = r.Rename(fileId, newName)
 	if err != nil {
-		helpers.AppLogger.Errorf("重命名百度网盘文件失败：%s => %s 错误：%v", fileId, newName, err)
+		helpers.AppLogger.Errorf("重命名百度网盘文件失败：%s => %s，错误：%v", fileId, newName, err)
 		return "", err
 	}
-	helpers.AppLogger.Infof("重命名百度网盘文件成功, %s => %s", fileId, newName)
+	helpers.AppLogger.Infof("重命名百度网盘文件成功，%s => %s", fileId, newName)
 	return filepath.ToSlash(filepath.Join(filepath.Dir(fileId), newName)), nil
 }

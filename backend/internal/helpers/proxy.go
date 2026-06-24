@@ -9,24 +9,24 @@ import (
 	"time"
 )
 
-// TestHttpProxy 测试HTTP代理连接
+// TestHttpProxy 测试 HTTP 代理连接
 func TestHttpProxy(proxyURL string) (bool, error) {
 	if proxyURL == "" {
-		return false, fmt.Errorf("代理URL不能为空")
+		return false, fmt.Errorf("代理 URL 不能为空")
 	}
 
-	// 验证代理URL格式
+	// 验证代理 URL 格式
 	parsedProxy, err := url.Parse(proxyURL)
 	if err != nil {
-		return false, fmt.Errorf("代理URL格式无效: %v", err)
+		return false, fmt.Errorf("代理 URL 格式无效：%v", err)
 	}
 
 	// 检查协议
 	if parsedProxy.Scheme != "http" && parsedProxy.Scheme != "https" {
-		return false, fmt.Errorf("不支持的代理协议: %s，仅支持HTTP/HTTPS协议", parsedProxy.Scheme)
+		return false, fmt.Errorf("不支持的代理协议：%s，仅支持 HTTP/HTTPS 协议", parsedProxy.Scheme)
 	}
 
-	// 创建HTTP客户端，使用HTTP代理
+	// 创建 HTTP 客户端，使用 HTTP 代理
 	client := &http.Client{
 		Transport: &http.Transport{
 			Proxy:           http.ProxyURL(parsedProxy),
@@ -39,12 +39,12 @@ func TestHttpProxy(proxyURL string) (bool, error) {
 		Timeout: 30 * time.Second,
 	}
 
-	// 测试URL列表，按优先级排序
+	// 测试 URL 列表，按优先级排序
 	testURLs := []string{
 		"https://api.github.com",  // GitHub API，稳定可靠
-		"https://www.google.com",  // Google首页
+		"https://www.google.com",  // Google 首页
 		"http://www.baidu.com",    // 百度首页，国内访问
-		"https://httpstat.us/200", // HTTP状态测试服务
+		"https://httpstat.us/200", // HTTP 状态测试服务
 	}
 
 	var lastError error
@@ -54,7 +54,7 @@ func TestHttpProxy(proxyURL string) (bool, error) {
 
 		req, err := http.NewRequest("GET", testURL, nil)
 		if err != nil {
-			lastError = fmt.Errorf("创建请求失败: %v", err)
+			lastError = fmt.Errorf("创建请求失败：%v", err)
 			continue
 		}
 
@@ -67,28 +67,28 @@ func TestHttpProxy(proxyURL string) (bool, error) {
 
 		resp, err := client.Do(req)
 		if err != nil {
-			lastError = fmt.Errorf("请求失败 [%s]: %v", testURL, err)
-			AppLogger.Warnf("代理测试失败 [%s]: %v", testURL, err)
+			lastError = fmt.Errorf("请求失败 [%s]：%v", testURL, err)
+			AppLogger.Warnf("代理测试失败 [%s]：%v", testURL, err)
 			continue
 		}
 		defer resp.Body.Close()
 
 		// 检查响应状态
 		if resp.StatusCode >= 200 && resp.StatusCode < 400 {
-			AppLogger.Infof("代理连接测试成功 [%s]: HTTP %d", testURL, resp.StatusCode)
+			AppLogger.Infof("代理连接测试成功 [%s]：HTTP %d", testURL, resp.StatusCode)
 			return true, nil
 		} else {
-			lastError = fmt.Errorf("HTTP响应异常 [%s]: %d %s", testURL, resp.StatusCode, resp.Status)
-			AppLogger.Warnf("代理测试响应异常 [%s]: %d", testURL, resp.StatusCode)
+			lastError = fmt.Errorf("HTTP 响应异常 [%s]：%d %s", testURL, resp.StatusCode, resp.Status)
+			AppLogger.Warnf("代理测试响应异常 [%s]：%d", testURL, resp.StatusCode)
 		}
 	}
 
-	// 所有测试URL都失败了
+	// 所有测试 URL 都失败了
 	if lastError != nil {
-		return false, fmt.Errorf("代理连接测试失败: %v", lastError)
+		return false, fmt.Errorf("代理连接测试失败：%v", lastError)
 	}
 
-	return false, fmt.Errorf("代理连接测试失败: 所有测试URL都无法访问")
+	return false, fmt.Errorf("代理连接测试失败：所有测试 URL 都无法访问")
 }
 
 // TestHttpProxyAdvanced 高级代理测试，返回更详细的信息
@@ -101,15 +101,15 @@ func TestHttpProxyAdvanced(proxyURL string) (*ProxyTestResult, error) {
 
 	if proxyURL == "" {
 		result.Success = false
-		result.ErrorMessage = "代理URL不能为空"
-		return result, fmt.Errorf("代理URL不能为空")
+		result.ErrorMessage = "代理 URL 不能为空"
+		return result, fmt.Errorf("代理 URL 不能为空")
 	}
 
-	// 验证代理URL格式
+	// 验证代理 URL 格式
 	parsedProxy, err := url.Parse(proxyURL)
 	if err != nil {
 		result.Success = false
-		result.ErrorMessage = fmt.Sprintf("代理URL格式无效: %v", err)
+		result.ErrorMessage = fmt.Sprintf("代理 URL 格式无效：%v", err)
 		return result, err
 	}
 
@@ -119,11 +119,11 @@ func TestHttpProxyAdvanced(proxyURL string) (*ProxyTestResult, error) {
 	// 检查协议
 	if parsedProxy.Scheme != "http" && parsedProxy.Scheme != "https" {
 		result.Success = false
-		result.ErrorMessage = fmt.Sprintf("不支持的代理协议: %s，仅支持HTTP/HTTPS协议", parsedProxy.Scheme)
-		return result, fmt.Errorf("不支持的代理协议: %s", parsedProxy.Scheme)
+		result.ErrorMessage = fmt.Sprintf("不支持的代理协议：%s，仅支持 HTTP/HTTPS 协议", parsedProxy.Scheme)
+		return result, fmt.Errorf("不支持的代理协议：%s", parsedProxy.Scheme)
 	}
 
-	// 创建HTTP客户端，使用HTTP代理
+	// 创建 HTTP 客户端，使用 HTTP 代理
 	client := &http.Client{
 		Transport: &http.Transport{
 			Proxy: http.ProxyURL(parsedProxy),
@@ -135,13 +135,13 @@ func TestHttpProxyAdvanced(proxyURL string) (*ProxyTestResult, error) {
 		Timeout: 30 * time.Second,
 	}
 
-	// 测试URL列表
+	// 测试 URL 列表
 	testURLs := []TestURL{
-		{URL: "http://httpbin.org/ip", Description: "IP检测服务"},
+		{URL: "http://httpbin.org/ip", Description: "IP 检测服务"},
 		{URL: "https://api.github.com", Description: "GitHub API"},
-		{URL: "https://www.google.com", Description: "Google首页"},
+		{URL: "https://www.google.com", Description: "Google 首页"},
 		{URL: "http://www.baidu.com", Description: "百度首页"},
-		{URL: "https://httpstat.us/200", Description: "HTTP状态测试"},
+		{URL: "https://httpstat.us/200", Description: "HTTP 状态测试"},
 	}
 
 	successCount := 0
@@ -156,7 +156,7 @@ func TestHttpProxyAdvanced(proxyURL string) (*ProxyTestResult, error) {
 		req, err := http.NewRequest("GET", testURL.URL, nil)
 		if err != nil {
 			testResult.Success = false
-			testResult.ErrorMessage = fmt.Sprintf("创建请求失败: %v", err)
+			testResult.ErrorMessage = fmt.Sprintf("创建请求失败：%v", err)
 			testResult.Duration = time.Since(testResult.StartTime)
 			result.TestResults = append(result.TestResults, testResult)
 			continue
@@ -171,7 +171,7 @@ func TestHttpProxyAdvanced(proxyURL string) (*ProxyTestResult, error) {
 
 		if err != nil {
 			testResult.Success = false
-			testResult.ErrorMessage = fmt.Sprintf("请求失败: %v", err)
+			testResult.ErrorMessage = fmt.Sprintf("请求失败：%v", err)
 		} else {
 			defer resp.Body.Close()
 			testResult.StatusCode = resp.StatusCode
@@ -182,7 +182,7 @@ func TestHttpProxyAdvanced(proxyURL string) (*ProxyTestResult, error) {
 				successCount++
 			} else {
 				testResult.Success = false
-				testResult.ErrorMessage = fmt.Sprintf("HTTP响应异常: %d %s", resp.StatusCode, resp.Status)
+				testResult.ErrorMessage = fmt.Sprintf("HTTP 响应异常：%d %s", resp.StatusCode, resp.Status)
 			}
 		}
 
@@ -196,7 +196,7 @@ func TestHttpProxyAdvanced(proxyURL string) (*ProxyTestResult, error) {
 		result.TotalCount = len(testURLs)
 	} else {
 		result.Success = false
-		result.ErrorMessage = "所有测试URL都无法通过代理访问"
+		result.ErrorMessage = "所有测试 URL 都无法通过代理访问"
 	}
 
 	return result, nil
@@ -213,7 +213,7 @@ func createProxyTransport(proxyURL string) (*http.Transport, error) {
 			IdleConnTimeout:       90 * time.Second,
 			MaxIdleConns:          100,
 			MaxIdleConnsPerHost:   10,
-			// 自定义Dialer
+			// 自定义 Dialer
 			DialContext: (&net.Dialer{
 				Timeout:   30 * time.Second,
 				KeepAlive: 30 * time.Second,
@@ -221,35 +221,35 @@ func createProxyTransport(proxyURL string) (*http.Transport, error) {
 		}, nil
 	}
 
-	// 解析代理URL
+	// 解析代理 URL
 	parsedProxy, err := url.Parse(proxyURL)
 	if err != nil {
-		return nil, fmt.Errorf("代理URL格式无效: %v", err)
+		return nil, fmt.Errorf("代理 URL 格式无效：%v", err)
 	}
 
-	// 检查是否为HTTP代理
+	// 检查是否为 HTTP 代理
 	if parsedProxy.Scheme != "http" && parsedProxy.Scheme != "https" {
-		return nil, fmt.Errorf("不支持的代理协议: %s，仅支持HTTP/HTTPS协议", parsedProxy.Scheme)
+		return nil, fmt.Errorf("不支持的代理协议：%s，仅支持 HTTP/HTTPS 协议", parsedProxy.Scheme)
 	}
 
-	// 创建HTTP代理传输配置
+	// 创建 HTTP 代理传输配置
 	transport := &http.Transport{
 		Proxy: http.ProxyURL(parsedProxy),
-		// TLS设置
-		TLSHandshakeTimeout: 60 * time.Second, // 增加TLS握手超时
+		// TLS 设置
+		TLSHandshakeTimeout: 60 * time.Second, // 增加 TLS 握手超时
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: false, // 保持证书验证
 		},
-		// HTTP设置
+		// HTTP 设置
 		ResponseHeaderTimeout: 60 * time.Second, // 增加响应头超时
-		ExpectContinueTimeout: 5 * time.Second,  // 增加ExpectContinue超时
+		ExpectContinueTimeout: 5 * time.Second,  // 增加 ExpectContinue 超时
 		// 连接池设置
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 10,
 		IdleConnTimeout:     90 * time.Second,
-		// 启用HTTP/2
+		// 启用 HTTP/2
 		ForceAttemptHTTP2: true,
-		// 自定义Dialer以支持更好的网络控制
+		// 自定义 Dialer，以支持更好的网络控制
 		DialContext: (&net.Dialer{
 			Timeout:   60 * time.Second,
 			KeepAlive: 30 * time.Second,
@@ -263,7 +263,7 @@ func createProxyTransport(proxyURL string) (*http.Transport, error) {
 func GetProxyTransport(proxyURL string) *http.Transport {
 	transport, err := createProxyTransport(proxyURL)
 	if err != nil {
-		AppLogger.Warnf("创建代理传输失败: %v", err)
+		AppLogger.Warnf("创建代理传输失败：%v", err)
 		return &http.Transport{} // 返回默认传输
 	}
 	return transport
@@ -282,13 +282,13 @@ type ProxyTestResult struct {
 	TestResults  []TestURLResult `json:"test_results"`
 }
 
-// TestURL 测试URL
+// TestURL 测试 URL
 type TestURL struct {
 	URL         string `json:"url"`
 	Description string `json:"description"`
 }
 
-// TestURLResult 单个URL测试结果
+// TestURLResult 单个 URL 测试结果
 type TestURLResult struct {
 	URL          string        `json:"url"`
 	Description  string        `json:"description"`

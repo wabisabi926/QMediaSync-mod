@@ -46,15 +46,15 @@ func GetNotificationChannels(c *gin.Context) {
 	})
 }
 
-// CreateTelegramChannel 创建Telegram渠道
-// @Summary 创建Telegram渠道
-// @Description 创建Telegram通知渠道并保存配置
+// CreateTelegramChannel 创建 Telegram 渠道
+// @Summary 创建 Telegram 渠道
+// @Description 创建 Telegram 通知渠道并保存配置
 // @Tags 通知管理
 // @Accept json
 // @Produce json
 // @Param channel_name body string true "渠道名称"
-// @Param bot_token body string true "机器人Token"
-// @Param chat_id body string true "聊天ID"
+// @Param bot_token body string true "机器人 Token"
+// @Param chat_id body string true "聊天 ID"
 // @Success 200 {object} object
 // @Failure 200 {object} object
 // @Router /setting/notification/channels/telegram [post]
@@ -132,9 +132,9 @@ func CreateTelegramChannel(c *gin.Context) {
 	})
 }
 
-// CreateMeoWChannel 创建MeoW渠道
-// @Summary 创建MeoW渠道
-// @Description 创建MeoW通知渠道并保存配置
+// CreateMeoWChannel 创建 MeoW 渠道
+// @Summary 创建 MeoW 渠道
+// @Description 创建 MeoW 通知渠道并保存配置
 // @Tags 通知管理
 // @Accept json
 // @Produce json
@@ -222,17 +222,17 @@ func CreateMeoWChannel(c *gin.Context) {
 	})
 }
 
-// CreateBarkChannel 创建Bark渠道
-// @Summary 创建Bark渠道
-// @Description 创建Bark通知渠道并保存配置
+// CreateBarkChannel 创建 Bark 渠道
+// @Summary 创建 Bark 渠道
+// @Description 创建 Bark 通知渠道并保存配置
 // @Tags 通知管理
 // @Accept json
 // @Produce json
 // @Param channel_name body string true "渠道名称"
-// @Param device_key body string true "设备Key"
+// @Param device_key body string true "设备 Key"
 // @Param server_url body string false "服务器地址"
 // @Param sound body string false "提示音"
-// @Param icon body string false "图标URL"
+// @Param icon body string false "图标 URL"
 // @Success 200 {object} object
 // @Failure 200 {object} object
 // @Router /setting/notification/channels/bark [post]
@@ -321,9 +321,9 @@ func CreateBarkChannel(c *gin.Context) {
 	})
 }
 
-// CreateServerChanChannel 创建Server酱渠道
-// @Summary 创建Server酱渠道
-// @Description 创建Server酱通知渠道并保存配置
+// CreateServerChanChannel 创建 Server酱渠道
+// @Summary 创建 Server酱渠道
+// @Description 创建 Server酱通知渠道并保存配置
 // @Tags 通知管理
 // @Accept json
 // @Produce json
@@ -412,23 +412,23 @@ func CreateServerChanChannel(c *gin.Context) {
 }
 
 // CreateCustomWebhookChannel 创建自定义 Webhook 渠道
-// @Summary 创建Webhook渠道
-// @Description 创建自定义Webhook通知渠道并保存配置
+// @Summary 创建 Webhook 渠道
+// @Description 创建自定义 Webhook 通知渠道并保存配置
 // @Tags 通知管理
 // @Accept json
 // @Produce json
 // @Param channel_name body string true "渠道名称"
-// @Param endpoint body string true "Webhook地址"
-// @Param method body string true "请求方法(GET/POST)"
+// @Param endpoint body string true "Webhook 地址"
+// @Param method body string true "请求方法（GET/POST）"
 // @Param template body string true "模板内容"
-// @Param format body string false "POST格式(json|form|text)"
-// @Param query_param body string false "GET参数名，默认q"
+// @Param format body string false "POST 格式（json|form|text）"
+// @Param query_param body string false "GET 参数名，默认 q"
 // @Param auth_type body string false "鉴权类型 none|bearer|basic|header|query"
-// @Param auth_token body string false "鉴权Token"
-// @Param auth_user body string false "Basic用户名"
-// @Param auth_pass body string false "Basic密码"
-// @Param auth_header_key body string false "Header键"
-// @Param auth_query_key body string false "Query键"
+// @Param auth_token body string false "鉴权 Token"
+// @Param auth_user body string false "Basic 用户名"
+// @Param auth_pass body string false "Basic 密码"
+// @Param auth_header_key body string false "Header 键"
+// @Param auth_query_key body string false "Query 键"
 // @Param headers body object false "附加请求头"
 // @Param description body string false "描述"
 // @Success 200 {object} object
@@ -473,26 +473,26 @@ func CreateCustomWebhookChannel(c *gin.Context) {
 		// 无需额外校验
 	case "bearer":
 		if strings.TrimSpace(r.AuthToken) == "" {
-			c.JSON(http.StatusOK, gin.H{"code": 1, "message": "bearer 方式需提供 auth_token", "data": nil})
+			c.JSON(http.StatusOK, gin.H{"code": 1, "message": "Bearer 鉴权需要提供 auth_token", "data": nil})
 			return
 		}
 	case "basic":
 		if strings.TrimSpace(r.AuthUser) == "" && strings.TrimSpace(r.AuthPass) == "" {
-			c.JSON(http.StatusOK, gin.H{"code": 1, "message": "basic 方式需提供 auth_user 或 auth_pass", "data": nil})
+			c.JSON(http.StatusOK, gin.H{"code": 1, "message": "Basic 鉴权需要提供 auth_user 或 auth_pass", "data": nil})
 			return
 		}
 	case "header":
 		if strings.TrimSpace(r.AuthHeaderKey) == "" || strings.TrimSpace(r.AuthToken) == "" {
-			c.JSON(http.StatusOK, gin.H{"code": 1, "message": "header 方式需提供 auth_header_key 与 auth_token", "data": nil})
+			c.JSON(http.StatusOK, gin.H{"code": 1, "message": "Header 鉴权需要提供 auth_header_key 与 auth_token", "data": nil})
 			return
 		}
 	case "query":
 		if strings.TrimSpace(r.AuthQueryKey) == "" || strings.TrimSpace(r.AuthToken) == "" {
-			c.JSON(http.StatusOK, gin.H{"code": 1, "message": "query 方式需提供 auth_query_key 与 auth_token", "data": nil})
+			c.JSON(http.StatusOK, gin.H{"code": 1, "message": "Query 鉴权需要提供 auth_query_key 与 auth_token", "data": nil})
 			return
 		}
 	default:
-		c.JSON(http.StatusOK, gin.H{"code": 1, "message": "auth_type 必须是 none|bearer|basic|header|query", "data": nil})
+		c.JSON(http.StatusOK, gin.H{"code": 1, "message": "auth_type 必须是 none、bearer、basic、header 或 query", "data": nil})
 		return
 	}
 
@@ -504,18 +504,18 @@ func CreateCustomWebhookChannel(c *gin.Context) {
 			s := replaceVarsWithEmpty(r.Template)
 			var js interface{}
 			if err := json.Unmarshal([]byte(s), &js); err != nil {
-				c.JSON(http.StatusOK, gin.H{"code": 1, "message": "JSON 模板无效: " + err.Error(), "data": nil})
+				c.JSON(http.StatusOK, gin.H{"code": 1, "message": "JSON 模板无效：" + err.Error(), "data": nil})
 				return
 			}
 		case "form":
 			re := regexp.MustCompile(`^[A-Za-z0-9_.-]+=[^&]*(?:&[A-Za-z0-9_.-]+=[^&]*)*$`)
 			if !re.MatchString(strings.TrimSpace(r.Template)) {
-				c.JSON(http.StatusOK, gin.H{"code": 1, "message": "Form 模板无效: 必须为 key=value&key2=value2 格式", "data": nil})
+				c.JSON(http.StatusOK, gin.H{"code": 1, "message": "Form 模板无效：必须是 key=value&key2=value2 格式", "data": nil})
 				return
 			}
 		case "text", "":
 		default:
-			c.JSON(http.StatusOK, gin.H{"code": 1, "message": "format 必须是 json|form|text", "data": nil})
+			c.JSON(http.StatusOK, gin.H{"code": 1, "message": "format 必须是 JSON、form 或 text", "data": nil})
 			return
 		}
 	case "GET":
@@ -544,7 +544,7 @@ func CreateCustomWebhookChannel(c *gin.Context) {
 		if b, err := json.Marshal(r.Headers); err == nil {
 			headersJSON = string(b)
 		} else {
-			c.JSON(http.StatusOK, gin.H{"code": 1, "message": "headers 必须为对象", "data": nil})
+			c.JSON(http.StatusOK, gin.H{"code": 1, "message": "headers 必须是对象", "data": nil})
 			return
 		}
 	}
@@ -584,24 +584,24 @@ func CreateCustomWebhookChannel(c *gin.Context) {
 }
 
 // UpdateCustomWebhookChannel 更新自定义 Webhook 渠道配置
-// @Summary 更新Webhook渠道
-// @Description 更新自定义Webhook渠道的基础信息和模板
+// @Summary 更新 Webhook 渠道
+// @Description 更新自定义 Webhook 渠道的基础信息和模板
 // @Tags 通知管理
 // @Accept json
 // @Produce json
-// @Param channel_id body integer true "渠道ID"
+// @Param channel_id body integer true "渠道 ID"
 // @Param channel_name body string false "渠道名称"
-// @Param endpoint body string false "Webhook地址"
-// @Param method body string false "请求方法(GET/POST)"
+// @Param endpoint body string false "Webhook 地址"
+// @Param method body string false "请求方法（GET/POST）"
 // @Param template body string false "模板内容"
-// @Param format body string false "POST格式(json|form|text)"
-// @Param query_param body string false "GET参数名"
+// @Param format body string false "POST 格式（json|form|text）"
+// @Param query_param body string false "GET 参数名"
 // @Param auth_type body string false "鉴权类型"
-// @Param auth_token body string false "鉴权Token"
-// @Param auth_user body string false "Basic用户名"
-// @Param auth_pass body string false "Basic密码"
-// @Param auth_header_key body string false "Header键"
-// @Param auth_query_key body string false "Query键"
+// @Param auth_token body string false "鉴权 Token"
+// @Param auth_user body string false "Basic 用户名"
+// @Param auth_pass body string false "Basic 密码"
+// @Param auth_header_key body string false "Header 键"
+// @Param auth_query_key body string false "Query 键"
 // @Param headers body object false "附加请求头"
 // @Param description body string false "描述"
 // @Success 200 {object} object
@@ -691,18 +691,18 @@ func UpdateCustomWebhookChannel(c *gin.Context) {
 				s := replaceVarsWithEmpty(r.Template)
 				var js interface{}
 				if err := json.Unmarshal([]byte(s), &js); err != nil {
-					c.JSON(http.StatusOK, gin.H{"code": 1, "message": "JSON 模板无效: " + err.Error(), "data": nil})
+					c.JSON(http.StatusOK, gin.H{"code": 1, "message": "JSON 模板无效：" + err.Error(), "data": nil})
 					return
 				}
 			case "form":
 				re := regexp.MustCompile(`^[A-Za-z0-9_.-]+=[^&]*(?:&[A-Za-z0-9_.-]+=[^&]*)*$`)
 				if !re.MatchString(strings.TrimSpace(r.Template)) {
-					c.JSON(http.StatusOK, gin.H{"code": 1, "message": "Form 模板无效: 必须为 key=value&key2=value2 格式", "data": nil})
+					c.JSON(http.StatusOK, gin.H{"code": 1, "message": "Form 模板无效：必须是 key=value&key2=value2 格式", "data": nil})
 					return
 				}
 			case "text", "":
 			default:
-				c.JSON(http.StatusOK, gin.H{"code": 1, "message": "format 必须是 json|form|text", "data": nil})
+				c.JSON(http.StatusOK, gin.H{"code": 1, "message": "format 必须是 JSON、form 或 text", "data": nil})
 				return
 			}
 		}
@@ -722,26 +722,26 @@ func UpdateCustomWebhookChannel(c *gin.Context) {
 		case "", "none":
 		case "bearer":
 			if strings.TrimSpace(r.AuthToken) == "" {
-				c.JSON(http.StatusOK, gin.H{"code": 1, "message": "bearer 方式需提供 auth_token", "data": nil})
+				c.JSON(http.StatusOK, gin.H{"code": 1, "message": "Bearer 鉴权需要提供 auth_token", "data": nil})
 				return
 			}
 		case "basic":
 			if strings.TrimSpace(r.AuthUser) == "" && strings.TrimSpace(r.AuthPass) == "" {
-				c.JSON(http.StatusOK, gin.H{"code": 1, "message": "basic 方式需提供 auth_user 或 auth_pass", "data": nil})
+				c.JSON(http.StatusOK, gin.H{"code": 1, "message": "Basic 鉴权需要提供 auth_user 或 auth_pass", "data": nil})
 				return
 			}
 		case "header":
 			if strings.TrimSpace(r.AuthHeaderKey) == "" || strings.TrimSpace(r.AuthToken) == "" {
-				c.JSON(http.StatusOK, gin.H{"code": 1, "message": "header 方式需提供 auth_header_key 与 auth_token", "data": nil})
+				c.JSON(http.StatusOK, gin.H{"code": 1, "message": "Header 鉴权需要提供 auth_header_key 与 auth_token", "data": nil})
 				return
 			}
 		case "query":
 			if strings.TrimSpace(r.AuthQueryKey) == "" || strings.TrimSpace(r.AuthToken) == "" {
-				c.JSON(http.StatusOK, gin.H{"code": 1, "message": "query 方式需提供 auth_query_key 与 auth_token", "data": nil})
+				c.JSON(http.StatusOK, gin.H{"code": 1, "message": "Query 鉴权需要提供 auth_query_key 与 auth_token", "data": nil})
 				return
 			}
 		default:
-			c.JSON(http.StatusOK, gin.H{"code": 1, "message": "auth_type 必须是 none|bearer|basic|header|query", "data": nil})
+			c.JSON(http.StatusOK, gin.H{"code": 1, "message": "auth_type 必须是 none、bearer、basic、header 或 query", "data": nil})
 			return
 		}
 		updates["auth_type"] = authType
@@ -765,7 +765,7 @@ func UpdateCustomWebhookChannel(c *gin.Context) {
 		if b, err := json.Marshal(r.Headers); err == nil {
 			updates["headers"] = string(b)
 		} else {
-			c.JSON(http.StatusOK, gin.H{"code": 1, "message": "headers 必须为对象", "data": nil})
+			c.JSON(http.StatusOK, gin.H{"code": 1, "message": "headers 必须是对象", "data": nil})
 			return
 		}
 	}
@@ -793,15 +793,15 @@ func UpdateCustomWebhookChannel(c *gin.Context) {
 }
 
 // UpdateTelegramChannel 更新 Telegram 渠道配置
-// @Summary 更新Telegram渠道
-// @Description 更新Telegram渠道名称与配置
+// @Summary 更新 Telegram 渠道
+// @Description 更新 Telegram 渠道名称与配置
 // @Tags 通知管理
 // @Accept json
 // @Produce json
-// @Param channel_id body integer true "渠道ID"
+// @Param channel_id body integer true "渠道 ID"
 // @Param channel_name body string false "渠道名称"
-// @Param bot_token body string false "机器人Token"
-// @Param chat_id body string false "聊天ID"
+// @Param bot_token body string false "机器人 Token"
+// @Param chat_id body string false "聊天 ID"
 // @Param description body string false "描述"
 // @Success 200 {object} object
 // @Failure 200 {object} object
@@ -881,12 +881,12 @@ func UpdateTelegramChannel(c *gin.Context) {
 }
 
 // UpdateMeoWChannel 更新 MeoW 渠道配置
-// @Summary 更新MeoW渠道
-// @Description 更新MeoW渠道名称与配置
+// @Summary 更新 MeoW 渠道
+// @Description 更新 MeoW 渠道名称与配置
 // @Tags 通知管理
 // @Accept json
 // @Produce json
-// @Param channel_id body integer true "渠道ID"
+// @Param channel_id body integer true "渠道 ID"
 // @Param channel_name body string false "渠道名称"
 // @Param nickname body string false "昵称"
 // @Param endpoint body string false "接口地址"
@@ -969,17 +969,17 @@ func UpdateMeoWChannel(c *gin.Context) {
 }
 
 // UpdateBarkChannel 更新 Bark 渠道配置
-// @Summary 更新Bark渠道
-// @Description 更新Bark渠道名称与配置
+// @Summary 更新 Bark 渠道
+// @Description 更新 Bark 渠道名称与配置
 // @Tags 通知管理
 // @Accept json
 // @Produce json
-// @Param channel_id body integer true "渠道ID"
+// @Param channel_id body integer true "渠道 ID"
 // @Param channel_name body string false "渠道名称"
-// @Param device_key body string false "设备Key"
+// @Param device_key body string false "设备 Key"
 // @Param server_url body string false "服务器地址"
 // @Param sound body string false "提示音"
-// @Param icon body string false "图标URL"
+// @Param icon body string false "图标 URL"
 // @Param description body string false "描述"
 // @Success 200 {object} object
 // @Failure 200 {object} object
@@ -1066,13 +1066,13 @@ func UpdateBarkChannel(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功", "data": channel})
 }
 
-// UpdateServerChanChannel 更新 Server酱 渠道配置
-// @Summary 更新Server酱渠道
-// @Description 更新Server酱渠道名称与配置
+// UpdateServerChanChannel 更新 Server酱渠道配置
+// @Summary 更新 Server酱渠道
+// @Description 更新 Server酱渠道名称与配置
 // @Tags 通知管理
 // @Accept json
 // @Produce json
-// @Param channel_id body integer true "渠道ID"
+// @Param channel_id body integer true "渠道 ID"
 // @Param channel_name body string false "渠道名称"
 // @Param sc_key body string false "SCKEY"
 // @Param endpoint body string false "接口地址"
@@ -1104,7 +1104,7 @@ func UpdateServerChanChannel(c *gin.Context) {
 		return
 	}
 	if channel.ChannelType != "serverchan" {
-		c.JSON(http.StatusOK, gin.H{"code": 1, "message": "该渠道不是 Server酱 类型", "data": nil})
+		c.JSON(http.StatusOK, gin.H{"code": 1, "message": "该渠道不是 Server酱类型", "data": nil})
 		return
 	}
 
@@ -1168,7 +1168,7 @@ func replaceVarsWithEmpty(s string) string {
 // @Tags 通知管理
 // @Accept json
 // @Produce json
-// @Param channel_id body integer true "渠道ID"
+// @Param channel_id body integer true "渠道 ID"
 // @Param is_enabled body boolean false "是否启用"
 // @Success 200 {object} object
 // @Failure 200 {object} object
@@ -1215,12 +1215,12 @@ func UpdateChannelStatus(c *gin.Context) {
 }
 
 // GetTelegramChannel 查询单个 Telegram 渠道配置
-// @Summary 获取Telegram渠道
-// @Description 根据ID获取Telegram渠道及配置
+// @Summary 获取 Telegram 渠道
+// @Description 根据 ID 获取 Telegram 渠道及配置
 // @Tags 通知管理
 // @Accept json
 // @Produce json
-// @Param id path integer true "渠道ID"
+// @Param id path integer true "渠道 ID"
 // @Success 200 {object} object
 // @Failure 200 {object} object
 // @Router /setting/notification/channels/telegram/{id} [get]
@@ -1249,12 +1249,12 @@ func GetTelegramChannel(c *gin.Context) {
 }
 
 // GetMeoWChannel 查询单个 MeoW 渠道配置
-// @Summary 获取MeoW渠道
-// @Description 根据ID获取MeoW渠道及配置
+// @Summary 获取 MeoW 渠道
+// @Description 根据 ID 获取 MeoW 渠道及配置
 // @Tags 通知管理
 // @Accept json
 // @Produce json
-// @Param id path integer true "渠道ID"
+// @Param id path integer true "渠道 ID"
 // @Success 200 {object} object
 // @Failure 200 {object} object
 // @Router /setting/notification/channels/meow/{id} [get]
@@ -1283,12 +1283,12 @@ func GetMeoWChannel(c *gin.Context) {
 }
 
 // GetBarkChannel 查询单个 Bark 渠道配置
-// @Summary 获取Bark渠道
-// @Description 根据ID获取Bark渠道及配置
+// @Summary 获取 Bark 渠道
+// @Description 根据 ID 获取 Bark 渠道及配置
 // @Tags 通知管理
 // @Accept json
 // @Produce json
-// @Param id path integer true "渠道ID"
+// @Param id path integer true "渠道 ID"
 // @Success 200 {object} object
 // @Failure 200 {object} object
 // @Router /setting/notification/channels/bark/{id} [get]
@@ -1316,13 +1316,13 @@ func GetBarkChannel(c *gin.Context) {
 	}})
 }
 
-// GetServerChanChannel 查询单个 Server酱 渠道配置
-// @Summary 获取Server酱渠道
-// @Description 根据ID获取Server酱渠道及配置
+// GetServerChanChannel 查询单个 Server酱渠道配置
+// @Summary 获取 Server酱渠道
+// @Description 根据 ID 获取 Server酱渠道及配置
 // @Tags 通知管理
 // @Accept json
 // @Produce json
-// @Param id path integer true "渠道ID"
+// @Param id path integer true "渠道 ID"
 // @Success 200 {object} object
 // @Failure 200 {object} object
 // @Router /setting/notification/channels/serverchan/{id} [get]
@@ -1351,12 +1351,12 @@ func GetServerChanChannel(c *gin.Context) {
 }
 
 // GetCustomWebhookChannel 查询单个 Webhook 渠道配置
-// @Summary 获取Webhook渠道
-// @Description 根据ID获取Webhook渠道及配置
+// @Summary 获取 Webhook 渠道
+// @Description 根据 ID 获取 Webhook 渠道及配置
 // @Tags 通知管理
 // @Accept json
 // @Produce json
-// @Param id path integer true "渠道ID"
+// @Param id path integer true "渠道 ID"
 // @Success 200 {object} object
 // @Failure 200 {object} object
 // @Router /setting/notification/channels/webhook/{id} [get]
@@ -1412,7 +1412,7 @@ func GetCustomWebhookChannel(c *gin.Context) {
 // @Tags 通知管理
 // @Accept json
 // @Produce json
-// @Param id path integer true "渠道ID"
+// @Param id path integer true "渠道 ID"
 // @Success 200 {object} object
 // @Failure 200 {object} object
 // @Router /setting/notification/channels/{id} [delete]
@@ -1478,7 +1478,7 @@ func DeleteChannel(c *gin.Context) {
 // @Tags 通知管理
 // @Accept json
 // @Produce json
-// @Param channel_id query integer false "渠道ID"
+// @Param channel_id query integer false "渠道 ID"
 // @Success 200 {object} object
 // @Failure 200 {object} object
 // @Router /setting/notification/rules [get]
@@ -1514,7 +1514,7 @@ func GetNotificationRules(c *gin.Context) {
 // @Tags 通知管理
 // @Accept json
 // @Produce json
-// @Param channel_id body integer true "渠道ID"
+// @Param channel_id body integer true "渠道 ID"
 // @Param event_type body string true "事件类型"
 // @Param is_enabled body boolean false "是否启用"
 // @Success 200 {object} object
@@ -1595,7 +1595,7 @@ func UpdateNotificationRule(c *gin.Context) {
 // @Tags 通知管理
 // @Accept json
 // @Produce json
-// @Param channel_id body integer true "渠道ID"
+// @Param channel_id body integer true "渠道 ID"
 // @Success 200 {object} object
 // @Failure 200 {object} object
 // @Router /setting/notification/channels/test [post]
@@ -1715,7 +1715,7 @@ func TestChannelConnection(c *gin.Context) {
 	if err := handler.Send(ctx, testNotif); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"code":    1,
-			"message": "测试失败: " + err.Error(),
+			"message": "测试失败：" + err.Error(),
 			"data":    nil,
 		})
 		return

@@ -40,13 +40,13 @@
         label-width="120px"
         class="scrape-form"
       >
-        <el-form-item label="同步源类型" prop="source_type">
+        <el-form-item label="来源类型" prop="source_type">
           <el-select
             v-model="addForm.source_type"
-            placeholder="请选择同步源类型"
+            placeholder="请选择来源类型"
             @change="loadAccounts"
           >
-            <el-option label="115网盘" value="115" />
+            <el-option label="115 网盘" value="115" />
             <el-option label="阿里云盘" value="ali" />
             <el-option label="夸克网盘" value="quark" />
             <el-option label="本地目录" value="local" />
@@ -173,7 +173,7 @@
           </el-select>
         </el-form-item>
 
-        <el-form-item label="最小视频文件大小(MB)" prop="min_video_file_size">
+        <el-form-item label="最小视频文件大小 (MB)" prop="min_video_file_size">
           <el-input-number
             v-model="addForm.min_video_file_size"
             :min="0"
@@ -210,28 +210,28 @@
           <el-switch v-model="addForm.exclude_no_image_actor" />
         </el-form-item>
 
-        <el-form-item label="AI识别" prop="enable_ai">
-          <el-select v-model="addForm.enable_ai" placeholder="请选择AI识别模式">
+        <el-form-item label="AI 识别" prop="enable_ai">
+          <el-select v-model="addForm.enable_ai" placeholder="请选择 AI 识别模式">
             <el-option label="禁用" value="off" />
             <el-option label="辅助" value="assist" />
             <el-option label="强制" value="force" />
           </el-select>
         </el-form-item>
 
-        <el-form-item v-if="addForm.enable_ai !== 'off'" label="AI提示词" prop="ai_prompt">
+        <el-form-item v-if="addForm.enable_ai !== 'off'" label="AI 提示词" prop="ai_prompt">
           <el-input
             v-model="addForm.ai_prompt"
             type="textarea"
-            placeholder="请输入AI提示词"
+            placeholder="请输入 AI 提示词"
             :autosize="{ minRows: 2, maxRows: 4 }"
           />
         </el-form-item>
 
-        <el-form-item label="定时同步" prop="enable_cron">
+        <el-form-item label="定时任务" prop="enable_cron">
           <el-switch v-model="addForm.enable_cron" />
         </el-form-item>
 
-        <el-form-item label="启用fanart.tv" prop="enable_fanart_tv">
+        <el-form-item label="启用 fanart.tv" prop="enable_fanart_tv">
           <el-switch v-model="addForm.enable_fanart_tv" />
         </el-form-item>
       </el-form>
@@ -258,9 +258,9 @@
         label-width="120px"
         class="scrape-form"
       >
-        <el-form-item label="同步源类型" prop="source_type">
-          <el-select v-model="editForm.source_type" placeholder="请选择同步源类型" disabled>
-            <el-option label="115网盘" value="115" />
+        <el-form-item label="来源类型" prop="source_type">
+          <el-select v-model="editForm.source_type" placeholder="请选择来源类型" disabled>
+            <el-option label="115 网盘" value="115" />
             <el-option label="阿里云盘" value="ali" />
             <el-option label="夸克网盘" value="quark" />
             <el-option label="本地目录" value="local" />
@@ -388,7 +388,7 @@
           </el-select>
         </el-form-item>
 
-        <el-form-item label="最小视频文件大小(MB)" prop="min_video_file_size">
+        <el-form-item label="最小视频文件大小 (MB)" prop="min_video_file_size">
           <el-input-number
             v-model="editForm.min_video_file_size"
             :min="0"
@@ -425,28 +425,28 @@
           <el-switch v-model="editForm.exclude_no_image_actor" />
         </el-form-item>
 
-        <el-form-item label="AI识别" prop="enable_ai">
-          <el-select v-model="editForm.enable_ai" placeholder="请选择AI识别模式">
+        <el-form-item label="AI 识别" prop="enable_ai">
+          <el-select v-model="editForm.enable_ai" placeholder="请选择 AI 识别模式">
             <el-option label="禁用" value="off" />
             <el-option label="辅助" value="assist" />
             <el-option label="强制" value="force" />
           </el-select>
         </el-form-item>
 
-        <el-form-item v-if="editForm.enable_ai !== 'off'" label="AI提示词" prop="ai_prompt">
+        <el-form-item v-if="editForm.enable_ai !== 'off'" label="AI 提示词" prop="ai_prompt">
           <el-input
             v-model="editForm.ai_prompt"
             type="textarea"
-            placeholder="请输入AI提示词"
+            placeholder="请输入 AI 提示词"
             :autosize="{ minRows: 2, maxRows: 4 }"
           />
         </el-form-item>
 
-        <el-form-item label="定时同步" prop="enable_cron">
+        <el-form-item label="定时任务" prop="enable_cron">
           <el-switch v-model="editForm.enable_cron" />
         </el-form-item>
 
-        <el-form-item label="启用fanart.tv" prop="enable_fanart_tv">
+        <el-form-item label="启用 fanart.tv" prop="enable_fanart_tv">
           <el-switch v-model="editForm.enable_fanart_tv" />
         </el-form-item>
       </el-form>
@@ -682,7 +682,7 @@ const deleteKeywords = [
 
 // 表单验证规则
 const addFormRules = reactive<FormRules>({
-  source_type: [{ required: true, message: '请选择同步源类型', trigger: 'change' }],
+  source_type: [{ required: true, message: '请选择来源类型', trigger: 'change' }],
   account_id: [{ required: true, message: '请选择网盘账号', trigger: 'change' }],
   media_type: [{ required: true, message: '请选择媒体类型', trigger: 'change' }],
   source_path_id: [{ required: true, message: '请选择来源路径', trigger: 'change' }],
@@ -694,7 +694,7 @@ const addFormRules = reactive<FormRules>({
 })
 
 const editFormRules = reactive<FormRules>({
-  source_type: [{ required: true, message: '请选择同步源类型', trigger: 'change' }],
+  source_type: [{ required: true, message: '请选择来源类型', trigger: 'change' }],
   account_id: [{ required: true, message: '请选择网盘账号', trigger: 'change' }],
   media_type: [{ required: true, message: '请选择媒体类型', trigger: 'change' }],
   source_path_id: [{ required: true, message: '请选择来源路径', trigger: 'change' }],
@@ -723,7 +723,7 @@ watch(
   (newType) => {
     if (newType === 'only_scrape') {
       addForm.rename_type = 'same' // 当操作方式为'only_scrape'时，整理方式固定为'same'
-      addForm.enable_category = false // 当操作方式为'only_scrape'时，二级分类固定为false
+      addForm.enable_category = false // 当操作方式为'only_scrape'时，二级分类固定为 false
     }
   },
 )
@@ -744,7 +744,7 @@ watch(
   (newType) => {
     if (newType === 'only_scrape') {
       editForm.rename_type = 'same' // 当操作方式为'only_scrape'时，整理方式固定为'same'
-      editForm.enable_category = false // 当操作方式为'only_scrape'时，二级分类固定为false
+      editForm.enable_category = false // 当操作方式为'only_scrape'时，二级分类固定为 false
     }
   },
 )
@@ -881,7 +881,7 @@ const loadAccounts = async (sourceType?: string) => {
 const handleAdd = async () => {
   if (!addFormRef.value) return
   if (addForm.scrape_type !== 'only_scrape' && addForm.dest_path_id === '') {
-    ElMessage.error('请选择目标路径且填写文件夹重命名模板和文件重命名模板')
+    ElMessage.error('请先选择目标路径，并确认重命名模板已填写')
     return
   }
   try {
@@ -922,7 +922,7 @@ const handleAdd = async () => {
       ElMessage.error(response?.data.message || '添加刮削目录失败')
     }
   } catch (error) {
-    console.error('添加刮削目录错误', error)
+    console.error('添加刮削目录错误：', error)
     ElMessage.error('添加刮削目录失败')
   } finally {
     addLoading.value = false
@@ -1041,7 +1041,7 @@ const handleEditSave = async () => {
       ElMessage.error(response?.data.message || '编辑刮削目录失败')
     }
   } catch (error) {
-    console.error('编辑刮削目录错误', error)
+    console.error('编辑刮削目录错误：', error)
     ElMessage.error('编辑刮削目录失败')
   } finally {
     editLoading.value = false
@@ -1088,10 +1088,10 @@ const handleScan = async (row: ScrapePath) => {
   try {
     row.scanning = true
     await http.post(`${SERVER_URL}/scrape/pathes/start`, { id: row.id })
-    ElMessage.success('任务已开始')
+    ElMessage.success('刮削任务已开始')
   } catch (error) {
-    ElMessage.error('任务启动失败')
-    console.error('Scan error:', error)
+    ElMessage.error('启动刮削任务失败')
+    console.error('启动刮削任务错误：', error)
   } finally {
     row.scanning = false
   }
@@ -1104,10 +1104,10 @@ const handleStop = async (row: ScrapePath) => {
   try {
     row.scanning = true
     await http.post(`${SERVER_URL}/scrape/pathes/stop`, { id: row.id })
-    ElMessage.success('任务已停止')
+    ElMessage.success('刮削任务已停止')
   } catch (error) {
-    ElMessage.error('任务停止失败')
-    console.error('Stop error:', error)
+    ElMessage.error('停止刮削任务失败')
+    console.error('停止刮削任务错误：', error)
   } finally {
     row.scanning = false
   }
@@ -1242,7 +1242,7 @@ const columns = computed(() => [
             loading: rowData.scanning,
             onClick: () => handleScan(rowData),
           },
-          () => (rowData.is_scraping ? '刮削中...' : '启动'),
+          () => (rowData.is_scraping ? '刮削中…' : '启动'),
         ),
         h(
           ElButton,
@@ -1295,16 +1295,16 @@ const checkAndSetAutoRefresh = () => {
   const hasActiveTask = pathes.value.some((p) => p.is_scraping || p.is_renaming)
 
   if (hasActiveTask) {
-    // 有任务在运行：每5秒刷新一次
+    // 有任务在运行：每 5 秒刷新一次
     autoRefreshTimer.value = window.setInterval(() => {
       updatePathesStatus()
     }, 5000)
   } else {
-    // 没有任务：不轮询，依赖WebSocket事件
+    // 没有任务：不轮询，依赖 WebSocket 事件
   }
 }
 
-// WebSocket事件监听
+// WebSocket 事件监听
 import { useWSEvent } from '@/composables/useWebSocket'
 
 const onScraperStart = () => {
@@ -1322,7 +1322,7 @@ useWSEvent('scraper_task_complete', onScraperComplete)
 onMounted(async () => {
   await loadPathes()
   checkAndSetAutoRefresh()
-  // 加载默认同步源类型的账号，确保网盘账号的source_type和所选的同步源类型一致
+  // 加载默认来源类型的账号，确保网盘账号的 source_type 和所选来源类型一致
   await loadAccounts(addForm.source_type !== 'local' ? addForm.source_type : undefined)
 
   // 监听窗口大小变化更新移动端状态

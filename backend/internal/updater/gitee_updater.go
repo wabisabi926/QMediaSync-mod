@@ -69,7 +69,7 @@ func (g *GiteeUpdater) getReleases() ([]GiteeRelease, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Gitee API returned status: %d", resp.StatusCode)
+		return nil, fmt.Errorf("Gitee API 返回状态码：%d", resp.StatusCode)
 	}
 
 	var releases []GiteeRelease
@@ -92,7 +92,7 @@ func (g *GiteeUpdater) findMatchingAsset(assets []GiteeAsset) (string, string) {
 	} else {
 		filename += ".tar.gz"
 	}
-	helpers.AppLogger.Infof("[Gitee] 查找资源文件: %s", filename)
+	helpers.AppLogger.Infof("[Gitee] 查找资源文件：%s", filename)
 	var downloadURL string
 
 	for _, asset := range assets {
@@ -109,23 +109,23 @@ func (g *GiteeUpdater) findMatchingAsset(assets []GiteeAsset) (string, string) {
 func (g *GiteeUpdater) CheckForUpdate() (*UpdateInfo, error) {
 	releases, err := g.GetLatestReleases(1)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get latest release: %w", err)
+		return nil, fmt.Errorf("获取最新 Release 失败：%w", err)
 	}
 
 	if len(releases) == 0 {
-		return nil, fmt.Errorf("no releases found")
+		return nil, fmt.Errorf("未找到 Release")
 	}
 
 	latestRelease := releases[0]
 
 	currentVer, err := version.NewVersion(g.CurrentVersion)
 	if err != nil {
-		return nil, fmt.Errorf("invalid current version: %w", err)
+		return nil, fmt.Errorf("当前版本号无效：%w", err)
 	}
 
 	latestVer, err := version.NewVersion(latestRelease.Version)
 	if err != nil {
-		return nil, fmt.Errorf("invalid latest version: %w", err)
+		return nil, fmt.Errorf("最新版本号无效：%w", err)
 	}
 
 	hasUpdate := latestVer.GreaterThan(currentVer)
@@ -157,7 +157,7 @@ func (g *GiteeUpdater) CheckForUpdate() (*UpdateInfo, error) {
 func (g *GiteeUpdater) GetLatestReleases(limit int) ([]ReleaseInfo, error) {
 	releases, err := g.getReleases()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get releases: %w", err)
+		return nil, fmt.Errorf("获取 Release 列表失败：%w", err)
 	}
 
 	filteredReleases := g.filterAndSortReleases(releases, limit)
@@ -217,13 +217,13 @@ func (g *GiteeUpdater) filterAndSortReleases(releases []GiteeRelease, limit int)
 func (g *GiteeUpdater) GetReleaseDownloadURL(versionTag string) (string, string, *ReleaseInfo, error) {
 	releases, err := g.getReleases()
 	if err != nil {
-		return "", "", nil, fmt.Errorf("获取releases失败: %w", err)
+		return "", "", nil, fmt.Errorf("获取 Release 列表失败：%w", err)
 	}
-	helpers.AppLogger.Infof("[Gitee] 获取到 %d 个 releases", len(releases))
+	helpers.AppLogger.Infof("[Gitee] 获取到 %d 个 Release", len(releases))
 
 	var targetRelease *GiteeRelease
 	for i := range releases {
-		helpers.AppLogger.Infof("[Gitee] 检查版本: %s", releases[i].TagName)
+		helpers.AppLogger.Infof("[Gitee] 检查版本：%s", releases[i].TagName)
 		if releases[i].TagName == versionTag {
 			targetRelease = &releases[i]
 			break
@@ -231,7 +231,7 @@ func (g *GiteeUpdater) GetReleaseDownloadURL(versionTag string) (string, string,
 	}
 
 	if targetRelease == nil {
-		return "", "", nil, fmt.Errorf("未找到版本: %s", versionTag)
+		return "", "", nil, fmt.Errorf("未找到版本：%s", versionTag)
 	}
 
 	downloadURL, checksumURL := g.findMatchingAsset(targetRelease.Assets)

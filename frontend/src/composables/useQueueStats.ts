@@ -36,7 +36,7 @@ export function useQueueStats(pollingInterval = 3000) {
         queueStats.value = null
       }
     } catch (error) {
-      console.error('加载115接口请求统计错误:', error)
+      console.error('加载 115 接口请求统计错误：', error)
       if (!hasLoaded.value) {
         queueStats.value = null
       }

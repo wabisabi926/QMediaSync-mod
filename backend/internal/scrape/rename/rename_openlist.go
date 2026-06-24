@@ -42,7 +42,7 @@ func (r *RenameOpenList) RenameAndMove(mediaFile *models.ScrapeMediaFile, destPa
 		// 改名
 		err := r.client.Rename(oldPath, mediaFile.VideoFilename, newName)
 		if err != nil {
-			helpers.AppLogger.Errorf("OpenList改名文件失败: %v", err)
+			helpers.AppLogger.Errorf("OpenList 重命名文件失败：%v", err)
 			return err
 		} else {
 			helpers.AppLogger.Infof("文件 %s 重命名成功：%s", oldPath+"/"+mediaFile.VideoFilename, newName)
@@ -74,7 +74,7 @@ func (r *RenameOpenList) move(mediaFile *models.ScrapeMediaFile, newName, newPat
 	} else {
 		err := r.client.Move(oldPath, newPathId, []string{newName})
 		if err != nil {
-			helpers.AppLogger.Errorf("OpenList移动文件失败: %v", err)
+			helpers.AppLogger.Errorf("OpenList 移动文件失败：%v", err)
 			return err
 		} else {
 			helpers.AppLogger.Infof("OpenList 文件 %s 成功从 %s 移动到新文件夹 %s", newName, oldPath, newPathId)
@@ -120,7 +120,7 @@ func (r *RenameOpenList) move(mediaFile *models.ScrapeMediaFile, newName, newPat
 		// 移动字幕文件到新目录
 		err := r.client.Move(oldPath, newPathId, files)
 		if err != nil {
-			helpers.AppLogger.Errorf("OpenList移动字幕文件失败: %v", err)
+			helpers.AppLogger.Errorf("OpenList 移动字幕文件失败：%v", err)
 		}
 		// 改名
 		for _, sub := range mediaFile.SubtitleFiles {
@@ -128,7 +128,7 @@ func (r *RenameOpenList) move(mediaFile *models.ScrapeMediaFile, newName, newPat
 			if newSubName != sub.FileName {
 				err := r.client.Rename(newPathId, sub.FileName, newSubName)
 				if err != nil {
-					helpers.AppLogger.Errorf("OpenList改名字幕文件失败: %v", err)
+					helpers.AppLogger.Errorf("OpenList 重命名字幕文件失败：%v", err)
 				} else {
 					helpers.AppLogger.Infof("字幕文件 %s 重命名成功：%s", newPathId+"/"+sub.FileName, newSubName)
 				}
@@ -144,7 +144,7 @@ func (r *RenameOpenList) move(mediaFile *models.ScrapeMediaFile, newName, newPat
 	}
 
 	if mediaFile.ScrapeType == models.ScrapeTypeOnlyRename && mediaFile.MediaType == models.MediaTypeOther {
-		// 其他类型仅整理要把图片和nfo也转移过去
+		// 其他类型仅整理时，也需要把图片和 NFO 一起转移过去
 		if mediaFile.ImageFilesJson != "" {
 			files := []string{}
 			for _, imageFile := range mediaFile.ImageFiles {
@@ -153,7 +153,7 @@ func (r *RenameOpenList) move(mediaFile *models.ScrapeMediaFile, newName, newPat
 			// 移动图片文件到新目录
 			err := r.client.Move(oldPath, newPathId, files)
 			if err != nil {
-				helpers.AppLogger.Errorf("OpenList移动图片文件失败: %v", err)
+				helpers.AppLogger.Errorf("OpenList 移动图片文件失败：%v", err)
 				return err
 			}
 			// 改名
@@ -164,7 +164,7 @@ func (r *RenameOpenList) move(mediaFile *models.ScrapeMediaFile, newName, newPat
 					// 改名
 					err := r.client.Rename(newPathId, imageFile.FileName, newImageName)
 					if err != nil {
-						helpers.AppLogger.Errorf("OpenList改图片文件名失败: %v", err)
+						helpers.AppLogger.Errorf("OpenList 重命名图片文件失败：%v", err)
 						return err
 					} else {
 						helpers.AppLogger.Infof("图片文件 %s 重命名成功：%s", newPathId+"/"+imageFile.FileName, newImageName)
@@ -172,22 +172,22 @@ func (r *RenameOpenList) move(mediaFile *models.ScrapeMediaFile, newName, newPat
 				}
 			}
 		}
-		// 移动nfo文件
+		// 移动 NFO 文件
 		if mediaFile.NfoFileId != "" {
 			newNfoName := strings.Replace(mediaFile.NfoFileName, oldBaseName, mediaFile.NewVideoBaseName, 1)
-			// 移动nfo文件到新目录
+			// 移动 NFO 文件到新目录
 			err := r.client.Move(oldPath, newPathId, []string{mediaFile.NfoFileName})
 			if err != nil {
-				helpers.AppLogger.Errorf("OpenList移动nfo文件 %s 失败: %v", mediaFile.NfoFileName, err)
+				helpers.AppLogger.Errorf("OpenList 移动 NFO 文件 %s 失败：%v", mediaFile.NfoFileName, err)
 			}
 			// 检查是否需要改名
 			if newNfoName != mediaFile.NfoFileName {
 				// 改名
 				err := r.client.Rename(newPathId, mediaFile.NfoFileName, newNfoName)
 				if err != nil {
-					helpers.AppLogger.Errorf("OpenList改名nfo文件 %s 失败: %v", mediaFile.NfoFileName, err)
+					helpers.AppLogger.Errorf("OpenList 重命名 NFO 文件 %s 失败：%v", mediaFile.NfoFileName, err)
 				} else {
-					helpers.AppLogger.Infof("nfo文件 %s 成功重命名为 %s", mediaFile.NfoFileName, newNfoName)
+					helpers.AppLogger.Infof("NFO 文件 %s 成功重命名为 %s", mediaFile.NfoFileName, newNfoName)
 				}
 			}
 		}
@@ -198,10 +198,10 @@ func (r *RenameOpenList) move(mediaFile *models.ScrapeMediaFile, newName, newPat
 func (r *RenameOpenList) copy(mediaFile *models.ScrapeMediaFile, newName, newPathId, oldPath string) error {
 	err := r.client.Copy(oldPath, newPathId, []string{newName})
 	if err != nil {
-		helpers.AppLogger.Errorf("OpenList复制文件失败: %v", err)
+		helpers.AppLogger.Errorf("OpenList 复制文件失败：%v", err)
 		return err
 	} else {
-		helpers.AppLogger.Infof("Openlist 文件 %s 成功复制到 %s", oldPath+"/"+newName, newPathId+"/"+newName)
+		helpers.AppLogger.Infof("OpenList 文件 %s 成功复制到 %s", oldPath+"/"+newName, newPathId+"/"+newName)
 	}
 	destFullPath := filepath.ToSlash(filepath.Join(newPathId, newName))
 	// 查询一下详情
@@ -247,7 +247,7 @@ func (r *RenameOpenList) copy(mediaFile *models.ScrapeMediaFile, newName, newPat
 		// 移动字幕文件到新目录
 		err := r.client.Copy(oldPath, newPathId, files)
 		if err != nil {
-			helpers.AppLogger.Errorf("OpenList复制字幕文件失败: %v", err)
+			helpers.AppLogger.Errorf("OpenList 复制字幕文件失败：%v", err)
 		}
 		// 改名
 		for _, sub := range mediaFile.SubtitleFiles {
@@ -257,7 +257,7 @@ func (r *RenameOpenList) copy(mediaFile *models.ScrapeMediaFile, newName, newPat
 				// 改名
 				err := r.client.Rename(newPathId, sub.FileName, newSubName)
 				if err != nil {
-					helpers.AppLogger.Errorf("OpenList改名字幕文件失败: %v", err)
+					helpers.AppLogger.Errorf("OpenList 重命名字幕文件失败：%v", err)
 				} else {
 					helpers.AppLogger.Infof("字幕文件 %s 重命名成功：%s", newPathId+"/"+sub.FileName, newSubName)
 				}
@@ -272,7 +272,7 @@ func (r *RenameOpenList) copy(mediaFile *models.ScrapeMediaFile, newName, newPat
 		mediaFile.MediaEpisode.Save()
 	}
 	if mediaFile.ScrapeType == models.ScrapeTypeOnlyRename && mediaFile.MediaType == models.MediaTypeOther {
-		// 其他类型仅整理要把图片和nfo也转移过去
+		// 其他类型仅整理时，也需要把图片和 NFO 一起转移过去
 		if mediaFile.ImageFilesJson != "" {
 			files := []string{}
 			for _, imageFile := range mediaFile.ImageFiles {
@@ -281,7 +281,7 @@ func (r *RenameOpenList) copy(mediaFile *models.ScrapeMediaFile, newName, newPat
 			// 移动图片文件到新目录
 			err := r.client.Copy(oldPath, newPathId, files)
 			if err != nil {
-				helpers.AppLogger.Errorf("OpenList复制图片文件失败: %v", err)
+				helpers.AppLogger.Errorf("OpenList 复制图片文件失败：%v", err)
 				return err
 			}
 			// 改名
@@ -292,7 +292,7 @@ func (r *RenameOpenList) copy(mediaFile *models.ScrapeMediaFile, newName, newPat
 					// 改名
 					err := r.client.Rename(newPathId, imageFile.FileName, newImageName)
 					if err != nil {
-						helpers.AppLogger.Errorf("OpenList改图片文件名失败: %v", err)
+						helpers.AppLogger.Errorf("OpenList 重命名图片文件失败：%v", err)
 						return err
 					} else {
 						helpers.AppLogger.Infof("图片文件 %s 重命名成功：%s", newPathId+"/"+imageFile.FileName, newImageName)
@@ -300,22 +300,22 @@ func (r *RenameOpenList) copy(mediaFile *models.ScrapeMediaFile, newName, newPat
 				}
 			}
 		}
-		// 移动nfo文件
+		// 移动 NFO 文件
 		if mediaFile.NfoFileId != "" {
 			newNfoName := strings.Replace(mediaFile.NfoFileName, oldBaseName, mediaFile.NewVideoBaseName, 1)
-			// 移动nfo文件到新目录
+			// 移动 NFO 文件到新目录
 			err := r.client.Copy(oldPath, newPathId, []string{mediaFile.NfoFileName})
 			if err != nil {
-				helpers.AppLogger.Errorf("OpenList复制nfo文件 %s 失败: %v", mediaFile.NfoFileName, err)
+				helpers.AppLogger.Errorf("OpenList 复制 NFO 文件 %s 失败：%v", mediaFile.NfoFileName, err)
 			}
 			// 检查是否需要改名
 			if newNfoName != mediaFile.NfoFileName {
 				// 改名
 				err := r.client.Rename(newPathId, mediaFile.NfoFileName, newNfoName)
 				if err != nil {
-					helpers.AppLogger.Errorf("OpenList改名nfo文件 %s 失败: %v", mediaFile.NfoFileName, err)
+					helpers.AppLogger.Errorf("OpenList 重命名 NFO 文件 %s 失败：%v", mediaFile.NfoFileName, err)
 				} else {
-					helpers.AppLogger.Infof("nfo文件 %s 成功重命名为 %s", mediaFile.NfoFileName, newNfoName)
+					helpers.AppLogger.Infof("NFO 文件 %s 成功重命名为 %s", mediaFile.NfoFileName, newNfoName)
 				}
 			}
 		}
@@ -329,7 +329,7 @@ func (r *RenameOpenList) CheckAndMkDir(destFullPath string, rootPath, rootPathId
 		// 创建文件夹
 		err = r.client.Mkdir(destFullPath)
 		if err != nil {
-			helpers.AppLogger.Errorf("创建文件夹失败: %s 错误：%v", destFullPath, err)
+			helpers.AppLogger.Errorf("创建文件夹失败：%s，错误：%v", destFullPath, err)
 			return destFullPath, err
 		}
 	}
@@ -343,7 +343,7 @@ func (r *RenameOpenList) RemoveMediaSourcePath(mediaFile *models.ScrapeMediaFile
 	}
 	fsDetail, err := r.client.FileList(r.ctx, sourcePath, 1, 10)
 	if err != nil {
-		helpers.AppLogger.Errorf("获取OpenList文件列表失败: id=%s %v", mediaFile.PathId, err)
+		helpers.AppLogger.Errorf("获取 OpenList 文件列表失败：ID=%s，%v", mediaFile.PathId, err)
 		return err
 	}
 	if fsDetail.Total > 0 {
@@ -362,10 +362,10 @@ func (r *RenameOpenList) RemoveMediaSourcePath(mediaFile *models.ScrapeMediaFile
 		// 删除目录
 		err := r.client.Del(filepath.Dir(sourcePath), []string{filepath.Base(sourcePath)})
 		if err != nil {
-			helpers.AppLogger.Errorf("删除Openlist文件失败: %s %v", sourcePath, err)
+			helpers.AppLogger.Errorf("删除 OpenList 文件失败：%s，%v", sourcePath, err)
 			return err
 		}
-		helpers.AppLogger.Infof("刮削完成，尝试删除Openlist文件夹成功, 路径：%s", sourcePath)
+		helpers.AppLogger.Infof("刮削完成，已尝试删除 OpenList 文件夹，路径：%s", sourcePath)
 	}
 	// 再删除电视剧文件夹
 	if mediaFile.PathId != "" {
@@ -377,17 +377,17 @@ func (r *RenameOpenList) RemoveMediaSourcePath(mediaFile *models.ScrapeMediaFile
 		}
 		fsDetail, err := r.client.FileList(r.ctx, tvshowParentId, 1, 10)
 		if err != nil {
-			helpers.AppLogger.Errorf("删除Openlist文件失败: %s %v", mediaFile.PathId, err)
+			helpers.AppLogger.Errorf("删除 OpenList 文件失败：%s，%v", mediaFile.PathId, err)
 			return err
 		}
 		if fsDetail.Total == 0 || sp.ForceDeleteSourcePath {
 			// 删除目录
 			err := r.client.Del(tvshowParentId, []string{filepath.Base(tvshowParentId)})
 			if err != nil {
-				helpers.AppLogger.Errorf("删除Openlist文件失败: %s %v", mediaFile.TvshowPathId, err)
+				helpers.AppLogger.Errorf("删除 OpenList 文件失败：%s，%v", mediaFile.TvshowPathId, err)
 				return err
 			}
-			helpers.AppLogger.Infof("刮削完成，尝试删除Openlist中的电视剧文件夹成功, 路径：%s", mediaFile.TvshowPathId)
+			helpers.AppLogger.Infof("刮削完成，已尝试删除 OpenList 中的电视剧文件夹，路径：%s", mediaFile.TvshowPathId)
 		}
 
 	}
@@ -397,13 +397,13 @@ func (r *RenameOpenList) RemoveMediaSourcePath(mediaFile *models.ScrapeMediaFile
 func (r *RenameOpenList) ReadFileContent(fileId string) ([]byte, error) {
 	url := r.client.GetRawUrl(fileId)
 	if url == "" {
-		helpers.AppLogger.Errorf("获取openlist文件下载链接失败: fileId=%s, url为空", fileId)
-		return nil, errors.New("获取openlist文件下载链接失败, url为空")
+		helpers.AppLogger.Errorf("获取 OpenList 文件下载链接失败：fileId=%s，URL 为空", fileId)
+		return nil, errors.New("获取 OpenList 文件下载链接失败，URL 为空")
 	}
-	// 读取url的内容
+	// 读取 URL 的内容
 	content, err := helpers.ReadFromUrl(url, v115open.DEFAULTUA)
 	if err != nil {
-		helpers.AppLogger.Errorf("openlist读取文件下载链接内容失败: fileId=%s, url=%s, %v", fileId, url, err)
+		helpers.AppLogger.Errorf("OpenList 读取文件下载链接内容失败：fileId=%s，URL=%s，%v", fileId, url, err)
 		return nil, err
 	}
 	return content, nil
@@ -414,15 +414,15 @@ func (r *RenameOpenList) CheckAndDeleteFiles(mediaFile *models.ScrapeMediaFile, 
 		// 检查是否存在
 		fsDetail, err := r.client.FileDetail(f.FullFilePath)
 		if err != nil || (fsDetail != nil && fsDetail.Name == "") {
-			helpers.AppLogger.Infof("OpenList文件不存在，无需删除: 路径：%s", f.FullFilePath)
+			helpers.AppLogger.Infof("OpenList 文件不存在，无需删除：路径：%s", f.FullFilePath)
 			continue
 		}
 		err = r.client.Del(filepath.Dir(f.FullFilePath), []string{filepath.Base(f.FullFilePath)})
 		if err != nil {
-			helpers.AppLogger.Errorf("删除OpenList文件失败: 路径：%s %v", f.FullFilePath, err)
+			helpers.AppLogger.Errorf("删除 OpenList 文件失败：路径：%s，%v", f.FullFilePath, err)
 			continue
 		}
-		helpers.AppLogger.Infof("删除OpenList文件成功, 路径：%s", f.FullFilePath)
+		helpers.AppLogger.Infof("删除 OpenList 文件成功，路径：%s", f.FullFilePath)
 	}
 	return nil
 }
@@ -432,16 +432,16 @@ func (r *RenameOpenList) MoveFiles(f models.MoveNewFileToSourceFile) error {
 	newFileId := filepath.Join(f.PathId, filepath.Base(f.FileId))
 	fsDetail, err := r.client.FileDetail(newFileId)
 	if err == nil || (fsDetail != nil && fsDetail.Name != "") {
-		helpers.AppLogger.Infof("OpenList文件存在，无需移动: 路径：%s", newFileId)
+		helpers.AppLogger.Infof("OpenList 文件存在，无需移动：路径：%s", newFileId)
 		return nil
 	}
 	// 移动文件
 	err = r.client.Move(filepath.Dir(f.FileId), f.PathId, []string{filepath.Base(f.FileId)})
 	if err != nil {
-		helpers.AppLogger.Errorf("移动OpenList文件失败: %s => %s 错误：%v", f.FileId, newFileId, err)
+		helpers.AppLogger.Errorf("移动 OpenList 文件失败：%s => %s，错误：%v", f.FileId, newFileId, err)
 		return err
 	}
-	helpers.AppLogger.Infof("移动OpenList文件成功: %s => %s", f.FileId, newFileId)
+	helpers.AppLogger.Infof("移动 OpenList 文件成功：%s => %s", f.FileId, newFileId)
 	return nil
 }
 
@@ -453,25 +453,25 @@ func (r *RenameOpenList) Rename(fileId, newName string) error {
 	return r.client.Rename(filepath.Dir(fileId), filepath.Base(fileId), newName)
 }
 
-// 检查是否存在，存在就改名字，然后返回新的fileId
+// 检查文件是否存在，存在就重命名，并返回新的文件 ID
 func (r *RenameOpenList) ExistsAndRename(fileId, newName string) (string, error) {
 	// 检查是否存在
 	fsDetail, err := r.client.FileDetail(fileId)
 	if err != nil || (fsDetail != nil && fsDetail.Name == "") {
-		helpers.AppLogger.Infof("OpenList文件不存在，无需重命名: 文件ID：%s", fileId)
+		helpers.AppLogger.Infof("OpenList 文件不存在，无需重命名：文件 ID：%s", fileId)
 		return "", nil
 	}
-	// 如果名字没变则不需要改名字
+	// 如果文件名未变化，则不需要重命名
 	if fsDetail.Name == newName {
-		helpers.AppLogger.Infof("OpenList文件名字没变，无需重命名: 文件ID：%s", fileId)
+		helpers.AppLogger.Infof("OpenList 文件名未变化，无需重命名：文件 ID：%s", fileId)
 		return fileId, nil
 	}
 	// 重命名文件
 	err = r.Rename(fileId, newName)
 	if err != nil {
-		helpers.AppLogger.Errorf("重命名OpenList文件失败：%s => %s 错误：%v", fileId, newName, err)
+		helpers.AppLogger.Errorf("重命名 OpenList 文件失败：%s => %s，错误：%v", fileId, newName, err)
 		return "", err
 	}
-	helpers.AppLogger.Infof("重命名OpenList文件成功, %s => %s", fileId, newName)
+	helpers.AppLogger.Infof("重命名 OpenList 文件成功，%s => %s", fileId, newName)
 	return filepath.Join(filepath.Dir(fileId), newName), nil
 }

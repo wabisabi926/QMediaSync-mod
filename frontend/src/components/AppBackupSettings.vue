@@ -15,7 +15,7 @@
       <el-form-item label="定时策略" required>
         <cron-selector v-model="configForm.backup_cron" />
         <div v-if="cronTimes.length > 0" class="cron-next-times">
-          <p><strong>下5次执行时间：</strong></p>
+          <p><strong>下 5 次执行时间：</strong></p>
           <div v-loading="cronTimesLoading" class="cron-times-list">
             <div v-for="(time, index) in cronTimes" :key="index" class="cron-time-item">
               <el-tag type="info" size="small">{{ time }}</el-tag>
@@ -141,7 +141,7 @@ const loadCronTimes = async () => {
       cronTimes.value = []
     }
   } catch (error) {
-    console.error('查询Cron执行时间错误:', error)
+    console.error('查询 Cron 执行时间错误：', error)
     cronTimes.value = []
   } finally {
     cronTimesLoading.value = false

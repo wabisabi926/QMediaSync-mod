@@ -111,11 +111,11 @@ func (q *NewSyncQueuePerType) AddTask(task *NewSyncTask) error {
 	defer q.mutex.Unlock()
 
 	if q.isTaskExistsUnsafe(task) {
-		return fmt.Errorf("任务已存在: 类型=%s, ID=%d", task.TaskType, task.ID)
+		return fmt.Errorf("任务已存在：类型=%s，ID=%d", task.TaskType, task.ID)
 	}
 
 	if len(q.waitingQueue) >= cap(q.taskChan) {
-		return fmt.Errorf("任务队列已满: 类型=%s, ID=%d", task.TaskType, task.ID)
+		return fmt.Errorf("任务队列已满：类型=%s，ID=%d", task.TaskType, task.ID)
 	}
 
 	q.waitingQueue[task.Key()] = task
@@ -124,16 +124,16 @@ func (q *NewSyncQueuePerType) AddTask(task *NewSyncTask) error {
 		select {
 		case q.taskChan <- task:
 			if helpers.AppLogger != nil {
-				logInfo("任务已加入队列: 类型=%s, ID=%d", task.TaskType, task.ID)
+				logInfo("任务已加入队列：类型=%s，ID=%d", task.TaskType, task.ID)
 			}
 		default:
 			delete(q.waitingQueue, task.Key())
-			return fmt.Errorf("任务队列已满: 类型=%s, ID=%d", task.TaskType, task.ID)
+			return fmt.Errorf("任务队列已满：类型=%s，ID=%d", task.TaskType, task.ID)
 		}
 		q.startProcessorIfNotRunningUnsafe()
 	} else {
 		if helpers.AppLogger != nil {
-			logInfo("任务已加入暂停队列: 类型=%s, ID=%d", task.TaskType, task.ID)
+			logInfo("任务已加入暂停队列：类型=%s，ID=%d", task.TaskType, task.ID)
 		}
 	}
 
@@ -168,25 +168,25 @@ func (q *NewSyncQueuePerType) StartProcessor() {
 }
 
 func (q *NewSyncQueuePerType) process() {
-	logInfo("队列处理协程已启动: SourceType=%s", q.sourceType)
+	logInfo("队列处理协程已启动：SourceType=%s", q.sourceType)
 	defer atomic.StoreInt32(&q.runningFlag, 0)
 
 	for {
 		select {
 		case <-q.ctx.Done():
-			logInfo("队列处理协程已停止: SourceType=%s", q.sourceType)
+			logInfo("队列处理协程已停止：SourceType=%s", q.sourceType)
 			return
 
 		case task, ok := <-q.taskChan:
 			if !ok {
-				logInfo("任务通道已关闭: SourceType=%s", q.sourceType)
+				logInfo("任务通道已关闭：SourceType=%s", q.sourceType)
 				return
 			}
 
 			q.mutex.Lock()
 
 			if _, exists := q.waitingQueue[task.Key()]; !exists {
-				logInfo("任务已被取消，跳过处理: 类型=%s, ID=%d", task.TaskType, task.ID)
+				logInfo("任务已被取消，跳过处理：类型=%s，ID=%d", task.TaskType, task.ID)
 				q.mutex.Unlock()
 				continue
 			}
@@ -195,7 +195,7 @@ func (q *NewSyncQueuePerType) process() {
 			delete(q.waitingQueue, task.Key())
 			q.mutex.Unlock()
 
-			logInfo("开始处理任务: 类型=%s, ID=%d", task.TaskType, task.ID)
+			logInfo("开始处理任务：类型=%s，ID=%d", task.TaskType, task.ID)
 
 			q.executeTask(task)
 
@@ -203,7 +203,7 @@ func (q *NewSyncQueuePerType) process() {
 			q.currentTask = nil
 			q.mutex.Unlock()
 
-			logInfo("任务处理完成: 类型=%s, ID=%d", task.TaskType, task.ID)
+			logInfo("任务处理完成：类型=%s，ID=%d", task.TaskType, task.ID)
 		}
 	}
 }
@@ -214,7 +214,7 @@ func (q *NewSyncQueuePerType) executeTask(task *NewSyncTask) {
 			stack := make([]byte, 4096)
 			length := runtime.Stack(stack, false)
 			stackStr := string(stack[:length])
-			logError("任务执行异常: 类型=%s, ID=%d, 错误=%v\n堆栈信息:\n%s", task.TaskType, task.ID, r, stackStr)
+			logError("任务执行异常：类型=%s，ID=%d，错误=%v\n堆栈信息：\n%s", task.TaskType, task.ID, r, stackStr)
 		}
 	}()
 
@@ -231,7 +231,7 @@ func (q *NewSyncQueuePerType) executeStrmSync(task *NewSyncTask) {
 		// 手动同步
 		account, err := models.GetAccountById(task.AccountId)
 		if err != nil {
-			logError("获取账号失败，ID=%d, 错误=%v", task.AccountId, err)
+			logError("获取账号失败，ID=%d，错误=%v", task.AccountId, err)
 			return
 		}
 		q.strmSync = syncstrm.NewSyncStrmByPath(account, task.SourcePath, task.SourcePathId, task.TargetPath, task.IsFile)
@@ -247,11 +247,11 @@ func (q *NewSyncQueuePerType) executeStrmSync(task *NewSyncTask) {
 		}
 
 		if syncPath.SourceType != q.sourceType {
-			logError("同步目录类型不匹配: 预期=%s, 实际=%s", q.sourceType, syncPath.SourceType)
+			logError("同步目录类型不匹配：预期=%s，实际=%s", q.sourceType, syncPath.SourceType)
 			return
 		}
 
-		logInfo("开始执行STRM同步任务: ID=%d", task.ID)
+		logInfo("开始执行 STRM 同步任务：ID=%d", task.ID)
 		q.strmSync = syncstrm.NewSyncStrmFromSyncPath(syncPath)
 		if q.strmSync == nil {
 			logError("创建同步任务失败")
@@ -259,7 +259,7 @@ func (q *NewSyncQueuePerType) executeStrmSync(task *NewSyncTask) {
 		}
 	}
 
-	// 触发STRM同步任务开始事件
+	// 触发 STRM 同步任务开始事件
 	ws.BroadcastEvent(ws.EventStrmSyncTaskStart, map[string]any{
 		"task_id": task.ID,
 	})
@@ -268,15 +268,15 @@ func (q *NewSyncQueuePerType) executeStrmSync(task *NewSyncTask) {
 		q.strmSync = nil
 	}()
 	if startErr := q.strmSync.Start(); startErr == nil {
-		logInfo("STRM同步任务执行成功: ID=%d", task.ID)
-		// 触发STRM同步任务完成事件
+		logInfo("STRM 同步任务执行成功：ID=%d", task.ID)
+		// 触发 STRM 同步任务完成事件
 		ws.BroadcastEvent(ws.EventStrmSyncTaskComplete, map[string]any{
 			"task_id": task.ID,
 			"success": true,
 		})
 	} else {
-		logError("STRM同步任务执行失败: ID=%d, 错误=%v", task.ID, startErr)
-		// 触发STRM同步任务完成事件（失败）
+		logError("STRM 同步任务执行失败：ID=%d，错误=%v", task.ID, startErr)
+		// 触发 STRM 同步任务完成事件（失败）
 		ws.BroadcastEvent(ws.EventStrmSyncTaskComplete, map[string]any{
 			"task_id": task.ID,
 			"success": false,
@@ -293,11 +293,11 @@ func (q *NewSyncQueuePerType) executeScrape(task *NewSyncTask) {
 	}
 
 	if scrapePath.SourceType != q.sourceType {
-		logError("刮削目录类型不匹配: 预期=%s, 实际=%s", q.sourceType, scrapePath.SourceType)
+		logError("刮削目录类型不匹配：预期=%s，实际=%s", q.sourceType, scrapePath.SourceType)
 		return
 	}
 
-	logInfo("开始执行刮削任务: ID=%d", task.ID)
+	logInfo("开始执行刮削任务：ID=%d", task.ID)
 
 	// 触发刮削任务开始事件
 	ws.BroadcastEvent(ws.EventScraperTaskStart, map[string]any{
@@ -315,7 +315,7 @@ func (q *NewSyncQueuePerType) executeScrape(task *NewSyncTask) {
 	}()
 
 	if success := q.scrapeInstance.Start(); success {
-		logInfo("刮削任务执行成功: ID=%d", task.ID)
+		logInfo("刮削任务执行成功：ID=%d", task.ID)
 		// 触发刮削任务完成事件
 		ws.BroadcastEvent(ws.EventScraperTaskComplete, map[string]any{
 			"task_id":   task.ID,
@@ -323,7 +323,7 @@ func (q *NewSyncQueuePerType) executeScrape(task *NewSyncTask) {
 			"success":   true,
 		})
 	} else {
-		logError("刮削任务执行失败: ID=%d", task.ID)
+		logError("刮削任务执行失败：ID=%d", task.ID)
 		// 触发刮削任务完成事件（失败）
 		ws.BroadcastEvent(ws.EventScraperTaskComplete, map[string]any{
 			"task_id":   task.ID,
@@ -341,7 +341,7 @@ func (q *NewSyncQueuePerType) CancelTask(id uint, taskType SyncTaskType) error {
 
 	if _, exists := q.waitingQueue[key]; exists {
 		delete(q.waitingQueue, key)
-		logInfo("任务已从等待队列移除: 类型=%s, ID=%d", taskType, id)
+		logInfo("任务已从等待队列移除：类型=%s，ID=%d", taskType, id)
 		return nil
 	}
 
@@ -349,16 +349,16 @@ func (q *NewSyncQueuePerType) CancelTask(id uint, taskType SyncTaskType) error {
 		if taskType == SyncTaskTypeStrm && q.strmSync != nil {
 			q.strmSync.Stop()
 			q.strmSync = nil
-			logInfo("STRM同步任务已取消: ID=%d", id)
+			logInfo("STRM 同步任务已取消：ID=%d", id)
 		} else if taskType == SyncTaskTypeScrape && q.scrapeInstance != nil {
 			q.scrapeInstance.Stop()
-			logInfo("刮削任务已取消: ID=%d", id)
+			logInfo("刮削任务已取消：ID=%d", id)
 		}
 		q.currentTask = nil
 		return nil
 	}
 
-	return fmt.Errorf("任务未找到: 类型=%s, ID=%d", taskType, id)
+	return fmt.Errorf("任务未找到：类型=%s，ID=%d", taskType, id)
 }
 
 func (q *NewSyncQueuePerType) CheckTaskStatus(id uint, taskType SyncTaskType) int {
@@ -386,7 +386,7 @@ func (q *NewSyncQueuePerType) Pause() {
 		return
 	}
 
-	logInfo("暂停队列: SourceType=%s", q.sourceType)
+	logInfo("暂停队列：SourceType=%s", q.sourceType)
 	q.status = QueueStatusPaused
 }
 
@@ -398,7 +398,7 @@ func (q *NewSyncQueuePerType) Resume() {
 		return
 	}
 
-	logInfo("恢复队列: SourceType=%s", q.sourceType)
+	logInfo("恢复队列：SourceType=%s", q.sourceType)
 	q.status = QueueStatusRunning
 
 	taskCount := 0
@@ -412,7 +412,7 @@ func (q *NewSyncQueuePerType) Resume() {
 	}
 done:
 	if taskCount > 0 {
-		logInfo("已将%d个任务重新加入队列: SourceType=%s", taskCount, q.sourceType)
+		logInfo("已将 %d 个任务重新加入队列：SourceType=%s", taskCount, q.sourceType)
 		q.startProcessorIfNotRunningUnsafe()
 	}
 }
@@ -494,7 +494,7 @@ func (m *NewSyncQueueManager) getQueue(sourceType models.SourceType) *NewSyncQue
 
 	queue = NewQueuePerType(sourceType)
 	m.queues[sourceType] = queue
-	logInfo("创建新队列: SourceType=%s", sourceType)
+	logInfo("创建新队列：SourceType=%s", sourceType)
 
 	return queue
 }
@@ -506,19 +506,19 @@ func (m *NewSyncQueueManager) AddSyncTask(task *NewSyncTask) error {
 	// case SyncTaskTypeStrm:
 	// 	syncPath := models.GetSyncPathById(task.ID)
 	// 	if syncPath == nil {
-	// 		return fmt.Errorf("获取同步目录失败: ID=%d", task.ID)
+	// 		return fmt.Errorf("获取同步目录失败：ID=%d", task.ID)
 	// 	}
 	// 	sourceType = syncPath.SourceType
 
 	// case SyncTaskTypeScrape:
 	// 	scrapePath := models.GetScrapePathByID(task.ID)
 	// 	if scrapePath == nil {
-	// 		return fmt.Errorf("获取刮削目录失败: ID=%d", task.ID)
+	// 		return fmt.Errorf("获取刮削目录失败：ID=%d", task.ID)
 	// 	}
 	// 	sourceType = scrapePath.SourceType
 
 	// default:
-	// 	return fmt.Errorf("未知的任务类型: %s", task.TaskType)
+	// 	return fmt.Errorf("未知的任务类型：%s", task.TaskType)
 	// }
 
 	queue := m.getQueue(task.SourceType)
@@ -538,19 +538,19 @@ func (m *NewSyncQueueManager) CancelTask(id uint, taskType SyncTaskType) error {
 	case SyncTaskTypeStrm:
 		syncPath := models.GetSyncPathById(id)
 		if syncPath == nil {
-			return fmt.Errorf("获取同步目录失败: ID=%d", id)
+			return fmt.Errorf("获取同步目录失败：ID=%d", id)
 		}
 		sourceType = syncPath.SourceType
 
 	case SyncTaskTypeScrape:
 		scrapePath := models.GetScrapePathByID(id)
 		if scrapePath == nil {
-			return fmt.Errorf("获取刮削目录失败: ID=%d", id)
+			return fmt.Errorf("获取刮削目录失败：ID=%d", id)
 		}
 		sourceType = scrapePath.SourceType
 
 	default:
-		return fmt.Errorf("未知的任务类型: %s", taskType)
+		return fmt.Errorf("未知的任务类型：%s", taskType)
 	}
 
 	queue := m.getQueue(sourceType)

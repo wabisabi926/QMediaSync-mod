@@ -29,18 +29,18 @@ func (d *BaiduPanDriver) SetSyncStrm(s *SyncStrm) {
 
 func (d *BaiduPanDriver) GetNetFileFiles(ctx context.Context, parentPath, parentPathId string) ([]*SyncFileCache, error) {
 	page := 1
-	pageSize := 50 // 每次取50条
+	pageSize := 50 // 每次取 50 条
 	var fileItems []*SyncFileCache = make([]*SyncFileCache, 0)
 mainloop:
 	for {
 		select {
 		case <-ctx.Done():
-			d.s.Sync.Logger.Infof("获取openlist文件列表上下文已取消, path=%s, page=%d, pageSize=%d", parentPath, page, pageSize)
+			d.s.Sync.Logger.Infof("获取百度网盘文件列表的上下文已取消，path=%s，page=%d，pageSize=%d", parentPath, page, pageSize)
 			return nil, ctx.Err()
 		default:
 			resp, err := d.client.GetFileList(ctx, parentPath, 0, 1, int32((page-1)*pageSize), int32(pageSize))
 			if err != nil {
-				d.s.Sync.Logger.Errorf("获取openlist文件列表失败: %v", err)
+				d.s.Sync.Logger.Errorf("获取百度网盘文件列表失败：%v", err)
 				return nil, err
 			}
 			if len(resp) == 0 {
@@ -83,7 +83,7 @@ func (d *BaiduPanDriver) CreateDirRecursively(ctx context.Context, path string) 
 	relPath := filepath.ToSlash(filepath.Clean(path))
 	err = d.client.Mkdir(ctx, relPath)
 	if err != nil {
-		return "", "", fmt.Errorf("创建目录 %s 失败: %v", relPath, err)
+		return "", "", fmt.Errorf("创建目录 %s 失败：%v", relPath, err)
 	}
 	return relPath, relPath, nil
 }
@@ -91,13 +91,13 @@ func (d *BaiduPanDriver) CreateDirRecursively(ctx context.Context, path string) 
 func (d *BaiduPanDriver) GetPathIdByPath(ctx context.Context, path string) (string, error) {
 	_, err := d.client.GetFileList(ctx, path, 0, 1, 0, 1)
 	if err != nil {
-		return "", fmt.Errorf("路径 %s 不存在: %v", path, err)
+		return "", fmt.Errorf("路径 %s 不存在：%v", path, err)
 	}
 	return path, nil
 }
 
 func (d *BaiduPanDriver) MakeStrmContent(sf *SyncFileCache) string {
-	// 生成URL
+	// 生成 URL
 	u, _ := url.Parse(d.s.Config.StrmBaseUrl)
 	ext := filepath.Ext(sf.FileName)
 	u.Path = fmt.Sprintf("/baidupan/url/video%s", ext)
@@ -131,7 +131,7 @@ func (d *BaiduPanDriver) DetailByFileId(ctx context.Context, fileId string) (*Sy
 		return nil, err
 	}
 	parentId := filepath.ToSlash(filepath.Dir(fileId))
-	// 生成SyncFileCache
+	// 生成 SyncFileCache
 	fileItem := &SyncFileCache{
 		FileId:     fileId,
 		FileName:   resp.ServerFilename,

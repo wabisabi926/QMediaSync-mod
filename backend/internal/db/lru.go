@@ -40,7 +40,7 @@ func (lru *LRUCache) Put(key string, value any) {
 	lru.mutex.Lock()
 	defer lru.mutex.Unlock()
 
-	// 如果key已存在，更新值并移动到前面
+	// 如果 key 已存在，更新值并移动到前面
 	if elem, exists := lru.cache[key]; exists {
 		lru.list.MoveToFront(elem)
 		elem.Value.(*entry).value = value

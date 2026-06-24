@@ -55,12 +55,12 @@ type BackupService struct {
 // BackupConfig 备份配置
 type BackupConfig struct {
 	BaseModel
-	BackupEnabled   int    `json:"backup_enabled" gorm:"default:0"`    // 是否启用自动备份，0表示禁用，1表示启用
-	BackupCron      string `json:"backup_cron"`                        // 备份cron表达式
+	BackupEnabled   int    `json:"backup_enabled" gorm:"default:0"`    // 是否启用自动备份，0 表示禁用，1 表示启用
+	BackupCron      string `json:"backup_cron"`                        // 备份 Cron 表达式
 	BackupPath      string `json:"backup_path"`                        // 备份存储路径
 	BackupRetention int    `json:"backup_retention" gorm:"default:7"`  // 备份保留天数
 	BackupMaxCount  int    `json:"backup_max_count" gorm:"default:10"` // 最多保留的备份数量
-	BackupCompress  int    `json:"backup_compress" gorm:"default:1"`   // 是否压缩备份，0表示不压缩，1表示压缩
+	BackupCompress  int    `json:"backup_compress" gorm:"default:1"`   // 是否压缩备份，0 表示不压缩，1 表示压缩
 }
 
 func (*BackupConfig) TableName() string {
@@ -70,7 +70,7 @@ func (*BackupConfig) TableName() string {
 // BackupRecord 备份记录（历史记录）
 type BackupRecord struct {
 	BaseModel
-	TaskID           uint    `json:"task_id"`           // 关联的任务ID
+	TaskID           uint    `json:"task_id"`           // 关联的任务 ID
 	Status           string  `json:"status"`            // 任务状态：completed/cancelled/timeout/failed
 	FilePath         string  `json:"file_path"`         // 备份文件路径
 	FileSize         int64   `json:"file_size"`         // 备份文件大小（字节）
@@ -81,7 +81,7 @@ type BackupRecord struct {
 	CreatedReason    string  `json:"created_reason"`    // 创建原因
 	FailureReason    string  `json:"failure_reason"`    // 失败原因
 	CompressionRatio float64 `json:"compression_ratio"` // 压缩比例
-	IsCompressed     int     `json:"is_compressed"`     // 是否已压缩，0表示否，1表示是
+	IsCompressed     int     `json:"is_compressed"`     // 是否已压缩，0 表示否，1 表示是
 	CompletedAt      int64   `json:"completed_at"`      // 完成时间戳
 }
 
@@ -97,7 +97,7 @@ func InitBackupService() *BackupService {
 	config := GetOrCreateBackupConfig()
 	backupDir := filepath.Join(helpers.ConfigDir, "backups")
 	if err := os.MkdirAll(backupDir, 0755); err != nil {
-		helpers.AppLogger.Errorf("创建备份目录失败: %v", err)
+		helpers.AppLogger.Errorf("创建备份目录失败：%v", err)
 	}
 
 	GlobalBackupService = &BackupService{
@@ -107,7 +107,7 @@ func InitBackupService() *BackupService {
 		timeout:   DefaultBackupTimeout,
 	}
 
-	helpers.AppLogger.Infof("备份服务已初始化，备份目录: %s", backupDir)
+	helpers.AppLogger.Infof("备份服务已初始化，备份目录：%s", backupDir)
 	return GlobalBackupService
 }
 
@@ -130,12 +130,12 @@ func GetOrCreateBackupConfig() *BackupConfig {
 				BackupCompress:  1,
 			}
 			if err := db.Db.Save(&config).Error; err != nil {
-				helpers.AppLogger.Errorf("创建默认备份配置失败: %v", err)
+				helpers.AppLogger.Errorf("创建默认备份配置失败：%v", err)
 				return &config
 			}
 			helpers.AppLogger.Info("已创建默认备份配置")
 		} else {
-			helpers.AppLogger.Errorf("获取备份配置失败: %v", err)
+			helpers.AppLogger.Errorf("获取备份配置失败：%v", err)
 			return &BackupConfig{
 				BackupRetention: DefaultBackupRetention,
 				BackupMaxCount:  DefaultBackupMaxCount,
@@ -173,9 +173,9 @@ func (s *BackupService) CleanupOldBackups() {
 
 		if shouldDelete {
 			if err := s.DeleteBackup(record.ID, false); err != nil {
-				helpers.AppLogger.Warnf("清理旧备份失败 ID=%d: %v, 原因: %s", record.ID, err, reason)
+				helpers.AppLogger.Warnf("清理旧备份失败，ID=%d：%v，原因：%s", record.ID, err, reason)
 			} else {
-				helpers.AppLogger.Infof("已清理旧备份 ID=%d, 原因: %s", record.ID, reason)
+				helpers.AppLogger.Infof("已清理旧备份，ID=%d，原因：%s", record.ID, reason)
 			}
 		}
 	}
@@ -190,13 +190,13 @@ func (s *BackupService) DeleteBackup(recordID uint, checkRunning bool) error {
 	if record.FilePath != "" {
 		if _, err := os.Stat(record.FilePath); err == nil {
 			if err := os.Remove(record.FilePath); err != nil {
-				helpers.AppLogger.Warnf("删除备份文件失败: %v", err)
+				helpers.AppLogger.Warnf("删除备份文件失败：%v", err)
 			}
 		}
 	}
 
 	if err := db.Db.Delete(&record).Error; err != nil {
-		return fmt.Errorf("删除备份记录失败: %v", err)
+		return fmt.Errorf("删除备份记录失败：%v", err)
 	}
 
 	return nil
@@ -238,7 +238,7 @@ func (s *BackupService) UpdateBackupConfig(config *BackupConfig) error {
 // func (s *BackupService) UploadAndRestore(ctx context.Context, fileData []byte, fileName string) error {
 // 	tempPath := filepath.Join(s.backupDir, "upload_"+fileName)
 // 	if err := os.WriteFile(tempPath, fileData, 0644); err != nil {
-// 		return fmt.Errorf("保存上传文件失败: %v", err)
+// 		return fmt.Errorf("保存上传文件失败：%v", err)
 // 	}
 
 // 	defer func() {

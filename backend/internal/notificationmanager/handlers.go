@@ -29,10 +29,10 @@ type BackgroundHandler interface {
 	Stop()
 }
 
-// TelegramChannelHandler Telegram渠道处理器
+// TelegramChannelHandler Telegram 渠道处理器
 type TelegramChannelHandler struct {
 	config         *notification.TelegramChannelConfig
-	proxyURL       string // 系统代理URL
+	proxyURL       string // 系统代理 URL
 	bot            *helpers.TelegramBot
 	initOnce       sync.Once
 	stopChan       chan struct{}                                     // 用于停止信号
@@ -68,35 +68,35 @@ func (h *TelegramChannelHandler) Send(ctx context.Context, notification *notific
 	message := h.formatMessage(notification)
 	// 验证配置
 	if h.config == nil {
-		return fmt.Errorf("Telegram渠道配置为空")
+		return fmt.Errorf("Telegram 渠道配置为空")
 	}
 	if h.config.BotToken == "" {
-		return fmt.Errorf("Telegram Bot Token为空")
+		return fmt.Errorf("Telegram Bot Token 为空")
 	}
 	if h.config.ChatID == "" {
-		return fmt.Errorf("Telegram ChatID为空")
+		return fmt.Errorf("Telegram Chat ID 为空")
 	}
 
 	// 使用实例中的代理配置
 	var bot *helpers.TelegramBot
 	var err error
 	if h.proxyURL != "" {
-		helpers.AppLogger.Debugf("使用系统代理发送Telegram消息: %s", h.proxyURL)
+		helpers.AppLogger.Debugf("使用系统代理发送 Telegram 消息：%s", h.proxyURL)
 		bot, err = helpers.NewTelegramBotWithProxy(h.config.BotToken, h.config.ChatID, h.proxyURL)
 		if err != nil {
-			return fmt.Errorf("创建代理Telegram机器人失败: %v", err)
+			return fmt.Errorf("创建代理 Telegram 机器人失败：%v", err)
 		}
 	} else {
-		helpers.AppLogger.Debugf("不使用代理，直接发送Telegram消息")
+		helpers.AppLogger.Debugf("不使用代理，直接发送 Telegram 消息")
 		bot = helpers.NewTelegramBot(h.config.BotToken, h.config.ChatID)
 	}
 	if bot == nil {
-		return fmt.Errorf("创建Telegram机器人失败，请检查Token或ChatID是否有效")
+		return fmt.Errorf("创建 Telegram 机器人失败，请检查 Token 或 Chat ID 是否有效")
 	}
-	// 如果有图片，先尝试发送图片（带标题作为caption）
+	// 如果有图片，先尝试发送图片（用标题作为 caption）。
 	if notification.Image != "" {
 		if perr := bot.SendPhoto(notification.Image, message); perr != nil {
-			helpers.AppLogger.Errorf("发送Telegram图片失败: %v", perr)
+			helpers.AppLogger.Errorf("发送 Telegram 图片失败：%v", perr)
 			// 不中断，继续发送文本
 			return perr
 		}
@@ -124,7 +124,7 @@ func (h *TelegramChannelHandler) formatMessage(notification *notification.Notifi
 		message += "\n"
 	}
 
-	// message += fmt.Sprintf("⏰ <b>时间:</b> %s", timestamp)
+	// message += fmt.Sprintf("⏰ <b>时间：</b> %s", timestamp)
 	return message
 }
 
@@ -140,7 +140,7 @@ func (h *TelegramChannelHandler) initBot() error {
 		h.bot = helpers.NewTelegramBot(h.config.BotToken, h.config.ChatID)
 	}
 	if h.bot == nil {
-		return fmt.Errorf("创建Telegram机器人失败")
+		return fmt.Errorf("创建 Telegram 机器人失败")
 	}
 	h.bot.SetMenuContent()
 	return err
@@ -153,13 +153,13 @@ func (h *TelegramChannelHandler) SetCommands(cmds map[string]func([]string) help
 // Start 实现 BackgroundHandler 接口
 func (h *TelegramChannelHandler) Start(ctx context.Context) {
 	if err := h.initBot(); err != nil {
-		helpers.AppLogger.Errorf("初始化 Telegram Bot 失败: %v", err)
+		helpers.AppLogger.Errorf("初始化 Telegram Bot 失败：%v", err)
 		return
 	}
 
 	// 在协程中运行监听，避免阻塞主进程
 	go func() {
-		helpers.AppLogger.Infof("Telegram Bot 监听协程启动...")
+		helpers.AppLogger.Infof("Telegram Bot 监听协程启动…")
 
 		// 调用你现有的监听逻辑，并把自定义命令传进去
 		// 注意：我们需要对 StartListening 做一点小改动，让它能感知 ctx
@@ -175,7 +175,7 @@ func (h *TelegramChannelHandler) Stop() {
 	}
 }
 
-// MeoWChannelHandler MeoW渠道处理器
+// MeoWChannelHandler MeoW 渠道处理器
 type MeoWChannelHandler struct {
 	config *notification.MeoWChannelConfig
 }
@@ -205,7 +205,7 @@ func (h *MeoWChannelHandler) Send(ctx context.Context, notification *notificatio
 	// 构建请求 URL
 	endpoint := fmt.Sprintf("%s/%s", h.config.Endpoint, h.config.Nickname)
 
-	// 构建 POST 请求体 (JSON 格式)
+	// 构建 POST 请求体（JSON 格式）
 	payload := map[string]interface{}{
 		"title": notification.Title,
 		"msg":   notification.Content,
@@ -223,7 +223,7 @@ func (h *MeoWChannelHandler) Send(ctx context.Context, notification *notificatio
 
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("MeoW 消息编码失败: %v", err)
+		return fmt.Errorf("MeoW 消息编码失败：%v", err)
 	}
 
 	// 添加查询参数
@@ -241,34 +241,34 @@ func (h *MeoWChannelHandler) Send(ctx context.Context, notification *notificatio
 
 	req, err := http.NewRequestWithContext(ctx, "POST", fullURL, bytes.NewBuffer(jsonData))
 	if err != nil {
-		return fmt.Errorf("MeoW 创建请求失败: %v", err)
+		return fmt.Errorf("MeoW 创建请求失败：%v", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("MeoW 发送请求失败: %v", err)
+		return fmt.Errorf("MeoW 发送请求失败：%v", err)
 	}
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("MeoW 返回错误: status=%d, body=%s", resp.StatusCode, string(body))
+		return fmt.Errorf("MeoW 返回错误：status=%d，body=%s", resp.StatusCode, string(body))
 	}
 
 	var result map[string]interface{}
 	json.Unmarshal(body, &result)
 
 	if status, ok := result["status"].(float64); ok && int(status) != 200 {
-		return fmt.Errorf("MeoW 响应错误: %v", result)
+		return fmt.Errorf("MeoW 响应错误：%v", result)
 	}
 
 	return nil
 }
 
-// BarkChannelHandler Bark渠道处理器
+// BarkChannelHandler Bark 渠道处理器
 type BarkChannelHandler struct {
 	config *notification.BarkChannelConfig
 }
@@ -315,7 +315,7 @@ func (h *BarkChannelHandler) Send(ctx context.Context, notification *notificatio
 
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("Bark 消息编码失败: %v", err)
+		return fmt.Errorf("Bark 消息编码失败：%v", err)
 	}
 
 	client := &http.Client{
@@ -324,21 +324,21 @@ func (h *BarkChannelHandler) Send(ctx context.Context, notification *notificatio
 
 	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewBuffer(jsonData))
 	if err != nil {
-		return fmt.Errorf("Bark 创建请求失败: %v", err)
+		return fmt.Errorf("Bark 创建请求失败：%v", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("Bark 发送请求失败: %v", err)
+		return fmt.Errorf("Bark 发送请求失败：%v", err)
 	}
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return fmt.Errorf("Bark 返回错误: status=%d, body=%s", resp.StatusCode, string(body))
+		return fmt.Errorf("Bark 返回错误：status=%d，body=%s", resp.StatusCode, string(body))
 	}
 
 	return nil
@@ -380,7 +380,7 @@ func (h *ServerChanChannelHandler) Send(ctx context.Context, notification *notif
 
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("Server酱 消息编码失败: %v", err)
+		return fmt.Errorf("Server酱消息编码失败：%v", err)
 	}
 
 	client := &http.Client{
@@ -389,28 +389,28 @@ func (h *ServerChanChannelHandler) Send(ctx context.Context, notification *notif
 
 	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewBuffer(jsonData))
 	if err != nil {
-		return fmt.Errorf("Server酱 创建请求失败: %v", err)
+		return fmt.Errorf("Server酱创建请求失败：%v", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("Server酱 发送请求失败: %v", err)
+		return fmt.Errorf("Server酱发送请求失败：%v", err)
 	}
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Server酱 返回错误: status=%d, body=%s", resp.StatusCode, string(body))
+		return fmt.Errorf("Server酱返回错误：status=%d，body=%s", resp.StatusCode, string(body))
 	}
 
 	var result map[string]interface{}
 	json.Unmarshal(body, &result)
 
 	if code, ok := result["code"].(float64); ok && int(code) != 0 {
-		return fmt.Errorf("Server酱 响应错误: %v", result)
+		return fmt.Errorf("Server酱响应错误：%v", result)
 	}
 
 	return nil
@@ -460,25 +460,25 @@ func (h *CustomWebhookChannelHandler) Send(ctx context.Context, n *notification.
 	case "GET":
 		return h.sendGET(ctx, n)
 	default:
-		return fmt.Errorf("不支持的 HTTP 方法: %s", method)
+		return fmt.Errorf("不支持的 HTTP 方法：%s", method)
 	}
 }
 
 func (h *CustomWebhookChannelHandler) sendPOST(ctx context.Context, n *notification.Notification) error {
 	bodyStr, contentType, err := h.renderTemplate(n)
 	if err != nil {
-		return fmt.Errorf("模板渲染失败: %v", err)
+		return fmt.Errorf("模板渲染失败：%v", err)
 	}
 
 	// 添加调试日志
-	helpers.AppLogger.Debugf("[Webhook] 请求体: %s", bodyStr)
+	helpers.AppLogger.Debugf("[Webhook] 请求体：%s", bodyStr)
 
 	// 处理 query 鉴权（在 URL 上追加）
 	endpoint := h.config.Endpoint
 	if strings.ToLower(strings.TrimSpace(h.config.AuthType)) == "query" && strings.TrimSpace(h.config.AuthQueryKey) != "" {
 		u, err := url.Parse(endpoint)
 		if err != nil {
-			return fmt.Errorf("解析 Endpoint 失败: %v", err)
+			return fmt.Errorf("解析 Endpoint 失败：%v", err)
 		}
 		q := u.Query()
 		q.Set(h.config.AuthQueryKey, h.config.AuthToken)
@@ -489,7 +489,7 @@ func (h *CustomWebhookChannelHandler) sendPOST(ctx context.Context, n *notificat
 	client := &http.Client{Timeout: 15 * time.Second}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewBufferString(bodyStr))
 	if err != nil {
-		return fmt.Errorf("创建 POST 请求失败: %v", err)
+		return fmt.Errorf("创建 POST 请求失败：%v", err)
 	}
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
@@ -500,17 +500,17 @@ func (h *CustomWebhookChannelHandler) sendPOST(ctx context.Context, n *notificat
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("POST 发送失败: %v", err)
+		return fmt.Errorf("POST 发送失败：%v", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, _ := io.ReadAll(resp.Body)
 
 	// 添加响应日志
-	helpers.AppLogger.Debugf("[Webhook] 响应: status=%d, body=%s", resp.StatusCode, string(respBody))
+	helpers.AppLogger.Debugf("[Webhook] 响应：status=%d，body=%s", resp.StatusCode, string(respBody))
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("POST 返回状态异常: status=%d, body=%s", resp.StatusCode, string(respBody))
+		return fmt.Errorf("POST 返回状态异常：status=%d，body=%s", resp.StatusCode, string(respBody))
 	}
 	return nil
 }
@@ -518,15 +518,15 @@ func (h *CustomWebhookChannelHandler) sendPOST(ctx context.Context, n *notificat
 func (h *CustomWebhookChannelHandler) sendGET(ctx context.Context, n *notification.Notification) error {
 	bodyStr, _, err := h.renderTemplate(n)
 	if err != nil {
-		return fmt.Errorf("模板渲染失败: %v", err)
+		return fmt.Errorf("模板渲染失败：%v", err)
 	}
 
 	// 添加调试日志
-	helpers.AppLogger.Debugf("[Webhook] 请求体: %s", bodyStr)
+	helpers.AppLogger.Debugf("[Webhook] 请求体：%s", bodyStr)
 
 	u, err := url.Parse(h.config.Endpoint)
 	if err != nil {
-		return fmt.Errorf("解析 Endpoint 失败: %v", err)
+		return fmt.Errorf("解析 Endpoint 失败：%v", err)
 	}
 	q := u.Query()
 	param := strings.TrimSpace(h.config.QueryParam)
@@ -543,7 +543,7 @@ func (h *CustomWebhookChannelHandler) sendGET(ctx context.Context, n *notificati
 	client := &http.Client{Timeout: 15 * time.Second}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
-		return fmt.Errorf("创建 GET 请求失败: %v", err)
+		return fmt.Errorf("创建 GET 请求失败：%v", err)
 	}
 
 	// 设置鉴权与额外头
@@ -551,17 +551,17 @@ func (h *CustomWebhookChannelHandler) sendGET(ctx context.Context, n *notificati
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("GET 发送失败: %v", err)
+		return fmt.Errorf("GET 发送失败：%v", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, _ := io.ReadAll(resp.Body)
 
 	// 添加响应日志
-	helpers.AppLogger.Debugf("[Webhook] 响应: status=%d, body=%s", resp.StatusCode, string(respBody))
+	helpers.AppLogger.Debugf("[Webhook] 响应：status=%d，body=%s", resp.StatusCode, string(respBody))
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("GET 返回状态异常: status=%d, body=%s", resp.StatusCode, string(respBody))
+		return fmt.Errorf("GET 返回状态异常：status=%d，body=%s", resp.StatusCode, string(respBody))
 	}
 	return nil
 }
@@ -600,7 +600,7 @@ func (h *CustomWebhookChannelHandler) renderTemplate(n *notification.Notificatio
 		return tpl, "text/plain; charset=utf-8", nil
 
 	default:
-		return "", "", fmt.Errorf("不支持的模板格式: %s", format)
+		return "", "", fmt.Errorf("不支持的模板格式：%s", format)
 	}
 }
 
@@ -642,7 +642,7 @@ func renderJSONTemplate(template string, vars map[string]string) string {
 	// 3. 解析为 JSON 对象
 	var jsonObj interface{}
 	if err := json.Unmarshal([]byte(result), &jsonObj); err != nil {
-		helpers.AppLogger.Debugf("[Webhook] JSON 模板解析失败: %v, 使用原始替换", err)
+		helpers.AppLogger.Debugf("[Webhook] JSON 模板解析失败：%v，使用原始替换", err)
 		return result
 	}
 
@@ -652,12 +652,12 @@ func renderJSONTemplate(template string, vars map[string]string) string {
 	// 5. 重新序列化
 	cleanedBytes, err := json.Marshal(cleanedObj)
 	if err != nil {
-		helpers.AppLogger.Debugf("[Webhook] JSON 序列化失败: %v, 使用原始替换", err)
+		helpers.AppLogger.Debugf("[Webhook] JSON 序列化失败：%v，使用原始替换", err)
 		return result
 	}
 
 	cleanedResult := string(cleanedBytes)
-	helpers.AppLogger.Debugf("[Webhook] JSON 清理完成: 原长度=%d, 清理后长度=%d", len(result), len(cleanedResult))
+	helpers.AppLogger.Debugf("[Webhook] JSON 清理完成：原长度=%d，清理后长度=%d", len(result), len(cleanedResult))
 
 	return cleanedResult
 }

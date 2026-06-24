@@ -75,7 +75,7 @@ const routes = [
     name: 'sync',
     redirect: '/sync-directories',
     meta: {
-      title: 'STRM同步',
+      title: 'STRM 同步',
       requiresAuth: true,
       icon: 'DocumentCopy',
       showInMenu: true,
@@ -86,7 +86,7 @@ const routes = [
     name: 'sync-directories',
     component: AppSyncDirectories,
     meta: {
-      title: 'STRM同步目录',
+      title: 'STRM 同步目录',
       requiresAuth: true,
       parent: 'sync',
       icon: 'FolderOpened',
@@ -120,7 +120,7 @@ const routes = [
     name: 'sync-records',
     component: AppSyncRecords,
     meta: {
-      title: 'STRM同步记录',
+      title: 'STRM 同步记录',
       requiresAuth: true,
       parent: 'sync',
       icon: 'List',
@@ -132,7 +132,7 @@ const routes = [
     name: 'settings-strm',
     component: AppStrmSettings,
     meta: {
-      title: 'STRM设置',
+      title: 'STRM 设置',
       requiresAuth: true,
       parent: 'sync',
       icon: 'Setting',
@@ -223,7 +223,7 @@ const routes = [
     name: 'settings-ai',
     component: AppAiSettings,
     meta: {
-      title: 'AI识别设置',
+      title: 'AI 识别设置',
       requiresAuth: true,
       parent: 'scrape',
       icon: 'View',

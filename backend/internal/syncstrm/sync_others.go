@@ -92,7 +92,7 @@ func (s *SyncStrm) StartOther() {
 			s.Sync.Logger.Warnf("目录 %s 被排除，跳过它和旗下所有内容", pathItem.Path)
 			return nil
 		}
-		// s.Sync.Logger.Debugf("准备请求API接口获取目录下的文件列表, 目录：%s", pathItem.Path)
+		// s.Sync.Logger.Debugf("准备请求 API 接口获取目录下的文件列表, 目录：%s", pathItem.Path)
 		// GetNetFileFiles 返回该目录下的子目录和文件列表
 		retryCount := 0
 		var fileItems []*SyncFileCache
@@ -102,7 +102,7 @@ func (s *SyncStrm) StartOther() {
 			fileItems, err = s.SyncDriver.GetNetFileFiles(ctx, pathItem.Path, pathItem.PathId)
 			if err != nil {
 				if retryCount >= models.SettingsGlobal.OpenlistRetry {
-					s.Sync.Logger.Errorf("重试 %d 次后，获取目录 %s 下的文件列表失败: %v", models.SettingsGlobal.OpenlistRetry, pathItem.Path, err)
+					s.Sync.Logger.Errorf("重试 %d 次后，获取目录 %s 下的文件列表失败：%v", models.SettingsGlobal.OpenlistRetry, pathItem.Path, err)
 					select {
 					case s.PathErrChan <- err:
 					default:
@@ -110,7 +110,7 @@ func (s *SyncStrm) StartOther() {
 					return err
 				} else {
 					retryCount++
-					s.Sync.Logger.Warnf("获取目录 %s 下的文件列表失败，休息1分钟，重试1次: %v", pathItem.Path, err)
+					s.Sync.Logger.Warnf("获取目录 %s 下的文件列表失败，休息 1 分钟后重试第 1 次：%v", pathItem.Path, err)
 					time.Sleep(time.Duration(models.SettingsGlobal.OpenlistRetryDelay) * time.Second)
 					continue apiloop
 				}
@@ -145,13 +145,13 @@ func (s *SyncStrm) StartOther() {
 					continue
 				}
 				fileItem.GetLocalFilePath(s.TargetPath, s.SourcePath) // 生成本地路径缓存
-				// s.Sync.Logger.Infof("发现文件: %s 文件名：%s", fileItem.LocalFilePath, fileItem.FileName)
+				// s.Sync.Logger.Infof("发现文件：%s 文件名：%s", fileItem.LocalFilePath, fileItem.FileName)
 				// 放入临时表
 				s.memSyncCache.Insert(fileItem)
-				// s.Sync.Logger.Infof("文件加入临时表: %s", fileItem.LocalFilePath)
+				// s.Sync.Logger.Infof("文件加入临时表：%s", fileItem.LocalFilePath)
 				// 处理文件
 				s.processNetFile(fileItem)
-				// s.Sync.Logger.Infof("文件处理完成: %s", fileItem.LocalFilePath)
+				// s.Sync.Logger.Infof("文件处理完成：%s", fileItem.LocalFilePath)
 			}
 		}
 		return nil
@@ -189,7 +189,7 @@ func (s *SyncStrm) StartOther() {
 	})
 
 	if err := eg.Wait(); err != nil {
-		s.Sync.Logger.Errorf("路径处理失败: %v", err)
+		s.Sync.Logger.Errorf("路径处理失败：%v", err)
 		return
 	}
 	s.Sync.Logger.Infof("已经遍历了全部目录")
@@ -200,7 +200,7 @@ func (s *SyncStrm) StartFile() error {
 	// 查询文件详情
 	file, err := s.SyncDriver.DetailByFileId(s.Context, s.SourcePathId)
 	if err != nil {
-		s.Sync.Logger.Errorf("获取文件 %s 详情失败: %v", s.SourcePath, err)
+		s.Sync.Logger.Errorf("获取文件 %s 详情失败：%v", s.SourcePath, err)
 		return err
 	}
 	if !file.IsVideo {
@@ -213,6 +213,6 @@ func (s *SyncStrm) StartFile() error {
 		s.Sync.Logger.Warnf("文件 %s 无效，跳过", file.FileName)
 		return nil
 	}
-	// 生成strm
+	// 生成 STRM
 	return s.processNetFile(file)
 }

@@ -16,7 +16,7 @@ import (
 
 var embySyncRunning int32
 
-// IsEmbySyncRunning 检查是否有Emby同步任务正在运行
+// IsEmbySyncRunning 检查是否有 Emby 同步任务正在运行
 func IsEmbySyncRunning() bool {
 	return atomic.LoadInt32(&embySyncRunning) == 1
 }
@@ -35,22 +35,22 @@ type embySyncTask struct {
 	Item        embyclientrestgo.BaseItemDtoV2
 }
 
-// 同步Emby媒体库到本地数据库
+// 同步 Emby 媒体库到本地数据库
 func PerformEmbySync() (int, error) {
 	// 检查是否已有任务在运行，避免并发执行
 	if IsEmbySyncRunning() {
-		helpers.AppLogger.Warnf("Emby同步任务已在运行，跳过本次定时执行")
+		helpers.AppLogger.Warnf("Emby 同步任务已在运行，跳过本次定时执行")
 		return 0, nil
 	}
 	config, cerr := models.GetEmbyConfig()
 	if config.EmbyUrl == "" || config.EmbyApiKey == "" {
-		return 0, errors.New("Emby Url或ApiKey为空")
+		return 0, errors.New("Emby URL 或 API Key 为空")
 	}
 	if cerr != nil || config.SyncEnabled != 1 {
-		return 0, errors.New("Emby同步未启用")
+		return 0, errors.New("Emby 同步未启用")
 	}
 	if !atomic.CompareAndSwapInt32(&embySyncRunning, 0, 1) {
-		return 0, errors.New("Emby同步任务已在运行")
+		return 0, errors.New("Emby 同步任务已在运行")
 	}
 	defer atomic.StoreInt32(&embySyncRunning, 0)
 
@@ -60,7 +60,7 @@ func PerformEmbySync() (int, error) {
 		return 0, err
 	}
 	if len(users) == 0 {
-		return 0, errors.New("没有找到可访问全部媒体库的Emby用户")
+		return 0, errors.New("没有找到可访问全部媒体库的 Emby 用户")
 	}
 
 	libs, err := client.GetAllMediaLibraries()
@@ -68,10 +68,10 @@ func PerformEmbySync() (int, error) {
 		return 0, err
 	}
 	if len(libs) == 0 {
-		return 0, errors.New("未获取到任何Emby媒体库")
+		return 0, errors.New("未获取到任何 Emby 媒体库")
 	}
 	if err := models.UpsertEmbyLibraries(libs); err != nil {
-		helpers.AppLogger.Warnf("保存媒体库信息失败: %v", err)
+		helpers.AppLogger.Warnf("保存媒体库信息失败：%v", err)
 	}
 
 	// 根据配置过滤媒体库
@@ -95,10 +95,10 @@ func PerformEmbySync() (int, error) {
 
 			// // 清理未选中的媒体库数据
 			// if err := models.CleanupUnselectedEmbyLibraryData(selectedLibIds); err != nil {
-			// 	helpers.AppLogger.Warnf("清理未选中媒体库数据失败: %v", err)
+			// 	helpers.AppLogger.Warnf("清理未选中媒体库数据失败：%v", err)
 			// }
 		} else {
-			helpers.AppLogger.Warnf("解析选中的媒体库列表失败: %v", err)
+			helpers.AppLogger.Warnf("解析选中的媒体库列表失败：%v", err)
 		}
 	}
 
@@ -122,8 +122,8 @@ func PerformEmbySync() (int, error) {
 			pickCode, mediaPath, err := extractPickCode(task.Item.MediaSources)
 			// pickCode, mediaPath := "", ""
 			if err != nil {
-				// helpers.AppLogger.Warnf("从MediaSource中查询PickCode失败 item=%s name=%s path=%s err=%v", task.Item.Id, task.Item.Name, mediaPath, err)
-				// 没有pickcode不入库
+				// helpers.AppLogger.Warnf("从 MediaSource 中查询 PickCode 失败，item=%s，name=%s，path=%s，err=%v", task.Item.Id, task.Item.Name, mediaPath, err)
+				// 没有 PickCode 不入库
 				continue
 			}
 			pathStr := mediaPath
@@ -153,20 +153,20 @@ func PerformEmbySync() (int, error) {
 				DateModified:      task.Item.DateModified,
 				IsFolder:          task.Item.IsFolder,
 			}
-			// 将DateCreated转成时间戳赋值给DateCreatedTime
+			// 将 DateCreated 转成时间戳赋值给 DateCreatedTime
 			if mediaItem.DateCreated != "" {
 				if t, err := time.Parse(time.RFC3339, mediaItem.DateCreated); err == nil {
 					mediaItem.DateCreatedTime = t.Unix()
 				}
 			}
-			// 将DateModified转成时间戳赋值给DateModifiedTime
+			// 将 DateModified 转成时间戳赋值给 DateModifiedTime
 			if mediaItem.DateModified != "" {
 				if t, err := time.Parse(time.RFC3339, mediaItem.DateModified); err == nil {
 					mediaItem.DateModifiedTime = t.Unix()
 				}
 			}
 			if err := models.CreateOrUpdateEmbyMediaItem(mediaItem); err != nil {
-				helpers.AppLogger.Errorf("保存Emby媒体项失败 id=%s name=%s err=%v", task.Item.Id, task.Item.Name, err)
+				helpers.AppLogger.Errorf("保存 Emby 媒体项失败，ID=%s，名称=%s，错误=%v", task.Item.Id, task.Item.Name, err)
 				continue
 			}
 			mu.Lock()
@@ -176,12 +176,12 @@ func PerformEmbySync() (int, error) {
 			if pickCode != "" {
 				if sf := models.GetFileByPickCode(pickCode); sf != nil {
 					if err := models.CreateEmbyMediaSyncFile(task.Item.Id, sf.ID, pickCode, sf.SyncPathId); err != nil {
-						helpers.AppLogger.Warnf("关联SyncFile失败 item=%s pickcode=%s err=%v", task.Item.Id, pickCode, err)
+						helpers.AppLogger.Warnf("关联 SyncFile 失败，Item ID=%s，PickCode=%s，错误=%v", task.Item.Id, pickCode, err)
 					}
 					models.CreateOrUpdateEmbyLibrarySyncPath(task.LibraryId, sf.SyncPathId, task.LibraryName)
 				}
 			}
-			time.Sleep(100 * time.Millisecond) // 休息100毫秒，避免对Emby API的过度请求，也让其他协程有机会写入数据库
+			time.Sleep(100 * time.Millisecond) // 休息 100 毫秒，避免对 Emby API 的过度请求，也让其他协程有机会写入数据库
 		}
 	}
 
@@ -193,7 +193,7 @@ func PerformEmbySync() (int, error) {
 	for _, lib := range libs {
 		items, gerr := client.GetMediaItemsByLibraryID(lib.ID, 0)
 		if gerr != nil {
-			helpers.AppLogger.Warnf("获取媒体库%s失败: %v", lib.Name, gerr)
+			helpers.AppLogger.Warnf("获取媒体库 %s 失败：%v", lib.Name, gerr)
 			continue
 		}
 		for _, item := range items {
@@ -205,32 +205,32 @@ func PerformEmbySync() (int, error) {
 
 	if processed > 0 {
 		if err := models.CleanupOrphanedEmbyMediaItems(validItemIds); err != nil {
-			helpers.AppLogger.Warnf("清理过期Emby媒体项失败: %v", err)
+			helpers.AppLogger.Warnf("清理过期 Emby 媒体项失败：%v", err)
 		}
 	}
 	if err := models.UpdateLastSyncTime(); err != nil {
-		helpers.AppLogger.Warnf("更新Emby最后同步时间失败: %v", err)
+		helpers.AppLogger.Warnf("更新 Emby 最后同步时间失败：%v", err)
 	}
-	helpers.AppLogger.Infof("Emby同步完成，处理 %d 个项目", processed)
+	helpers.AppLogger.Infof("Emby 同步完成，处理 %d 个项目", processed)
 	return int(processed), nil
 }
 
-// 增量同步item id 所属的 媒体库
+// 增量同步 item ID 所属的媒体库
 func IncrementalSyncEmbyMediaItems(itemId string) error {
 	// 检查是否已有任务在运行，避免并发执行
 	if IsEmbySyncRunning() {
-		helpers.AppLogger.Warnf("Emby同步任务已在运行，跳过本次定时执行")
+		helpers.AppLogger.Warnf("Emby 同步任务已在运行，跳过本次定时执行")
 		return nil
 	}
 	config, cerr := models.GetEmbyConfig()
 	if config.EmbyUrl == "" || config.EmbyApiKey == "" {
-		return errors.New("Emby Url或ApiKey为空")
+		return errors.New("Emby URL 或 API Key 为空")
 	}
 	if cerr != nil || config.SyncEnabled != 1 {
-		return errors.New("Emby同步未启用")
+		return errors.New("Emby 同步未启用")
 	}
 	if !atomic.CompareAndSwapInt32(&embySyncRunning, 0, 1) {
-		return errors.New("Emby同步任务已在运行")
+		return errors.New("Emby 同步任务已在运行")
 	}
 	defer atomic.StoreInt32(&embySyncRunning, 0)
 
@@ -240,9 +240,9 @@ func IncrementalSyncEmbyMediaItems(itemId string) error {
 		return err
 	}
 	if len(users) == 0 {
-		return errors.New("没有找到可访问全部媒体库的Emby用户")
+		return errors.New("没有找到可访问全部媒体库的 Emby 用户")
 	}
-	// 查询item id 所属的媒体库
+	// 查询 item ID 所属的媒体库
 	librarys, err := client.GetItemLibraryId(itemId)
 	if err != nil {
 		return err
@@ -253,12 +253,12 @@ func IncrementalSyncEmbyMediaItems(itemId string) error {
 	for _, lib := range librarys {
 		lastDateCreatedTime := models.GetLastItemDateCreatedTimeByLibraryID(lib.ID)
 		if lastDateCreatedTime == 0 {
-			helpers.AppLogger.Warnf("获取媒体库%s最后一此同步时间失败，可能是因为没有同步过任何媒体项", lib.ID)
+			helpers.AppLogger.Warnf("获取媒体库 %s 最后一次同步时间失败，可能是因为没有同步过任何媒体项", lib.ID)
 			continue
 		}
 		items, gerr := client.GetMediaItemsByLibraryID(lib.ID, lastDateCreatedTime)
 		if gerr != nil {
-			helpers.AppLogger.Warnf("获取媒体库%s失败: %v", lib.ID, gerr)
+			helpers.AppLogger.Warnf("获取媒体库 %s 失败：%v", lib.ID, gerr)
 			continue
 		}
 		for _, item := range items {
@@ -294,31 +294,31 @@ func IncrementalSyncEmbyMediaItems(itemId string) error {
 				DateModified:      item.DateModified, // 2026-01-21T16:00:00.0000000Z
 				IsFolder:          item.IsFolder,
 			}
-			// 将DateCreated转成时间戳赋值给DateCreatedTime
+			// 将 DateCreated 转成时间戳赋值给 DateCreatedTime
 			if item.DateCreated != "" {
 				if t, err := time.Parse(time.RFC3339, item.DateCreated); err == nil {
 					mediaItem.DateCreatedTime = t.Unix()
 				}
 			}
-			// 将DateModified转成时间戳赋值给DateModifiedTime
+			// 将 DateModified 转成时间戳赋值给 DateModifiedTime
 			if item.DateModified != "" {
 				if t, err := time.Parse(time.RFC3339, item.DateModified); err == nil {
 					mediaItem.DateModifiedTime = t.Unix()
 				}
 			}
 			if err := models.CreateOrUpdateEmbyMediaItem(mediaItem); err != nil {
-				helpers.AppLogger.Errorf("保存Emby媒体项失败 id=%s name=%s err=%v", item.Id, item.Name, err)
+				helpers.AppLogger.Errorf("保存 Emby 媒体项失败，ID=%s，名称=%s，错误=%v", item.Id, item.Name, err)
 				continue
 			}
 			if pickCode != "" {
 				if sf := models.GetFileByPickCode(pickCode); sf != nil {
 					if err := models.CreateEmbyMediaSyncFile(item.Id, sf.ID, pickCode, sf.SyncPathId); err != nil {
-						helpers.AppLogger.Warnf("关联SyncFile失败 item=%s pickcode=%s err=%v", item.Id, pickCode, err)
+						helpers.AppLogger.Warnf("关联 SyncFile 失败，Item ID=%s，PickCode=%s，错误=%v", item.Id, pickCode, err)
 					}
 					models.CreateOrUpdateEmbyLibrarySyncPath(lib.ID, sf.SyncPathId, lib.Name)
 				}
 			}
-			time.Sleep(100 * time.Millisecond) // 休息100毫秒，避免对Emby API的过度请求，也让其他协程有机会写入数据库
+			time.Sleep(100 * time.Millisecond) // 休息 100 毫秒，避免对 Emby API 的过度请求，也让其他协程有机会写入数据库
 		}
 	}
 
@@ -335,14 +335,14 @@ func extractPickCode(ms []embyclientrestgo.MediaSource) (string, string, error) 
 			return code, pathStr, nil
 		}
 	}
-	return code, pathStr, errors.New("未从Item.MediaSource.Path中解析到pickcode")
+	return code, pathStr, errors.New("未从 Item.MediaSource.Path 中解析到 PickCode")
 }
 
 func extractPickCodeFromPath(path string) string {
 	if path == "" {
 		return ""
 	}
-	// 如果不以http开头，则跳过
+	// 如果不以 HTTP 开头，则跳过
 	if !strings.HasPrefix(path, "http://") && !strings.HasPrefix(path, "https://") {
 		return ""
 	}
@@ -356,10 +356,10 @@ func extractPickCodeFromPath(path string) string {
 	if code := u.Query().Get("pick_code"); code != "" {
 		return code
 	}
-	// 检查路径是否为openlist格式，openlist中path等于pickcode, 格式为/d/{path}(?sign=xxx)
-	// 判断路径是否以/d开头
+	// 检查路径是否为 OpenList 格式，OpenList 中 path 等于 PickCode，格式为 /d/{path}(?sign=xxx)
+	// 判断路径是否以 /d 开头
 	// if strings.HasPrefix(u.Path, "/d/") {
-	// 	// 选取/d之后的部分作为pickcode
+	// 	// 选取 /d 之后的部分作为 PickCode
 	// 	return path
 	// }
 	return path
@@ -369,11 +369,11 @@ var EmbyMediaInfoStart bool = false
 
 func StartParseEmbyMediaInfo() {
 	if EmbyMediaInfoStart {
-		helpers.AppLogger.Info("Emby库同步任务已在运行")
+		helpers.AppLogger.Info("Emby 库同步任务已在运行")
 		return
 	}
 	if models.GlobalEmbyConfig.EmbyUrl == "" || models.GlobalEmbyConfig.EmbyApiKey == "" {
-		helpers.AppLogger.Info("Emby Url或ApiKey为空，无法同步emby库来提取视频信息")
+		helpers.AppLogger.Info("Emby URL 或 API Key 为空，无法同步 Emby 库来提取视频信息")
 		return
 	}
 	EmbyMediaInfoStart = true
@@ -383,24 +383,24 @@ func StartParseEmbyMediaInfo() {
 	// 放入协程运行
 	go func() {
 		tasks := embyclientrestgo.ProcessLibraries(models.GlobalEmbyConfig.EmbyUrl, models.GlobalEmbyConfig.EmbyApiKey, []string{})
-		helpers.AppLogger.Infof("Emby库收集媒体信息已完成，共发现 %d 个影视剧需要提取媒体信息", len(tasks))
+		helpers.AppLogger.Infof("Emby 库收集媒体信息已完成，共发现 %d 个影视剧需要提取媒体信息", len(tasks))
 		for _, itemTask := range tasks {
 			task := models.AddDownloadTaskFromEmbyMedia(itemTask["url"], itemTask["item_id"], itemTask["item_name"])
 			if task == nil {
-				helpers.AppLogger.Errorf("添加Emby媒体信息提取任务失败: Emby ItemID: %s, 名称: %s", itemTask["item_id"], itemTask["item_name"])
+				helpers.AppLogger.Errorf("添加 Emby 媒体信息提取任务失败：Emby Item ID：%s，名称：%s", itemTask["item_id"], itemTask["item_name"])
 				continue
 			}
-			helpers.AppLogger.Infof("Emby媒体信息提取已加入操作队列: Emby ItemID: %s, 名称: %s", itemTask["item_id"], itemTask["item_name"])
+			helpers.AppLogger.Infof("Emby 媒体信息提取已加入操作队列：Emby Item ID：%s，名称：%s", itemTask["item_id"], itemTask["item_name"])
 		}
 	}()
 }
 
 var embyUserId string = ""
 
-// 查询Emby媒体详情
+// 查询 Emby 媒体详情
 func GetEmbyItemDetail(itemId string) *embyclientrestgo.BaseItemDtoV2 {
 	if models.GlobalEmbyConfig.EmbyUrl == "" || models.GlobalEmbyConfig.EmbyApiKey == "" {
-		helpers.AppLogger.Info("Emby Url或ApiKey为空，无法查询Emby媒体详情")
+		helpers.AppLogger.Info("Emby URL 或 API Key 为空，无法查询 Emby 媒体详情")
 		return nil
 	}
 	client := embyclientrestgo.NewClient(models.GlobalEmbyConfig.EmbyUrl, models.GlobalEmbyConfig.EmbyApiKey)
@@ -408,7 +408,7 @@ func GetEmbyItemDetail(itemId string) *embyclientrestgo.BaseItemDtoV2 {
 		// 获取有权限的用户
 		users, err := client.GetUsersWithAllLibrariesAccess()
 		if err != nil {
-			helpers.AppLogger.Errorf("获取用户失败: %v", err)
+			helpers.AppLogger.Errorf("获取用户失败：%v", err)
 			return nil
 		}
 		if len(users) == 0 {
@@ -420,7 +420,7 @@ func GetEmbyItemDetail(itemId string) *embyclientrestgo.BaseItemDtoV2 {
 	}
 	item, err := client.GetItemDetailByUser(itemId, embyUserId)
 	if err != nil {
-		helpers.AppLogger.Errorf("获取Emby媒体 %s 用户ID %s 详情失败： %s", itemId, embyUserId, err.Error())
+		helpers.AppLogger.Errorf("获取 Emby 媒体 %s 用户 ID %s 详情失败：%s", itemId, embyUserId, err.Error())
 		return nil
 	}
 	return item

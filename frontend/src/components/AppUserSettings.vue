@@ -13,7 +13,7 @@
           :disabled="loading"
           maxlength="50"
         />
-        <div class="form-help">用户名长度至少3个字符，留空则不修改</div>
+        <div class="form-help">用户名长度至少 3 个字符，留空则不修改</div>
       </el-form-item>
 
       <el-form-item label="密码" prop="password">
@@ -41,13 +41,7 @@
       </el-form-item>
 
       <div class="form-actions">
-        <el-button
-          type="primary"
-          @click="saveSettings"
-          :loading="loading"
-        >
-          保存设置
-        </el-button>
+        <el-button type="primary" @click="saveSettings" :loading="loading"> 保存设置 </el-button>
       </div>
     </el-form>
 
@@ -66,7 +60,7 @@
       <div class="warning-section">
         <el-alert title="重要提醒" type="warning" :closable="false" show-icon>
           <template #default>
-            修改用户名或密码后，您需要重新登录系统。请确保记住新的登录凭据。
+            修改用户名或密码后需要重新登录系统，请妥善保存新的登录凭据。
           </template>
         </el-alert>
       </div>
@@ -110,12 +104,12 @@ const formData = reactive<UserSettings>({
 // 表单验证
 const validateForm = (): boolean => {
   if (formData.username && formData.username.length < 3) {
-    ElMessage.error('用户名长度至少3个字符')
+    ElMessage.error('用户名长度至少 3 个字符')
     return false
   }
 
   if (formData.password && formData.password.length < 6) {
-    ElMessage.error('密码长度至少6个字符')
+    ElMessage.error('密码长度至少 6 个字符')
     return false
   }
 
@@ -164,7 +158,7 @@ const saveSettings = async () => {
       formData.confirmPassword = ''
       formData.password = ''
       if (response?.data.data) {
-        // 如果为true则需要重新登录
+        // 如果为 true 则需要重新登录
         authStore.logout()
         ElMessage.success('已退出登录')
         router.push('/login')
@@ -179,7 +173,7 @@ const saveSettings = async () => {
       }
     }
   } catch (error) {
-    console.error('保存设置失败:', error)
+    console.error('保存设置失败：', error)
     ElMessage.error('保存设置失败，请重试')
 
     saveStatus.value = {
@@ -207,7 +201,7 @@ const loadCurrentUsername = async () => {
         formData.username = response.data.data.username
       }
     } catch (error) {
-      console.error('加载当前用户名失败:', error)
+      console.error('加载当前用户名失败：', error)
     }
   }
 }

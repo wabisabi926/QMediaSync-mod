@@ -14,7 +14,7 @@ import router from './router/index'
 import { useAuthStore } from '@/stores/auth'
 import { SERVER_URL } from '@/const'
 
-// 配置axios
+// 配置 axios
 axios.defaults.timeout = 10000
 axios.defaults.headers.common['Content-Type'] = 'application/json'
 axios.defaults.withCredentials = true
@@ -36,7 +36,7 @@ axios.interceptors.request.use(
 // 响应拦截器
 axios.interceptors.response.use(
   (response) => {
-    // 检查响应数据中的code字段
+    // 检查响应数据中的 code 字段
     if (response.data && response.data.code === 401) {
       const authStore = useAuthStore()
       if (!authStore.isLoggingOut) {
@@ -50,7 +50,7 @@ axios.interceptors.response.use(
   },
   (error) => {
     const authStore = useAuthStore()
-    // 检查HTTP状态码401
+    // 检查 HTTP 状态码 401
     if (error.response?.status === 401) {
       if (!authStore.isLoggingOut) {
         ElMessage.error('登录已失效，请重新登录')
@@ -58,7 +58,7 @@ axios.interceptors.response.use(
         void router.push('/login')
       }
     }
-    // 检查响应数据中的code字段
+    // 检查响应数据中的 code 字段
     else if (error.response?.data?.code === 401) {
       if (!authStore.isLoggingOut) {
         ElMessage.error('登录已失效，请重新登录')

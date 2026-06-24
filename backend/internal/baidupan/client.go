@@ -28,7 +28,7 @@ type RefreshResponse struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-// 全局HTTP客户端实例
+// 全局 HTTP 客户端实例
 var cachedClients map[string]*Client = make(map[string]*Client, 0)
 var cachedClientsMutex sync.RWMutex
 
@@ -54,7 +54,7 @@ func NewBaiDuPanClient(accountId uint, accessToken string) *Client {
 }
 
 func RefreshToken(accountId uint, refreshToken string) (*RefreshResponse, error) {
-	// 生成state参数
+	// 生成 state 参数
 	type stateData struct {
 		Time         int64  `json:"time"`
 		RefreshToken string `json:"refresh_token"`
@@ -68,11 +68,11 @@ func RefreshToken(accountId uint, refreshToken string) (*RefreshResponse, error)
 	if err != nil {
 		return nil, err
 	}
-	// 构建授权URL
+	// 构建授权 URL
 	authServerUrl := fmt.Sprintf("%s/baidupan/oauth-url", helpers.GlobalConfig.AuthServer)
-	// 注意：redirect_uri需要与百度开放平台配置的一致
+	// 注意：redirect_uri 需要与百度开放平台配置一致
 	oauthUrl := fmt.Sprintf("%s?action=refresh&state=%s", authServerUrl, stateEncoded)
-	// 发送GET请求
+	// 发送 GET 请求
 	resp, err := http.Get(oauthUrl)
 	if err != nil {
 		return nil, err
@@ -109,15 +109,15 @@ func (c *Client) handleError(err error, resp *http.Response, respData any) error
 	if err != nil {
 		return err
 	}
-	// 读取body并解码json
+	// 读取 body 并解码 JSON
 	defer resp.Body.Close()
 	body, ioErr := io.ReadAll(resp.Body)
 	if ioErr != nil {
 		return ioErr
 	}
 	// 记录日志
-	helpers.BaiduPanLog.Infof("百度SDK请求响应: %s %s\n%s", resp.Request.Method, resp.Request.URL, string(body))
-	// 解码json
+	helpers.BaiduPanLog.Infof("百度 SDK 请求响应：%s %s\n%s", resp.Request.Method, resp.Request.URL, string(body))
+	// 解码 JSON
 	type ErrorResponse struct {
 		Errmsg string `json:"errmsg"`
 		Errno  int64  `json:"errno"`
@@ -127,7 +127,7 @@ func (c *Client) handleError(err error, resp *http.Response, respData any) error
 	if err != nil {
 		return err
 	}
-	// 检查errno是否为0
+	// 检查 errno 是否为 0
 	if respBody.Errno != 0 {
 		msg := respBody.Errmsg
 		if msg == "" {
@@ -137,11 +137,11 @@ func (c *Client) handleError(err error, resp *http.Response, respData any) error
 				msg = fmt.Sprintf("未知错误码 %d", respBody.Errno)
 			}
 		}
-		return fmt.Errorf("百度SDK请求失败 错误: %s", msg)
+		return fmt.Errorf("百度 SDK 请求失败：%s", msg)
 	}
-	// 检查respData是否为空
+	// 检查 respData 是否为空
 	if respData == nil {
-		helpers.BaiduPanLog.Errorf("百度SDK请求失败 错误: 响应数据为空")
+		helpers.BaiduPanLog.Errorf("百度 SDK 请求失败：响应数据为空")
 		return err
 	}
 	return nil
@@ -171,7 +171,7 @@ func (c *Client) GetFileList(ctx context.Context, parentPath string, onlyDir int
 	if parentPath == "" {
 		parentPath = "/"
 	}
-	// 如果parentPath不以/开头，则加上/
+	// 如果 parentPath 不以 / 开头，则加上 /。
 	if !strings.HasPrefix(parentPath, "/") {
 		parentPath = "/" + parentPath
 	}
@@ -180,11 +180,11 @@ func (c *Client) GetFileList(ctx context.Context, parentPath string, onlyDir int
 	resp, r, err := c.client.FileinfoApi.Xpanfilelist(ctx).AccessToken(c.accessToken).Web("1").Dir(parentPath).Folder(onlyDirStr).Showempty(showEmby).Start(startStr).Limit(limit).Execute()
 	// 统一处理错误
 	if herr := c.handleError(err, r, resp); herr != nil {
-		helpers.AppLogger.Warnf("获取百度网盘目录列表失败，目录：%s, 错误:%v", parentPath, herr)
+		helpers.AppLogger.Warnf("获取百度网盘目录列表失败，目录：%s，错误：%v", parentPath, herr)
 		return nil, herr
 	}
 	// 记录日志
-	// 解码resp
+	// 解码 resp
 	var fileList *FileListResponse
 	err = json.Unmarshal([]byte(resp), &fileList)
 	if err != nil {
@@ -195,11 +195,11 @@ func (c *Client) GetFileList(ctx context.Context, parentPath string, onlyDir int
 
 // 调用递归接口获取所有文件，必须传入文件修改时间（上一次同步时间）
 func (c *Client) GetAllFiles(ctx context.Context, parentPath string, start int, limit int, mtime int64) (*FileListAllResponse, error) {
-	helpers.AppLogger.Infof("递归获取百度网盘文件列表：父目录：%s, 开始：%d, 限制：%d, 修改时间：%d", parentPath, start, limit, mtime)
+	helpers.AppLogger.Infof("递归获取百度网盘文件列表：父目录：%s，开始：%d，限制：%d，修改时间：%d", parentPath, start, limit, mtime)
 	if parentPath == "" {
 		parentPath = "/"
 	}
-	// 如果parentPath不以/开头，则加上/
+	// 如果 parentPath 不以 / 开头，则加上 /。
 	if !strings.HasPrefix(parentPath, "/") {
 		parentPath = "/" + parentPath
 	}
@@ -215,7 +215,7 @@ func (c *Client) GetAllFiles(ctx context.Context, parentPath string, start int, 
 		return nil, err
 	}
 	// 记录日志
-	// 解码resp
+	// 解码 resp
 	var fileList *FileListAllResponse
 	err = json.Unmarshal([]byte(resp), &fileList)
 	if err != nil {
@@ -228,13 +228,13 @@ func (c *Client) GetAllFiles(ctx context.Context, parentPath string, start int, 
 func (c *Client) GetFileDetail(ctx context.Context, fileId string, dlink int32) (*FileDetail, error) {
 	fsidsArr := []int64{}
 	fsidsArr = append(fsidsArr, helpers.StringToInt64(fileId))
-	// 转json
+	// 转 JSON
 	fsidsJson, err := json.Marshal(fsidsArr)
 	if err != nil {
 		return nil, err
 	}
 	fsids := string(fsidsJson)
-	helpers.AppLogger.Infof("查询百度网盘文件详情：文件ID：%s, 获取下载链接：%d", fsidsJson, dlink)
+	helpers.AppLogger.Infof("查询百度网盘文件详情：文件 ID：%s，获取下载链接：%d", fsidsJson, dlink)
 	req := c.client.MultimediafileApi.Xpanmultimediafilemetas(ctx).AccessToken(c.accessToken).Fsids(fsids)
 	if dlink == 1 {
 		req = req.Dlink("1")
@@ -244,7 +244,7 @@ func (c *Client) GetFileDetail(ctx context.Context, fileId string, dlink int32) 
 	if c.handleError(err, r, resp) != nil {
 		return nil, err
 	}
-	// 解码resp
+	// 解码 resp
 	var fileDetail *FileDetailResponse
 	err = json.Unmarshal([]byte(resp), &fileDetail)
 	if err != nil {
@@ -257,7 +257,7 @@ func (c *Client) Mkdir(ctx context.Context, path string) error {
 	if path == "" {
 		return fmt.Errorf("路径不能为空")
 	}
-	// 如果path不以/开头，则加上/
+	// 如果 path 不以 / 开头，则加上 /。
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
 	}
@@ -269,7 +269,7 @@ func (c *Client) Mkdir(ctx context.Context, path string) error {
 }
 
 func (c *Client) Del(ctx context.Context, pathes []string) error {
-	// 将pathes做json
+	// 将 pathes 转为 JSON
 	newPathes := make([]string, 0)
 	for _, path := range pathes {
 		if !strings.HasPrefix(path, "/") {
@@ -290,15 +290,15 @@ func (c *Client) Del(ctx context.Context, pathes []string) error {
 }
 
 func CalculateChunkSizeByFileSize(fileSize int64) int64 {
-	// <= 4G，4M分片
+	// <= 4 GB，4 MB 分片
 	if fileSize <= 4*1024*1024*1024 {
 		return 4 * 1024 * 1024
 	}
-	// <=10G,16MB分片
+	// <= 10 GB，16 MB 分片
 	if fileSize <= 10*1024*1024*1024 {
 		return 16 * 1024 * 1024
 	}
-	// <= 20G, 32MB分片
+	// <= 20 GB，32 MB 分片
 	if fileSize <= 20*1024*1024*1024 {
 		return 32 * 1024 * 1024
 	}
@@ -319,12 +319,12 @@ func (c *Client) PreCreate(ctx context.Context, localPath string, remotePath str
 	// 计算文件的分片
 	chunkMD5, err := helpers.CalculateFileChunkMD5(localPath, chunkSize)
 	if err != nil {
-		return nil, nil, fmt.Errorf("计算文件分片MD5失败")
+		return nil, nil, fmt.Errorf("计算文件分片 MD5 失败")
 	}
-	// 对ChunkMD5.ChunkMD5s做json
+	// 将 ChunkMD5.ChunkMD5s 转为 JSON
 	chunkMD5sJson, err := json.Marshal(chunkMD5.ChunkMD5s)
 	if err != nil {
-		return nil, nil, fmt.Errorf("对ChunkMD5.ChunkMD5s做json失败")
+		return nil, nil, fmt.Errorf("将 ChunkMD5.ChunkMD5s 转为 JSON 失败")
 	}
 	chunkMD5s := string(chunkMD5sJson)
 	chunkMD5.ChunkMD5sJsonStr = chunkMD5s
@@ -348,12 +348,12 @@ func (c *Client) Upload(ctx context.Context, localPath string, remotePath string
 		// 提取文件分片
 		tempFilePath, err := helpers.ExtractFileChunkToTemp(localPath, chunkMD5.ChunkSize, seqNum)
 		if err != nil {
-			return nil, fmt.Errorf("提取文件分片 %d 失败: %w", seqNum, err)
+			return nil, fmt.Errorf("提取文件分片 %d 失败：%w", seqNum, err)
 		}
 		file, err := os.Open(tempFilePath)
 		if err != nil {
 			os.Remove(tempFilePath)
-			return nil, fmt.Errorf("打开临时文件失败: %w", err)
+			return nil, fmt.Errorf("打开临时文件失败：%w", err)
 		}
 		// 上传分片
 		uresp, ur, uerr := c.client.FileuploadApi.Pcssuperfile2(context.Background()).AccessToken(c.accessToken).Partseq(fmt.Sprintf("%d", seqNum)).Path(remotePath).Uploadid(*preResp.Uploadid).Type_("tmpfile").File(file).Execute()
@@ -361,7 +361,7 @@ func (c *Client) Upload(ctx context.Context, localPath string, remotePath string
 			// 关闭且删除分片
 			file.Close()
 			os.Remove(tempFilePath)
-			return nil, fmt.Errorf("上传文件分片 %d 失败: %w", seqNum, uerr)
+			return nil, fmt.Errorf("上传文件分片 %d 失败：%w", seqNum, uerr)
 		}
 		// 关闭且删除分片
 		file.Close()
@@ -427,8 +427,8 @@ type MoveOrCopyItem struct {
 }
 
 // 重命名
-// path: 包含文件名的完整路径
-// newName: 新文件名
+// path：包含文件名的完整路径
+// newName：新文件名
 func (c *Client) Rename(ctx context.Context, path string, newName string) error {
 	if path == "" {
 		return fmt.Errorf("路径不能为空")
@@ -450,7 +450,7 @@ func (c *Client) Rename(ctx context.Context, path string, newName string) error 
 	}
 	fileListStr, err := json.Marshal(fileList)
 	if err != nil {
-		return fmt.Errorf("对fileList做json失败: %w", err)
+		return fmt.Errorf("将 fileList 转为 JSON 失败：%w", err)
 	}
 
 	r, err := c.client.FilemanagerApi.Filemanagerrename(ctx).AccessToken(c.accessToken).Async(0).Ondup("skip").Filelist(string(fileListStr)).Execute()
@@ -465,7 +465,7 @@ func (c *Client) RenameBatch(ctx context.Context, fileList []ReNameItem) error {
 	}
 	fileListStr, err := json.Marshal(fileList)
 	if err != nil {
-		return fmt.Errorf("对fileList做json失败: %w", err)
+		return fmt.Errorf("将 fileList 转为 JSON 失败：%w", err)
 	}
 
 	r, err := c.client.FilemanagerApi.Filemanagerrename(ctx).AccessToken(c.accessToken).Async(0).Ondup("skip").Filelist(string(fileListStr)).Execute()
@@ -474,9 +474,9 @@ func (c *Client) RenameBatch(ctx context.Context, fileList []ReNameItem) error {
 }
 
 // 移动
-// 如果newName不等于旧文件名，则会移动+改名
-// path: 包含文件名的完整路径
-// newPath: 新路径，不包含文件名
+// 如果 newName 不等于旧文件名，则会移动并改名
+// path：包含文件名的完整路径
+// newPath：新路径，不包含文件名
 func (c *Client) Move(ctx context.Context, path string, newPath string, newName string) error {
 	if path == "" {
 		return fmt.Errorf("路径不能为空")
@@ -499,7 +499,7 @@ func (c *Client) Move(ctx context.Context, path string, newPath string, newName 
 	}
 	fileListStr, err := json.Marshal(fileList)
 	if err != nil {
-		return fmt.Errorf("对fileList做json失败: %w", err)
+		return fmt.Errorf("将 fileList 转为 JSON 失败：%w", err)
 	}
 
 	resp, rerr := c.client.FilemanagerApi.Filemanagermove(ctx).AccessToken(c.accessToken).Async(0).Ondup("skip").Filelist(string(fileListStr)).Execute()
@@ -512,7 +512,7 @@ func (c *Client) MoveBatch(ctx context.Context, fileList []MoveOrCopyItem) error
 		return fmt.Errorf("文件列表不能为空")
 	}
 	newFileList := make([]MoveOrCopyItem, 0)
-	// 检查fileList，如果path和dest不以/开头，则在开头添加/
+	// 检查 fileList，如果 path 和 dest 不以 / 开头，则在开头添加 /。
 	for _, item := range fileList {
 		if !strings.HasPrefix(item.Path, "/") {
 			item.Path = "/" + item.Path
@@ -524,17 +524,17 @@ func (c *Client) MoveBatch(ctx context.Context, fileList []MoveOrCopyItem) error
 	}
 	fileListStr, err := json.Marshal(newFileList)
 	if err != nil {
-		return fmt.Errorf("对fileList做json失败: %w", err)
+		return fmt.Errorf("将 fileList 转为 JSON 失败：%w", err)
 	}
-	helpers.BaiduPanLog.Debugf("移动文件列表: %s", string(fileListStr))
+	helpers.BaiduPanLog.Debugf("移动文件列表：%s", string(fileListStr))
 
 	resp, rerr := c.client.FilemanagerApi.Filemanagermove(ctx).AccessToken(c.accessToken).Async(0).Ondup("skip").Filelist(string(fileListStr)).Execute()
 	return c.handleError(rerr, resp, nil)
 }
 
 // 复制
-// path: 包含文件名的完整路径
-// newPath: 新路径，不包含文件名
+// path：包含文件名的完整路径
+// newPath：新路径，不包含文件名
 func (c *Client) Copy(ctx context.Context, path string, newPath string) error {
 	if path == "" {
 		return fmt.Errorf("路径不能为空")
@@ -554,7 +554,7 @@ func (c *Client) Copy(ctx context.Context, path string, newPath string) error {
 	}
 	fileListStr, err := json.Marshal(fileList)
 	if err != nil {
-		return fmt.Errorf("对fileList做json失败: %w", err)
+		return fmt.Errorf("将 fileList 转为 JSON 失败：%w", err)
 	}
 
 	resp, rerr := c.client.FilemanagerApi.Filemanagercopy(ctx).AccessToken(c.accessToken).Async(0).Ondup("skip").Filelist(string(fileListStr)).Execute()
@@ -568,7 +568,7 @@ func (c *Client) CopyBatch(ctx context.Context, fileList []MoveOrCopyItem) error
 	}
 	fileListStr, err := json.Marshal(fileList)
 	if err != nil {
-		return fmt.Errorf("对fileList做json失败: %w", err)
+		return fmt.Errorf("将 fileList 转为 JSON 失败：%w", err)
 	}
 
 	resp, rerr := c.client.FilemanagerApi.Filemanagercopy(ctx).AccessToken(c.accessToken).Async(0).Ondup("skip").Filelist(string(fileListStr)).Execute()

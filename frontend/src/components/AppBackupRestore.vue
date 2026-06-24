@@ -12,7 +12,7 @@
     />
 
     <el-alert
-      title="恢复说明：仅支持 .sql 或 .zip 格式的备份文件，文件大小不超过 1GB"
+      title="恢复说明：仅支持 .sql 或 .zip 格式的备份文件，文件大小不超过 1 GB"
       type="info"
       :closable="false"
       style="margin-bottom: 20px"
@@ -32,7 +32,7 @@
       <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
       <div class="el-upload__text">将备份文件拖到此处，或<em>点击选择文件</em></div>
       <template #tip>
-        <div class="el-upload__tip">只支持 .sql / .zip 文件，且不超过 1GB</div>
+        <div class="el-upload__tip">只支持 .sql / .zip 文件，且不超过 1 GB</div>
       </template>
     </el-upload>
 
@@ -112,7 +112,7 @@ const handleFileChange = (uploadFile: UploadFile) => {
 
   const maxSize = 1073741824
   if (file.size > maxSize) {
-    ElMessage.error('文件大小不能超过 1GB')
+    ElMessage.error('文件大小不能超过 1 GB')
     uploadRef.value?.clearFiles()
     return
   }

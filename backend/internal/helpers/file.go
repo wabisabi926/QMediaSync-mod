@@ -27,31 +27,31 @@ func isDiffrentDriver(err error) bool {
 // PathExists checks if a given path exists.
 func PathExists(path string) bool {
 	_, err := os.Stat(path)
-	// fmt.Printf("检查路径是否存在: %s => %+v, %v\n", path, info, err)
+	// fmt.Printf("检查路径是否存在：%s => %+v, %v\n", path, info, err)
 	return err == nil || os.IsExist(err)
 }
 
 // 复制文件
 func CopyFile(src, dst string) error {
 	if PathExists(dst) {
-		fmt.Printf("文件已存在，跳过复制: %s\n", dst)
+		fmt.Printf("文件已存在，跳过复制：%s\n", dst)
 		return nil
 	}
 	input, err := os.ReadFile(src)
 	if err != nil {
-		fmt.Printf("读取源文件失败: %s=>%v", src, err)
+		fmt.Printf("读取源文件失败：%s => %v", src, err)
 		return err
 	}
 	werr := WriteFileWithPerm(dst, input, 0777)
 	// dstPath := filepath.Dir(dst)
 	// err = CreateDirWithPerm(dstPath, 0777)
 	// if err != nil {
-	// 	fmt.Printf("创建目标目录失败: %v", err)
+	// 	fmt.Printf("创建目标目录失败：%v", err)
 	// 	return err
 	// }
 	// werr := os.WriteFile(dst, input, 0766)
 	if werr != nil {
-		fmt.Printf("写入目标文件失败: %s=>%v", dst, werr)
+		fmt.Printf("写入目标文件失败：%s => %v", dst, werr)
 		return werr
 	}
 	return nil
@@ -100,8 +100,8 @@ func ReadJsonFile(filePath string, data interface{}) error {
 	return decoder.Decode(data)
 }
 
-// 如果文件存在则备份文件，保留3个旧版本的文件
-// 如果备份文件超过3个，则删除最旧的文件直到留下3个备份文件
+// 如果文件存在则备份文件，保留 3 个旧版本的文件
+// 如果备份文件超过 3 个，则删除最旧的文件直到留下 3 个备份文件
 // 如果文件不存在直接返回
 func CheckAndBackupFile(filePath string, maxBackupCount int) {
 	if !PathExists(filePath) {
@@ -140,7 +140,7 @@ func RemoveTempDir(dir string) {
 func ReadFileContent(filepath string) string {
 	content, err := os.ReadFile(filepath)
 	if err != nil {
-		fmt.Printf("读取文件内容失败: %s=>%v", filepath, err)
+		fmt.Printf("读取文件内容失败：%s => %v", filepath, err)
 		return ""
 	}
 	return string(content)
@@ -150,7 +150,7 @@ func ChangePermissionsWithSudo(path string, mode string) error {
 	cmd := exec.Command("sudo", "chmod", mode, path)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to change permissions: %v, output: %s", err, string(output))
+		return fmt.Errorf("修改权限失败：%v，输出：%s", err, string(output))
 	}
 	return nil
 }
@@ -163,7 +163,7 @@ func ChangeOwnerWithSudo(path, user, group string) error {
 	cmd := exec.Command("sudo", "chown", owner, path)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to change owner: %v, output: %s", err, string(output))
+		return fmt.Errorf("修改所有者失败：%v，输出：%s", err, string(output))
 	}
 	return nil
 }
@@ -188,17 +188,17 @@ func IsRunningInDocker() bool {
 	return false
 }
 
-// MoveDir 将src目录下的所有文件和子文件夹内的文件都移动到dst目录
+// MoveDir 将 src 目录下的所有文件和子文件夹内的文件都移动到 dst 目录
 func MoveDir(src, dst string) error {
 	// 检查源目录是否存在
 	if !PathExists(src) {
-		return fmt.Errorf("源目录不存在: %s", src)
+		return fmt.Errorf("源目录不存在：%s", src)
 	}
 
 	// 创建目标目录
 	err := os.MkdirAll(dst, 0766)
 	if err != nil {
-		return fmt.Errorf("创建目标目录失败: %v", err)
+		return fmt.Errorf("创建目标目录失败：%v", err)
 	}
 
 	// 遍历源目录下的所有文件和子目录
@@ -251,7 +251,7 @@ func CleanFileName(name string) string {
 }
 
 // ReadLines 从指定位置读取指定行数，支持向前或向后读取
-// direction: "forward" 向前读取, "backward" 向后读取
+// direction："forward" 向前读取，"backward" 向后读取
 // 返回：读取到的行，新的读取位置，错误信息
 func ReadLines(filename string, startPos int64, maxLines int, direction string) ([]string, int64, error) {
 	if direction == "backward" {
@@ -330,7 +330,7 @@ func readLinesForward(filename string, startPos int64, maxLines int) ([]string, 
 	}
 
 	lines := make([]string, 0, maxLines)
-	const bufferSize = 64 * 1024 // 64KB 缓冲区
+	const bufferSize = 64 * 1024 // 64 KB 缓冲区
 	buf := make([]byte, bufferSize)
 
 	currentPos := startPos
@@ -393,9 +393,9 @@ func readLinesForward(filename string, startPos int64, maxLines int) ([]string, 
 			break
 		}
 	}
-	// 翻转lines
+	// 翻转 lines
 	newLines := make([]string, len(lines))
-	// 从后往前循环lines
+	// 从后往前循环 lines
 	for i := len(lines) - 1; i >= 0; i-- {
 		newLines[len(lines)-1-i] = lines[i]
 	}
@@ -409,38 +409,38 @@ func readLinesForward(filename string, startPos int64, maxLines int) ([]string, 
 	return newLines, newPosition, nil
 }
 
-// CreateDirWithPerm 创建文件夹，支持传入权限，如果设置了GPID和GUID则改变所有者
+// CreateDirWithPerm 创建文件夹并设置权限
 func CreateDirWithPerm(dirPath string, perm os.FileMode) error {
 	// 创建目录
 	if err := os.MkdirAll(dirPath, perm); err != nil {
-		return fmt.Errorf("创建目录 %s 失败: %v", dirPath, err)
+		return fmt.Errorf("创建目录 %s 失败：%v", dirPath, err)
 	}
 	return nil
 }
 
-// WriteFileWithPerm 写入文件并设置所有者
+// WriteFileWithPerm 写入文件并设置权限
 func WriteFileWithPerm(filePath string, content []byte, perm os.FileMode) error {
 	// 先检查路径是否有文件夹，如果有则先创建文件夹
 	dir := filepath.Dir(filePath)
 	if dir != "." && dir != "" {
 		if err := CreateDirWithPerm(dir, perm); err != nil {
-			return fmt.Errorf("创建目录失败: %v", err)
+			return fmt.Errorf("创建目录失败：%v", err)
 		}
 	}
 	// 写入文件
 	err := os.WriteFile(filePath, content, perm)
 	if err != nil {
-		return fmt.Errorf("写入文件失败: %v", err)
+		return fmt.Errorf("写入文件失败：%v", err)
 	}
 	return nil
 }
 
-// 将srcDir下的所有文件复制到destDir下
+// 将 srcDir 下的所有文件复制到 dstDir 下
 func CopyDir(srcDir, dstDir string) error {
 	// 创建目标目录
 	err := os.MkdirAll(dstDir, 0755)
 	if err != nil {
-		return fmt.Errorf("创建目标目录失败: %v", err)
+		return fmt.Errorf("创建目标目录失败：%v", err)
 	}
 
 	// 遍历源目录
@@ -488,13 +488,13 @@ const (
 func CalculateFileChunkMD5(filePath string, chunkSize int64) (*FileChunkMD5Result, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("打开文件失败: %v", err)
+		return nil, fmt.Errorf("打开文件失败：%v", err)
 	}
 	defer file.Close()
 
 	fileInfo, err := file.Stat()
 	if err != nil {
-		return nil, fmt.Errorf("获取文件信息失败: %v", err)
+		return nil, fmt.Errorf("获取文件信息失败：%v", err)
 	}
 	fileSize := fileInfo.Size()
 
@@ -505,7 +505,7 @@ func CalculateFileChunkMD5(filePath string, chunkSize int64) (*FileChunkMD5Resul
 	if fileSize <= chunkSize {
 		hash := md5.New()
 		if _, err := io.Copy(hash, file); err != nil {
-			return nil, fmt.Errorf("计算文件MD5失败: %v", err)
+			return nil, fmt.Errorf("计算文件 MD5 失败：%v", err)
 		}
 		fileMD5 := hex.EncodeToString(hash.Sum(nil))
 		return &FileChunkMD5Result{
@@ -536,7 +536,7 @@ func CalculateFileChunkMD5(filePath string, chunkSize int64) (*FileChunkMD5Resul
 
 		n, err := file.ReadAt(buf[:readSize], position)
 		if err != nil && err != io.EOF {
-			return nil, fmt.Errorf("读取文件分片失败: %v", err)
+			return nil, fmt.Errorf("读取文件分片失败：%v", err)
 		}
 
 		fileHash.Write(buf[:n])
@@ -564,13 +564,13 @@ const (
 func CalculateFilePartialMD5(filePath string) (string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return "", fmt.Errorf("打开文件失败: %v", err)
+		return "", fmt.Errorf("打开文件失败：%v", err)
 	}
 	defer file.Close()
 
 	fileInfo, err := file.Stat()
 	if err != nil {
-		return "", fmt.Errorf("获取文件信息失败: %v", err)
+		return "", fmt.Errorf("获取文件信息失败：%v", err)
 	}
 	fileSize := fileInfo.Size()
 
@@ -578,13 +578,13 @@ func CalculateFilePartialMD5(filePath string) (string, error) {
 
 	if fileSize <= PartialMD5Size {
 		if _, err := io.Copy(hash, file); err != nil {
-			return "", fmt.Errorf("计算文件MD5失败: %v", err)
+			return "", fmt.Errorf("计算文件 MD5 失败：%v", err)
 		}
 	} else {
 		buf := make([]byte, PartialMD5Size)
 		n, err := file.Read(buf)
 		if err != nil && err != io.EOF {
-			return "", fmt.Errorf("读取文件失败: %v", err)
+			return "", fmt.Errorf("读取文件失败：%v", err)
 		}
 		hash.Write(buf[:n])
 	}
@@ -595,13 +595,13 @@ func CalculateFilePartialMD5(filePath string) (string, error) {
 func ExtractFileChunkToTemp(filePath string, chunkSize int64, chunkIndex int) (string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return "", fmt.Errorf("打开文件失败: %v", err)
+		return "", fmt.Errorf("打开文件失败：%v", err)
 	}
 	defer file.Close()
 
 	fileInfo, err := file.Stat()
 	if err != nil {
-		return "", fmt.Errorf("获取文件信息失败: %v", err)
+		return "", fmt.Errorf("获取文件信息失败：%v", err)
 	}
 	fileSize := fileInfo.Size()
 
@@ -610,12 +610,12 @@ func ExtractFileChunkToTemp(filePath string, chunkSize int64, chunkIndex int) (s
 	}
 
 	if chunkIndex < 0 {
-		return "", fmt.Errorf("分片序号无效: %d", chunkIndex)
+		return "", fmt.Errorf("分片序号无效：%d", chunkIndex)
 	}
 
 	offset := int64(chunkIndex) * chunkSize
 	if offset >= fileSize {
-		return "", fmt.Errorf("分片序号超出文件范围: %d", chunkIndex)
+		return "", fmt.Errorf("分片序号超出文件范围：%d", chunkIndex)
 	}
 
 	remaining := fileSize - offset
@@ -627,18 +627,18 @@ func ExtractFileChunkToTemp(filePath string, chunkSize int64, chunkIndex int) (s
 	buf := make([]byte, readSize)
 	n, err := file.ReadAt(buf, offset)
 	if err != nil && err != io.EOF {
-		return "", fmt.Errorf("读取文件分片失败: %v", err)
+		return "", fmt.Errorf("读取文件分片失败：%v", err)
 	}
 
 	tempFile, err := os.CreateTemp("", "chunk_*")
 	if err != nil {
-		return "", fmt.Errorf("创建临时文件失败: %v", err)
+		return "", fmt.Errorf("创建临时文件失败：%v", err)
 	}
 	defer tempFile.Close()
 
 	if _, err := tempFile.Write(buf[:n]); err != nil {
 		os.Remove(tempFile.Name())
-		return "", fmt.Errorf("写入临时文件失败: %v", err)
+		return "", fmt.Errorf("写入临时文件失败：%v", err)
 	}
 
 	return tempFile.Name(), nil
@@ -657,7 +657,7 @@ func IsDirEmpty(dirPath string) bool {
 		return false
 	}
 
-	// 如果目录下没有文件或子目录，返回true
+	// 如果目录下没有文件或子目录，返回 true
 	return len(names) == 0
 }
 
@@ -669,7 +669,7 @@ func SafeJoin(baseDir, userInput string) (string, error) {
 	// 移除开头的路径分隔符
 	cleanInput = strings.TrimPrefix(cleanInput, string(filepath.Separator))
 
-	// 如果是Windows，也处理反斜杠
+	// 如果是 Windows，也处理反斜杠
 	if filepath.Separator == '\\' {
 		cleanInput = strings.TrimPrefix(cleanInput, "/")
 	}
@@ -680,7 +680,7 @@ func SafeJoin(baseDir, userInput string) (string, error) {
 	// 验证最终路径是否仍在基础目录内
 	if !strings.HasPrefix(fullPath, filepath.Clean(baseDir)+string(filepath.Separator)) &&
 		fullPath != filepath.Clean(baseDir) {
-		return "", fmt.Errorf("路径遍历攻击 detected: %s", userInput)
+		return "", fmt.Errorf("检测到路径遍历风险：%s", userInput)
 	}
 
 	return fullPath, nil

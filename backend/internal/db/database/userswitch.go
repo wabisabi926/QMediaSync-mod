@@ -37,7 +37,7 @@ func (u *UserSwitcher) RunCommandAsUser(command string, args ...string) (string,
 			cmd.SysProcAttr = getSysProcAttr()
 		}
 	} else {
-		// 使用userSwitch启动
+		// 使用 userSwitch 启动
 		// 构建完整的命令
 		fullArgs := []string{"-", u.username, "-c", command + " " + strings.Join(args, " ")}
 		cmd = exec.Command("su", fullArgs...)
@@ -45,7 +45,7 @@ func (u *UserSwitcher) RunCommandAsUser(command string, args ...string) (string,
 
 	output, err = cmd.CombinedOutput()
 	if err != nil {
-		return string(output), fmt.Errorf("以用户 %s 执行命令失败: %v, 输出: %s", u.username, err, string(output))
+		return string(output), fmt.Errorf("以用户 %s 执行命令失败：%v，输出：%s", u.username, err, string(output))
 	}
 
 	return string(output), nil
@@ -63,13 +63,13 @@ func (u *UserSwitcher) RunCommandAsUserWithEnv(env map[string]string, command st
 	fullCommand := fmt.Sprintf("%s%s", envVars, command+" "+strings.Join(args, " "))
 	fullArgs := []string{"-", u.username, "-s", "/bin/bash", "-c", fullCommand}
 	cmd = exec.Command("su", fullArgs...)
-	helpers.AppLogger.Infof("执行命令: %s", cmd.String())
+	helpers.AppLogger.Infof("执行命令：%s", cmd.String())
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Start()
 	if err != nil {
 		output, _ := cmd.Output()
-		return nil, fmt.Errorf("以用户 %s 执行命令失败: %v, 输出: %s", u.username, err, string(output))
+		return nil, fmt.Errorf("以用户 %s 执行命令失败：%v，输出：%s", u.username, err, string(output))
 	}
 
 	return cmd, nil

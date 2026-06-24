@@ -66,7 +66,7 @@ func NewClient(apiKey, accessToken, baseUrl, language, proxyUrl string) *Client 
 	GlobalTmdbClient.SetProxyUrl(proxyUrl)
 	GlobalTmdbClient.SetBaseUrl(baseUrl)
 	// 设置限流
-	GlobalTmdbClient.rateLimiter = rate.NewLimiter(rate.Every(time.Second), 40) // 每秒40个请求
+	GlobalTmdbClient.rateLimiter = rate.NewLimiter(rate.Every(time.Second), 40) // 每秒 40 个请求
 	return GlobalTmdbClient
 }
 
@@ -97,11 +97,11 @@ func (c *Client) TestToken() bool {
 	// req.SetQueryParam("api_key", c.apiKey)
 	resp, err := c.doRequest("/authentication", req, MakeRequestConfig(2, 5, 5))
 	if err != nil {
-		helpers.TMDBLog.Errorf("测试token失败:%+v", err)
+		helpers.TMDBLog.Errorf("测试 Token 失败：%+v", err)
 		return false
 	}
 	if !resp.IsSuccess() {
-		helpers.TMDBLog.Errorf("测试token失败:%s", resp.String())
+		helpers.TMDBLog.Errorf("测试 Token 失败：%s", resp.String())
 		return false
 	}
 	return respResult.Success
@@ -116,24 +116,24 @@ type Configuration struct {
 	Images *ImageConfig `json:"images"`
 }
 
-// GetConfiguration 获取TMDB配置,包含图片基础URL等信息
+// GetConfiguration 获取 TMDB 配置，包含图片基础 URL 等信息
 func (c *Client) GetConfiguration() (*Configuration, error) {
 	respResult := Configuration{}
 	req := c.resty.R().SetMethod("GET").SetResult(&respResult)
 	// req.SetQueryParam("api_key", c.apiKey)
 	resp, err := c.doRequest("/configuration", req, MakeRequestConfig(2, 5, 5))
 	if err != nil {
-		helpers.TMDBLog.Errorf("获取配置失败:%+v", err)
+		helpers.TMDBLog.Errorf("获取配置失败：%+v", err)
 		return nil, err
 	}
 	if !resp.IsSuccess() {
-		helpers.TMDBLog.Errorf("获取配置失败:%s", resp.String())
-		return nil, fmt.Errorf("获取配置失败:%s", resp.String())
+		helpers.TMDBLog.Errorf("获取配置失败：%s", resp.String())
+		return nil, fmt.Errorf("获取配置失败：%s", resp.String())
 	}
 	return &respResult, nil
 }
 
-// doRequest 执行HTTP请求
+// doRequest 执行 HTTP 请求
 func (c *Client) doRequest(url string, req *resty.Request, options *RequestConfig) (*resty.Response, error) {
 	if options == nil {
 		options = DefaultRequestConfig()
@@ -148,15 +148,15 @@ func (c *Client) doRequest(url string, req *resty.Request, options *RequestConfi
 			return resp, nil
 		}
 		lastErr = err
-		// 如果是token过期错误，等待token刷新完成后重试
+		// 如果是 Token 过期错误，等待 Token 刷新完成后重试
 		if err.Error() == "token expired" {
-			helpers.TMDBLog.Warn("tmdb token已失效")
-			return nil, fmt.Errorf("tmdb token已失效")
+			helpers.TMDBLog.Warn("TMDB Token 已失效")
+			return nil, fmt.Errorf("TMDB Token 已失效")
 		}
 		// 其他错误开始重试
 		if attempt < options.MaxRetries {
-			// helpers.TMDBLog.Warnf("%s %s 请求失败:%+v", req.Method, req.URL, lastErr)
-			helpers.TMDBLog.Warnf("%s %s 请求失败，%+v秒后重试 (第%d次尝试), 错误:%+v", req.Method, req.URL, options.RetryDelay.Seconds(), attempt+1, lastErr)
+			// helpers.TMDBLog.Warnf("%s %s 请求失败：%+v", req.Method, req.URL, lastErr)
+			helpers.TMDBLog.Warnf("%s %s 请求失败，%.0f 秒后重试（第 %d 次尝试），错误：%+v", req.Method, req.URL, options.RetryDelay.Seconds(), attempt+1, lastErr)
 			time.Sleep(options.RetryDelay)
 		}
 	}
@@ -166,7 +166,7 @@ func (c *Client) doRequest(url string, req *resty.Request, options *RequestConfi
 func (c *Client) request(url string, req *resty.Request) (*resty.Response, error) {
 	// 等待限流令牌
 	if err := c.rateLimiter.Wait(req.Context()); err != nil {
-		return nil, fmt.Errorf("rate limiter wait error: %w", err)
+		return nil, fmt.Errorf("等待限流令牌失败：%w", err)
 	}
 	req.SetHeader("Accept", "application/json")
 	if c.apiKey != "" {
@@ -180,7 +180,7 @@ func (c *Client) request(url string, req *resty.Request) (*resty.Response, error
 	case "POST":
 		response, err = req.Post(url)
 	default:
-		return nil, fmt.Errorf("unsupported HTTP method: %s", req.Method)
+		return nil, fmt.Errorf("不支持的 HTTP 方法：%s", req.Method)
 	}
 	helpers.TMDBLog.Infof("%s %s 请求", req.Method, req.URL)
 	if err != nil {

@@ -50,19 +50,19 @@ const handleLogDialogClose = () => {
           <div class="notice-list">
             <div class="notice-item notice-important">
               <span class="notice-number">1</span>
-              <span>本项目使用115开放平台，QPS受限，介意勿用</span>
+              <span>本项目使用 115 开放平台，QPS 受限；如果介意限流，请谨慎使用</span>
             </div>
             <div class="notice-item">
               <span class="notice-number">2</span>
-              <span>播放、下载、媒体提取等操作并发总和勿超5</span>
+              <span>播放、下载、媒体提取等操作的总并发建议不要超过 5</span>
             </div>
             <div class="notice-item">
               <span class="notice-number">3</span>
-              <span>神医助手线程数建议调整为1或2</span>
+              <span>建议将神医助手线程数设置为 1 或 2</span>
             </div>
             <div class="notice-item">
               <span class="notice-number">4</span>
-              <span>刮削和STRM同步为独立功能</span>
+              <span>刮削和 STRM 同步是两个独立功能</span>
             </div>
             <div class="notice-item">
               <span class="notice-number">5</span>
@@ -74,7 +74,7 @@ const handleLogDialogClose = () => {
                   rel="noopener noreferrer"
                   >GitHub</a
                 >
-                提交issue
+                提交 Issue
               </span>
             </div>
           </div>

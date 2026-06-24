@@ -44,7 +44,7 @@ func CreateBackup(c *gin.Context) {
 	if backup.IsRunning() {
 		c.JSON(http.StatusConflict, APIResponse[any]{
 			Code:    BadRequest,
-			Message: "备份任务正在运行中",
+			Message: "备份任务正在运行，请稍后再试",
 			Data:    nil,
 		})
 		return
@@ -56,7 +56,7 @@ func CreateBackup(c *gin.Context) {
 
 	c.JSON(http.StatusOK, APIResponse[any]{
 		Code:    Success,
-		Message: "已触发数据备份任务",
+		Message: "数据备份任务已开始",
 		Data:    nil,
 	})
 }
@@ -78,7 +78,7 @@ func GetBackupList(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    BadRequest,
-			Message: fmt.Sprintf("获取备份列表失败: %v", err),
+			Message: fmt.Sprintf("获取备份列表失败：%v", err),
 			Data:    nil,
 		})
 		return
@@ -86,7 +86,7 @@ func GetBackupList(c *gin.Context) {
 
 	c.JSON(http.StatusOK, APIResponse[map[string]interface{}]{
 		Code:    Success,
-		Message: "success",
+		Message: "获取备份列表成功",
 		Data: map[string]interface{}{
 			"list":      records,
 			"total":     total,
@@ -102,7 +102,7 @@ func GetBackupRecord(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    BadRequest,
-			Message: "无效的备份记录ID",
+			Message: "无效的备份记录 ID",
 			Data:    nil,
 		})
 		return
@@ -120,7 +120,7 @@ func GetBackupRecord(c *gin.Context) {
 
 	c.JSON(http.StatusOK, APIResponse[models.BackupRecord]{
 		Code:    Success,
-		Message: "success",
+		Message: "获取备份记录成功",
 		Data:    record,
 	})
 }
@@ -131,7 +131,7 @@ func DeleteBackup(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    BadRequest,
-			Message: "无效的备份记录ID",
+			Message: "无效的备份记录 ID",
 			Data:    nil,
 		})
 		return
@@ -141,7 +141,7 @@ func DeleteBackup(c *gin.Context) {
 	if err := service.DeleteBackup(uint(id), true); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    BadRequest,
-			Message: fmt.Sprintf("删除备份失败: %v", err),
+			Message: fmt.Sprintf("删除备份失败：%v", err),
 			Data:    nil,
 		})
 		return
@@ -149,7 +149,7 @@ func DeleteBackup(c *gin.Context) {
 
 	c.JSON(http.StatusOK, APIResponse[any]{
 		Code:    Success,
-		Message: "备份已删除",
+		Message: "备份记录已删除",
 		Data:    nil,
 	})
 }
@@ -160,7 +160,7 @@ func DownloadBackup(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    BadRequest,
-			Message: "无效的备份记录ID",
+			Message: "无效的备份记录 ID",
 			Data:    nil,
 		})
 		return
@@ -188,7 +188,7 @@ func DownloadBackup(c *gin.Context) {
 	if _, err := os.Stat(record.FilePath); os.IsNotExist(err) {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    BadRequest,
-			Message: fmt.Sprintf("备份文件不存在: %s", record.FilePath),
+			Message: fmt.Sprintf("备份文件不存在：%s", record.FilePath),
 			Data:    nil,
 		})
 		return
@@ -208,7 +208,7 @@ func GetBackupConfig(c *gin.Context) {
 
 	c.JSON(http.StatusOK, APIResponse[models.BackupConfig]{
 		Code:    Success,
-		Message: "success",
+		Message: "获取备份配置成功",
 		Data:    *config,
 	})
 }
@@ -218,7 +218,7 @@ func UpdateBackupConfig(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    BadRequest,
-			Message: "请求参数无效",
+			Message: "请求参数不正确",
 			Data:    nil,
 		})
 		return
@@ -244,7 +244,7 @@ func UpdateBackupConfig(c *gin.Context) {
 	if err := service.UpdateBackupConfig(config); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    BadRequest,
-			Message: fmt.Sprintf("更新配置失败: %v", err),
+			Message: fmt.Sprintf("更新配置失败：%v", err),
 			Data:    nil,
 		})
 		return
@@ -256,7 +256,7 @@ func UpdateBackupConfig(c *gin.Context) {
 
 	c.JSON(http.StatusOK, APIResponse[any]{
 		Code:    Success,
-		Message: "配置已更新",
+		Message: "备份配置已更新",
 		Data:    nil,
 	})
 }
@@ -269,7 +269,7 @@ func GetBackupStatus(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, APIResponse[backup.BackupOrRestoreResult]{
 		Code:    Success,
-		Message: "success",
+		Message: "获取备份状态成功",
 		Data:    *result,
 	})
 }
@@ -279,7 +279,7 @@ func RestoreFromBackup(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    BadRequest,
-			Message: "请求参数无效",
+			Message: "请求参数不正确",
 			Data:    nil,
 		})
 		return
@@ -288,7 +288,7 @@ func RestoreFromBackup(c *gin.Context) {
 	if req.RecordID == 0 {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    BadRequest,
-			Message: "请指定要恢复的备份记录ID",
+			Message: "请指定要恢复的备份记录 ID",
 			Data:    nil,
 		})
 		return
@@ -296,7 +296,7 @@ func RestoreFromBackup(c *gin.Context) {
 	if backup.IsRunning() {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    BadRequest,
-			Message: "备份或恢复任务正在运行中",
+			Message: "备份或恢复任务正在运行，请稍后再试",
 			Data:    nil,
 		})
 		return
@@ -318,7 +318,7 @@ func RestoreFromBackup(c *gin.Context) {
 
 	c.JSON(http.StatusOK, APIResponse[any]{
 		Code:    Success,
-		Message: "已触发数据恢复任务",
+		Message: "数据恢复任务已开始",
 		Data:    nil,
 	})
 }
@@ -339,7 +339,7 @@ func UploadAndRestore(c *gin.Context) {
 	if ext != ".zip" {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    BadRequest,
-			Message: "仅支持.zip格式的备份文件",
+			Message: "仅支持 .zip 格式的备份文件",
 			Data:    nil,
 		})
 		return
@@ -348,7 +348,7 @@ func UploadAndRestore(c *gin.Context) {
 	if backup.IsRunning() {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    BadRequest,
-			Message: "备份或恢复任务正在运行中",
+			Message: "备份或恢复任务正在运行，请稍后再试",
 			Data:    nil,
 		})
 		return
@@ -387,7 +387,7 @@ func UploadAndRestore(c *gin.Context) {
 
 	c.JSON(http.StatusOK, APIResponse[any]{
 		Code:    Success,
-		Message: "已触发数据恢复任务",
+		Message: "数据恢复任务已开始",
 		Data:    nil,
 	})
 }

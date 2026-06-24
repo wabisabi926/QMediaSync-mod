@@ -30,7 +30,7 @@ export function useAnnouncement() {
         announcementList.value = []
       }
     } catch (error) {
-      console.error('加载公告列表错误:', error)
+      console.error('加载公告列表错误：', error)
       announcementList.value = []
     } finally {
       announcementLoading.value = false

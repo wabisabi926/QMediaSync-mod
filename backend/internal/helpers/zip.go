@@ -71,7 +71,7 @@ func ExtractTarGz(src, dst string) error {
 				return err
 			}
 		default:
-			return fmt.Errorf("未知的文件类型: %v in %s", header.Typeflag, header.Name)
+			return fmt.Errorf("未知的文件类型：%v in %s", header.Typeflag, header.Name)
 		}
 	}
 
@@ -156,11 +156,11 @@ func ExtractZip(src, dst string) error {
 
 		// 检查文件路径是否在目标目录内（安全措施）
 		if !isSafePath(dst, filePath) {
-			return fmt.Errorf("不安全的文件路径: %s", f.Name)
+			return fmt.Errorf("不安全的文件路径：%s", f.Name)
 		}
 
 		// 打印文件信息
-		fmt.Printf("解压文件: %s\n", filePath)
+		fmt.Printf("解压文件：%s\n", filePath)
 
 		// 处理目录
 		if f.FileInfo().IsDir() {
@@ -212,16 +212,16 @@ func isSafePath(base, path string) bool {
 	return rel != ".." && !filepath.IsAbs(rel) && (len(rel) < 2 || rel[:2] != "..")
 }
 
-// 将src目录内的所有文件打包成zip文件(dst)
+// 将 src 目录内的所有文件打包成 ZIP 文件 dst
 func ZipDir(src, dst string) error {
-	// 创建目标zip文件
+	// 创建目标 ZIP 文件
 	file, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	// 创建zip写入器
+	// 创建 ZIP 写入器
 	w := zip.NewWriter(file)
 	defer w.Close()
 
@@ -231,7 +231,7 @@ func ZipDir(src, dst string) error {
 			return err
 		}
 
-		// 创建zip header
+		// 创建 ZIP header
 		header, err := zip.FileInfoHeader(info)
 		if err != nil {
 			return err
@@ -247,12 +247,12 @@ func ZipDir(src, dst string) error {
 		}
 		header.Name = relPath
 
-		// 如果是目录，需要设置压缩方法为Store
+		// 如果是目录，需要设置压缩方法为 Store
 		if info.IsDir() {
 			header.Method = zip.Store
 		}
 
-		// 写入header
+		// 写入 header
 		zipFile, err := w.CreateHeader(header)
 		if err != nil {
 			return err

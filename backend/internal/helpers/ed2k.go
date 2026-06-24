@@ -12,7 +12,7 @@ import (
 	"golang.org/x/crypto/md4"
 )
 
-// Ed2kResult 包含ed2k链接和可能的错误
+// Ed2kResult 包含 ed2k 链接和可能的错误
 type Ed2kResult struct {
 	Ed2kLink string
 	Error    error
@@ -29,11 +29,11 @@ type AutoThreadConfig struct {
 
 // DefaultAutoThreadConfig 默认配置
 var DefaultAutoThreadConfig = AutoThreadConfig{
-	MinFileSizeForMultiThread: 5 * 1024 * 1024, // 5MB以下用单线程
-	ChunkSize:                 9500 * 1024,     // ed2k标准块大小
+	MinFileSizeForMultiThread: 5 * 1024 * 1024, // 5 MB 以下用单线程
+	ChunkSize:                 9500 * 1024,     // ed2k 标准块大小
 	MaxThreads:                16,              // 最大线程数
-	MinChunksPerThread:        2,               // 每个线程至少处理2个块
-	ReadBufferSize:            64 * 1024,       // 64KB读取缓冲区
+	MinChunksPerThread:        2,               // 每个线程至少处理 2 个块
+	ReadBufferSize:            64 * 1024,       // 64 KB 读取缓冲区
 }
 
 // calculateOptimalThreads 根据文件大小计算最优线程数
@@ -47,14 +47,14 @@ func calculateOptimalThreads(fileSize int64, config AutoThreadConfig) int {
 	numChunks := (fileSize + config.ChunkSize - 1) / config.ChunkSize
 
 	// 基于块数计算线程数
-	// 每个线程至少处理MinChunksPerThread个块
+	// 每个线程至少处理 MinChunksPerThread 个块
 	threadsBasedOnChunks := int(numChunks / config.MinChunksPerThread)
 	if threadsBasedOnChunks < 1 {
 		return 1
 	}
 
 	// 基于文件大小的启发式计算
-	// 每50MB分配一个线程，但不超过最大值
+	// 每 50 MB 分配一个线程，但不超过最大值
 	threadsBasedOnSize := int(fileSize / (50 * 1024 * 1024))
 	if threadsBasedOnSize < 1 {
 		threadsBasedOnSize = 1
@@ -83,13 +83,13 @@ func DownloadAndCalculateEd2kAuto(url string, filename string, fileSize int64) E
 func DownloadAndCalculateEd2kWithConfig(url string, filename string, fileSize int64, config AutoThreadConfig) Ed2kResult {
 	// 验证参数
 	if fileSize <= 0 {
-		return Ed2kResult{Error: fmt.Errorf("无效的文件大小: %d", fileSize)}
+		return Ed2kResult{Error: fmt.Errorf("无效的文件大小：%d", fileSize)}
 	}
 
 	// 自动计算线程数
 	numThreads := calculateOptimalThreads(fileSize, config)
 
-	fmt.Printf("文件大小: %s, 自动计算线程数: %d\n",
+	fmt.Printf("文件大小：%s, 自动计算线程数：%d\n",
 		formatFileSize(fileSize), numThreads)
 
 	// 调用核心下载函数
@@ -98,7 +98,7 @@ func DownloadAndCalculateEd2kWithConfig(url string, filename string, fileSize in
 
 // 核心下载函数
 func downloadAndCalculateEd2kCore(url string, filename string, fileSize int64, numThreads int, config AutoThreadConfig) Ed2kResult {
-	// 创建http客户端
+	// 创建 HTTP 客户端
 	client := &http.Client{
 		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
@@ -111,12 +111,12 @@ func downloadAndCalculateEd2kCore(url string, filename string, fileSize int64, n
 	// 检查服务器是否支持断点续传
 	supportsRange, err := checkRangeSupport(client, url)
 	if err != nil {
-		return Ed2kResult{Error: fmt.Errorf("检查Range支持失败: %w", err)}
+		return Ed2kResult{Error: fmt.Errorf("检查 Range 支持失败：%w", err)}
 	}
 
-	// 如果不支持Range且需要多线程，回退到单线程
+	// 如果不支持 Range 且需要多线程，回退到单线程
 	if !supportsRange && numThreads > 1 {
-		fmt.Println("服务器不支持Range请求，回退到单线程下载")
+		fmt.Println("服务器不支持 Range 请求，回退到单线程下载")
 		numThreads = 1
 	}
 
@@ -129,7 +129,7 @@ func downloadAndCalculateEd2kCore(url string, filename string, fileSize int64, n
 	}
 
 	// 打印调试信息
-	fmt.Printf("下载配置: 文件大小=%s, 块大小=%s, 总块数=%d, 使用线程=%d\n",
+	fmt.Printf("下载配置：文件大小=%s, 块大小=%s, 总块数=%d, 使用线程=%d\n",
 		formatFileSize(fileSize),
 		formatFileSize(config.ChunkSize),
 		numChunks,
@@ -183,7 +183,7 @@ func downloadAndCalculateEd2kCore(url string, filename string, fileSize int64, n
 					chunkChan <- r.ChunkIndex
 				}(result)
 			} else {
-				return Ed2kResult{Error: fmt.Errorf("块%d下载失败超过3次: %w",
+				return Ed2kResult{Error: fmt.Errorf("块 %d 下载失败超过 3 次：%w",
 					result.ChunkIndex, result.Error)}
 			}
 		} else {
@@ -198,18 +198,18 @@ func downloadAndCalculateEd2kCore(url string, filename string, fileSize int64, n
 	duration := stats.endTime.Sub(stats.startTime)
 	downloadSpeed := float64(fileSize) / duration.Seconds()
 
-	fmt.Printf("下载完成: 成功块数=%d/%d, 总耗时=%v, 平均速度=%s/s\n",
+	fmt.Printf("下载完成：成功块数=%d/%d，总耗时=%v，平均速度=%s/s\n",
 		successfulChunks, numChunks,
 		duration.Truncate(time.Millisecond),
 		formatFileSize(int64(downloadSpeed)))
 
-	// 计算最终的ed2k哈希
+	// 计算最终的 ed2k 哈希
 	ed2kHash, err := calculateEd2kHash(chunkMD4s, fileSize)
 	if err != nil {
-		return Ed2kResult{Error: fmt.Errorf("计算ed2k哈希失败: %w", err)}
+		return Ed2kResult{Error: fmt.Errorf("计算 ed2k 哈希失败：%w", err)}
 	}
 
-	// 生成ed2k链接
+	// 生成 ed2k 链接
 	ed2kLink := fmt.Sprintf("ed2k://|file|%s|%d|%s|/",
 		filename, fileSize, hex.EncodeToString(ed2kHash))
 
@@ -218,7 +218,7 @@ func downloadAndCalculateEd2kCore(url string, filename string, fileSize int64, n
 	}
 }
 
-// 带重试计数的chunkResult
+// 带重试计数的 chunkResult
 type chunkResult struct {
 	ChunkIndex int64
 	MD4Hash    []byte
@@ -247,14 +247,14 @@ func downloadWorkerWithConfig(client *http.Client, url string, config AutoThread
 			end = fileSize - 1
 		}
 
-		// 创建HTTP请求
+		// 创建 HTTP 请求
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
 			resultChan <- chunkResult{ChunkIndex: chunkIndex, Error: err}
 			continue
 		}
 
-		// 设置Range头
+		// 设置 Range 头
 		req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", start, end))
 		req.Header.Set("User-Agent", "Go-ed2k-Downloader/1.0")
 
@@ -301,10 +301,10 @@ func downloadChunkWithRetry(client *http.Client, req *http.Request, bufferSize i
 
 	// 检查响应状态
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
-		return nil, fmt.Errorf("HTTP错误: %s", resp.Status)
+		return nil, fmt.Errorf("HTTP 错误：%s", resp.Status)
 	}
 
-	// 流式计算MD4
+	// 流式计算 MD4
 	hash := md4.New()
 	buffer := make([]byte, bufferSize)
 
@@ -344,20 +344,20 @@ func TestAutoThreadCalculation() {
 		fileSize int64
 		expected int
 	}{
-		{1 * 1024 * 1024, 1},         // 1MB -> 单线程
-		{5 * 1024 * 1024, 1},         // 5MB -> 单线程（边界）
-		{10 * 1024 * 1024, 1},        // 10MB -> 可能1或2线程
-		{50 * 1024 * 1024, 1},        // 50MB -> 1线程（每50MB一个线程）
-		{100 * 1024 * 1024, 2},       // 100MB -> 2线程
-		{500 * 1024 * 1024, 10},      // 500MB -> 10线程
-		{1 * 1024 * 1024 * 1024, 16}, // 1GB -> 16线程（达到上限）
-		{5 * 1024 * 1024 * 1024, 16}, // 5GB -> 16线程（上限）
+		{1 * 1024 * 1024, 1},         // 1 MB -> 单线程
+		{5 * 1024 * 1024, 1},         // 5 MB -> 单线程（边界）
+		{10 * 1024 * 1024, 1},        // 10 MB -> 可能 1 或 2 线程
+		{50 * 1024 * 1024, 1},        // 50 MB -> 1 线程（每 50 MB 一个线程）
+		{100 * 1024 * 1024, 2},       // 100 MB -> 2 线程
+		{500 * 1024 * 1024, 10},      // 500 MB -> 10 线程
+		{1 * 1024 * 1024 * 1024, 16}, // 1 GB -> 16 线程（达到上限）
+		{5 * 1024 * 1024 * 1024, 16}, // 5 GB -> 16 线程（上限）
 	}
 
-	fmt.Println("自动线程计算测试:")
+	fmt.Println("自动线程计算测试：")
 	for _, tc := range testCases {
 		threads := calculateOptimalThreads(tc.fileSize, DefaultAutoThreadConfig)
-		fmt.Printf("文件大小: %12s -> 线程数: %2d (期望: %2d) %s\n",
+		fmt.Printf("文件大小：%12s -> 线程数：%2d (期望：%2d) %s\n",
 			formatFileSize(tc.fileSize),
 			threads,
 			tc.expected,
@@ -399,9 +399,9 @@ func (s *SmartThreadConfigurator) CalculateAdaptiveThreads(url string, fileSize 
 			previousSpeed := float64(fileSize) / duration.Seconds()
 
 			// 如果之前速度较慢，尝试增加线程（不超过上限）
-			if previousSpeed < 5*1024*1024 { // 小于5MB/s
+			if previousSpeed < 5*1024*1024 { // 小于 5 MB/s
 				adjusted := int(math.Min(float64(baseThreads*2), float64(s.config.MaxThreads)))
-				fmt.Printf("基于历史速度调整线程数: %d -> %d\n", baseThreads, adjusted)
+				fmt.Printf("基于历史速度调整线程数：%d -> %d\n", baseThreads, adjusted)
 				return adjusted
 			}
 		}
@@ -412,7 +412,7 @@ func (s *SmartThreadConfigurator) CalculateAdaptiveThreads(url string, fileSize 
 
 // 额外的辅助函数：动态调整线程数
 func adaptiveThreadAdjustment(currentSpeed float64, currentThreads int, fileSize int64) int {
-	const targetSpeedPerThread = 2 * 1024 * 1024 // 目标每线程2MB/s
+	const targetSpeedPerThread = 2 * 1024 * 1024 // 目标每线程 2 MB/s
 
 	if fileSize < 50*1024*1024 {
 		return 1 // 小文件固定单线程
@@ -427,7 +427,7 @@ func adaptiveThreadAdjustment(currentSpeed float64, currentThreads int, fileSize
 		idealThreads = 16
 	}
 
-	// 平滑调整（不超过当前线程数的2倍）
+	// 平滑调整（不超过当前线程数的 2 倍）
 	maxIncrease := currentThreads * 2
 	if idealThreads > maxIncrease {
 		idealThreads = maxIncrease
@@ -436,7 +436,7 @@ func adaptiveThreadAdjustment(currentSpeed float64, currentThreads int, fileSize
 	return idealThreads
 }
 
-// checkRangeSupport 检查服务器是否支持Range请求
+// checkRangeSupport 检查服务器是否支持 Range 请求
 func checkRangeSupport(client *http.Client, url string) (bool, error) {
 	req, err := http.NewRequest("HEAD", url, nil)
 	if err != nil {
@@ -449,7 +449,7 @@ func checkRangeSupport(client *http.Client, url string) (bool, error) {
 	}
 	defer resp.Body.Close()
 
-	// 检查Accept-Ranges头
+	// 检查 Accept-Ranges 头
 	if resp.Header.Get("Accept-Ranges") == "bytes" {
 		return true, nil
 	}
@@ -457,18 +457,18 @@ func checkRangeSupport(client *http.Client, url string) (bool, error) {
 	return false, nil
 }
 
-// calculateEd2kHash 计算最终的ed2k哈希
+// calculateEd2kHash 计算最终的 ed2k 哈希
 func calculateEd2kHash(chunkMD4s [][]byte, fileSize int64) ([]byte, error) {
 	if len(chunkMD4s) == 0 {
 		return nil, fmt.Errorf("没有块哈希可计算")
 	}
 
-	// 如果只有一个块，直接返回该块的MD4
+	// 如果只有一个块，直接返回该块的 MD4
 	if len(chunkMD4s) == 1 {
 		return chunkMD4s[0], nil
 	}
 
-	// 合并所有块的MD4并计算最终的MD4
+	// 合并所有块的 MD4 并计算最终的 MD4
 	hash := md4.New()
 	for _, chunkHash := range chunkMD4s {
 		if _, err := hash.Write(chunkHash); err != nil {

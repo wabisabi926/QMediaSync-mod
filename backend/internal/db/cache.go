@@ -12,7 +12,7 @@ type CacheGlobal struct {
 }
 
 var Cache CacheGlobal
-var DefaultExpire = 300 // 默认5分钟过期
+var DefaultExpire = 300 // 默认 5 分钟过期
 
 // 初始化缓存
 func InitCache() {
@@ -24,7 +24,7 @@ func InitCache() {
 	helpers.AppLogger.Info("成功初始化内存缓存组件")
 }
 
-// expire设置为-1则代表取默认值
+// expire 设置为 -1 则代表取默认值
 func (c *CacheGlobal) Set(key string, value []byte, expire int) {
 	keyHash := helpers.MD5Hash(key)
 	keyBytes := []byte(keyHash)

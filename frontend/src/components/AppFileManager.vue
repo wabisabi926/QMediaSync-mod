@@ -8,9 +8,11 @@
         <div class="card-header">
           <div class="header-left">
             <h2 class="card-title hidden-md-and-down">
-              网盘文件浏览器（实装功能：查看列表、创建文件夹、删除）
+              网盘文件浏览器（已支持：查看列表、创建文件夹、删除）
             </h2>
-            <p class="card-subtitle">浏览和管理媒体文件，支持STRM生成、刮削整理和ED2K生成操作</p>
+            <p class="card-subtitle">
+              浏览和管理媒体文件，支持 STRM 生成、刮削整理和 ED2K 生成操作
+            </p>
           </div>
           <div class="header-right">
             <el-select
@@ -136,7 +138,7 @@
                     </el-button>
                     <template #dropdown>
                       <el-dropdown-menu>
-                        <el-dropdown-item command="STRM_GENERATE">STRM生成</el-dropdown-item>
+                        <el-dropdown-item command="STRM_GENERATE">STRM 生成</el-dropdown-item>
                         <el-dropdown-item command="SCRAPE_ORGANIZE">刮削整理</el-dropdown-item>
                         <el-dropdown-item
                           v-if="
@@ -145,7 +147,7 @@
                           "
                           command="GENERATE_ED2K"
                         >
-                          生成ED2K
+                          生成 ED2K
                         </el-dropdown-item>
                         <el-dropdown-item command="DELETE" divided>删除</el-dropdown-item>
                       </el-dropdown-menu>
@@ -180,7 +182,7 @@
                         type="primary"
                         @click="handleSingleOperation('STRM_GENERATE', row)"
                       >
-                        STRM生成
+                        STRM 生成
                       </el-button>
                       <el-button
                         size="small"
@@ -198,7 +200,7 @@
                         type="warning"
                         @click="handleSingleOperation('GENERATE_ED2K', row)"
                       >
-                        生成ED2K
+                        生成 ED2K
                       </el-button>
                       <el-button
                         size="small"
@@ -267,13 +269,13 @@
 
     <el-dialog
       v-model="showStrmTargetDialog"
-      title="选择STRM目标目录"
+      title="选择 STRM 目标目录"
       width="600px"
       :close-on-click-modal="false"
       @closed="resetStrmTargetDialog"
     >
       <div class="strm-target-dialog-content">
-        <p class="dialog-tip">请选择STRM文件的目标存放目录：</p>
+        <p class="dialog-tip">请选择 STRM 文件的目标存放目录：</p>
         <div v-if="strmSourceItem" class="strm-source-info">
           <span class="source-label">源文件：</span>
           <span class="source-name">{{ strmSourceItem.name }}</span>
@@ -287,7 +289,7 @@
           />
         </div>
         <div v-if="strmStorePath" class="strm-store-path">
-          <span class="store-label">STRM存放路径：</span>
+          <span class="store-label">STRM 存放路径：</span>
           <code class="store-path">{{ strmStorePath }}</code>
         </div>
       </div>
@@ -555,7 +557,7 @@ async function loadAccountList() {
   }
 
   if (!http) {
-    console.warn('HTTP客户端未注入，无法加载账号列表')
+    console.warn('HTTP 客户端未注入，无法加载账号列表')
     return
   }
 
@@ -592,14 +594,14 @@ async function loadAccountList() {
         clearFileListForContextSwitch()
       }
     } else {
-      console.error('加载账号列表失败:', response?.data.message || '未知错误')
+      console.error('加载账号列表失败：', response?.data.message || '未知错误')
       accountList.value = []
     }
   } catch (error) {
     if (!accountListRequestGate.isCurrent(requestId)) {
       return
     }
-    console.error('加载账号列表失败:', error)
+    console.error('加载账号列表失败：', error)
     accountList.value = []
   }
 }
@@ -621,9 +623,9 @@ function getAccountIcon() {
 function getAccountTypeName(sourceType: string): string {
   switch (sourceType) {
     case '115':
-      return '115网盘'
+      return '115 网盘'
     case '123':
-      return '123网盘'
+      return '123 网盘'
     case 'openlist':
       return 'OpenList'
     case 'baidupan':
@@ -654,7 +656,7 @@ async function loadFileList() {
   }
 
   if (!http) {
-    console.warn('HTTP客户端未注入，无法加载文件列表')
+    console.warn('HTTP 客户端未注入，无法加载文件列表')
     return
   }
 
@@ -706,7 +708,7 @@ async function loadFileList() {
         )
         total.value = items.length
       } else {
-        console.error('加载文件列表失败:', response?.data.message || '未知错误')
+        console.error('加载文件列表失败：', response?.data.message || '未知错误')
         fileList.value = []
         total.value = 0
       }
@@ -787,13 +789,13 @@ async function handleSingleOperation(operation: FileOperationType, item: FileSys
 
   try {
     const operationMap = {
-      STRM_GENERATE: 'STRM生成',
+      STRM_GENERATE: 'STRM 生成',
       SCRAPE_ORGANIZE: '刮削整理',
-      GENERATE_ED2K: '生成ED2K',
+      GENERATE_ED2K: '生成 ED2K',
     }
 
     await ElMessageBox.confirm(
-      `确认对文件 "${item.name}" 执行 ${operationMap[operation]} 操作吗？`,
+      `确认对文件“${item.name}”执行 ${operationMap[operation]} 操作吗？`,
       '确认操作',
       {
         confirmButtonText: '确定',
@@ -802,7 +804,7 @@ async function handleSingleOperation(operation: FileOperationType, item: FileSys
       },
     )
 
-    ElMessage.info(`${operationMap[operation]} 功能开发中...`)
+    ElMessage.info(`${operationMap[operation]} 功能开发中…`)
   } catch {}
 }
 
@@ -811,7 +813,7 @@ async function handleDeleteItem(item: FileSystemItem) {
 
   try {
     await ElMessageBox.confirm(
-      `确认删除 "${item.name}" 吗？${item.is_directory ? '文件夹内的所有内容也将被删除。' : ''}`,
+      `确认删除“${item.name}”吗？${item.is_directory ? '文件夹内的所有内容也将被删除。' : ''}`,
       '确认删除',
       {
         confirmButtonText: '确定',
@@ -853,7 +855,7 @@ async function handleDeleteItem(item: FileSystemItem) {
     }
 
     if (!isMessageBoxCancelError(error)) {
-      console.error('删除失败:', error)
+      console.error('删除失败：', error)
       ElMessage.error('删除失败')
     }
   }
@@ -963,17 +965,17 @@ async function confirmStrmGenerate() {
     }
 
     if (response?.data.code === 200) {
-      ElMessage.success('STRM生成任务已提交')
+      ElMessage.success('STRM 生成任务已提交')
       resetStrmTargetDialog()
     } else {
-      ElMessage.error(response?.data.message || 'STRM生成失败')
+      ElMessage.error(response?.data.message || 'STRM 生成失败')
     }
   } catch {
     if (!isStrmOperationContextCurrent(operationContext)) {
       return
     }
 
-    ElMessage.error('STRM生成失败')
+    ElMessage.error('STRM 生成失败')
   } finally {
     if (strmOperationContext.value === operationContext) {
       strmGenerateLoading.value = false

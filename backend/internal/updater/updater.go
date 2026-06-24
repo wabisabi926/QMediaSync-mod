@@ -83,11 +83,11 @@ func NewGitHubUpdater(owner, repo, currentVersion string) *GitHubUpdater {
 func (g *GitHubUpdater) CheckForUpdate() (*UpdateInfo, error) {
 	releases, err := g.GetLatestReleases(1) // 只获取最新的一个版本
 	if err != nil {
-		return nil, fmt.Errorf("failed to get latest release: %w", err)
+		return nil, fmt.Errorf("获取最新 Release 失败：%w", err)
 	}
 
 	if len(releases) == 0 {
-		return nil, fmt.Errorf("no releases found")
+		return nil, fmt.Errorf("未找到 Release")
 	}
 
 	latestRelease := releases[0]
@@ -95,12 +95,12 @@ func (g *GitHubUpdater) CheckForUpdate() (*UpdateInfo, error) {
 	// 比较版本
 	currentVer, err := version.NewVersion(g.CurrentVersion)
 	if err != nil {
-		return nil, fmt.Errorf("invalid current version: %w", err)
+		return nil, fmt.Errorf("当前版本号无效：%w", err)
 	}
 
 	latestVer, err := version.NewVersion(latestRelease.Version)
 	if err != nil {
-		return nil, fmt.Errorf("invalid latest version: %w", err)
+		return nil, fmt.Errorf("最新版本号无效：%w", err)
 	}
 
 	hasUpdate := latestVer.GreaterThan(currentVer)
@@ -130,15 +130,15 @@ func (g *GitHubUpdater) CheckForUpdate() (*UpdateInfo, error) {
 	}, nil
 }
 
-// getReleases 获取所有 releases
+// getReleases 获取所有 Release
 func (g *GitHubUpdater) getReleases() ([]GitHubRelease, error) {
 	apiUrl := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases", g.Owner, g.Repo)
 
-	// 使用GitHub管理器获取最佳客户端
+	// 使用 GitHub 管理器获取最佳客户端
 	githubManager := github.GetManager()
 	client, err := githubManager.GetClient()
 	if err != nil {
-		return nil, fmt.Errorf("获取GitHub客户端失败: %w", err)
+		return nil, fmt.Errorf("获取 GitHub 客户端失败：%w", err)
 	}
 
 	// 使用管理器返回的客户端发起请求
@@ -156,7 +156,7 @@ func (g *GitHubUpdater) getReleases() ([]GitHubRelease, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub API returned status: %d", resp.StatusCode)
+		return nil, fmt.Errorf("GitHub API 返回状态码：%d", resp.StatusCode)
 	}
 
 	var releases []GitHubRelease
@@ -180,13 +180,13 @@ func (g *GitHubUpdater) findMatchingAsset(assets []Asset) (string, string) {
 	} else {
 		filename += ".tar.gz"
 	}
-	helpers.AppLogger.Infof("查找资源文件: %s", filename)
+	helpers.AppLogger.Infof("查找资源文件：%s", filename)
 	var downloadURL, checksumURL string
 
 	for _, asset := range assets {
 		name := strings.ToLower(asset.Name)
 		// 查找匹配的二进制文件
-		helpers.AppLogger.Infof("匹配资源: %s => %s", name, filename)
+		helpers.AppLogger.Infof("匹配资源：%s => %s", name, filename)
 		if strings.Contains(name, filename) {
 			downloadURL = asset.BrowserDownloadURL
 			break
@@ -200,7 +200,7 @@ func (g *GitHubUpdater) findMatchingAsset(assets []Asset) (string, string) {
 func (g *GitHubUpdater) GetLatestReleases(limit int) ([]ReleaseInfo, error) {
 	releases, err := g.getReleases()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get releases: %w", err)
+		return nil, fmt.Errorf("获取 Release 列表失败：%w", err)
 	}
 
 	// 过滤和排序版本
@@ -235,7 +235,7 @@ func (g *GitHubUpdater) GetLatestStableReleases(limit int) ([]ReleaseInfo, error
 	return g.GetLatestReleases(limit)
 }
 
-// filterAndSortReleases 过滤和排序 releases
+// filterAndSortReleases 过滤和排序 Release
 func (g *GitHubUpdater) filterAndSortReleases(releases []GitHubRelease, limit int) []GitHubRelease {
 	filtered := make([]GitHubRelease, 0, len(releases))
 
@@ -270,16 +270,16 @@ func (g *GitHubUpdater) filterAndSortReleases(releases []GitHubRelease, limit in
 
 // GetReleaseDownloadURL 根据版本号获取下载链接
 func (g *GitHubUpdater) GetReleaseDownloadURL(versionTag string) (string, string, *ReleaseInfo, error) {
-	// 获取所有releases
+	// 获取所有 Release
 	releases, err := g.getReleases()
 	if err != nil {
-		return "", "", nil, fmt.Errorf("获取releases失败: %w", err)
+		return "", "", nil, fmt.Errorf("获取 Release 列表失败：%w", err)
 	}
-	helpers.AppLogger.Infof("获取到 %d 个 releases", len(releases))
+	helpers.AppLogger.Infof("获取到 %d 个 Release", len(releases))
 	// 查找指定版本
 	var targetRelease *GitHubRelease
 	for i := range releases {
-		helpers.AppLogger.Infof("检查版本: %s", releases[i].TagName)
+		helpers.AppLogger.Infof("检查版本：%s", releases[i].TagName)
 		if releases[i].TagName == versionTag {
 			targetRelease = &releases[i]
 			break
@@ -287,7 +287,7 @@ func (g *GitHubUpdater) GetReleaseDownloadURL(versionTag string) (string, string
 	}
 
 	if targetRelease == nil {
-		return "", "", nil, fmt.Errorf("未找到版本: %s", versionTag)
+		return "", "", nil, fmt.Errorf("未找到版本：%s", versionTag)
 	}
 
 	// 查找匹配的资产文件
@@ -300,7 +300,7 @@ func (g *GitHubUpdater) GetReleaseDownloadURL(versionTag string) (string, string
 	// 解析发布时间
 	publishedAt, _ := time.Parse(time.RFC3339, targetRelease.PublishedAt)
 
-	// 创建ReleaseInfo
+	// 创建 ReleaseInfo
 	releaseInfo := &ReleaseInfo{
 		Version:      targetRelease.TagName,
 		Name:         targetRelease.Name,

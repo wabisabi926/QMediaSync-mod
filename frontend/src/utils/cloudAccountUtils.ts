@@ -21,7 +21,12 @@ export const getV115AppInfoRows = (
   account: CloudAccountAppInfo,
 ): Array<{ label: string; value: string }> => {
   if (!isCustomV115App(account)) {
-    return [{ label: '开放平台应用', value: account.display_name || account.app_name || account.app_id_name || '-' }]
+    return [
+      {
+        label: '开放平台应用',
+        value: account.display_name || account.app_name || account.app_id_name || '-',
+      },
+    ]
   }
   return [
     { label: '应用名', value: account.app_id_name || '自定义' },

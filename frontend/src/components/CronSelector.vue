@@ -6,11 +6,11 @@
       @change="handlePresetChange"
       style="width: 100%"
     >
-      <el-option label="每天凌晨2点" value="0 2 * * *" />
-      <el-option label="每天凌晨3点" value="0 3 * * *" />
-      <el-option label="每4小时" value="0 */4 * * *" />
-      <el-option label="每12小时" value="0 */12 * * *" />
-      <el-option label="每周日凌晨" value="0 0 * * 0" />
+      <el-option label="每天凌晨 2 点" value="0 2 * * *" />
+      <el-option label="每天凌晨 3 点" value="0 3 * * *" />
+      <el-option label="每 4 小时" value="0 */4 * * *" />
+      <el-option label="每 12 小时" value="0 */12 * * *" />
+      <el-option label="每周日凌晨 0 点" value="0 0 * * 0" />
       <el-option label="自定义" value="custom" />
     </el-select>
 
@@ -18,7 +18,7 @@
     <el-input
       v-if="selectedPreset === 'custom'"
       v-model="customCron"
-      placeholder="请输入 Cron 表达式，如: 0 2 * * *"
+      placeholder="请输入 Cron 表达式，如：0 2 * * *"
       @input="handleCustomCronChange"
       style="margin-top: 12px"
     >

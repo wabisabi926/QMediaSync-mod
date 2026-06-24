@@ -37,8 +37,8 @@ type driverImpl interface {
 
 type SyncStrm struct {
 	SyncDriver   driverImpl
-	Account      *models.Account // 网盘账号，如果是本地类型则为nil
-	Sync         *models.Sync    // 同步记录，Start方法会生成
+	Account      *models.Account // 网盘账号，如果是本地类型则为 nil
+	Sync         *models.Sync    // 同步记录，Start 方法会生成
 	SourcePath   string          // 来源路径
 	SourcePathId string
 	LastSyncAt   int64 // 最后同步时间
@@ -75,7 +75,7 @@ type SyncStrm struct {
 
 type pathQueueItem struct {
 	Path   string // 路径
-	PathId string // 路径ID, Openlist和本地Path和PathId是相同的
+	PathId string // 路径 ID，OpenList 和本地的 Path、PathId 相同
 	Depth  uint   // 路径深度
 	Mtime  int64  // 最后修改时间
 }
@@ -95,7 +95,7 @@ func NewSyncStrm(account *models.Account, syncPathId uint, sourcePath, sourcePat
 	pathWorkerMax := int64(models.SettingsGlobal.FileDetailThreads)
 	switch account.SourceType {
 	case models.SourceTypeLocal:
-		pathWorkerMax = int64(10) // 本地类型（CD2会自己限制并发），限制为10个并发
+		pathWorkerMax = int64(10) // 本地类型（CD2 会自行限制并发），限制为 10 个并发
 	case models.SourceTypeOpenList:
 		pathWorkerMax = int64(models.SettingsGlobal.OpenlistQPS)
 	case models.SourceType115:
@@ -104,11 +104,11 @@ func NewSyncStrm(account *models.Account, syncPathId uint, sourcePath, sourcePat
 		pathWorkerMax = int64(models.SettingsGlobal.FileDetailThreads)
 	}
 	if pathWorkerMax <= 1 {
-		pathWorkerMax = 2 // 最小为2，否则并发操作会出错
+		pathWorkerMax = 2 // 最小为 2，否则并发操作会出错
 	}
-	// 非windows的本地路径，需要以/开头
+	// 非 Windows 的本地路径需要以 / 开头。
 	if runtime.GOOS != "windows" && account.SourceType == models.SourceTypeLocal {
-		// 如果sourcePath不以/开头，添加一个/
+		// 如果 sourcePath 不以 / 开头，添加一个 /。
 		if !strings.HasPrefix(sourcePath, "/") {
 			sourcePath = "/" + sourcePath
 		}
@@ -136,12 +136,12 @@ func NewSyncStrm(account *models.Account, syncPathId uint, sourcePath, sourcePat
 	if s.Account == nil {
 		s.Account = &models.Account{SourceType: models.SourceTypeLocal}
 	}
-	// 如果SyncPathId = 0, 则生成一个唯一的临时ID
+	// 如果 SyncPathId = 0，则生成一个唯一的临时 ID。
 	if s.SyncPathId == 0 {
 		s.SyncPathId = uint(time.Now().UnixNano())
 		s.TmpSyncPath = true
 	}
-	// 新增一条Sync
+	// 新增一条 Sync 记录
 	s.Sync = models.CreateSync(s.SyncPathId, s.SourcePath, s.SourcePathId, s.TargetPath)
 	if s.Sync == nil {
 		return nil
@@ -162,10 +162,10 @@ func NewSyncStrmFromSyncPath(syncPath *models.SyncPath) *SyncStrm {
 	} else {
 		account = &models.Account{SourceType: models.SourceTypeLocal}
 	}
-	// 重新load一下设置
+	// 重新加载设置
 	models.LoadSettings()
 	if (account.SourceType == models.SourceType115 || account.SourceType == models.SourceTypeBaiduPan) && syncPath.GetStrmBaseUrl() == "" {
-		helpers.AppLogger.Errorf("115或百度网盘同步路径 %s 未配置STRM直连地址", syncPath.RemotePath)
+		helpers.AppLogger.Errorf("115 或百度网盘同步路径 %s 未配置 STRM 直连地址", syncPath.RemotePath)
 		return nil
 	}
 	config := SyncStrmConfig{
@@ -181,7 +181,7 @@ func NewSyncStrmFromSyncPath(syncPath *models.SyncPath) *SyncStrm {
 		StrmBaseUrl:           syncPath.GetStrmBaseUrl(),
 	}
 	if account.SourceType == models.SourceTypeOpenList {
-		// openlist只使用自定义的strm直连地址
+		// OpenList 只使用自定义的 STRM 直连地址
 		config.StrmBaseUrl = syncPath.SettingStrm.StrmBaseUrl
 	}
 	return NewSyncStrm(account, syncPath.ID, syncPath.RemotePath, syncPath.BaseCid, syncPath.LocalPath, config, syncPath.IsFullSync, syncPath.LastSyncAt, false)
@@ -210,7 +210,7 @@ func (s *SyncStrm) Stop() {
 		return
 	}
 
-	s.Sync.Logger.Infof("正在停止同步任务...")
+	s.Sync.Logger.Infof("正在停止同步任务…")
 	s.Cancel()
 }
 
@@ -229,7 +229,7 @@ func (s *SyncStrm) Start() error {
 	atomic.StoreInt64(&s.NewUpload, 0)
 	atomic.StoreInt64(&s.TotalFile, 0)
 	s.Sync.Logger.Infof("本次同步的入口目录：%s，目标目录：%s", s.SourcePath, s.TargetPath)
-	s.Sync.Logger.Infof("本次同步使用的STRM配置%+v", s.Config)
+	s.Sync.Logger.Infof("本次同步使用的 STRM 配置%+v", s.Config)
 	s.Sync.UpdateStatus(models.SyncStatusInProgress)
 	if s.IsFile {
 		// 如果是文件，直接同步文件
@@ -258,7 +258,7 @@ func (s *SyncStrm) Start() error {
 		localBaseDir := s.GetLocalBaseDir()
 		if !s.checkPathExists(localBaseDir) {
 			if err := os.MkdirAll(localBaseDir, 0777); err != nil {
-				reason := fmt.Sprintf("创建本地根目录失败: %s %v", localBaseDir, err)
+				reason := fmt.Sprintf("创建本地根目录失败：%s，%v", localBaseDir, err)
 				s.Sync.Failed(reason)
 				return errors.New(reason)
 			}
@@ -279,10 +279,10 @@ func (s *SyncStrm) Start() error {
 		s.Sync.Logger.Info("完成所有路径和文件的处理，检查是否有错误发生")
 		select {
 		case <-s.Context.Done():
-			s.Sync.Failed(fmt.Sprintf("同步任务被取消: %v", s.Context.Err()))
+			s.Sync.Failed(fmt.Sprintf("同步任务被取消：%v", s.Context.Err()))
 			return nil
 		case err := <-s.PathErrChan:
-			s.Sync.Failed(fmt.Sprintf("路径队列处理失败: %v", err))
+			s.Sync.Failed(fmt.Sprintf("路径队列处理失败：%v", err))
 			return err
 		default:
 		}
@@ -306,19 +306,19 @@ func (s *SyncStrm) Start() error {
 	s.Sync.NewUpload = int(s.NewUpload)
 	s.Sync.Total = int(s.TotalFile)
 	s.Sync.Complete(s.Account.SourceType)
-	// 如果有syncpathid，则更新最后同步时间
+	// 如果有 sync_path_id，则更新最后同步时间
 	if !s.TmpSyncPath {
-		// 有syncPathId,将IsFullSync改为false
+		// 有 syncPathId 时，将 IsFullSync 改为 false
 		if s.FullSync {
 			db.Db.Model(&models.SyncPath{}).Where("id = ?", s.SyncPathId).Update("is_full_sync", false)
 		}
 		db.Db.Model(&models.SyncPath{}).Where("id = ?", s.SyncPathId).Update("last_sync_at", s.Sync.FinishAt)
-		// 提交Emby媒体库刷新任务，由协调器等待相关下载任务完成
+		// 提交 Emby 媒体库刷新任务，由协调器等待相关下载任务完成
 		go func() {
 			if s.NewMeta > 0 || s.NewStrm > 0 {
-				s.Sync.Logger.Info("有新的元数据文件或STRM文件，提交Emby媒体库刷新任务")
+				s.Sync.Logger.Info("有新的元数据文件或 STRM 文件，提交 Emby 媒体库刷新任务")
 				if err := models.RequestEmbyLibraryRefreshBySyncPathId(s.SyncPathId); err != nil {
-					s.Sync.Logger.Errorf("提交Emby媒体库刷新任务失败: %v", err)
+					s.Sync.Logger.Errorf("提交 Emby 媒体库刷新任务失败：%v", err)
 				}
 			}
 			if s.NewStrm > 0 {
@@ -332,37 +332,37 @@ func (s *SyncStrm) Start() error {
 					s.Sync.Logger.Info("关联的刮削目录为空，跳过触发刮削任务")
 				}
 			} else {
-				s.Sync.Logger.Info("没有新的strm生成，跳过关联的刮削任务")
+				s.Sync.Logger.Info("没有新的 STRM 生成，跳过关联的刮削任务")
 			}
 		}()
 		// 处理差异
 		go func() {
-			s.Sync.Logger.Info("115路径和文件同步完成，开始处理SyncFile表和临时表的数据差异")
+			s.Sync.Logger.Info("115 路径和文件同步完成，开始处理 SyncFile 表和同步缓存的数据差异")
 			s.handleTempTableDiff()
-			s.Sync.Logger.Info("完成差异比对，并更新了SyncFile表，任务彻底完成")
+			s.Sync.Logger.Info("完成差异比对，并更新了 SyncFile 表，任务已完成")
 		}()
 	}
 	return nil
 }
 
-// 处理网盘文件，生成strm或者添加下载任务
+// 处理网盘文件，生成 STRM 或添加下载任务
 func (s *SyncStrm) processNetFile(file *SyncFileCache) error {
 	// 1. 检查对应的本地文件是否存在
 	// s.Sync.Logger.Infof("正在处理网盘文件 %s => %s", file.FileId, file.FileName)
 	localFilePath := file.GetLocalFilePath(s.TargetPath, s.SourcePath)
-	s.Sync.Logger.Infof("115 本地文件和网盘对照路径: %s => %s : %s %s", localFilePath, file.GetFileId(), file.GetFullRemotePath(), file.GetPickCode(""))
+	s.Sync.Logger.Infof("115 本地文件和网盘对照路径：本地=%s，文件 ID=%s，远程=%s，PickCode=%s", localFilePath, file.GetFileId(), file.GetFullRemotePath(), file.GetPickCode(""))
 	// 先处理重命名，只有非临时同步才会处理重命名，临时同步只会删除重建
 	var existingFile models.SyncFile
 	if !s.TmpSyncPath {
 		err := db.Db.Where("file_id = ? AND sync_path_id = ?", file.GetFileId(), s.SyncPathId).First(&existingFile).Error
 		if err == nil {
-			// 如果SyncFiles存在，检查是否需要重命名，所在目录必须相同才可以重命名，否则只能走删除重建流程
+			// 如果 SyncFiles 存在，检查是否需要重命名。只有所在目录相同时才能重命名，否则走删除重建流程
 			if existingFile.FileName != file.FileName && existingFile.Path == file.Path {
 				// 需要重命名
 				err := os.Rename(existingFile.LocalFilePath, localFilePath)
 				if err != nil {
 					// 只记录日志，不报错（因为重命名失败不影响后续处理，会自动转入删除、重建流程）
-					s.Sync.Logger.Errorf("重命名失败 %s => %s: %w", existingFile.LocalFilePath, localFilePath, err)
+					s.Sync.Logger.Errorf("重命名失败 %s => %s：%v", existingFile.LocalFilePath, localFilePath, err)
 				} else {
 					s.Sync.Logger.Infof("重命名成功 %s => %s", existingFile.LocalFilePath, localFilePath)
 				}
@@ -372,7 +372,7 @@ func (s *SyncStrm) processNetFile(file *SyncFileCache) error {
 	if file.IsVideo {
 		// s.Sync.Logger.Infof("正在处理视频文件 %s", file.FileId)
 		if strings.Contains(file.Path, "**") {
-			s.Sync.Logger.Infof("文件ID %s 所在目录 %s 包含 ** 号，跳过生成strm", file.FileId, file.Path)
+			s.Sync.Logger.Infof("文件 ID %s 所在目录 %s 包含 ** 号，跳过生成 STRM", file.FileId, file.Path)
 			return nil
 		}
 		return s.ProcessStrmFile(file)
@@ -380,11 +380,11 @@ func (s *SyncStrm) processNetFile(file *SyncFileCache) error {
 	// 再处理元数据文件
 	if file.IsMeta {
 		if !helpers.PathExists(localFilePath) {
-			// 如果文件不存在，则判断是否需要下载，使用strm设置
+			// 如果文件不存在，则判断是否需要下载，使用 STRM 设置
 			if s.Config.EnableDownloadMeta == 1 {
-				// 检查目录是否合规
+				// 检查目录是否符合规则
 				if strings.Contains(file.Path, "**") {
-					s.Sync.Logger.Infof("文件ID %s 所在目录 %s 包含 ** 号，跳过下载", file.FileId, file.Path)
+					s.Sync.Logger.Infof("文件 ID %s 所在目录 %s 包含 ** 号，跳过下载", file.FileId, file.Path)
 					return nil
 				}
 				// 允许下载，添加到下载列表
@@ -406,7 +406,7 @@ func (s *SyncStrm) AddDownloadTaskTemp(file *SyncFileCache) {
 }
 
 // 遍历同步缓存，添加下载任务
-// 首先将下载队列表中没有完成的下载任务全部提取到map中，然后遍历内存同步缓存，检查哪些文件需要下载且不在下载任务列表中，添加下载任务
+// 先提取下载队列中未完成的任务，再遍历内存同步缓存，把需要下载且未在队列中的文件加入下载队列
 func (s *SyncStrm) AddDownloadTaskFromMemCache() {
 	// 获取未完成的下载任务
 	existingDownloads := make(map[string]bool)
@@ -420,7 +420,7 @@ func (s *SyncStrm) AddDownloadTaskFromMemCache() {
 		err := db.Db.Model(models.DbDownloadTask{}).Select("remote_file_id").Where("source_type = ? AND status IN ?", s.Account.SourceType, []int{int(models.DownloadStatusPending), int(models.DownloadStatusDownloading)}).
 			Offset(offset).Limit(limit).Order("id ASC").Find(&batch).Error
 		if err != nil {
-			s.Sync.Logger.Errorf("获取未完成的下载任务失败: %v", err)
+			s.Sync.Logger.Errorf("获取未完成的下载任务失败：%v", err)
 			break
 		}
 		if len(batch) == 0 || len(batch) < limit {
@@ -441,7 +441,7 @@ func (s *SyncStrm) AddDownloadTaskFromMemCache() {
 		// 添加下载任务
 		err := models.AddDownloadTaskFromSyncFile(file.GetSyncFile(s, s.Account.BaseUrl))
 		if err == nil {
-			s.Sync.Logger.Infof("添加下载任务成功: %s=>%s", file.Path+"/"+file.FileName, file.GetLocalFilePath(s.TargetPath, s.SourcePath))
+			s.Sync.Logger.Infof("添加下载任务成功：%s => %s", file.Path+"/"+file.FileName, file.GetLocalFilePath(s.TargetPath, s.SourcePath))
 			atomic.AddInt64(&s.NewMeta, 1)
 		}
 	}
@@ -461,7 +461,7 @@ func (s *SyncStrm) compareLocalFilesWithTempTable() error {
 			rootPath = s.TargetPath
 		}
 
-		s.Sync.Logger.Infof("开始对比本地文件和临时表中的文件，根目录: %s", rootPath)
+		s.Sync.Logger.Infof("开始对比本地文件和同步缓存中的文件，根目录：%s", rootPath)
 		// 对比本地文件和临时表中的文件
 		filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
 			path = filepath.ToSlash(path)
@@ -472,8 +472,8 @@ func (s *SyncStrm) compareLocalFilesWithTempTable() error {
 				// 不处理目录（只处理文件）
 				if err != nil || path == "." || strings.Contains(path, ".verysync") || strings.Contains(path, ".deletedByTMM") {
 					// 跳过根目录本身
-					// 跳过微力同步和TMM的临时目录中的文件
-					s.Sync.Logger.Infof("跳过文件 %s，错误: %v", path, err)
+					// 跳过微力同步和 TMM 的临时目录中的文件
+					s.Sync.Logger.Infof("跳过文件 %s，错误：%v", path, err)
 					return nil
 				}
 				if info.IsDir() {
@@ -481,17 +481,17 @@ func (s *SyncStrm) compareLocalFilesWithTempTable() error {
 						// 如果目录是空的则删除目录
 						dirEntries, rerr := os.ReadDir(path)
 						if rerr != nil {
-							s.Sync.Logger.Errorf("读取目录 %s 的文件列表失败: %v", path, err)
+							s.Sync.Logger.Errorf("读取目录 %s 的文件列表失败：%v", path, err)
 							return nil
 						}
 						if len(dirEntries) == 0 {
 							os.Remove(path)
 							s.Sync.Logger.Infof("删除空目录 %s", path)
 						} else {
-							s.Sync.Logger.Infof("本地目录 %s 不是空目录， 跳过删除", path)
+							s.Sync.Logger.Infof("本地目录 %s 不是空目录，跳过删除", path)
 						}
 					} else {
-						s.Sync.Logger.Infof("设置不允许删除空目录， 跳过本地目录 %s", path)
+						s.Sync.Logger.Infof("当前设置不允许删除空目录，跳过本地目录 %s", path)
 					}
 					return nil
 				}
@@ -505,21 +505,21 @@ func (s *SyncStrm) compareLocalFilesWithTempTable() error {
 				}
 				if !isVideo && !isMeta {
 					// 非视频文件和元数据文件，跳过
-					s.Sync.Logger.Debugf("本地文件 %s 既不是STRM文件也不是元数据文件，跳过", path)
+					s.Sync.Logger.Debugf("本地文件 %s 既不是 STRM 文件也不是元数据文件，跳过", path)
 					return nil
 				}
 				// 检查文件在临时表是否存在
 				existsFile, err := s.memSyncCache.GetByLocalPath(path)
 				if err != nil {
-					s.Sync.Logger.Warnf("查询同步缓存失败 %s: %v", path, err)
+					s.Sync.Logger.Warnf("查询同步缓存失败 %s：%v", path, err)
 				}
-				s.Sync.Logger.Infof("对比本地文件 %s，是否存在于网盘: %v", path, existsFile)
+				s.Sync.Logger.Infof("对比本地文件 %s，是否存在于网盘：%v", path, existsFile)
 				if isVideo {
-					// STRM文件，检查文件在临时表是否存在，不存在需要删除临时文件
+					// STRM 文件，检查文件在临时表是否存在，不存在需要删除临时文件
 					if existsFile != nil {
 						return nil
 					}
-					// s.Sync.Logger.Warnf("本地文件在网盘不存在，删除本地STRM文件: %s", path)
+					// s.Sync.Logger.Warnf("本地文件在网盘不存在，删除本地 STRM 文件：%s", path)
 					s.RemoveFileAndCheckDirEmtry(path)
 					return nil
 				}
@@ -536,7 +536,7 @@ func (s *SyncStrm) compareLocalFilesWithTempTable() error {
 					}
 					// 如果允许上传，则检查是否需要上传（文件在网盘不存在）
 					if s.Config.NetNotFoundFileAction == models.SyncTreeItemMetaActionUpload && existsFile == nil {
-						// 检查是否已经添加了上传任务，检查dbupload表中是否存在对应的记录
+						// 检查 dbupload 表中是否已经有对应的上传任务
 						canUpload := models.CheckCanUploadByLocalPath(models.UploadSourceStrm, path)
 						if !canUpload {
 							s.Sync.Logger.Infof("本地元数据文件 %s 由于存在上传任务所以不需要处理", path)
@@ -566,10 +566,10 @@ func (s *SyncStrm) compareLocalFilesWithTempTable() error {
 								s.RemoveFileAndCheckDirEmtry(path)
 								return nil
 							} else {
-								// 递归创建目录, 调用不同的driver
+								// 递归创建目录，调用对应的 driver
 								parentPathId, remotePath, err = s.SyncDriver.CreateDirRecursively(s.Context, parentDir)
 								if err != nil {
-									s.Sync.Logger.Errorf("创建目录 %s 失败: %v", parentDir, err)
+									s.Sync.Logger.Errorf("创建目录 %s 失败：%v", parentDir, err)
 									return nil
 								}
 								parentPath = parentDir
@@ -591,7 +591,7 @@ func (s *SyncStrm) compareLocalFilesWithTempTable() error {
 							SyncPathId:    s.SyncPathId,
 							SourceType:    s.Account.SourceType,
 							FileType:      v115open.TypeFile,
-							FileId:        "", // 上传前FileId为空
+							FileId:        "", // 上传前 FileId 为空
 							ParentId:      parentPathId,
 							FileName:      info.Name(),
 							Path:          remotePath,
@@ -601,7 +601,7 @@ func (s *SyncStrm) compareLocalFilesWithTempTable() error {
 							IsVideo:       isVideo,
 							LocalFilePath: filepath.Join(parentPath, info.Name()),
 						}
-						s.Sync.Logger.Infof("准备添加上传任务，检查各个路径是否正确 %s : %s => %s", db115File.FileId, db115File.Path, db115File.FileName)
+						s.Sync.Logger.Infof("准备添加上传任务，路径检查：文件 ID=%s，路径=%s，文件名=%s", db115File.FileId, db115File.Path, db115File.FileName)
 						if s.Account.SourceType != models.SourceTypeLocal {
 							db115File.FileId = filepath.ToSlash(filepath.Join(db115File.Path, db115File.FileName))
 						} else {
@@ -633,7 +633,7 @@ func (s *SyncStrm) compareLocalFilesWithTempTable() error {
 							// 1. 删除网盘旧文件
 							err := s.SyncDriver.DeleteFile(s.Context, existsFile.ParentId, []string{existsFile.GetFileId()})
 							if err != nil {
-								s.Sync.Logger.Errorf("删除网盘旧文件 %s 失败: %v", existsFile.GetFileId(), err)
+								s.Sync.Logger.Errorf("删除网盘旧文件 %s 失败：%v", existsFile.GetFileId(), err)
 								return nil
 							}
 							// 2. 添加上传任务
@@ -653,37 +653,37 @@ func (s *SyncStrm) compareLocalFilesWithTempTable() error {
 	return nil
 }
 
-// 处理SyncFile表和内存同步缓存的数据差异
-// 临时表存在SyncFile没有的插入
-// 临时表没有SyncFile有的删除
+// 处理 SyncFile 表和内存同步缓存的数据差异
+// 同步缓存存在但 SyncFile 没有的记录需要插入
+// 同步缓存没有但 SyncFile 存在的记录需要删除
 func (s *SyncStrm) handleTempTableDiff() error {
-	// 先删除SyncFile表中有，但是同步缓存中没有的记录，过程中顺便更新两边都有的数据，然后从同步缓存中删除该条数据（最后同步缓存中留下的就是新增的数据）
+	// 先删除 SyncFile 表中有、同步缓存中没有的记录，同时更新两边都有的数据；最后同步缓存中留下的就是新增数据
 	offset := 0
 	limit := 1000
 	i := 0
-	// 要删除的ID
+	// 要删除的 ID
 	waitDeleteIds := make([]uint, 0)
 	s.Sync.Logger.Infof("内存同步缓存中共有 %d 条数据，开始处理", s.memSyncCache.Count())
 	for {
 		var batch []models.SyncFile
 		err := db.Db.Where("sync_path_id = ?", s.SyncPathId).Offset(offset).Limit(limit).Order("id ASC").Find(&batch).Error
 		if err != nil {
-			s.Sync.Logger.Warnf("获取SyncFile表数据失败: %v", err)
+			s.Sync.Logger.Warnf("获取 SyncFile 表数据失败：%v", err)
 			return err
 		}
 		if len(batch) == 0 {
-			s.Sync.Logger.Info("SyncFile表数据全部处理完毕")
+			s.Sync.Logger.Info("SyncFile 表数据全部处理完毕")
 			break
 		}
 		for _, file := range batch {
 			syncFileCache, _ := s.memSyncCache.GetByFileId(file.FileId)
 			if syncFileCache == nil {
-				// 同步缓存中没有该文件，删除SyncFile记录
+				// 同步缓存中没有该文件，删除 SyncFile 记录
 				waitDeleteIds = append(waitDeleteIds, file.ID)
-				s.Sync.Logger.Infof("SyncFile表数据 ID=%d 在同步缓存中不存在，已标记为删除", file.ID)
+				s.Sync.Logger.Infof("SyncFile 表数据 ID=%d 在同步缓存中不存在，已标记为删除", file.ID)
 			} else {
-				// 双方都有，更新SyncFile记录
-				// 主要更新数据name, size, m_time, path, local_file_path
+				// 双方都有，更新 SyncFile 记录
+				// 主要更新 name、size、m_time、path、local_file_path 等数据
 				udpateData := map[string]interface{}{
 					"file_name":       syncFileCache.FileName,
 					"file_size":       syncFileCache.FileSize,
@@ -697,14 +697,14 @@ func (s *SyncStrm) handleTempTableDiff() error {
 				}
 				err := db.Db.Model(&models.SyncFile{}).Where("id = ?", file.ID).Updates(udpateData).Error
 				if err != nil {
-					s.Sync.Logger.Errorf("更新SyncFile表数据失败 ID=%d: %v", file.ID, err)
+					s.Sync.Logger.Errorf("更新 SyncFile 表数据失败，ID=%d：%v", file.ID, err)
 					continue
 				}
 				// 然后从同步缓存中移除该记录
 				s.memSyncCache.DeleteByFileId(file.FileId)
-				// s.Sync.Logger.Infof("SyncFile表数据 ID=%d 在同步缓存中存在，已更新并移除同步缓存记录", file.ID)
+				// s.Sync.Logger.Infof("SyncFile 表数据 ID=%d 在同步缓存中存在，已更新并移除同步缓存记录", file.ID)
 				if i == 10 {
-					time.Sleep(10 * time.Microsecond) // 休息10毫秒，避免对数据库的过度请求，也让其他协程有机会写入数据库
+					time.Sleep(10 * time.Microsecond) // 短暂休息，避免对数据库请求过密，也让其他协程有机会写入数据库
 					i = 0
 				} else {
 					i++
@@ -717,14 +717,14 @@ func (s *SyncStrm) handleTempTableDiff() error {
 		offset += limit
 	}
 	if len(waitDeleteIds) > 0 {
-		s.Sync.Logger.Infof("SyncFile表中共有 %d 条多余数据需要删除，开始分批删除，每批1000条", len(waitDeleteIds))
+		s.Sync.Logger.Infof("SyncFile 表中共有 %d 条多余数据需要删除，开始分批删除，每批 1000 条", len(waitDeleteIds))
 		// 分批删除
 		batchSize := 1000
 		if len(waitDeleteIds) <= batchSize {
 			// 一次性删除
 			err := db.Db.Where("id IN ?", waitDeleteIds).Delete(&models.SyncFile{}).Error
 			if err != nil {
-				s.Sync.Logger.Errorf("删除SyncFile表数据失败: %v", err)
+				s.Sync.Logger.Errorf("删除 SyncFile 表数据失败：%v", err)
 				return err
 			}
 		} else {
@@ -737,17 +737,17 @@ func (s *SyncStrm) handleTempTableDiff() error {
 				batchIds := waitDeleteIds[i:end]
 				err := db.Db.Where("id IN ?", batchIds).Delete(&models.SyncFile{}).Error
 				if err != nil {
-					s.Sync.Logger.Errorf("删除SyncFile表数据失败: %v", err)
+					s.Sync.Logger.Errorf("删除 SyncFile 表数据失败：%v", err)
 					return err
 				}
 				if i == 10 {
-					time.Sleep(10 * time.Microsecond) // 休息10毫秒，避免对数据库的过度请求，也让其他协程有机会写入数据库
+					time.Sleep(10 * time.Microsecond) // 短暂休息，避免对数据库请求过密，也让其他协程有机会写入数据库
 					i = 0
 				} else {
 					i++
 				}
 			}
-			s.Sync.Logger.Infof("删除SyncFile表中 %d 条多余数据成功", len(waitDeleteIds))
+			s.Sync.Logger.Infof("删除 SyncFile 表中 %d 条多余数据成功", len(waitDeleteIds))
 		}
 		s.Sync.Logger.Infof("已删除所有网盘不存在的文件记录，开始插入新增的文件记录")
 	}
@@ -765,14 +765,14 @@ func (s *SyncStrm) handleTempTableDiff() error {
 		syncFile := file.GetSyncFile(s, s.Account.BaseUrl)
 		err := db.Db.Save(syncFile).Error
 		if err != nil {
-			s.Sync.Logger.Errorf("插入SyncFile表数据失败 FileID=%s: %v", file.GetFileId(), err)
+			s.Sync.Logger.Errorf("插入 SyncFile 表数据失败，FileID=%s：%v", file.GetFileId(), err)
 			continue
 		}
-		// s.Sync.Logger.Infof("插入SyncFile表数据成功 FileID=%s", file.GetFileId())
+		// s.Sync.Logger.Infof("插入 SyncFile 表数据成功，FileID=%s", file.GetFileId())
 		// 插入成功后，从同步缓存中移除该记录
 		s.memSyncCache.DeleteByFileId(file.GetFileId())
 		if i == 10 {
-			time.Sleep(10 * time.Microsecond) // 休息10毫秒，避免对数据库的过度请求，也让其他协程有机会写入数据库
+			time.Sleep(10 * time.Microsecond) // 短暂休息，避免对数据库请求过密，也让其他协程有机会写入数据库
 			i = 0
 		} else {
 			i++

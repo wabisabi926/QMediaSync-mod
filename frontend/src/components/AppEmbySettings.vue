@@ -16,16 +16,16 @@
                 <el-icon :size="24"><Monitor /></el-icon>
               </div>
               <div class="card-header-content">
-                <h3 class="card-title">Emby服务器配置</h3>
-                <p class="card-subtitle">配置Emby服务器连接信息</p>
+                <h3 class="card-title">Emby 服务器配置</h3>
+                <p class="card-subtitle">配置 Emby 服务器连接信息</p>
               </div>
             </div>
           </template>
 
-          <el-form-item label="Emby服务器地址" prop="emby_url">
+          <el-form-item label="Emby 服务器地址" prop="emby_url">
             <el-input
               v-model="embyData.emby_url"
-              placeholder="请输入Emby服务器地址，格式：http://ip:port"
+              placeholder="请输入 Emby 服务器地址，格式：http://ip:port"
               :disabled="embyLoading"
               class="limited-width-input"
               @input="updateEmbyExample"
@@ -33,7 +33,7 @@
               clearable
             />
             <p style="color: red; font-weight: bold; margin-left: 16px; font-size: 28px">
-              输入Emby地址后，页面往下滚，点击"保存设置"按钮后，重启QMediaSync才能生效
+              填写 Emby 地址后，请点击页面底部的“保存设置”，并重启 QMediaSync 使配置生效
             </p>
             <div v-if="embyExample" class="emby-example-inline">
               <span class="example-label">示例格式：</span>
@@ -42,16 +42,16 @@
             <div class="form-help">
               <el-icon><InfoFilled /></el-icon>
               <span
-                >想使用Emby外网302必须输入Emby服务器地址，不要以/结尾，输入emby的内网地址即可，比如：http://192.168.1.100:8096
-                或者docker容器的地址</span
+                >如需使用 Emby 外网 302，请填写 Emby 服务器地址，不要以 / 结尾。一般填写 Emby
+                内网地址，例如：http://192.168.1.100:8096，也可以填写 Docker 容器地址</span
               >
             </div>
           </el-form-item>
 
-          <el-form-item label="Emby API密钥" prop="emby_api_key">
+          <el-form-item label="Emby API Key" prop="emby_api_key">
             <el-input
               v-model="embyData.emby_api_key"
-              placeholder="请输入Emby API密钥"
+              placeholder="请输入 Emby API Key"
               :disabled="embyLoading"
               class="limited-width-input"
               @input="updateEmbyExample"
@@ -59,17 +59,19 @@
             />
             <div class="form-help">
               <el-icon><InfoFilled /></el-icon>
-              <span>API密钥用来提取strm的视频、音频、内封字幕信息，如果不需要该功能，可以不填</span>
+              <span
+                >API Key 用于提取 STRM 文件的视频、音频和内封字幕信息；不需要该功能时可以不填</span
+              >
             </div>
             <div class="form-help author-credit">
               <span
-                >Strm信息提取功能由<a
+                >STRM 信息提取功能由<a
                   href="https://github.com/truewhile"
                   target="_blank"
                   rel="noopener noreferrer"
                   >@truewhile</a
                 >
-                提供，感谢其无私的分享。</span
+                提供，感谢分享。</span
               >
             </div>
           </el-form-item>
@@ -83,12 +85,12 @@
               </div>
               <div class="card-header-content">
                 <h3 class="card-title">通知链接配置</h3>
-                <p class="card-subtitle">配置Emby与QMediaSync的通知连接</p>
+                <p class="card-subtitle">配置 Emby 与 QMediaSync 的通知连接</p>
               </div>
             </div>
           </template>
 
-          <el-form-item label="Emby通知链接">
+          <el-form-item label="Emby 通知链接">
             <el-input
               v-model="webhookUrl"
               readonly
@@ -101,7 +103,7 @@
             </el-input>
             <div class="form-help">
               <el-icon><InfoFilled /></el-icon>
-              <span>将此链接配置到Emby的通知设置中，</span>
+              <span>将此链接配置到 Emby 的通知设置中，</span>
               <a
                 href="https://github.com/qicfan/qmediasync/wiki/Emby-%E9%80%9A%E7%9F%A5%E9%85%8D%E7%BD%AE"
                 target="_blank"
@@ -120,9 +122,9 @@
             <div class="form-help" v-if="embyData.enable_auth">
               <el-icon><WarningFilled /></el-icon>
               <span class="warning-text"
-                >已开启鉴权，请确保在Emby的通知链接中添加Api Key参数，示例：<code
+                >已开启鉴权，请确保在 Emby 的通知链接中添加 API Key 参数，示例：<code
                   class="inline-code"
-                  >{{ webhookUrl }}?api_key=你的ApiKey</code
+                  >{{ webhookUrl }}?api_key=你的 API Key</code
                 ></span
               >
             </div>
@@ -145,11 +147,11 @@
             <div class="form-help">
               <el-icon><InfoFilled /></el-icon>
               <span
-                >启用后，Emby的Webhook请求需要携带Api
-                Key才能生效。如果要在外网使用Emby通知链接建议启用以提高安全性。请到<router-link
+                >启用后，Emby Webhook 请求必须携带 API Key
+                才会生效。外网使用通知链接时建议开启。请到<router-link
                   to="/settings/api-keys"
                   class="help-link"
-                  >Api Key模块</router-link
+                  >API Key 模块</router-link
                 >生成</span
               >
             </div>
@@ -174,7 +176,7 @@
             </div>
             <div class="form-help">
               <el-icon><InfoFilled /></el-icon>
-              <span>开启后，播放通知将显示当前视频的剧情简介（超过100字自动截断）</span>
+              <span>开启后，播放通知将显示当前视频的剧情简介（超过 100 字自动截断）</span>
             </div>
           </el-form-item>
 
@@ -210,7 +212,7 @@
               </div>
               <div class="card-header-content">
                 <h3 class="card-title">同步和功能配置</h3>
-                <p class="card-subtitle">配置STRM同步与媒体库联动功能</p>
+                <p class="card-subtitle">配置 STRM 同步与媒体库联动功能</p>
               </div>
             </div>
           </template>
@@ -236,7 +238,7 @@
             </el-form-item>
             <div class="feature-description">
               <div class="config-links">
-                <span>该功能需要在Emby中配置通知才能生效，</span>
+                <span>需要在 Emby 中配置通知后才会生效，</span>
                 <a
                   href="https://github.com/qicfan/qmediasync/wiki/Emby-%E9%80%9A%E7%9F%A5%E9%85%8D%E7%BD%AE"
                   target="_blank"
@@ -253,7 +255,8 @@
                 >
               </div>
               <p class="feature-note">
-                功能解释：QMediaSync在收到Emby的通知某个资源入库后，自动触发提取该资源的媒体信息，加快起播速度。媒体信息指：视频、音频、内封字幕等详细信息
+                QMediaSync 收到 Emby
+                入库通知后，会自动提取该资源的视频、音频、内封字幕等媒体信息，帮助 Emby 更快起播。
               </p>
             </div>
           </div>
@@ -278,7 +281,8 @@
             </el-form-item>
             <div class="feature-description">
               <p class="feature-note">
-                启用后可以将Emby中的资源同步到QMediaSync中和网盘文件建立联系，来实现同步后刷新媒体库和联动删除网盘文件功能
+                启用后会把 Emby 媒体库项目同步到
+                QMediaSync，并与网盘文件建立关联，用于同步后刷新媒体库和联动删除网盘文件。
               </p>
             </div>
           </div>
@@ -296,7 +300,7 @@
                 </div>
                 <div class="card-header-content">
                   <h3 class="card-title">媒体库同步选择</h3>
-                  <p class="card-subtitle">选择需要同步的Emby媒体库</p>
+                  <p class="card-subtitle">选择需要同步的 Emby 媒体库</p>
                 </div>
               </div>
             </template>
@@ -309,7 +313,7 @@
               <div class="form-help">
                 <el-icon><InfoFilled /></el-icon>
                 <span
-                  >选择"全部媒体库"将同步所有媒体库（包括未来新增的），选择"指定媒体库"可手动选择需要同步的媒体库</span
+                  >选择“全部媒体库”会同步所有媒体库（包括未来新增的媒体库）；选择“指定媒体库”可手动选择需要同步的媒体库</span
                 >
               </div>
             </el-form-item>
@@ -328,7 +332,7 @@
               <div class="form-help" v-if="availableLibraries.length === 0">
                 <el-icon><WarningFilled /></el-icon>
                 <span class="warning-text"
-                  >请先配置Emby服务器地址并保存，然后执行一次同步以获取媒体库列表</span
+                  >请先配置 Emby 服务器地址并保存，然后执行一次同步以获取媒体库列表</span
                 >
               </div>
             </el-form-item>
@@ -340,7 +344,7 @@
             <el-form-item label="同步时间" prop="sync_cron">
               <el-input
                 v-model="embyData.sync_cron"
-                placeholder="请输入Cron表达式，如：0 2 * * *"
+                placeholder="请输入 Cron 表达式，如：0 2 * * *"
                 :disabled="embyLoading || !embyData.sync_enabled"
                 class="limited-width-input"
                 @blur="fetchCronNextTimes"
@@ -349,14 +353,14 @@
               <div class="form-help">
                 <el-icon><InfoFilled /></el-icon>
                 <span
-                  >Cron表达式，格式：秒 分 时 日 月 周（如：0 2 * * * 表示每天凌晨2点执行）</span
+                  >Cron 表达式，格式：秒 分 时 日 月 周（如：0 2 * * * 表示每天凌晨 2 点执行）</span
                 >
               </div>
             </el-form-item>
             <div v-if="cronNextTimes.length > 0" class="cron-next-times">
               <div class="cron-times-header">
                 <el-icon><Clock /></el-icon>
-                <span>接下来5次执行时间：</span>
+                <span>接下来 5 次执行时间：</span>
               </div>
               <ul class="cron-times-list">
                 <li v-for="(time, index) in cronNextTimes" :key="index">{{ time }}</li>
@@ -387,17 +391,23 @@
             </el-form-item>
             <div class="feature-description">
               <p>
-                该功能需要至少同步完一次Emby媒体库才能生效，如果下方同步管理卡片中的总项目数为0，请点击下方：启动同步
-                按钮触发一次同步。
+                该功能需要先完成一次 Emby 媒体库同步。如果下方同步管理卡片中的总项目数为
+                0，请点击“启动同步”先同步一次。
               </p>
               <p>
-                STRM同步完成后不会立即刷新。系统会按Emby媒体库合并刷新请求，并等待相关同步任务和下载任务结束；下载状态变化会每5秒合并处理一次，避免大量小文件频繁触发刷新检查。
+                STRM 同步完成后不会立即刷新。系统会按 Emby
+                媒体库合并刷新请求，并等待相关同步任务和下载任务结束；下载状态变化会每 5
+                秒合并处理一次，避免大量小文件频繁触发检查。
               </p>
               <p>
-                如果等待超过6小时仍未满足刷新条件，本次刷新任务会取消，不会强制刷新未完成下载的媒体库。建议同时开启Emby实时监控作为补充。
+                如果等待超过 6
+                小时仍未满足刷新条件，本次刷新任务会自动取消，不会强制刷新仍有下载任务的媒体库。建议同时开启
+                Emby 实时监控作为补充。
               </p>
               <p class="feature-note">
-                功能解释：某个STRM同步目录同步完成后，会提交相关联Emby媒体库的刷新任务；任务在确认相关下载和同步队列稳定后刷新媒体库，使新增加的STRM文件入库。
+                某个 STRM 同步目录完成后，会提交关联 Emby
+                媒体库的刷新任务；系统确认相关下载和同步队列稳定后再刷新媒体库，让新增 STRM
+                文件入库。
               </p>
             </div>
           </div>
@@ -405,7 +415,7 @@
           <el-divider class="feature-divider" />
 
           <div class="feature-item danger-item" :class="{ 'is-disabled': !embyData.sync_enabled }">
-            <el-form-item label="删除联动删除网盘文件" prop="enable_delete_netdisk">
+            <el-form-item label="删除时联动删除网盘文件" prop="enable_delete_netdisk">
               <div class="switch-wrapper">
                 <el-switch
                   v-model="embyData.enable_delete_netdisk"
@@ -424,17 +434,20 @@
               <el-alert type="warning" :closable="false" class="danger-alert">
                 <template #default>
                   <strong>⚠ 谨慎启用：</strong>
-                  启用后，删除Emby中的项目时，对应的网盘文件也会被删除<br />
+                  启用后，在 Emby 中删除项目时，对应的网盘文件也会被删除<br />
                   <strong
-                    >由于Emby的特性如果strm文件内容变更，Emby会先删除再新增，这时有概率导致：STRM变更→Emby通知删除→QMS联动删除网盘→Emby新增项目→播放失败</strong
-                  >，这个问题暂时无解<br />
+                    >由于 Emby 的处理机制，STRM
+                    文件内容变更时可能会先触发删除再新增，因此可能出现：STRM 变更→Emby
+                    通知删除→QMediaSync 联动删除网盘→Emby 新增项目→播放失败</strong
+                  >，目前还没有可靠的规避方式<br />
                   <strong
-                    >如果打开了Emby的实时监控，在文件系统内删除Strm或者文件夹也会导致Emby触发删除通知→QMS联动删除网盘，所有删除文件一定要谨慎。</strong
+                    >如果开启了 Emby 实时监控，在文件系统中删除 STRM
+                    文件或文件夹也会触发删除通知，并可能联动删除网盘文件。所有删除操作都要谨慎。</strong
                   >
                 </template>
               </el-alert>
               <div class="config-links">
-                <span>该功能需要在Emby中配置通知才能生效，</span>
+                <span>需要在 Emby 中配置通知后才会生效，</span>
                 <a
                   href="https://github.com/qicfan/qmediasync/wiki/Emby-%E9%80%9A%E7%9F%A5%E9%85%8D%E7%BD%AE"
                   target="_blank"
@@ -451,12 +464,14 @@
                 >
               </div>
               <ul class="delete-rules">
-                <li>如果在Emby中删除了电影，会在网盘中将视频文件的父目录一起删除</li>
-                <li>如果在Emby中删除了剧，会在网盘中将tvshow.nfo的父目录删除</li>
+                <li>在 Emby 中删除电影时，会在网盘中一并删除视频文件的父目录</li>
+                <li>在 Emby 中删除剧集条目时，会删除网盘中 tvshow.nfo 所在的父目录</li>
                 <li>
-                  如果在Emby中删除了季，会先检查视频文件的父目录，如果父目录是季文件夹则删除该文件夹；如果父目录是有tvshow的目录则仅删除季下所有集对应的视频文件+元数据（nfo、封面）
+                  在 Emby
+                  中删除季时，会先检查视频文件的父目录；如果父目录是季文件夹，则删除该文件夹；如果父目录是包含
+                  tvshow.nfo 的目录，则只删除该季下所有集对应的视频文件和元数据（NFO、封面）
                 </li>
-                <li>如果在Emby中删了集，会删除视频文件+元数据（nfo、封面）</li>
+                <li>在 Emby 中删除单集时，会删除对应的视频文件和元数据（NFO、封面）</li>
               </ul>
             </div>
           </div>
@@ -486,11 +501,12 @@
           </el-button>
           <div class="extract-help">
             <p>
-              该功能会将Emby没有提取媒体信息的项目全部触发提取，如果是重建媒体库或者新Emby可以执行一次。进度或者详情请在<router-link
+              该功能会为 Emby 中尚未提取媒体信息的项目触发提取。如果刚重建媒体库或刚接入新的
+              Emby，可以手动执行一次。进度和详情可在<router-link
                 to="/download-queue"
                 class="help-link"
                 >下载队列页</router-link
-              >面查看
+              >查看
             </p>
           </div>
         </div>
@@ -504,7 +520,7 @@
             </div>
             <div class="card-header-content">
               <h3 class="card-title">同步管理</h3>
-              <p class="card-subtitle">管理Emby媒体库同步状态</p>
+              <p class="card-subtitle">管理 Emby 媒体库同步状态</p>
             </div>
             <div class="card-header-action">
               <el-button
@@ -515,7 +531,7 @@
                 :disabled="!embyData.emby_url || !embyData.sync_enabled || syncPolling"
                 size="default"
               >
-                {{ syncPolling ? '同步进行中...' : '启动同步' }}
+                {{ syncPolling ? '同步进行中…' : '启动同步' }}
               </el-button>
             </div>
           </div>
@@ -549,7 +565,7 @@
               <el-icon :size="28"><FolderOpened /></el-icon>
             </div>
             <div class="stat-content">
-              <div class="stat-label">关联Item数</div>
+              <div class="stat-label">关联 Item 数</div>
               <div class="stat-value highlight">{{ syncInfo.total_items || 0 }}</div>
             </div>
           </div>
@@ -568,7 +584,7 @@
         <div v-if="syncPolling" class="sync-progress">
           <div class="progress-indicator">
             <el-icon class="is-loading" :size="20"><Loading /></el-icon>
-            <span>同步进行中，请稍候...</span>
+            <span>同步进行中，请稍候…</span>
           </div>
         </div>
 
@@ -589,8 +605,9 @@
 
       <el-alert title="使用提示" type="info" :closable="false" show-icon class="tips-alert">
         <template #default>
-          只要填写了Emby服务器地址和API密钥，就可以触发提取媒体信息，提取完成后Emby可以显示出来音视频和内封字幕信息，可以切换字幕<br />
-          如果需要同步，可以点击上方的 "提取媒体信息" 按钮
+          填写 Emby 服务器地址和 API Key 后，即可触发媒体信息提取。提取完成后，Emby
+          会显示视频、音频和内封字幕信息，并支持切换字幕。<br />
+          如果需要提取，可以点击上方的“提取媒体信息”按钮。
         </template>
       </el-alert>
     </div>
@@ -687,12 +704,12 @@ const embyStatus = ref<{
 const formRules: FormRules = {
   emby_url: [
     {
-      message: '请输入Emby服务器地址',
+      message: '请输入 Emby 服务器地址',
       trigger: 'blur',
     },
     {
       pattern: /^(http|https):\/\/[^\s/$.?#].[^\s]*$/,
-      message: '请输入有效的URL格式，如：http://ip:port',
+      message: '请输入有效的 URL 格式，如：http://ip:port',
       trigger: 'blur',
     },
   ],
@@ -732,7 +749,7 @@ const loadEmbyConfig = async () => {
         embyData.enable_playback_overview = config.enable_playback_overview ?? 0
         embyData.enable_playback_progress = config.enable_playback_progress ?? 0
 
-        // 解析选中的媒体库ID列表
+        // 解析选中的媒体库 ID 列表
         try {
           selectedLibraryIds.value = JSON.parse(embyData.selected_libraries)
         } catch {
@@ -746,18 +763,18 @@ const loadEmbyConfig = async () => {
       }
     } else {
       Object.assign(embyData, defaultConfig)
-      ElMessage.warning('加载Emby配置失败，使用默认配置')
+      ElMessage.warning('加载 Emby 配置失败，使用默认配置')
     }
   } catch (error) {
-    console.error('加载Emby配置错误:', error)
+    console.error('加载 Emby 配置错误：', error)
     Object.assign(embyData, defaultConfig)
-    ElMessage.error('加载Emby配置失败')
+    ElMessage.error('加载 Emby 配置失败')
   } finally {
     embyLoading.value = false
   }
 }
 
-// 加载Emby媒体库列表
+// 加载 Emby 媒体库列表
 const loadEmbyLibraries = async () => {
   try {
     const response = await http?.get(`${SERVER_URL}/emby/libraries`)
@@ -768,7 +785,7 @@ const loadEmbyLibraries = async () => {
       }))
     }
   } catch (error) {
-    console.error('加载媒体库列表错误:', error)
+    console.error('加载媒体库列表错误：', error)
   }
 }
 
@@ -814,15 +831,15 @@ const saveEmbyConfig = async () => {
       embyStatus.value = {
         title: '保存成功',
         type: 'success',
-        description: 'Emby配置已成功保存',
+        description: 'Emby 配置已成功保存',
       }
-      ElMessage.success('Emby配置已成功保存')
+      ElMessage.success('Emby 配置已成功保存')
       await loadEmbyConfig()
     } else {
       embyStatus.value = {
         title: '保存失败',
         type: 'error',
-        description: response?.data.message || '保存Emby配置失败',
+        description: response?.data.message || '保存 Emby 配置失败',
       }
       ElMessage.error(response?.data.message || '保存失败')
     }
@@ -831,11 +848,11 @@ const saveEmbyConfig = async () => {
       embyStatus.value = null
     }, 3000)
   } catch (error) {
-    console.error('保存Emby配置错误:', error)
+    console.error('保存 Emby 配置错误：', error)
     embyStatus.value = {
       title: '保存失败',
       type: 'error',
-      description: '保存Emby配置时出现错误',
+      description: '保存 Emby 配置时出现错误',
     }
     ElMessage.error('保存失败')
   } finally {
@@ -875,7 +892,7 @@ const praseEmby = async () => {
       ElMessage.error(response?.data.message || '触发提取媒体信息失败')
     }
   } catch (error) {
-    console.error('触发提取媒体信息错误:', error)
+    console.error('触发提取媒体信息错误：', error)
     embyStatus.value = {
       title: '触发提取媒体信息失败',
       type: 'error',
@@ -892,9 +909,9 @@ const updateEmbyExample = () => {}
 const copyWebhookUrl = async () => {
   try {
     await navigator.clipboard.writeText(webhookUrl.value)
-    ElMessage.success('Webhook链接已复制到剪贴板')
+    ElMessage.success('Webhook 链接已复制到剪贴板')
   } catch (error) {
-    console.error('复制失败:', error)
+    console.error('复制失败：', error)
     ElMessage.error('复制失败，请手动复制')
   }
 }
@@ -919,9 +936,9 @@ const fetchCronNextTimes = async () => {
       }
     }
   } catch (error) {
-    console.error('获取Cron执行时间错误:', error)
+    console.error('获取 Cron 执行时间错误：', error)
     cronNextTimes.value = []
-    ElMessage.error('获取Cron执行时间失败，请检查表达式格式')
+    ElMessage.error('获取 Cron 执行时间失败，请检查表达式格式')
   }
 }
 
@@ -939,7 +956,7 @@ const startSync = async () => {
       ElMessage.error(response?.data.message || '启动同步失败')
     }
   } catch (error) {
-    console.error('启动同步错误:', error)
+    console.error('启动同步错误：', error)
     ElMessage.error('启动同步失败')
   } finally {
     syncStartLoading.value = false
@@ -959,7 +976,7 @@ const querySyncStatus = async () => {
       }
     }
   } catch (error) {
-    console.error('查询同步状态错误:', error)
+    console.error('查询同步状态错误：', error)
   }
 }
 
@@ -976,7 +993,7 @@ const startSyncPolling = () => {
         }
       }
     } catch (error) {
-      console.error('轮询同步状态错误:', error)
+      console.error('轮询同步状态错误：', error)
     }
   }, 3000)
 }
@@ -1007,9 +1024,9 @@ const formatLastSyncTime = (timestamp: number | null | undefined) => {
     const diffDays = Math.floor(diffSecs / 86400)
 
     if (diffSecs < 60) return '刚刚'
-    if (diffMins < 60) return `${diffMins}分钟前`
-    if (diffHours < 24) return `${diffHours}小时前`
-    if (diffDays < 30) return `${diffDays}天前`
+    if (diffMins < 60) return `${diffMins} 分钟前`
+    if (diffHours < 24) return `${diffHours} 小时前`
+    if (diffDays < 30) return `${diffDays} 天前`
 
     return date.toLocaleString('zh-CN')
   } catch {

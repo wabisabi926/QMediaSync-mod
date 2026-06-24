@@ -102,7 +102,7 @@ let lastScrollTop = 0
 let isManualDisconnect = false
 let hasReachedEnd = false
 
-// WebSocket URL配置
+// WebSocket URL 配置
 let wsUrl = SERVER_URL.replace('http', 'ws')
 wsUrl = wsUrl.replace('https', 'ws')
 const WS_URL = `${wsUrl}/logs/ws`
@@ -127,13 +127,13 @@ watch(
 onMounted(async () => {
   // 如果提供了日志路径，先加载历史日志
   if (props.logPath) {
-    // 设置初始偏移量为0
+    // 设置初始偏移量为 0
     currentOffset = 0
     // 清空现有日志
     logLines.value = []
-    // 加载历史日志，设置limit为1000
+    // 加载历史日志，设置 limit 为 1000
     await loadInitialLogs()
-    // 只有在实时日志模式下才建立WebSocket连接
+    // 只有在实时日志模式下才建立 WebSocket 连接
     if (props.isRealTime) {
       connect()
     }
@@ -150,13 +150,13 @@ const loadInitialLogs = async () => {
   isLoadingOldLogs = true
   loading.value = true
 
-  // 构建HTTP请求URL，加载前1000条日志
+  // 构建 HTTP 请求 URL，加载前 1000 条日志
   const apiUrl = `${HTTP_URL}?path=${encodeURIComponent(logPath)}&pos=-1&direction=forward&limit=1000`
 
   try {
     const response = await fetch(apiUrl)
     if (!response.ok) {
-      throw new Error('HTTP请求失败')
+      throw new Error('HTTP 请求失败')
     }
     const rs = await response.json()
     const entries = rs.entries || []
@@ -167,9 +167,9 @@ const loadInitialLogs = async () => {
       logLines.value = [...entries]
     }
   } catch (error) {
-    console.error('加载初始日志失败:', error)
+    console.error('加载初始日志失败：', error)
     addSystemLog(
-      `加载初始日志失败: ${error instanceof Error ? error.message : '未知错误'}`,
+      `加载初始日志失败：${error instanceof Error ? error.message : '未知错误'}`,
       'error',
     )
   } finally {
@@ -197,7 +197,7 @@ const handleScroll = () => {
   // 判断是否在顶部
   isAtTop = scrollTop === 0
 
-  // 检查是否需要重新连接WebSocket（当回到顶部时）
+  // 检查是否需要重新连接 WebSocket（当回到顶部时）
   if (isAtTop && lastScrollTop > 0) {
     reconnectWebSocket()
   }
@@ -225,7 +225,7 @@ const debouncedCleanupLogs = () => {
 
 // 添加日志条目
 const addLogEntry = (entry: LogEntry) => {
-  // 为日志条目添加唯一ID
+  // 为日志条目添加唯一 ID
   const entryWithId = {
     ...entry,
     id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -247,12 +247,12 @@ const addSystemLog = (message: string, level: LogEntry['level'] = 'info') => {
   })
 }
 
-// 检查WebSocket是否已连接
+// 检查 WebSocket 是否已连接
 const isWebSocketConnected = (): boolean => {
   return ws.value !== null && ws.value.readyState === WebSocket.OPEN
 }
 
-// 连接WebSocket
+// 连接 WebSocket
 const connect = () => {
   // 如果已经连接，直接返回
   if (isWebSocketConnected()) {
@@ -265,7 +265,7 @@ const connect = () => {
     return
   }
 
-  // 构建WebSocket URL
+  // 构建 WebSocket URL
   const wsUrl = `${WS_URL}?path=${encodeURIComponent(logPath)}`
 
   try {
@@ -273,17 +273,17 @@ const connect = () => {
 
     ws.value.onopen = () => {
       isConnected.value = true
-      addSystemLog('WebSocket连接已建立', 'info')
+      addSystemLog('WebSocket 连接已建立', 'info')
     }
 
     ws.value.onmessage = (event) => {
       try {
-        // 尝试解析JSON格式的日志条目
+        // 尝试解析 JSON 格式的日志条目
         const entry = JSON.parse(event.data) as LogEntry
         addLogEntry(entry)
       } catch (error) {
-        // 如果不是JSON格式，作为纯文本处理
-        console.error('解析日志条目失败:', error)
+        // 如果不是 JSON 格式，作为纯文本处理
+        console.error('解析日志条目失败：', error)
         addSystemLog(event.data, 'info')
       }
     }
@@ -292,13 +292,13 @@ const connect = () => {
       isConnected.value = false
       // 只有在主动断开连接时才显示关闭信息
       if (isManualDisconnect) {
-        addSystemLog('WebSocket连接已关闭', 'info')
+        addSystemLog('WebSocket 连接已关闭', 'info')
         isManualDisconnect = false
       }
     }
 
     ws.value.onerror = (event) => {
-      let errorMsg = 'WebSocket错误: '
+      let errorMsg = 'WebSocket 错误：'
       if (event instanceof ErrorEvent && event.message) {
         errorMsg += event.message
       } else {
@@ -307,11 +307,11 @@ const connect = () => {
       addSystemLog(errorMsg, 'error')
     }
   } catch (error) {
-    addSystemLog(`连接失败: ${error instanceof Error ? error.message : '未知错误'}`, 'error')
+    addSystemLog(`连接失败：${error instanceof Error ? error.message : '未知错误'}`, 'error')
   }
 }
 
-// 断开WebSocket连接
+// 断开 WebSocket 连接
 const disconnect = () => {
   if (ws.value) {
     isManualDisconnect = true
@@ -320,7 +320,7 @@ const disconnect = () => {
   }
 }
 
-// 重新连接WebSocket
+// 重新连接 WebSocket
 const reconnectWebSocket = () => {
   // 如果已经连接，不需要重新连接
   if (isWebSocketConnected()) {
@@ -344,7 +344,7 @@ const reconnectWebSocket = () => {
   }, 500)
 }
 
-// 通过HTTP接口加载旧日志
+// 通过 HTTP 接口加载旧日志
 const loadOldLogs = () => {
   const logPath = props.logPath.trim()
   if (!logPath) {
@@ -359,23 +359,23 @@ const loadOldLogs = () => {
   isLoadingOldLogs = true
   loading.value = true
 
-  // 加载旧日志时断开WebSocket连接，避免新日志干扰
+  // 加载旧日志时断开 WebSocket 连接，避免新日志干扰
   if (isWebSocketConnected()) {
     ws.value?.close()
     ws.value = null
     isConnected.value = false
   }
 
-  // 构建HTTP请求URL
+  // 构建 HTTP 请求 URL
   const apiUrl = `${HTTP_URL}?path=${encodeURIComponent(logPath)}&pos=${currentOffset}&direction=forward&limit=100`
 
-  // 发送HTTP请求
+  // 发送 HTTP 请求
   fetch(apiUrl)
     .then((response) => {
       if (!response.ok) {
-        throw new Error('HTTP请求失败')
+        throw new Error('HTTP 请求失败')
       }
-      return response.json() // 解析为JSON格式
+      return response.json() // 解析为 JSON 格式
     })
     .then((rs) => {
       const entries = rs.entries || []
@@ -390,9 +390,9 @@ const loadOldLogs = () => {
       }
     })
     .catch((error) => {
-      console.error('加载旧日志失败:', error)
+      console.error('加载旧日志失败：', error)
       addSystemLog(
-        `加载旧日志失败: ${error instanceof Error ? error.message : '未知错误'}`,
+        `加载旧日志失败：${error instanceof Error ? error.message : '未知错误'}`,
         'error',
       )
     })
@@ -419,7 +419,7 @@ const downloadLogs = () => {
     // 构建下载链接
     const downloadUrl = `${SERVER_URL}/logs/download?path=${encodeURIComponent(logPath)}`
 
-    // 创建一个临时的a标签来触发下载
+    // 创建一个临时的 a 标签来触发下载
     const link = document.createElement('a')
     link.href = downloadUrl
     link.download = logPath.split('/').pop() || 'logfile.log' // 使用文件名作为下载文件名
@@ -436,8 +436,8 @@ const downloadLogs = () => {
 
     ElMessage.success('开始下载日志文件')
   } catch (error) {
-    console.error('下载日志失败:', error)
-    ElMessage.error(`下载日志失败: ${error instanceof Error ? error.message : '未知错误'}`)
+    console.error('下载日志失败：', error)
+    ElMessage.error(`下载日志失败：${error instanceof Error ? error.message : '未知错误'}`)
   }
 }
 

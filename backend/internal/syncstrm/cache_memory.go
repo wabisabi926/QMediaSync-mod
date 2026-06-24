@@ -11,9 +11,9 @@ import (
 	"Q115-STRM/internal/v115open"
 )
 
-// SyncFileCache 完整缓存结构（主要用于115网盘）
-// 包含基础字段 + 115网盘特有字段
-// 内存占用约: 32 (BaseSyncFileCache) + 1 (FileType) + 24 (3 strings) = ~57 bytes
+// SyncFileCache 完整缓存结构（主要用于 115 网盘）
+// 包含基础字段 + 115 网盘特有字段
+// 内存占用约：32 (BaseSyncFileCache) + 1 (FileType) + 24 (3 strings) = ~57 bytes
 type SyncFileCache struct {
 	// 核心标识字段
 	FileId   string            `json:"file_id"`
@@ -22,7 +22,7 @@ type SyncFileCache struct {
 
 	// 文件信息
 	FileName      string `json:"file_name"`
-	Path          string `json:"path"`            // 绝对路径，不包含FileName
+	Path          string `json:"path"`            // 绝对路径，不包含 FileName
 	LocalFilePath string `json:"local_file_path"` // 本地完整路径（TargetPath + Path + FileName）
 	FileSize      int64  `json:"file_size"`
 	MTime         int64  `json:"mtime"` // 最后修改时间
@@ -34,12 +34,12 @@ type SyncFileCache struct {
 
 	NeedDownload bool `json:"need_download"` // 标记需要下载
 
-	// 115特有字段
+	// 115 特有字段
 
 	Sha1     string `json:"sha1"`
 	ThumbUrl string `json:"thumb_url"`
 
-	// openlist特有字段
+	// OpenList 特有字段
 	OpenlistSign string `json:"openlist_sign"`
 
 	SourceType models.SourceType         `json:"source_path"`
@@ -113,7 +113,7 @@ func (b *SyncFileCache) GetLocalFilePath(targetPath, sourcePath string) string {
 	if b.LocalFilePath != "" {
 		return b.LocalFilePath
 	}
-	// 视频文件要转成strm扩展名
+	// 视频文件要转成 STRM 扩展名
 	fileName := b.FileName
 	if b.IsVideo {
 		ext := filepath.Ext(fileName)
@@ -122,20 +122,20 @@ func (b *SyncFileCache) GetLocalFilePath(targetPath, sourcePath string) string {
 	}
 	fullPath := filepath.Join(targetPath, b.GetPath(), fileName)
 	if b.SourceType == models.SourceTypeLocal {
-		// 本地不能拼接完整的file.Path
+		// 本地不能拼接完整的 file.Path
 		relPath, err := filepath.Rel(sourcePath, b.GetPath())
 		if err != nil {
 			return ""
 		}
 		fullPath = filepath.Join(targetPath, relPath, fileName)
 	}
-	// 将windows路径转换为unix路径
+	// 将 Windows 路径转换为 Unix 路径
 	fullPath = filepath.ToSlash(fullPath)
 	b.LocalFilePath = fullPath
 	return b.LocalFilePath
 }
 
-// 将SyncFileCache转换为models.SyncFile
+// 将 SyncFileCache 转换为 models.SyncFile
 func (d *SyncFileCache) GetSyncFile(s *SyncStrm, openlistBaseUrl string) *models.SyncFile {
 	syncFile := &models.SyncFile{
 		AccountId:     s.Account.ID,
@@ -178,7 +178,7 @@ type MemorySyncCache struct {
 	// // 按顺序存储的 file_id 列表（用于分页查询）
 	// orderedFiles []string
 
-	// 同步路径ID（用于过滤）
+	// 同步路径 ID（用于过滤）
 	syncPathId uint
 }
 
@@ -200,16 +200,16 @@ func (c *MemorySyncCache) Insert(file *SyncFileCache) error {
 	defer c.mu.Unlock()
 
 	if file.GetFileId() == "" {
-		return fmt.Errorf("file_id不能为空")
+		return fmt.Errorf("file_id 不能为空")
 	}
 
 	// 主索引
 	c.fileIndex[file.GetFileId()] = file
 
-	// 本地路径索引(有Path一定有LocalFilePath)
-	// helpers.AppLogger.Infof("缓存文件: %s 路径：%s 本地路径: %s", file.GetFileId(), file.GetPath(), file.LocalFilePath)
+	// 本地路径索引（有 Path 一定有 LocalFilePath）
+	// helpers.AppLogger.Infof("缓存文件：%s 路径：%s 本地路径：%s", file.GetFileId(), file.GetPath(), file.LocalFilePath)
 	if file.GetPath() != "" {
-		// helpers.AppLogger.Infof("加入本地文件索引: %s 路径：%s 本地路径: %s", file.GetFileId(), file.GetPath(), file.LocalFilePath)
+		// helpers.AppLogger.Infof("加入本地文件索引：%s 路径：%s 本地路径：%s", file.GetFileId(), file.GetPath(), file.LocalFilePath)
 		c.localPathIndex[file.LocalFilePath] = file
 	}
 
@@ -278,7 +278,7 @@ func (c *MemorySyncCache) GetByFileId(fileId string) (*SyncFileCache, error) {
 
 	file, ok := c.fileIndex[fileId]
 	if !ok {
-		return nil, fmt.Errorf("未找到记录: file_id=%s", fileId)
+		return nil, fmt.Errorf("未找到记录：file_id=%s", fileId)
 	}
 	return file, nil
 }
@@ -290,7 +290,7 @@ func (c *MemorySyncCache) GetByLocalPath(localFilePath string) (*SyncFileCache, 
 
 	file, ok := c.localPathIndex[localFilePath]
 	if !ok {
-		return nil, fmt.Errorf("未找到记录: local_file_path=%s", localFilePath)
+		return nil, fmt.Errorf("未找到记录：local_file_path=%s", localFilePath)
 	}
 
 	return file, nil
@@ -303,7 +303,7 @@ func (c *MemorySyncCache) GetByParentId(parentId string) ([]*SyncFileCache, erro
 
 	files, ok := c.parentIndex[parentId]
 	if !ok {
-		return nil, fmt.Errorf("未找到记录: parent_id=%s", parentId)
+		return nil, fmt.Errorf("未找到记录：parent_id=%s", parentId)
 	}
 	return files, nil
 }

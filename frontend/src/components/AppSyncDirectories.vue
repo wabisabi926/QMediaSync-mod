@@ -7,7 +7,7 @@
             <el-icon class="title-icon"><FolderOpened /></el-icon>
             同步目录管理
           </h1>
-          <p class="page-subtitle">管理您的云盘与本地目录的同步配置</p>
+          <p class="page-subtitle">管理云盘与本地目录的同步配置</p>
         </div>
         <div class="header-actions">
           <el-button type="primary" class="add-btn" @click="handleAdd">
@@ -68,7 +68,7 @@
           <div class="card-main">
             <div class="card-header">
               <div class="card-title-wrapper">
-                <el-tooltip :content="'目录ID：' + row.base_cid" placement="bottom">
+                <el-tooltip :content="'目录 ID：' + row.base_cid" placement="bottom">
                   <span class="card-id">#{{ row.id }}</span>
                 </el-tooltip>
                 <span class="card-path">{{ row.remote_path }}</span>
@@ -126,7 +126,7 @@
                 <div class="info-content">
                   <el-tooltip
                     effect="dark"
-                    content="开启后会根据strm设置中的cron表达式定时同步数据，如果该同步目录内的资源变动概率较小，建议关闭定时同步"
+                    content="开启后会根据 STRM 设置中的 Cron 表达式定时同步数据，如果该同步目录内的资源变动概率较小，建议关闭定时同步"
                     placement="top"
                   >
                     <span class="info-label with-tooltip">
@@ -235,7 +235,7 @@
           </div>
         </div>
         <h3 class="empty-title">暂无同步目录</h3>
-        <p class="empty-description">点击上方按钮添加您的第一个同步目录</p>
+        <p class="empty-description">点击上方按钮添加第一个同步目录</p>
         <el-button type="primary" @click="handleAdd">
           <el-icon><Plus /></el-icon>
           添加同步目录
@@ -244,7 +244,7 @@
 
       <div class="loading-state" v-if="loading">
         <el-icon class="loading-icon rotating"><Loading /></el-icon>
-        <span>加载中...</span>
+        <span>加载中…</span>
       </div>
 
       <el-dialog
@@ -256,7 +256,7 @@
         <div class="scrape-path-dialog-content">
           <p class="dialog-tip">请选择要关联的本地类型刮削目录：</p>
           <el-alert
-            title="STRM同步完成30秒后会自动触发关联的刮削目录执行刮削"
+            title="STRM 同步完成 30 秒后，会自动触发已关联的刮削目录执行刮削"
             type="info"
             :closable="false"
             show-icon
@@ -301,21 +301,21 @@
           <div class="tip-group">
             <div class="tip-group-title">
               <el-icon><Warning /></el-icon>
-              <span>115网盘</span>
+              <span>115 网盘</span>
             </div>
             <div class="tip-group-items">
               <div class="tip-item">
                 <span class="tip-bullet">•</span>
                 <span
-                  >无法感知网盘的文件夹重命名等操作，如果发现文件夹名字不对可以手动点击：<strong
-                    >全量同步</strong
+                  >无法感知网盘文件夹重命名等操作；如果同步后的文件夹名称不对，可以手动点击<strong
+                    >“全量同步”</strong
                   ></span
                 >
               </div>
               <div class="tip-item">
                 <span class="tip-bullet">•</span>
                 <span
-                  >"全量同步"会删除所有缓存数据（不会删除本地文件），然后执行同步，可以处理所有网盘文件变更</span
+                  >“全量同步”会删除所有缓存数据（不会删除本地文件），然后重新同步网盘文件变更</span
                 >
               </div>
               <div class="tip-item tip-highlight">
@@ -341,16 +341,17 @@
               <div class="tip-item">
                 <span class="tip-bullet">•</span>
                 <span
-                  >增量同步只能单线程，每分钟最多执行8次请求，每次请求1000个文件，如果单次变更文件数量大于8000，同步就会很慢</span
+                  >增量同步目前只能单线程执行；每分钟最多 8 次请求，每次最多 1000
+                  个文件。单次变更超过 8000 个文件时，同步会比较慢</span
                 >
               </div>
               <div class="tip-item">
                 <span class="tip-bullet">•</span>
-                <span>"全量同步"会删除所有缓存数据（不会删除本地文件），然后递归查询所有文件</span>
+                <span>“全量同步”会删除所有缓存数据（不会删除本地文件），然后递归查询所有文件</span>
               </div>
               <div class="tip-item tip-highlight">
                 <span class="tip-bullet">★</span>
-                <span>每天的第一次同步会执行"全量同步"，后续同步会执行"增量同步"</span>
+                <span>每天第一次同步会执行“全量同步”，后续同步会执行“增量同步”</span>
               </div>
             </div>
           </div>
@@ -516,7 +517,7 @@ const handleEdit = (row: SyncDirectory) => {
 const handleDelete = async (row: SyncDirectory, index: number) => {
   try {
     await ElMessageBox.confirm(
-      `不会删除已经同步的元数据和STRM文件，确定要删除同步目录 "${row.local_path}" 吗？`,
+      `不会删除已经同步的元数据和 STRM 文件，确定要删除同步目录“${row.local_path}”吗？`,
       '确认删除',
       {
         confirmButtonText: '确定',
@@ -570,7 +571,7 @@ const handleFullStart = async (row: SyncDirectory, index: number) => {
     })
 
     if (response?.data.code === 200) {
-      ElMessage.success(`同步目录 "${row.local_path}" 启动成功`)
+      ElMessage.success(`同步目录“${row.local_path}”启动成功`)
     } else {
       ElMessage.error(response?.data.message || '启动同步目录失败')
     }
@@ -599,7 +600,7 @@ const handleStart = async (row: SyncDirectory, index: number) => {
     })
 
     if (response?.data.code === 200) {
-      ElMessage.success(`同步目录 "${row.local_path}" 启动成功`)
+      ElMessage.success(`同步目录“${row.local_path}”启动成功`)
     } else {
       ElMessage.error(response?.data.message || '启动同步目录失败')
     }
@@ -628,7 +629,7 @@ const handleStop = async (row: SyncDirectory, index: number) => {
     })
 
     if (response?.data.code === 200) {
-      ElMessage.success(`同步目录 "${row.local_path}" 停止成功`)
+      ElMessage.success(`同步目录“${row.local_path}”停止成功`)
     } else {
       ElMessage.error(response?.data.message || '停止同步目录失败')
     }
@@ -711,7 +712,7 @@ const openScrapePathDialog = async (row: SyncDirectory) => {
 
 const saveScrapePathRelation = async () => {
   if (!currentSyncDirectory.value?.id) {
-    ElMessage.error('同步目录ID不存在')
+    ElMessage.error('同步目录 ID 不存在')
     return
   }
 
@@ -745,7 +746,7 @@ const clearAutoRefreshTimer = () => {
   }
 }
 
-// WebSocket事件监听
+// WebSocket 事件监听
 import { useWSEvent } from '@/composables/useWebSocket'
 
 const onSyncEvent = () => {

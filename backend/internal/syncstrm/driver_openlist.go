@@ -32,18 +32,18 @@ func (d *openListDriver) SetSyncStrm(s *SyncStrm) {
 
 func (d *openListDriver) GetNetFileFiles(ctx context.Context, parentPath, parentPathId string) ([]*SyncFileCache, error) {
 	page := 1
-	pageSize := 50 // 每次取50条
+	pageSize := 50 // 每次取 50 条
 	var fileItems []*SyncFileCache = make([]*SyncFileCache, 0)
 mainloop:
 	for {
 		select {
 		case <-ctx.Done():
-			d.s.Sync.Logger.Infof("获取openlist文件列表上下文已取消, path=%s, page=%d, pageSize=%d", parentPath, page, pageSize)
+			d.s.Sync.Logger.Infof("获取 OpenList 文件列表的上下文已取消，path=%s，page=%d，pageSize=%d", parentPath, page, pageSize)
 			return nil, ctx.Err()
 		default:
 			resp, err := d.client.FileList(ctx, parentPath, page, pageSize)
 			if err != nil {
-				d.s.Sync.Logger.Errorf("获取openlist文件列表失败: %v", err)
+				d.s.Sync.Logger.Errorf("获取 OpenList 文件列表失败：%v", err)
 				return nil, err
 			}
 			if resp.Total == 0 {
@@ -52,14 +52,14 @@ mainloop:
 			}
 			for _, file := range resp.Content {
 				atomic.AddInt64(&d.s.TotalFile, 1)
-				// 将ISO 8601格式的日期字符串转换为时间戳
+				// 将 ISO 8601 格式的日期字符串转换为时间戳
 				t, err := time.Parse(time.RFC3339, file.Modified)
 				var mtime int64
 				if err != nil {
-					d.s.Sync.Logger.Errorf("解析时间格式失败: %v, 时间字符串: %s", err, file.Modified)
+					d.s.Sync.Logger.Errorf("解析时间格式失败：%v，时间字符串：%s", err, file.Modified)
 					mtime = 0 // 错误时使用默认值
 				} else {
-					mtime = t.Unix() // 转换为Unix时间戳（秒）
+					mtime = t.Unix() // 转换为 Unix 时间戳（秒）
 				}
 				fileItem := SyncFileCache{
 					ParentId:     parentPathId,
@@ -92,16 +92,16 @@ func (d *openListDriver) CreateDirRecursively(ctx context.Context, path string) 
 	// 检查路径是否存在
 	relPath, err := filepath.Rel(d.s.TargetPath, path)
 	if err != nil {
-		return "", "", fmt.Errorf("计算相对路径失败:%s %w", path, err)
+		return "", "", fmt.Errorf("计算相对路径失败：%s，%w", path, err)
 	}
 	relPath = filepath.ToSlash(relPath)
-	// 如果不以/开头，则加上/
+	// 如果不以 / 开头，则加上 /。
 	if !strings.HasPrefix(relPath, "/") {
 		relPath = "/" + relPath
 	}
 	// 分隔
 	pathParts := strings.Split(relPath, "/")
-	// 反向检查，找到哪一集不存在，再正向创建
+	// 反向检查，找到哪一级不存在，再正向创建
 	notExistIndex := -1
 	for i := len(pathParts) - 1; i >= 0; i-- {
 		dir := filepath.Join(pathParts[:i+1]...)
@@ -121,7 +121,7 @@ func (d *openListDriver) CreateDirRecursively(ctx context.Context, path string) 
 		dir := filepath.Join(pathParts[:i+1]...)
 		err := d.client.Mkdir(dir)
 		if err != nil {
-			return "", "", fmt.Errorf("创建目录失败: %s 错误：%v", dir, err)
+			return "", "", fmt.Errorf("创建目录失败：%s，错误：%v", dir, err)
 		}
 		// fullLocalPath := filepath.ToSlash(filepath.Join(d.s.TargetPath, dir))
 		// 将新添加的目录加入同步缓存
@@ -135,7 +135,7 @@ func (d *openListDriver) CreateDirRecursively(ctx context.Context, path string) 
 		}
 		syncFileCache.GetLocalFilePath(d.s.TargetPath, d.s.SourcePath)
 		d.s.memSyncCache.Insert(syncFileCache)
-		d.s.Sync.Logger.Infof("创建网盘目录: %s", dir)
+		d.s.Sync.Logger.Infof("创建网盘目录：%s", dir)
 	}
 	return relPath, relPath, nil
 }
@@ -143,7 +143,7 @@ func (d *openListDriver) CreateDirRecursively(ctx context.Context, path string) 
 func (d *openListDriver) GetPathIdByPath(ctx context.Context, path string) (string, error) {
 	fsDetail, err := d.client.FileDetail(path)
 	if err != nil || (fsDetail != nil && fsDetail.Name == "") {
-		return "", fmt.Errorf("路径 %s 不存在: %v", path, err)
+		return "", fmt.Errorf("路径 %s 不存在：%v", path, err)
 	}
 	return path, nil
 }
@@ -153,7 +153,7 @@ func (d *openListDriver) MakeStrmContent(sf *SyncFileCache) string {
 	if baseUrl == "" {
 		baseUrl = d.s.Account.BaseUrl
 	}
-	// 如果baseUrl以/结尾，删掉结尾的/
+	// 如果 baseURL 以 / 结尾，则删掉结尾的 /。
 	if before, ok := strings.CutSuffix(baseUrl, "/"); ok {
 		baseUrl = before
 	}
@@ -176,16 +176,16 @@ func (d *openListDriver) GetFilesByPathId(ctx context.Context, rootPathId string
 func (d *openListDriver) DetailByFileId(ctx context.Context, fileId string) (*SyncFileCache, error) {
 	fsDetail, err := d.client.FileDetail(fileId)
 	if err != nil || (fsDetail != nil && fsDetail.Name == "") {
-		return nil, fmt.Errorf("文件ID %s 不存在: %v", fileId, err)
+		return nil, fmt.Errorf("文件 ID %s 不存在：%v", fileId, err)
 	}
 	parentId := filepath.ToSlash(filepath.Dir(fileId))
 	var mtime int64
 	t, err := time.Parse(time.RFC3339, fsDetail.Modified)
 	if err != nil {
-		d.s.Sync.Logger.Errorf("解析时间格式失败: %v, 时间字符串: %s", err, fsDetail.Modified)
+		d.s.Sync.Logger.Errorf("解析时间格式失败：%v，时间字符串：%s", err, fsDetail.Modified)
 		mtime = 0 // 错误时使用默认值
 	} else {
-		mtime = t.Unix() // 转换为Unix时间戳（秒）
+		mtime = t.Unix() // 转换为 Unix 时间戳（秒）
 	}
 	fileItem := &SyncFileCache{
 		FileId:     fileId,

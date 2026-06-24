@@ -13,7 +13,7 @@ type NotificationChannel struct {
 	UpdatedAt   time.Time
 }
 
-// TelegramChannelConfig Telegram渠道配置
+// TelegramChannelConfig Telegram 渠道配置
 type TelegramChannelConfig struct {
 	ID        uint   `json:"id" gorm:"primaryKey"`
 	ChannelID uint   `json:"channel_id" gorm:"uniqueIndex:idx_telegram_channel"`
@@ -24,7 +24,7 @@ type TelegramChannelConfig struct {
 	UpdatedAt time.Time
 }
 
-// MeoWChannelConfig MeoW渠道配置
+// MeoWChannelConfig MeoW 渠道配置
 type MeoWChannelConfig struct {
 	ID        uint   `json:"id" gorm:"primaryKey"`
 	ChannelID uint   `json:"channel_id" gorm:"uniqueIndex:idx_meow_channel"`
@@ -34,7 +34,7 @@ type MeoWChannelConfig struct {
 	UpdatedAt time.Time
 }
 
-// BarkChannelConfig Bark渠道配置
+// BarkChannelConfig Bark 渠道配置
 type BarkChannelConfig struct {
 	ID        uint   `json:"id" gorm:"primaryKey"`
 	ChannelID uint   `json:"channel_id" gorm:"uniqueIndex:idx_bark_channel"`
@@ -124,7 +124,7 @@ type CustomWebhookChannelConfig struct {
 	Endpoint  string `json:"endpoint"`
 	Method    string `json:"method"`   // GET | POST
 	Template  string `json:"template"` // 模板字符串，支持 {{title}}, {{content}}, {{timestamp}}, {{image}}
-	Format    string `json:"format"`   // json | form | text (POST时必填)
+	Format    string `json:"format"`   // json | form | text（POST 时必填）
 	// 鉴权与扩展
 	AuthType      string `json:"auth_type"`                // none|bearer|basic|header|query
 	AuthToken     string `json:"auth_token"`               // bearer/header/query 使用
@@ -132,7 +132,7 @@ type CustomWebhookChannelConfig struct {
 	AuthPass      string `json:"auth_pass"`                // basic 密码
 	AuthHeaderKey string `json:"auth_header_key"`          // header 模式下的头名
 	AuthQueryKey  string `json:"auth_query_key"`           // query 模式下的查询参数名
-	Headers       string `json:"headers" gorm:"type:text"` // 额外头部(JSON对象字符串)
+	Headers       string `json:"headers" gorm:"type:text"` // 额外头部（JSON 对象字符串）
 	QueryParam    string `json:"query_param"`              // GET 模式下用于承载模板的参数名，默认 q
 	CreatedAt     time.Time
 	UpdatedAt     time.Time

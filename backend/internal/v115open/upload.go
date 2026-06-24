@@ -28,15 +28,15 @@ type DownloadUrlResp struct {
 	RespBaseBool[map[string]DownloadUrlData]
 }
 
-// ├─file_id	string	文件id
-// ├─parent_id	string	文件父目录id
+// ├─file_id	string	文件 ID
+// ├─parent_id	string	文件父目录 ID
 // ├─file_name	string	文件名称
 // ├─file_size	string	文件大小
 // ├─file_sha1	string	文件哈希值
 // ├─file_type	string	文件类型
 // ├─is_private	string	文件是否加密隐藏；0：否；1：是
 // ├─play_long	string	视频文件时长
-// ├─ user_def	int	视频文件记忆选中的清晰度；1:标清 2:高清 3:超清 4:1080P 5:4k;100:原画
+// ├─ user_def	int	视频文件记忆选中的清晰度；1:标清 2:高清 3:超清 4:1080P 5:4K;100:原画
 // ├─ user_rotate	int	记忆视频旋转角度；0, 90, 180, 270
 // ├─ user_turn	int	视频翻转方向：0：不翻转；1：水平翻转；2：垂直翻转
 // ├─ multitrack_list	array	视频多音轨列表
@@ -44,7 +44,7 @@ type DownloadUrlResp struct {
 //	├─ title	string	音轨标题
 //	├─ is_selected	string	音轨是否上次选中；1：选中
 //
-// ├─ definition_list_new	array	视频所有用可切换的清晰度列表;1:标清 2:高清 3:超清 4:1080P 5:4k;100:原画
+// ├─ definition_list_new	array	视频可切换清晰度列表；1:标清 2:高清 3:超清 4:1080P 5:4K;100:原画
 // ├─ video_url	array	视频各清晰度的播放地址信息
 //
 //	├─ url	string	播放地址
@@ -52,7 +52,7 @@ type DownloadUrlResp struct {
 //	├─ width	int	视频宽度
 //	├─ definition	int	视频清晰度
 //	├─ title	int	视频清晰度名称
-//	├─ definition_n	int	视频清晰度(新)
+//	├─ definition_n	int	视频清晰度（新）
 type VideoPlayUrlData struct {
 	FileId         string `json:"file_id"`
 	ParentId       string `json:"parent_id"`
@@ -82,9 +82,9 @@ type VideoPlayUrlData struct {
 
 // ├─ endpoint	string	上传域名
 // ├─ AccessKeySecret	string	上传凭证-密钥
-// ├─ SecurityToken	string	上传凭证-token
+// ├─ SecurityToken	string	上传凭证 Token
 // ├─ Expiration	string	上传凭证-过期日期
-// ├─ AccessKeyId	string	上传凭证-ID
+// ├─ AccessKeyId	string	上传凭证 ID
 
 type UploadToken struct {
 	Endpoint        string `json:"endpoint"`
@@ -122,12 +122,12 @@ func (c *OpenClient) GetDownloadUrl(ctx context.Context, pickCode string, userAg
 	config.BypassRateLimit = bypassRateLimit
 	_, respBytes, err := c.doAuthRequest(ctx, url, req, config, nil)
 	if err != nil {
-		helpers.V115Log.Errorf("获取文件下载地址失败: %v", err)
+		helpers.V115Log.Errorf("获取文件下载地址失败：%v", err)
 		return ""
 	}
 	jsonErr := json.Unmarshal(respBytes, &respData)
 	if jsonErr != nil || !respData.State {
-		helpers.V115Log.Errorf("获取文件下载地址失败: %v", jsonErr)
+		helpers.V115Log.Errorf("获取文件下载地址失败：%v", jsonErr)
 		return ""
 	}
 	data := respData.Data
@@ -150,7 +150,7 @@ func (c *OpenClient) GetVideoPlayUrl(ctx context.Context, pickCode string, userA
 	respData := &VideoPlayUrlData{}
 	_, _, err := c.doAuthRequest(ctx, url, req, MakeRequestConfig(0, 0, 0), respData)
 	if err != nil {
-		helpers.V115Log.Errorf("获取视频播放地址失败: %v", err)
+		helpers.V115Log.Errorf("获取视频播放地址失败：%v", err)
 		return nil
 	}
 	return respData
@@ -161,19 +161,19 @@ func (c *OpenClient) GetVideoPlayUrl(ctx context.Context, pickCode string, userA
 func (c *OpenClient) Upload(ctx context.Context, filePath string, parentFileId string, signKey string, signVal string) (string, error) {
 	fileInfo, err := os.Stat(filePath)
 	if err != nil {
-		helpers.V115Log.Errorf("获取文件信息失败: %v", err)
+		helpers.V115Log.Errorf("获取文件信息失败：%v", err)
 		return "", err
 	}
 	fileName := fileInfo.Name()
 	fileSize := fileInfo.Size()
 	fileSha1, err := helpers.FileSHA1(filePath)
 	if err != nil {
-		helpers.V115Log.Errorf("计算文件 SHA1 失败: %v", err)
+		helpers.V115Log.Errorf("计算文件 SHA1 失败：%v", err)
 		return "", err
 	}
 	preSha1, err := helpers.FileSHA1Partial(filePath, 0, 128)
 	if err != nil {
-		helpers.V115Log.Errorf("计算文件前128位 SHA1 失败: %v", err)
+		helpers.V115Log.Errorf("计算文件前 128 位 SHA1 失败：%v", err)
 		return "", err
 	}
 	params := map[string]string{
@@ -184,7 +184,7 @@ func (c *OpenClient) Upload(ctx context.Context, filePath string, parentFileId s
 		"pre_id":    preSha1,
 		"topupload": "0",
 	}
-	helpers.V115Log.Infof("准备上传文件: %s, 大小: %d, SHA1: %s, 前128位SHA1: %s, ParentId: %s, sign_key: %s, sign_val: %s\n", fileName, fileSize, fileSha1, preSha1, parentFileId, signKey, signVal)
+	helpers.V115Log.Infof("准备上传文件：%s，大小：%d，SHA1：%s，前 128 位 SHA1：%s，Parent ID：%s，sign_key：%s，sign_val：%s\n", fileName, fileSize, fileSha1, preSha1, parentFileId, signKey, signVal)
 	if signKey != "" && signVal != "" {
 		params["sign_key"] = signKey
 		params["sign_val"] = signVal
@@ -194,7 +194,7 @@ func (c *OpenClient) Upload(ctx context.Context, filePath string, parentFileId s
 	respData := &UploadResult[json.RawMessage]{}
 	_, _, uErr := c.doAuthRequest(ctx, url, req, MakeRequestConfig(1, 1, 15), respData)
 	if uErr != nil {
-		helpers.V115Log.Errorf("上传失败: %v", uErr)
+		helpers.V115Log.Errorf("上传失败：%v", uErr)
 		return "", uErr
 	}
 	status := respData.Status
@@ -202,19 +202,19 @@ func (c *OpenClient) Upload(ctx context.Context, filePath string, parentFileId s
 		// 需要二次认证
 		signCheck := respData.SignCheck
 		signKey := respData.SignKey
-		// 将signCheck用_分割
+		// 将 signCheck 用 - 分割
 		signParts := strings.Split(signCheck, "-")
 		if len(signParts) != 2 {
-			helpers.V115Log.Errorf("签名检查格式错误: %v", signParts)
-			return "", fmt.Errorf("签名检查格式错误: %v", signParts)
+			helpers.V115Log.Errorf("签名检查格式错误：%v", signParts)
+			return "", fmt.Errorf("签名检查格式错误：%v", signParts)
 		}
 		offset := helpers.StringToInt64(signParts[0])
 		length := helpers.StringToInt64(signParts[1])
-		helpers.V115Log.Warnf("需要二次认证: offset=%d, length=%d, sign_key=%s\n", offset, length, signKey)
+		helpers.V115Log.Warnf("需要二次认证：offset=%d，length=%d，sign_key=%s\n", offset, length, signKey)
 		signVal, _ := helpers.FileSHA1Partial(filePath, offset, length)
 		params["sign_key"] = signKey
 		params["sign_val"] = signVal
-		// fmt.Printf("二次认证参数: sign_key=%s, sign_val=%s\n", params["sign_key"], params["sign_val"])
+		// fmt.Printf("二次认证参数：sign_key=%s，sign_val=%s\n", params["sign_key"], params["sign_val"])
 		// 需要二次认证，再次请求接口
 		return c.Upload(ctx, filePath, parentFileId, signKey, signVal)
 	}
@@ -238,26 +238,26 @@ func (c *OpenClient) Upload(ctx context.Context, filePath string, parentFileId s
 			helpers.V115Log.Error("获取上传凭证失败")
 			return "", fmt.Errorf("获取上传凭证失败")
 		}
-		// 准备调用OSS对象存储上传文件，准备参数
+		// 准备调用 OSS 对象存储上传文件，准备参数
 		callbackData := &UploadResultCallBack{}
 		json.Unmarshal(respData.Callback, callbackData)
 		callback := callbackData.Callback
 		callbackVar := callbackData.CallbackVar
 		bucket := respData.Bucket
 		objectId := respData.Object
-		helpers.V115Log.Infof("OSS上传的参数: callback=%s, callback_var=%s, bucket=%s, object_id=%s, endpoint=%s, AccessKeyId=%s, AccessKeySecret=%s, SecurityToken=%s", callback, callbackVar, bucket, objectId, uploadToken.Endpoint, uploadToken.AccessKeyId, uploadToken.AccessKeySecret, uploadToken.SecurityToken)
+		helpers.V115Log.Infof("OSS 上传参数：callback=%s，callback_var=%s，bucket=%s，object_id=%s，endpoint=%s，AccessKeyId=%s，AccessKeySecret=%s，SecurityToken=%s", callback, callbackVar, bucket, objectId, uploadToken.Endpoint, uploadToken.AccessKeyId, uploadToken.AccessKeySecret, uploadToken.SecurityToken)
 		callbackResult, ossErr := OssUploadFile(uploadToken.Endpoint, uploadToken.AccessKeyId, uploadToken.AccessKeySecret, uploadToken.SecurityToken, bucket, objectId, callback, callbackVar, filePath, fileSize, fileSha1)
 		if ossErr != nil {
-			// helpers.V115Log.Error("OSS上传失败: %v", ossErr)
+			// helpers.V115Log.Error("OSS 上传失败：%v", ossErr)
 			return "", ossErr
 		}
 		if callbackResult == nil {
-			helpers.V115Log.Error("OSS上传回调结果为空")
-			return "", fmt.Errorf("OSS上传回调结果为空")
+			helpers.V115Log.Error("OSS 上传回调结果为空")
+			return "", fmt.Errorf("OSS 上传回调结果为空")
 		}
 		if callbackResult["message"].(string) != "" {
-			helpers.V115Log.Errorf("OSS上传回调失败: %v", callbackResult["message"])
-			return "", fmt.Errorf("OSS上传回调失败: %v", callbackResult["message"])
+			helpers.V115Log.Errorf("OSS 上传回调失败：%v", callbackResult["message"])
+			return "", fmt.Errorf("OSS 上传回调失败：%v", callbackResult["message"])
 		}
 
 		return callbackResult["data"].(map[string]interface{})["file_id"].(string), nil
@@ -265,7 +265,7 @@ func (c *OpenClient) Upload(ctx context.Context, filePath string, parentFileId s
 	return respData.FileId, nil
 }
 
-// 获取115上传凭证
+// 获取 115 上传凭证
 // GET /open/upload/get_token
 func (c *OpenClient) GetUploadToken(ctx context.Context) *UploadToken {
 	url := fmt.Sprintf("%s/open/upload/get_token", OPEN_BASE_URL)
@@ -273,7 +273,7 @@ func (c *OpenClient) GetUploadToken(ctx context.Context) *UploadToken {
 	respData := &UploadToken{}
 	_, _, uErr := c.doAuthRequest(ctx, url, req, MakeRequestConfig(0, 0, 0), respData)
 	if uErr != nil {
-		helpers.V115Log.Errorf("获取上传凭证失败: %v", uErr)
+		helpers.V115Log.Errorf("获取上传凭证失败：%v", uErr)
 		return nil
 	}
 	return respData
@@ -286,22 +286,22 @@ func (c *OpenClient) UploadResume(ctx context.Context, pickCode string, fileSize
 func OssUploadFile(endPoint string, accessKeyId string, accessKeySecret string, securityToken string, bucketName string, objectId string, callback string, callbackVar string, filePath string, fileSize int64, fileSha1 string) (map[string]any, error) {
 	cfg := oss.LoadDefaultConfig().
 		WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKeyId, accessKeySecret, securityToken)).
-		WithRegion("cn-shenzhen"). // 填写Bucket所在地域，以华东1（杭州）为例，Region填写为cn-hangzhou
-		WithEndpoint(endPoint)     // 填写Bucket所在地域对应的公网Endpoint。以华东1（杭州）为例，Endpoint填写为'https://oss-cn-hangzhou.aliyuncs.com'
-	// 创建OSS客户端
+		WithRegion("cn-shenzhen"). // 填写 Bucket 所在地域，以华东 1（杭州）为例，Region 填写为 cn-hangzhou
+		WithEndpoint(endPoint)     // 填写 Bucket 所在地域对应的公网 Endpoint。以华东 1（杭州）为例，Endpoint 填写为 https://oss-cn-hangzhou.aliyuncs.com
+	// 创建 OSS 客户端
 	client := oss.NewClient(cfg)
-	// 将回调参数转换为JSON并进行Base64编码，以便将其作为回调参数传递
+	// 将回调参数转换为 JSON 并进行 Base64 编码，以便将其作为回调参数传递
 	callbackJson := map[string]string{}
 	json.Unmarshal([]byte(callback), &callbackJson)
 	// 定义回调参数
 	callbackMap := map[string]string{
-		"callbackUrl":      callbackJson["callbackUrl"],         // 设置回调服务器的URL，例如https://example.com:23450。
+		"callbackUrl":      callbackJson["callbackUrl"],         // 设置回调服务器的 URL，例如 https://example.com:23450。
 		"callbackBody":     callbackJson["callbackBody"],        // 设置回调请求体。
-		"callbackBodyType": "application/x-www-form-urlencoded", //设置回调请求体类型。
+		"callbackBodyType": "application/x-www-form-urlencoded", // 设置回调请求体类型。
 	}
 	callbackStr, err := json.Marshal(callbackMap)
 	if err != nil {
-		helpers.V115Log.Errorf("failed to marshal callback map: %v", err)
+		helpers.V115Log.Errorf("序列化回调参数失败：%v", err)
 	}
 	callbackVarJsonMap := map[string]string{}
 	json.Unmarshal([]byte(callbackVar), &callbackVarJsonMap)
@@ -331,10 +331,10 @@ func OssUploadFile(endPoint string, accessKeyId string, accessKeySecret string, 
 	// 执行上传对象的请求
 	result, err := client.PutObjectFromFile(context.TODO(), putRequest, filePath)
 	if err != nil {
-		helpers.V115Log.Errorf("OSS上传失败： %v", err)
+		helpers.V115Log.Errorf("OSS 上传失败：%v", err)
 		return nil, err
 	}
 	// 打印上传对象的结果
-	helpers.V115Log.Infof("OSS上传结果:%#v\n", result)
+	helpers.V115Log.Infof("OSS 上传结果：%#v\n", result)
 	return result.CallbackResult, nil
 }

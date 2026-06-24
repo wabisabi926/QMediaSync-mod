@@ -7,15 +7,15 @@
       :label-width="120"
       class="proxy-form"
     >
-      <el-form-item label="HTTP代理地址" prop="proxy_url">
+      <el-form-item label="HTTP 代理地址" prop="proxy_url">
         <el-input
           v-model="proxyData.proxy_url"
-          placeholder="例如: http://127.0.0.1:7890 或 http://proxy.example.com:8080"
+          placeholder="例如：http://127.0.0.1:7890 或 http://proxy.example.com:8080"
           :disabled="proxyLoading"
           clearable
         />
         <div class="form-help">
-          支持HTTP代理，格式：http://[用户名:密码@]主机:端口，留空表示不使用代理
+          支持 HTTP 代理，格式：http://[用户名:密码@]主机:端口，留空表示不使用代理
         </div>
       </el-form-item>
       <el-form-item>
@@ -127,7 +127,7 @@ const testProxy = async () => {
       }
     }
   } catch (error) {
-    console.error('代理测试错误:', error)
+    console.error('代理测试错误：', error)
     proxyStatus.value = {
       title: '代理测试出错',
       type: 'error',
@@ -170,7 +170,7 @@ const saveProxy = async () => {
       }
     }
   } catch (error) {
-    console.error('保存代理设置错误:', error)
+    console.error('保存代理设置错误：', error)
     proxyStatus.value = {
       title: '保存设置出错',
       type: 'error',
@@ -190,7 +190,7 @@ const loadProxy = async () => {
       proxyData.proxy_url = response.data.data.http_proxy || ''
     }
   } catch (error) {
-    console.error('加载代理设置错误:', error)
+    console.error('加载代理设置错误：', error)
   }
 }
 

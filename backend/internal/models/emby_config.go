@@ -2,7 +2,7 @@ package models
 
 import "Q115-STRM/internal/db"
 
-// EmbyConfig 独立的Emby配置表
+// EmbyConfig 独立的 Emby 配置表
 type EmbyConfig struct {
 	BaseModel
 	EmbyUrl                 string `json:"emby_url" gorm:"type:varchar(500)"`
@@ -15,11 +15,11 @@ type EmbyConfig struct {
 	SyncEnabled             int    `json:"sync_enabled" gorm:"default:1"`
 	SyncCron                string `json:"sync_cron" gorm:"type:varchar(100);default:'*/5 * * * *'"`
 	LastSyncTime            int64  `json:"last_sync_time" gorm:"default:0"`
-	SelectedLibraries       string `json:"selected_libraries" gorm:"type:text;default:'[]'"` // 选中的媒体库ID列表（JSON格式）
+	SelectedLibraries       string `json:"selected_libraries" gorm:"type:text;default:'[]'"` // 选中的媒体库 ID 列表（JSON 格式）
 	SyncAllLibraries        int    `json:"sync_all_libraries" gorm:"default:1"`              // 是否同步所有媒体库（1=全部，0=部分）
 	EnablePlaybackOverview  int    `json:"enable_playback_overview" gorm:"default:0"`        // 播放通知是否显示剧情简介
 	EnablePlaybackProgress  int    `json:"enable_playback_progress" gorm:"default:0"`        // 播放通知是否显示播放进度
-	// DeleteNetdiskLibrary    string `json:"delete_netdisk_library" gorm:"type:varchar(200);default:''"` // 允许联动删除的媒体库ID，用,分隔, 空表示允许全部
+	// DeleteNetdiskLibrary    string `json:"delete_netdisk_library" gorm:"type:varchar(200);default:''"` // 允许联动删除的媒体库 ID，用英文逗号分隔，空表示允许全部
 }
 
 func (*EmbyConfig) TableName() string {
@@ -28,7 +28,7 @@ func (*EmbyConfig) TableName() string {
 
 var GlobalEmbyConfig *EmbyConfig
 
-// GetEmbyConfig 获取Emby配置
+// GetEmbyConfig 获取 Emby 配置
 func GetEmbyConfig() (*EmbyConfig, error) {
 	if GlobalEmbyConfig != nil {
 		return GlobalEmbyConfig, nil

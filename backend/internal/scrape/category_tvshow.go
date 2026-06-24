@@ -26,15 +26,15 @@ func (ct *CategoryTvShowImpl) DoCategory(mediaFile *models.ScrapeMediaFile) (str
 	var c *models.TvShowCategory
 	genres := mediaFile.Media.Genres
 	originalCountry := mediaFile.Media.OriginCountry
-	helpers.AppLogger.Infof("计算电视剧的二级分类，影片名称: %s 流派 %+v 和国家 %+v 的二级分类", mediaFile.Media.Name, genres, originalCountry)
+	helpers.AppLogger.Infof("计算电视剧二级分类，电视剧名称：%s，流派：%+v，国家：%+v", mediaFile.Media.Name, genres, originalCountry)
 	defaultCategory := ct.scrapePath.Category.TvShowCategory[0]
 	if len(genres) == 0 && len(originalCountry) > 0 {
-		helpers.AppLogger.Infof("电视剧只有国家 %+v 要求，没有流派", originalCountry)
+		helpers.AppLogger.Infof("电视剧只设置了国家要求：%+v，未设置流派要求", originalCountry)
 		// 只匹配有国家要求的
 	countryloop:
 		for _, country := range originalCountry {
 			for _, tvShowCategory := range ct.scrapePath.Category.TvShowCategory {
-				// helpers.AppLogger.Infof("检查电视剧 %s 国家 %+v 是否命中分类 %s 的国家: %+v", media.Name, originalCountry, tvShowCategory.Name, tvShowCategory.CountryArray)
+				// helpers.AppLogger.Infof("检查电视剧 %s 国家 %+v 是否命中分类 %s 的国家：%+v", media.Name, originalCountry, tvShowCategory.Name, tvShowCategory.CountryArray)
 				if slices.Contains(tvShowCategory.CountryArray, country) {
 					helpers.AppLogger.Infof("分类 %s 的国家 %+v 命中要求的国家 %s", tvShowCategory.Name, tvShowCategory.CountryArray, country)
 					c = tvShowCategory
@@ -49,17 +49,17 @@ func (ct *CategoryTvShowImpl) DoCategory(mediaFile *models.ScrapeMediaFile) (str
 			c = defaultCategory
 		}
 	} else if len(genres) > 0 && len(originalCountry) == 0 {
-		helpers.AppLogger.Infof("只有流派 %+v 要求，不匹配国家", genres)
+		helpers.AppLogger.Infof("只设置了流派要求：%+v，未设置国家要求", genres)
 		// 只匹配有流派要求的
 	gennerloop:
 		for _, genre := range genres {
 			for _, tvShowCategory := range ct.scrapePath.Category.TvShowCategory {
 				if slices.Contains(tvShowCategory.GenreIdArray, genre.ID) {
-					helpers.AppLogger.Debugf("流派ID %d 命中分类 %s 的流派ID: %+v", genre.ID, tvShowCategory.Name, tvShowCategory.GenreIdArray)
+					helpers.AppLogger.Debugf("流派 ID %d 命中分类 %s 的流派 ID：%+v", genre.ID, tvShowCategory.Name, tvShowCategory.GenreIdArray)
 					c = tvShowCategory
 					break gennerloop
 				} else {
-					helpers.AppLogger.Infof("流派ID %d 未命中分类 %s 的流派ID: %+v", genre.ID, tvShowCategory.Name, tvShowCategory.GenreIdArray)
+					helpers.AppLogger.Infof("流派 ID %d 未命中分类 %s 的流派 ID：%+v", genre.ID, tvShowCategory.Name, tvShowCategory.GenreIdArray)
 				}
 			}
 		}
@@ -69,12 +69,12 @@ func (ct *CategoryTvShowImpl) DoCategory(mediaFile *models.ScrapeMediaFile) (str
 		}
 	} else {
 		// 匹配同时有流派和国家要求的
-		// 取fc和fl的交集
+		// 取流派命中和国家命中的交集
 		fC := make([]*models.TvShowCategory, 0)
 		fCA := make([]*models.TvShowCategory, 0)
 		fL := make([]*models.TvShowCategory, 0)
 		fLA := make([]*models.TvShowCategory, 0)
-		// 检查流派ID是否命中
+		// 检查流派 ID 是否命中
 		for _, genre := range genres {
 			for _, tvShowCategory := range ct.scrapePath.Category.TvShowCategory {
 				if tvShowCategory.GenreIdArray == nil || (tvShowCategory.GenreIdArray != nil && len(tvShowCategory.GenreIdArray) == 0) {
@@ -82,7 +82,7 @@ func (ct *CategoryTvShowImpl) DoCategory(mediaFile *models.ScrapeMediaFile) (str
 					fCA = append(fCA, tvShowCategory)
 				}
 				if slices.Contains(tvShowCategory.GenreIdArray, genre.ID) {
-					helpers.AppLogger.Debugf("流派ID %d 命中分类 %s 的流派ID: %+v", genre.ID, tvShowCategory.Name, tvShowCategory.GenreIdArray)
+					helpers.AppLogger.Debugf("流派 ID %d 命中分类 %s 的流派 ID：%+v", genre.ID, tvShowCategory.Name, tvShowCategory.GenreIdArray)
 					fC = append(fC, tvShowCategory)
 				}
 			}
@@ -112,14 +112,14 @@ func (ct *CategoryTvShowImpl) DoCategory(mediaFile *models.ScrapeMediaFile) (str
 			for _, tempC := range fC {
 				if slices.Contains(fL, tempC) {
 					c = tempC
-					helpers.AppLogger.Infof("取流派ID和国家均命中的分类 %d=>%s", c.ID, c.Name)
+					helpers.AppLogger.Infof("取流派 ID 和国家均命中的分类 %d => %s", c.ID, c.Name)
 					break
 				}
 			}
 			// 如果没有交集，优先匹配流派
 			if c == nil {
 				c = fC[0]
-				helpers.AppLogger.Infof("取流派ID命中的分类 %d=>%s", c.ID, c.Name)
+				helpers.AppLogger.Infof("取流派 ID 命中的分类 %d => %s", c.ID, c.Name)
 			}
 		}
 		// 如果有精确的国家命中，没有精确的流派命中
@@ -127,7 +127,7 @@ func (ct *CategoryTvShowImpl) DoCategory(mediaFile *models.ScrapeMediaFile) (str
 			for _, tempL := range fL {
 				if slices.Contains(fL, tempL) {
 					c = tempL
-					helpers.AppLogger.Infof("取国家命中的分类 %d=>%s", c.ID, c.Name)
+					helpers.AppLogger.Infof("取国家命中的分类 %d => %s", c.ID, c.Name)
 					break
 				}
 			}
@@ -137,7 +137,7 @@ func (ct *CategoryTvShowImpl) DoCategory(mediaFile *models.ScrapeMediaFile) (str
 			for _, tempC := range fC {
 				if slices.Contains(fC, tempC) {
 					c = tempC
-					helpers.AppLogger.Infof("取流派ID命中的分类 %d=>%s", c.ID, c.Name)
+					helpers.AppLogger.Infof("取流派 ID 命中的分类 %d => %s", c.ID, c.Name)
 					break
 				}
 			}
@@ -147,18 +147,18 @@ func (ct *CategoryTvShowImpl) DoCategory(mediaFile *models.ScrapeMediaFile) (str
 			// 没有交集，优先取有流派要求的分类
 			if len(fCA) > 0 {
 				c = fCA[0]
-				helpers.AppLogger.Infof("取没有流派要求的分类 %d=>%s", c.ID, c.Name)
+				helpers.AppLogger.Infof("取没有流派要求的分类 %d => %s", c.ID, c.Name)
 			} else if len(fLA) > 0 {
 				c = fLA[0]
-				helpers.AppLogger.Infof("取没有国家要求的分类 %d=>%s", c.ID, c.Name)
+				helpers.AppLogger.Infof("取没有国家要求的分类 %d => %s", c.ID, c.Name)
 			} else {
 				// 没有交集，返回默认分类
 				c = defaultCategory
-				helpers.AppLogger.Infof("流派ID和国家均未命中分类, 自动选择默认分类 %d=>%s", c.ID, c.Name)
+				helpers.AppLogger.Infof("流派 ID 和国家均未命中分类，自动选择默认分类 %d => %s", c.ID, c.Name)
 			}
 		}
 	}
-	// 取c对应的ScrapePathCategory
+	// 取 c 对应的 ScrapePathCategory
 	for _, spC := range ct.scrapePath.Category.PathCategory {
 		if spC.CategoryId == c.ID {
 			return c.Name, spC

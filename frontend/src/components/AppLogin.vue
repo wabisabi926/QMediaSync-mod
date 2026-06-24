@@ -117,7 +117,7 @@ const handleLogin = async () => {
 
     loading.value = true
 
-    // 使用JSON格式发送请求，以支持rememberMe参数
+    // 使用 JSON 格式发送请求，以支持 rememberMe 参数
     const response = await http?.post(
       `${SERVER_URL}/login`,
       {
@@ -147,7 +147,7 @@ const handleLogin = async () => {
       ElMessage.error(response?.data.message || '登录失败')
     }
   } catch (error: unknown) {
-    console.error('登录错误:', error)
+    console.error('登录错误：', error)
     let errorMsg = '登录失败，请检查网络连接'
 
     if (error && typeof error === 'object' && 'response' in error) {

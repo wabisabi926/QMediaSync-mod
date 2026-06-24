@@ -34,17 +34,17 @@ export function getFileType(filename: string): FileType {
   const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tga']
   if (imageExtensions.includes(ext)) return 'image'
 
-  // NFO信息文件
+  // NFO 信息文件
   if (ext === 'nfo') return 'nfo'
 
   return 'other'
 }
 
 /**
- * 根据文件类型获取对应的Element Plus图标
+ * 根据文件类型获取对应的 Element Plus 图标
  * @param type 文件类型
  * @param isDirectory 是否为目录
- * @returns Element Plus图标名称
+ * @returns Element Plus 图标名称
  */
 export function getFileIcon(type: FileType, isDirectory = false): string {
   if (isDirectory) return 'Folder'
@@ -65,7 +65,7 @@ export function getFileIcon(type: FileType, isDirectory = false): string {
  * 根据文件名直接获取图标
  * @param filename 文件名
  * @param isDirectory 是否为目录
- * @returns Element Plus图标名称
+ * @returns Element Plus 图标名称
  */
 export function getFileIconByName(filename: string, isDirectory = false): string {
   const type = getFileType(filename)

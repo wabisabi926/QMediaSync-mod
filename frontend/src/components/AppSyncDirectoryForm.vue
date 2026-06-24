@@ -4,7 +4,7 @@
       <el-icon>
         <ArrowLeft />
       </el-icon>
-      返回STRM同步目录
+      返回 STRM 同步目录
     </el-button>
 
     <template v-if="checkIsMobile">
@@ -34,10 +34,11 @@
           </el-select>
           <div class="form-tip">
             <div v-if="form.source_type === 'local'">
-              本地目录可以通过CD2间接支持更多网盘，请将CD2的本地挂载目录映射到容器中（如果使用docker）,然后选择该目录
+              如果通过 CD2 挂载其他网盘，请把 CD2 的本地挂载目录映射到容器中（Docker
+              部署时尤其需要），然后选择该目录
             </div>
-            <div v-if="form.source_type === '115'">需要先添加用于同步的115账号并授权</div>
-            <div v-if="form.source_type === '123'">需要先添加用于同步的123账号并授权</div>
+            <div v-if="form.source_type === '115'">需要先添加用于同步的 115 账号并授权</div>
+            <div v-if="form.source_type === '123'">需要先添加用于同步的 123 账号并授权</div>
           </div>
         </el-form-item>
         <el-form-item
@@ -106,11 +107,11 @@
               选择目录
             </el-button>
           </div>
-          <div class="form-tip">选择本地目录作为STRM文件的存放位置</div>
+          <div class="form-tip">选择本地目录作为 STRM 文件的存放位置</div>
         </el-form-item>
 
         <el-form-item
-          label="STRM存放目录"
+          label="STRM 存放目录"
           v-if="
             (form.source_type !== 'local' && form.account_id) ||
             form.source_type === 'local' ||
@@ -123,10 +124,10 @@
             :disabled="true"
             readonly
           />
-          <div class="form-tip">STRM和元数据实际存放目录（自动生成）</div>
+          <div class="form-tip">STRM 和元数据实际存放目录（自动生成）</div>
         </el-form-item>
 
-        <el-form-item label="是否自定义设置" prop="custom_config">
+        <el-form-item label="自定义设置" prop="custom_config">
           <el-switch
             v-model="form.custom_config"
             :active-value="true"
@@ -134,7 +135,7 @@
             :disabled="loading"
           />
           <div class="form-tip">
-            开启后可自定义视频扩展名和元数据扩展名配置，否则使用strm设置中的值
+            开启后可自定义视频扩展名和元数据扩展名配置，否则使用 STRM 设置中的值
           </div>
         </el-form-item>
 
@@ -151,19 +152,19 @@
           <el-form-item label="定时同步表达式" prop="cron">
             <el-input
               v-model="form.cron"
-              placeholder="留空则使用STRM设置中的表达式"
+              placeholder="留空则使用 STRM 设置中的表达式"
               :disabled="loading"
               @blur="loadCronTimes"
             />
             <div class="form-help">
               <p><strong>常用示例：</strong></p>
               <ul class="cron-examples">
-                <li><code>0 0 * * *</code> - 每天0点执行</li>
-                <li><code>0 */6 * * *</code> - 每6小时执行一次</li>
-                <li><code>0 2 * * *</code> - 每天凌晨2点执行</li>
+                <li><code>0 0 * * *</code> - 每天 0 点执行</li>
+                <li><code>0 */6 * * *</code> - 每 6 小时执行一次</li>
+                <li><code>0 2 * * *</code> - 每天凌晨 2 点执行</li>
               </ul>
               <div v-if="cronTimes.length > 0" class="cron-next-times">
-                <p><strong>下5次执行时间：</strong></p>
+                <p><strong>下 5 次执行时间：</strong></p>
                 <div v-loading="cronTimesLoading" class="cron-times-list">
                   <div v-for="(time, index) in cronTimes" :key="index" class="cron-time-item">
                     <el-tag type="info" size="small">{{ time }}</el-tag>
@@ -172,10 +173,10 @@
               </div>
             </div>
           </el-form-item>
-          <el-form-item label="STRM直连地址" prop="strm_base_url">
+          <el-form-item label="STRM 直连地址" prop="strm_base_url">
             <el-input
               v-model="form.strm_base_url"
-              placeholder="留空则使用STRM设置中的地址"
+              placeholder="留空则使用 STRM 设置中的地址"
               :disabled="loading"
               @input="updateStrmExample"
             />
@@ -183,7 +184,9 @@
               <span class="example-label">示例：</span>
               <code class="example-url">{{ strmExample }}</code>
             </div>
-            <div class="form-tip">STRM文件将使用此地址作为基础URL，留空则使用STRM设置中的值</div>
+            <div class="form-tip">
+              STRM 文件将使用此地址作为基础 URL，留空则使用 STRM 设置中的值
+            </div>
           </el-form-item>
           <el-form-item label="最小视频文件大小 (MB)" prop="min_video_size">
             <el-slider
@@ -196,14 +199,16 @@
               show-input
             />
             <div class="form-help">
-              <p>小于此大小的视频文件将不会生成STRM文件，单位为MB。设置为0表示不限制文件大小</p>
+              <p>
+                小于此大小的视频文件将不会生成 STRM 文件，单位为 MB。设置为 0 表示不限制文件大小
+              </p>
             </div>
           </el-form-item>
           <el-form-item label="视频扩展名" prop="video_ext">
             <div class="ext-input-wrapper">
               <MetadataExtInput
                 v-model="form.video_ext"
-                placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
+                placeholder="输入扩展名后按回车添加，也可用逗号或换行分隔"
                 class="meta-ext-input limited-width-input"
               />
               <el-button
@@ -212,16 +217,16 @@
                 @click="importFromStrmSettings('video_ext')"
                 :loading="importStrmSettingsLoading"
               >
-                从STRM设置导入
+                从 STRM 设置导入
               </el-button>
             </div>
-            <div class="form-tip">指定需要生成STRM文件的视频文件扩展名</div>
+            <div class="form-tip">指定需要生成 STRM 文件的视频文件扩展名</div>
           </el-form-item>
           <el-form-item label="元数据扩展名" prop="meta_ext">
             <div class="ext-input-wrapper">
               <MetadataExtInput
                 v-model="form.meta_ext"
-                placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
+                placeholder="输入扩展名后按回车添加，也可用逗号或换行分隔"
                 class="meta-ext-input limited-width-input"
               />
               <el-button
@@ -230,7 +235,7 @@
                 @click="importFromStrmSettings('meta_ext')"
                 :loading="importStrmSettingsLoading"
               >
-                从STRM设置导入
+                从 STRM 设置导入
               </el-button>
             </div>
             <div class="form-tip">指定需要同步的元数据文件扩展名</div>
@@ -239,31 +244,29 @@
             <MetadataExtInput
               v-model="form.exclude_name"
               :autoAddDot="false"
-              placeholder="输入文件名后按回车添加，逗号或者分行分隔"
+              placeholder="输入文件名后按回车添加，也可用逗号或换行分隔"
               class="meta-ext-input limited-width-input"
             />
-            <div class="form-tip">
-              指定需要排除同步的名称，必须输入完整，可以是文件夹名字或者文件名字
-            </div>
+            <div class="form-tip">指定需要排除同步的完整名称，可填写文件夹名或文件名</div>
           </el-form-item>
-          <el-form-item label="是否下载元数据" prop="download_meta">
+          <el-form-item label="下载元数据" prop="download_meta">
             <el-radio-group v-model="form.download_meta">
-              <el-radio-button :label="-1">使用STRM设置</el-radio-button>
+              <el-radio-button :label="-1">使用 STRM 设置</el-radio-button>
               <el-radio-button :label="1">是</el-radio-button>
               <el-radio-button :label="0">否</el-radio-button>
             </el-radio-group>
             <div class="form-help">
-              <p>如果选择是，同步时会将本地不存在的元数据文件下载回来</p>
+              <p>选择“是”时，同步会下载本地缺失的元数据文件</p>
               <p>
-                如果选择否，同步时不会下载，<strong style="color: black"
-                  >但是也同时跳过处理元数据，已存在的会保留，新增的不会上传</strong
+                选择“否”时，同步不会下载缺失的元数据，<strong style="color: black"
+                  >后续元数据处理也会跳过：已存在的保留，新增的不上传</strong
                 >
               </p>
             </div>
           </el-form-item>
           <el-form-item label="网盘不存在的元数据" prop="upload_meta">
             <el-radio-group v-model="form.upload_meta">
-              <el-radio-button :label="-1">使用STRM设置</el-radio-button>
+              <el-radio-button :label="-1">使用 STRM 设置</el-radio-button>
               <el-radio-button :label="2" :disabled="form.download_meta === 0"
                 >删除</el-radio-button
               >
@@ -273,28 +276,29 @@
               <el-radio-button :label="0">保留</el-radio-button>
             </el-radio-group>
             <div class="form-help">
-              <p>删除: 本地存在且网盘不存在则删除本地文件</p>
+              <p>删除：本地存在但网盘不存在时，删除本地文件</p>
               <p>
-                上传: 本地存在且网盘不存在，分三种情况: <br />
+                上传：本地存在但网盘不存在时，按以下规则处理：<br />
                 &nbsp;&nbsp;&nbsp;&nbsp;1. 父目录在网盘存在则上传<br />
                 &nbsp;&nbsp;&nbsp;&nbsp;2. 父目录在网盘不存在（网盘已删除）则删除本地文件<br />
-                &nbsp;&nbsp;&nbsp;&nbsp;3.
-                父目录是特定名字，则创建父目录并上传，特定名字包括："extrafanart", "exfanarts",
-                "extrafanarts", "extras", "specials", "shorts", "scenes", "featurettes", "behind the
-                scenes", "trailers", "interviews",
+                &nbsp;&nbsp;&nbsp;&nbsp;3. 父目录名属于特殊目录时，创建父目录后上传，特殊目录包括：
+                <code>extrafanart</code
+                >、<code>exfanarts</code>、<code>extrafanarts</code>、<code>extras</code>、<code>specials</code>、<code>shorts</code>、<code>scenes</code>、<code>featurettes</code>、<code
+                  >behind the scenes</code
+                >、<code>trailers</code>、<code>interviews</code>
               </p>
-              <p>保留：不会删除本地文件，不管网盘有没有删除它</p>
+              <p>保留：不处理本地文件，即使网盘中已经不存在</p>
             </div>
           </el-form-item>
-          <el-form-item label="是否检查元数据修改时间" prop="check_meta_mtime">
+          <el-form-item label="检查元数据修改时间" prop="check_meta_mtime">
             <el-radio-group v-model="form.check_meta_mtime">
-              <el-radio-button :label="-1">使用STRM设置</el-radio-button>
+              <el-radio-button :label="-1">使用 STRM 设置</el-radio-button>
               <el-radio-button :label="1">是</el-radio-button>
               <el-radio-button :label="0">否</el-radio-button>
             </el-radio-group>
             <div class="form-help">
               <p>
-                如果选择是，会有两种情况：<br />
+                选择“是”时会比较网盘和本地文件的修改时间：<br />
                 &nbsp;&nbsp;&nbsp;&nbsp;1.
                 网盘文件修改时间比本地文件新，则下载网盘文件替换本地文件<br />
                 &nbsp;&nbsp;&nbsp;&nbsp;2. 网盘文件修改时间比本地文件旧，则上传本地文件到网盘
@@ -303,22 +307,22 @@
           </el-form-item>
           <el-form-item label="网盘不存在的空目录" prop="delete_dir">
             <el-radio-group v-model="form.delete_dir">
-              <el-radio-button :label="-1">使用STRM设置</el-radio-button>
+              <el-radio-button :label="-1">使用 STRM 设置</el-radio-button>
               <el-radio-button :label="1">删除</el-radio-button>
               <el-radio-button :label="0">不删除</el-radio-button>
             </el-radio-group>
             <div class="form-help">
-              <p>同步完成后是否删除本地存在但网盘不存在的目录，该本地目录必须是空目录</p>
+              <p>同步完成后，删除本地存在但网盘不存在的空目录</p>
             </div>
           </el-form-item>
-          <el-form-item label="给strm链接添加路径" prop="add_path">
+          <el-form-item label="给 STRM 链接添加路径" prop="add_path">
             <el-radio-group v-model="form.add_path">
-              <el-radio-button :label="-1">使用STRM设置</el-radio-button>
+              <el-radio-button :label="-1">使用 STRM 设置</el-radio-button>
               <el-radio-button :label="1">添加</el-radio-button>
               <el-radio-button :label="2">不添加</el-radio-button>
             </el-radio-group>
             <div class="form-help">
-              <p>是否给strm链接添加路径</p>
+              <p>开启后会在 STRM 链接中附加原始路径，便于排查问题，也可兼容部分播放器</p>
             </div>
           </el-form-item>
         </template>
@@ -361,10 +365,11 @@
           </el-select>
           <div class="form-tip">
             <div v-if="form.source_type === 'local'">
-              本地目录可以通过CD2间接支持更多网盘，请将CD2的本地挂载目录映射到容器中（如果使用docker）,然后选择该目录
+              如果通过 CD2 挂载其他网盘，请把 CD2 的本地挂载目录映射到容器中（Docker
+              部署时尤其需要），然后选择该目录
             </div>
-            <div v-if="form.source_type === '115'">需要先添加用于同步的115账号并授权</div>
-            <div v-if="form.source_type === '123'">需要先添加用于同步的123账号并授权</div>
+            <div v-if="form.source_type === '115'">需要先添加用于同步的 115 账号并授权</div>
+            <div v-if="form.source_type === '123'">需要先添加用于同步的 123 账号并授权</div>
           </div>
         </el-form-item>
         <el-form-item
@@ -433,11 +438,11 @@
               选择目录
             </el-button>
           </div>
-          <div class="form-tip">选择本地目录作为STRM文件的存放位置</div>
+          <div class="form-tip">选择本地目录作为 STRM 文件的存放位置</div>
         </el-form-item>
 
         <el-form-item
-          label="STRM存放目录"
+          label="STRM 存放目录"
           v-if="
             (form.source_type !== 'local' && form.account_id) ||
             form.source_type === 'local' ||
@@ -450,10 +455,10 @@
             :disabled="true"
             readonly
           />
-          <div class="form-tip">STRM和元数据实际存放目录（自动生成）</div>
+          <div class="form-tip">STRM 和元数据实际存放目录（自动生成）</div>
         </el-form-item>
 
-        <el-form-item label="是否自定义设置" prop="custom_config">
+        <el-form-item label="自定义设置" prop="custom_config">
           <el-switch
             v-model="form.custom_config"
             :active-value="true"
@@ -461,7 +466,7 @@
             :disabled="loading"
           />
           <div class="form-tip">
-            开启后可自定义视频扩展名和元数据扩展名配置，否则使用strm设置中的值
+            开启后可自定义视频扩展名和元数据扩展名配置，否则使用 STRM 设置中的值
           </div>
         </el-form-item>
 
@@ -478,19 +483,19 @@
           <el-form-item label="定时同步表达式" prop="cron">
             <el-input
               v-model="form.cron"
-              placeholder="留空则使用STRM设置中的表达式"
+              placeholder="留空则使用 STRM 设置中的表达式"
               :disabled="loading"
               @blur="loadCronTimes"
             />
             <div class="form-help">
               <p><strong>常用示例：</strong></p>
               <ul class="cron-examples">
-                <li><code>0 0 * * *</code> - 每天0点执行</li>
-                <li><code>0 */6 * * *</code> - 每6小时执行一次</li>
-                <li><code>0 2 * * *</code> - 每天凌晨2点执行</li>
+                <li><code>0 0 * * *</code> - 每天 0 点执行</li>
+                <li><code>0 */6 * * *</code> - 每 6 小时执行一次</li>
+                <li><code>0 2 * * *</code> - 每天凌晨 2 点执行</li>
               </ul>
               <div v-if="cronTimes.length > 0" class="cron-next-times">
-                <p><strong>下5次执行时间：</strong></p>
+                <p><strong>下 5 次执行时间：</strong></p>
                 <div v-loading="cronTimesLoading" class="cron-times-list">
                   <div v-for="(time, index) in cronTimes" :key="index" class="cron-time-item">
                     <el-tag type="info" size="small">{{ time }}</el-tag>
@@ -499,10 +504,10 @@
               </div>
             </div>
           </el-form-item>
-          <el-form-item label="STRM直连地址" prop="strm_base_url">
+          <el-form-item label="STRM 直连地址" prop="strm_base_url">
             <el-input
               v-model="form.strm_base_url"
-              placeholder="留空则使用STRM设置中的地址"
+              placeholder="留空则使用 STRM 设置中的地址"
               :disabled="loading"
               @input="updateStrmExample"
             />
@@ -510,7 +515,9 @@
               <span class="example-label">示例：</span>
               <code class="example-url">{{ strmExample }}</code>
             </div>
-            <div class="form-tip">STRM文件将使用此地址作为基础URL，留空则使用STRM设置中的值</div>
+            <div class="form-tip">
+              STRM 文件将使用此地址作为基础 URL，留空则使用 STRM 设置中的值
+            </div>
           </el-form-item>
           <el-form-item label="最小视频文件大小 (MB)" prop="min_video_size">
             <el-slider
@@ -523,14 +530,16 @@
               show-input
             />
             <div class="form-help">
-              <p>小于此大小的视频文件将不会生成STRM文件，单位为MB。设置为0表示不限制文件大小</p>
+              <p>
+                小于此大小的视频文件将不会生成 STRM 文件，单位为 MB。设置为 0 表示不限制文件大小
+              </p>
             </div>
           </el-form-item>
           <el-form-item label="视频扩展名" prop="video_ext">
             <div class="ext-input-wrapper">
               <MetadataExtInput
                 v-model="form.video_ext"
-                placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
+                placeholder="输入扩展名后按回车添加，也可用逗号或换行分隔"
                 class="meta-ext-input limited-width-input"
               />
               <el-button
@@ -539,16 +548,16 @@
                 @click="importFromStrmSettings('video_ext')"
                 :loading="importStrmSettingsLoading"
               >
-                从STRM设置导入
+                从 STRM 设置导入
               </el-button>
             </div>
-            <div class="form-tip">指定需要生成STRM文件的视频文件扩展名</div>
+            <div class="form-tip">指定需要生成 STRM 文件的视频文件扩展名</div>
           </el-form-item>
           <el-form-item label="元数据扩展名" prop="meta_ext">
             <div class="ext-input-wrapper">
               <MetadataExtInput
                 v-model="form.meta_ext"
-                placeholder="输入扩展名后按回车添加，逗号或者分行分隔"
+                placeholder="输入扩展名后按回车添加，也可用逗号或换行分隔"
                 class="meta-ext-input limited-width-input"
               />
               <el-button
@@ -557,7 +566,7 @@
                 @click="importFromStrmSettings('meta_ext')"
                 :loading="importStrmSettingsLoading"
               >
-                从STRM设置导入
+                从 STRM 设置导入
               </el-button>
             </div>
             <div class="form-tip">指定需要同步的元数据文件扩展名</div>
@@ -566,31 +575,29 @@
             <MetadataExtInput
               v-model="form.exclude_name"
               :autoAddDot="false"
-              placeholder="输入文件名后按回车添加，逗号或者分行分隔"
+              placeholder="输入文件名后按回车添加，也可用逗号或换行分隔"
               class="meta-ext-input limited-width-input"
             />
-            <div class="form-tip">
-              指定需要排除同步的名称，必须输入完整，可以是文件夹名字或者文件名字
-            </div>
+            <div class="form-tip">指定需要排除同步的完整名称，可填写文件夹名或文件名</div>
           </el-form-item>
-          <el-form-item label="是否下载元数据" prop="download_meta">
+          <el-form-item label="下载元数据" prop="download_meta">
             <el-radio-group v-model="form.download_meta">
-              <el-radio-button :label="-1">使用STRM设置</el-radio-button>
+              <el-radio-button :label="-1">使用 STRM 设置</el-radio-button>
               <el-radio-button :label="1">是</el-radio-button>
               <el-radio-button :label="0">否</el-radio-button>
             </el-radio-group>
             <div class="form-help">
-              <p>如果选择是，同步时会将本地不存在的元数据文件下载回来</p>
+              <p>选择“是”时，同步会下载本地缺失的元数据文件</p>
               <p>
-                如果选择否，同步时不会下载，<strong style="color: black"
-                  >但是也同时跳过处理元数据，已存在的会保留，新增的不会上传</strong
+                选择“否”时，同步不会下载缺失的元数据，<strong style="color: black"
+                  >后续元数据处理也会跳过：已存在的保留，新增的不上传</strong
                 >
               </p>
             </div>
           </el-form-item>
           <el-form-item label="网盘不存在的元数据" prop="upload_meta">
             <el-radio-group v-model="form.upload_meta">
-              <el-radio-button :label="-1">使用STRM设置</el-radio-button>
+              <el-radio-button :label="-1">使用 STRM 设置</el-radio-button>
               <el-radio-button :label="2" :disabled="form.download_meta === 0"
                 >删除</el-radio-button
               >
@@ -600,28 +607,29 @@
               <el-radio-button :label="0">保留</el-radio-button>
             </el-radio-group>
             <div class="form-help">
-              <p>删除: 本地存在且网盘不存在则删除本地文件</p>
+              <p>删除：本地存在但网盘不存在时，删除本地文件</p>
               <p>
-                上传: 本地存在且网盘不存在，分三种情况: <br />
+                上传：本地存在但网盘不存在时，按以下规则处理：<br />
                 &nbsp;&nbsp;&nbsp;&nbsp;1. 父目录在网盘存在则上传<br />
                 &nbsp;&nbsp;&nbsp;&nbsp;2. 父目录在网盘不存在（网盘已删除）则删除本地文件<br />
-                &nbsp;&nbsp;&nbsp;&nbsp;3.
-                父目录是特定名字，则创建父目录并上传，特定名字包括："extrafanart", "exfanarts",
-                "extrafanarts", "extras", "specials", "shorts", "scenes", "featurettes", "behind the
-                scenes", "trailers", "interviews",
+                &nbsp;&nbsp;&nbsp;&nbsp;3. 父目录名属于特殊目录时，创建父目录后上传，特殊目录包括：
+                <code>extrafanart</code
+                >、<code>exfanarts</code>、<code>extrafanarts</code>、<code>extras</code>、<code>specials</code>、<code>shorts</code>、<code>scenes</code>、<code>featurettes</code>、<code
+                  >behind the scenes</code
+                >、<code>trailers</code>、<code>interviews</code>
               </p>
-              <p>保留：不会删除本地文件，不管网盘有没有删除它</p>
+              <p>保留：不处理本地文件，即使网盘中已经不存在</p>
             </div>
           </el-form-item>
-          <el-form-item label="是否检查元数据修改时间" prop="check_meta_mtime">
+          <el-form-item label="检查元数据修改时间" prop="check_meta_mtime">
             <el-radio-group v-model="form.check_meta_mtime">
-              <el-radio-button :label="-1">使用STRM设置</el-radio-button>
+              <el-radio-button :label="-1">使用 STRM 设置</el-radio-button>
               <el-radio-button :label="1">是</el-radio-button>
               <el-radio-button :label="0">否</el-radio-button>
             </el-radio-group>
             <div class="form-help">
               <p>
-                如果选择是，会有两种情况：<br />
+                选择“是”时会比较网盘和本地文件的修改时间：<br />
                 &nbsp;&nbsp;&nbsp;&nbsp;1.
                 网盘文件修改时间比本地文件新，则下载网盘文件替换本地文件<br />
                 &nbsp;&nbsp;&nbsp;&nbsp;2. 网盘文件修改时间比本地文件旧，则上传本地文件到网盘
@@ -630,22 +638,22 @@
           </el-form-item>
           <el-form-item label="网盘不存在的空目录" prop="delete_dir">
             <el-radio-group v-model="form.delete_dir">
-              <el-radio-button :label="-1">使用STRM设置</el-radio-button>
+              <el-radio-button :label="-1">使用 STRM 设置</el-radio-button>
               <el-radio-button :label="1">删除</el-radio-button>
               <el-radio-button :label="0">不删除</el-radio-button>
             </el-radio-group>
             <div class="form-help">
-              <p>同步完成后是否删除本地存在但网盘不存在的目录，该本地目录必须是空目录</p>
+              <p>同步完成后，删除本地存在但网盘不存在的空目录</p>
             </div>
           </el-form-item>
-          <el-form-item label="给strm链接添加路径" prop="add_path">
+          <el-form-item label="给 STRM 链接添加路径" prop="add_path">
             <el-radio-group v-model="form.add_path">
-              <el-radio-button :label="-1">使用STRM设置</el-radio-button>
+              <el-radio-button :label="-1">使用 STRM 设置</el-radio-button>
               <el-radio-button :label="1">添加</el-radio-button>
               <el-radio-button :label="2">不添加</el-radio-button>
             </el-radio-group>
             <div class="form-help">
-              <p>是否给strm链接添加路径</p>
+              <p>开启后会在 STRM 链接中附加原始路径，便于排查问题，也可兼容部分播放器</p>
             </div>
           </el-form-item>
         </template>
@@ -777,7 +785,7 @@ const strmExample = ref('')
 
 const formatTooltip = (value: number) => {
   if (value === -1) {
-    return '使用STRM设置'
+    return '使用 STRM 设置'
   }
   return `${value} MB`
 }
@@ -816,16 +824,16 @@ const importFromStrmSettings = async (field: 'video_ext' | 'meta_ext') => {
       const config = response.data.data
       if (field === 'video_ext') {
         form.video_ext = config.video_ext_arr || []
-        ElMessage.success('已从STRM设置导入视频扩展名')
+        ElMessage.success('已从 STRM 设置导入视频扩展名')
       } else {
         form.meta_ext = config.meta_ext_arr || []
-        ElMessage.success('已从STRM设置导入元数据扩展名')
+        ElMessage.success('已从 STRM 设置导入元数据扩展名')
       }
     } else {
-      ElMessage.error('获取STRM设置失败')
+      ElMessage.error('获取 STRM 设置失败')
     }
   } catch {
-    ElMessage.error('获取STRM设置失败')
+    ElMessage.error('获取 STRM 设置失败')
   } finally {
     importStrmSettingsLoading.value = false
   }
@@ -862,11 +870,11 @@ const loadAccounts = async () => {
         accounts.value.push(account)
       }
     } else {
-      console.error('加载账号列表失败:', response?.data.message || '未知错误')
+      console.error('加载账号列表失败：', response?.data.message || '未知错误')
       accounts.value = []
     }
   } catch (error) {
-    console.error('加载账号列表失败:', error)
+    console.error('加载账号列表失败：', error)
     accounts.value = []
   } finally {
     accountsLoading.value = false
@@ -882,7 +890,7 @@ const loadVersionInfo = async () => {
       versionInfo.value = null
     }
   } catch (error) {
-    console.error('加载系统版本信息错误:', error)
+    console.error('加载系统版本信息错误：', error)
     versionInfo.value = null
   }
 }

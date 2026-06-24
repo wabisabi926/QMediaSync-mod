@@ -34,10 +34,10 @@ const sanitizeHtml = (content: string): string => {
 //   }
 //   const lines = content.split('\n')
 //   if (lines.length > 5) {
-//     return lines.slice(0, 5).join('\n') + '...'
+//     return lines.slice(0, 5).join('\n') + '…'
 //   }
 //   if (content.length > 150) {
-//     return content.substring(0, 150) + '...'
+//     return content.substring(0, 150) + '…'
 //   }
 //   return content
 // }

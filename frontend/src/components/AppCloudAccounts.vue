@@ -9,7 +9,7 @@
             </el-icon>
             网盘账号管理
           </h1>
-          <p class="page-subtitle">管理您的网盘账号授权与绑定</p>
+          <p class="page-subtitle">管理网盘账号授权与绑定</p>
         </div>
         <div class="header-actions">
           <el-button type="primary" class="add-btn" @click="showAddAccountDialog = true">
@@ -80,7 +80,7 @@
           <div class="card-main">
             <div class="card-header">
               <div class="card-title-wrapper">
-                <el-tooltip :content="'账号ID：' + account.id" placement="bottom">
+                <el-tooltip :content="'账号 ID：' + account.id" placement="bottom">
                   <span class="card-id">#{{ account.id }}</span>
                 </el-tooltip>
                 <span class="card-name">{{ account.name }}</span>
@@ -130,7 +130,7 @@
                     </el-icon>
                   </div>
                   <div class="info-content">
-                    <span class="info-label">用户ID</span>
+                    <span class="info-label">用户 ID</span>
                     <span class="info-value">{{ account.user_id || '-' }}</span>
                   </div>
                 </div>
@@ -179,7 +179,7 @@
                         </el-icon>
                       </div>
                       <div class="info-content">
-                        <span class="info-label">用户ID</span>
+                        <span class="info-label">用户 ID</span>
                         <span class="info-value">{{ account.user_id }}</span>
                       </div>
                     </div>
@@ -336,7 +336,7 @@
           </div>
         </div>
         <h3 class="empty-title">暂无网盘账号</h3>
-        <p class="empty-description">点击上方按钮添加您的第一个网盘账号</p>
+        <p class="empty-description">点击上方按钮添加第一个网盘账号</p>
         <el-button type="primary" @click="showAddAccountDialog = true">
           <el-icon>
             <Plus />
@@ -349,7 +349,7 @@
         <el-icon class="loading-icon rotating">
           <Loading />
         </el-icon>
-        <span>加载中...</span>
+        <span>加载中…</span>
       </div>
 
       <div class="page-footer-tips">
@@ -370,15 +370,15 @@
             <div class="tip-group-items">
               <div class="tip-item">
                 <span class="tip-bullet">1.</span>
-                <span>点击"添加账号"按钮，选择网盘类型并填写相关信息</span>
+                <span>点击“添加账号”，选择网盘类型并填写相关信息</span>
               </div>
               <div class="tip-item">
                 <span class="tip-bullet">2.</span>
-                <span>添加成功后，点击列表中的"授权"按钮完成账号绑定</span>
+                <span>添加成功后，点击列表中的“授权”完成账号绑定</span>
               </div>
               <div class="tip-item tip-highlight">
                 <span class="tip-bullet">★</span>
-                <span>只有已授权的账号才能用于STRM同步目录配置</span>
+                <span>只有已授权的账号才能用于 STRM 同步目录配置</span>
               </div>
             </div>
           </div>
@@ -392,11 +392,11 @@
             <div class="tip-group-items">
               <div class="tip-item">
                 <span class="tip-bullet">•</span>
-                <span>115网盘：通过OAuth授权，将跳转到授权页面</span>
+                <span>115 网盘：通过 OAuth 授权，将跳转到授权页面</span>
               </div>
               <div class="tip-item">
                 <span class="tip-bullet">•</span>
-                <span>百度网盘：通过OAuth授权，将跳转到授权页面</span>
+                <span>百度网盘：通过 OAuth 授权，将跳转到授权页面</span>
               </div>
               <div class="tip-item">
                 <span class="tip-bullet">•</span>
@@ -428,7 +428,7 @@
       <el-form-item label="访问地址" v-if="newAccountForm.type === 'openlist'">
         <el-input
           v-model="newAccountForm.base_url"
-          placeholder="请输入OpenList地址:http://ip:5244"
+          placeholder="请输入 OpenList 地址：http://ip:5244"
         />
       </el-form-item>
       <el-form-item label="认证方式" v-if="newAccountForm.type === 'openlist'">
@@ -489,7 +489,7 @@
             clearable
           />
         </el-form-item>
-        <el-form-item label="APPID">
+        <el-form-item label="App ID">
           <el-input v-model="editAccountForm.app_id" disabled />
         </el-form-item>
       </template>
@@ -497,7 +497,7 @@
         <el-form-item label="访问地址" prop="baseUrl">
           <el-input
             v-model="editAccountForm.base_url"
-            placeholder="请输入OpenList地址:http://ip:5244"
+            placeholder="请输入 OpenList 地址：http://ip:5244"
           />
         </el-form-item>
         <el-form-item label="认证方式">
@@ -672,7 +672,7 @@ const failedCount = computed(
   () => accounts.value.filter((a) => a.token_failed_reason && !a.token).length,
 )
 const editDialogTitle = computed(() =>
-  editAccountForm.value.source_type === 'openlist' ? '编辑OpenList账号' : '编辑账号',
+  editAccountForm.value.source_type === 'openlist' ? '编辑 OpenList 账号' : '编辑账号',
 )
 const canEditCustomAppName = computed(() =>
   isCustomV115App({
@@ -739,11 +739,11 @@ const loadAccounts = async () => {
         }
       })
     } else {
-      console.error('加载账号列表失败:', response?.data.message || '未知错误')
+      console.error('加载账号列表失败：', response?.data.message || '未知错误')
       accounts.value = []
     }
   } catch (error) {
-    console.error('加载账号列表失败:', error)
+    console.error('加载账号列表失败：', error)
     accounts.value = []
   } finally {
     loading.value = false
@@ -774,7 +774,7 @@ const loadAccountStatus = async (account: CloudAccount) => {
       accounts.value[index].status = response.data.data
     }
   } catch (error) {
-    console.error(`获取${account.source_type}状态失败:`, error)
+    console.error(`获取 ${account.source_type} 状态失败：`, error)
   } finally {
     accounts.value[index].statusLoading = false
   }
@@ -852,7 +852,7 @@ const handleDelete = async (row: CloudAccount) => {
     }
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
-      console.error('删除账号失败:', error)
+      console.error('删除账号失败：', error)
       ElMessage.error('删除账号失败')
     }
   }
@@ -920,7 +920,7 @@ const handleUpdateAccount = async () => {
       )
 
       if (openListResponse?.data.code !== 200) {
-        console.error('更新OpenList账号失败:', openListResponse?.data.message || '未知错误')
+        console.error('更新 OpenList 账号失败：', openListResponse?.data.message || '未知错误')
         ElMessage.error(openListResponse?.data.message || '更新账号失败')
         return
       }
@@ -945,11 +945,11 @@ const handleUpdateAccount = async () => {
       loadAccounts()
       ElMessage.success('账号更新成功')
     } else {
-      console.error('更新账号失败:', response?.data.message || '未知错误')
+      console.error('更新账号失败：', response?.data.message || '未知错误')
       ElMessage.error(response?.data.message || '更新账号失败')
     }
   } catch (error) {
-    console.error('更新账号错误:', error)
+    console.error('更新账号错误：', error)
     ElMessage.error('更新账号失败')
   }
 }
@@ -982,7 +982,7 @@ const handleAuthorize = (row: CloudAccount) => {
 const handle115OAuth = async (accountId?: number) => {
   try {
     await ElMessageBox.confirm(
-      '即将跳转到115网盘授权页面，请在新页面完成授权后返回本页面。',
+      '即将跳转到 115 网盘授权页面，请在新页面完成授权后返回本页面。',
       '授权提示',
       {
         confirmButtonText: '前往授权',
@@ -1022,7 +1022,7 @@ const handle115OAuth = async (accountId?: number) => {
     }
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('115 OAuth授权错误:', error)
+      console.error('115 OAuth 授权错误：', error)
       ElMessage.error('获取授权地址失败')
     }
   }
@@ -1055,7 +1055,7 @@ const poll115OAuthStatus = (accountId: number | undefined, state: string) => {
       }
     } catch (error) {
       window.clearInterval(timer)
-      console.error('115 OAuth状态查询错误:', error)
+      console.error('115 OAuth 状态查询错误：', error)
       ElMessage.error('授权状态查询失败')
     }
   }, 3000)
@@ -1088,7 +1088,7 @@ const handleBaiduOAuth = async (accountId?: number) => {
     }
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('百度网盘 OAuth授权错误:', error)
+      console.error('百度网盘 OAuth 授权错误：', error)
       ElMessage.error('获取授权地址失败')
     }
   }
@@ -1150,13 +1150,13 @@ const handleAddAccount = async () => {
       loadAccounts()
       resetForm()
     } else {
-      ElMessage.error(`添加账号失败: ${response?.data.message || '未知错误'}`)
+      ElMessage.error(`添加账号失败：${response?.data.message || '未知错误'}`)
     }
   } catch (error) {
-    console.error('添加账号失败:', error)
+    console.error('添加账号失败：', error)
     const err: AxiosError = error as AxiosError
     const errData = err.response?.data as { message?: string }
-    ElMessage.error(`添加账号失败: Http ${err.status}，${errData.message || err.message}`)
+    ElMessage.error(`添加账号失败：HTTP ${err.status}，${errData.message || err.message}`)
   }
 }
 
@@ -1190,7 +1190,7 @@ const confirmOAuth = async (
     )
 
     if (response?.data.code === 200) {
-      ElMessage.success({ message: '授权成功，2秒后将自动刷新页面', duration: 2000 })
+      ElMessage.success({ message: '授权成功，2 秒后将自动刷新页面', duration: 2000 })
       setTimeout(() => {
         const hash = window.location.hash
         const cleanHash = hash.split('?')[0]
@@ -1200,7 +1200,7 @@ const confirmOAuth = async (
       ElMessage.error(response?.data.message || '授权确认失败')
     }
   } catch (error) {
-    console.error('OAuth确认错误:', error)
+    console.error('OAuth 确认错误：', error)
     ElMessage.error('授权确认失败')
   }
 }

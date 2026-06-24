@@ -41,11 +41,11 @@ func NewRenameMovieImpl(scrapePath *models.ScrapePath, ctx context.Context, v115
 
 func (r *renameMovieImpl) RenameAndMove(mediaFile *models.ScrapeMediaFile, destPath, destPathId, newName string) error {
 	if mediaFile.NewPathId == "" {
-		helpers.AppLogger.Errorf("新目录ID为空，无法改名和移动文件")
-		return errors.New("新目录ID为空")
+		helpers.AppLogger.Errorf("新目录 ID 为空，无法改名和移动文件")
+		return errors.New("新目录 ID 为空")
 	}
 	// 先转移视频
-	// 需要新目录id，然后将视频文件移动过去
+	// 需要新目录 ID，然后将视频文件移动过去
 	// 然后重命名成新名字
 	if destPath == "" || destPathId == "" {
 		destPath, destPathId = mediaFile.GetMovieOrTvshowDestPath()
@@ -63,7 +63,7 @@ func (r *renameMovieImpl) RenameAndMove(mediaFile *models.ScrapeMediaFile, destP
 func (r *renameMovieImpl) CheckAndMkDir(destFullPath, rootPath, rootPathId string) (string, error) {
 	newPathId, err := r.renameImpl.CheckAndMkDir(destFullPath, rootPath, rootPathId)
 	if err != nil {
-		helpers.AppLogger.Errorf("创建父文件夹失败: %v", err)
+		helpers.AppLogger.Errorf("创建父文件夹失败：%v", err)
 		return "", err
 	}
 	return newPathId, nil

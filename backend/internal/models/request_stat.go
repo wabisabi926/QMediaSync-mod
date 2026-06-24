@@ -90,7 +90,7 @@ func GetHourlyRequestStats(startTime, endTime int64) ([]map[string]interface{}, 
 		return results, err
 	}
 
-	// 处理Base64编码的avg_duration
+	// 处理 Base64 编码的 avg_duration
 	decodeBase64Value(results, "avg_duration")
 
 	return results, nil
@@ -132,18 +132,18 @@ func GetDailyRequestStats(startTime, endTime int64) ([]map[string]interface{}, e
 		return results, err
 	}
 
-	// 处理Base64编码的avg_duration
+	// 处理 Base64 编码的 avg_duration
 	decodeBase64Value(results, "avg_duration")
 
 	return results, nil
 }
 
-// decodeBase64Value 解码结果集中的Base64字段
+// decodeBase64Value 解码结果集中的 Base64 字段
 func decodeBase64Value(results []map[string]interface{}, fieldName string) {
 	for _, row := range results {
 		if val, ok := row[fieldName]; ok {
 			if bytes, ok := val.([]byte); ok {
-				// Base64编码的数据会被解析为[]byte
+				// Base64 编码的数据会被解析为 []byte
 				row[fieldName] = string(bytes)
 			}
 		}

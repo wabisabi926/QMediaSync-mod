@@ -33,7 +33,7 @@ export const useBackupStore = defineStore('backup', () => {
   //       startProgressPolling('backup', undefined, http)
   //     }
   //   } catch (error) {
-  //     console.error('检查备份状态失败:', error)
+  //     console.error('检查备份状态失败：', error)
   //   }
   // }
 
@@ -107,12 +107,12 @@ export const useBackupStore = defineStore('backup', () => {
         }
       }
     } catch (error) {
-      console.error('轮询进度失败:', error)
+      console.error('轮询进度失败：', error)
       errorRetryCount.value++
 
       if (errorRetryCount.value >= MAX_RETRY_COUNT) {
         stopProgressPolling()
-        ElMessage.error('网络连接失败，页面即将刷新...')
+        ElMessage.error('网络连接失败，页面即将刷新…')
         setTimeout(() => {
           location.reload()
         }, 2000)

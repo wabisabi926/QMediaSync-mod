@@ -63,7 +63,7 @@ export function useUpdate() {
         updateList.value = []
       }
     } catch (error) {
-      console.error('加载最新版本列表错误:', error)
+      console.error('加载最新版本列表错误：', error)
       updateList.value = []
     } finally {
       updateLoading.value = false
@@ -96,7 +96,7 @@ export function useUpdate() {
         }
       }
     } catch (error) {
-      console.error('检查更新状态错误:', error)
+      console.error('检查更新状态错误：', error)
     }
   }
 
@@ -130,7 +130,7 @@ export function useUpdate() {
         ElMessage.error(response?.data.message || '触发版本更新失败')
       }
     } catch (error) {
-      console.error('触发版本更新错误:', error)
+      console.error('触发版本更新错误：', error)
       isUpdating.value = false
       updatingVersion.value = ''
       updateProgress.value = {
@@ -254,7 +254,7 @@ export function useUpdate() {
         }
       }
     } catch (error) {
-      console.error('查询更新进度错误:', error)
+      console.error('查询更新进度错误：', error)
     }
   }
 
@@ -286,14 +286,14 @@ export function useUpdate() {
         loadUpdateList()
       }, 1000)
     } catch (error) {
-      console.error('取消更新错误:', error)
+      console.error('取消更新错误：', error)
       ElMessage.error('取消更新失败，请稍后重试')
     }
   }
 
   const handleDownloadClick = (update: UpdateInfo) => {
     if (!update.url) {
-      console.error('下载链接不存在:', update)
+      console.error('下载链接不存在：', update)
       ElMessage.error('下载链接不存在，请稍后重试')
       return false
     }

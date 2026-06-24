@@ -4,7 +4,7 @@
       <template #default>
         推荐
         <a href="https://cloud.siliconflow.cn/i/fNSX73Tt" target="_blank">硅基流动</a>
-        的模型，新号输我的邀请码送2000万 Tokens:
+        的模型，新账号填写我的邀请码可获赠 2000 万 Token：
         <b>fNSX73Tt</b>
       </template>
     </el-alert> -->
@@ -16,10 +16,10 @@
       ref="formRef"
       class="ai-form"
     >
-      <el-form-item label="API接口地址" prop="aiBaseUrl">
+      <el-form-item label="API 接口地址" prop="aiBaseUrl">
         <el-input
           v-model="formData.aiBaseUrl"
-          placeholder="不填取默认值：https://api.siliconflow.cn"
+          placeholder="留空使用默认值：https://api.siliconflow.cn"
           :disabled="loading"
           maxlength="255"
         />
@@ -29,23 +29,23 @@
       <el-form-item label="API Key" prop="aiApiKey">
         <el-input
           v-model="formData.aiApiKey"
-          placeholder="不填用作者的，但可能失败；填了更稳定"
+          placeholder="留空使用系统默认 Key；填写自己的更稳定"
           type="password"
           :disabled="loading"
           show-password
           maxlength="255"
         />
-        <div class="form-help">API服务的访问密钥</div>
+        <div class="form-help">API 服务的访问密钥</div>
       </el-form-item>
 
       <el-form-item label="模型名称" prop="aiModelName">
         <el-input
           v-model="formData.aiModelName"
-          placeholder="不填取默认值：deepseek-ai/DeepSeek-R1"
+          placeholder="留空使用默认值：deepseek-ai/DeepSeek-R1"
           :disabled="loading"
           maxlength="100"
         />
-        <div class="form-help">从硅基流动的模型广场找或者模型提供商的API文档中找</div>
+        <div class="form-help">可在硅基流动模型广场或模型提供商的 API 文档中查看</div>
       </el-form-item>
 
       <el-form-item label="请求超时时间" prop="ai_timeout">
@@ -58,7 +58,7 @@
           style="width: 100%"
         />
         <div class="form-help">
-          请求超时时间，单位秒，默认值为120秒，减少该值可以极大提高刮削速度，但可能会导致AI识别失败
+          请求超时时间，单位为秒，默认 120 秒。调小后刮削会更快，但 AI 识别更容易超时失败
         </div>
       </el-form-item>
 
@@ -116,9 +116,9 @@
       <div class="warning-section">
         <el-alert title="使用提示" type="warning" :closable="false" show-icon>
           <template #default>
-            可以支持所有OpenAI Api兼容的模型。<br />
-            项目内置硅基流动的访问权限，如果使用强度不高，建议上面所有输入框留空来使用系统默认值<br />
-            使用AI识别会消耗tokens额度, 请合理配置。
+            支持兼容 OpenAI API 的模型。<br />
+            系统已内置硅基流动访问配置，使用量不高时可以全部留空，直接使用默认值<br />
+            使用 AI 识别会消耗 Token 额度，请合理配置。
           </template>
         </el-alert>
       </div>
@@ -169,13 +169,13 @@ const formRules = computed(() => {
   return {
     aiBaseUrl: [
       {
-        message: '请输入API接口地址',
+        message: '请输入 API 接口地址',
         trigger: 'blur',
       },
     ],
     aiApiKey: [
       {
-        message: '请输入API Key',
+        message: '请输入 API Key',
         trigger: 'blur',
       },
     ],
@@ -193,7 +193,7 @@ onMounted(async () => {
   await fetchAiSettings()
 })
 
-// 获取AI设置
+// 获取 AI 设置
 async function fetchAiSettings() {
   try {
     loading.value = true
@@ -207,24 +207,24 @@ async function fetchAiSettings() {
     formData.aiModelName = response?.data.data.ai_model_name || ''
     formData.ai_timeout = response?.data.data.ai_timeout || 120
   } catch (error) {
-    console.error('获取AI设置失败:', error)
-    ElMessage.error('获取AI设置失败，请稍后重试')
+    console.error('获取 AI 设置失败：', error)
+    ElMessage.error('获取 AI 设置失败，请稍后重试')
   } finally {
     loading.value = false
   }
 }
 
-// 保存AI设置
+// 保存 AI 设置
 async function saveSettings() {
   try {
     // 执行表单验证
     await formRef.value?.validate()
     if (formData.aiModelName && !formData.aiApiKey) {
-      ElMessage.error('如果填写了模型名称，必须填写API Key')
+      ElMessage.error('如果填写了模型名称，必须填写 API Key')
       return
     }
     if (formData.aiBaseUrl && (!formData.aiApiKey || !formData.aiModelName)) {
-      ElMessage.error('如果填写了API接口地址，必须填写模型名称和API Key')
+      ElMessage.error('如果填写了 API 接口地址，必须填写模型名称和 API Key')
       return
     }
     loading.value = true
@@ -245,21 +245,21 @@ async function saveSettings() {
     saveStatus.value = {
       title: '保存成功',
       type: 'success',
-      description: 'AI识别设置已成功保存',
+      description: 'AI 识别设置已成功保存',
     }
 
-    // 3秒后清除状态提示
+    // 3 秒后清除状态提示
     setTimeout(() => {
       saveStatus.value = null
     }, 3000)
   } catch (error) {
     // 如果是验证错误，则不显示保存失败的消息
     if (error !== false) {
-      console.error('保存AI设置失败:', error)
+      console.error('保存 AI 设置失败：', error)
       saveStatus.value = {
         title: '保存失败',
         type: 'error',
-        description: '保存AI设置失败，请稍后重试',
+        description: '保存 AI 设置失败，请稍后重试',
       }
     }
   } finally {
@@ -267,7 +267,7 @@ async function saveSettings() {
   }
 }
 
-// 测试AI连通性
+// 测试 AI 连通性
 async function testConnection() {
   try {
     // 执行表单验证
@@ -294,24 +294,24 @@ async function testConnection() {
       testStatus.value = {
         title: '测试成功',
         type: 'success',
-        description: response.data.message || 'AI服务连通性测试成功',
+        description: response.data.message || 'AI 服务连通性测试成功',
       }
     } else {
       testStatus.value = {
         title: '测试失败',
         type: 'error',
-        description: response?.data?.message || 'AI服务连通性测试失败，请检查设置',
+        description: response?.data?.message || 'AI 服务连通性测试失败，请检查设置',
       }
     }
 
-    // 5秒后清除状态提示
+    // 5 秒后清除状态提示
     setTimeout(() => {
       testStatus.value = null
     }, 5000)
   } catch (error) {
     // 如果是验证错误，则不显示测试失败的消息
     if (error !== false) {
-      console.error('测试AI连通性失败:', error)
+      console.error('测试 AI 连通性失败：', error)
       testStatus.value = {
         title: '连接失败',
         type: 'error',

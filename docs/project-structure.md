@@ -1,16 +1,17 @@
 # 项目结构
 
 ```text
-backend/          Go 后端、内置静态前端产物
+backend/          Go 后端、嵌入的 Emby 302 代理、前端生产构建产物
 docker/           Dockerfile、容器入口脚本和在线更新监视脚本
-frontend/         Vue/Vite 前端源码
+frontend/         Vue / Vite 前端源码
 scripts/release/  GitHub Actions 发布打包辅助脚本、changelog 生成脚本
 scripts/install/  Linux 裸机安装辅助脚本
-.github/          CI 构建流程
+.github/          CI/CD 工作流
+.changes/         每个版本的 GitHub Release 正文
 cliff.toml        git-cliff 配置（从提交记录生成 changelog）
 ```
 
-前端生产构建会输出到 `backend/web_statics`，后端从该目录提供 Web UI。
+前端生产构建会输出到 `backend/web_statics`，后端从该目录提供 Web UI；该目录是构建产物，不作为源码维护。
 
 ## 原项目地址
 

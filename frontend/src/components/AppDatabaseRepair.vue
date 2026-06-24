@@ -17,7 +17,7 @@ const repairDatabase = async () => {
       ElMessage.error(response?.data.message || '数据库修复失败')
     }
   } catch (error) {
-    console.error('数据库修复失败:', error)
+    console.error('数据库修复失败：', error)
     ElMessage.error('数据库修复失败，请重试')
   } finally {
     loading.value = false
@@ -48,7 +48,7 @@ const repairDatabase = async () => {
           都可以执行修复数据库来解决问题。
         </p>
         <el-button type="primary" size="large" :loading="loading" @click="repairDatabase" round>
-          {{ loading ? '修复中...' : '修复数据库' }}
+          {{ loading ? '修复中…' : '修复数据库' }}
         </el-button>
       </div>
     </div>

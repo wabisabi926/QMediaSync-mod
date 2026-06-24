@@ -26,13 +26,13 @@ func (cm *CategoryMovieImpl) DoCategory(mediaFile *models.ScrapeMediaFile) (stri
 	var c *models.MovieCategory
 	genres := mediaFile.Media.Genres
 	originalLanguage := mediaFile.Media.OriginalLanguage
-	helpers.AppLogger.Infof("计算电影的二级分类，影片名称: %s 流派 %+v 和语言 %s", mediaFile.Media.Name, genres, originalLanguage)
+	helpers.AppLogger.Infof("计算电影二级分类，影片名称：%s，流派：%+v，语言：%s", mediaFile.Media.Name, genres, originalLanguage)
 	defaultCategory := cm.scrapePath.Category.MovieCategory[0]
 	if len(genres) == 0 && originalLanguage != "" {
-		helpers.AppLogger.Infof("只有语言 %s 要求，不匹配流派", originalLanguage)
+		helpers.AppLogger.Infof("只设置了语言要求：%s，未设置流派要求", originalLanguage)
 		// 只匹配有语言要求的
 		for _, movieCategory := range cm.scrapePath.Category.MovieCategory {
-			// helpers.AppLogger.Infof("检查电影 %s 语言 %s 是否命中分类 %s 的语言: %+v", media.Name, originalLanguage, movieCategory.Name, movieCategory.LanguageArray)
+			// helpers.AppLogger.Infof("检查电影 %s 语言 %s 是否命中分类 %s 的语言：%+v", media.Name, originalLanguage, movieCategory.Name, movieCategory.LanguageArray)
 			if slices.Contains(movieCategory.LanguageArray, originalLanguage) {
 				helpers.AppLogger.Infof("分类 %s 的语言 %+v 命中要求的语言 %s", movieCategory.Name, movieCategory.LanguageArray, originalLanguage)
 				c = movieCategory
@@ -46,17 +46,17 @@ func (cm *CategoryMovieImpl) DoCategory(mediaFile *models.ScrapeMediaFile) (stri
 			c = defaultCategory
 		}
 	} else if len(genres) > 0 && originalLanguage == "" {
-		helpers.AppLogger.Infof("只有流派 %+v 要求，不匹配语言", genres)
+		helpers.AppLogger.Infof("只设置了流派要求：%+v，未设置语言要求", genres)
 		// 只匹配有流派要求的
 	gennerloop:
 		for _, genre := range genres {
 			for _, movieCategory := range cm.scrapePath.Category.MovieCategory {
 				if slices.Contains(movieCategory.GenreIdArray, genre.ID) {
-					helpers.AppLogger.Debugf("流派ID %d 命中分类 %s 的流派ID: %+v", genre.ID, movieCategory.Name, movieCategory.GenreIdArray)
+					helpers.AppLogger.Debugf("流派 ID %d 命中分类 %s 的流派 ID：%+v", genre.ID, movieCategory.Name, movieCategory.GenreIdArray)
 					c = movieCategory
 					break gennerloop
 				} else {
-					helpers.AppLogger.Infof("流派ID %d 未命中分类 %s 的流派ID: %+v", genre.ID, movieCategory.Name, movieCategory.GenreIdArray)
+					helpers.AppLogger.Infof("流派 ID %d 未命中分类 %s 的流派 ID：%+v", genre.ID, movieCategory.Name, movieCategory.GenreIdArray)
 				}
 			}
 		}
@@ -66,13 +66,13 @@ func (cm *CategoryMovieImpl) DoCategory(mediaFile *models.ScrapeMediaFile) (stri
 		}
 	} else {
 		// 匹配同时有流派和语言要求的
-		// 取fc和fl的交集
+		// 取流派命中和语言命中的交集
 		fC := make([]*models.MovieCategory, 0)
 		fCA := make([]*models.MovieCategory, 0)
 		fL := make([]*models.MovieCategory, 0)
 		fLA := make([]*models.MovieCategory, 0)
-		// helpers.AppLogger.Infof("电影 %s 流派ID: %v, 语言: %s", media.Name, media.TmdbInfo.MovieDetail.Genres, media.TmdbInfo.MovieDetail.OriginalLanguage)
-		// 检查流派ID是否命中
+		// helpers.AppLogger.Infof("电影 %s 流派 ID：%v，语言：%s", media.Name, media.TmdbInfo.MovieDetail.Genres, media.TmdbInfo.MovieDetail.OriginalLanguage)
+		// 检查流派 ID 是否命中
 		for _, genre := range genres {
 			for _, movieCategory := range cm.scrapePath.Category.MovieCategory {
 				if movieCategory.GenreIdArray == nil || (movieCategory.GenreIdArray != nil && len(movieCategory.GenreIdArray) == 0) {
@@ -80,7 +80,7 @@ func (cm *CategoryMovieImpl) DoCategory(mediaFile *models.ScrapeMediaFile) (stri
 					fCA = append(fCA, movieCategory)
 				}
 				if slices.Contains(movieCategory.GenreIdArray, genre.ID) {
-					// helpers.AppLogger.Debugf("流派ID %d 命中分类 %s 的流派ID: %+v", genre.ID, movieCategory.Name, movieCategory.GenreIdArray)
+					// helpers.AppLogger.Debugf("流派 ID %d 命中分类 %s 的流派 ID：%+v", genre.ID, movieCategory.Name, movieCategory.GenreIdArray)
 					fC = append(fC, movieCategory)
 				}
 			}
@@ -92,7 +92,7 @@ func (cm *CategoryMovieImpl) DoCategory(mediaFile *models.ScrapeMediaFile) (stri
 				helpers.AppLogger.Debugf("分类 %s 没有语言要求，直接命中", movieCategory.Name)
 				fLA = append(fLA, movieCategory)
 			}
-			// helpers.AppLogger.Infof("检查电影 %s 语言 %s 是否命中分类 %s 的语言: %+v", media.Name, originalLanguage, movieCategory.Name, movieCategory.LanguageArray)
+			// helpers.AppLogger.Infof("检查电影 %s 语言 %s 是否命中分类 %s 的语言：%+v", media.Name, originalLanguage, movieCategory.Name, movieCategory.LanguageArray)
 			if slices.Contains(movieCategory.LanguageArray, originalLanguage) {
 				helpers.AppLogger.Debugf("分类 %s 的语言 %+v 命中要求的语言 %s", movieCategory.Name, movieCategory.LanguageArray, originalLanguage)
 				fL = append(fL, movieCategory)
@@ -107,14 +107,14 @@ func (cm *CategoryMovieImpl) DoCategory(mediaFile *models.ScrapeMediaFile) (stri
 			for _, tempC := range fC {
 				if slices.Contains(fL, tempC) {
 					c = tempC
-					helpers.AppLogger.Infof("取流派ID和语言均命中的分类 %d=>%s", c.ID, c.Name)
+					helpers.AppLogger.Infof("取流派 ID 和语言均命中的分类 %d => %s", c.ID, c.Name)
 					break
 				}
 			}
 			// 如果没有交集，优先匹配流派
 			if c == nil {
 				c = fC[0]
-				helpers.AppLogger.Infof("取流派ID命中的分类 %d=>%s", c.ID, c.Name)
+				helpers.AppLogger.Infof("取流派 ID 命中的分类 %d => %s", c.ID, c.Name)
 			}
 		}
 		// 如果有精确的语言命中，没有精确的流派命中
@@ -132,7 +132,7 @@ func (cm *CategoryMovieImpl) DoCategory(mediaFile *models.ScrapeMediaFile) (stri
 			for _, tempC := range fC {
 				if slices.Contains(fC, tempC) {
 					c = tempC
-					// helpers.AppLogger.Infof("取流派ID命中的分类 %d=>%s", c.ID, c.Name)
+					// helpers.AppLogger.Infof("取流派 ID 命中的分类 %d => %s", c.ID, c.Name)
 					break
 				}
 			}
@@ -148,11 +148,11 @@ func (cm *CategoryMovieImpl) DoCategory(mediaFile *models.ScrapeMediaFile) (stri
 			} else {
 				// 没有交集，返回默认分类
 				c = defaultCategory
-				// helpers.AppLogger.Infof("流派ID和语言均未命中分类, 自动选择默认分类 %d=>%s", c.ID, c.Name)
+				// helpers.AppLogger.Infof("流派 ID 和语言均未命中分类，自动选择默认分类 %d => %s", c.ID, c.Name)
 			}
 		}
 	}
-	// 取c对应的ScrapePathCategory
+	// 取 c 对应的 ScrapePathCategory
 	for _, spC := range cm.scrapePath.Category.PathCategory {
 		if spC.CategoryId == c.ID {
 			return c.Name, spC

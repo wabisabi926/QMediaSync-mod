@@ -9,18 +9,20 @@
 
 ## 数据库
 
-开源版本不包含 PostgreSQL 数据库二进制文件，需要自行安装。建议使用 PostgreSQL 15 及以上，然后通过环境变量配置使用。
+首次启动且不存在 `config/config.yaml` 时，后端会先启动配置向导。向导当前提供 SQLite 和外部 PostgreSQL 两种选择；保存后会生成 `config/config.yaml`，旧版 `config.yml` 仍可读取。
+
+代码默认配置是 `postgres + embedded`。Docker 镜像会安装 `postgresql15`，可以直接配合内嵌 PostgreSQL 使用；裸二进制和本地开发环境不随仓库携带 PostgreSQL 二进制，如果要使用 PostgreSQL，建议安装 PostgreSQL 15 及以上并配置为外部数据库，或自行保证内嵌模式所需的 PostgreSQL 命令可用。
 
 ## 需要自备的密钥
 
-- 115 开放平台 AppID：当前改为使用 OAuth 授权方式，开发者需要根据代码自行实现 OAuth 服务端来和 115 通信，或改为二维码扫码登录授权。
-- TMDB API Key：可在 Web 页面「刮削设置」填写；刮削实际使用 v3 API Key。
-- OpenAI 兼容 API Key：目前使用硅基流动，可在 Web 页面「刮削设置」填写。
-- Fanart.tv API Key：可在 Web 页面「刮削设置」填写。
+- 115 开放平台 APPID：前端支持扫码授权和网页授权；自定义 APPID 走扫码授权 。
+- TMDB API Key / Access Token：可在 Web 页面「刮削设置」填写；留空时使用默认值。
+- OpenAI 兼容 API Key：默认对接硅基流动（SiliconFlow），可在 Web 页面「刮削设置」填写。
+- fanart.tv API Key：可在 Web 页面「刮削设置」填写。
 
-以上 key 可在 `backend/main.go` 开头的变量中设置、编译时通过 ldflags 传入，或运行时通过环境变量 / `config/.env` 注入（变量名 `TMDB_API_KEY`、`TMDB_ACCESS_TOKEN`、`SC_API_KEY`、`FANART_API_KEY`，无 `DEFAULT_` 前缀）。
+以上默认密钥可在 `backend/main.go` 开头的变量中设置、编译时通过 ldflags 传入，或运行时通过环境变量 / `config/.env` 注入（变量名 `TMDB_API_KEY`、`TMDB_ACCESS_TOKEN`、`SC_API_KEY`、`FANART_API_KEY`）。
 
-取值优先级：Web UI > 环境变量 > ldflags。
+取值优先级：Web UI > 环境变量 / `config/.env` > ldflags。`config/.env` 会覆盖真实环境变量。
 
 ## 本地敏感数据
 

@@ -3,13 +3,13 @@
     <div class="card-header">
       <div class="header-left">
         <p class="card-subtitle">
-          如果默认设置不符合要求再修改，确保您知道自己在做什么，添加或者修改只会影响后续的新文件，已有文件不会受到影响。
+          如果默认设置不符合要求再修改；确认规则含义后再操作，添加或修改只会影响后续新文件，已有文件不会受到影响。
         </p>
       </div>
     </div>
 
     <el-tabs v-model="activeTab" @tab-change="handleTabChange" type="card">
-      <!-- 电影分类tab -->
+      <!-- 电影分类 tab -->
       <el-tab-pane label="电影" name="movie">
         <div class="tab-content">
           <div class="card-actions-header">
@@ -35,7 +35,7 @@
 
               <div class="card-body">
                 <div class="info-item">
-                  <span class="info-label">语言:</span>
+                  <span class="info-label">语言：</span>
                   <span class="info-value">
                     {{
                       row.language_array && row.language_array.length > 0
@@ -45,7 +45,7 @@
                   </span>
                 </div>
                 <div class="info-item">
-                  <span class="info-label">类别:</span>
+                  <span class="info-label">类别：</span>
                   <span class="info-value">
                     {{
                       row.genre_id_array && row.genre_id_array.length > 0
@@ -55,7 +55,7 @@
                   </span>
                 </div>
                 <div class="info-item">
-                  <span class="info-label">创建时间:</span>
+                  <span class="info-label">创建时间：</span>
                   <span class="info-value">{{
                     formatDateTime(row.created_at ? row.created_at : 0)
                   }}</span>
@@ -97,7 +97,7 @@
         </div>
       </el-tab-pane>
 
-      <!-- 电视剧分类tab -->
+      <!-- 电视剧分类 tab -->
       <el-tab-pane label="电视剧" name="tvshow">
         <div class="tab-content">
           <div class="card-actions-header">
@@ -123,7 +123,7 @@
 
               <div class="card-body">
                 <div class="info-item">
-                  <span class="info-label">国家或地区:</span>
+                  <span class="info-label">国家或地区：</span>
                   <span class="info-value">
                     {{
                       row.country_array && row.country_array.length > 0
@@ -133,7 +133,7 @@
                   </span>
                 </div>
                 <div class="info-item">
-                  <span class="info-label">类别:</span>
+                  <span class="info-label">类别：</span>
                   <span class="info-value">
                     {{
                       row.genre_id_array && row.genre_id_array.length > 0
@@ -143,7 +143,7 @@
                   </span>
                 </div>
                 <div class="info-item">
-                  <span class="info-label">创建时间:</span>
+                  <span class="info-label">创建时间：</span>
                   <span class="info-value">{{
                     formatDateTime(row.created_at ? row.created_at : 0)
                   }}</span>
@@ -344,7 +344,7 @@ const loadLanguages = async () => {
       languages.value = response.data.data || []
     }
   } catch (error) {
-    console.error('加载语言列表失败:', error)
+    console.error('加载语言列表失败：', error)
     ElMessage.error('加载语言列表失败')
   }
 }
@@ -356,7 +356,7 @@ const loadCountries = async () => {
       countries.value = response.data.data || []
     }
   } catch (error) {
-    console.error('加载国家列表失败:', error)
+    console.error('加载国家列表失败：', error)
     ElMessage.error('加载国家列表失败')
   }
 }
@@ -368,7 +368,7 @@ const loadMovieGenres = async () => {
       movieGenres.value = response.data.data || []
     }
   } catch (error) {
-    console.error('加载电影类别失败:', error)
+    console.error('加载电影类别失败：', error)
     ElMessage.error('加载电影类别失败')
   }
 }
@@ -380,7 +380,7 @@ const loadTvshowGenres = async () => {
       tvshowGenres.value = response.data.data || []
     }
   } catch (error) {
-    console.error('加载电视剧类别失败:', error)
+    console.error('加载电视剧类别失败：', error)
     ElMessage.error('加载电视剧类别失败')
   }
 }
@@ -406,10 +406,10 @@ const loadCategories = async () => {
         tvshowCategories.value = categories
       }
     } else {
-      ElMessage.error('加载分类列表失败: ' + (response?.data?.msg || '未知错误'))
+      ElMessage.error(`加载分类列表失败：${response?.data?.msg || '未知错误'}`)
     }
   } catch (error) {
-    console.error('加载分类列表异常:', error)
+    console.error('加载分类列表异常：', error)
     ElMessage.error('加载分类列表异常')
   }
 }
@@ -458,7 +458,7 @@ const handleDelete = async (type: 'movie' | 'tvshow', id: number) => {
     }
   } catch (error: unknown) {
     if (error !== 'cancel') {
-      console.error('删除分类失败:', error)
+      console.error('删除分类失败：', error)
       ElMessage.error('删除失败')
     }
   }
@@ -483,7 +483,7 @@ const handleSubmit = async () => {
     // 验证表单
     await formRef.value?.validate()
 
-    // 根据后端需要的数据结构格式化payload
+    // 根据后端需要的数据结构格式化 payload
     const payload: category = {
       id: 0,
       name: formData.name,
@@ -511,14 +511,12 @@ const handleSubmit = async () => {
       loadCategories()
     } else {
       ElMessage.error(
-        (dialogType.value === 'add' ? '添加失败' : '编辑失败') +
-          ': ' +
-          (response?.data?.msg || '未知错误'),
+        `${dialogType.value === 'add' ? '添加失败' : '编辑失败'}：${response?.data?.msg || '未知错误'}`,
       )
     }
   } catch (error: unknown) {
     if (error !== false) {
-      console.error('提交表单失败:', error)
+      console.error('提交表单失败：', error)
     }
   }
 }

@@ -1,10 +1,10 @@
 export const sourceTypeOptions: Array<Record<string, string>> = [
   {
-    label: '115网盘',
+    label: '115 网盘',
     value: '115',
   },
   // {
-  //   label: '123云盘',
+  //   label: '123 网盘',
   //   value: '123',
   // },
   {
@@ -30,8 +30,8 @@ export const sourceTypeTagMap: Record<string, string> = {
 }
 
 export const sourceTypeMap: Record<string, string> = {
-  '115': '115网盘',
-  // '123': '123云盘',
+  '115': '115 网盘',
+  // '123': '123 网盘',
   baidupan: '百度网盘',
   openlist: 'OpenList',
   local: '本地目录',

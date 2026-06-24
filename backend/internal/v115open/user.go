@@ -27,7 +27,7 @@ type UserInfo struct {
 		LevelName string `json:"level_name"`
 		Expire    int64  `json:"expire"`
 	} `json:"vip_info"`
-} // 115用户信息，每次都通过接口请求，作为全局变量使用
+} // 115 用户信息，每次都通过接口请求，作为全局变量使用
 
 // 获取用户信息
 // GET /open/user/info
@@ -38,7 +38,7 @@ func (c *OpenClient) UserInfo() (*UserInfo, error) {
 	respData := &UserInfo{}
 	_, _, err := c.doAuthRequest(context.Background(), url, req, MakeRequestConfig(1, 1, 15), respData)
 	if err != nil {
-		helpers.V115Log.Errorf("调用用户信息接口失败: %v", err)
+		helpers.V115Log.Errorf("调用用户信息接口失败：%v", err)
 		return nil, err
 	}
 	return respData, nil

@@ -162,7 +162,7 @@
       <!-- 错误重试提示 -->
       <el-alert
         v-if="backupStore.errorRetryCount > 0"
-        :title="`网络异常，正在重试 (${backupStore.errorRetryCount}/${3})...`"
+        :title="`网络异常，正在重试 (${backupStore.errorRetryCount}/${3})…`"
         type="warning"
         :closable="false"
         style="margin-top: 16px"

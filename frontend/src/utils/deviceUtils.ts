@@ -1,6 +1,6 @@
 /**
  * 检测是否为移动端设备
- * @returns {boolean} 如果是移动端设备返回true，否则返回false
+ * @returns {boolean} 如果是移动端设备返回 true，否则返回 false
  */
 export function isMobile(): boolean {
   if (typeof window !== 'undefined') {

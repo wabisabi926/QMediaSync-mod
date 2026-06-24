@@ -19,26 +19,26 @@
               active-text="已启用"
               inactive-text="已禁用"
             />
-            <div class="form-help">开启后，系统将通过Telegram机器人发送重要通知</div>
+            <div class="form-help">开启后，系统将通过 Telegram 机器人发送重要通知</div>
           </div>
         </el-form-item>
 
-        <el-form-item label="机器人Token" prop="telegram_bot_token">
+        <el-form-item label="机器人 Token" prop="telegram_bot_token">
           <el-input
             v-model="formData.telegram_bot_token"
-            placeholder="搜索@BotFather创建机器人，找到TOKEN"
+            placeholder="搜索 @BotFather 创建机器人并获取 Token"
             :disabled="loading || !formData.enabled"
           />
-          <div class="form-help">在Telegram中搜索@BotFather，创建机器人后获取TOKEN</div>
+          <div class="form-help">在 Telegram 中搜索 @BotFather，创建机器人后获取 Token</div>
         </el-form-item>
 
-        <el-form-item label="用户ID" prop="telegram_user_id">
+        <el-form-item label="用户 ID" prop="telegram_user_id">
           <el-input
             v-model="formData.telegram_user_id"
-            placeholder="搜索@get_id_bot，点开始，找到Your Chat Id=后面的数字"
+            placeholder="搜索 @get_id_bot，点击开始，获取 Your Chat ID 后的数字"
             :disabled="loading || !formData.enabled"
           />
-          <div class="form-help">在Telegram中搜索@get_id_bot，点击开始获取您的Chat ID</div>
+          <div class="form-help">在 Telegram 中搜索 @get_id_bot，点击开始并获取你的 Chat ID</div>
         </el-form-item>
 
         <el-form-item>
@@ -116,12 +116,12 @@ const formData = reactive<TelegramSettings>({
 // 测试机器人
 const testBot = async () => {
   if (!formData.enabled) {
-    ElMessage.warning('请先启用Telegram通知功能')
+    ElMessage.warning('请先启用 Telegram 通知功能')
     return
   }
 
   if (!formData.telegram_bot_token || !formData.telegram_user_id) {
-    ElMessage.warning('请先填写机器人Token和用户ID')
+    ElMessage.warning('请先填写机器人 Token 和用户 ID')
     return
   }
 
@@ -145,19 +145,19 @@ const testBot = async () => {
       testStatus.value = {
         title: '机器人测试成功',
         type: 'success',
-        description: '测试消息已发送到您的Telegram，请检查是否收到消息',
+        description: '测试消息已发送到 Telegram，请检查是否收到',
       }
       ElMessage.success('机器人测试成功')
     } else {
       testStatus.value = {
         title: '机器人测试失败',
         type: 'error',
-        description: response?.data.message || '无法发送测试消息，请检查Token和用户ID是否正确',
+        description: response?.data.message || '无法发送测试消息，请检查 Token 和用户 ID 是否正确',
       }
       ElMessage.error(response?.data.message || '机器人测试失败')
     }
   } catch (error) {
-    console.error('机器人测试错误:', error)
+    console.error('机器人测试错误：', error)
     testStatus.value = {
       title: '机器人测试出错',
       type: 'error',
@@ -187,21 +187,21 @@ const saveSettings = async () => {
     })
 
     if (response?.data.code === 200) {
-      const statusMessage = formData.enabled ? 'Telegram通知已启用并保存' : 'Telegram通知已禁用'
+      const statusMessage = formData.enabled ? 'Telegram 通知已启用并保存' : 'Telegram 通知已禁用'
       ElMessage.success(statusMessage)
 
       testStatus.value = {
         title: '设置已保存',
         type: 'info',
         description: formData.enabled
-          ? '配置已成功保存，您可以开始接收Telegram通知了'
-          : 'Telegram通知功能已禁用，不会发送任何通知',
+          ? '配置已成功保存，您可以开始接收 Telegram 通知了'
+          : 'Telegram 通知功能已禁用，不会发送任何通知',
       }
     } else {
       ElMessage.error(response?.data.message || '保存设置失败，请重试')
     }
   } catch (error) {
-    console.error('保存设置错误:', error)
+    console.error('保存设置错误：', error)
     ElMessage.error('保存设置失败，请重试')
   } finally {
     loading.value = false
@@ -221,7 +221,7 @@ const loadSettings = async () => {
       formData.telegram_user_id = response.data.data.chat_id || ''
     }
   } catch (error) {
-    console.error('加载设置错误:', error)
+    console.error('加载设置错误：', error)
     ElMessage.warning('加载已保存的设置失败')
   } finally {
     loading.value = false

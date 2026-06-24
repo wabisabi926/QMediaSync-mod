@@ -57,7 +57,7 @@ export function useHourlyStats() {
         hourlyStats.value = null
       }
     } catch (error) {
-      console.error('加载每小时请求统计错误:', error)
+      console.error('加载每小时请求统计错误：', error)
       if (!hasLoaded.value) {
         hourlyStats.value = null
       }
@@ -87,7 +87,7 @@ export function useHourlyStats() {
         },
       },
       legend: {
-        data: ['请求数', '限流次数', '平均响应时间(ms)'],
+        data: ['请求数', '限流次数', '平均响应时间 (ms)'],
         top: 10,
       },
       grid: {
@@ -113,7 +113,7 @@ export function useHourlyStats() {
         },
         {
           type: 'value',
-          name: '响应时间(ms)',
+          name: '响应时间 (ms)',
           position: 'right',
         },
       ],
@@ -137,7 +137,7 @@ export function useHourlyStats() {
           },
         },
         {
-          name: '平均响应时间(ms)',
+          name: '平均响应时间 (ms)',
           type: 'line',
           yAxisIndex: 1,
           data: avgDurations,

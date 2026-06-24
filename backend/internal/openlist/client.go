@@ -12,7 +12,7 @@ import (
 	"resty.dev/v3"
 )
 
-// Client openlist客户端
+// Client OpenList 客户端
 type Client struct {
 	AccountId   uint
 	BaseUrl     string
@@ -22,7 +22,7 @@ type Client struct {
 	client      *resty.Client
 }
 
-// 全局HTTP客户端实例
+// 全局 HTTP 客户端实例
 var cachedClients map[string]*Client = make(map[string]*Client, 0)
 var cachedClientsMutex sync.RWMutex
 
@@ -60,7 +60,7 @@ func (c *Client) SetAuthToken(accessToken string) {
 	c.AccessToken = accessToken
 }
 
-// doRequest 执行HTTP请求
+// doRequest 执行 HTTP 请求
 func (c *Client) doRequest(url string, req *resty.Request, options *RequestConfig) (*resty.Response, error) {
 	if options == nil {
 		options = DefaultRequestConfig()
@@ -79,15 +79,15 @@ func (c *Client) doRequest(url string, req *resty.Request, options *RequestConfi
 			return resp, nil
 		}
 		lastErr = err
-		// 如果是token过期错误，等待token刷新完成后重试
+		// 如果是 Token 过期错误，等待 Token 刷新完成后重试
 		if err.Error() == "token expired" {
 			helpers.OpenListLog.Warn("访问凭证已过期，正在刷新")
 			continue
 		}
 		// 其他错误开始重试
 		if attempt < options.MaxRetries {
-			// helpers.OpenListLog.Warnf("%s %s 请求失败:%+v", req.Method, req.URL, lastErr)
-			helpers.OpenListLog.Warnf("%s %s 请求失败，%+v秒后重试 (第%d次尝试), 错误:%+v", req.Method, req.URL, options.RetryDelay.Seconds(), attempt+1, lastErr)
+			// helpers.OpenListLog.Warnf("%s %s 请求失败：%+v", req.Method, req.URL, lastErr)
+			helpers.OpenListLog.Warnf("%s %s 请求失败，%.0f 秒后重试（第 %d 次尝试），错误：%+v", req.Method, req.URL, options.RetryDelay.Seconds(), attempt+1, lastErr)
 			time.Sleep(options.RetryDelay)
 		}
 	}
@@ -109,7 +109,7 @@ func (c *Client) request(url string, req *resty.Request) (*resty.Response, error
 	case "PUT":
 		response, err = req.Put(url)
 	default:
-		return nil, fmt.Errorf("unsupported HTTP method: %s", req.Method)
+		return nil, fmt.Errorf("不支持的 HTTP 方法：%s", req.Method)
 	}
 	if err != nil {
 		return response, err
@@ -117,13 +117,13 @@ func (c *Client) request(url string, req *resty.Request) (*resty.Response, error
 	result := response.Result()
 	data, err := json.Marshal(result)
 	if err != nil {
-		helpers.OpenListLog.Errorf("openlist请求 %s %s 序列化失败:%+v", req.Method, req.URL, err)
+		helpers.OpenListLog.Errorf("OpenList 请求 %s %s 序列化失败：%+v", req.Method, req.URL, err)
 		return response, err
 	}
 	var jsonResult map[string]interface{}
 	err = json.Unmarshal(data, &jsonResult)
 	if err != nil {
-		helpers.OpenListLog.Errorf("openlist请求 %s %s 反序列化失败:%+v", req.Method, req.URL, err)
+		helpers.OpenListLog.Errorf("OpenList 请求 %s %s 反序列化失败：%+v", req.Method, req.URL, err)
 		return response, err
 	}
 	// helpers.OpenListLog.Infof("认证访问 %s %s\nstate=%v, code=%d, msg=%s, data=%s\n", req.Method, req.URL, resp.State, resp.Code, resp.Message, string(resp.Data))
@@ -131,14 +131,14 @@ func (c *Client) request(url string, req *resty.Request) (*resty.Response, error
 	if data != nil && jsonResult != nil {
 		switch jsonResult["code"].(float64) {
 		case http.StatusUnauthorized:
-			// token过期，发布刷新事件，只有用户名和密码登录才需要刷新token
+			// Token 过期，发布刷新事件，只有用户名和密码登录才需要刷新 Token
 			if c.Username != "" && c.Password != "" {
 				c.GetToken()
 			}
 			return response, fmt.Errorf("token expired")
 		}
 		if jsonResult["code"].(float64) != http.StatusOK {
-			helpers.OpenListLog.Errorf("openlist请求 %s %s 失败:%s", req.Method, req.URL, jsonResult["message"].(string))
+			helpers.OpenListLog.Errorf("OpenList 请求 %s %s 失败：%s", req.Method, req.URL, jsonResult["message"].(string))
 			return response, fmt.Errorf("%s", jsonResult["message"].(string))
 		}
 	}

@@ -1,12 +1,13 @@
-# 123云盘客户端当前接口
+# 123 云盘客户端当前接口
 
 `backend/internal/open123` 目前是 123 云盘开放平台客户端的基础封装。当前项目主流程尚未引用该包，仅 `open123` 包内测试覆盖客户端初始化、速率限制和部分并发逻辑。
 
 ## 当前限制
 
 - `initDefaultRateLimits()` 是未导出的内部方法，其他包不能直接调用。
-- `performTokenRefresh()` 已实现请求 token 的逻辑，但 `refreshAccessToken()` 当前还没有调用它。
-- 当前没有导出的 token 设置方法，因此真实 API 请求前还需要补齐 token 初始化/刷新流程。
+- `performTokenRefresh()` 已实现请求 Token 的逻辑，但 `refreshAccessToken()` 当前还没有调用它。
+- 当前没有导出的 Token 设置方法，因此真实 API 请求前还需要补齐 Token 初始化/刷新流程。
+- `SetRateLimit(path, qps)` 当前按完整 path 匹配，不按前缀匹配。
 
 ## 创建客户端
 
@@ -16,9 +17,9 @@ import "Q115-STRM/internal/open123"
 func newOpen123Client() *open123.Client {
     client := open123.NewClient("your_client_id", "your_client_secret")
 
-    client.SetRateLimit("/api/v1/", 10)
-    client.SetRateLimit("/upload/v2/", 5)
-    client.SetRateLimit("/api/v2/", 15)
+    client.SetRateLimit("/api/v2/file/list", 10)
+    client.SetRateLimit("/upload/v2/file/domain", 5)
+    client.SetRateLimit("/api/v1/file/download_info", 15)
 
     return client
 }
@@ -117,6 +118,6 @@ if err != nil {
 
 ## 并发刷新框架
 
-当前请求流程会在 token 临近过期时进入 `ensureValidAccessToken()`，并通过 `sync.Once`、互斥锁和 channel 协调并发刷新，避免多个请求同时刷新。
+当前请求流程会在 Token 临近过期时进入 `ensureValidAccessToken()`，并通过 `sync.Once`、互斥锁和 channel 协调并发刷新，避免多个请求同时刷新。
 
-但由于 `refreshAccessToken()` 尚未接入真实刷新动作，这里只能视为并发刷新框架，不能视为完整的 token 自动管理能力。
+但由于 `refreshAccessToken()` 尚未接入真实刷新动作，这里只能视为并发刷新框架，不能视为完整的 Token 自动管理能力。

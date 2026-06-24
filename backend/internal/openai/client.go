@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	// DefaultBaseURL is the default OpenAI API base URL
+	// DefaultBaseURL 是默认的 OpenAI API 基础地址。
 	DefaultBaseURL = "https://api.openai.com"
 	// 重试配置
 	DEFAULT_MAX_RETRIES = 1
@@ -25,10 +25,10 @@ const (
 	// 	DEFAULT_MOVIE_PROMPT = `任务规则：
 	// 1. 名称提取：
 	//  - 提取官方完整的主标题，
-	//  - 如果是系列电影需要保留序列号，比如：Nobody 2、The Guy 3、流浪地球 II、流浪地球 III，一般序号大于等于2才会有
+	//  - 如果是系列电影，需要保留序列号，比如：Nobody 2、The Guy 3、流浪地球 II、流浪地球 III，一般序号大于等于 2 才会有
 	//  - 主标题中不应该有特殊字符比如下划线、点等，如果有特殊字符需要用空格替换再提取
 	//  - 如果有汉语标题则去掉其他语种标题如英语，多语种的分隔符可能为点、下划线、横杠、斜杠等，如：死神千年血战相克谭_Bleach 取 死神千年血战相克谭，鬼灭之刃_Kimetsu no Yaiba 取 鬼灭之刃
-	// 2. 年份提取：只提取四位数格式的发行年份（如：(2023)、2023）；如果文件名中没有明确的四位数年份，则返回0；年份必须是标题外的独立数字，标题内数字（如《2012》《1942》）不算;年份只能大于1900,小于未来10年
+	// 2. 年份提取：只提取四位数格式的发行年份（如：(2023)、2023）；如果文件名中没有明确的四位数年份，则返回 0；年份必须是标题外的独立数字，标题内数字（如《2012》《1942》）不算；年份只能大于 1900，小于未来 10 年
 	// 3. 忽略信息：文件扩展名、视频编码、分辨率、发布组等信息；音频、字幕、制作组等元数据`
 
 	//	DEFAULT_TV_PROMPT    = `任务规则：
@@ -36,23 +36,23 @@ const (
 	// 1. 名称提取：
 	//   - 提取官方完整的主标题
 	//   - 去掉标题中的副标题（如"The Final Season"）
-	//   - 如果有汉语标题则去掉其他语种标题如英语，多语种的分隔符可能为\.|\_|\-|\||\\|\s等
+	//   - 如果有中文标题则去掉其他语种标题（如英语），多语种分隔符可能为 \.|\_|\-|\||\\|\s 等
 	//   - 保留主题中的系列序号（如"2"、"III"）
 	//
-	// 2. 年份提取：只提取四位数格式的发行年份（如：(2023)、2023）；如果文件名中没有明确的四位数年份，则返回0；年份必须是标题外的独立数字，标题内数字（如《2012》《1942》）不算
-	// 3. 剧集的季序号提取：提取数字格式的季编号，从1开始，如果没有，则返回1
-	// 4. 剧集的集序号提取：提取数字格式的集编号，从1开始，如果没有，则返回0
-	// 5. 可能有标题、年份、季序号都为空的情况，默认季编号为1
+	// 2. 年份提取：只提取四位数格式的发行年份（如：(2023)、2023）；如果文件名中没有明确的四位数年份，则返回 0；年份必须是标题外的独立数字，标题内数字（如《2012》《1942》）不算
+	// 3. 剧集的季序号提取：提取数字格式的季编号，从 1 开始，如果没有，则返回 1
+	// 4. 剧集的集序号提取：提取数字格式的集编号，从 1 开始，如果没有，则返回 0
+	// 5. 可能有标题、年份、季序号都为空的情况，默认季编号为 1
 	// 6. 如果输入的内容中只有一组数字，则认为是集编号
 	// 7. 如果输入的内容中包含标题+数字的组合，则认为是集编号
-	// 8. 如果无法识别季编号，则默认为1
-	// 9. 如果无法识别年份，则默认为0
+	// 8. 如果无法识别季编号，则默认为 1
+	// 9. 如果无法识别年份，则默认为 0
 	// 10. 如果无法识别标题，则默认为空
 	// 11. 忽略信息：文件扩展名、视频编码、分辨率、发布组等信息；音频、字幕、制作组等元数据`
-	DEFAULT_MOVIE_PROMPT = "从文件名中提取出电影名称、年份; 名称中不能有特殊字符如点、下划线、横杠、斜杠等\n"
+	DEFAULT_MOVIE_PROMPT = "从文件名中提取电影名称和年份；名称中不能包含点、下划线、横杠、斜杠等特殊字符\n"
 )
 
-// Client represents an OpenAI API client
+// Client 表示 OpenAI API 客户端。
 type Client struct {
 	resty     *resty.Client
 	apiKey    string
@@ -60,23 +60,23 @@ type Client struct {
 	modelName string
 }
 
-// GlobalOpenAIClient is the global instance of the OpenAI client
+// GlobalOpenAIClient 是全局 OpenAI 客户端实例。
 var GlobalOpenAIClient *Client
 
-// ChatCompletionRequest represents a chat completion request
+// ChatCompletionRequest 表示聊天补全请求。
 type ChatCompletionRequest struct {
 	Model    string    `json:"model"`
 	Stream   bool      `json:"stream"`
 	Messages []Message `json:"messages"`
 }
 
-// Message represents a message in a chat completion
+// Message 表示聊天补全消息。
 type Message struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-// ChatCompletionResponse represents a chat completion response
+// ChatCompletionResponse 表示聊天补全响应。
 type ChatCompletionResponse struct {
 	ID      string   `json:"id"`
 	Object  string   `json:"object"`
@@ -86,21 +86,21 @@ type ChatCompletionResponse struct {
 	Usage   Usage    `json:"usage,omitempty"`
 }
 
-// Choice represents a choice in a chat completion response
+// Choice 表示聊天补全响应中的候选项。
 type Choice struct {
 	Index        int     `json:"index"`
 	Message      Message `json:"message"`
 	FinishReason string  `json:"finish_reason"`
 }
 
-// Usage represents token usage information
+// Usage 表示 Token 用量信息。
 type Usage struct {
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
 	TotalTokens      int `json:"total_tokens"`
 }
 
-// RequestConfig represents configuration for a request
+// RequestConfig 表示请求配置。
 type RequestConfig struct {
 	Timeout    time.Duration
 	MaxRetries int
@@ -112,7 +112,7 @@ type OpenAIError struct {
 	Message string `json:"message"`
 }
 
-// DefaultRequestConfig returns the default request configuration
+// DefaultRequestConfig 返回默认请求配置。
 func DefaultRequestConfig() *RequestConfig {
 	return &RequestConfig{
 		Timeout:    time.Duration(DEFAULT_TIMEOUT) * time.Second,
@@ -121,7 +121,7 @@ func DefaultRequestConfig() *RequestConfig {
 	}
 }
 
-// NewClient creates a new OpenAI API client
+// NewClient 创建新的 OpenAI API 客户端。
 func NewClient(apiKey, baseUrl, modelName string, timeout int) *Client {
 	if GlobalOpenAIClient != nil {
 		GlobalOpenAIClient.apiKey = apiKey
@@ -132,13 +132,13 @@ func NewClient(apiKey, baseUrl, modelName string, timeout int) *Client {
 	if timeout == 0 {
 		timeout = DEFAULT_TIMEOUT
 	}
-	// Create resty client
+	// 创建 resty 客户端
 	rc := resty.New()
 	rc.SetTimeout(time.Duration(timeout) * time.Second)
 	rc.SetHeader("Content-Type", "application/json")
 	rc.SetHeader("Accept", "application/json")
 
-	// Set base URL
+	// 设置基础 URL
 	if baseUrl == "" {
 		baseUrl = DefaultBaseURL
 	}
@@ -154,7 +154,7 @@ func NewClient(apiKey, baseUrl, modelName string, timeout int) *Client {
 	return client
 }
 
-// SetBaseUrl sets the base URL for the client
+// SetBaseUrl 设置客户端基础 URL。
 func (c *Client) SetBaseUrl(baseUrl string) {
 	c.baseURL = baseUrl
 }
@@ -167,7 +167,7 @@ type MediaInfoAI struct {
 func (c *Client) TakeMoiveName(filename string, prompt string) (*MediaInfoAI, error) {
 	var userMessage string
 	var message []Message = make([]Message, 0)
-	userMessage += `\n输出格式：请严格按照以下JSON格式输出，不要添加任何其他内容：{"name": "提取的影视剧名称", "year": 年份或0}\n现在请处理文件名：{{filename}}`
+	userMessage += `\n输出格式：请严格按以下 JSON 格式返回，不要添加任何其他内容：{"name": "提取出的影视剧名称", "year": 年份或 0}\n现在请处理文件名：{{filename}}`
 	userMessage = strings.ReplaceAll(userMessage, "{{filename}}", filename)
 	message = append(message, Message{
 		Role:    "user",
@@ -186,16 +186,16 @@ func (c *Client) TakeMoiveName(filename string, prompt string) (*MediaInfoAI, er
 	jsonContent = strings.TrimPrefix(jsonContent, startChars)
 	jsonContent = strings.TrimSuffix(jsonContent, endChars)
 	if err := json.Unmarshal([]byte(jsonContent), &mediaInfo); err != nil {
-		return nil, fmt.Errorf("failed to parse JSON response: %v，错误的数据：%s", err, jsonContent)
+		return nil, fmt.Errorf("解析 JSON 响应失败：%v，原始数据：%s", err, jsonContent)
 	}
 	return &mediaInfo, nil
 }
 
-// CreateChatCompletion creates a chat completion
+// CreateChatCompletion 创建聊天补全。
 func (c *Client) CreateChatCompletion(message []Message, options *RequestConfig) (*ChatCompletionResponse, error) {
 	url := fmt.Sprintf("%s/v1/chat/completions", c.baseURL)
 
-	// Prepare the request
+	// 准备请求
 	r := c.resty.R().SetHeader("Authorization", fmt.Sprintf("Bearer %s", c.apiKey)).SetMethod("POST")
 	req := ChatCompletionRequest{
 		Model:    c.modelName,
@@ -203,22 +203,22 @@ func (c *Client) CreateChatCompletion(message []Message, options *RequestConfig)
 		Messages: message,
 	}
 
-	// Set the request body
+	// 设置请求体
 	r.SetBody(req)
 
-	// Set the response
+	// 设置响应结构
 	var resp ChatCompletionResponse
 	r.SetResult(&resp)
 
-	// Execute the request
+	// 执行请求
 	response, err := c.doRequest(url, r, options)
 	if err != nil {
 		return nil, err
 	}
 
-	// Check if the response was successful
+	// 检查响应是否成功
 	if !response.IsSuccess() {
-		fmt.Printf("OpenAI API error: status %d, body: %s", response.StatusCode(), response.String())
+		fmt.Printf("OpenAI API 错误：状态码 %d，响应体：%s", response.StatusCode(), response.String())
 		var openAIError OpenAIError
 		if err := json.Unmarshal(response.Bytes(), &openAIError); err != nil {
 			return nil, fmt.Errorf("%v", err)
@@ -229,29 +229,29 @@ func (c *Client) CreateChatCompletion(message []Message, options *RequestConfig)
 	return &resp, nil
 }
 
-// doRequest executes an HTTP request with retry logic
+// doRequest 执行带重试逻辑的 HTTP 请求。
 func (c *Client) doRequest(url string, req *resty.Request, options *RequestConfig) (*resty.Response, error) {
 	if options == nil {
 		options = DefaultRequestConfig()
 	}
 
-	// Set timeout
+	// 设置超时
 	req.SetTimeout(options.Timeout)
 
 	var lastErr error
 	for attempt := 0; attempt <= options.MaxRetries; attempt++ {
 		resp, err := c.request(url, req)
 		if err == nil {
-			// Success
+			// 请求成功
 			return resp, nil
 		}
 
 		lastErr = err
 
-		// Check if we should retry
+		// 检查是否需要重试
 		if attempt < options.MaxRetries {
-			// Log the retry
-			fmt.Printf("%s %s request failed, retrying in %.2f seconds (attempt %d), error: %v\n",
+			// 记录重试信息
+			fmt.Printf("%s %s 请求失败，将在 %.2f 秒后重试（第 %d 次），错误：%v\n",
 				req.Method, url, options.RetryDelay.Seconds(), attempt+1, lastErr)
 			time.Sleep(options.RetryDelay)
 		}
@@ -260,7 +260,7 @@ func (c *Client) doRequest(url string, req *resty.Request, options *RequestConfi
 	return nil, lastErr
 }
 
-// request executes an HTTP request
+// request 执行 HTTP 请求。
 func (c *Client) request(url string, req *resty.Request) (*resty.Response, error) {
 	req.SetHeader("Accept", "application/json")
 	req.SetHeader("Content-Type", "application/json")
@@ -274,7 +274,7 @@ func (c *Client) request(url string, req *resty.Request) (*resty.Response, error
 	case "POST":
 		response, err = req.Post(url)
 	default:
-		return nil, fmt.Errorf("unsupported HTTP method: %s", req.Method)
+		return nil, fmt.Errorf("不支持的 HTTP 方法：%s", req.Method)
 	}
 
 	return response, err

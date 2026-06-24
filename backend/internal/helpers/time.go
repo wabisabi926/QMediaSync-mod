@@ -11,15 +11,15 @@ func FormatTimestamp(ts int64) string {
 
 func FormatDuration(seconds int64) string {
 	if seconds < 60 {
-		return fmt.Sprintf("%d秒", seconds)
+		return fmt.Sprintf("%d 秒", seconds)
 	} else if seconds < 3600 {
 		minutes := seconds / 60
 		secs := seconds % 60
-		return fmt.Sprintf("%d分%d秒", minutes, secs)
+		return fmt.Sprintf("%d 分 %d 秒", minutes, secs)
 	} else {
 		hours := seconds / 3600
 		minutes := (seconds % 3600) / 60
 		secs := seconds % 60
-		return fmt.Sprintf("%d小时%d分%d秒", hours, minutes, secs)
+		return fmt.Sprintf("%d 小时 %d 分 %d 秒", hours, minutes, secs)
 	}
 }

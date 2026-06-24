@@ -84,7 +84,7 @@ func (afw *AdvancedFolderWatcher) addWatchRecursive(path string) error {
 
 			err = afw.watcher.Add(walkPath)
 			if err != nil {
-				log.Printf("警告: 无法监控目录 %s: %v", walkPath, err)
+				log.Printf("警告：无法监控目录 %s：%v", walkPath, err)
 			}
 		}
 		return nil
@@ -139,10 +139,10 @@ func (afw *AdvancedFolderWatcher) handleCreate(event fsnotify.Event) {
 	}
 
 	if info.IsDir() {
-		log.Printf("📁 新目录创建: %s", event.Name)
+		log.Printf("📁 新目录创建：%s", event.Name)
 		afw.addWatchRecursive(event.Name)
 	} else {
-		log.Printf("📄 新文件创建: %s", event.Name)
+		log.Printf("📄 新文件创建：%s", event.Name)
 	}
 }
 
@@ -151,15 +151,15 @@ func (afw *AdvancedFolderWatcher) handleWrite(event fsnotify.Event) {
 	if err != nil || info.IsDir() {
 		return
 	}
-	log.Printf("✏️  文件修改: %s (大小: %d bytes)", event.Name, info.Size())
+	log.Printf("✏️  文件修改：%s（大小：%d 字节）", event.Name, info.Size())
 }
 
 func (afw *AdvancedFolderWatcher) handleRemove(event fsnotify.Event) {
-	log.Printf("🗑️  文件/目录删除: %s", event.Name)
+	log.Printf("🗑️  文件/目录删除：%s", event.Name)
 }
 
 func (afw *AdvancedFolderWatcher) handleRename(event fsnotify.Event) {
-	log.Printf("📝 文件重命名: %s", event.Name)
+	log.Printf("📝 文件重命名：%s", event.Name)
 }
 
 // Start 开始监控
@@ -169,9 +169,9 @@ func (afw *AdvancedFolderWatcher) Start() {
 		log.Fatal(err)
 	}
 
-	log.Printf("🚀 开始高级监控目录: %s", afw.watchPath)
-	log.Printf("📊 监控文件类型: %v", afw.extensions)
-	log.Printf("🚫 忽略目录: %v", afw.ignoreDirs)
+	log.Printf("🚀 开始高级监控目录：%s", afw.watchPath)
+	log.Printf("📊 监控文件类型：%v", afw.extensions)
+	log.Printf("🚫 忽略目录：%v", afw.ignoreDirs)
 
 	for {
 		select {
@@ -185,7 +185,7 @@ func (afw *AdvancedFolderWatcher) Start() {
 			if !ok {
 				return
 			}
-			log.Printf("❌ 监控错误: %v", err)
+			log.Printf("❌ 监控错误：%v", err)
 		}
 	}
 }

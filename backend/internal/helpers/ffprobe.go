@@ -53,18 +53,18 @@ type FFprobeJson struct {
 	Format  FFprobeFormat   `json:"format"`
 }
 
-// 用ffrpobe提取视频文件的视频、音频、字幕流信息
+// 用 ffprobe 提取视频文件的视频、音频、字幕流信息
 func GetFFprobeJson(videoUrl string) (*FFprobeJson, error) {
-	AppLogger.Infof("ffprobe查询url %s 的信息", videoUrl)
+	AppLogger.Infof("ffprobe 查询 URL %s 的信息", videoUrl)
 	cmd := exec.Command("ffprobe", "-v", "quiet", "-print_format", "json", "-show_streams", "-show_format", videoUrl)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		AppLogger.Errorf("执行ffprobe命令失败:%v", err)
+		AppLogger.Errorf("执行 ffprobe 命令失败：%v", err)
 		return nil, err
 	}
 	var ffprobeJson FFprobeJson
 	if err := json.Unmarshal(output, &ffprobeJson); err != nil {
-		AppLogger.Errorf("解析ffprobe输出失败:%v", err)
+		AppLogger.Errorf("解析 ffprobe 输出失败：%v", err)
 		return nil, err
 	}
 	return &ffprobeJson, nil
@@ -179,8 +179,8 @@ func NewResolutionDetector(tolerance int) *ResolutionDetector {
 
 // VideoResolution 视频分辨率信息
 type VideoResolution struct {
-	StandardName string // 标准名称: "1080p", "2160p" 等
-	CommonName   string // 通用名称: "Full HD", "4K" 等
+	StandardName string // 标准名称："1080p", "2160p" 等
+	CommonName   string // 通用名称："Full HD", "4K" 等
 	Width        int    // 宽度
 	Height       int    // 高度
 	IsStandard   bool   // 是否为标准分辨率
@@ -260,10 +260,10 @@ func (d *ResolutionDetector) estimateByWidthAndRatio(width, height int) *VideoRe
 
 	// 根据宽高比分类
 	switch {
-	case aspectRatio >= 2.3: // 超宽屏 (21:9)
+	case aspectRatio >= 2.3: // 超宽屏（21:9）
 		estimatedHeight = (width * 9) / 21
 		commonName = "Ultra Wide "
-	case aspectRatio >= 1.7: // 宽屏 (16:9)
+	case aspectRatio >= 1.7: // 宽屏（16:9）
 		estimatedHeight = (width * 9) / 16
 		commonName = "Widescreen "
 	case aspectRatio >= 1.5: // 3:2
@@ -340,7 +340,7 @@ func GetResolutionLevel(width, height int64) *VideoResolution {
 
 // CalculateBitrate 计算视频比特率 (bps)
 func CalculateBitrate(stream *FFprobeStream, format *FFprobeFormat) (int64, error) {
-	// 方法1: 直接使用流中的比特率
+	// 方法 1：直接使用流中的比特率
 	if stream.BitRate != "" && stream.BitRate != "N/A" && stream.BitRate != "0" {
 		bitrate, err := strconv.ParseInt(stream.BitRate, 10, 64)
 		if err == nil && bitrate > 0 {
@@ -348,7 +348,7 @@ func CalculateBitrate(stream *FFprobeStream, format *FFprobeFormat) (int64, erro
 		}
 	}
 
-	// 方法2: 使用格式中的总比特率
+	// 方法 2：使用格式中的总比特率
 	if format.BitRate != "" && format.BitRate != "N/A" && format.BitRate != "0" {
 		bitrate, err := strconv.ParseInt(format.BitRate, 10, 64)
 		if err == nil && bitrate > 0 {
@@ -356,12 +356,12 @@ func CalculateBitrate(stream *FFprobeStream, format *FFprobeFormat) (int64, erro
 		}
 	}
 
-	// 方法3: 通过文件大小和时长计算
+	// 方法 3：通过文件大小和时长计算
 	if format.Size != "" && format.Duration != "" {
 		return calculateBitrateFromSizeAndDuration(format.Size, format.Duration)
 	}
 
-	// 方法4: 通过帧数和帧率估算
+	// 方法 4：通过帧数和帧率估算
 	if stream.NB_Frames != "" && stream.AvgFrameRate != "" {
 		return estimateBitrateFromFrames(stream.NB_Frames, stream.AvgFrameRate, format.Size)
 	}
@@ -373,19 +373,19 @@ func CalculateBitrate(stream *FFprobeStream, format *FFprobeFormat) (int64, erro
 func calculateBitrateFromSizeAndDuration(sizeStr, durationStr string) (int64, error) {
 	size, err := strconv.ParseInt(sizeStr, 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("解析文件大小失败: %v", err)
+		return 0, fmt.Errorf("解析文件大小失败：%v", err)
 	}
 
 	duration, err := strconv.ParseFloat(durationStr, 64)
 	if err != nil {
-		return 0, fmt.Errorf("解析时长失败: %v", err)
+		return 0, fmt.Errorf("解析时长失败：%v", err)
 	}
 
 	if duration <= 0 {
-		return 0, fmt.Errorf("时长必须大于0")
+		return 0, fmt.Errorf("时长必须大于 0")
 	}
 
-	// 比特率 = (文件大小 * 8) / 时长 (bps)
+	// 比特率 =（文件大小 * 8）/ 时长（bps）
 	bitrate := float64(size) * 8 / duration
 	return int64(math.Round(bitrate)), nil
 }
@@ -394,21 +394,21 @@ func calculateBitrateFromSizeAndDuration(sizeStr, durationStr string) (int64, er
 func estimateBitrateFromFrames(nbFramesStr, frameRateStr, sizeStr string) (int64, error) {
 	nbFrames, err := strconv.ParseInt(nbFramesStr, 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("解析帧数失败: %v", err)
+		return 0, fmt.Errorf("解析帧数失败：%v", err)
 	}
 
 	frameRate, err := parseFrameRate(frameRateStr)
 	if err != nil {
-		return 0, fmt.Errorf("解析帧率失败: %v", err)
+		return 0, fmt.Errorf("解析帧率失败：%v", err)
 	}
 
 	size, err := strconv.ParseInt(sizeStr, 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("解析文件大小失败: %v", err)
+		return 0, fmt.Errorf("解析文件大小失败：%v", err)
 	}
 
 	if frameRate <= 0 || nbFrames <= 0 {
-		return 0, fmt.Errorf("帧率和帧数必须大于0")
+		return 0, fmt.Errorf("帧率和帧数必须大于 0")
 	}
 
 	// 时长 = 帧数 / 帧率
@@ -419,7 +419,7 @@ func estimateBitrateFromFrames(nbFramesStr, frameRateStr, sizeStr string) (int64
 	return int64(math.Round(bitrate)), nil
 }
 
-// parseFrameRate 解析帧率字符串 (如 "30000/1001")
+// parseFrameRate 解析帧率字符串（如 "30000/1001"）
 func parseFrameRate(frameRateStr string) (float64, error) {
 	// 如果是分数形式
 	if matches := regexp.MustCompile(`^(\d+)/(\d+)$`).FindStringSubmatch(frameRateStr); len(matches) == 3 {
@@ -435,7 +435,7 @@ func parseFrameRate(frameRateStr string) (float64, error) {
 		return value, nil
 	}
 
-	return 0, fmt.Errorf("无法解析帧率: %s", frameRateStr)
+	return 0, fmt.Errorf("无法解析帧率：%s", frameRateStr)
 }
 
 // ParseDurationToSeconds 将 ffprobe 的 duration 格式化为秒
@@ -449,15 +449,15 @@ func ParseDurationToSeconds(durationStr string) (int64, error) {
 		return int64(math.Round(seconds)), nil
 	}
 
-	// 尝试解析时间格式 (HH:MM:SS.ms 或 HH:MM:SS)
+	// 尝试解析时间格式（HH:MM:SS.ms 或 HH:MM:SS）
 	if seconds, err := parseTimeFormat(durationStr); err == nil {
 		return seconds, nil
 	}
 
-	return 0, fmt.Errorf("无法解析 duration 格式: %s", durationStr)
+	return 0, fmt.Errorf("无法解析 duration 格式：%s", durationStr)
 }
 
-// parseTimeFormat 解析时间格式 (HH:MM:SS.ms)
+// parseTimeFormat 解析时间格式（HH:MM:SS.ms）
 func parseTimeFormat(timeStr string) (int64, error) {
 	parts := strings.Split(timeStr, ":")
 	if len(parts) < 2 || len(parts) > 3 {

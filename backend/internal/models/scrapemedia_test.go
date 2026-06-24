@@ -172,7 +172,7 @@ func TestOldSyntax_BasicMovie(t *testing.T) {
 			expected: "星际穿越 (2014) FHD",
 		},
 		{
-			name:     "带TMDB ID",
+			name:     "带 TMDB ID",
 			template: "{title} {tmdb_id}",
 			expected: "星际穿越 {tmdbid-157336}",
 		},
@@ -252,7 +252,7 @@ func TestOldSyntax_MultipleActors(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "多人演员（3个以上）",
+			name:     "多人演员（3 个以上）",
 			template: "{title} - {actors}",
 			expected: "复仇者联盟4：终局之战 - 多人演员",
 		},
@@ -287,7 +287,7 @@ func TestOldSyntax_EmptyFields(t *testing.T) {
 			expected: "小众电影 (2023) ",
 		},
 		{
-			name:     "无TMDB ID",
+			name:     "无 TMDB ID",
 			template: "{title} {tmdb_id}",
 			expected: "小众电影 ",
 		},
@@ -332,7 +332,7 @@ func TestNewSyntax_BasicMovie(t *testing.T) {
 			expected: "星际穿越 (2014) FHD",
 		},
 		{
-			name:     "带TMDB ID",
+			name:     "带 TMDB ID",
 			template: "{{title}} {{tmdbid}}",
 			expected: "星际穿越 157336",
 		},
@@ -452,7 +452,7 @@ func TestNewSyntax_ConditionalLogic(t *testing.T) {
 			expected: "星际穿越 (2014) - 马修·麦康纳, 安妮·海瑟薇",
 		},
 		{
-			name:     "条件TMDB ID（有值）",
+			name:     "条件 TMDB ID（有值）",
 			template: "{{title}}{% if tmdbid %} [{{tmdbid}}]{% endif %}",
 			expected: "星际穿越 [157336]",
 		},

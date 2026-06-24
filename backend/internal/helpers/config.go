@@ -35,7 +35,7 @@ type ConfigLog struct {
 	TMDB       string `yaml:"tmdb"`
 	BaiduPan   string `yaml:"baiduPan"`
 	Web        string `yaml:"web"`
-	SyncLogDir string `yaml:"syncLogDir"` // 同步任务的日志目录，每个同步任务会生成一个日志文件，文件名为任务ID
+	SyncLogDir string `yaml:"syncLogDir"` // 同步任务的日志目录，每个同步任务会生成一个日志文件，文件名为任务 ID
 }
 
 type PostgresConfig struct {
@@ -51,9 +51,9 @@ type PostgresConfig struct {
 
 type ConfigDb struct {
 	Engine         DbEngine       `yaml:"engine"`         // 使用的数据库引擎，可选值：sqlite, postgres
-	SqliteFile     string         `yaml:"sqliteFile"`     // SQLite数据库文件路径
-	PostgresType   PostgresType   `yaml:"postgresType"`   // PostgreSQL数据库类型，可选值：embedded, external
-	PostgresConfig PostgresConfig `yaml:"postgresConfig"` // PostgreSQL数据库配置
+	SqliteFile     string         `yaml:"sqliteFile"`     // SQLite 数据库文件路径
+	PostgresType   PostgresType   `yaml:"postgresType"`   // PostgreSQL 数据库类型，可选值：embedded, external
+	PostgresConfig PostgresConfig `yaml:"postgresConfig"` // PostgreSQL 数据库配置
 }
 
 type ConfigStrm struct {
@@ -68,8 +68,8 @@ type Config struct {
 	Db            ConfigDb   `yaml:"db"`
 	CacheSize     int        `yaml:"cacheSize"` // 数据库缓存大小，单位字节
 	JwtSecret     string     `yaml:"jwtSecret"`
-	HttpHost      string     `yaml:"httpHost"`  // HTTP主机地址
-	HttpsHost     string     `yaml:"httpsHost"` // HTTPS主机地址
+	HttpHost      string     `yaml:"httpHost"`  // HTTP 主机地址
+	HttpsHost     string     `yaml:"httpsHost"` // HTTPS 主机地址
 	Strm          ConfigStrm `yaml:"strm"`
 	AuthServer    string     `yaml:"authServer"`
 	NewAuthServer string     `yaml:"newAuthServer"`
@@ -88,7 +88,7 @@ var AccessiblePathes string
 var IsFnOS bool
 var IsRelease bool
 var Guid string
-var FANART_API_KEY = "" // 生效值：Fanart 客户端读取，由 ScrapeSettings.ApplyKeyOverrides 按“UI>默认”刷新
+var FANART_API_KEY = "" // 生效值：Fanart 客户端读取，由 ScrapeSettings.ApplyKeyOverrides 按“UI > 默认”刷新
 var HTTP_PROXY = ""     // 生效的通用刮削代理：由 ScrapeSettings.ApplyKeyOverrides 按代理开关刷新；Fanart 等直读 helpers 的客户端使用（空=直连）
 var DEFAULT_TMDB_ACCESS_TOKEN = ""
 var DEFAULT_TMDB_API_KEY = ""
@@ -127,7 +127,7 @@ func InitConfig() error {
 	if err := loadYaml(configPath, &GlobalConfig); err != nil {
 		return err
 	}
-	// 给strm填充默认值
+	// 给 STRM 填充默认值
 	if len(GlobalConfig.Strm.VideoExt) == 0 {
 		GlobalConfig.Strm.VideoExt = []string{".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".3gp", ".ts"}
 	}
@@ -135,10 +135,10 @@ func InitConfig() error {
 		GlobalConfig.Strm.MetaExt = []string{".jpg", ".jpeg", ".png", ".webp", ".nfo", ".srt", ".ass", ".svg", ".sup", ".lrc"}
 	}
 	// if GlobalConfig.Strm.MinVideoSize == 0 {
-	GlobalConfig.Strm.MinVideoSize = 100 // 100MB
+	GlobalConfig.Strm.MinVideoSize = 100 // 100 MB
 	// }
 	// if GlobalConfig.Strm.Cron == "" {
-	GlobalConfig.Strm.Cron = "30 * * * *" // 每小时30分执行
+	GlobalConfig.Strm.Cron = "30 * * * *" // 每小时 30 分执行
 	// }
 	if GlobalConfig.AuthServer == "" {
 		GlobalConfig.AuthServer = "https://api.mqfamily.top"
@@ -153,7 +153,7 @@ func LoadEnvFromFile(envPath string) error {
 	f, err := os.Open(envPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			fmt.Printf("环境变量配置文件不存在: %s\n", envPath)
+			fmt.Printf("环境变量配置文件不存在：%s\n", envPath)
 			return nil
 		}
 		return err
@@ -186,11 +186,11 @@ func LoadEnvFromFile(envPath string) error {
 func loadYaml(configPath string, cfg interface{}) error {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
-		return fmt.Errorf("读取配置文件失败: %w", err)
+		return fmt.Errorf("读取配置文件失败：%w", err)
 	}
 
 	if err := yaml.Unmarshal(data, cfg); err != nil {
-		return fmt.Errorf("解析配置文件失败: %w", err)
+		return fmt.Errorf("解析配置文件失败：%w", err)
 	}
 
 	return nil
@@ -272,8 +272,8 @@ func MakeDefaultConfig() *Config {
 		Strm: ConfigStrm{
 			VideoExt:     []string{".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".3gp", ".ts"},
 			MetaExt:      []string{".jpg", ".jpeg", ".png", ".webp", ".nfo", ".srt", ".ass", ".svg", ".sup", ".lrc"},
-			MinVideoSize: 100,          // 100MB
-			Cron:         "30 * * * *", // 每小时30分执行
+			MinVideoSize: 100,          // 100 MB
+			Cron:         "30 * * * *", // 每小时 30 分执行
 		},
 	}
 }

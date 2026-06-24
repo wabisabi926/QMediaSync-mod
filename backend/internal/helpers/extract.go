@@ -64,7 +64,7 @@ func ExtractTmdbId(name string) int64 {
 	for _, pattern := range tmdbPatterns {
 		re := regexp.MustCompile(pattern)
 		matches := re.FindStringSubmatch(name)
-		// fmt.Printf("匹配到的tmdb id: %+v\n", matches)
+		// fmt.Printf("匹配到的 TMDB ID: %+v\n", matches)
 		if len(matches) >= 2 {
 			tmdbId, _ := strconv.ParseInt(matches[1], 10, 64)
 			// 删除匹配的字符串
@@ -146,11 +146,11 @@ func ExtractMediaInfoRe(name string, isMovie bool, seEp bool, videoExt []string,
 		name = regexp.MustCompile(pattern).ReplaceAllString(name, "")
 		// fmt.Printf("删除第 x 集后: %s\n", name)
 	}
-	// 从name中删除excludePatterns
+	// 从 name 中删除 excludePatterns
 	for _, p := range excludePatterns {
 		name = strings.ReplaceAll(name, p, "")
 	}
-	// 删除所有emoji表情符号
+	// 删除所有 emoji 表情符号
 	emojiRegex := regexp.MustCompile(`[\x{1F600}-\x{1F64F}]|[\x{1F300}-\x{1F5FF}]|[\x{1F680}-\x{1F6FF}]|[\x{1F1E0}-\x{1F1FF}]|[\x{2600}-\x{26FF}]|[\x{2700}-\x{27BF}]|[\x{1F900}-\x{1F9FF}]`)
 	name = emojiRegex.ReplaceAllString(name, "")
 	// 移除开头的字幕组等关键词
@@ -180,13 +180,13 @@ func ExtractMediaInfoRe(name string, isMovie bool, seEp bool, videoExt []string,
 			continue
 		}
 		// fmt.Printf("处理: %s=>%s\n", f, n)
-		// 如果n是
+		// 保留处理后的片段
 		newNames = append(newNames, n)
 	}
 	if info.Name != "" && info.Year != 0 && strings.Count(info.Name, " ") == 0 {
 		return info
 	}
-	// 用分隔符连接newNames
+	// 用分隔符连接 newNames
 	name = strings.Join(newNames, maxDelimiter)
 	// fmt.Printf("连接后文件名: %s\n", name)
 	// 移除结尾的发布组
@@ -199,7 +199,7 @@ func ExtractMediaInfoRe(name string, isMovie bool, seEp bool, videoExt []string,
 }
 
 func SplitTitle(name string) ([]string, string) {
-	//先把全角符号转为半角符号
+	// 先把全角符号转为半角符号
 	quanjiaoMap := map[string]string{
 		"【": "[",
 		"】": "]",
@@ -242,7 +242,7 @@ func SplitTitle(name string) ([]string, string) {
 	}
 	var names []string
 	if maxDelimiter != "" {
-		// 使用分隔符分割name
+		// 使用分隔符分割 name
 		names = strings.Split(name, maxDelimiter)
 	} else {
 		names = []string{name}
@@ -307,18 +307,18 @@ func PreProcess(name string, excludePatterns ...string) string {
 func ExtractSeasonEpisode(name string) (string, int, int) {
 	// fmt.Printf("提取季集前文件名: %s\n", name)
 	patterns := []string{
-		`(?i)S(\d{1,2})E[P]?(\d{1,3})`,         // S01E01 或者S01EP01
+		`(?i)S(\d{1,2})E[P]?(\d{1,3})`,         // S01E01 或 S01EP01
 		`(?i)E[P]?(\d{1,3})`,                   // E01 或者 EP01
 		`(?i)Season\s*(\d+)\s*Episode\s*(\d+)`, // Season 1 Episode 1
 		`(?i)(\d{1,2})x(\d{1,3})`,              // 1x01
 		`第\s*(\d+)\s*季.*第\s*(\d+)\s*集`,         // 中文格式：第 1 季第 1 集或第1季第1集
 		`第\s*(\d+)\s*集`,                        // 中文格式：第 1 集或第1集
 		`(?i)Vol[\.|\s]+(\d+)`,                 // 卷号
-		`\s?(\d{1,3})$`,                        // 只有集，凡人修仙传 10.mp4或10.mp4
+		`\s?(\d{1,3})$`,                        // 只有集，凡人修仙传 10.mp4 或 10.mp4
 		`\-\s(\d{1,3})\s`,                      // 只有集，- 10 xxxx.mp4
-		`(\d{2,4})[\s|\.|\_|\-]4[K|k]`,         // 01 4K或01_4K或01-4K或01.4K
-		`\[(\d{1,3})\]`,                        // [01]这种格式
-		`(\d{2,4})`,                            // 10.mkv这种格式
+		`(\d{2,4})[\s|\.|\_|\-]4[K|k]`,         // 01 4K、01_4K、01-4K 或 01.4K
+		`\[(\d{1,3})\]`,                        // [01] 这种格式
+		`(\d{2,4})`,                            // 10.mkv 这种格式
 	}
 	seasonNumber := -1
 	episodeNumber := -1
@@ -395,7 +395,7 @@ func cleanFilename(name string) string {
 	for _, s := range spec {
 		name = strings.ReplaceAll(name, s, " ")
 	}
-	// 如果name中有下划线，则用下划线继续分割
+	// 如果 name 中有下划线，则用下划线继续分割
 	if strings.Count(name, "_") >= 1 {
 		name = strings.Split(name, "_")[0]
 	}
@@ -597,7 +597,7 @@ func (ye *YearExtractor) cleanResult(text string) string {
 	return strings.TrimSpace(text)
 }
 
-// RemovePreExlucde 移除以start开头（可选），包含r中任意关键词，以end结尾（可选）的标签
+// RemovePreExlucde 移除以 start 开头（可选），包含 r 中任意关键词，以 end 结尾（可选）的标签
 func RemovePreExlucde(filename string) string {
 	// 常见的字幕组格式
 	audioCodecPatterns := []string{
@@ -626,10 +626,10 @@ func ExtractSeasonsFromSeasonPath(text string) int {
 	}
 	f := string(text[0])
 	if f != "s" && f != "S" {
-		AppLogger.Errorf("提取季编号失败，路径 %s 不是以s或S开头", text)
+		AppLogger.Errorf("提取季编号失败，路径 %s 不是以 s 或 S 开头", text)
 		return -1
 	}
-	// 如果text的首字母是s，则转成大写的S
+	// 如果 text 的首字母是 s，则转成大写的 S
 	if f == "s" {
 		text = "S" + text[1:]
 	}
@@ -673,7 +673,7 @@ func ExtractSeasonFromTvshowPath(text string) int {
 	if f != "s" && f != "S" {
 		return -1
 	}
-	// 如果text的首字母是s，则转成大写的S
+	// 如果 text 的首字母是 s，则转成大写的 S
 	if f == "s" {
 		text = "S" + text[1:]
 	}
@@ -727,16 +727,16 @@ func finalProcess(title string) string {
 		subTitles := strings.Split(title, "-")
 		title = subTitles[0]
 	}
-	// 只有一个_分隔
+	// 只有一个 _ 分隔
 	if strings.Count(title, "_") == 1 {
 		subTitles := strings.Split(title, "_")
 		title = subTitles[0]
 	}
-	// 只有一个][分隔
+	// 只有一个 ][ 分隔
 	if strings.Count(title, "][") >= 1 {
 		subTitles := strings.Split(title, "][")
 		title = subTitles[0]
-		// 去掉title开头的[和结尾的]
+		// 去掉 title 开头的 [ 和结尾的 ]
 		title = strings.TrimPrefix(title, "[")
 		title = strings.TrimSuffix(title, "]")
 	}
@@ -775,14 +775,14 @@ func finalProcess(title string) string {
 			title = subTitles[0]
 		}
 	}
-	// 如果title以[*?]开头，则剔除
+	// 如果 title 以 [*?] 开头，则剔除
 	space := regexp.MustCompile(`^\[.*?\]`)
 	title = space.ReplaceAllString(title, "")
 	// 移除多余的空格
 	space = regexp.MustCompile(`\s+`)
 	title = space.ReplaceAllString(title, " ")
 	title = strings.TrimSpace(title)
-	// 将title中的特殊字符全部剔除
+	// 将 title 中的特殊字符全部剔除
 	title = regexp.MustCompile(`[\[\]\{\}]`).ReplaceAllString(title, "")
 	// // 首字母大写
 	// title = FirstLetterUpper(title)

@@ -70,7 +70,7 @@ func Migrate() {
 	}
 	if migrator.VersionCode == 4 {
 		db.Db.AutoMigrate(ScrapeMediaFile{}, Media{}, MediaSeason{}, MediaEpisode{})
-		// 给所有ScrapeMediaFile补充新增字段的值
+		// 给所有 ScrapeMediaFile 补充新增字段的值
 		scrapePathMap := make(map[uint]*ScrapePath)
 		scrapePathes := GetScrapePathes("")
 		for _, scrapePath := range scrapePathes {
@@ -160,19 +160,19 @@ func Migrate() {
 		if err != nil {
 			helpers.AppLogger.Errorf("所有刮削结果表的状态更新失败，错误：%v", err)
 		} else {
-			helpers.AppLogger.Infof("所有刮削结果表的未刮削状态已从unscraped更新为scanned")
+			helpers.AppLogger.Infof("所有刮削结果表的未刮削状态已从 unscraped 更新为 scanned")
 		}
 		err = db.Db.Model(&Media{}).Where("status = ?", "scraped").Update("status", "renamed").Error
 		if err != nil {
 			helpers.AppLogger.Errorf("所有刮削结果表的状态更新失败，错误：%v", err)
 		} else {
-			helpers.AppLogger.Infof("所有刮削结果表的已刮削状态已从scraped更新为renamed")
+			helpers.AppLogger.Infof("所有刮削结果表的已刮削状态已从 scraped 更新为 renamed")
 		}
 
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 5 {
-		// 给下载任务添加m_time字段
+		// 给下载任务添加 m_time 字段
 		db.Db.AutoMigrate(DbDownloadTask{})
 		migrator.UpdateVersionCode(db.Db)
 	}
@@ -214,12 +214,12 @@ func Migrate() {
 			&ServerChanChannelConfig{},
 			&NotificationRule{},
 		)
-		// 迁移现有的Telegram设置到新表
+		// 迁移现有的 Telegram 设置到新表
 		migrateExistingNotificationSettings(db.Db)
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 9 {
-		// 增加自定义Webhook通知渠道表
+		// 增加自定义 Webhook 通知渠道表
 		db.Db.AutoMigrate(&CustomWebhookChannelConfig{})
 		migrator.UpdateVersionCode(db.Db)
 	}
@@ -229,8 +229,8 @@ func Migrate() {
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 11 {
-		// 将account表的AppId字段替换为AppIdName
-		// 查询所有Account
+		// 将 account 表的 AppId 字段替换为 AppIdName
+		// 查询所有 Account
 		// accounts := []Account{}
 		// db.Db.Find(&accounts)
 		// for _, account := range accounts {
@@ -247,7 +247,7 @@ func Migrate() {
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 12 {
-		// 备份相关表 + Emby同步相关表
+		// 备份相关表 + Emby 同步相关表
 		db.Db.AutoMigrate(
 			BackupConfig{}, BackupRecord{},
 			EmbyConfig{}, EmbyMediaItem{}, EmbyMediaSyncFile{}, EmbyLibrary{}, EmbyLibrarySyncPath{},
@@ -256,24 +256,24 @@ func Migrate() {
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 13 {
-		// 备份相关表 + Emby同步相关表
+		// 备份相关表 + Emby 同步相关表
 		db.Db.AutoMigrate(ApiKey{})
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 14 {
-		// 添加EnableAuth字段到EmbyConfig表
+		// 添加 EnableAuth 字段到 EmbyConfig 表
 		db.Db.AutoMigrate(EmbyConfig{})
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 15 {
-		// 优化EmbyMediaSyncFile表，添加SyncPathId字段
+		// 优化 EmbyMediaSyncFile 表，添加 SyncPathId 字段
 		db.Db.AutoMigrate(EmbyMediaSyncFile{})
-		// 给EmbyMediaSyncFile表补充新增的SyncPathId字段
+		// 给 EmbyMediaSyncFile 表补充新增的 SyncPathId 字段
 		fillSyncPathIdInEmbyMediaSyncFile(db.Db)
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 16 {
-		// 清空SyncFile，EmbyMediaSyncFile，DbDownloadTask表数据
+		// 清空 SyncFile、EmbyMediaSyncFile、DbDownloadTask 表数据
 		db.Db.Exec("DELETE FROM sync_files")
 		db.Db.Exec("DELETE FROM emby_media_sync_files")
 		db.Db.Exec("DELETE FORM db_download_tasks")
@@ -283,15 +283,15 @@ func Migrate() {
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 17 {
-		migrator.UpdateVersionCode(db.Db) // 增加到18
+		migrator.UpdateVersionCode(db.Db) // 增加到 18
 	}
 	if migrator.VersionCode == 18 {
-		// 给User表添加IsAdmin字段
+		// 给 User 表添加 IsAdmin 字段
 		db.Db.AutoMigrate(SyncFile{})
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 19 {
-		// 添加115请求统计表
+		// 添加 115 请求统计表
 		db.Db.AutoMigrate(&RequestStat{})
 		migrator.UpdateVersionCode(db.Db)
 	}
@@ -301,35 +301,35 @@ func Migrate() {
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 21 {
-		db.Db.AutoMigrate(Settings{}) // 增加openlist限速新字段
+		db.Db.AutoMigrate(Settings{}) // 增加 OpenList 限速新字段
 		// 给新字段添加默认值
 		updateData := make(map[string]interface{})
-		// 将下载QPS默认改为1，防止限流
+		// 将下载 QPS 默认改为 1，防止限流
 		updateData["download_threads"] = 1
 		updateData["openlist_qps"] = 2
 		updateData["openlist_retry"] = 1
 		updateData["openlist_retry_delay"] = 60
 		err := db.Db.Model(Settings{}).Where("id >= ?", 1).Updates(updateData).Error
 		if err != nil {
-			helpers.AppLogger.Errorf("更新Openlist限速设置默认值失败: %v", err)
+			helpers.AppLogger.Errorf("更新 OpenList 限速设置默认值失败：%v", err)
 		}
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 22 {
-		// 给Settings表添加CheckMetaMtime字段
+		// 给 Settings 表添加 CheckMetaMtime 字段
 		db.Db.AutoMigrate(Settings{}, SyncPath{})
-		// 默认修改false
+		// 默认改为 false
 		updateData := make(map[string]int)
 		updateData["check_meta_mtime"] = -1
-		// 给所有SyncPath设置默认值false
+		// 给所有 SyncPath 设置默认值 false
 		db.Db.Model(SyncPath{}).Where("id >= ?", 1).Updates(updateData)
-		// 给所有Settings设置默认值0
+		// 给所有 Settings 设置默认值 0
 		updateData["check_meta_mtime"] = 0
 		db.Db.Model(Settings{}).Where("id >= ?", 1).Updates(updateData)
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 23 {
-		// 给Settings表添加CheckMetaMtime字段
+		// 给 Settings 表添加 CheckMetaMtime 字段
 		db.Db.AutoMigrate(Settings{}, SyncPath{})
 		migrator.UpdateVersionCode(db.Db)
 	}
@@ -368,10 +368,10 @@ func Migrate() {
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 30 {
-		// 将EmbyItem中的EmbyData字段置空
+		// 将 EmbyItem 中的 EmbyData 字段置空
 		err := db.Db.Model(EmbyMediaItem{}).Where("id > 0").Update("emby_data", "").Error
 		if err != nil {
-			helpers.AppLogger.Errorf("更新EmbyMediaItem EmbyData字段为空失败: %v", err)
+			helpers.AppLogger.Errorf("更新 EmbyMediaItem 的 EmbyData 字段为空失败：%v", err)
 		}
 		migrator.UpdateVersionCode(db.Db)
 	}
@@ -390,31 +390,31 @@ func Migrate() {
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 34 {
-		// 给EmbyMediaItem表添加ItemIdInt字段
+		// 给 EmbyMediaItem 表添加 ItemIdInt 字段
 		db.Db.AutoMigrate(EmbyMediaItem{})
-		// 更新所有item_id_int字段
-		// 每次取100个
+		// 更新所有 item_id_int 字段
+		// 每次取 100 个
 		var items []*EmbyMediaItem
 		page := 1
-		helpers.AppLogger.Infof("开始更新EmbyMediaItem item_id_int字段")
+		helpers.AppLogger.Infof("开始更新 EmbyMediaItem 的 item_id_int 字段")
 		for {
 			if err := db.Db.Model(EmbyMediaItem{}).Limit(100).Offset((page - 1) * 100).Order("id ASC").Select("id, item_id, item_id_int").Find(&items).Error; err != nil {
-				helpers.AppLogger.Errorf("查询EmbyMediaItem item_id_int字段失败: %v", err)
+				helpers.AppLogger.Errorf("查询 EmbyMediaItem 的 item_id_int 字段失败：%v", err)
 			}
 			if len(items) == 0 {
-				helpers.AppLogger.Warnf("查询EmbyMediaItem item_id字段 %d 条", len(items))
+				helpers.AppLogger.Warnf("查询 EmbyMediaItem 的 item_id 字段，共 %d 条", len(items))
 				break
 			}
-			// 更新item_id_int字段
+			// 更新 item_id_int 字段
 			for _, item := range items {
 				if item.ItemIdInt != 0 {
 					continue
 				}
 				itemIdInt := helpers.StringToInt64(item.ItemId)
 				if err := db.Db.Model(EmbyMediaItem{}).Where("id = ?", item.ID).Update("item_id_int", itemIdInt).Error; err != nil {
-					helpers.AppLogger.Errorf("更新EmbyMediaItem item_id_int字段 \"%s\" => %d 失败: %v", item.ItemId, itemIdInt, err)
+					helpers.AppLogger.Errorf("更新 EmbyMediaItem 的 item_id_int 字段 \"%s\" => %d 失败：%v", item.ItemId, itemIdInt, err)
 				} else {
-					helpers.AppLogger.Infof("更新EmbyMediaItem item_id_int字段 \"%s\" => %d 成功", item.ItemId, itemIdInt)
+					helpers.AppLogger.Infof("更新 EmbyMediaItem 的 item_id_int 字段 \"%s\" => %d 成功", item.ItemId, itemIdInt)
 				}
 			}
 			if len(items) < 100 {
@@ -422,25 +422,25 @@ func Migrate() {
 			}
 			page++
 		}
-		helpers.AppLogger.Infof("更新EmbyMediaItem item_id_int字段完成")
+		helpers.AppLogger.Infof("更新 EmbyMediaItem 的 item_id_int 字段完成")
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 35 {
 
-		// 添加Emby媒体库选择字段到EmbyConfig表
+		// 添加 Emby 媒体库选择字段到 EmbyConfig 表
 		db.Db.AutoMigrate(EmbyConfig{})
 
 		// 清理重复的 ScrapeSettings 记录
 		var count int64
 		db.Db.Model(&ScrapeSettings{}).Count(&count)
 		if count > 1 {
-			helpers.AppLogger.Infof("发现%d条刮削设置记录，清理重复记录", count)
+			helpers.AppLogger.Infof("发现 %d 条刮削设置记录，清理重复记录", count)
 			var allSettings []*ScrapeSettings
 			db.Db.Order("id asc").Find(&allSettings)
 			// 保留第一条，删除其余的
 			for i := 1; i < len(allSettings); i++ {
 				if err := db.Db.Delete(allSettings[i]).Error; err != nil {
-					helpers.AppLogger.Errorf("删除重复的刮削设置记录失败，ID=%d: %v", allSettings[i].ID, err)
+					helpers.AppLogger.Errorf("删除重复的刮削设置记录失败，ID=%d：%v", allSettings[i].ID, err)
 				} else {
 					helpers.AppLogger.Infof("删除重复的刮削设置记录，ID=%d", allSettings[i].ID)
 				}
@@ -453,35 +453,35 @@ func Migrate() {
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 36 {
-		// 添加115文件列表每页查询数量字段到Settings表
+		// 添加 115 文件列表每页查询数量字段到 Settings 表
 		db.Db.AutoMigrate(Settings{})
-		helpers.AppLogger.Info("已添加file_list_page_size字段到Settings表")
+		helpers.AppLogger.Info("已添加 file_list_page_size 字段到 Settings 表")
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 37 {
-		// 添加播放通知剧情简介和播放进度开关到emby_config表
+		// 添加播放通知剧情简介和播放进度开关到 emby_config 表
 		db.Db.AutoMigrate(EmbyConfig{})
-		helpers.AppLogger.Info("已添加enable_playback_overview和enable_playback_progress字段到emby_config表")
+		helpers.AppLogger.Info("已添加 enable_playback_overview 和 enable_playback_progress 字段到 emby_config 表")
 		migrator.UpdateVersionCode(db.Db)
 	}
 
 	if migrator.VersionCode == 38 {
-		// 添加刮削失败通知类型到emby_config表
+		// 添加刮削失败通知类型到 emby_config 表
 		addNewNotificationRulesForExistingChannels(db.Db)
 		helpers.AppLogger.Info("已添加刮削整理失败通知类型")
 		migrator.UpdateVersionCode(db.Db)
 	}
 
 	if migrator.VersionCode == 39 {
-		// 添加自定义开放平台应用名字段到account表
+		// 添加自定义开放平台应用名字段到 account 表
 		db.Db.AutoMigrate(Account{})
-		helpers.AppLogger.Info("已添加account.app_id_name字段")
+		helpers.AppLogger.Info("已添加 account.app_id_name 字段")
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 40 {
-		// 添加115授权来源类型和provider字段到account表
+		// 添加 115 授权来源类型和 provider 字段到 account 表
 		db.Db.AutoMigrate(Account{})
-		helpers.AppLogger.Info("已添加account.auth_source_type和account.auth_provider字段")
+		helpers.AppLogger.Info("已添加 account.auth_source_type 和 account.auth_provider 字段")
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 41 {
@@ -491,9 +491,9 @@ func Migrate() {
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 42 {
-		// 添加Emby媒体库刷新任务表
+		// 添加 Emby 媒体库刷新任务表
 		db.Db.AutoMigrate(EmbyLibraryRefreshTask{})
-		helpers.AppLogger.Info("已添加emby_library_refresh_tasks表")
+		helpers.AppLogger.Info("已添加 emby_library_refresh_tasks 表")
 		migrator.UpdateVersionCode(db.Db)
 	}
 	helpers.AppLogger.Infof("当前数据库版本 %d", migrator.VersionCode)
@@ -516,9 +516,9 @@ func BatchCreateTable() error {
 
 func InitMigrationTable(version int) {
 	var migrator Migrator = Migrator{}
-	migrator = Migrator{BaseModel: BaseModel{ID: 1}, VersionCode: version} // 初始版本为version
+	migrator = Migrator{BaseModel: BaseModel{ID: 1}, VersionCode: version} // 初始版本为 version
 	db.Db.Save(&migrator)
-	helpers.AppLogger.Infof("初始化数据库版本表，当前版本为%d", version)
+	helpers.AppLogger.Infof("初始化数据库版本表，当前版本为 %d", version)
 }
 
 func InitDB() bool {
@@ -598,7 +598,7 @@ func InitUser() {
 		defaultUser.Password = "admin123"
 	}
 	if err := ValidateUserPassword(defaultUser.Password); err != nil {
-		panic(fmt.Sprintf("管理员初始密码无效: %v", err))
+		panic(fmt.Sprintf("管理员初始密码无效：%v", err))
 	}
 	password, _ := bcrypt.GenerateFromPassword([]byte(defaultUser.Password), bcrypt.MinCost)
 	defaultUser.Password = string(password)
@@ -630,7 +630,7 @@ func InitScrapeSetting() {
 	}
 	db.Db.Save(&scrapeSettings)
 	helpers.AppLogger.Info("已默认添加刮削设置")
-	// 外语电影分类（ID为1，不可删除）
+	// 外语电影分类（ID 为 1，不可删除）
 	waiyuDianying := MovieCategory{
 		Name:     "外语电影",
 		GenreIds: "[]",
@@ -663,7 +663,7 @@ func InitScrapeSetting() {
 	} else {
 		helpers.AppLogger.Info("已默认添加动画电影分类")
 	}
-	// 其他剧（ID为1，不可删除）
+	// 其他剧（ID 为 1，不可删除）
 	qitaJu := TvShowCategory{
 		Name:      "其他剧",
 		GenreIds:  "",
@@ -767,7 +767,7 @@ func InitEmbyConfig() {
 		LastSyncTime:            0,
 	}
 	db.Db.Save(embyConfig)
-	helpers.AppLogger.Info("已默认添加Emby配置")
+	helpers.AppLogger.Info("已默认添加 Emby 配置")
 
 }
 
@@ -798,7 +798,7 @@ func migrateExistingNotificationSettings(dbConn *gorm.DB) {
 		return
 	}
 
-	// 如果存在Telegram配置，创建新的记录
+	// 如果存在 Telegram 配置，创建新的记录
 	if settings.UseTelegram == 1 && settings.TelegramBotToken != "" {
 		channel := NotificationChannel{
 			ChannelType: "telegram",
@@ -823,11 +823,11 @@ func migrateExistingNotificationSettings(dbConn *gorm.DB) {
 				}
 				dbConn.Create(&rule)
 			}
-			helpers.AppLogger.Infof("已迁移Telegram通知配置到新表")
+			helpers.AppLogger.Infof("已迁移 Telegram 通知配置到新表")
 		}
 	}
 
-	// 如果存在MeoW配置，创建新的记录
+	// 如果存在 MeoW 配置，创建新的记录
 	if settings.MeoWName != "" {
 		channel := NotificationChannel{
 			ChannelType: "meow",
@@ -851,7 +851,7 @@ func migrateExistingNotificationSettings(dbConn *gorm.DB) {
 				}
 				dbConn.Create(&rule)
 			}
-			helpers.AppLogger.Infof("已迁移MeoW通知配置到新表")
+			helpers.AppLogger.Infof("已迁移 MeoW 通知配置到新表")
 		}
 	}
 }
@@ -911,7 +911,7 @@ func fillSyncPathIdInEmbyMediaSyncFile(dbConn *gorm.DB) {
 			break
 		}
 		for _, embyMediaSyncFile := range embyMediaSyncFiles {
-			// 用ID查询SyncFiles
+			// 用 ID 查询 SyncFile
 			syncFile := GetSyncFileById(embyMediaSyncFile.SyncFileId)
 			if syncFile == nil {
 				continue
@@ -941,7 +941,7 @@ func BatchDropTable() error {
 }
 
 // 批量更新表的主键序列
-// 只处理postgres的修复
+// 只处理 PostgreSQL 的修复
 func BatchRepairTableSeq() error {
 	if helpers.GlobalConfig.Db.Engine != "postgres" {
 		return nil
@@ -964,7 +964,7 @@ func BatchRepairTableSeq() error {
 
 func ResetSequence(tableName string, columnName string) error {
 	var maxId int64
-	// 获取当前最大ID，如果表为空则从1开始
+	// 获取当前最大 ID，如果表为空则从 1 开始
 	db.Db.Table(tableName).Select(fmt.Sprintf("COALESCE(MAX(%s), 0)", columnName)).Scan(&maxId)
 	if maxId == 0 {
 		// 如果没有值则不修复

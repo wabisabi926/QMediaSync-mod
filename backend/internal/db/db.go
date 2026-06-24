@@ -40,37 +40,37 @@ func InitSqlite3(dbFile string) *gorm.DB {
 
 	// 2. 设置 busy_timeout (例如 5000 毫秒)
 	if tx := sqliteDb.Exec("PRAGMA busy_timeout = 10000"); tx.Error != nil {
-		panic(fmt.Errorf("设置 busy_timeout 失败: %w", tx.Error))
+		panic(fmt.Errorf("设置 busy_timeout 失败：%w", tx.Error))
 	} else {
-		helpers.AppLogger.Infof("设置 busy_timeout 成功: %d 毫秒", 5000)
+		helpers.AppLogger.Infof("设置 busy_timeout 成功：%d 毫秒", 5000)
 	}
 
 	// 3. 启用 WAL 模式
 	if tx := sqliteDb.Exec("PRAGMA journal_mode = WAL"); tx.Error != nil {
-		panic(fmt.Errorf("启用 WAL 失败: %w", tx.Error))
+		panic(fmt.Errorf("启用 WAL 失败：%w", tx.Error))
 	} else {
-		helpers.AppLogger.Infof("启用 WAL 成功: %s", "WAL")
+		helpers.AppLogger.Infof("启用 WAL 成功：%s", "WAL")
 	}
 
 	// 可选：调整同步模式以提升写入性能 (从 FULL 改为 NORMAL)
 	// 在 WAL 模式下，NORMAL 是安全且更快的选择[citation:2]
 	if tx := sqliteDb.Exec("PRAGMA synchronous = NORMAL"); tx.Error != nil {
-		panic(fmt.Errorf("设置 synchronous 失败: %w", tx.Error))
+		panic(fmt.Errorf("设置 synchronous 失败：%w", tx.Error))
 	} else {
-		helpers.AppLogger.Infof("设置 synchronous 成功: %s", "NORMAL")
+		helpers.AppLogger.Infof("设置 synchronous 成功：%s", "NORMAL")
 	}
 	return sqliteDb
 }
 
-// 连接外部PostgreSQL数据库
+// 连接外部 PostgreSQL 数据库
 func ConnectPostgres(dbConfig *database.Config) error {
-	// 配置Logger
+	// 配置 Logger
 	newLogger := logger.New(
 		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
 		logger.Config{
-			SlowThreshold:             200 * time.Millisecond, // 慢SQL阈值
+			SlowThreshold:             200 * time.Millisecond, // 慢 SQL 阈值
 			LogLevel:                  logger.Warn,            // 日志级别
-			IgnoreRecordNotFoundError: true,                   // 忽略ErrRecordNotFound（记录未找到）错误
+			IgnoreRecordNotFoundError: true,                   // 忽略 ErrRecordNotFound（记录未找到）错误
 			Colorful:                  true,                   // 禁用彩色打印
 		},
 	)
@@ -81,21 +81,21 @@ func ConnectPostgres(dbConfig *database.Config) error {
 	for i := 0; i < maxRetries; i++ {
 		connStr = fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 			dbConfig.Host, dbConfig.Port, dbConfig.User, dbConfig.Password, dbConfig.DBName, dbConfig.SSLMode)
-		helpers.AppLogger.Infof("连接数据库: %s", connStr)
+		helpers.AppLogger.Infof("连接数据库：%s", connStr)
 		sqlDB, _ = sql.Open("postgres", connStr)
 		pg := postgres.New(postgres.Config{Conn: sqlDB})
 		Db, err = gorm.Open(pg, &gorm.Config{})
 		if err != nil {
-			helpers.AppLogger.Errorf("连接数据库失败: %v", err)
+			helpers.AppLogger.Errorf("连接数据库失败：%v", err)
 			if strings.Contains(err.Error(), "does not exist") {
 				err := CreatePostgresDatabase(dbConfig)
 				if err != nil {
-					helpers.AppLogger.Errorf("创建数据库失败: %v", err)
+					helpers.AppLogger.Errorf("创建数据库失败：%v", err)
 					return err
 				}
 				continue
 			} else {
-				helpers.AppLogger.Errorf("连接数据库失败: %v", err)
+				helpers.AppLogger.Errorf("连接数据库失败：%v", err)
 				if i == maxRetries-1 {
 					return err
 				}
@@ -106,12 +106,12 @@ func ConnectPostgres(dbConfig *database.Config) error {
 		}
 	}
 	// 配置连接池
-	sqlDB.SetMaxOpenConns(dbConfig.MaxOpenConns) // 最多打开25个连接
-	sqlDB.SetMaxIdleConns(dbConfig.MaxIdleConns) // 最多5个空闲连接
-	sqlDB.SetConnMaxLifetime(60 * time.Minute)   // 连接最多使用60分钟
-	sqlDB.SetConnMaxIdleTime(1 * time.Minute)    // 空闲超过1分钟则关闭
+	sqlDB.SetMaxOpenConns(dbConfig.MaxOpenConns) // 最多打开 25 个连接
+	sqlDB.SetMaxIdleConns(dbConfig.MaxIdleConns) // 最多 5 个空闲连接
+	sqlDB.SetConnMaxLifetime(60 * time.Minute)   // 连接最多使用 60 分钟
+	sqlDB.SetConnMaxIdleTime(1 * time.Minute)    // 空闲超过 1 分钟则关闭
 
-	// 设置全局Logger
+	// 设置全局 Logger
 	Db.Logger = newLogger
 
 	go keepGormAlive()
@@ -126,10 +126,10 @@ func CreatePostgresDatabase(dbConfig *database.Config) error {
 	var cerr error
 	connStr = fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=postgres sslmode=%s",
 		dbConfig.Host, dbConfig.Port, dbConfig.User, dbConfig.Password, dbConfig.SSLMode)
-	helpers.AppLogger.Infof("连接数据库: %s", connStr)
+	helpers.AppLogger.Infof("连接数据库：%s", connStr)
 	sqlDB, cerr = sql.Open("postgres", connStr)
 	if cerr != nil {
-		helpers.AppLogger.Errorf("连接数据库失败: %v", cerr)
+		helpers.AppLogger.Errorf("连接数据库失败：%v", cerr)
 		return cerr
 	}
 	// 检查数据库是否存在，没有则新建
@@ -145,7 +145,7 @@ func CreatePostgresDatabase(dbConfig *database.Config) error {
 	if !exists {
 		_, cerr = sqlDB.Exec(fmt.Sprintf("CREATE DATABASE %s", dbConfig.DBName))
 		if cerr != nil {
-			return fmt.Errorf("创建数据库失败: %v", cerr)
+			return fmt.Errorf("创建数据库失败：%v", cerr)
 		}
 		log.Printf("数据库 %s 创建成功", dbConfig.DBName)
 	} else {
@@ -158,21 +158,21 @@ func InitPostgres(sqlDB *sql.DB) {
 	if sqlDB == nil {
 		panic("数据库连接失败")
 	}
-	// 配置Logger
+	// 配置 Logger
 	newLogger := logger.New(
 		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
 		logger.Config{
-			SlowThreshold:             200 * time.Millisecond, // 慢SQL阈值
+			SlowThreshold:             200 * time.Millisecond, // 慢 SQL 阈值
 			LogLevel:                  logger.Warn,            // 日志级别
-			IgnoreRecordNotFoundError: true,                   // 忽略ErrRecordNotFound（记录未找到）错误
+			IgnoreRecordNotFoundError: true,                   // 忽略 ErrRecordNotFound（记录未找到）错误
 			Colorful:                  true,                   // 禁用彩色打印
 		},
 	)
 	// 配置连接池
-	sqlDB.SetMaxOpenConns(25)                  // 最多打开25个连接
-	sqlDB.SetMaxIdleConns(5)                   // 最多5个空闲连接
-	sqlDB.SetConnMaxLifetime(60 * time.Minute) // 连接最多使用5分钟
-	sqlDB.SetConnMaxIdleTime(1 * time.Minute)  // 空闲超过10秒则关闭
+	sqlDB.SetMaxOpenConns(25)                  // 最多打开 25 个连接
+	sqlDB.SetMaxIdleConns(5)                   // 最多 5 个空闲连接
+	sqlDB.SetConnMaxLifetime(60 * time.Minute) // 连接最多使用 60 分钟
+	sqlDB.SetConnMaxIdleTime(1 * time.Minute)  // 空闲超过 1 分钟则关闭
 	var err error
 	maxRetries := 3
 	for i := 0; i < maxRetries; i++ {
@@ -182,23 +182,23 @@ func InitPostgres(sqlDB *sql.DB) {
 		if err == nil {
 			break
 		}
-		helpers.AppLogger.Warnf("数据库连接失败(第%d次): %v", i+1, err)
+		helpers.AppLogger.Warnf("数据库连接失败（第 %d 次）：%v", i+1, err)
 		if i < maxRetries-1 {
 			time.Sleep(3 * time.Second)
 		}
 	}
 	if err != nil {
-		helpers.AppLogger.Errorf("重试 %d 次后依然无法连接数据库，错误: %v", maxRetries, err)
-		panic(fmt.Sprintf("重试 %d 次后依然无法连接数据库，错误: %v", maxRetries, err))
+		helpers.AppLogger.Errorf("重试 %d 次后依然无法连接数据库，错误：%v", maxRetries, err)
+		panic(fmt.Sprintf("重试 %d 次后依然无法连接数据库，错误：%v", maxRetries, err))
 	}
-	// 设置全局Logger
+	// 设置全局 Logger
 	Db.Logger = newLogger
-	// 启动连接保持的goroutine（使用GORM的DB对象）
+	// 启动连接保持的 goroutine（使用 GORM 的 DB 对象）
 	go keepGormAlive()
 	helpers.AppLogger.Info("成功初始化数据库组件")
 }
 
-// keepGormAlive 使用GORM的原始数据库连接进行ping
+// keepGormAlive 使用 GORM 的原始数据库连接进行 ping
 func keepGormAlive() {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
@@ -206,25 +206,25 @@ func keepGormAlive() {
 	for range ticker.C {
 		sqlDB, err := Db.DB()
 		if err != nil {
-			helpers.AppLogger.Errorf("获取数据库连接失败: %v", err)
+			helpers.AppLogger.Errorf("获取数据库连接失败：%v", err)
 			continue
 		}
 
 		if err := sqlDB.Ping(); err != nil {
-			helpers.AppLogger.Errorf("数据库ping失败: %v", err)
+			helpers.AppLogger.Errorf("数据库 ping 失败：%v", err)
 			return
 		} else {
-			// helpers.AppLogger.Debug("数据库ping成功")
+			// helpers.AppLogger.Debug("数据库 ping 成功")
 		}
 	}
 }
 
-// IsPostgres 判断当前使用的是否为PostgreSQL数据库
+// IsPostgres 判断当前使用的是否为 PostgreSQL 数据库
 func IsPostgres() bool {
 	return helpers.GlobalConfig.Db.Engine == helpers.DbEnginePostgres
 }
 
-// getPostgresBinaryPath 获取PostgreSQL二进制路径
+// getPostgresBinaryPath 获取 PostgreSQL 二进制路径
 func GetPostgresBinaryPath(embeddedBasePath string) string {
 	if helpers.IsRunningInDocker() {
 		return "" // Docker 容器中的路径

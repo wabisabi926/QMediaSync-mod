@@ -66,16 +66,16 @@ const (
 type VideoCodec struct {
 	StreamIndex       int     `json:"stream_index"`        // 视频流索引
 	Codec             string  `json:"codec"`               // 视频编码
-	Micodec           string  `json:"micodec"`             // 视频编码，例如: hevc
+	Micodec           string  `json:"micodec"`             // 视频编码，例如：hevc
 	Bitrate           int64   `json:"bitrate"`             // 视频码率，单位：bps
 	Width             int64   `json:"width"`               // 视频宽度
 	Height            int64   `json:"height"`              // 视频高度
-	Duration          string  `json:"duration"`            // 视频时长，格式: 00:00:00.000
+	Duration          string  `json:"duration"`            // 视频时长，格式：00:00:00.000
 	DurationInSeconds int64   `json:"duration_in_seconds"` // 视频时长，单位：秒
 	DurationInMinutes int64   `json:"duration_in_minutes"` // 视频时长，单位：分
 	AspectRatio       float64 `json:"aspect_ratio"`        // 视频宽高比
-	Aspect            string  `json:"aspect"`              // 视频宽高比，格式: 16:9
-	Framerate         string  `json:"framerate"`           // 视频帧率，格式: 25.000
+	Aspect            string  `json:"aspect"`              // 视频宽高比，格式：16:9
+	Framerate         string  `json:"framerate"`           // 视频帧率，格式：25.000
 	Scantype          string  `json:"scantype"`            // 视频扫描类型
 	PixelFormat       string  `json:"pixel_format"`        // 视频像素格式
 	Default           string  `json:"default"`             // 默认视频
@@ -85,7 +85,7 @@ type VideoCodec struct {
 type AudioCodec struct {
 	StreamIndex  int    `json:"stream_index"`  // 视频流索引
 	Codec        string `json:"codec"`         // 音频编码
-	Micodec      string `json:"micodec"`       // 音频编码，例如: aac
+	Micodec      string `json:"micodec"`       // 音频编码，例如：aac
 	Bitrate      int64  `json:"bitrate"`       // 音频码率，单位：bps
 	SamplingRate int64  `json:"sampling_rate"` // 音频采样率，单位：kHz
 	Channels     int64  `json:"channels"`      // 音频通道数
@@ -100,21 +100,21 @@ type Subtitle struct {
 	Title       string `json:"title"`        // 字幕标题
 	Language    string `json:"language"`     // 字幕语言
 	Codec       string `json:"codec"`        // 字幕编码
-	Micodec     string `json:"micodec"`      // 字幕编码，例如: srt
+	Micodec     string `json:"micodec"`      // 字幕编码，例如：srt
 	Scantype    string `json:"scantype"`     // 字幕扫描类型
 	Default     string `json:"default"`      // 默认字幕
 	Forced      string `json:"forced"`       // 强制字幕
 }
 
 type MediaFiles struct {
-	NfoPath          string            `json:"nfo_path"`                // nfo信息文件路径，相对于SyncPath.LocalPath + SyncPath.RemotePath的相对路径
-	NfoFileName      string            `json:"nfo_file_name"`           // nfo信息文件名
-	NfoFileId        string            `json:"nfo_file_id"`             // nfo信息文件ID
-	NfoPickCode      string            `json:"nfo_pick_code"`           // nfo信息文件选择码
-	ImageFiles       []*MediaMetaFiles `json:"image_files" gorm:"-"`    // 图片文件列表，json数组
-	ImageFilesJson   string            `json:"-"`                       // 图片文件列表 json字符串
+	NfoPath          string            `json:"nfo_path"`                // NFO 信息文件路径，相对于 SyncPath.LocalPath + SyncPath.RemotePath 的相对路径
+	NfoFileName      string            `json:"nfo_file_name"`           // NFO 信息文件名
+	NfoFileId        string            `json:"nfo_file_id"`             // NFO 信息文件 ID
+	NfoPickCode      string            `json:"nfo_pick_code"`           // NFO 信息文件选择码
+	ImageFiles       []*MediaMetaFiles `json:"image_files" gorm:"-"`    // 图片文件列表，JSON 数组
+	ImageFilesJson   string            `json:"-"`                       // 图片文件列表 JSON 字符串
 	SubtitleFiles    []*MediaMetaFiles `json:"subtitle_files" gorm:"-"` // 字幕文件列表
-	SubtitleFileJson string            `json:"-"`                       // SubtitleFiles的JSON字符串
+	SubtitleFileJson string            `json:"-"`                       // SubtitleFiles 的 JSON 字符串
 }
 
 type TmdbInfo struct {
@@ -127,7 +127,7 @@ type TmdbInfo struct {
 
 type MediaMetaFiles struct {
 	FileName string `json:"file_name"` // 文件名
-	FileId   string `json:"file_id"`   // 文件ID
+	FileId   string `json:"file_id"`   // 文件 ID
 	PickCode string `json:"pick_code"` // 识别码
 }
 
@@ -136,70 +136,70 @@ type WillDeleteFile struct {
 }
 
 type MoveNewFileToSourceFile struct {
-	FileId       string `json:"file_id"`        // 文件ID
-	PathId       string `json:"path_id"`        // 路径ID
+	FileId       string `json:"file_id"`        // 文件 ID
+	PathId       string `json:"path_id"`        // 路径 ID
 	FileFullPath string `json:"file_full_path"` // 文件完整路径
 }
 
 // 待刮削的视频文件列表
-// 会收集已存在nfo，图片，字幕文件，以及视频文件的ffprobe信息
+// 会收集已存在 NFO，图片，字幕文件，以及视频文件的 ffprobe 信息
 type ScrapeMediaFile struct {
 	BaseModel
 	MediaFiles
-	ScrapePathId         uint              `gorm:"index" json:"scrape_path_id"`                     // 同步路径ID
+	ScrapePathId         uint              `gorm:"index" json:"scrape_path_id"`                     // 同步路径 ID
 	MediaType            MediaType         `gorm:"index" json:"media_type"`                         // 媒体类型
 	SourceType           SourceType        `gorm:"index" json:"source_type"`                        // 来源类型
 	ScrapeType           ScrapeType        `gorm:"index" json:"scrape_type"`                        // 刮削类型
 	RenameType           RenameType        `gorm:"index" json:"rename_type"`                        // 重命名类型
 	EnableCategory       bool              `gorm:"index" json:"enable_category"`                    // 是否启用二级分类
 	SourcePath           string            `gorm:"index" json:"source_path"`                        // 来源路径
-	SourcePathId         string            `gorm:"index" json:"source_path_id"`                     // 来源路径ID
+	SourcePathId         string            `gorm:"index" json:"source_path_id"`                     // 来源路径 ID
 	DestPath             string            `gorm:"index" json:"dest_path"`                          // 目标路径
-	DestPathId           string            `gorm:"index" json:"dest_path_id"`                       // 目标路径ID
-	MediaId              uint              `gorm:"index" json:"media_id"`                           // 媒体ID
-	MediaSeasonId        uint              `gorm:"index" json:"media_season_id"`                    // 季ID
-	MediaEpisodeId       uint              `gorm:"index" json:"media_episode_id"`                   // 集ID
-	Name                 string            `json:"name"`                                            // TMDB名称，如果没有Media数据则使用该字段
-	Year                 int               `json:"year"`                                            // TMDB年份，如果没有Media数据则使用该字段
-	TmdbId               int64             `json:"tmdb_id"`                                         // TMDB ID，如果没有Media数据则使用该字段
-	SeasonNumber         int               `json:"season_number"`                                   // 季编号，例如：S01E01中的S01
-	EpisodeNumber        int               `json:"episode_number"`                                  // 集编号，例如：S01E01中的E01
-	Path                 string            `json:"path"`                                            // 媒体文件夹路径，相对ScrapePath.SourcePath的路径
-	PathId               string            `json:"path_id"`                                         // 媒体文件夹路径ID，local类型是绝对路径，网盘类型是文件ID
-	TvshowPath           string            `json:"tvshow_path"`                                     // 电视剧路径，相对ScrapePath.SourcePath的路径
-	TvshowPathId         string            `json:"tvshow_path_id" gorm:"index:idx_batch_no_tvshow"` // 电视剧路径ID，local类型是绝对路径，网盘类型是文件ID
-	VideoFilename        string            `json:"video_filename"`                                  // 视频文件名，相对于SyncPath.LocalPath + SyncPath.RemotePath的相对路径
-	VideoFileId          string            `json:"video_file_id"`                                   // 视频文件ID，local类型是绝对路径，网盘类型是文件ID
-	VideoPickCode        string            `json:"video_pick_code"`                                 // 视频文件PickCode
+	DestPathId           string            `gorm:"index" json:"dest_path_id"`                       // 目标路径 ID
+	MediaId              uint              `gorm:"index" json:"media_id"`                           // 媒体 ID
+	MediaSeasonId        uint              `gorm:"index" json:"media_season_id"`                    // 季 ID
+	MediaEpisodeId       uint              `gorm:"index" json:"media_episode_id"`                   // 集 ID
+	Name                 string            `json:"name"`                                            // TMDB 名称，如果没有 Media 数据则使用该字段
+	Year                 int               `json:"year"`                                            // TMDB 年份，如果没有 Media 数据则使用该字段
+	TmdbId               int64             `json:"tmdb_id"`                                         // TMDB ID，如果没有 Media 数据则使用该字段
+	SeasonNumber         int               `json:"season_number"`                                   // 季编号，例如：S01E01 中的 S01
+	EpisodeNumber        int               `json:"episode_number"`                                  // 集编号，例如：S01E01 中的 E01
+	Path                 string            `json:"path"`                                            // 媒体文件夹路径，相对 ScrapePath.SourcePath 的路径
+	PathId               string            `json:"path_id"`                                         // 媒体文件夹路径 ID，本地类型是绝对路径，网盘类型是文件 ID
+	TvshowPath           string            `json:"tvshow_path"`                                     // 电视剧路径，相对 ScrapePath.SourcePath 的路径
+	TvshowPathId         string            `json:"tvshow_path_id" gorm:"index:idx_batch_no_tvshow"` // 电视剧路径 ID，本地类型是绝对路径，网盘类型是文件 ID
+	VideoFilename        string            `json:"video_filename"`                                  // 视频文件名，相对于 SyncPath.LocalPath + SyncPath.RemotePath 的相对路径
+	VideoFileId          string            `json:"video_file_id"`                                   // 视频文件 ID，本地类型是绝对路径，网盘类型是文件 ID
+	VideoPickCode        string            `json:"video_pick_code"`                                 // 视频文件 PickCode
 	TvshowFiles          []*MediaMetaFiles `json:"tvshow_files" gorm:"-"`                           // 剧集文件列表
-	TvshowFilesJson      string            `json:"-"`                                               // 剧集文件列表json字符串
+	TvshowFilesJson      string            `json:"-"`                                               // 剧集文件列表 JSON 字符串
 	SeasonFiles          []*MediaMetaFiles `json:"season_files" gorm:"-"`                           // 季文件列表
-	SeasonFilesJson      string            `json:"-"`                                               // 季文件列表json字符串
+	SeasonFilesJson      string            `json:"-"`                                               // 季文件列表 JSON 字符串
 	Resolution           string            `json:"resolution"`                                      // 分辨率
 	ResolutionLevel      string            `json:"resolution_level"`                                // 分辨率等级
-	IsHDR                bool              `json:"is_hdr"`                                          // 是否HDR
-	VideoCodec           *VideoCodec       `json:"video_codec" gorm:"-"`                            // 视频编码，使用ffprobe提取
-	AudioCodec           []*AudioCodec     `json:"audio_codec" gorm:"-"`                            // 音频编码，使用ffprobe提取
-	SubtitleCodec        []*Subtitle       `json:"subtitle_codec" gorm:"-"`                         // 内封字幕流，使用ffprobe提取
-	VideoCodecJson       string            `json:"-"`                                               // 视频编码json字符串
-	AudioCodecJson       string            `json:"-"`                                               // 音频编码json字符串
-	SubtitleCodecJson    string            `json:"-"`                                               // 内封字幕流json字符串
+	IsHDR                bool              `json:"is_hdr"`                                          // 是否 HDR
+	VideoCodec           *VideoCodec       `json:"video_codec" gorm:"-"`                            // 视频编码，使用 ffprobe 提取
+	AudioCodec           []*AudioCodec     `json:"audio_codec" gorm:"-"`                            // 音频编码，使用 ffprobe 提取
+	SubtitleCodec        []*Subtitle       `json:"subtitle_codec" gorm:"-"`                         // 内封字幕流，使用 ffprobe 提取
+	VideoCodecJson       string            `json:"-"`                                               // 视频编码 JSON 字符串
+	AudioCodecJson       string            `json:"-"`                                               // 音频编码 JSON 字符串
+	SubtitleCodecJson    string            `json:"-"`                                               // 内封字幕流 JSON 字符串
 	Status               ScrapeMediaStatus `json:"status"`                                          // 媒体状态
 	FailedReason         string            `json:"failed_reason"`                                   // 刮削失败原因
 	ScanTime             int64             `json:"scan_time"`                                       // 识别时间
 	ScrapeTime           int64             `json:"scrape_time"`                                     // 刮削时间
 	RenameTime           int64             `json:"rename_time"`                                     // 重命名时间
 	CategoryName         string            `json:"category_name"`                                   // 分类名称
-	ScrapePathCategoryId uint              `json:"scrape_path_category_id"`                         // 分类目录ID
+	ScrapePathCategoryId uint              `json:"scrape_path_category_id"`                         // 分类目录 ID
 	NewPathName          string            `json:"new_path_name"`                                   // 新路径名称，不含二级分类
 	NewSeasonPathName    string            `json:"new_season_path_name"`                            // 新季路径名称
-	NewPathId            string            `json:"new_path_id"`                                     // 新路径ID
-	NewSeasonPathId      string            `json:"new_season_path_id"`                              // 新季路径ID
+	NewPathId            string            `json:"new_path_id"`                                     // 新路径 ID
+	NewSeasonPathId      string            `json:"new_season_path_id"`                              // 新季路径 ID
 	NewVideoBaseName     string            `json:"new_video_base_name"`                             // 新视频文件名（不含扩展名）
 	VideoExt             string            `json:"video_ext"`                                       // 视频文件扩展名
 	ReScrapeTime         int64             `json:"re_scrape_time"`                                  // 重新刮削时间
-	IsReScrape           bool              `json:"is_re_scrape"`                                    // 是否重新刮削        // 已上传文件数量
-	BatchNo              string            `json:"batch_no" gorm:"index:idx_batch_no_tvshow"`       // 批次号(每次扫描都是同一个批次)
+	IsReScrape           bool              `json:"is_re_scrape"`                                    // 是否重新刮削
+	BatchNo              string            `json:"batch_no" gorm:"index:idx_batch_no_tvshow"`       // 批次号（同一次扫描共用同一个批次）
 	TvIsRename           bool              `json:"tv_is_rename"`                                    // 是否重命名剧集
 	SeasonIsRename       bool              `json:"season_is_rename"`                                // 是否重命名季
 	Media                *Media            `json:"-" gorm:"-"`                                      // 影视剧信息
@@ -209,11 +209,11 @@ type ScrapeMediaFile struct {
 }
 
 func (sm *ScrapeMediaFile) Save() error {
-	// 转换字幕文件列表为json字符串
+	// 转换字幕文件列表为 JSON 字符串
 	if len(sm.SubtitleFiles) > 0 {
 		sm.SubtitleFileJson = helpers.JsonString(sm.SubtitleFiles)
 	}
-	// 转换图片文件列表为json字符串
+	// 转换图片文件列表为 JSON 字符串
 	if len(sm.ImageFiles) > 0 {
 		sm.ImageFilesJson = helpers.JsonString(sm.ImageFiles)
 	}
@@ -246,74 +246,74 @@ func (sm *ScrapeMediaFile) Save() error {
 }
 
 func (sm *ScrapeMediaFile) DecodeJson() {
-	// 解码剧集文件列表json字符串
+	// 解码剧集文件列表 JSON 字符串
 	if sm.TvshowFilesJson != "" {
 		tvshowFiles, err := helpers.StringJson[[]*MediaMetaFiles](sm.TvshowFilesJson)
 		if err != nil {
-			helpers.AppLogger.Errorf("解码剧集文件列表失败: %v", err)
+			helpers.AppLogger.Errorf("解码剧集文件列表失败：%v", err)
 		}
 		sm.TvshowFiles = tvshowFiles
 	}
-	// 解码季文件列表json字符串
+	// 解码季文件列表 JSON 字符串
 	if sm.SeasonFilesJson != "" {
 		seasonFiles, err := helpers.StringJson[[]*MediaMetaFiles](sm.SeasonFilesJson)
 		if err != nil {
-			helpers.AppLogger.Errorf("解码季文件列表失败: %v", err)
+			helpers.AppLogger.Errorf("解码季文件列表失败：%v", err)
 		}
 		sm.SeasonFiles = seasonFiles
 	}
-	// 解码视频编码json字符串
+	// 解码视频编码 JSON 字符串
 	if sm.VideoCodecJson != "" {
 		videoCodec, err := helpers.StringJson[*VideoCodec](sm.VideoCodecJson)
 		if err != nil {
-			helpers.AppLogger.Errorf("解码视频编码失败: %v", err)
+			helpers.AppLogger.Errorf("解码视频编码失败：%v", err)
 		}
 		sm.VideoCodec = videoCodec
 	}
-	// 解码音频编码json字符串
+	// 解码音频编码 JSON 字符串
 	if sm.AudioCodecJson != "" {
 		audioCodec, err := helpers.StringJson[[]*AudioCodec](sm.AudioCodecJson)
 		if err != nil {
-			helpers.AppLogger.Errorf("解码音频编码失败: %v", err)
+			helpers.AppLogger.Errorf("解码音频编码失败：%v", err)
 		}
 		sm.AudioCodec = audioCodec
 	}
-	// 解码内封字幕流json字符串
+	// 解码内封字幕流 JSON 字符串
 	if sm.SubtitleCodecJson != "" {
 		subtitleCodec, err := helpers.StringJson[[]*Subtitle](sm.SubtitleCodecJson)
 		if err != nil {
-			helpers.AppLogger.Errorf("解码内封字幕流失败: %v", err)
+			helpers.AppLogger.Errorf("解码内封字幕流失败：%v", err)
 		}
 		sm.SubtitleCodec = subtitleCodec
 	}
-	// 解码图片文件列表json字符串
+	// 解码图片文件列表 JSON 字符串
 	if sm.ImageFilesJson != "" {
 		imageFiles, err := helpers.StringJson[[]*MediaMetaFiles](sm.ImageFilesJson)
 		if err != nil {
-			helpers.AppLogger.Errorf("解码图片文件列表失败: %v", err)
+			helpers.AppLogger.Errorf("解码图片文件列表失败：%v", err)
 		}
 		sm.ImageFiles = imageFiles
 	}
-	// 解码外挂字幕文件列表json字符串
+	// 解码外挂字幕文件列表 JSON 字符串
 	if sm.SubtitleFileJson != "" {
 		subtitleFiles, err := helpers.StringJson[[]*MediaMetaFiles](sm.SubtitleFileJson)
 		if err != nil {
-			helpers.AppLogger.Errorf("解码外挂字幕文件列表失败: %v", err)
+			helpers.AppLogger.Errorf("解码外挂字幕文件列表失败：%v", err)
 		}
 		sm.SubtitleFiles = subtitleFiles
 	}
 	if sm.TvshowFilesJson != "" {
 		tvshowFiles, err := helpers.StringJson[[]*MediaMetaFiles](sm.TvshowFilesJson)
 		if err != nil {
-			helpers.AppLogger.Errorf("解码剧集文件列表失败: %v", err)
+			helpers.AppLogger.Errorf("解码剧集文件列表失败：%v", err)
 		}
 		sm.TvshowFiles = tvshowFiles
 	}
-	// 解码季文件列表json字符串
+	// 解码季文件列表 JSON 字符串
 	if sm.SeasonFilesJson != "" {
 		seasonFiles, err := helpers.StringJson[[]*MediaMetaFiles](sm.SeasonFilesJson)
 		if err != nil {
-			helpers.AppLogger.Errorf("解码季文件列表失败: %v", err)
+			helpers.AppLogger.Errorf("解码季文件列表失败：%v", err)
 		}
 		sm.SeasonFiles = seasonFiles
 	}
@@ -321,11 +321,11 @@ func (sm *ScrapeMediaFile) DecodeJson() {
 
 // 查询关联的数据
 func (sm *ScrapeMediaFile) QueryRelation() {
-	// 查询Media表
+	// 查询 Media 表
 	if sm.MediaId > 0 {
 		media, err := GetMediaById(sm.MediaId)
 		if err != nil {
-			helpers.AppLogger.Errorf("查询Media表失败: media_id=%d %v", sm.MediaId, err)
+			helpers.AppLogger.Errorf("查询 Media 表失败：media_id=%d %v", sm.MediaId, err)
 		}
 		sm.Media = media
 	}
@@ -335,7 +335,7 @@ func (sm *ScrapeMediaFile) QueryRelation() {
 			// 查询季表
 			season, err := GetMediaSeasonById(sm.MediaSeasonId)
 			if err != nil {
-				helpers.AppLogger.Errorf("查询季表失败: season_id=%d %v", sm.MediaSeasonId, err)
+				helpers.AppLogger.Errorf("查询季表失败：season_id=%d %v", sm.MediaSeasonId, err)
 			}
 			sm.MediaSeason = season
 		}
@@ -343,7 +343,7 @@ func (sm *ScrapeMediaFile) QueryRelation() {
 			// 查询集表
 			episode, err := GetMediaEpisodeById(sm.MediaEpisodeId)
 			if err != nil {
-				helpers.AppLogger.Errorf("查询集表失败: episode_id=%d %v", sm.MediaEpisodeId, err)
+				helpers.AppLogger.Errorf("查询集表失败：episode_id=%d %v", sm.MediaEpisodeId, err)
 			}
 			sm.MediaEpisode = episode
 		}
@@ -363,19 +363,19 @@ func (sm *ScrapeMediaFile) Failed(reason string) {
 	updateData["scrape_time"] = sm.ScrapeTime
 	// 提交写入请求（同步）
 	if err := db.Db.Model(&ScrapeMediaFile{}).Where("id = ?", sm.ID).Updates(updateData).Error; err != nil {
-		helpers.AppLogger.Errorf("更新刮削媒体失败: id=%d %v", sm.ID, err)
+		helpers.AppLogger.Errorf("更新刮削媒体失败：id=%d %v", sm.ID, err)
 	}
 	ctx := context.Background()
 	notif := &Notification{
 		Type:      ScrapeError,
 		Title:     fmt.Sprintf("❌ %s 刮削失败", sm.Name),
-		Content:   fmt.Sprintf("失败原因: %s\n⏰ 时间: %s", sm.FailedReason, time.Now().Format("2006-01-02 15:04:05")),
+		Content:   fmt.Sprintf("失败原因：%s\n⏰ 时间：%s", sm.FailedReason, time.Now().Format("2006-01-02 15:04:05")),
 		Timestamp: time.Now(),
 		Priority:  NormalPriority,
 	}
 	if notificationmanager.GlobalEnhancedNotificationManager != nil {
 		if err := notificationmanager.GlobalEnhancedNotificationManager.SendNotification(ctx, notif); err != nil {
-			helpers.AppLogger.Errorf("发送电影或电视剧刮削失败通知失败: %v", err)
+			helpers.AppLogger.Errorf("发送电影或电视剧刮削失败通知失败：%v", err)
 		}
 	}
 }
@@ -390,7 +390,7 @@ func (sm *ScrapeMediaFile) Scanned() {
 	updateData["scan_time"] = sm.ScanTime
 	// 提交写入请求（同步）
 	if err := db.Db.Model(&ScrapeMediaFile{}).Where("id = ?", sm.ID).Updates(updateData).Error; err != nil {
-		helpers.AppLogger.Errorf("更新刮削媒体失败: id=%d %v", sm.ID, err)
+		helpers.AppLogger.Errorf("更新刮削媒体失败：id=%d %v", sm.ID, err)
 	}
 }
 
@@ -402,7 +402,7 @@ func (sm *ScrapeMediaFile) Scraping() {
 	updateData["status"] = sm.Status
 	// 提交写入请求（同步）
 	if err := db.Db.Model(&ScrapeMediaFile{}).Where("id = ?", sm.ID).Updates(updateData).Error; err != nil {
-		helpers.AppLogger.Errorf("更新刮削媒体失败: id=%d %v", sm.ID, err)
+		helpers.AppLogger.Errorf("更新刮削媒体失败：id=%d %v", sm.ID, err)
 	}
 }
 
@@ -423,7 +423,7 @@ func (sm *ScrapeMediaFile) ScrapeFinish() {
 	updateData["new_season_path_name"] = sm.NewSeasonPathName
 	updateData["is_re_scrape"] = sm.IsReScrape
 	if err := db.Db.Model(&ScrapeMediaFile{}).Where("id = ?", sm.ID).Updates(updateData).Error; err != nil {
-		helpers.AppLogger.Errorf("更新刮削媒体失败: id=%d %v", sm.ID, err)
+		helpers.AppLogger.Errorf("更新刮削媒体失败：id=%d %v", sm.ID, err)
 	}
 	sm.Media.Status = MediaStatusScraped
 	sm.Media.Save()
@@ -437,7 +437,7 @@ func (sm *ScrapeMediaFile) StatusScrapeFinish() {
 	updateData["status"] = sm.Status
 	// 提交写入请求（同步）
 	if err := db.Db.Model(&ScrapeMediaFile{}).Where("id = ?", sm.ID).Updates(updateData).Error; err != nil {
-		helpers.AppLogger.Errorf("更新刮削媒体失败: id=%d %v", sm.ID, err)
+		helpers.AppLogger.Errorf("更新刮削媒体失败：id=%d %v", sm.ID, err)
 	}
 }
 
@@ -447,7 +447,7 @@ func (sm *ScrapeMediaFile) Renaming() {
 	updateData := make(map[string]interface{})
 	updateData["status"] = sm.Status
 	if err := db.Db.Model(&ScrapeMediaFile{}).Where("id = ?", sm.ID).Updates(updateData).Error; err != nil {
-		helpers.AppLogger.Errorf("更新刮削媒体失败: id=%d %v", sm.ID, err)
+		helpers.AppLogger.Errorf("更新刮削媒体失败：id=%d %v", sm.ID, err)
 	}
 }
 
@@ -459,7 +459,7 @@ func (sm *ScrapeMediaFile) StatusFinish() {
 	updateData["status"] = sm.Status
 	updateData["rename_time"] = sm.RenameTime
 	if err := db.Db.Model(&ScrapeMediaFile{}).Where("id = ?", sm.ID).Updates(updateData).Error; err != nil {
-		helpers.AppLogger.Errorf("更新刮削媒体失败: id=%d %v", sm.ID, err)
+		helpers.AppLogger.Errorf("更新刮削媒体失败：id=%d %v", sm.ID, err)
 	}
 }
 
@@ -473,19 +473,19 @@ func (sm *ScrapeMediaFile) RenameFailed(reason string) {
 	updateData["failed_reason"] = sm.FailedReason
 	updateData["rename_time"] = sm.RenameTime
 	if err := db.Db.Model(&ScrapeMediaFile{}).Where("id = ?", sm.ID).Updates(updateData).Error; err != nil {
-		helpers.AppLogger.Errorf("更新刮削媒体失败: id=%d %v", sm.ID, err)
+		helpers.AppLogger.Errorf("更新刮削媒体失败：id=%d %v", sm.ID, err)
 	}
 	ctx := context.Background()
 	notif := &Notification{
 		Type:      ScrapeError,
 		Title:     fmt.Sprintf("❌ %s 整理失败", sm.Name),
-		Content:   fmt.Sprintf("失败原因: %s\n⏰ 时间: %s", sm.FailedReason, time.Now().Format("2006-01-02 15:04:05")),
+		Content:   fmt.Sprintf("失败原因：%s\n⏰ 时间：%s", sm.FailedReason, time.Now().Format("2006-01-02 15:04:05")),
 		Timestamp: time.Now(),
 		Priority:  NormalPriority,
 	}
 	if notificationmanager.GlobalEnhancedNotificationManager != nil {
 		if err := notificationmanager.GlobalEnhancedNotificationManager.SendNotification(ctx, notif); err != nil {
-			helpers.AppLogger.Errorf("发送电影或电视剧整理失败通知失败: %v", err)
+			helpers.AppLogger.Errorf("发送电影或电视剧整理失败通知失败：%v", err)
 		}
 	}
 }
@@ -507,7 +507,7 @@ func (sm *ScrapeMediaFile) RemoveMovieTmpFile(sp *ScrapePath, task *DbUploadTask
 				e++
 			}
 		}
-		// 判断nfo文件是否存在
+		// 判断 NFO 文件是否存在
 		nfo := sp.GetMovieRealName(sm, "nfo", "nfo")
 		nfoFile := filepath.Join(sourcepath, nfo)
 		if helpers.PathExists(nfoFile) {
@@ -540,7 +540,7 @@ func (sm *ScrapeMediaFile) RemoveTvShowTmpFile(sp *ScrapePath, task *DbUploadTas
 	// 检查是否全部上传完成
 	episodeMediaFiles := GetAllEpisodeByTvshow(sm.TmdbId, sm.BatchNo)
 	helpers.AppLogger.Infof("电视剧 %s 共包含 %d 集", sm.Name, len(episodeMediaFiles))
-	// 使用集ID查询上传任务是否完成
+	// 使用集 ID 查询上传任务是否完成
 	allUploaded := true
 	for _, episodeMedia := range episodeMediaFiles {
 		if slices.Contains([]ScrapeMediaStatus{ScrapeMediaStatusScanned, ScrapeMediaStatusScraped, ScrapeMediaStatusScraping, ScrapeMediaStatusRenaming}, episodeMedia.Status) {
@@ -587,7 +587,7 @@ func (sm *ScrapeMediaFile) RemoveTmpFiles(task *DbUploadTask) {
 	// 检查来源目录是否为空，如果是空则删除
 	sp := GetScrapePathByID(sm.ScrapePathId)
 	if sp == nil {
-		helpers.AppLogger.Errorf("获取刮削路径失败: id=%d", sm.ScrapePathId)
+		helpers.AppLogger.Errorf("获取刮削路径失败：id=%d", sm.ScrapePathId)
 		return
 	}
 	sp.Init()
@@ -690,12 +690,12 @@ func (sm *ScrapeMediaFile) renderNewTemplate(template string) string {
 	ctx := sm.buildTemplateContext()
 	tpl, err := pongo2.FromString(template)
 	if err != nil {
-		helpers.AppLogger.Errorf("新模板解析失败: %v", err)
+		helpers.AppLogger.Errorf("新模板解析失败：%v", err)
 		return ""
 	}
 	out, err := tpl.Execute(ctx)
 	if err != nil {
-		helpers.AppLogger.Errorf("新模板渲染失败: %v", err)
+		helpers.AppLogger.Errorf("新模板渲染失败：%v", err)
 		return ""
 	}
 	return out
@@ -802,14 +802,14 @@ func (sm *ScrapeMediaFile) ReScrape(name string, year int, tmdbId int64, season 
 	sm.TmdbId = tmdbId
 	sm.Name = name
 	sm.Year = year
-	// 使用该参数在tmdb搜索, 如果能搜到则更新tmdb_id
+	// 使用该参数在 TMDB 搜索，如果能搜到则更新 TMDB ID。
 	tmdbClient := GlobalScrapeSettings.GetTmdbClient()
 	if sm.MediaType == MediaTypeTvShow {
 		if tmdbId > 0 {
-			// 使用tmdb直接查询详情
+			// 使用 TMDB ID 直接查询详情
 			tvDetail, err := tmdbClient.GetTvDetail(tmdbId, GlobalScrapeSettings.GetTmdbLanguage())
 			if err != nil || tvDetail == nil {
-				helpers.AppLogger.Errorf("使用ID查询tmdb剧集详情失败: %v", err)
+				helpers.AppLogger.Errorf("使用 ID 查询 TMDB 剧集详情失败：%v", err)
 				return err
 			}
 			sm.Name = tvDetail.Name
@@ -818,26 +818,26 @@ func (sm *ScrapeMediaFile) ReScrape(name string, year int, tmdbId int64, season 
 			// 剧集
 			tvSearch, err := tmdbClient.SearchTv(sm.Name, sm.Year, GlobalScrapeSettings.GetTmdbLanguage(), true)
 			if err != nil {
-				helpers.AppLogger.Errorf("使用名称和年份查询tmdb剧集失败: %v", err)
+				helpers.AppLogger.Errorf("使用名称和年份查询 TMDB 剧集失败：%v", err)
 				return err
 			}
 			if len(tvSearch.Results) > 1 {
-				helpers.AppLogger.Errorf("通过名称 %s，年份 %d 查询到多条记录，请输入tmdbid重新识别", sm.Name, sm.Year)
-				return fmt.Errorf("通过名称 %s，年份 %d 查询到多条记录，请输入tmdbid重新识别", sm.Name, sm.Year)
+				helpers.AppLogger.Errorf("通过名称 %s、年份 %d 查询到多条记录，请输入 TMDB ID 后重新识别", sm.Name, sm.Year)
+				return fmt.Errorf("通过名称 %s、年份 %d 查询到多条记录，请输入 TMDB ID 后重新识别", sm.Name, sm.Year)
 			}
 			// 查询第一个
 			if len(tvSearch.Results) > 0 {
 				sm.TmdbId = tvSearch.Results[0].ID
 			} else {
-				helpers.AppLogger.Errorf("查询tmdb剧集失败，未找到匹配的剧集，名称 %s，年份 %d", sm.Name, sm.Year)
-				return fmt.Errorf("查询tmdb剧集失败，未找到匹配的剧集，名称 %s，年份 %d", sm.Name, sm.Year)
+				helpers.AppLogger.Errorf("查询 TMDB 剧集失败，未找到匹配的剧集，名称：%s，年份：%d", sm.Name, sm.Year)
+				return fmt.Errorf("查询 TMDB 剧集失败，未找到匹配的剧集，名称：%s，年份：%d", sm.Name, sm.Year)
 			}
 		}
 	} else {
 		if sm.TmdbId > 0 {
 			movieDetail, merror := tmdbClient.GetMovieDetail(sm.TmdbId, GlobalScrapeSettings.GetTmdbLanguage())
 			if merror != nil || movieDetail == nil {
-				helpers.AppLogger.Errorf("使用ID查询tmdb电影详情失败: %v", merror)
+				helpers.AppLogger.Errorf("使用 ID 查询 TMDB 电影详情失败：%v", merror)
 				return merror
 			}
 			sm.Name = movieDetail.Title
@@ -846,19 +846,19 @@ func (sm *ScrapeMediaFile) ReScrape(name string, year int, tmdbId int64, season 
 			// 电影
 			movieSearch, err := tmdbClient.SearchMovie(sm.Name, sm.Year, GlobalScrapeSettings.GetTmdbLanguage(), true, false)
 			if err != nil {
-				helpers.AppLogger.Errorf("查询tmdb电影失败: %v", err)
+				helpers.AppLogger.Errorf("查询 TMDB 电影失败：%v", err)
 				return err
 			}
 			if len(movieSearch.Results) > 1 {
-				helpers.AppLogger.Errorf("通过名称 %s，年份 %d 查询到多条记录，请输入tmdbid重新识别", sm.Name, sm.Year)
-				return fmt.Errorf("通过名称 %s，年份 %d 查询到多条记录，请输入tmdbid重新识别", sm.Name, sm.Year)
+				helpers.AppLogger.Errorf("通过名称 %s、年份 %d 查询到多条记录，请输入 TMDB ID 后重新识别", sm.Name, sm.Year)
+				return fmt.Errorf("通过名称 %s、年份 %d 查询到多条记录，请输入 TMDB ID 后重新识别", sm.Name, sm.Year)
 			}
 			// 查询第一个
 			if len(movieSearch.Results) > 0 {
 				sm.TmdbId = movieSearch.Results[0].ID
 			} else {
-				helpers.AppLogger.Errorf("查询tmdb电影失败，未找到匹配的电影，名称 %s，年份 %d", sm.Name, sm.Year)
-				return fmt.Errorf("查询tmdb电影失败，未找到匹配的电影，名称 %s，年份 %d", sm.Name, sm.Year)
+				helpers.AppLogger.Errorf("查询 TMDB 电影失败，未找到匹配的电影，名称：%s，年份：%d", sm.Name, sm.Year)
+				return fmt.Errorf("查询 TMDB 电影失败，未找到匹配的电影，名称：%s，年份：%d", sm.Name, sm.Year)
 			}
 		}
 	}
@@ -867,7 +867,7 @@ func (sm *ScrapeMediaFile) ReScrape(name string, year int, tmdbId int64, season 
 	if oldStatus == ScrapeMediaStatusScrapeFailed || oldStatus == ScrapeMediaStatusScanned {
 		mediaId := sm.MediaId
 		if sm.MediaType == MediaTypeTvShow {
-			// 将所有关联的ScrapeMediaFile设置为未刮削
+			// 将所有关联的 ScrapeMediaFile 设置为未刮削
 			updateData := make(map[string]any)
 			updateData["is_re_scrape"] = true
 			updateData["re_scrape_time"] = time.Now().Unix()
@@ -885,13 +885,13 @@ func (sm *ScrapeMediaFile) ReScrape(name string, year int, tmdbId int64, season 
 			// if sm.PathId == "" {
 			edb := db.Db.Model(&ScrapeMediaFile{}).Where("tvshow_path_id = ? and batch_no = ?", sm.TvshowPathId, sm.BatchNo).Updates(updateData)
 			if err := edb.Error; err != nil {
-				helpers.AppLogger.Errorf("重新刮削时更新电视剧内所有剧集失败: %v", err)
+				helpers.AppLogger.Errorf("重新刮削时更新电视剧内所有剧集失败：%v", err)
 				return err
 			} else {
 				helpers.AppLogger.Infof("重新刮削时更新电视剧内所有剧集成功, 影响 %d 行 %+v", edb.RowsAffected, updateData)
 			}
 			if err := db.Db.Model(ScrapeMediaFile{}).Where("id = ?", sm.ID).Updates(updateData).Error; err != nil {
-				helpers.AppLogger.Errorf("重新刮削时更新剧集失败: %v", err)
+				helpers.AppLogger.Errorf("重新刮削时更新剧集失败：%v", err)
 				return err
 			} else {
 				helpers.AppLogger.Infof("重新刮削时更新剧集成功, %d => %+v", sm.ID, updateData)
@@ -908,7 +908,7 @@ func (sm *ScrapeMediaFile) ReScrape(name string, year int, tmdbId int64, season 
 			if season > 0 {
 				tvSeason, err := tmdbClient.GetTvSeasonDetail(sm.TmdbId, season, GlobalScrapeSettings.GetTmdbLanguage())
 				if err != nil || tvSeason == nil {
-					serr := fmt.Errorf("查询tmdb剧集 季 %d 查询失败: %v", season, err)
+					serr := fmt.Errorf("查询 TMDB 剧集第 %d 季失败：%v", season, err)
 					helpers.AppLogger.Errorf("%v", serr)
 					return serr
 				} else {
@@ -919,7 +919,7 @@ func (sm *ScrapeMediaFile) ReScrape(name string, year int, tmdbId int64, season 
 				if episode > 0 {
 					tvEpisode, err := tmdbClient.GetTvEpisodeDetail(sm.TmdbId, season, episode, GlobalScrapeSettings.GetTmdbLanguage())
 					if err != nil || tvEpisode == nil {
-						serr := fmt.Errorf("查询tmdb剧集 季 %d 集 %d 查询失败: %v", season, episode, err)
+						serr := fmt.Errorf("查询 TMDB 剧集第 %d 季第 %d 集失败：%v", season, episode, err)
 						helpers.AppLogger.Errorf("%v", serr)
 						return serr
 					} else {
@@ -946,7 +946,7 @@ func (sm *ScrapeMediaFile) ReScrape(name string, year int, tmdbId int64, season 
 		sm.Status = ScrapeMediaStatusRollbacking
 		sm.Save()
 		if sm.MediaType == MediaTypeTvShow {
-			// 将所有关联的ScrapeMediaFile设置为回滚中
+			// 将所有关联的 ScrapeMediaFile 设置为回滚中
 			updateData := make(map[string]any)
 			updateData["name"] = sm.Name
 			updateData["year"] = sm.Year
@@ -955,12 +955,12 @@ func (sm *ScrapeMediaFile) ReScrape(name string, year int, tmdbId int64, season 
 			updateData["failed_reason"] = ""
 			if sm.TvshowPathId != "" {
 				if err := db.Db.Model(&ScrapeMediaFile{}).Where("tvshow_path_id = ? and batch_no = ?", sm.TvshowPathId, sm.BatchNo).Updates(updateData).Error; err != nil {
-					helpers.AppLogger.Errorf("重新刮削时更新电视剧内其他剧集失败1: %v", err)
+					helpers.AppLogger.Errorf("重新刮削时更新同一电视剧路径下的其他剧集失败：%v", err)
 					return err
 				}
 			} else {
 				if err := db.Db.Model(&ScrapeMediaFile{}).Where("path_id = ? and batch_no = ?", sm.PathId, sm.BatchNo).Updates(updateData).Error; err != nil {
-					helpers.AppLogger.Errorf("重新刮削时更新电视剧内其他剧集失败2: %v", err)
+					helpers.AppLogger.Errorf("重新刮削时更新同一目录下的其他剧集失败：%v", err)
 					return err
 				}
 			}
@@ -979,14 +979,14 @@ func (sm *ScrapeMediaFile) ExtractSeasonEpisode(sp *ScrapePath) error {
 		}
 		sm.EpisodeNumber = info.Episode
 		sm.SeasonNumber = info.Season
-		helpers.AppLogger.Infof("从文件名中提取到季集: %s %d, %d", sm.VideoFilename, sm.SeasonNumber, sm.EpisodeNumber)
+		helpers.AppLogger.Infof("从文件名中提取到季集：%s %d, %d", sm.VideoFilename, sm.SeasonNumber, sm.EpisodeNumber)
 	}
 	// 提取季相对目录（相对来源目录）
 	relSeasonPath, _ := filepath.Rel(sm.SourcePath, sm.TvshowPath)
 	// 分割路径
 	pathPartCount := strings.Count(relSeasonPath, string(os.PathSeparator))
 	seasonFolderNumber := helpers.ExtractSeasonsFromSeasonPath(filepath.Base(sm.TvshowPath))
-	helpers.AppLogger.Infof("季相对目录: %s", relSeasonPath)
+	helpers.AppLogger.Infof("季相对目录：%s", relSeasonPath)
 	helpers.AppLogger.Infof("识别到的季编号：%d, 路径切片数量：%d", seasonFolderNumber, pathPartCount)
 	if seasonFolderNumber >= 0 && pathPartCount >= 1 {
 		// 有季文件夹
@@ -998,19 +998,19 @@ func (sm *ScrapeMediaFile) ExtractSeasonEpisode(sp *ScrapePath) error {
 		} else {
 			sm.TvshowPathId = ""
 		}
-		helpers.AppLogger.Infof("识别到有季文件夹，电视剧路径: %s， 季路径：%s", sm.TvshowPath, sm.Path)
+		helpers.AppLogger.Infof("识别到有季文件夹，电视剧路径：%s， 季路径：%s", sm.TvshowPath, sm.Path)
 		if sm.SeasonNumber == -1 {
 			// 从季文件夹中提取
 			sm.SeasonNumber = seasonFolderNumber
-			helpers.AppLogger.Infof("从季文件夹中提取到季数: %d", sm.SeasonNumber)
+			helpers.AppLogger.Infof("从季文件夹中提取到季数：%d", sm.SeasonNumber)
 		}
 	} else {
 		// 无季文件夹
-		helpers.AppLogger.Infof("识别到无季文件夹，电视剧路径: %s", sm.TvshowPath)
+		helpers.AppLogger.Infof("识别到无季文件夹，电视剧路径：%s", sm.TvshowPath)
 		seasonNumber := helpers.ExtractSeasonFromTvshowPath(sm.TvshowPath)
 		if seasonNumber != -1 {
 			sm.SeasonNumber = seasonNumber
-			helpers.AppLogger.Infof("从电视剧文件夹中提取到季数: %d", sm.SeasonNumber)
+			helpers.AppLogger.Infof("从电视剧文件夹中提取到季数：%d", sm.SeasonNumber)
 		}
 	}
 	if sm.SeasonNumber == -1 {
@@ -1033,7 +1033,7 @@ func (sm *ScrapeMediaFile) GetMovieOrTvshowDestPath() (string, string) {
 	return sm.GetDestFullMoviePath(), newPathId
 }
 
-// 返回来源端的电影路径，会去掉sp.SourcePath
+// 返回来源端的电影路径，会去掉 sp.SourcePath
 // 例如 电影/我是一个中国人 (2025)
 func (sm *ScrapeMediaFile) GetRemoteMoviePath() string {
 	return strings.Replace(sm.Path, sm.SourcePath, "", 1)
@@ -1049,7 +1049,7 @@ func (sm *ScrapeMediaFile) GetRemoteFullMoviePath() string {
 	return filepath.Join(sm.SourcePath, sm.GetRemoteMoviePath())
 }
 
-// 返回来源端的电视剧路径，会去掉sp.SourcePath
+// 返回来源端的电视剧路径，会去掉 sp.SourcePath
 // 例如 电视剧/我是一个中国人 (2025)
 func (sm *ScrapeMediaFile) GetRemoteTvshowPath() string {
 	return strings.Replace(sm.TvshowPath, sm.SourcePath, "", 1)
@@ -1060,7 +1060,7 @@ func (sm *ScrapeMediaFile) GetRemoteFullTvshowPath() string {
 	return sm.TvshowPath
 }
 
-// 返回来源端的季路径，会去掉sp.SourcePath
+// 返回来源端的季路径，会去掉 sp.SourcePath
 // 例如：电视剧/我是一个中国人 (2025)/Season 1
 func (sm *ScrapeMediaFile) GetRemoteSeasonPath() string {
 	if sm.Path != "" {
@@ -1132,7 +1132,7 @@ func (sm *ScrapeMediaFile) GetDestFullMoviePath() string {
 		path = filepath.Join(sm.SourcePath, sm.GetDestMoviePath())
 	}
 
-	// helpers.AppLogger.Debugf("电影目标端完整路径: %s", path)
+	// helpers.AppLogger.Debugf("电影目标端完整路径：%s", path)
 	return path
 }
 
@@ -1150,9 +1150,9 @@ func (sm *ScrapeMediaFile) GetDestFullSeasonPath() string {
 	return filepath.Join(sm.GetDestFullTvshowPath(), sm.GetDestSeasonPath())
 }
 
-// 生成季的nfo文件的名字
-// 如果有单独的季目录，则命名为season.nfo
-// 如果没有单独的季目录，则命名为season01.nfo
+// 生成季的 NFO 文件的名字
+// 如果有单独的季目录，则命名为 season.nfo
+// 如果没有单独的季目录，则命名为 season01.nfo
 func (sm *ScrapeMediaFile) GetSeasonNfoName() string {
 	hasSeasonPath := sm.HasRemoteSeasonPath()
 	if sm.ScrapeType == ScrapeTypeOnly {
@@ -1165,7 +1165,7 @@ func (sm *ScrapeMediaFile) GetSeasonNfoName() string {
 	return "season.nfo"
 }
 
-// 返回集的nfo文件名
+// 返回集的 NFO 文件名
 func (sm *ScrapeMediaFile) GetEpisodeNfoName() string {
 	return fmt.Sprintf("%s.nfo", sm.NewVideoBaseName)
 }
@@ -1187,8 +1187,8 @@ func GetScrapeMediaByVideoFileId(videoFileId string) (*ScrapeMediaFile, error) {
 	return &media, nil
 }
 
-// 从数据库中查询所有scrapemedia
-// id倒序
+// 从数据库中查询所有 ScrapeMedia 记录
+// 按 ID 倒序
 // 先查询总数
 // 再查询列表
 func GetScrapeMediaFiles(page int, pageSize int, mediaType string, status string, name string) (int64, []*ScrapeMediaFile) {
@@ -1213,16 +1213,16 @@ func GetScrapeMediaFiles(page int, pageSize int, mediaType string, status string
 	}
 	err := tx.Find(&scrapeMediaFiles).Error
 	if err != nil {
-		helpers.AppLogger.Errorf("查询scrapemedia失败: %v", err)
+		helpers.AppLogger.Errorf("查询 ScrapeMedia 记录失败：%v", err)
 		return 0, nil
 	}
 	var total int64
 	err = txc.Count(&total).Error
 	if err != nil {
-		helpers.AppLogger.Errorf("查询scrapemedia总数失败: %v", err)
+		helpers.AppLogger.Errorf("查询 ScrapeMedia 总数失败：%v", err)
 		return 0, nil
 	}
-	// helpers.AppLogger.Infof("查询scrapemedia总数: %d, 当前页 %d offset %d 数量: %d", total, page, offset, len(scrapeMediaFiles))
+	// helpers.AppLogger.Infof("查询 ScrapeMedia 总数：%d，当前页 %d，offset %d，数量：%d", total, page, offset, len(scrapeMediaFiles))
 	scrapeMediaFiles = DecodeScrapeMediaFile(scrapeMediaFiles)
 	return total, scrapeMediaFiles
 }
@@ -1231,17 +1231,17 @@ func GetScrapeMediaFiles(page int, pageSize int, mediaType string, status string
 func GetAllScannedScrapeMediaFiles(scrapePathId uint, mediaType MediaType) []*ScrapeMediaFile {
 	var scrapeMediaFiles []*ScrapeMediaFile
 	if err := db.Db.Where("scrape_path_id = ? AND status IN ? AND media_type = ?", scrapePathId, []ScrapeMediaStatus{ScrapeMediaStatusScanned, ScrapeMediaStatusScraped}, mediaType).Order("id desc").Find(&scrapeMediaFiles).Error; err != nil {
-		helpers.AppLogger.Errorf("查询待刮削文件失败: %v", err)
+		helpers.AppLogger.Errorf("查询待刮削文件失败：%v", err)
 		return nil
 	}
 	return DecodeScrapeMediaFile(scrapeMediaFiles)
 }
 
-// 查询所有待刮削或者待整理的记录，只取limit条
+// 查询所有待刮削或者待整理的记录，只取 limit 条
 func GetScannedScrapeMediaFiles(scrapePathId uint, mediaType MediaType, limit int) []*ScrapeMediaFile {
 	var scrapeMediaFiles []*ScrapeMediaFile
 	if err := db.Db.Where("scrape_path_id = ? AND status IN ? AND media_type = ?", scrapePathId, []ScrapeMediaStatus{ScrapeMediaStatusScanned, ScrapeMediaStatusScraped}, mediaType).Order("id desc").Limit(limit).Order("id asc").Find(&scrapeMediaFiles).Error; err != nil {
-		helpers.AppLogger.Errorf("查询待刮削文件失败: %v", err)
+		helpers.AppLogger.Errorf("查询待刮削文件失败：%v", err)
 		return nil
 	}
 	return DecodeScrapeMediaFile(scrapeMediaFiles)
@@ -1251,20 +1251,20 @@ func GetScannedScrapeMediaFiles(scrapePathId uint, mediaType MediaType, limit in
 func GetScannedScrapeMediaFilesTotal(scrapePathId uint, mediaType MediaType) int64 {
 	var total int64
 	if err := db.Db.Model(&ScrapeMediaFile{}).Where("scrape_path_id = ? AND status IN ? AND media_type = ?", scrapePathId, []ScrapeMediaStatus{ScrapeMediaStatusScanned, ScrapeMediaStatusScraped}, mediaType).Count(&total).Error; err != nil {
-		helpers.AppLogger.Errorf("查询待刮削文件失败: %v", err)
+		helpers.AppLogger.Errorf("查询待刮削文件失败：%v", err)
 		return 0
 	}
 	return total
 }
 
-// 电视剧刮削使用，按照path_id分组返回（分页查询优化版）
+// 电视剧刮削使用，按照 path_id 分组返回（分页查询优化版）
 func GetScannedScrapeMediaFilesGroupByTvshowPathId(scrapePathId uint, limit int) []*ScrapeMediaFile {
-	// 使用分页查询，每次处理1000条记录，避免内存溢出
+	// 使用分页查询，每次处理 1000 条记录，避免内存溢出
 	const pageSize = 1000
 	var page = 1
 	var result []*ScrapeMediaFile
 	groupedFiles := make(map[string]*ScrapeMediaFile)
-	// 分页查询，直到达到limit或没有更多数据
+	// 分页查询，直到达到 limit 或没有更多数据
 	for {
 		var pageFiles []*ScrapeMediaFile
 		currentOffset := (page - 1) * pageSize
@@ -1274,7 +1274,7 @@ func GetScannedScrapeMediaFilesGroupByTvshowPathId(scrapePathId uint, limit int)
 			Limit(pageSize).
 			Offset(currentOffset).
 			Find(&pageFiles).Error; err != nil {
-			helpers.AppLogger.Errorf("查询待刮削文件失败: %v", err)
+			helpers.AppLogger.Errorf("查询待刮削文件失败：%v", err)
 			break
 		}
 		// 如果没有更多数据，退出循环
@@ -1310,7 +1310,7 @@ func GetScannedScrapeMediaFilesGroupByTvshowPathId(scrapePathId uint, limit int)
 func GetAllScrappedMedialFiles(scrapePathId uint, mediaType MediaType) []*ScrapeMediaFile {
 	var scrapeMediaFiles []*ScrapeMediaFile
 	if err := db.Db.Where("scrape_path_id = ? AND status = ? AND media_type = ?", scrapePathId, ScrapeMediaStatusScraped, mediaType).Order("id desc").Find(&scrapeMediaFiles).Error; err != nil {
-		helpers.AppLogger.Errorf("查询已刮削文件失败: %v", err)
+		helpers.AppLogger.Errorf("查询已刮削文件失败：%v", err)
 		return nil
 	}
 	return DecodeScrapeMediaFile(scrapeMediaFiles)
@@ -1320,7 +1320,7 @@ func GetAllScrappedMedialFiles(scrapePathId uint, mediaType MediaType) []*Scrape
 func GetScrapeMediaFileIdBySeasonId(seasonMediaId uint) []uint {
 	var episodeIds []uint
 	if err := db.Db.Model(&ScrapeMediaFile{}).Where("media_season_id = ?", seasonMediaId).Pluck("id", &episodeIds).Error; err != nil {
-		helpers.AppLogger.Errorf("查询集ID失败: %v", err)
+		helpers.AppLogger.Errorf("查询集 ID 失败：%v", err)
 		return nil
 	}
 	return episodeIds
@@ -1329,7 +1329,7 @@ func GetScrapeMediaFileIdBySeasonId(seasonMediaId uint) []uint {
 func GetScrapeMediaFilesByIds(ids []uint) []*ScrapeMediaFile {
 	var scrapeMediaFiles []*ScrapeMediaFile
 	if err := db.Db.Where("id IN ?", ids).Order("id desc").Find(&scrapeMediaFiles).Error; err != nil {
-		helpers.AppLogger.Errorf("查询scrapemedia失败: %v", err)
+		helpers.AppLogger.Errorf("查询 ScrapeMedia 记录失败：%v", err)
 		return nil
 	}
 	scrapeMediaFiles = DecodeScrapeMediaFile(scrapeMediaFiles)
@@ -1340,7 +1340,7 @@ func DecodeScrapeMediaFile(scrapeMediaFiles []*ScrapeMediaFile) []*ScrapeMediaFi
 	mediaIdList := make([]uint, 0)
 	mediaSeasonIdList := make([]uint, 0)
 	mediaEpisodeIdList := make([]uint, 0)
-	// 解码JSON字符串
+	// 解码 JSON 字符串
 	for _, sm := range scrapeMediaFiles {
 		sm.DecodeJson()
 		if sm.MediaId > 0 {
@@ -1353,26 +1353,26 @@ func DecodeScrapeMediaFile(scrapeMediaFiles []*ScrapeMediaFile) []*ScrapeMediaFi
 			mediaEpisodeIdList = append(mediaEpisodeIdList, sm.MediaEpisodeId)
 		}
 	}
-	// 根据IdList查询数据，然后赋值给mediaFiles
+	// 根据 ID 列表查询数据，然后赋值给 mediaFiles
 	var medias []*Media
 	var mediaSeasons []*MediaSeason
 	var mediaEpisodes []*MediaEpisode
 	if len(mediaIdList) > 0 {
 		if err := db.Db.Where("id IN ?", mediaIdList).Find(&medias).Error; err != nil {
-			helpers.AppLogger.Errorf("查询Media失败: %v", err)
+			helpers.AppLogger.Errorf("查询 Media 失败：%v", err)
 		}
 	}
 	if len(mediaSeasonIdList) > 0 {
 		if err := db.Db.Where("id IN ?", mediaSeasonIdList).Find(&mediaSeasons).Error; err != nil {
-			helpers.AppLogger.Errorf("查询MediaSeason失败: %v", err)
+			helpers.AppLogger.Errorf("查询 MediaSeason 失败：%v", err)
 		}
 	}
 	if len(mediaEpisodeIdList) > 0 {
 		if err := db.Db.Where("id IN ?", mediaEpisodeIdList).Find(&mediaEpisodes).Error; err != nil {
-			helpers.AppLogger.Errorf("查询MediaEpisode失败: %v", err)
+			helpers.AppLogger.Errorf("查询 MediaEpisode 失败：%v", err)
 		}
 	}
-	// 赋值给mediaFiles
+	// 赋值给 mediaFiles
 	for _, sm := range scrapeMediaFiles {
 		for _, m := range medias {
 			if m.ID == sm.MediaId {
@@ -1402,11 +1402,11 @@ func DecodeScrapeMediaFile(scrapeMediaFiles []*ScrapeMediaFile) []*ScrapeMediaFi
 	return scrapeMediaFiles
 }
 
-// 根据ID查询ScrapeMediaFile
+// 根据 ID 查询 ScrapeMediaFile
 func GetScrapeMediaFileById(id uint) *ScrapeMediaFile {
 	var scrapeMediaFile ScrapeMediaFile
 	if err := db.Db.Where("id = ?", id).First(&scrapeMediaFile).Error; err != nil {
-		helpers.AppLogger.Errorf("查询scrapemedia失败: %v", err)
+		helpers.AppLogger.Errorf("查询 ScrapeMedia 记录失败：%v", err)
 		return nil
 	}
 	scrapeMediaFile.DecodeJson()
@@ -1416,11 +1416,11 @@ func GetScrapeMediaFileById(id uint) *ScrapeMediaFile {
 }
 
 func CheckExistsFileIdAndName(fileId string, scrapePathId uint) bool {
-	// helpers.AppLogger.Infof("检查文件是否存在: %s, %s, %d", fileId, fileName, syncPathId)
+	// helpers.AppLogger.Infof("检查文件是否存在：%s, %s, %d", fileId, fileName, syncPathId)
 	var total int64
 	err := db.Db.Model(&ScrapeMediaFile{}).Where("video_file_id = ? AND scrape_path_id = ?", fileId, scrapePathId).Count(&total).Error
 	if err != nil {
-		helpers.AppLogger.Errorf("检查文件是否存在失败: %v", err)
+		helpers.AppLogger.Errorf("检查文件是否存在失败：%v", err)
 		return false
 	}
 	return total > 0
@@ -1432,7 +1432,7 @@ func CheckScrapeMediaFileExists(fileId string) bool {
 	return file.ID > 0
 }
 
-// 将所有old改为new
+// 将所有 old 状态改为 new 状态
 func UpdateScrapeMediaStatus(old, new ScrapeMediaStatus, scrapePathId uint) {
 	var err error
 	if scrapePathId > 0 {
@@ -1441,19 +1441,19 @@ func UpdateScrapeMediaStatus(old, new ScrapeMediaStatus, scrapePathId uint) {
 		err = db.Db.Model(&ScrapeMediaFile{}).Where("status = ?", old).Update("status", new).Error
 	}
 	if err != nil {
-		helpers.AppLogger.Errorf("将全部整理中改为待整理状态失败: %v", err)
+		helpers.AppLogger.Errorf("将全部整理中改为待整理状态失败：%v", err)
 	} else {
 		helpers.AppLogger.Infof("将全部整理中改为待整理状态成功")
 	}
 }
 
-// 清除所有刮削失败的记录，包括subtitlefiles
+// 清除所有刮削失败的记录，包括字幕文件
 func ClearFailedScrapeRecords(ids []uint) error {
 	// 查询所有失败的记录
 	var failedScrapeMediaFiles []*ScrapeMediaFile
 	if len(ids) == 0 {
 		if err := db.Db.Where("status = ?", ScrapeMediaStatusScrapeFailed).Find(&failedScrapeMediaFiles).Error; err != nil {
-			helpers.AppLogger.Errorf("查询所有失败的记录失败: %v", err)
+			helpers.AppLogger.Errorf("查询所有失败的记录失败：%v", err)
 			return err
 		}
 	} else {
@@ -1463,7 +1463,7 @@ func ClearFailedScrapeRecords(ids []uint) error {
 	}
 	idArray := make([]uint, 0)
 	mediaIdArray := make([]uint, 0)
-	// 找出所有保存下来的fileid
+	// 找出所有已保存的 file_id
 	for _, sm := range failedScrapeMediaFiles {
 		idArray = append(idArray, sm.ID)
 		if !slices.Contains(mediaIdArray, sm.MediaId) {
@@ -1472,22 +1472,22 @@ func ClearFailedScrapeRecords(ids []uint) error {
 	}
 	err := db.Db.Where("id IN ?", idArray).Delete(&ScrapeMediaFile{}).Error
 	if err != nil {
-		helpers.AppLogger.Errorf("删除刮削记录失败: %v", err)
+		helpers.AppLogger.Errorf("删除刮削记录失败：%v", err)
 		return err
 	}
-	// 删除所有Media
+	// 删除所有 Media
 	if len(mediaIdArray) > 0 {
 		if err := db.Db.Where("id IN ?", mediaIdArray).Delete(&Media{}).Error; err != nil {
-			helpers.AppLogger.Errorf("删除Media失败: %v", err)
+			helpers.AppLogger.Errorf("删除 Media 失败：%v", err)
 			return err
 		}
-		// 删除所有mediaSeason和mediaEpisode
+		// 删除所有 MediaSeason 和 MediaEpisode
 		if err := db.Db.Where("media_id IN ?", mediaIdArray).Delete(&MediaSeason{}).Error; err != nil {
-			helpers.AppLogger.Errorf("删除MediaSeason失败: %v", err)
+			helpers.AppLogger.Errorf("删除 MediaSeason 失败：%v", err)
 			return err
 		}
 		if err := db.Db.Where("media_id IN ?", mediaIdArray).Delete(&MediaEpisode{}).Error; err != nil {
-			helpers.AppLogger.Errorf("删除MediaEpisode失败: %v", err)
+			helpers.AppLogger.Errorf("删除 MediaEpisode 失败：%v", err)
 			return err
 		}
 	}
@@ -1501,15 +1501,15 @@ func RenameFailedScrapeRecords(ids []uint) error {
 	updateData["failed_reason"] = ""
 	err := db.Db.Model(&ScrapeMediaFile{}).Where("id IN ?", ids).Updates(updateData).Error
 	if err != nil {
-		helpers.AppLogger.Errorf("将所有失败的记录标记为待整理状态失败: %v", err)
+		helpers.AppLogger.Errorf("将所有失败的记录标记为待整理状态失败：%v", err)
 	}
-	// 查询所有scrape_media_file
+	// 查询所有 scrape_media_file
 	var scrapeMediaFiles []*ScrapeMediaFile
 	if err := db.Db.Where("id IN ?", ids).Find(&scrapeMediaFiles).Error; err != nil {
-		helpers.AppLogger.Errorf("查询所有失败的记录失败: %v", err)
+		helpers.AppLogger.Errorf("查询所有失败的记录失败：%v", err)
 		return err
 	}
-	// 将所选记录对应的Media或者MediaEpisode标记为待整理
+	// 将所选记录对应的 Media 或 MediaEpisode 标记为待整理
 	for _, sm := range scrapeMediaFiles {
 		if sm.MediaEpisodeId > 0 {
 			db.Db.Model(&MediaEpisode{}).Where("id = ?", sm.MediaEpisodeId).Update("status", MediaStatusUnScraped)
@@ -1536,10 +1536,10 @@ func GetAllEpisodeByTvshow(tmdbId int64, batchNo string) []*ScrapeMediaFile {
 }
 
 // TruncateAllScrapeRecords 清空所有刮削记录
-// 使用DELETE命令清空ScrapeMediaFile、Media、MediaSeason、MediaEpisode四张表
+// 使用 DELETE 命令清空 ScrapeMediaFile、Media、MediaSeason、MediaEpisode 四张表
 func TruncateAllScrapeRecords() error {
 	// 按顺序删除表数据，注意外键依赖关系
-	// 先清空子表（MediaEpisode, MediaSeason），再清空父表（Media），最后清空ScrapeMediaFile
+	// 先清空子表（MediaEpisode、MediaSeason），再清空父表（Media），最后清空 ScrapeMediaFile
 	tables := []string{
 		"media_episodes",
 		"media_seasons",
@@ -1549,8 +1549,8 @@ func TruncateAllScrapeRecords() error {
 
 	for _, tableName := range tables {
 		if err := db.Db.Exec(fmt.Sprintf("DELETE FROM %s", tableName)).Error; err != nil {
-			helpers.AppLogger.Errorf("清空表 %s 失败: %v", tableName, err)
-			return fmt.Errorf("清空表 %s 失败: %v", tableName, err)
+			helpers.AppLogger.Errorf("清空表 %s 失败：%v", tableName, err)
+			return fmt.Errorf("清空表 %s 失败：%v", tableName, err)
 		}
 		helpers.AppLogger.Infof("清空表 %s 成功", tableName)
 	}

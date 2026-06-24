@@ -52,11 +52,11 @@ const DEFAULT_TMDB_LANGUAGE = "zh-CN"
 // 备用语言
 const BACKUP_TMDB_LANGUAGE = "en-US"
 
-// 默认TMDB 图片语言
+// 默认 TMDB 图片语言
 const DEFAULT_TMDB_IMAGE_LANGUAGE = "en-US"
 
-// 默认TMDB API URL
+// 默认 TMDB API URL
 const DEFAULT_TMDB_API_URL = "https://api.tmdb.org"
 
-// 默认TMDB 图片URL
+// 默认 TMDB 图片 URL
 const DEFAULT_TMDB_IMAGE_URL = "https://image.tmdb.org"

@@ -16,7 +16,7 @@ var eventUpgrader = gorillaws.Upgrader{
 	},
 }
 
-// EventWebSocket WebSocket事件推送端点
+// EventWebSocket WebSocket 事件推送端点
 func EventWebSocket(c *gin.Context) {
 	conn, err := eventUpgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {

@@ -19,12 +19,12 @@ const { keyword, items, total, loading, hasMore, search, loadMore, reset } = use
 })
 const dropdownVisible = shallowRef(false)
 const showDefaultRemoteOptions = shallowRef(false)
-const remoteSearchHint = '输入应用名或 APPID 搜索更多内置应用'
+const remoteSearchHint = '输入应用名或 App ID 搜索更多内置应用'
 
 const defaultOptions = computed(() => [
   ...pinnedBuiltInAppIDs,
   ...featuredBuiltInAppIDs,
-  { label: '自定义 APPID', value: 'custom', appName: '自定义 APPID' },
+  { label: '自定义 App ID', value: 'custom', appName: '自定义 App ID' },
 ])
 const defaultOptionValues = computed(() => new Set(defaultOptions.value.map((item) => item.value)))
 const remoteOptions = computed(() =>
@@ -131,7 +131,7 @@ watch(showCustomFields, (visible) => {
 </script>
 
 <template>
-  <el-form-item label="APPID">
+  <el-form-item label="App ID">
     <el-select
       v-model="selectedValue"
       class="v115-app-select"
@@ -140,7 +140,7 @@ watch(showCustomFields, (visible) => {
       clearable
       reserve-keyword
       remote-show-suffix
-      placeholder="选择或搜索 115 开放平台 APPID"
+      placeholder="选择或搜索 115 开放平台 App ID"
       :remote-method="handleSearch"
       :loading="loading"
       @visible-change="handleVisibleChange"
@@ -181,12 +181,12 @@ watch(showCustomFields, (visible) => {
         clearable
       />
     </el-form-item>
-    <el-form-item label="APPID">
+    <el-form-item label="App ID">
       <el-input
         v-model="customAppId"
         name="v115-app-id"
         autocomplete="off"
-        placeholder="请输入 115 开放平台 APPID"
+        placeholder="请输入 115 开放平台 App ID"
         clearable
       />
     </el-form-item>

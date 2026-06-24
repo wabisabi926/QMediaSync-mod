@@ -12,7 +12,7 @@
         <span>手动备份</span>
       </el-button>
       <span v-if="backupStore.isRunning" style="margin-left: 12px; color: #909399">
-        备份正在进行中...
+        备份正在进行中…
       </span>
     </div>
 
@@ -271,12 +271,12 @@ const handleRestoreBackup = async (record: BackupRecordListItem) => {
       },
     )
 
-    // 用户确认后，调用恢复API
+    // 用户确认后，调用恢复 API
     await restoreBackup(record.id)
   } catch (error) {
     // 用户取消操作
     if (error !== 'cancel') {
-      console.error('恢复备份失败:', error)
+      console.error('恢复备份失败：', error)
     }
   }
 }
@@ -286,7 +286,7 @@ const restoreBackup = async (recordId: number) => {
 
   try {
     restoringBackup.value = true
-    ElMessage.info('正在启动恢复任务...')
+    ElMessage.info('正在启动恢复任务…')
 
     const response = await http.post(`${SERVER_URL}/backup/restore`, {
       record_id: recordId,
@@ -300,7 +300,7 @@ const restoreBackup = async (recordId: number) => {
       ElMessage.error(response?.data.message || '恢复备份失败')
     }
   } catch (error) {
-    console.error('恢复备份失败:', error)
+    console.error('恢复备份失败：', error)
     ElMessage.error('恢复备份失败')
   } finally {
     restoringBackup.value = false

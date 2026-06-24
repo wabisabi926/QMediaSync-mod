@@ -119,7 +119,7 @@ func TestRequestEmbyLibraryRefreshMergesSameLibrary(t *testing.T) {
 	var tasks []EmbyLibraryRefreshTask
 	db.Db.Find(&tasks)
 	if len(tasks) != 1 {
-		t.Fatalf("同一媒体库应合并为1条任务，实际 %d", len(tasks))
+		t.Fatalf("同一媒体库应合并为 1 条任务，实际 %d", len(tasks))
 	}
 	if !reflect.DeepEqual(tasks[0].GetSyncPathIds(), []uint{10, 11}) {
 		t.Fatalf("sync_path_ids = %v，期望 [10 11]", tasks[0].GetSyncPathIds())

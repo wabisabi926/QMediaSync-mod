@@ -11,10 +11,10 @@ import (
 	"gorm.io/gorm"
 )
 
-// GetEmbyConfig 获取Emby配置
-// @Summary 获取Emby配置
-// @Description 获取Emby媒体服务器的配置信息
-// @Tags Emby管理
+// GetEmbyConfig 获取 Emby 配置。
+// @Summary 获取 Emby 配置
+// @Description 获取 Emby 媒体服务器的配置信息
+// @Tags Emby 管理
 // @Accept json
 // @Produce json
 // @Success 200 {object} object
@@ -27,18 +27,18 @@ func GetEmbyConfig(c *gin.Context) {
 	if err == gorm.ErrRecordNotFound {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    Success,
-			Message: "获取Emby配置成功",
+			Message: "获取 Emby 配置成功",
 			Data:    gin.H{"exists": false},
 		})
 		return
 	}
 	if err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取Emby配置失败: " + err.Error()})
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取 Emby 配置失败：" + err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, APIResponse[any]{
 		Code:    Success,
-		Message: "获取Emby配置成功",
+		Message: "获取 Emby 配置成功",
 		Data:    gin.H{"exists": true, "config": config},
 	})
 }
@@ -57,24 +57,24 @@ type updateEmbyConfigRequest struct {
 	SyncAllLibraries        int    `json:"sync_all_libraries"`
 	EnablePlaybackOverview  int    `json:"enable_playback_overview"`
 	EnablePlaybackProgress  int    `json:"enable_playback_progress"`
-	// DeleteNetdiskLibrary    []string `json:"delete_netdisk_library"` // 允许联动删除的媒体库ID
+	// DeleteNetdiskLibrary    []string `json:"delete_netdisk_library"` // 允许联动删除的媒体库 ID
 }
 
-// UpdateEmbyConfig 更新Emby配置
-// @Summary 更新Emby配置
-// @Description 更新Emby媒体服务器的配置信息
-// @Tags Emby管理
+// UpdateEmbyConfig 更新 Emby 配置。
+// @Summary 更新 Emby 配置
+// @Description 更新 Emby 媒体服务器的配置信息
+// @Tags Emby 管理
 // @Accept json
 // @Produce json
-// @Param emby_url body string false "Emby服务器地址"
-// @Param emby_api_key body string false "Emby API密钥"
+// @Param emby_url body string false "Emby 服务器地址"
+// @Param emby_api_key body string false "Emby API Key"
 // @Param enable_delete_netdisk body integer false "是否启用网盘删除"
 // @Param enable_refresh_library body integer false "是否启用库刷新"
 // @Param enable_media_notification body integer false "是否启用媒体通知"
 // @Param enable_extract_media_info body integer false "是否启用提取媒体信息"
-// @Param enable_auth body integer false "是否启用Webhook鉴权"
+// @Param enable_auth body integer false "是否启用 Webhook 鉴权"
 // @Param sync_enabled body integer false "是否启用同步"
-// @Param sync_cron body string false "同步Cron表达式"
+// @Param sync_cron body string false "同步 Cron 表达式"
 // @Success 200 {object} object
 // @Failure 200 {object} object
 // @Router /emby/config [put]
@@ -83,13 +83,13 @@ type updateEmbyConfigRequest struct {
 func UpdateEmbyConfig(c *gin.Context) {
 	var req updateEmbyConfigRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误: " + err.Error()})
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误：" + err.Error()})
 		return
 	}
 
 	config, err := models.GetEmbyConfig()
 	if err != nil && err != gorm.ErrRecordNotFound {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "查询Emby配置失败: " + err.Error()})
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "查询 Emby 配置失败：" + err.Error()})
 		return
 	}
 	isNew := err == gorm.ErrRecordNotFound
@@ -128,14 +128,14 @@ func UpdateEmbyConfig(c *gin.Context) {
 	}
 
 	if err := db.Db.Save(config).Error; err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "创建Emby配置失败: " + err.Error()})
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "保存 Emby 配置失败：" + err.Error()})
 		return
 	}
 
 	if oldSyncEnabled != config.SyncEnabled || oldSyncCron != config.SyncCron {
-		// 同步状态改变，需要重新加载cron
+		// 同步状态改变，需要重新加载 Cron
 		synccron.InitCron()
 	}
 
-	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "Emby配置更新成功"})
+	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "Emby 配置已更新"})
 }

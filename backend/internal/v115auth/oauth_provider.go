@@ -255,7 +255,7 @@ func httpGetJSON(ctx context.Context, client *http.Client, endpoint string) (map
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("授权服务返回 HTTP %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("授权服务返回 HTTP %d：%s", resp.StatusCode, string(body))
 	}
 	var data map[string]any
 	if err := json.Unmarshal(body, &data); err != nil {

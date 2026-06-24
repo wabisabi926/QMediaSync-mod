@@ -25,16 +25,16 @@ var uploadDirNames = []string{
 }
 
 type SyncStrmConfig struct {
-	StrmBaseUrl           string                        `json:"strm_base_url"`             // 视频文件URL基础路径
-	MinVideoSize          int64                         `json:"min_video_size"`            // 视频文件最小大小，单位为MB
-	EnableDownloadMeta    int64                         `json:"enable_download_meta"`      // 是否下载元数据文件，0为不下载，1为下载
-	NetNotFoundFileAction models.SyncTreeItemMetaAction `json:"net_not_found_file_action"` // 网盘文件不存在时的操作，0为忽略，1为上传，2-删除
+	StrmBaseUrl           string                        `json:"strm_base_url"`             // 视频文件 URL 基础路径
+	MinVideoSize          int64                         `json:"min_video_size"`            // 视频文件最小大小，单位为 MB
+	EnableDownloadMeta    int64                         `json:"enable_download_meta"`      // 是否下载元数据文件，0 为不下载，1 为下载
+	NetNotFoundFileAction models.SyncTreeItemMetaAction `json:"net_not_found_file_action"` // 网盘文件不存在时的操作，0 为忽略，1 为上传，2 为删除
 	VideoExt              []string                      `json:"video_ext"`                 // 视频文件扩展名列表
 	MetaExt               []string                      `json:"meta_ext"`                  // 元数据文件扩展名列表
 	ExcludeNames          []string                      `json:"exclude_names"`             // 排除的文件名列表
-	StrmUrlNeedPath       int                           `json:"strm_url_need_path"`        // 视频文件URL是否需要路径，2为不需要，1为需要
+	StrmUrlNeedPath       int                           `json:"strm_url_need_path"`        // 视频文件 URL 是否需要路径，2 为不需要，1 为需要
 	DelEmptyLocalDir      bool                          `json:"del_empty_local_dir"`       // 是否删除本地空目录
-	CheckMetaMtime        int                           `json:"check_meta_mtime"`          // 是否检查元数据文件修改时间，默认0， 如果1，网盘新则下载，网盘旧就上传（UploadMeta=1时）
+	CheckMetaMtime        int                           `json:"check_meta_mtime"`          // 是否检查元数据文件修改时间，默认 0；如果为 1，网盘新则下载，本地新则上传（UploadMeta=1 时）
 }
 
 func (s *SyncStrm) ValidFile(file *SyncFileCache) bool {
@@ -53,7 +53,7 @@ func (s *SyncStrm) ValidFile(file *SyncFileCache) bool {
 	}
 	maxSize := s.GetMinVideoSize()
 	if file.IsVideo && file.FileSize < maxSize {
-		s.Sync.Logger.Infof("视频文件%s大小%d小于%d最小要求，不需要处理", file.FileName, file.FileSize, maxSize)
+		s.Sync.Logger.Infof("视频文件 %s 大小 %d 小于最低要求 %d，不需要处理", file.FileName, file.FileSize, maxSize)
 		return false
 	}
 	if file.IsMeta && !s.EnableDownloadMeta() {

@@ -67,7 +67,7 @@ type App struct {
 }
 
 func (app *App) Start() {
-	// 启动外网302服务
+	// 启动外网 302 服务
 	startEmby302()
 	if helpers.IsRelease {
 		gin.SetMode(gin.ReleaseMode)
@@ -78,12 +78,12 @@ func (app *App) Start() {
 	app.StartHttpServer(r)
 	app.StartHttpsServer(r)
 	if runtime.GOOS == "windows" {
-		// 监听Ctrl+C信号
+		// 监听 Ctrl+C 信号
 		go func() {
 			quit := make(chan os.Signal, 1)
 			signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 			<-quit
-			log.Println("收到Ctrl+C信号")
+			log.Println("收到 Ctrl+C 信号")
 			helpers.ExitChan <- struct{}{}
 		}()
 		<-helpers.ExitChan
@@ -139,9 +139,9 @@ func (app *App) StartHttpsServer(r *gin.Engine) {
 		return
 	}
 	go func() {
-		// 在12332端口上启动https服务
+		// 在 12332 端口上启动 HTTPS 服务
 		sslHost := ""
-		// 启动web server
+		// 启动 Web Server
 		if !helpers.IsRelease {
 			sslHost = "localhost:12332"
 		} else {
@@ -161,7 +161,7 @@ func (app *App) StartHttpsServer(r *gin.Engine) {
 
 func (app *App) StartHttpServer(r *gin.Engine) {
 	host := helpers.GlobalConfig.HttpHost
-	// 同时在12333端口上启动http服务
+	// 同时在 12333 端口上启动 HTTP 服务
 	app.httpServer = &http.Server{
 		Addr:    host,
 		Handler: r,
@@ -177,9 +177,9 @@ func (app *App) StartHttpServer(r *gin.Engine) {
 func (app *App) StartDatabase(migrateMode bool) error {
 	// 根据配置启动数据库连接
 	if helpers.GlobalConfig.Db.Engine == helpers.DbEngineSqlite {
-		// 如果是sqlite，直接初始化sqlite连接
+		// 如果是 SQLite，直接初始化 SQLite 连接
 		sqliteFile := filepath.Join(helpers.ConfigDir, helpers.GlobalConfig.Db.SqliteFile)
-		helpers.AppLogger.Infof("sqlite数据库文件路径：%s", sqliteFile)
+		helpers.AppLogger.Infof("SQLite 数据库文件路径：%s", sqliteFile)
 		db.Db = db.InitSqlite3(sqliteFile)
 		models.Migrate()
 		return nil
@@ -217,15 +217,15 @@ func (app *App) StartDatabase(migrateMode bool) error {
 
 		// 如果是迁移模式，启动迁移服务
 		if migrateMode {
-			helpers.AppLogger.Info("检测到使用内嵌PostgreSQL，启动迁移服务...")
+			helpers.AppLogger.Info("检测到使用内嵌 PostgreSQL，启动迁移服务…")
 			migrateServer := migrate.NewMigrateServer(app.dbManager, dbConfig)
 			if err := migrateServer.Start(); err != nil {
-				helpers.AppLogger.Errorf("启动迁移服务失败: %v", err)
+				helpers.AppLogger.Errorf("启动迁移服务失败：%v", err)
 				return err
 			}
 		}
 	} else {
-		// 初始化PostgreSQL数据库连接
+		// 初始化 PostgreSQL 数据库连接
 		if err := db.ConnectPostgres(dbConfig); err != nil {
 			return err
 		}
@@ -236,10 +236,10 @@ func (app *App) StartDatabase(migrateMode bool) error {
 
 func newApp() {
 	if QMSApp != nil {
-		log.Println("App已经初始化，不能再次初始化")
+		log.Println("App 已经初始化，不能再次初始化")
 		return
 	}
-	// 初始化APP
+	// 初始化 App
 	QMSApp = &App{
 		isRelease:   helpers.IsRelease,
 		version:     Version,
@@ -262,7 +262,7 @@ func checkRelease() {
 }
 
 func getRootDir() string {
-	var exPath string = "/app" // 默认使用docker的路径
+	var exPath string = "/app" // 默认使用 Docker 路径
 	checkRelease()
 	if os.Getenv("TRIM_APPDEST") != "" {
 		helpers.RootDir = os.Getenv("TRIM_APPDEST")
@@ -288,7 +288,7 @@ func getDataAndConfigDir() {
 	var configDir string
 	needMk := false
 	if runtime.GOOS == "windows" {
-		// 使用AppData目录，用户有完全控制权限
+		// 使用 AppData 目录，用户有完全控制权限
 		appData := os.Getenv("LOCALAPPDATA")
 		if appData == "" {
 			appData = os.Getenv("APPDATA")
@@ -298,12 +298,12 @@ func getDataAndConfigDir() {
 		configDir = filepath.Join(helpers.RootDir, "config")      // 配置目录
 		err := os.MkdirAll(dataDir, 0755)
 		if err != nil {
-			fmt.Printf("创建数据目录失败: %v\n", err)
+			fmt.Printf("创建数据目录失败：%v\n", err)
 			panic("创建数据目录失败")
 		}
 		err = os.MkdirAll(configDir, 0755)
 		if err != nil {
-			fmt.Printf("创建配置目录失败: %v\n", err)
+			fmt.Printf("创建配置目录失败：%v\n", err)
 			panic("创建配置目录失败")
 		}
 		helpers.DataDir = dataDir
@@ -312,13 +312,13 @@ func getDataAndConfigDir() {
 			// 迁移旧配置
 			err := helpers.MoveDir(oldConfigDir, configDir)
 			if err != nil {
-				fmt.Printf("迁移旧配置目录失败: %v\n", err)
+				fmt.Printf("迁移旧配置目录失败：%v\n", err)
 				panic("迁移旧配置目录失败")
 			}
 			// 删除旧目录
 			err = os.RemoveAll(oldConfigDir)
 			if err != nil {
-				fmt.Printf("删除旧配置目录失败: %v\n", err)
+				fmt.Printf("删除旧配置目录失败：%v\n", err)
 				panic("删除旧配置目录失败")
 			}
 		}
@@ -340,19 +340,19 @@ func getDataAndConfigDir() {
 				configDir = filepath.Join(configDir, "config")
 				needMk = true
 				// 检查是否需要迁移文件
-				// oldConfigDir必须存在且不为空
+				// oldConfigDir 必须存在且不为空
 				if helpers.PathExists(oldConfigDir) && oldConfigDir != configDir {
-					// 检查oldConfigDir是否为空目录
+					// 检查 oldConfigDir 是否为空目录
 					if !helpers.IsDirEmpty(oldConfigDir) {
 						err := os.MkdirAll(configDir, 0755)
 						if err != nil {
-							log.Printf("创建配置目录失败: %v\n", err)
+							log.Printf("创建配置目录失败：%v\n", err)
 							panic("创建配置目录失败")
 						}
 						// 迁移旧配置
 						err = helpers.MoveDir(oldConfigDir, configDir)
 						if err != nil {
-							log.Printf("迁移旧配置目录失败: %v\n", err)
+							log.Printf("迁移旧配置目录失败：%v\n", err)
 							panic("迁移旧配置目录失败")
 						}
 						needMk = false
@@ -367,7 +367,7 @@ func getDataAndConfigDir() {
 	if needMk {
 		err := os.MkdirAll(configDir, 0755)
 		if err != nil {
-			log.Printf("创建配置目录失败: %v\n", err)
+			log.Printf("创建配置目录失败：%v\n", err)
 			panic("创建配置目录失败")
 		}
 	}
@@ -392,7 +392,7 @@ func startEmby302() {
 		log.Fatal(err)
 	}
 	if models.GlobalEmbyConfig == nil || models.GlobalEmbyConfig.EmbyUrl == "" {
-		helpers.AppLogger.Warnf("Emby302未配置Emby地址，跳过启动emby302服务")
+		helpers.AppLogger.Warnf("Emby 302 未配置 Emby 地址，跳过启动 Emby 302 服务")
 		return
 	}
 	config.C.Emby.Host = models.GlobalEmbyConfig.EmbyUrl
@@ -419,9 +419,9 @@ func startEmby302() {
 
 func initLogger() {
 	logPath := filepath.Join(helpers.ConfigDir, "logs")
-	os.MkdirAll(logPath, 0755) // 如果没有logs目录则创建
+	os.MkdirAll(logPath, 0755) // 如果没有 logs 目录则创建
 	libLogPath := filepath.Join(logPath, "libs")
-	os.MkdirAll(libLogPath, 0755) // 如果没有logs/libs目录则创建
+	os.MkdirAll(libLogPath, 0755) // 如果没有 logs/libs 目录则创建
 	helpers.AppLogger = helpers.NewLogger(helpers.GlobalConfig.Log.File, true, true)
 	helpers.V115Log = helpers.NewLogger(helpers.GlobalConfig.Log.V115, false, true)
 	helpers.OpenListLog = helpers.NewLogger(helpers.GlobalConfig.Log.OpenList, false, true)
@@ -432,9 +432,9 @@ func initLogger() {
 func initOthers() {
 	helpers.InitEventBus() // 初始化事件总线
 	models.LoadSettings()  // 从数据库加载设置
-	// 初始化GitHub访问管理器
+	// 初始化 GitHub 访问管理器
 	github.InitManager(models.SettingsGlobal.HttpProxy)
-	helpers.AppLogger.Infof("已加载配置，准备初始化115请求队列，线程数: %d", models.SettingsGlobal.FileDetailThreads)
+	helpers.AppLogger.Infof("已加载配置，准备初始化 115 请求队列，线程数：%d", models.SettingsGlobal.FileDetailThreads)
 	qps := models.SettingsGlobal.FileDetailThreads
 	if qps <= 0 {
 		qps = 2
@@ -444,14 +444,14 @@ func initOthers() {
 	models.InitDQ()                      // 初始化下载队列
 	models.InitUQ()                      // 初始化上传队列
 	models.InitNotificationManager()     // 初始化通知管理器
-	controllers.StartListenTelegramBot() // 初始化TelegramBot监听
-	models.GetEmbyConfig()               // 加载Emby配置
+	controllers.StartListenTelegramBot() // 初始化 Telegram Bot 监听
+	models.GetEmbyConfig()               // 加载 Emby 配置
 	helpers.SubscribeSync(helpers.V115TokenInValidEvent, models.HandleV115TokenInvalid)
 	helpers.SubscribeSync(helpers.SaveOpenListTokenEvent, models.HandleOpenListTokenSaveSync)
 	models.FailAllRunningSyncTasks()   // 将所有运行中的同步任务设置为失败状态
-	synccron.RefreshOAuthAccessToken() // 启动时刷新一次115的访问凭证，防止有过期的token导致同步失败
+	synccron.RefreshOAuthAccessToken() // 启动时刷新一次 115 的访问凭证，避免过期 Token 导致同步失败
 
-	// 设置115请求队列的统计保存回调函数
+	// 设置 115 请求队列的统计保存回调函数
 	v115open.SetGlobalExecutorStatSaver(func(requestTime int64, url, method string, duration int64, isThrottled bool) {
 		stat := &models.RequestStat{
 			RequestTime: requestTime,
@@ -459,24 +459,24 @@ func initOthers() {
 			Method:      method,
 			Duration:    duration,
 			IsThrottled: isThrottled,
-			AccountID:   0, // 可以后续扩展传入账号ID
+			AccountID:   0, // 可以后续扩展传入账号 ID
 		}
 		if err := models.CreateRequestStat(stat); err != nil {
-			helpers.V115Log.Errorf("写入请求统计失败: %v", err)
+			helpers.V115Log.Errorf("写入请求统计失败：%v", err)
 		}
 	})
 
 	// 启动同步任务队列管理器
 	synccron.InitNewSyncQueueManager()
 	models.InitEmbyLibraryRefreshCoordinator()
-	// 初始化WebSocket事件中心
+	// 初始化 WebSocket 事件中心
 	wsHub := websocket.NewEventHub()
 	websocket.GlobalEventHub = wsHub
 	go wsHub.Run()
 	synccron.InitCron()       // 初始化定时任务（包含备份定时任务）
 	synccron.InitSyncCron()   // 初始化同步目录的定时任务
 	synccron.InitScrapeCron() // 初始化刮削目录的自定义定时任务
-	synccron.InitTokenCron()  // 初始化定时刷新115的访问凭证
+	synccron.InitTokenCron()  // 初始化定时刷新 115 的访问凭证
 	// 初始化备份服务
 	models.InitBackupService()
 	// 将所有刮削中和整理中的记录改为未执行
@@ -499,7 +499,7 @@ func initOthers() {
 		for _, scrapePathId := range scrapePathIds {
 			scrapePath := models.GetScrapePathByID(scrapePathId)
 			if scrapePath == nil {
-				helpers.AppLogger.Errorf("获取刮削目录失败: %v", scrapePathId)
+				helpers.AppLogger.Errorf("获取刮削目录失败：%v", scrapePathId)
 				continue
 			}
 			taskObj := &synccron.NewSyncTask{
@@ -513,9 +513,9 @@ func initOthers() {
 				TaskType:     synccron.SyncTaskTypeScrape,
 			}
 			if err := synccron.AddNewSyncTask(taskObj); err != nil {
-				helpers.AppLogger.Errorf("添加刮削任务失败: %v", err)
+				helpers.AppLogger.Errorf("添加刮削任务失败：%v", err)
 			} else {
-				helpers.AppLogger.Infof("创建刮削任务成功并已添加到执行队列，刮削目录ID: %d，", scrapePathId)
+				helpers.AppLogger.Infof("创建刮削任务成功并已添加到执行队列，刮削目录 ID：%d", scrapePathId)
 			}
 		}
 	})
@@ -537,22 +537,22 @@ func setRouter(r *gin.Engine) {
 	r.POST("/api/login", controllers.LoginAction)
 	r.GET("/api/session", controllers.SessionAction)
 	r.POST("/api/logout", controllers.LogoutAction)
-	r.GET("/115/url/*filename", controllers.Get115UrlByPickCode)           // 查询115直链 by pickcode 支持iso，路径最后一部分是.扩展名格式
-	r.GET("/115/newurl", controllers.Get115UrlByPickCode)                  // 查询115直链 by pickcode
-	r.GET("/baidupan/url/*filename", controllers.GetBaiduPanUrlByPickCode) // 查询百度网盘直链 by fsid 支持iso，路径最后一部分是.扩展名格式
+	r.GET("/115/url/*filename", controllers.Get115UrlByPickCode)           // 查询 115 直链，按 PickCode 查询，支持 ISO，路径最后一部分为 .扩展名格式
+	r.GET("/115/newurl", controllers.Get115UrlByPickCode)                  // 查询 115 直链，按 PickCode 查询
+	r.GET("/baidupan/url/*filename", controllers.GetBaiduPanUrlByPickCode) // 查询百度网盘直链，按 fs_id 查询，支持 ISO，路径最后一部分为 .扩展名格式
 
-	r.GET("/openlist/url", controllers.GetOpenListFileUrl) // 查询OpenList直链
+	r.GET("/openlist/url", controllers.GetOpenListFileUrl) // 查询 OpenList 直链
 
-	r.GET("/proxy-115", controllers.Proxy115) // 115CDN反代路由
+	r.GET("/proxy-115", controllers.Proxy115) // 115 CDN 反代路由
 
 	r.GET("/api/scrape/tmp-image", controllers.ScrapeTmpImage)           // 获取临时图片
 	r.GET("/api/scrape/records/export", controllers.ExportScrapeRecords) // 导出刮削记录
-	r.GET("/api/logs/ws", controllers.LogWebSocket)                      // WebSocket日志查看
-	r.GET("/api/events/ws", controllers.EventWebSocket)                  // WebSocket事件推送
-	r.GET("/api/logs/old", controllers.GetOldLogs)                       // HTTP获取旧日志
+	r.GET("/api/logs/ws", controllers.LogWebSocket)                      // WebSocket 日志查看
+	r.GET("/api/events/ws", controllers.EventWebSocket)                  // WebSocket 事件推送
+	r.GET("/api/logs/old", controllers.GetOldLogs)                       // 通过 HTTP 获取旧日志
 	r.GET("/api/logs/download", controllers.DownloadLogFile)             // 下载日志文件
 
-	r.POST("/api/update-fn-access-path", controllers.UpdateFNPath) // 更新Fn访问路径
+	r.POST("/api/update-fn-access-path", controllers.UpdateFNPath) // 更新飞牛访问路径
 	r.GET("/api/path/is-fn-os", controllers.IsFnOS)                // 查询是否是飞牛环境
 
 	api := r.Group("/api")
@@ -569,21 +569,21 @@ func setRouter(r *gin.Engine) {
 		api.POST("/database/delete-all-table", controllers.DeleteAllTabble) // 删除所有表
 		api.GET("/announce", controllers.GetAnnounce)                       // 获取公告
 		api.POST("/database/repair", controllers.RepairDB)                  // 更新系统设置
-		api.POST("/auth/115-qrcode-open", controllers.GetLoginQrCodeOpen)   // 获取115开放平台登录二维码
-		api.POST("/auth/115-qrcode-status", controllers.GetQrCodeStatus)    // 查询115二维码扫码状态
-		api.GET("/115/status", controllers.Get115Status)                    // 查询115状态
-		api.GET("/115/appids", controllers.GetV115AppIDSources)             // 查询115 Open APPID目录
-		api.GET("/115/oauth-url", controllers.GetOAuthUrl)                  // 获取115 OAuth登录地址
-		api.POST("115/oauth-confirm", controllers.ConfirmOAuthCode)         // 确认OAuth登录
-		api.GET("/115/oauth-status", controllers.GetOAuthStatus)            // 查询115 OAuth授权状态
-		api.GET("/115/queue/stats", controllers.GetQueueStats)              // 获取115 OpenAPI请求队列统计数据
-		api.POST("/115/queue/rate-limit", controllers.SetQueueRateLimit)    // 设置115 OpenAPI请求队列速率限制
-		api.GET("/115/stats/daily", controllers.GetRequestStatsByDay)       // 获取115请求统计（按天）
-		api.GET("/115/stats/hourly", controllers.GetRequestStatsByHour)     // 获取115请求统计（按小时）
+		api.POST("/auth/115-qrcode-open", controllers.GetLoginQrCodeOpen)   // 获取 115 开放平台登录二维码
+		api.POST("/auth/115-qrcode-status", controllers.GetQrCodeStatus)    // 查询 115 二维码扫码状态
+		api.GET("/115/status", controllers.Get115Status)                    // 查询 115 状态
+		api.GET("/115/appids", controllers.GetV115AppIDSources)             // 查询 115 开放平台 App ID 目录
+		api.GET("/115/oauth-url", controllers.GetOAuthUrl)                  // 获取 115 OAuth 登录地址
+		api.POST("115/oauth-confirm", controllers.ConfirmOAuthCode)         // 确认 115 OAuth 登录
+		api.GET("/115/oauth-status", controllers.GetOAuthStatus)            // 查询 115 OAuth 授权状态
+		api.GET("/115/queue/stats", controllers.GetQueueStats)              // 获取 115 开放平台请求队列统计数据
+		api.POST("/115/queue/rate-limit", controllers.SetQueueRateLimit)    // 设置 115 开放平台请求队列速率限制
+		api.GET("/115/stats/daily", controllers.GetRequestStatsByDay)       // 获取 115 请求统计（按天）
+		api.GET("/115/stats/hourly", controllers.GetRequestStatsByHour)     // 获取 115 请求统计（按小时）
 		api.POST("/115/stats/clean", controllers.CleanOldRequestStats)      // 清理旧的请求统计数据
 		// 百度网盘相关路由
-		api.GET("/baidupan/oauth-url", controllers.GetBaiDuPanOAuthUrl)           // 获取百度网盘OAuth登录地址
-		api.POST("/baidupan/oauth-confirm", controllers.ConfirmBaiDuPanOAuthCode) // 确认百度网盘OAuth登录
+		api.GET("/baidupan/oauth-url", controllers.GetBaiDuPanOAuthUrl)           // 获取百度网盘 OAuth 登录地址
+		api.POST("/baidupan/oauth-confirm", controllers.ConfirmBaiDuPanOAuthCode) // 确认百度网盘 OAuth 登录
 		api.GET("/baidupan/status", controllers.GetBaiDuPanStatus)                // 查询百度网盘状态
 
 		api.GET("/update/last", controllers.GetLastRelease)         // 获取最新版本
@@ -602,46 +602,46 @@ func setRouter(r *gin.Engine) {
 		api.GET("/path/files", controllers.GetNetFileList) // 查询网盘文件列表
 		api.POST("/user/change", controllers.ChangePassword)
 
-		api.POST("/setting/http-proxy", controllers.UpdateHttpProxy)    // 更改HTTP代理
-		api.GET("/setting/http-proxy", controllers.GetHttpProxy)        // 获取HTTP代理
-		api.POST("/setting/test-http-proxy", controllers.TestHttpProxy) // 测试HTTP代理
-		// api.GET("/setting/telegram", controllers.GetTelegram)                                      // 获取telegram消息通知配置
-		// api.POST("/setting/telegram", controllers.UpdateTelegram)                                  // 更改telegram消息通知配置
-		// api.POST("/telegram/test", controllers.TestTelegram)                                       // 测试telegram连通性
+		api.POST("/setting/http-proxy", controllers.UpdateHttpProxy)    // 更改 HTTP 代理
+		api.GET("/setting/http-proxy", controllers.GetHttpProxy)        // 获取 HTTP 代理
+		api.POST("/setting/test-http-proxy", controllers.TestHttpProxy) // 测试 HTTP 代理
+		// api.GET("/setting/telegram", controllers.GetTelegram)                                      // 获取 Telegram 消息通知配置
+		// api.POST("/setting/telegram", controllers.UpdateTelegram)                                  // 更改 Telegram 消息通知配置
+		// api.POST("/telegram/test", controllers.TestTelegram)                                       // 测试 Telegram 连通性
 		api.GET("/setting/notification/channels", controllers.GetNotificationChannels)             // 获取所有通知渠道
-		api.POST("/setting/notification/channels/telegram", controllers.CreateTelegramChannel)     // 创建Telegram渠道
-		api.GET("/setting/notification/channels/telegram/:id", controllers.GetTelegramChannel)     // 查询Telegram渠道
-		api.PUT("/setting/notification/channels/telegram", controllers.UpdateTelegramChannel)      // 更新Telegram渠道
-		api.POST("/setting/notification/channels/meow", controllers.CreateMeoWChannel)             // 创建MeoW渠道
-		api.GET("/setting/notification/channels/meow/:id", controllers.GetMeoWChannel)             // 查询MeoW渠道
-		api.PUT("/setting/notification/channels/meow", controllers.UpdateMeoWChannel)              // 更新MeoW渠道
-		api.POST("/setting/notification/channels/bark", controllers.CreateBarkChannel)             // 创建Bark渠道
-		api.GET("/setting/notification/channels/bark/:id", controllers.GetBarkChannel)             // 查询Bark渠道
-		api.PUT("/setting/notification/channels/bark", controllers.UpdateBarkChannel)              // 更新Bark渠道
-		api.POST("/setting/notification/channels/serverchan", controllers.CreateServerChanChannel) // 创建Server酱渠道
-		api.GET("/setting/notification/channels/serverchan/:id", controllers.GetServerChanChannel) // 查询Server酱渠道
-		api.PUT("/setting/notification/channels/serverchan", controllers.UpdateServerChanChannel)  // 更新Server酱渠道
-		api.POST("/setting/notification/channels/webhook", controllers.CreateCustomWebhookChannel) // 创建自定义Webhook渠道
-		api.GET("/setting/notification/channels/webhook/:id", controllers.GetCustomWebhookChannel) // 查询自定义Webhook渠道
-		api.PUT("/setting/notification/channels/webhook", controllers.UpdateCustomWebhookChannel)  // 更新自定义Webhook渠道
+		api.POST("/setting/notification/channels/telegram", controllers.CreateTelegramChannel)     // 创建 Telegram 渠道
+		api.GET("/setting/notification/channels/telegram/:id", controllers.GetTelegramChannel)     // 查询 Telegram 渠道
+		api.PUT("/setting/notification/channels/telegram", controllers.UpdateTelegramChannel)      // 更新 Telegram 渠道
+		api.POST("/setting/notification/channels/meow", controllers.CreateMeoWChannel)             // 创建 MeoW 渠道
+		api.GET("/setting/notification/channels/meow/:id", controllers.GetMeoWChannel)             // 查询 MeoW 渠道
+		api.PUT("/setting/notification/channels/meow", controllers.UpdateMeoWChannel)              // 更新 MeoW 渠道
+		api.POST("/setting/notification/channels/bark", controllers.CreateBarkChannel)             // 创建 Bark 渠道
+		api.GET("/setting/notification/channels/bark/:id", controllers.GetBarkChannel)             // 查询 Bark 渠道
+		api.PUT("/setting/notification/channels/bark", controllers.UpdateBarkChannel)              // 更新 Bark 渠道
+		api.POST("/setting/notification/channels/serverchan", controllers.CreateServerChanChannel) // 创建 Server 酱渠道
+		api.GET("/setting/notification/channels/serverchan/:id", controllers.GetServerChanChannel) // 查询 Server 酱渠道
+		api.PUT("/setting/notification/channels/serverchan", controllers.UpdateServerChanChannel)  // 更新 Server 酱渠道
+		api.POST("/setting/notification/channels/webhook", controllers.CreateCustomWebhookChannel) // 创建自定义 Webhook 渠道
+		api.GET("/setting/notification/channels/webhook/:id", controllers.GetCustomWebhookChannel) // 查询自定义 Webhook 渠道
+		api.PUT("/setting/notification/channels/webhook", controllers.UpdateCustomWebhookChannel)  // 更新自定义 Webhook 渠道
 		api.POST("/setting/notification/channels/status", controllers.UpdateChannelStatus)         // 启用/禁用渠道
 		api.DELETE("/setting/notification/channels/:id", controllers.DeleteChannel)                // 删除渠道
 		api.GET("/setting/notification/rules", controllers.GetNotificationRules)                   // 获取通知规则
 		api.PUT("/setting/notification/rules", controllers.UpdateNotificationRule)                 // 更新通知规则
 		api.POST("/setting/notification/channels/test", controllers.TestChannelConnection)         // 测试通知渠道连接
-		api.GET("/setting/strm-config", controllers.GetStrmConfig)                                 // 获取STRM配置
-		api.POST("/setting/strm-config", controllers.UpdateStrmConfig)                             // 更新STRM配置
-		api.GET("/setting/cron", controllers.GetCronNextTime)                                      // 获取Cron表达式的下5次执行时间
-		api.POST("/cron/validate", controllers.ValidateCron)                                       // 验证Cron表达式并返回描述
-		api.POST("/setting/emby/parse", controllers.ParseEmby)                                     // 解析Emby媒体信息
-		api.GET("/setting/emby-config", controllers.GetEmbyConfig)                                 // 获取新的Emby配置
-		api.POST("/setting/emby-config", controllers.UpdateEmbyConfig)                             // 更新新的Emby配置
+		api.GET("/setting/strm-config", controllers.GetStrmConfig)                                 // 获取 STRM 配置
+		api.POST("/setting/strm-config", controllers.UpdateStrmConfig)                             // 更新 STRM 配置
+		api.GET("/setting/cron", controllers.GetCronNextTime)                                      // 获取 Cron 表达式的下 5 次执行时间
+		api.POST("/cron/validate", controllers.ValidateCron)                                       // 验证 Cron 表达式并返回描述
+		api.POST("/setting/emby/parse", controllers.ParseEmby)                                     // 解析 Emby 媒体信息
+		api.GET("/setting/emby-config", controllers.GetEmbyConfig)                                 // 获取新的 Emby 配置
+		api.POST("/setting/emby-config", controllers.UpdateEmbyConfig)                             // 更新新的 Emby 配置
 		api.POST("/setting/threads", controllers.UpdateThreads)                                    // 更新线程数
 		api.GET("/setting/threads", controllers.GetThreads)                                        // 获取线程数
 
-		api.POST("/emby/sync/start", controllers.StartEmbySync)     // 手动启动Emby同步
-		api.GET("/emby/sync/status", controllers.GetEmbySyncStatus) // 获取Emby同步状态
-		api.GET("/emby/libraries", controllers.GetEmbyLibraries)    // 获取Emby媒体库列表
+		api.POST("/emby/sync/start", controllers.StartEmbySync)     // 手动启动 Emby 同步
+		api.GET("/emby/sync/status", controllers.GetEmbySyncStatus) // 获取 Emby 同步状态
+		api.GET("/emby/libraries", controllers.GetEmbyLibraries)    // 获取 Emby 媒体库列表
 		// 删除媒体库与同步目录关联
 
 		api.POST("/sync/start", controllers.StartSync)                       // 启动同步
@@ -653,7 +653,7 @@ func setRouter(r *gin.Engine) {
 		api.POST("/sync/path-delete", controllers.DeleteSyncPath)            // 删除同步路径
 		api.POST("/sync/path/stop", controllers.StopSyncByPath)              // 停止同步路径的同步任务
 		api.POST("/sync/path/start", controllers.StartSyncByPath)            // 启动同步路径的同步任务
-		api.POST("/sync/path/full-start", controllers.FullStart115Sync)      // 启动115的全量同步任务
+		api.POST("/sync/path/full-start", controllers.FullStart115Sync)      // 启动 115 的全量同步任务
 		api.POST("/sync/delete-records", controllers.DelSyncRecords)         // 批量删除同步记录
 		api.POST("/sync/path/toggle-cron", controllers.ToggleSyncByPath)     // 关闭或开启同步目录的定时同步
 		api.GET("/sync/path/:id", controllers.GetSyncPathById)               // 获取同步路径详情
@@ -665,24 +665,24 @@ func setRouter(r *gin.Engine) {
 		api.POST("/account/add", controllers.CreateTmpAccount)           // 创建开放平台账号
 		api.POST("/account/update", controllers.UpdateAccountInfo)       // 更新开放平台账号资料
 		api.POST("/account/delete", controllers.DeleteAccount)           // 删除开放平台账号
-		api.POST("/account/openlist", controllers.CreateOpenListAccount) // 创建openlist账号
+		api.POST("/account/openlist", controllers.CreateOpenListAccount) // 创建 OpenList 账号
 
-		// API Key管理接口
-		api.POST("/api-keys", controllers.CreateAPIKey)                 // 创建API Key
-		api.GET("/api-keys", controllers.ListAPIKeys)                   // 获取API Key列表
-		api.PUT("/api-keys/:id/status", controllers.UpdateAPIKeyStatus) // 更新API Key状态
-		api.DELETE("/api-keys/:id", controllers.DeleteAPIKey)           // 删除API Key
+		// API Key 管理接口
+		api.POST("/api-keys", controllers.CreateAPIKey)                 // 创建 API Key
+		api.GET("/api-keys", controllers.ListAPIKeys)                   // 获取 API Key 列表
+		api.PUT("/api-keys/:id/status", controllers.UpdateAPIKeyStatus) // 更新 API Key 状态
+		api.DELETE("/api-keys/:id", controllers.DeleteAPIKey)           // 删除 API Key
 
 		api.GET("/scrape/movie-genre", controllers.GetMovieGenre)                     // 获取电影类别
 		api.GET("/scrape/tvshow-genre", controllers.GetTvshowGenre)                   // 获取电视剧类别
 		api.GET("/scrape/language", controllers.GetLanguage)                          // 获取语言数组
 		api.GET("/scrape/countries", controllers.GetCountries)                        // 获取国家数组
-		api.GET("/scrape/tmdb", controllers.GetTmdbSettings)                          // 获取TMDB设置
-		api.POST("/scrape/tmdb", controllers.SaveTmdbSettings)                        // 保存TMDB设置
-		api.POST("/scrape/tmdb-test", controllers.TestTmdbSettings)                   // 测试TMDB设置
-		api.GET("/scrape/ai-settings", controllers.GetAiSettings)                     // 获取AI识别设置
-		api.POST("/scrape/ai-settings", controllers.SaveAiSettings)                   // 保存AI识别设置
-		api.POST("/scrape/ai-test", controllers.TestAiSettings)                       // 测试AI识别设置
+		api.GET("/scrape/tmdb", controllers.GetTmdbSettings)                          // 获取 TMDB 设置
+		api.POST("/scrape/tmdb", controllers.SaveTmdbSettings)                        // 保存 TMDB 设置
+		api.POST("/scrape/tmdb-test", controllers.TestTmdbSettings)                   // 测试 TMDB 设置
+		api.GET("/scrape/ai-settings", controllers.GetAiSettings)                     // 获取 AI 识别设置
+		api.POST("/scrape/ai-settings", controllers.SaveAiSettings)                   // 保存 AI 识别设置
+		api.POST("/scrape/ai-test", controllers.TestAiSettings)                       // 测试 AI 识别设置
 		api.GET("/scrape/movie-categories", controllers.GetMovieCategories)           // 获取电影分类列表
 		api.GET("/scrape/tvshow-categories", controllers.GetTvshowCategories)         // 获取电视剧分类列表
 		api.POST("/scrape/movie-categories", controllers.SaveMovieCategory)           // 保存电影分类
@@ -705,7 +705,7 @@ func setRouter(r *gin.Engine) {
 		api.POST("/scrape/rename-failed", controllers.RenameFailedScrapeMediaFile)    // 标记所有失败的记录为待整理
 		api.POST("/scrape/sync-pathes", controllers.SaveScrapeStrmPath)               // 保存刮削目录关联的同步目录
 		api.GET("/scrape/sync-pathes", controllers.GetScrapeStrmPaths)                // 获取刮削目录关联的同步目录
-		api.GET("/scrape/tmdb-search", controllers.TmdbSearch)                        // 搜索TMDB媒体
+		api.GET("/scrape/tmdb-search", controllers.TmdbSearch)                        // 搜索 TMDB 媒体
 
 		api.GET("/upload/queue", controllers.UploadList)                                             // 获取上传队列列表
 		api.POST("/upload/queue/clear-pending", controllers.ClearPendingUploadTasks)                 // 清除上传队列中未开始的任务
@@ -749,8 +749,8 @@ func firstNonEmpty(vals ...string) string {
 }
 
 func initEnv() bool {
-	log.Printf("当前版本号:%s, 发布日期:%s\n", Version, PublishDate)
-	// 将版本写入helper
+	log.Printf("当前版本号：%s，发布日期：%s\n", Version, PublishDate)
+	// 将版本写入 helper
 	helpers.Version = Version
 	helpers.ReleaseDate = PublishDate
 	// 加载环境变量配置
@@ -764,65 +764,65 @@ func initEnv() bool {
 	helpers.DEFAULT_FANART_API_KEY = firstNonEmpty(os.Getenv("FANART_API_KEY"), FANART_API_KEY)
 	helpers.FANART_API_KEY = helpers.DEFAULT_FANART_API_KEY
 	helpers.OAuthRelayEncryptionKey = firstNonEmpty(os.Getenv("OAUTH_RELAY_ENCRYPTION_KEY"), OAuthRelayEncryptionKey)
-	initTimeZone()        // 设置东8区
+	initTimeZone()        // 设置东 8 区
 	getDataAndConfigDir() // 获取数据库数据目录和配置文件目录
-	log.Printf("当前工作目录:%s\n", helpers.RootDir)
+	log.Printf("当前工作目录：%s\n", helpers.RootDir)
 	log.Printf("当前数据目录：%s\n", helpers.DataDir)
-	log.Printf("当前配置文件目录: %s\n", helpers.ConfigDir)
+	log.Printf("当前配置文件目录：%s\n", helpers.ConfigDir)
 	if err := helpers.InitEncryptionKey(); err != nil {
-		log.Printf("初始化本机加密密钥失败: %v\n", err)
+		log.Printf("初始化本机加密密钥失败：%v\n", err)
 		return false
 	}
 	ipv4, _ := helpers.GetLocalIP()
-	log.Printf("本机IPv4地址是 <%s>\n", ipv4)
+	log.Printf("本机 IPv4 地址：%s\n", ipv4)
 	// 检查配置文件是否存在
 	configPath := helpers.ExistingConfigFilePath()
 	helpers.IsFirstRun = !helpers.HasConfigFile()
-	// 如果不存在，启动一个简易web服务来配置数据库连接信息
+	// 如果不存在，启动一个简易 Web 服务来配置数据库连接信息
 	if helpers.IsFirstRun {
 		// 检查是否有旧的数据库配置和记录，有的话生成配置文件，跳过配置流程
 		oldPostgresDataDir := filepath.Join(helpers.ConfigDir, "postgres")
 		if helpers.PathExists(oldPostgresDataDir) {
-			log.Printf("发现旧的数据库数据目录: %s", oldPostgresDataDir)
+			log.Printf("发现旧的数据库数据目录：%s", oldPostgresDataDir)
 			// 生成新的配置文件
 			if err := helpers.MakeOldConfig(); err != nil {
-				log.Printf("生成新的配置文件失败: %v", err)
+				log.Printf("生成新的配置文件失败：%v", err)
 				return false
 			}
 			configPath = helpers.ConfigFilePath()
-			log.Printf("已生成配置文件: %s", configPath)
+			log.Printf("已生成配置文件：%s", configPath)
 			helpers.IsFirstRun = false
 		} else {
-			log.Printf("配置文件不存在，启动简单配置服务: %s", helpers.ConfigFilePath())
+			log.Printf("配置文件不存在，启动简单配置服务：%s", helpers.ConfigFilePath())
 			StartConfigWebServer()
 			return false
 		}
 	}
 	configPath = helpers.ExistingConfigFilePath()
-	log.Printf("配置文件存在，加载配置文件: %s", configPath)
+	log.Printf("配置文件存在，加载配置文件：%s", configPath)
 	// 如果存在，则加载配置文件，进行其他的初始化工作
 	err := helpers.InitConfig()
 	if err != nil {
-		log.Printf("初始化配置文件失败: %v", err)
+		log.Printf("初始化配置文件失败：%v", err)
 		return false
 	}
 	initLogger()
-	// 创建App
+	// 创建 App
 	newApp()
-	helpers.AppLogger.Infof("当前版本号:%s, 发布日期:%s\n", Version, PublishDate)
+	helpers.AppLogger.Infof("当前版本号：%s，发布日期：%s", Version, PublishDate)
 
 	// 检查是否需要自动恢复
 	if migrate.ShouldRestore() {
-		helpers.AppLogger.Info("检测到迁移备份文件存在且使用外部PostgreSQL，开始自动恢复...")
+		helpers.AppLogger.Info("检测到迁移备份文件存在且使用外部 PostgreSQL，开始自动恢复…")
 		// 先启动外部数据库连接
 		if err := QMSApp.StartDatabase(false); err != nil {
-			log.Println("数据库启动失败:", err)
+			log.Printf("数据库启动失败：%v", err)
 			return false
 		}
 		// 执行恢复
 		backupPath := migrate.GetMigrateBackupPath()
 		if err := performMigrateRestore(backupPath); err != nil {
-			helpers.AppLogger.Errorf("恢复数据失败: %v", err)
+			helpers.AppLogger.Errorf("恢复数据失败：%v", err)
 			return false
 		}
 		// 恢复成功，删除备份文件
@@ -833,10 +833,10 @@ func initEnv() bool {
 		needMigrate := migrate.ShouldMigrate()
 		// needMigrate := false
 		if err := QMSApp.StartDatabase(needMigrate); err != nil {
-			helpers.AppLogger.Errorf("数据库启动失败: %v", err)
+			helpers.AppLogger.Errorf("数据库启动失败：%v", err)
 			return false
 		}
-		// 如果启动了迁移服务，则直接返回false（迁移服务会自己处理退出）
+		// 如果启动了迁移服务，则直接返回 false（迁移服务会自己处理退出）
 		if needMigrate {
 			return false
 		}
@@ -848,7 +848,7 @@ func initEnv() bool {
 }
 
 func parseParams() {
-	// 定义 guid 参数
+	// 定义 GUID 参数
 	var update string
 	flag.StringVar(&helpers.Guid, "guid", "", "GUID 参数")
 	flag.BoolVar(&helpers.IsFnOS, "fnos", false, "是否是飞牛环境")
@@ -860,10 +860,10 @@ func parseParams() {
 		log.Printf("当前环境为飞牛环境\n")
 	}
 	if helpers.Guid == "" || helpers.Guid == "0" {
-		// 检查是否有GUID环境变量，有的话直接使用
+		// 检查是否有 GUID 环境变量，有的话直接使用
 		guidEnv := os.Getenv("GUID")
 		if guidEnv != "" {
-			log.Printf("使用环境变量 GUID: %s 执行操作\n", guidEnv)
+			log.Printf("使用环境变量 GUID：%s 执行操作\n", guidEnv)
 			helpers.Guid = guidEnv
 		} else {
 			log.Printf("使用 root 执行操作\n")
@@ -878,7 +878,7 @@ func parseParams() {
 
 // @title QMediaSync API
 // @version 1.0
-// @description 媒体同步和刮削系统API
+// @description 媒体同步和刮削系统 API
 // @host localhost:8115
 // @BasePath /
 // @securityDefinitions.apikey JwtAuth
@@ -919,21 +919,21 @@ func runUpdateProcess() {
 
 	updateDir := os.Args[2]
 
-	fmt.Println("开始更新流程...")
+	fmt.Println("开始更新流程…")
 
 	parentPID := os.Getppid()
-	fmt.Printf("等待父进程退出 (PID: %d)...\n", parentPID)
+	fmt.Printf("等待父进程退出（PID：%d）…\n", parentPID)
 
 	if err := waitForProcessExit(parentPID); err != nil {
-		fmt.Printf("等待父进程退出失败: %v\n", err)
+		fmt.Printf("等待父进程退出失败：%v\n", err)
 	}
 
-	fmt.Println("父进程已退出，开始更新...")
+	fmt.Println("父进程已退出，开始更新…")
 
 	backupDir := filepath.Join(helpers.RootDir, "old")
 
 	if helpers.PathExists(backupDir) {
-		fmt.Println("删除旧的备份目录...")
+		fmt.Println("删除旧的备份目录…")
 		os.RemoveAll(backupDir)
 	}
 
@@ -943,21 +943,21 @@ func runUpdateProcess() {
 	appPath := filepath.Join(helpers.RootDir, appName)
 	newAppPath := filepath.Join(updateDir, appName)
 	if helpers.PathExists(newAppPath) {
-		fmt.Printf("更新 %s...\n", appName)
-		// 将老的可执行文件改名为old.exe
+		fmt.Printf("更新 %s…\n", appName)
+		// 将旧的可执行文件改名为 old.exe
 		oldAppPath := appPath + ".old.exe"
 		if helpers.PathExists(oldAppPath) {
 			if err := os.Remove(oldAppPath); err != nil {
-				fmt.Printf("删除旧 %s 失败: %v\n", appName, err)
+				fmt.Printf("删除旧 %s 失败：%v\n", appName, err)
 				os.Exit(1)
 			}
 		}
 		if err := os.Rename(appPath, oldAppPath); err != nil {
-			fmt.Printf("重命名旧 %s 失败: %v\n", appName, err)
+			fmt.Printf("重命名旧 %s 失败：%v\n", appName, err)
 			os.Exit(1)
 		}
 		if err := helpers.CopyFile(newAppPath, appPath); err != nil {
-			fmt.Printf("更新主程序失败: %v\n", err)
+			fmt.Printf("更新主程序失败：%v\n", err)
 		}
 	} else {
 		fmt.Printf("更新目录中未找到 %s\n", appName)
@@ -965,15 +965,15 @@ func runUpdateProcess() {
 
 	replaceDir(filepath.Join(updateDir, "web_statics"), filepath.Join(helpers.RootDir, "web_statics"), backupDir)
 	replaceDir(filepath.Join(updateDir, "scripts"), filepath.Join(helpers.RootDir, "scripts"), backupDir)
-	// 删除临时exe
+	// 删除临时 exe
 	tempExePath := newAppPath + ".temp.exe"
 	if helpers.PathExists(tempExePath) {
 		if err := os.Remove(tempExePath); err != nil {
-			fmt.Printf("删除临时exe文件失败: %v\n", err)
+			fmt.Printf("删除临时 EXE 文件失败：%v\n", err)
 		}
 	}
-	fmt.Println("更新完成!")
-	fmt.Println("启动新版本...")
+	fmt.Println("更新完成！")
+	fmt.Println("启动新版本…")
 	// 启动新进程
 	if !helpers.StartNewProcess(appPath, "") {
 		fmt.Printf("启动新版本失败\n")
@@ -990,9 +990,9 @@ func waitForProcessExit(pid int) error {
 		if err != nil {
 			return nil
 		}
-		// 检查process已经退出
+		// 检查进程是否已经退出
 		if !alive {
-			fmt.Printf("父进程已退出，等待资源释放...\n")
+			fmt.Printf("父进程已退出，等待资源释放…\n")
 			time.Sleep(2 * time.Second)
 			return nil
 		}
@@ -1012,19 +1012,19 @@ func replaceDir(srcDir, dstDir, backupDir string) {
 	backupPath := filepath.Join(backupDir, dirName)
 
 	if helpers.PathExists(dstDir) {
-		fmt.Printf("备份 %s 目录...\n", dirName)
+		fmt.Printf("备份 %s 目录…\n", dirName)
 		os.RemoveAll(backupPath)
 		if err := helpers.CopyDir(dstDir, backupPath); err != nil {
-			fmt.Printf("备份 %s 目录失败: %v\n", dirName, err)
+			fmt.Printf("备份 %s 目录失败：%v\n", dirName, err)
 		}
 
-		fmt.Printf("删除旧 %s 目录...\n", dirName)
+		fmt.Printf("删除旧 %s 目录…\n", dirName)
 		os.RemoveAll(dstDir)
 	}
 
-	fmt.Printf("更新 %s 目录...\n", dirName)
+	fmt.Printf("更新 %s 目录…\n", dirName)
 	if err := helpers.CopyDir(srcDir, dstDir); err != nil {
-		fmt.Printf("更新 %s 目录失败: %v\n", dirName, err)
+		fmt.Printf("更新 %s 目录失败：%v\n", dirName, err)
 	}
 }
 
@@ -1040,7 +1040,7 @@ func isInRestrictedDirectory() (bool, string) {
 	exeDir := filepath.Dir(exePath)
 
 	driveLetter := strings.ToUpper(string(exeDir[0]))
-	log.Printf("应用程序路径: %s, 盘符: %s", exePath, driveLetter)
+	log.Printf("应用程序路径：%s，盘符：%s", exePath, driveLetter)
 	if driveLetter == "C" {
 		return true, "应用程序位于 C 盘，建议将应用程序移动到其他盘符（如 D 盘、E 盘等）以避免权限问题"
 	}
@@ -1053,9 +1053,9 @@ func isInRestrictedDirectory() (bool, string) {
 	}
 
 	for _, restrictedPath := range restrictedPaths {
-		log.Printf("检查目录: %s, 是否包含受限路径: %s", exeDir, restrictedPath)
+		log.Printf("检查目录：%s，是否包含受限路径：%s", exeDir, restrictedPath)
 		if strings.Contains(exeDir, restrictedPath) {
-			return true, fmt.Sprintf("应用程序位于受限目录 '%s' 中，建议将应用程序移动到普通用户目录或其他非系统目录", restrictedPath)
+			return true, fmt.Sprintf("应用程序位于受限目录 %s 中，建议将应用程序移动到普通用户目录或其他非系统目录", restrictedPath)
 		}
 	}
 
@@ -1063,14 +1063,14 @@ func isInRestrictedDirectory() (bool, string) {
 }
 
 func performMigrateRestore(backupPath string) error {
-	helpers.AppLogger.Infof("开始从迁移备份恢复: %s", backupPath)
+	helpers.AppLogger.Infof("开始从迁移备份恢复：%s", backupPath)
 
 	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
-		return fmt.Errorf("备份文件不存在: %s", backupPath)
+		return fmt.Errorf("备份文件不存在：%s", backupPath)
 	}
 
 	if err := backup.Restore(backupPath); err != nil {
-		return fmt.Errorf("恢复失败: %v", err)
+		return fmt.Errorf("恢复失败：%v", err)
 	}
 
 	helpers.AppLogger.Info("迁移恢复完成")
@@ -1082,12 +1082,12 @@ func StartConfigWebServer() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	r := gin.Default()
-	// 使用embed.FS加载模板
+	// 使用 embed.FS 加载模板
 	data, err := embedFiles.ReadFile("assets/db_config.html")
 	if err != nil {
 		log.Fatal(err)
 	}
-	// 创建内存中的HTML文件
+	// 创建内存中的 HTML 文件
 	tmpl := template.Must(template.New("db_config.html").Parse(string(data)))
 	r.SetHTMLTemplate(tmpl)
 
@@ -1123,7 +1123,7 @@ func StartConfigWebServer() {
 			req.Host, req.Port, req.User, req.Password, sslMode)
 		sqlDB, err := sql.Open("postgres", connStr)
 		if err != nil {
-			c.JSON(200, gin.H{"success": false, "error": "连接失败: " + err.Error()})
+			c.JSON(200, gin.H{"success": false, "error": "连接失败：" + err.Error()})
 			return
 		}
 		defer sqlDB.Close()
@@ -1132,14 +1132,14 @@ func StartConfigWebServer() {
 		defer cancel()
 
 		if err := sqlDB.PingContext(ctx); err != nil {
-			c.JSON(200, gin.H{"success": false, "error": "连接失败: " + err.Error()})
+			c.JSON(200, gin.H{"success": false, "error": "连接失败：" + err.Error()})
 			return
 		}
 
 		var dbExists bool
 		err = sqlDB.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)", req.Database).Scan(&dbExists)
 		if err != nil {
-			c.JSON(200, gin.H{"success": false, "error": "检查数据库失败: " + err.Error()})
+			c.JSON(200, gin.H{"success": false, "error": "检查数据库失败：" + err.Error()})
 			return
 		}
 
@@ -1236,24 +1236,24 @@ func StartConfigWebServer() {
 		}
 
 		if err := helpers.SaveConfig(yamlConfig); err != nil {
-			c.JSON(500, gin.H{"error": "保存配置失败: " + err.Error()})
+			c.JSON(500, gin.H{"error": "保存配置失败：" + err.Error()})
 			return
 		}
 
-		c.JSON(200, gin.H{"success": true, "message": "配置已保存，配置服务已退出，请重启软件或者容器"})
+		c.JSON(200, gin.H{"success": true, "message": "配置已保存，配置服务已退出，请重启软件或容器"})
 		go func() {
 			time.Sleep(1 * time.Second)
 			os.Exit(0)
 		}()
 	})
 
-	fmt.Printf("配置服务已启动，请在浏览器中访问: http://ip:12333\n")
+	fmt.Printf("配置服务已启动，请在浏览器中访问：http://ip:12333\n")
 	go func() {
 		// 第一次启动建议多等一会儿，因为数据库初始化需要时间
 		time.Sleep(2 * time.Second)
 		helpers.OpenBrowser("http://127.0.0.1:12333")
 	}()
 	if err := r.Run(":12333"); err != nil {
-		log.Fatalf("启动配置服务失败: %v", err)
+		log.Fatalf("启动配置服务失败：%v", err)
 	}
 }

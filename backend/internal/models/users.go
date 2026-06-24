@@ -44,14 +44,14 @@ func (user *User) DisableTwoFactor() {
 // SaveUser 保存用户
 func SaveUser(user *User) error {
 	if err := db.Db.Save(user).Error; err != nil {
-		helpers.AppLogger.Errorf("保存用户失败: %v", err)
+		helpers.AppLogger.Errorf("保存用户失败：%v", err)
 		return err
 	}
 	return nil
 }
 
 // 修改用户密码
-// 传入用户ID和新密码，更新用户的密码
+// 传入用户 ID 和新密码，更新用户的密码
 func (user *User) ChangeUsernameAndPassword(username, newPassword string) (bool, error) {
 	if username == user.Username && newPassword == "" {
 		return false, nil
@@ -63,7 +63,7 @@ func (user *User) ChangeUsernameAndPassword(username, newPassword string) (bool,
 		}
 		hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.MinCost)
 		if err != nil {
-			helpers.AppLogger.Warnf("生成用户新密码失败: %v", err)
+			helpers.AppLogger.Warnf("生成用户新密码失败：%v", err)
 			return false, err
 		}
 		user.Password = string(hash)
@@ -71,32 +71,32 @@ func (user *User) ChangeUsernameAndPassword(username, newPassword string) (bool,
 	}
 	user.Username = username
 	if err := db.Db.Save(user).Error; err != nil {
-		helpers.AppLogger.Errorf("修改用户名和密码失败: %v", err)
+		helpers.AppLogger.Errorf("修改用户名和密码失败：%v", err)
 		return false, err
 	}
 	return isChange, nil
 }
 
-// 根据用户ID查询用户
+// 根据用户 ID 查询用户
 func GetUserById(userId uint) (*User, error) {
 	user := &User{}
 	result := db.Db.First(user, userId)
 	if result.Error != nil {
-		helpers.AppLogger.Errorf("查询用户失败: %v", db.Db.Error)
-		// 如果没有，则返回Nil
+		helpers.AppLogger.Errorf("查询用户失败：%v", db.Db.Error)
+		// 如果没有，则返回 nil
 		return user, db.Db.Error
 	}
 	return user, nil
 }
 
 // 根据用户名查询用户
-// 如果没有找到，则返回一个空的User对象和nil错误
+// 如果没有找到，则返回一个空的 User 对象和 nil 错误
 func GetUserByUsername(username string) (*User, error) {
 	user := &User{}
 	result := db.Db.First(user, "username = ?", username)
 	if result.Error != nil {
-		helpers.AppLogger.Errorf("根据用户名查询用户失败: %v", result.Error)
-		// 如果没有，则返回Nil
+		helpers.AppLogger.Errorf("根据用户名查询用户失败：%v", result.Error)
+		// 如果没有，则返回 nil
 		return user, result.Error
 	}
 	return user, nil
@@ -112,7 +112,7 @@ func CheckLogin(username, password string) (*User, error) {
 	if user.ID == 0 {
 		return nil, gorm.ErrRecordNotFound
 	}
-	// helpers.AppLogger.Infof("检查用户%s的密码: %s => %s", username, password, user.Password)
+	// helpers.AppLogger.Infof("检查用户 %s 的密码：%s => %s", username, password, user.Password)
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
 		return nil, err
 	}

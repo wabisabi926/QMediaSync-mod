@@ -15,7 +15,8 @@
           size="large"
         />
         <div class="form-help">
-          下载队列的每秒处理数量，每秒加入下载中的数量而不是每秒下载数量，所以下载队列下载中状态可能显示为大于此值，这是正常的。最大10，最小1，最大是因为要给播放和刮削留出空余。
+          控制每秒加入“下载中”的任务数，并不是实际每秒下载数。因此“下载中”数量可能高于该值，这是正常的。建议保留余量给播放和刮削，范围
+          1 到 10。
         </div>
       </el-form-item>
 
@@ -28,11 +29,11 @@
           size="large"
         />
         <div class="form-help">
-          115或者百度网盘开放平台接口的每秒请求数量，影响同步速度，最大10，最小2
+          控制 115 或百度网盘开放平台每秒请求数，影响同步速度，范围 2 到 10。
         </div>
       </el-form-item>
 
-      <el-form-item label="OpenList 接口请求QPS" prop="openlistQPS">
+      <el-form-item label="OpenList 接口请求 QPS" prop="openlistQPS">
         <el-input-number
           v-model="formData.openlistQPS"
           :min="2"
@@ -40,7 +41,7 @@
           :disabled="loading"
           size="large"
         />
-        <div class="form-help">OpenList 接口的每秒请求数量，影响同步速度，最大10，最小2</div>
+        <div class="form-help">控制 OpenList 接口每秒请求数，影响同步速度，范围 2 到 10。</div>
       </el-form-item>
 
       <el-form-item label="OpenList 接口重试次数" prop="openlistRetryCount">
@@ -53,7 +54,8 @@
         />
         <div class="form-help">
           OpenList
-          接口报错后的重试次数，重试该次数后如果依然报错则同步停止，影响同步速度，最大10，最小1
+          接口请求失败后的重试次数。超过次数仍失败时会停止同步；次数越多，失败场景下耗时越长。范围 1
+          到 10。
         </div>
       </el-form-item>
 
@@ -66,11 +68,11 @@
           size="large"
         />
         <div class="form-help">
-          OpenList 接口每次重试的间隔时间，单位：秒。影响同步速度，最大3600，最小30
+          OpenList 接口每次重试的间隔时间，单位为秒。间隔越大，失败后恢复越慢，范围 30 到 3600。
         </div>
       </el-form-item>
 
-      <el-form-item label="115文件列表每页查询数量" prop="fileListPageSize">
+      <el-form-item label="115 文件列表每页查询数量" prop="fileListPageSize">
         <el-input-number
           v-model="formData.fileListPageSize"
           :min="100"
@@ -79,7 +81,8 @@
           size="large"
         />
         <div class="form-help">
-          115网盘文件列表接口的每页查询数量，网络较慢时可减小此值避免超时。范围100-1150，默认1150
+          115 网盘文件列表接口每页返回的文件数量。网络较慢时可减小此值避免超时，范围 100 到
+          1150，默认 1150。
         </div>
       </el-form-item>
 
@@ -110,10 +113,10 @@
       <div class="warning-section">
         <el-alert title="使用提示" type="warning" :closable="false" show-icon>
           <template #default>
-            线程数设置过高可能导致115提示访问量过高，请根据实际情况合理设置。一般建议总线程数不超过10。<br />
-            如果您授权了多个第三方平台，请保证其他第三方的线程数+本项目的线程数不要过高。<br />
-            如果日志中提示访问量过高，请适当减少接口请求QPS。<br />
-            如果日志中下载文件提示403，请适当减少下载QPS。<br />
+            线程数过高可能导致 115 提示访问量过高，一般建议总线程数不超过 10。<br />
+            如果还授权了其他第三方平台，也要把它们的线程数一起算进去。<br />
+            如果日志提示访问量过高，请降低接口请求 QPS。<br />
+            如果下载文件时出现 403，请降低下载 QPS。<br />
           </template>
         </el-alert>
       </div>
@@ -182,7 +185,7 @@ async function fetchThreadSettings() {
     formData.openlistRetryDelay = response?.data.data.openlist_retry_delay
     formData.fileListPageSize = response?.data.data.file_list_page_size || 1150
   } catch (error) {
-    console.error('获取线程设置失败:', error)
+    console.error('获取线程设置失败：', error)
     ElMessage.error('获取线程设置失败，请稍后重试')
   } finally {
     loading.value = false
@@ -215,12 +218,12 @@ async function saveSettings() {
       description: '线程设置已成功保存',
     }
 
-    // 3秒后清除状态提示
+    // 3 秒后清除状态提示
     setTimeout(() => {
       saveStatus.value = null
     }, 3000)
   } catch (error) {
-    console.error('保存线程设置失败:', error)
+    console.error('保存线程设置失败：', error)
     saveStatus.value = {
       title: '保存失败',
       type: 'error',

@@ -8,7 +8,7 @@ import (
 	"Q115-STRM/internal/helpers"
 )
 
-// ThrottleManager 全局限流管理器，用于管理API访问频率限制
+// ThrottleManager 全局限流管理器，用于管理 API 访问频率限制
 type ThrottleManager struct {
 	sync.RWMutex
 	// 是否处于限流状态
@@ -17,7 +17,7 @@ type ThrottleManager struct {
 	throttleStartTime time.Time
 	// 限流通知通道
 	throttleNotify chan struct{}
-	// 限流暂停时长（硬编码1分钟）
+	// 限流暂停时长（硬编码 1 分钟）
 	throttleDuration time.Duration
 }
 
@@ -61,7 +61,7 @@ func (tm *ThrottleManager) MarkThrottled(stats *RequestStats) {
 	tm.isThrottled = true
 	tm.throttleStartTime = time.Now()
 
-	helpers.V115Log.Warnf("检测到限流，将在 %v 秒后恢复", tm.throttleDuration.Seconds())
+	helpers.V115Log.Warnf("检测到限流，将在 %.0f 秒后恢复", tm.throttleDuration.Seconds())
 
 	// 记录限流事件
 	if stats != nil {

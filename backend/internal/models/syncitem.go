@@ -27,15 +27,15 @@ type SyncFile struct {
 	Sha1          string            `json:"sha1"`
 	MTime         int64             `json:"mtime"`                                        // 最后修改时间
 	LocalFilePath string            `json:"local_file_path" gorm:"index:local_file_path"` // 本地文件路径，包含文件名
-	Path          string            `json:"path"`                                         // 绝对路径，不包含FileName
+	Path          string            `json:"path"`                                         // 绝对路径，不包含 FileName
 	SyncPath      *SyncPath         `json:"-" gorm:"-"`                                   // 关联的同步路径
 	Sync          *Sync             `json:"-" gorm:"-"`                                   // 关联的同步项
 	Account       *Account          `json:"-" gorm:"-"`                                   // 关联的账号
 	IsVideo       bool              `json:"is_video"`
 	IsMeta        bool              `json:"is_meta"`
-	OpenlistSign  string            `json:"openlist_sign"` // openlist会返回sign，用于生成op的文件链接
+	OpenlistSign  string            `json:"openlist_sign"` // OpenList 会返回 sign，用于生成 OpenList 文件链接
 	Uploaded      bool              `json:"uploaded"`      // 是否上传完成，未上传完成的记录不触发删除
-	ThumbUrl      string            `json:"thumb_url"`     // 缩略图URL
+	ThumbUrl      string            `json:"thumb_url"`     // 缩略图 URL
 	Processed     bool              `json:"processed"`     // 是否已处理
 }
 

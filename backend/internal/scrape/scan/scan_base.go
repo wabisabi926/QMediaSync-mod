@@ -26,7 +26,7 @@ type scanBaseImpl struct {
 	ctx        context.Context
 	scrapePath *models.ScrapePath
 	BatchNo    string
-	pathBuffer []string     // 如果pathTasks满了，先放入这里
+	pathBuffer []string     // pathTasks 满了时，先放入这里
 	mu         sync.RWMutex // 保护缓冲区的锁
 	wg         sync.WaitGroup
 	pathTasks  chan string
@@ -47,14 +47,14 @@ func (s *scanBaseImpl) addPathToTasks(path string) {
 		return
 	case s.pathTasks <- path:
 		s.wg.Add(1)
-		helpers.AppLogger.Infof("任务 %s 已添加到channel", path)
+		helpers.AppLogger.Infof("任务 %s 已添加到 channel", path)
 	default:
 		// 超时，尝试添加到缓冲区
 		s.addToBuffer(path)
 	}
 }
 
-// bufferMonitor 监控缓冲区，尝试将缓冲区任务移入channel
+// bufferMonitor 监控缓冲区，尝试将缓冲区任务移入 channel
 func (s *scanBaseImpl) bufferMonitor(ctx context.Context) {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
@@ -63,7 +63,7 @@ func (s *scanBaseImpl) bufferMonitor(ctx context.Context) {
 		case <-s.ctx.Done():
 			// 清空缓存
 			s.mu.Lock()
-			// 根据buffer长度操作wg
+			// 根据 buffer 长度操作 wg
 			s.wg.Add(-len(s.pathBuffer))
 			s.pathBuffer = nil
 			s.mu.Unlock()
@@ -77,7 +77,7 @@ func (s *scanBaseImpl) bufferMonitor(ctx context.Context) {
 	}
 }
 
-// tryDrainBuffer 尝试从缓冲区取出任务放入channel
+// tryDrainBuffer 尝试从缓冲区取出任务放入 channel
 func (s *scanBaseImpl) tryDrainBuffer() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -86,7 +86,7 @@ func (s *scanBaseImpl) tryDrainBuffer() {
 		return
 	}
 
-	// 尝试将缓冲区任务移入channel
+	// 尝试将缓冲区任务移入 channel
 	for len(s.pathBuffer) > 0 {
 		select {
 		case <-s.ctx.Done():
@@ -95,7 +95,7 @@ func (s *scanBaseImpl) tryDrainBuffer() {
 			helpers.AppLogger.Infof("从缓冲区移出任务 %s 到任务处理队列", s.pathBuffer[0])
 			s.pathBuffer = s.pathBuffer[1:]
 		default:
-			// channel已满，停止尝试
+			// channel 已满，停止尝试
 			return
 		}
 	}
@@ -110,16 +110,16 @@ func (s *scanBaseImpl) addToBuffer(task string) {
 	}
 	s.wg.Add(1)
 	s.pathBuffer = append(s.pathBuffer, task)
-	helpers.AppLogger.Infof("任务 %s 已添加到缓冲区，当前缓冲区大小: %d", task, len(s.pathBuffer))
+	helpers.AppLogger.Infof("任务 %s 已添加到缓冲区，当前缓冲区大小：%d", task, len(s.pathBuffer))
 }
 
 func (s *scanBaseImpl) processVideoFile(parentPath, pathId string, videoFiles, picFiles, nfoFiles, subFiles []*localFile) error {
 	waitSaveFiles := make([]*models.ScrapeMediaFile, 0)
-	// 记录下图片、nfo、字幕文件
-	// 如果发现了视频文件，则寻找有没有视频文件对应的图片、nfo、字幕文件
+	// 记录图片、NFO、字幕文件
+	// 如果发现了视频文件，则查找对应的图片、NFO、字幕文件
 	// 如果没发现视频文件，则清空
 videoloop:
-	// 处理videofiles以及对应的字幕等
+	// 处理 videoFiles 以及对应的字幕等文件
 	for _, videoFile := range videoFiles {
 		// 检查是否停止任务
 		if !s.CheckIsRunning() {
@@ -130,7 +130,7 @@ videoloop:
 		imageList := make([]*models.MediaMetaFiles, 0)
 		var nfoMetaFile *models.MediaMetaFiles
 		subMetaFiles := make([]*models.MediaMetaFiles, 0)
-		// 只有其他仅整理需要查找图片和nfo
+		// 只有其他仅整理需要查找图片和 NFO
 		if s.scrapePath.MediaType == models.MediaTypeOther && s.scrapePath.ScrapeType == models.ScrapeTypeOnlyRename {
 			imageAllowdList := []string{
 				"poster",
@@ -168,7 +168,7 @@ videoloop:
 					continue picloop
 				}
 			}
-			// 查找对应的nfo
+			// 查找对应的 NFO
 		nfoloop:
 			for _, nfoFile := range nfoFiles {
 				if strings.HasPrefix(nfoFile.Name, baseName) || slices.Contains(nfoAllowdList, nfoFile.Name) {
@@ -179,7 +179,7 @@ videoloop:
 					}
 					break nfoloop
 				}
-				// 是否又sesson开头的nfo文件
+				// 是否有 season 开头的 NFO 文件
 				if strings.HasPrefix(nfoFile.Name, "season") {
 					nfoMetaFile = &models.MediaMetaFiles{
 						FileName: nfoFile.Name,
@@ -203,10 +203,10 @@ videoloop:
 				helpers.AppLogger.Infof("字幕文件 %s 不匹配视频文件 %s", subFile.Name, videoFile.Name)
 			}
 		}
-		// 生成ScrapeMediaFiles，并加入待保存列表
+		// 生成 ScrapeMediaFiles，并加入待保存列表
 		if s.scrapePath.MediaType == models.MediaTypeOther && s.scrapePath.ScrapeType == models.ScrapeTypeOnlyRename && nfoMetaFile == nil {
-			// 其他类型仅整理必须有nfo
-			helpers.AppLogger.Infof("其他类型仅整理模式下，文件 %s 没有对应的nfo文件，跳过", videoFile.Name)
+			// 其他类型仅整理必须有 NFO
+			helpers.AppLogger.Infof("其他类型仅整理模式下，文件 %s 没有对应的 NFO 文件，跳过", videoFile.Name)
 			continue videoloop
 		}
 		mediaFile := s.scrapePath.MakeScrapeMediaFile(parentPath, pathId, videoFile.Name, videoFile.Id, videoFile.PickCode)
@@ -221,18 +221,18 @@ videoloop:
 		}
 		if len(imageList) > 0 {
 			mediaFile.ImageFiles = imageList
-			// 格式化成json字符串
+			// 格式化成 JSON 字符串
 			jsonStr, _ := json.Marshal(imageList)
 			mediaFile.ImageFilesJson = string(jsonStr)
 		}
-		// 如果时电视剧，加入批次号
+		// 如果是电视剧，加入批次号
 		if s.scrapePath.MediaType == models.MediaTypeTvShow {
 			mediaFile.BatchNo = s.BatchNo
 			// 识别季和集序号
 			// 提取季和集
 			// 填充电视剧和季目录（如果有季的话）
 			if err := mediaFile.ExtractSeasonEpisode(s.scrapePath); err != nil {
-				helpers.AppLogger.Errorf("提取季和集序号失败, 文件名: %s, 季 %d 集 %d 失败原因: %v", mediaFile.VideoFilename, mediaFile.SeasonNumber, mediaFile.EpisodeNumber, err)
+				helpers.AppLogger.Errorf("提取季和集序号失败，文件名：%s，季：%d，集：%d，失败原因：%v", mediaFile.VideoFilename, mediaFile.SeasonNumber, mediaFile.EpisodeNumber, err)
 				continue
 			}
 		}
@@ -262,14 +262,14 @@ func (m *scanBaseImpl) ExtractSeasonEpisode(mediaFile *models.ScrapeMediaFile) e
 		}
 		mediaFile.EpisodeNumber = info.Episode
 		mediaFile.SeasonNumber = info.Season
-		helpers.AppLogger.Infof("从文件名中提取到季集: %s %d, %d", mediaFile.VideoFilename, mediaFile.SeasonNumber, mediaFile.EpisodeNumber)
+		helpers.AppLogger.Infof("从文件名中提取到季集：%s，季：%d，集：%d", mediaFile.VideoFilename, mediaFile.SeasonNumber, mediaFile.EpisodeNumber)
 	}
 	if mediaFile.SeasonNumber == -1 {
 		// 从父目录中提取季数
 		seasonNumber := helpers.ExtractSeasonFromTvshowPath(mediaFile.TvshowPath)
 		if seasonNumber != -1 {
 			mediaFile.SeasonNumber = seasonNumber
-			helpers.AppLogger.Infof("从电视剧文件夹中提取到季数: %d", mediaFile.SeasonNumber)
+			helpers.AppLogger.Infof("从电视剧文件夹中提取到季数：%d", mediaFile.SeasonNumber)
 		}
 	}
 	if mediaFile.SeasonNumber == -1 {

@@ -16,36 +16,36 @@ import (
 // DownloadAndInstall 下载并安装更新
 func (g *GitHubUpdater) DownloadAndInstall(info *UpdateInfo, targetDir string) error {
 	if info.DownloadURL == "" {
-		return fmt.Errorf("no download URL available")
+		return fmt.Errorf("没有可用的下载 URL")
 	}
 
 	// 创建临时目录
 	tempDir, err := os.MkdirTemp("", "update-*")
 	if err != nil {
-		return fmt.Errorf("failed to create temp dir: %w", err)
+		return fmt.Errorf("创建临时目录失败：%w", err)
 	}
 	defer os.RemoveAll(tempDir)
 
 	// 下载文件
 	downloadedFile, err := g.downloadFile(info.DownloadURL, tempDir)
 	if err != nil {
-		return fmt.Errorf("download failed: %w", err)
+		return fmt.Errorf("下载失败：%w", err)
 	}
 
 	// 验证文件完整性
 	if verr := g.verifyFile(downloadedFile, info.Checksum); verr != nil {
-		return fmt.Errorf("verification failed: %w", verr)
+		return fmt.Errorf("校验失败：%w", verr)
 	}
 
 	// 提取文件
 	binaryPath, err := g.extractFile(downloadedFile, tempDir)
 	if err != nil {
-		return fmt.Errorf("extraction failed: %w", err)
+		return fmt.Errorf("解压失败：%w", err)
 	}
 
 	// 安装到目标目录
 	if err := g.installBinary(binaryPath, targetDir); err != nil {
-		return fmt.Errorf("installation failed: %w", err)
+		return fmt.Errorf("安装失败：%w", err)
 	}
 
 	return nil
@@ -60,7 +60,7 @@ func (g *GitHubUpdater) downloadFile(url, tempDir string) (string, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("download failed with status: %d", resp.StatusCode)
+		return "", fmt.Errorf("下载失败，HTTP 状态码：%d", resp.StatusCode)
 	}
 
 	// 从 URL 提取文件名
@@ -88,21 +88,21 @@ func (g *GitHubUpdater) downloadFile(url, tempDir string) (string, error) {
 		return "", err
 	}
 
-	fmt.Printf("\nDownload completed: %s\n", filename)
+	fmt.Printf("\n下载完成：%s\n", filename)
 	return filePath, nil
 }
 
 // verifyFile 验证文件完整性
 func (g *GitHubUpdater) verifyFile(filePath, checksumURL string) error {
 	if checksumURL == "" {
-		fmt.Println("Warning: No checksum available, skipping verification")
+		fmt.Println("警告：没有可用的校验和，跳过文件校验")
 		return nil
 	}
 
 	// 下载校验和文件
 	checksums, err := g.downloadChecksums(checksumURL)
 	if err != nil {
-		return fmt.Errorf("failed to download checksums: %w", err)
+		return fmt.Errorf("下载校验和失败：%w", err)
 	}
 
 	// 计算文件哈希
@@ -115,14 +115,14 @@ func (g *GitHubUpdater) verifyFile(filePath, checksumURL string) error {
 	filename := filepath.Base(filePath)
 	expectedHash, found := checksums[filename]
 	if !found {
-		return fmt.Errorf("no checksum found for file: %s", filename)
+		return fmt.Errorf("未找到文件的校验和：%s", filename)
 	}
 
 	if fileHash != expectedHash {
-		return fmt.Errorf("checksum mismatch: expected %s, got %s", expectedHash, fileHash)
+		return fmt.Errorf("校验和不匹配，期望 %s，实际 %s", expectedHash, fileHash)
 	}
 
-	fmt.Println("File verification passed")
+	fmt.Println("文件校验通过")
 	return nil
 }
 
@@ -141,7 +141,7 @@ func (g *GitHubUpdater) downloadChecksums(checksumURL string) (map[string]string
 		line := scanner.Text()
 		parts := strings.Fields(line)
 		if len(parts) == 2 {
-			checksums[parts[1]] = parts[0] // hash -> filename
+			checksums[parts[1]] = parts[0] // 哈希 -> 文件名
 		}
 	}
 
@@ -176,7 +176,7 @@ func (g *GitHubUpdater) extractFile(archivePath, tempDir string) (string, error)
 	return archivePath, nil
 }
 
-// extractZip 解压 zip 文件
+// extractZip 解压 ZIP 文件
 func (g *GitHubUpdater) extractZip(archivePath, tempDir string) (string, error) {
 	// zip 解压实现
 	return "", nil
@@ -199,7 +199,7 @@ func (g *GitHubUpdater) installBinary(binaryPath, targetDir string) error {
 	// 创建备份
 	backupPath := currentExe + ".bak"
 	if err := os.Rename(currentExe, backupPath); err != nil {
-		return fmt.Errorf("failed to create backup: %w", err)
+		return fmt.Errorf("创建备份失败：%w", err)
 	}
 
 	// 复制新文件
@@ -207,7 +207,7 @@ func (g *GitHubUpdater) installBinary(binaryPath, targetDir string) error {
 	if err := g.copyFile(binaryPath, targetPath); err != nil {
 		// 恢复备份
 		os.Rename(backupPath, currentExe)
-		return fmt.Errorf("failed to install new version: %w", err)
+		return fmt.Errorf("安装新版本失败：%w", err)
 	}
 
 	// 设置可执行权限
@@ -215,7 +215,7 @@ func (g *GitHubUpdater) installBinary(binaryPath, targetDir string) error {
 		return err
 	}
 
-	fmt.Printf("Update installed successfully: %s\n", targetPath)
+	fmt.Printf("更新安装成功：%s\n", targetPath)
 	return nil
 }
 

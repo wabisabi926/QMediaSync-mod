@@ -9,7 +9,7 @@ const { queueStats, queueStatsLoading } = useQueueStats()
     <div class="stats-card-header">
       <div class="stats-card-title">
         <span class="title-icon">📊</span>
-        <span>115接口监控</span>
+        <span>115 接口监控</span>
       </div>
       <div
         class="status-badge"
@@ -53,7 +53,7 @@ const { queueStats, queueStatsLoading } = useQueueStats()
         </div>
         <div class="metric-item">
           <div class="metric-value">{{ queueStats.avg_response_time_ms }}</div>
-          <div class="metric-label">响应(ms)</div>
+          <div class="metric-label">响应 (ms)</div>
         </div>
         <div class="metric-item" :class="{ 'metric-danger': queueStats.throttled_count > 0 }">
           <div class="metric-value">{{ queueStats.throttled_count }}</div>

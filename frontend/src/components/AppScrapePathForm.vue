@@ -19,10 +19,10 @@
         label-width="140px"
         label-position="top"
       >
-        <el-form-item label="同步源类型" prop="source_type" v-if="!isEditMode">
+        <el-form-item label="来源类型" prop="source_type" v-if="!isEditMode">
           <el-radio-group
             v-model="form.source_type"
-            placeholder="请选择同步源类型"
+            placeholder="请选择来源类型"
             @change="handleSourceTypeChange"
           >
             <el-radio-button
@@ -35,7 +35,7 @@
           </el-radio-group>
           <div class="form-tip">
             <div v-if="form.source_type === 'local'">本地目录路径</div>
-            <div v-if="form.source_type === '115'">需要先添加用于同步的115账号并授权</div>
+            <div v-if="form.source_type === '115'">需要先添加用于刮削的 115 账号并授权</div>
           </div>
         </el-form-item>
         <el-form-item
@@ -79,9 +79,11 @@
             <el-radio-button value="only_rename">仅整理</el-radio-button>
           </el-radio-group>
           <div class="form-tip">
-            仅刮削：不改变文件路径和重命名，生成对应视频文件的nfo和下载封面等，不需要选择目标路径<br />
-            刮削和整理：会根据刮削结果，改变文件路径和重命名，生成对应视频文件的nfo和下载封面等，需要选择目标路径<br />
-            仅整理：不刮削元数据，仅通过查询到的信息进行整理（重命名方式根据整理方式决定）；其他类型必须有nfo(因为没地方查询信息)
+            仅刮削：不移动、不重命名文件，只生成对应视频的 NFO、封面等元数据，不需要选择目标路径<br />
+            刮削和整理：根据刮削结果移动并重命名文件，同时生成对应视频的
+            NFO、封面等元数据，需要选择目标路径<br />
+            仅整理：不重新刮削，只使用已查询到的信息整理文件；媒体类型为“其他”时必须已有
+            NFO，否则无法获取整理信息
           </div>
         </el-form-item>
         <el-form-item label="整理方式" prop="rename_type" v-if="form.scrape_type !== 'only_scrape'">
@@ -96,10 +98,10 @@
             >
           </el-radio-group>
           <div class="form-tip">
-            移动：将视频文件移动到目标路径，元数据（nfo、字幕等）也会直接生成或移动到目标路径<br />
-            复制：将文件复制到目标路径，元数据（nfo、字幕等）也会直接生成或复制到目标路径<br />
-            软链接：创建文件的软链接到目标路径，元数据（nfo、字幕等）也会直接生成或复制到目标路径<br />
-            硬链接：创建文件的硬链接到目标路径，元数据（nfo、字幕等）也会直接生成或复制到目标路径
+            移动：将视频文件移动到目标路径，元数据（NFO、字幕等）也会生成或移动到目标路径<br />
+            复制：将文件复制到目标路径，元数据（NFO、字幕等）也会生成或复制到目标路径<br />
+            软链接：在目标路径创建文件软链接，元数据（NFO、字幕等）会生成或复制到目标路径<br />
+            硬链接：在目标路径创建文件硬链接，元数据（NFO、字幕等）会生成或复制到目标路径
           </div>
         </el-form-item>
         <el-form-item
@@ -126,7 +128,7 @@
             <span class="path-label">选中目录路径：</span>
             <code class="path-url">{{ form.source_path }}</code>
           </div>
-          <div class="form-tip">选择要刮削的源目录, 会从该目录下找出所有视频文件进行刮削</div>
+          <div class="form-tip">选择要刮削的源目录，系统会扫描该目录下的所有视频文件</div>
         </el-form-item>
         <el-form-item
           label="目标路径"
@@ -167,7 +169,7 @@
             :disabled="loading"
           />
           <div class="form-tip">
-            是否按照二级分类策略组织文件，开启后会在目标路径先创建二级分类目录
+            开启后会按二级分类策略组织文件，并在目标路径下先创建二级分类目录
           </div>
         </el-form-item>
         <el-form-item
@@ -216,7 +218,7 @@
             :autoAddDot="false"
           />
           <div class="form-tip">
-            从视频文件名中提取影视剧标题时先删除这些关键词，添加的越多识别准确率越高
+            从视频文件名中提取影视剧标题前会先删除这些关键词，有助于提升识别准确率
           </div>
         </el-form-item>
         <el-form-item label="最小视频文件大小" prop="min_video_file_size">
@@ -233,7 +235,7 @@
         <el-form-item label="视频文件扩展名" prop="video_ext_list">
           <MetadataExtInput
             v-model="form.video_ext_list"
-            placeholder="输入视频文件扩展名，回车添加"
+            placeholder="输入视频文件扩展名后按回车添加"
             class="meta-ext-input limited-width-input"
           />
           <div class="form-tip">支持的视频文件扩展名，用于筛选视频文件</div>
@@ -245,7 +247,7 @@
             :inactive-value="false"
             :disabled="loading"
           />
-          <div class="form-tip">没有头像的演员不会加入到nfo文件中</div>
+          <div class="form-tip">没有头像的演员不会加入到 NFO 文件中</div>
         </el-form-item>
         <el-form-item label="删除整理完的非空路径" prop="force_delete_source_path">
           <el-switch
@@ -255,7 +257,7 @@
             :disabled="loading"
           />
           <div class="form-tip">
-            整理完成是否强制删除源文件所在路径（一般会遗留广告垃圾文件），如果禁用只会删除空目录
+            开启后，整理完成会强制删除源文件所在目录（常用于清理残留广告文件）；关闭时只会删除空目录
           </div>
         </el-form-item>
         <el-form-item label="刮削线程数" prop="max_threads">
@@ -268,14 +270,14 @@
             style="width: 100%"
           />
           <div class="form-help">
-            刮削本地文件时的最大并发线程数，越高越快, 刮削网盘该值无效。默认值为5;
-            只有本地目录类型可以修改（前提是添加了自己的TMDB API KEY）
+            本地文件刮削的最大并发数，值越高速度越快；网盘刮削不受该设置影响。默认
+            5，只有配置了自己的 TMDB API Key 后才能修改本地目录并发数。
           </div>
         </el-form-item>
-        <el-form-item label="是否启用AI识别" prop="enable_ai">
+        <el-form-item label="启用 AI 识别" prop="enable_ai">
           <el-radio-group
             v-model="form.enable_ai"
-            placeholder="请选择AI识别模式"
+            placeholder="请选择 AI 识别模式"
             :disabled="loading"
             size="large"
           >
@@ -284,38 +286,38 @@
             <el-radio-button label="enforce">强制使用</el-radio-button>
           </el-radio-group>
           <div class="form-help">
-            辅助识别：仅在无法通过其他方式识别时使用AI。每天会限额使用1000次，如果想要一直使用请申请自己的API
-            Key。 <br />
-            强制使用：只使用AI识别，必须使用自己的API Key。
+            辅助识别：仅在其他方式无法识别时使用 AI。默认额度每天限 1000 次，长期使用建议配置自己的
+            API Key。<br />
+            强制使用：始终使用 AI 识别，必须配置自己的 API Key。
           </div>
         </el-form-item>
         <el-form-item label="提示词" prop="ai_prompt">
           <el-input
             v-model="form.ai_prompt"
             type="textarea"
-            placeholder="请输入AI提示词"
+            placeholder="请输入 AI 提示词"
             :disabled="loading || form.enable_ai === 'off'"
             :rows="4"
             maxlength="1000"
           />
           <div class="form-help">
-            用于指导AI进行媒体识别的提示词，如果不清楚如何设置请留空。<br />
+            用于指导 AI 进行媒体识别的提示词，不确定如何设置时可以留空。<br />
             <span v-if="form.ai_prompt == ''">
               默认提示词：{{ defaultAiPrompt }}{{ form.ai_prompt }}{{ defaultAiPrompSuffix }}
             </span>
           </div>
         </el-form-item>
-        <el-form-item label="定时同步" prop="enable_cron">
+        <el-form-item label="定时任务" prop="enable_cron">
           <el-switch
             v-model="form.enable_cron"
             :active-value="true"
             :inactive-value="false"
             :disabled="loading"
           />
-          <div class="form-tip">是否启用定时同步功能</div>
+          <div class="form-tip">开启后会按 Cron 表达式定时执行刮削任务</div>
         </el-form-item>
         <template v-if="form.enable_cron">
-          <el-form-item label="Cron表达式" prop="cron_expression">
+          <el-form-item label="Cron 表达式" prop="cron_expression">
             <el-input
               v-model="form.cron_expression"
               placeholder="0 3 * * *"
@@ -323,12 +325,12 @@
               @change="validateCronExpression"
             />
             <div class="form-tip">
-              标准Cron表达式格式：分 时 日 月 周（例如：0 3 * * * 表示每天凌晨3点）
+              标准 Cron 表达式格式：分 时 日 月 周（例如：0 3 * * * 表示每天凌晨 3 点）
             </div>
           </el-form-item>
-          <el-form-item label="Cron描述">
+          <el-form-item label="Cron 描述">
             <div class="cron-description">
-              {{ form.cron_description || '请输入有效的Cron表达式' }}
+              {{ form.cron_description || '请输入有效的 Cron 表达式' }}
             </div>
           </el-form-item>
           <el-form-item label="快速选择">
@@ -338,18 +340,18 @@
               @change="applyCronPreset"
               :disabled="loading"
             >
-              <el-option label="每天凌晨3点" value="0 3 * * *" />
-              <el-option label="每天凌晨2点" value="0 2 * * *" />
-              <el-option label="每2小时" value="0 */2 * * *" />
-              <el-option label="每6小时" value="0 */6 * * *" />
-              <el-option label="周一到周五凌晨3点" value="0 3 * * 1-5" />
-              <el-option label="每周日凌晨3点" value="0 3 * * 0" />
-              <el-option label="每月1号凌晨3点" value="0 3 1 * *" />
+              <el-option label="每天凌晨 3 点" value="0 3 * * *" />
+              <el-option label="每天凌晨 2 点" value="0 2 * * *" />
+              <el-option label="每 2 小时" value="0 */2 * * *" />
+              <el-option label="每 6 小时" value="0 */6 * * *" />
+              <el-option label="周一到周五凌晨 3 点" value="0 3 * * 1-5" />
+              <el-option label="每周日凌晨 3 点" value="0 3 * * 0" />
+              <el-option label="每月 1 号凌晨 3 点" value="0 3 1 * *" />
             </el-select>
           </el-form-item>
         </template>
         <el-form-item
-          label="启用fanart.tv"
+          label="启用 fanart.tv"
           prop="enable_fanart_tv"
           v-if="form.media_type == 'movie'"
         >
@@ -359,7 +361,9 @@
             :inactive-value="false"
             :disabled="loading"
           />
-          <div class="form-tip">是否启用fanart.tv的高清图下载，下载很慢会降低刮削效率。</div>
+          <div class="form-tip">
+            开启后会从 fanart.tv 下载高清图片，速度较慢，可能降低刮削效率。
+          </div>
         </el-form-item>
       </el-form>
 
@@ -385,10 +389,10 @@
         label-width="140px"
         label-position="left"
       >
-        <el-form-item label="同步源类型" prop="source_type" v-if="!isEditMode">
+        <el-form-item label="来源类型" prop="source_type" v-if="!isEditMode">
           <el-radio-group
             v-model="form.source_type"
-            placeholder="请选择同步源类型"
+            placeholder="请选择来源类型"
             @change="handleSourceTypeChange"
           >
             <el-radio-button
@@ -401,7 +405,7 @@
           </el-radio-group>
           <div class="form-tip">
             <div v-if="form.source_type === 'local'">本地目录路径</div>
-            <div v-if="form.source_type === '115'">需要先添加用于同步的115账号并授权</div>
+            <div v-if="form.source_type === '115'">需要先添加用于刮削的 115 账号并授权</div>
           </div>
         </el-form-item>
         <el-form-item
@@ -449,9 +453,11 @@
             <el-radio-button value="only_rename">仅整理</el-radio-button>
           </el-radio-group>
           <div class="form-tip">
-            仅刮削：不改变文件路径和重命名，生成对应视频文件的nfo和下载封面等，不需要选择目标路径<br />
-            刮削和整理：会根据刮削结果，改变文件路径和重命名，生成对应视频文件的nfo和下载封面等，需要选择目标路径<br />
-            仅整理：不刮削元数据，仅通过查询到的信息进行整理（重命名方式根据整理方式决定）；其他类型必须有nfo(因为没地方查询信息)
+            仅刮削：不移动、不重命名文件，只生成对应视频的 NFO、封面等元数据，不需要选择目标路径<br />
+            刮削和整理：根据刮削结果移动并重命名文件，同时生成对应视频的
+            NFO、封面等元数据，需要选择目标路径<br />
+            仅整理：不重新刮削，只使用已查询到的信息整理文件；媒体类型为“其他”时必须已有
+            NFO，否则无法获取整理信息
           </div>
         </el-form-item>
         <el-form-item label="整理方式" prop="rename_type" v-if="form.scrape_type !== 'only_scrape'">
@@ -466,10 +472,10 @@
             >
           </el-radio-group>
           <div class="form-tip">
-            移动：将视频文件移动到目标路径，元数据（nfo、字幕等）也会直接生成或移动到目标路径<br />
-            复制：将文件复制到目标路径，元数据（nfo、字幕等）也会直接生成或复制到目标路径<br />
-            软链接：创建文件的软链接到目标路径，元数据（nfo、字幕等）也会直接生成或复制到目标路径<br />
-            硬链接：创建文件的硬链接到目标路径，元数据（nfo、字幕等）也会直接生成或复制到目标路径
+            移动：将视频文件移动到目标路径，元数据（NFO、字幕等）也会生成或移动到目标路径<br />
+            复制：将文件复制到目标路径，元数据（NFO、字幕等）也会生成或复制到目标路径<br />
+            软链接：在目标路径创建文件软链接，元数据（NFO、字幕等）会生成或复制到目标路径<br />
+            硬链接：在目标路径创建文件硬链接，元数据（NFO、字幕等）会生成或复制到目标路径
           </div>
         </el-form-item>
         <el-form-item
@@ -496,7 +502,7 @@
             <span class="path-label">选中目录路径：</span>
             <code class="path-url">{{ form.source_path }}</code>
           </div>
-          <div class="form-tip">选择要刮削的源目录, 会从该目录下找出所有视频文件进行刮削</div>
+          <div class="form-tip">选择要刮削的源目录，系统会扫描该目录下的所有视频文件</div>
         </el-form-item>
         <el-form-item
           label="目标路径"
@@ -537,7 +543,7 @@
             :disabled="loading"
           />
           <div class="form-tip">
-            是否按照二级分类策略组织文件，开启后会在目标路径先创建二级分类目录
+            开启后会按二级分类策略组织文件，并在目标路径下先创建二级分类目录
           </div>
         </el-form-item>
         <el-form-item
@@ -586,7 +592,7 @@
             :autoAddDot="false"
           />
           <div class="form-tip">
-            从视频文件名中提取影视剧标题时先删除这些关键词，添加的越多识别准确率越高
+            从视频文件名中提取影视剧标题前会先删除这些关键词，有助于提升识别准确率
           </div>
         </el-form-item>
         <el-form-item label="最小视频文件大小" prop="min_video_file_size">
@@ -603,7 +609,7 @@
         <el-form-item label="视频文件扩展名" prop="video_ext_list">
           <MetadataExtInput
             v-model="form.video_ext_list"
-            placeholder="输入视频文件扩展名，回车添加"
+            placeholder="输入视频文件扩展名后按回车添加"
             class="meta-ext-input limited-width-input"
           />
           <div class="form-tip">支持的视频文件扩展名，用于筛选视频文件</div>
@@ -615,7 +621,7 @@
             :inactive-value="false"
             :disabled="loading"
           />
-          <div class="form-tip">没有头像的演员不会加入到nfo文件中</div>
+          <div class="form-tip">没有头像的演员不会加入到 NFO 文件中</div>
         </el-form-item>
         <el-form-item label="删除整理完的非空路径" prop="force_delete_source_path">
           <el-switch
@@ -625,7 +631,7 @@
             :disabled="loading"
           />
           <div class="form-tip">
-            整理完成是否强制删除源文件所在路径（一般会遗留广告垃圾文件），如果禁用只会删除空目录
+            开启后，整理完成会强制删除源文件所在目录（常用于清理残留广告文件）；关闭时只会删除空目录
           </div>
         </el-form-item>
         <el-form-item label="刮削线程数" prop="max_threads">
@@ -638,14 +644,14 @@
             style="width: 100%"
           />
           <div class="form-help">
-            刮削本地文件时的最大并发线程数，越高越快, 刮削网盘该值无效。默认值为5;
-            只有本地目录类型可以修改（前提是添加了自己的TMDB API KEY）
+            本地文件刮削的最大并发数，值越高速度越快；网盘刮削不受该设置影响。默认
+            5，只有配置了自己的 TMDB API Key 后才能修改本地目录并发数。
           </div>
         </el-form-item>
-        <el-form-item label="是否启用AI识别" prop="enable_ai">
+        <el-form-item label="启用 AI 识别" prop="enable_ai">
           <el-radio-group
             v-model="form.enable_ai"
-            placeholder="请选择AI识别模式"
+            placeholder="请选择 AI 识别模式"
             :disabled="loading"
             size="large"
           >
@@ -654,38 +660,38 @@
             <el-radio-button label="enforce">强制使用</el-radio-button>
           </el-radio-group>
           <div class="form-help">
-            辅助识别：仅在无法通过其他方式识别时使用AI。每天会限额使用1000次，如果想要一直使用请申请自己的API
-            Key。 <br />
-            强制使用：只使用AI识别，必须使用自己的API Key。
+            辅助识别：仅在其他方式无法识别时使用 AI。默认额度每天限 1000 次，长期使用建议配置自己的
+            API Key。<br />
+            强制使用：始终使用 AI 识别，必须配置自己的 API Key。
           </div>
         </el-form-item>
         <el-form-item label="提示词" prop="ai_prompt">
           <el-input
             v-model="form.ai_prompt"
             type="textarea"
-            placeholder="请输入AI提示词"
+            placeholder="请输入 AI 提示词"
             :disabled="loading || form.enable_ai === 'off'"
             :rows="4"
             maxlength="1000"
           />
           <div class="form-help">
-            用于指导AI进行媒体识别的提示词，如果不清楚如何设置请留空。<br />
+            用于指导 AI 进行媒体识别的提示词，不确定如何设置时可以留空。<br />
             <span v-if="form.ai_prompt == ''">
               默认提示词：{{ defaultAiPrompt }}{{ form.ai_prompt }}{{ defaultAiPrompSuffix }}
             </span>
           </div>
         </el-form-item>
-        <el-form-item label="定时同步" prop="enable_cron">
+        <el-form-item label="定时任务" prop="enable_cron">
           <el-switch
             v-model="form.enable_cron"
             :active-value="true"
             :inactive-value="false"
             :disabled="loading"
           />
-          <div class="form-tip">是否启用定时同步功能</div>
+          <div class="form-tip">开启后会按 Cron 表达式定时执行刮削任务</div>
         </el-form-item>
         <template v-if="form.enable_cron">
-          <el-form-item label="Cron表达式" prop="cron_expression">
+          <el-form-item label="Cron 表达式" prop="cron_expression">
             <el-input
               v-model="form.cron_expression"
               placeholder="0 3 * * *"
@@ -693,12 +699,12 @@
               @change="validateCronExpression"
             />
             <div class="form-tip">
-              标准Cron表达式格式：分 时 日 月 周（例如：0 3 * * * 表示每天凌晨3点）
+              标准 Cron 表达式格式：分 时 日 月 周（例如：0 3 * * * 表示每天凌晨 3 点）
             </div>
           </el-form-item>
-          <el-form-item label="Cron描述">
+          <el-form-item label="Cron 描述">
             <div class="cron-description">
-              {{ form.cron_description || '请输入有效的Cron表达式' }}
+              {{ form.cron_description || '请输入有效的 Cron 表达式' }}
             </div>
           </el-form-item>
           <el-form-item label="快速选择">
@@ -708,18 +714,18 @@
               @change="applyCronPreset"
               :disabled="loading"
             >
-              <el-option label="每天凌晨3点" value="0 3 * * *" />
-              <el-option label="每天凌晨2点" value="0 2 * * *" />
-              <el-option label="每2小时" value="0 */2 * * *" />
-              <el-option label="每6小时" value="0 */6 * * *" />
-              <el-option label="周一到周五凌晨3点" value="0 3 * * 1-5" />
-              <el-option label="每周日凌晨3点" value="0 3 * * 0" />
-              <el-option label="每月1号凌晨3点" value="0 3 1 * *" />
+              <el-option label="每天凌晨 3 点" value="0 3 * * *" />
+              <el-option label="每天凌晨 2 点" value="0 2 * * *" />
+              <el-option label="每 2 小时" value="0 */2 * * *" />
+              <el-option label="每 6 小时" value="0 */6 * * *" />
+              <el-option label="周一到周五凌晨 3 点" value="0 3 * * 1-5" />
+              <el-option label="每周日凌晨 3 点" value="0 3 * * 0" />
+              <el-option label="每月 1 号凌晨 3 点" value="0 3 1 * *" />
             </el-select>
           </el-form-item>
         </template>
         <el-form-item
-          label="启用fanart.tv"
+          label="启用 fanart.tv"
           prop="enable_fanart_tv"
           v-if="form.media_type == 'movie'"
         >
@@ -729,7 +735,9 @@
             :inactive-value="false"
             :disabled="loading"
           />
-          <div class="form-tip">是否启用fanart.tv的高清图下载，下载很慢会降低刮削效率。</div>
+          <div class="form-tip">
+            开启后会从 fanart.tv 下载高清图片，速度较慢，可能降低刮削效率。
+          </div>
         </el-form-item>
       </el-form>
 
@@ -820,10 +828,15 @@ const http: AxiosStatic | undefined = inject('$http')
 const route = useRoute()
 const router = useRouter()
 
-const defaultAiPrompt =
-  '从文件名中提取出电影名称、年份; 名称中不能有特殊字符如点、下划线、横杠、斜杠等; 如果文件中有tmdbid（格式{tmdbid-123455}）也返回tmdbid\n'
-const defaultAiPrompSuffix =
-  '\n输出格式：请严格按照以下JSON格式输出，不要添加任何其他内容：{"name": "提取的影视剧名称", "year": 年份或0}\n现在请处理文件名：{{filename}}'
+const defaultAiPrompt = [
+  '请从文件名中提取电影名称和年份；名称中不要包含点、下划线、横杠、斜杠等特殊字符；如果文件名中包含 TMDB ID（格式 {tmdbid-123455}），请优先用它辅助识别。',
+  '',
+].join('\n')
+const defaultAiPrompSuffix = [
+  '',
+  '输出格式：请严格按以下 JSON 格式返回，不要添加任何其他内容：{"name": "提取出的影视剧名称", "year": 年份或 0}',
+  '现在请处理文件名：{{filename}}',
+].join('\n')
 
 const checkIsMobile = ref(isMobile())
 const isEditMode = ref(false)
@@ -872,15 +885,15 @@ const form = reactive<ScrapePath>({
 })
 
 const formRules: FormRules = {
-  source_type: [{ required: true, message: '请选择同步源类型', trigger: 'change' }],
+  source_type: [{ required: true, message: '请选择来源类型', trigger: 'change' }],
   account_id: [{ required: true, message: '请选择网盘账号', trigger: 'change' }],
   media_type: [{ required: true, message: '请选择媒体类型', trigger: 'change' }],
   source_path: [
     { required: true, message: '请选择来源目录', trigger: 'blur' },
     { min: 1, max: 500, message: '长度在 1 到 500 个字符', trigger: 'blur' },
   ],
-  source_path_id: [{ required: true, message: '请选择来源目录ID', trigger: 'blur' }],
-  dest_path_id: [{ required: true, message: '请选择目标目录ID', trigger: 'blur' }],
+  source_path_id: [{ required: true, message: '请选择来源目录 ID', trigger: 'blur' }],
+  dest_path_id: [{ required: true, message: '请选择目标目录 ID', trigger: 'blur' }],
   scrape_type: [{ required: true, message: '请选择操作方式', trigger: 'change' }],
   rename_type: [
     {
@@ -890,7 +903,7 @@ const formRules: FormRules = {
     },
   ],
   min_video_file_size: [
-    { type: 'number', min: 0, message: '最小视频文件大小必须大于等于0', trigger: 'change' },
+    { type: 'number', min: 0, message: '最小视频文件大小必须大于等于 0', trigger: 'change' },
   ],
   video_ext_list: [
     { type: 'array', required: true, message: '请至少添加一个视频文件扩展名', trigger: 'change' },
@@ -928,11 +941,11 @@ const loadAccounts = async () => {
     if (response?.data.code === 200) {
       accounts.value = response.data.data || []
     } else {
-      console.error('加载账号列表失败:', response?.data.message || '未知错误')
+      console.error('加载账号列表失败：', response?.data.message || '未知错误')
       accounts.value = []
     }
   } catch (error) {
-    console.error('加载账号列表失败:', error)
+    console.error('加载账号列表失败：', error)
     accounts.value = []
   } finally {
     accountsLoading.value = false
@@ -947,7 +960,7 @@ const loadDirectoryData = async (id: number) => {
     if (response?.data.code === 200) {
       // const directory = response.data.data?.find((d: ScrapePath) => d.id === id)
       // if (directory) {
-      // 将res.data.data赋值给form
+      // 将 res.data.data 赋值给 form
       const directory = response.data.data
       form.id = directory.id || 0
       form.source_type = directory.source_type
@@ -1028,12 +1041,12 @@ const validateCronExpression = async () => {
     if (response?.data.code === 200) {
       form.cron_description = response.data.data.description || '有效表达式'
     } else {
-      ElMessage.warning(response?.data.message || 'Cron表达式验证失败')
+      ElMessage.warning(response?.data.message || 'Cron 表达式验证失败')
       form.cron_description = '无效表达式'
     }
   } catch (error) {
-    console.error('验证Cron表达式失败:', error)
-    ElMessage.error('验证Cron表达式失败，请检查网络连接')
+    console.error('验证 Cron 表达式失败：', error)
+    ElMessage.error('验证 Cron 表达式失败，请检查网络连接')
   }
 }
 
@@ -1051,7 +1064,7 @@ const applyCronPreset = () => {
 const handleSubmit = async () => {
   if (!formRef.value) return
   if (form.scrape_type !== 'only_scrape' && form.dest_path_id === '') {
-    ElMessage.error('请选择目标路径且填写文件夹重命名模板和文件重命名模板')
+    ElMessage.error('请先选择目标路径，并确认重命名模板已填写')
     return
   }
 

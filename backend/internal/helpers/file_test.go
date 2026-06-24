@@ -16,11 +16,11 @@ func TestCalculateFilePartialMD5(t *testing.T) {
 
 	md5, err := CalculateFilePartialMD5(testFilePath)
 	if err != nil {
-		t.Fatalf("计算文件部分MD5失败: %v", err)
+		t.Fatalf("计算文件部分 MD5 失败: %v", err)
 	}
 
 	if md5 == "" {
-		t.Error("MD5值为空")
+		t.Error("MD5 值为空")
 	}
 
 	t.Logf("文件前256KB MD5: %s", md5)
@@ -33,15 +33,15 @@ func TestCalculateFileChunkMD5_DefaultChunkSize(t *testing.T) {
 
 	result, err := CalculateFileChunkMD5(testFilePath, 0)
 	if err != nil {
-		t.Fatalf("计算文件分片MD5失败: %v", err)
+		t.Fatalf("计算文件分片 MD5 失败: %v", err)
 	}
 
 	if result.FileMD5 == "" {
-		t.Error("文件MD5为空")
+		t.Error("文件 MD5 为空")
 	}
 
 	if len(result.ChunkMD5s) == 0 {
-		t.Error("分片MD5数组为空")
+		t.Error("分片 MD5 数组为空")
 	}
 
 	if result.ChunkSize <= 0 {
@@ -56,10 +56,10 @@ func TestCalculateFileChunkMD5_DefaultChunkSize(t *testing.T) {
 		t.Errorf("分片数量不匹配: ChunkCount=%d, len(ChunkMD5s)=%d", result.ChunkCount, len(result.ChunkMD5s))
 	}
 
-	t.Logf("文件MD5: %s", result.FileMD5)
+	t.Logf("文件 MD5: %s", result.FileMD5)
 	t.Logf("分片大小: %d bytes (%.2f MB)", result.ChunkSize, float64(result.ChunkSize)/1024/1024)
 	t.Logf("分片数量: %d", result.ChunkCount)
-	t.Logf("分片MD5数量: %d", len(result.ChunkMD5s))
+	t.Logf("分片 MD5 数量: %d", len(result.ChunkMD5s))
 }
 
 func TestCalculateFileChunkMD5_CustomChunkSize(t *testing.T) {
@@ -70,15 +70,15 @@ func TestCalculateFileChunkMD5_CustomChunkSize(t *testing.T) {
 	customChunkSize := int64(8 * 1024 * 1024)
 	result, err := CalculateFileChunkMD5(testFilePath, customChunkSize)
 	if err != nil {
-		t.Fatalf("计算文件分片MD5失败: %v", err)
+		t.Fatalf("计算文件分片 MD5 失败: %v", err)
 	}
 
 	if result.FileMD5 == "" {
-		t.Error("文件MD5为空")
+		t.Error("文件 MD5 为空")
 	}
 
 	if len(result.ChunkMD5s) == 0 {
-		t.Error("分片MD5数组为空")
+		t.Error("分片 MD5 数组为空")
 	}
 
 	if result.ChunkCount != len(result.ChunkMD5s) {
@@ -87,7 +87,7 @@ func TestCalculateFileChunkMD5_CustomChunkSize(t *testing.T) {
 
 	t.Logf("指定分片大小: %d bytes (%.2f MB)", customChunkSize, float64(customChunkSize)/1024/1024)
 	t.Logf("实际分片大小: %d bytes (%.2f MB)", result.ChunkSize, float64(result.ChunkSize)/1024/1024)
-	t.Logf("文件MD5: %s", result.FileMD5)
+	t.Logf("文件 MD5: %s", result.FileMD5)
 	t.Logf("分片数量: %d", result.ChunkCount)
 }
 
@@ -99,22 +99,22 @@ func TestCalculateFileChunkMD5_SmallFile(t *testing.T) {
 
 	result, err := CalculateFileChunkMD5(smallFilePath, 0)
 	if err != nil {
-		t.Fatalf("计算文件分片MD5失败: %v", err)
+		t.Fatalf("计算文件分片 MD5 失败: %v", err)
 	}
 
 	if result.ChunkCount != 1 {
-		t.Errorf("小文件应该只有1个分片，实际为: %d", result.ChunkCount)
+		t.Errorf("小文件应该只有 1 个分片，实际为: %d", result.ChunkCount)
 	}
 
 	if len(result.ChunkMD5s) != 1 {
-		t.Errorf("小文件应该只有1个分片MD5，实际为: %d", len(result.ChunkMD5s))
+		t.Errorf("小文件应该只有 1 个分片 MD5，实际为: %d", len(result.ChunkMD5s))
 	}
 
 	if result.FileMD5 != result.ChunkMD5s[0] {
-		t.Error("小文件的文件MD5应该等于分片MD5")
+		t.Error("小文件的文件 MD5 应该等于分片 MD5")
 	}
 
-	t.Logf("小文件MD5: %s", result.FileMD5)
+	t.Logf("小文件 MD5: %s", result.FileMD5)
 	t.Logf("文件大小: %d bytes", result.ChunkSize)
 }
 
@@ -133,14 +133,14 @@ func TestCalculateFileChunkMD5_LargeFile(t *testing.T) {
 
 	result, err := CalculateFileChunkMD5(largeFilePath, 0)
 	if err != nil {
-		t.Fatalf("计算文件分片MD5失败: %v", err)
+		t.Fatalf("计算文件分片 MD5 失败: %v", err)
 	}
 
 	if result.ChunkCount > MaxChunkCount {
 		t.Errorf("分片数量超过最大限制: %d > %d", result.ChunkCount, MaxChunkCount)
 	}
 
-	t.Logf("文件MD5: %s", result.FileMD5)
+	t.Logf("文件 MD5: %s", result.FileMD5)
 	t.Logf("分片大小: %.2f MB", float64(result.ChunkSize)/1024/1024)
 	t.Logf("分片数量: %d (最大限制: %d)", result.ChunkCount, MaxChunkCount)
 }
@@ -162,14 +162,14 @@ func TestCalculateFilePartialMD5_SmallFile(t *testing.T) {
 
 	md5, err := CalculateFilePartialMD5(smallFilePath)
 	if err != nil {
-		t.Fatalf("计算文件部分MD5失败: %v", err)
+		t.Fatalf("计算文件部分 MD5 失败: %v", err)
 	}
 
 	if md5 == "" {
-		t.Error("MD5值为空")
+		t.Error("MD5 值为空")
 	}
 
-	t.Logf("小文件MD5: %s", md5)
+	t.Logf("小文件 MD5: %s", md5)
 }
 
 func TestCalculateFileChunkMD5_Consistency(t *testing.T) {
@@ -188,7 +188,7 @@ func TestCalculateFileChunkMD5_Consistency(t *testing.T) {
 	}
 
 	if result1.FileMD5 != result2.FileMD5 {
-		t.Errorf("文件MD5不一致: %s != %s", result1.FileMD5, result2.FileMD5)
+		t.Errorf("文件 MD5 不一致: %s != %s", result1.FileMD5, result2.FileMD5)
 	}
 
 	if len(result1.ChunkMD5s) != len(result2.ChunkMD5s) {
@@ -197,11 +197,11 @@ func TestCalculateFileChunkMD5_Consistency(t *testing.T) {
 
 	for i := 0; i < len(result1.ChunkMD5s); i++ {
 		if result1.ChunkMD5s[i] != result2.ChunkMD5s[i] {
-			t.Errorf("分片%d的MD5不一致: %s != %s", i, result1.ChunkMD5s[i], result2.ChunkMD5s[i])
+			t.Errorf("分片 %d 的 MD5 不一致: %s != %s", i, result1.ChunkMD5s[i], result2.ChunkMD5s[i])
 		}
 	}
 
-	t.Logf("一致性测试通过，文件MD5: %s", result1.FileMD5)
+	t.Logf("一致性测试通过，文件 MD5: %s", result1.FileMD5)
 }
 
 func TestExtractFileChunkToTemp(t *testing.T) {
@@ -243,7 +243,7 @@ func TestExtractFileChunkToTemp_LastChunk(t *testing.T) {
 	}
 
 	if result.ChunkCount < 2 {
-		t.Skipf("文件分片数量不足，需要至少2个分片，当前: %d", result.ChunkCount)
+		t.Skipf("文件分片数量不足，需要至少 2 个分片，当前: %d", result.ChunkCount)
 	}
 
 	chunkIndex := result.ChunkCount - 1

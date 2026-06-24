@@ -89,7 +89,7 @@ const renderMarkdown = (content: string): string => {
         </div>
         <div v-if="versionInfo" class="version-info">
           <div class="version-number">{{ versionInfo.version }}</div>
-          <div class="version-date">编译时间: {{ versionInfo.date }}</div>
+          <div class="version-date">编译时间：{{ versionInfo.date }}</div>
         </div>
         <div v-else class="empty-state">
           <el-empty description="无法获取版本信息" :image-size="40" />
@@ -206,7 +206,7 @@ const renderMarkdown = (content: string): string => {
           <span>提示</span>
         </div>
         <div class="fnos-content">
-          <p>检测到您正在使用飞牛NAS系统，版本更新请通过飞牛应用商店进行。</p>
+          <p>检测到您正在使用飞牛 NAS 系统，版本更新请通过飞牛应用商店进行。</p>
         </div>
       </div>
     </div>
@@ -232,7 +232,8 @@ const renderMarkdown = (content: string): string => {
       </p>
       <div class="dialog-tips">
         <p>
-          提示：刷新页面后，新版本将生效。如未生效，请手动刷新或手动下载最新版本，如果是docker可以更新镜像
+          提示：刷新页面后，新版本将生效。如未生效，请手动刷新或手动下载最新版本；Docker
+          部署请更新镜像
         </p>
       </div>
     </div>

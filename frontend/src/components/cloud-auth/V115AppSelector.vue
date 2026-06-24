@@ -26,10 +26,7 @@ const authModeOptions = [
       v-model:custom-app-id="customAppId"
       v-model:custom-app-name="customAppName"
     />
-    <V115WebAuthSelect
-      v-else
-      v-model:selected-web-provider="selectedWebProvider"
-    />
+    <V115WebAuthSelect v-else v-model:selected-web-provider="selectedWebProvider" />
   </div>
 </template>
 

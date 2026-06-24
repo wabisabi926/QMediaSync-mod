@@ -45,8 +45,8 @@ func NewMovieScrapeImpl(scrapePath *models.ScrapePath, ctx context.Context, v115
 
 func (m *movieScrapeImpl) Start() error {
 	m.fileTasks = make(chan *models.ScrapeMediaFile, m.scrapePath.GetMaxThreads())
-	// 每次从数据库中查询maxthreads个任务加入队列，等待处理完成后继续下一次查询直到无法查询到数据
-	// 启动N个协程协程，由m.ctx控制是否取消
+	// 每次从数据库中查询 maxThreads 个任务加入队列，等待处理完成后继续下一次查询，直到查不到数据
+	// 启动 N 个协程，由 m.ctx 控制是否取消
 	wg := &sync.WaitGroup{}
 	max := m.scrapePath.GetMaxThreads()
 	// 查询数据库中所有待刮削和待整理的记录总数来决定要启动的工作协程数量
@@ -100,7 +100,7 @@ mainloop:
 			err := m.Process(mediaFile)
 			wg.Done() // 处理完成后，计数-1
 			if err != nil {
-				helpers.AppLogger.Errorf("任务队列 %d 刮削文件 %s 失败: %v", taskIndex, mediaFile.VideoFilename, err)
+				helpers.AppLogger.Errorf("任务队列 %d 刮削文件 %s 失败：%v", taskIndex, mediaFile.VideoFilename, err)
 			}
 			// 触发单个刮削项完成事件
 			ws.BroadcastEvent(ws.EventScraperItemComplete, map[string]any{
@@ -111,7 +111,7 @@ mainloop:
 			})
 			continue mainloop
 		case <-time.After(5 * time.Minute):
-			return // 5分钟没响应自动退出
+			return // 5 分钟没响应自动退出
 		}
 	}
 }
@@ -120,10 +120,10 @@ func (m *movieScrapeImpl) Process(mediaFile *models.ScrapeMediaFile) error {
 	// 创建临时目录
 	mediaFile.ScrapeRootPath = filepath.Join(helpers.ConfigDir, "tmp", "刮削临时文件", fmt.Sprintf("%d", mediaFile.ScrapePathId), "电影或其他")
 	if err := os.MkdirAll(mediaFile.ScrapeRootPath, 0777); err != nil {
-		helpers.AppLogger.Errorf("创建临时目录失败: %v", err)
+		helpers.AppLogger.Errorf("创建临时目录失败：%v", err)
 		return err
 	}
-	// 先从文件名或文件夹名字中提取影片名字+年份或tmdbid
+	// 先从文件名或文件夹名字中提取影片名字+年份或 TMDB ID
 	if mediaFile.Status == models.ScrapeMediaStatusScanned {
 		// 待刮削，启动刮削流程
 		err := m.Scrape(mediaFile)
@@ -135,7 +135,7 @@ func (m *movieScrapeImpl) Process(mediaFile *models.ScrapeMediaFile) error {
 	// 改为整理中
 	mediaFile.Renaming()
 	m.MakeParentPath(mediaFile, m.scrapePath.CategoryMap)
-	// 非仅刮削，先移动视频文件到新目录，如果是其他仅整理，也移动图片、nfo到新目录
+	// 非仅刮削时，先移动视频文件到新目录；如果是其他类型仅整理，也移动图片和 NFO 到新目录
 	if mediaFile.ScrapeType != models.ScrapeTypeOnly {
 		if err := m.renameImpl.RenameAndMove(mediaFile, "", "", ""); err != nil {
 			// 整理失败
@@ -153,7 +153,7 @@ func (m *movieScrapeImpl) Process(mediaFile *models.ScrapeMediaFile) error {
 			return uerr
 		}
 	} else {
-		// 将文件同步到STRM同步目录内
+		// 将文件同步到 STRM 同步目录内
 		m.SyncFilesToSTRMPath(mediaFile, nil)
 	}
 	// 将自己标记为完成，状态立即完成，网盘的临时文件等网盘上传完成删除
@@ -162,7 +162,7 @@ func (m *movieScrapeImpl) Process(mediaFile *models.ScrapeMediaFile) error {
 }
 
 func (m *movieScrapeImpl) Scrape(mediaFile *models.ScrapeMediaFile) error {
-	// 改为刮削中...
+	// 改为刮削中…
 	mediaFile.Scraping()
 	// 识别
 	if err := m.identifyImpl.Identify(mediaFile); err != nil {
@@ -173,7 +173,7 @@ func (m *movieScrapeImpl) Scrape(mediaFile *models.ScrapeMediaFile) error {
 	}
 	// 提取分辨率等信息
 	if err := m.FFprobe(mediaFile); err != nil {
-		helpers.AppLogger.Errorf("提取视频信息失败, 文件名: %s, 错误: %v", mediaFile.VideoFilename, err)
+		helpers.AppLogger.Errorf("提取视频信息失败，文件名：%s，错误：%v", mediaFile.VideoFilename, err)
 	}
 	// 确定二级分类
 	if cerr := m.GenrateCategory(mediaFile); cerr != nil {
@@ -181,18 +181,18 @@ func (m *movieScrapeImpl) Scrape(mediaFile *models.ScrapeMediaFile) error {
 	}
 	m.GenerateNewName(mediaFile)
 	if mediaFile.ScrapeType != models.ScrapeTypeOnlyRename {
-		// 下载图片，生成nfo文件
+		// 下载图片，生成 NFO 文件
 		// 生成本地临时路径
 		localTempPath := mediaFile.GetTmpFullMoviePath()
 		if err := os.MkdirAll(localTempPath, 0777); err != nil {
-			helpers.AppLogger.Errorf("创建临时目录 %s 失败，下次重试，错误: %v", localTempPath, err)
+			helpers.AppLogger.Errorf("创建临时目录 %s 失败，下次重试，错误：%v", localTempPath, err)
 			mediaFile.Scanned()
 			return err
 		} else {
 			helpers.AppLogger.Infof("临时目录 %s 创建成功", localTempPath)
 		}
 		nfoName := m.GetMovieRealName(mediaFile, "", "nfo")
-		// 生成nfo
+		// 生成 NFO
 		m.GenerateMovieNfo(mediaFile, localTempPath, nfoName, m.scrapePath.ExcludeNoImageActor)
 		fileList := map[string]string{}
 		posterExt := filepath.Ext(mediaFile.Media.PosterPath)
@@ -202,7 +202,7 @@ func (m *movieScrapeImpl) Scrape(mediaFile *models.ScrapeMediaFile) error {
 		fanartExt := filepath.Ext(mediaFile.Media.BackdropPath)
 		fileList[m.GetMovieRealName(mediaFile, fmt.Sprintf("fanart%s", fanartExt), "image")] = mediaFile.Media.BackdropPath
 		m.DownloadImages(localTempPath, v115open.DEFAULTUA, fileList)
-		// 从fanart.tv查询图片并下载
+		// 从 fanart.tv 查询图片并下载
 		if m.scrapePath.EnableFanartTv {
 			fileList = m.DownloadMovieImagesFromFanart(mediaFile)
 			if fileList != nil {
@@ -214,9 +214,9 @@ func (m *movieScrapeImpl) Scrape(mediaFile *models.ScrapeMediaFile) error {
 	return nil
 }
 
-// 从tmdb刮削元数据和图片信息（不下载，不创建目录）
+// 从 TMDB 刮削元数据和图片信息（不下载，不创建目录）
 func (m *movieScrapeImpl) ScrapeMovieMedia(mediaFile *models.ScrapeMediaFile) error {
-	// 如果是其他类型，需要读取nfo文件
+	// 如果是其他类型，需要读取 NFO 文件
 	if mediaFile.MediaType == models.MediaTypeOther {
 		return m.CreateMediaFromNfo(mediaFile)
 	}
@@ -224,7 +224,7 @@ func (m *movieScrapeImpl) ScrapeMovieMedia(mediaFile *models.ScrapeMediaFile) er
 	// 查询详情
 	movieDetail, err := m.tmdbClient.GetMovieDetail(mediaFile.TmdbId, models.GlobalScrapeSettings.GetTmdbLanguage())
 	if err != nil {
-		helpers.AppLogger.Errorf("查询tmdb电影详情失败, 下次重试, 失败原因: %v", err)
+		helpers.AppLogger.Errorf("查询 TMDB 电影详情失败，下次重试，失败原因：%v", err)
 		return err
 	}
 	tmdbInfo.MovieDetail = movieDetail
@@ -235,7 +235,7 @@ func (m *movieScrapeImpl) ScrapeMovieMedia(mediaFile *models.ScrapeMediaFile) er
 		// 查询图片
 		images, _ := m.tmdbClient.GetMovieImages(mediaFile.TmdbId, models.GlobalScrapeSettings.GetTmdbImageLanguage())
 		if images != nil {
-			helpers.AppLogger.Infof("查询tmdb电影图片成功, tmdbId: %d, 语言: %s", mediaFile.TmdbId, models.GlobalScrapeSettings.GetTmdbImageLanguage())
+			helpers.AppLogger.Infof("查询 TMDB 电影图片成功，TMDB ID：%d，语言：%s", mediaFile.TmdbId, models.GlobalScrapeSettings.GetTmdbImageLanguage())
 			// 如果图片为空,则使用详情中的图片
 			if len(images.Posters) == 0 && movieDetail.PosterPath != "" {
 				images.Posters = append(images.Posters, tmdb.Image{
@@ -252,7 +252,7 @@ func (m *movieScrapeImpl) ScrapeMovieMedia(mediaFile *models.ScrapeMediaFile) er
 		// 查询分级信息
 		releasesDate, err := m.tmdbClient.GetReleasesDate(mediaFile.TmdbId)
 		if err != nil {
-			helpers.AppLogger.Errorf("查询tmdb电影分级信息失败, 下次重试, 失败原因: %v", err)
+			helpers.AppLogger.Errorf("查询 TMDB 电影分级信息失败，下次重试，失败原因：%v", err)
 		}
 		tmdbInfo.ReleasesDate = releasesDate.Results
 	}
@@ -268,16 +268,16 @@ func (m *movieScrapeImpl) GenrateCategory(mediaFile *models.ScrapeMediaFile) err
 	categoryName, scrapePathCategory := m.categoryImpl.DoCategory(mediaFile)
 	if categoryName == "" && scrapePathCategory == nil {
 		// 无法确定二级分类则停止刮削
-		helpers.AppLogger.Errorf("根据流派ID和语言确定电影的二级分类失败, 文件名: %s", mediaFile.Name)
-		mediaFile.Failed("根据流派ID和语言确定电影的二级分类失败，停止刮削")
+		helpers.AppLogger.Errorf("根据流派 ID 和语言确定电影二级分类失败，文件名：%s", mediaFile.Name)
+		mediaFile.Failed("根据流派 ID 和语言确定电影二级分类失败，停止刮削")
 		// 释放信号量
-		return errors.New("根据流派ID和语言确定电影的二级分类失败")
+		return errors.New("根据流派 ID 和语言确定电影二级分类失败")
 	}
 	mediaFile.CategoryName = categoryName
 	mediaFile.ScrapePathCategoryId = scrapePathCategory.ID
 	// 保存
 	mediaFile.Save()
-	helpers.AppLogger.Infof("根据流派ID和语言确定二级分类: %s, 分类目录ID:%s", categoryName, scrapePathCategory.FileId)
+	helpers.AppLogger.Infof("根据流派 ID 和语言确定二级分类：%s，分类目录 ID：%s", categoryName, scrapePathCategory.FileId)
 	return nil
 }
 
@@ -322,15 +322,15 @@ func (m *movieScrapeImpl) GenerateNewName(mediaFile *models.ScrapeMediaFile) {
 	mediaFile.Media.Save()
 }
 
-// 先命中一个syncPath，使用newPath
+// 先命中一个 syncPath，使用 newPath
 func (m *movieScrapeImpl) SyncFilesToSTRMPath(mediaFile *models.ScrapeMediaFile, files []uploadFile) {
 	syncPath := m.scrapePath.GetSyncPathByPath(mediaFile.Media.Path)
 	if syncPath == nil {
-		helpers.AppLogger.Errorf("未命中任何STRM同步目录, 无法将文件同步到STRM目录 %s", mediaFile.Media.Path)
+		helpers.AppLogger.Errorf("未命中任何 STRM 同步目录，无法将文件同步到 STRM 目录 %s", mediaFile.Media.Path)
 		return
 	}
-	// 先生成STRM文件
-	// 1. 构造STRM文件路径
+	// 先生成 STRM 文件
+	// 1. 构造 STRM 文件路径
 	syncStrm := syncstrm.NewSyncStrmFromSyncPath(syncPath)
 	strmErr := syncStrm.ProcessStrmFile(&syncstrm.SyncFileCache{
 		Path:          mediaFile.Media.Path,
@@ -347,27 +347,27 @@ func (m *movieScrapeImpl) SyncFilesToSTRMPath(mediaFile *models.ScrapeMediaFile,
 		LocalFilePath: filepath.Join(syncPath.LocalPath, mediaFile.Media.Path, mediaFile.NewVideoBaseName+".strm"),
 	})
 	if strmErr != nil {
-		helpers.AppLogger.Errorf("生成STRM文件失败, 失败原因: %v", strmErr)
+		helpers.AppLogger.Errorf("生成 STRM 文件失败，失败原因：%v", strmErr)
 		return
 	}
 	models.DeleteSyncRecordById(syncStrm.Sync.ID)
 	if files == nil {
 		return
 	}
-	// 将其他文件放入STRM同步目录内
+	// 将其他文件放入 STRM 同步目录内
 	for _, file := range files {
 		destPath := filepath.Join(syncPath.LocalPath, file.DestPath)
 		if !helpers.PathExists(destPath) {
 			err := os.MkdirAll(destPath, 0755)
 			if err != nil {
-				helpers.AppLogger.Errorf("创建目录 %s 失败, 失败原因: %v", destPath, err)
+				helpers.AppLogger.Errorf("创建目录 %s 失败，失败原因：%v", destPath, err)
 			}
 		}
 		destFile := filepath.Join(destPath, file.FileName)
 		// 复制过去
 		err := helpers.CopyFile(file.SourcePath, destFile)
 		if err != nil {
-			helpers.AppLogger.Errorf("复制文件 %s 到 %s 失败, 失败原因: %v", file.SourcePath, destFile, err)
+			helpers.AppLogger.Errorf("复制文件 %s 到 %s 失败，失败原因：%v", file.SourcePath, destFile, err)
 		}
 		helpers.AppLogger.Infof("复制文件 %s 到 %s 成功", file.SourcePath, destFile)
 	}
@@ -381,7 +381,7 @@ func (m *movieScrapeImpl) UploadMovieScrapeFile(mediaFile *models.ScrapeMediaFil
 	helpers.AppLogger.Infof("开始上传文件元数据 %s", mediaFile.NewPathName)
 	// 整理要上传的文件
 	files := m.GetMovieUploadFiles(mediaFile)
-	// 将文件同步到STRM同步目录内
+	// 将文件同步到 STRM 同步目录内
 	m.SyncFilesToSTRMPath(mediaFile, files)
 	// 如果是本地文件直接移动到目标位置
 	ok, err := m.MoveLocalTempFileToDest(mediaFile, files)
@@ -395,23 +395,23 @@ func (m *movieScrapeImpl) UploadMovieScrapeFile(mediaFile *models.ScrapeMediaFil
 	for _, file := range files {
 		err := models.AddUploadTaskFromMediaFile(mediaFile, m.scrapePath, file.FileName, file.SourcePath, filepath.Join(file.DestPath, file.FileName), file.DestPathId, false)
 		if err != nil {
-			helpers.AppLogger.Errorf("添加上传任务 %s 失败, 失败原因: %v", file.FileName, err)
+			helpers.AppLogger.Errorf("添加上传任务 %s 失败，失败原因：%v", file.FileName, err)
 		}
 	}
 	return nil
 }
 
 // 收集要上传的文件
-// 视频文件对应的nfo，图片
+// 视频文件对应的 NFO，图片
 // {PathId: string, FileName: string}
 func (m *movieScrapeImpl) GetMovieUploadFiles(mediaFile *models.ScrapeMediaFile) []uploadFile {
 	destPath := mediaFile.GetDestFullMoviePath()
 	destPathId := mediaFile.NewPathId
 	movieSourcePath := mediaFile.GetTmpFullMoviePath()
-	// 将movieSourcePath目录下所有文件全部上传
+	// 将 movieSourcePath 目录下所有文件全部上传
 	files, err := os.ReadDir(movieSourcePath)
 	if err != nil {
-		helpers.AppLogger.Errorf("读取目录 %s 失败: %v", movieSourcePath, err)
+		helpers.AppLogger.Errorf("读取目录 %s 失败：%v", movieSourcePath, err)
 		return nil
 	}
 	fileList := make([]uploadFile, 0)
@@ -471,7 +471,7 @@ func (m *movieScrapeImpl) MoveLocalTempFileToDest(mediaFile *models.ScrapeMediaF
 		destPath := filepath.Join(file.DestPath, file.FileName)
 		err := helpers.MoveFile(tempPath, destPath, true)
 		if err != nil {
-			helpers.AppLogger.Errorf("移动刮削临时文件 %s 到整理目标位置 %s 失败: %v", tempPath, destPath, err)
+			helpers.AppLogger.Errorf("移动刮削临时文件 %s 到整理目标位置 %s 失败：%v", tempPath, destPath, err)
 			return false, err
 		}
 		helpers.AppLogger.Infof("移动刮削临时文件 %s 到整理目标位置 %s 成功", tempPath, destPath)
@@ -484,7 +484,7 @@ func (m *movieScrapeImpl) MakeParentPath(mediaFile *models.ScrapeMediaFile, cate
 	if mediaFile.ScrapeType == models.ScrapeTypeOnly {
 		mediaFile.NewPathId = mediaFile.PathId
 		mediaFile.Save()
-		helpers.AppLogger.Infof("仅刮削模式下，使用旧目录存放元数据：%s，目录ID：%s", mediaFile.Path, mediaFile.PathId)
+		helpers.AppLogger.Infof("仅刮削模式下，使用旧目录存放元数据：%s，目录 ID：%s", mediaFile.Path, mediaFile.PathId)
 		return nil
 	}
 	parentId := mediaFile.DestPathId
@@ -494,10 +494,10 @@ func (m *movieScrapeImpl) MakeParentPath(mediaFile *models.ScrapeMediaFile, cate
 		}
 	}
 	destFullPath := mediaFile.GetDestFullMoviePath()
-	helpers.AppLogger.Infof("影视剧文件夹，目标路径：%s，根目录ID：%s", destFullPath, parentId)
+	helpers.AppLogger.Infof("影视剧文件夹，目标路径：%s，根目录 ID：%s", destFullPath, parentId)
 	newPathId, err := m.renameImpl.CheckAndMkDir(destFullPath, mediaFile.DestPath, mediaFile.DestPathId)
 	if err != nil {
-		helpers.AppLogger.Errorf("创建父文件夹失败: %v", err)
+		helpers.AppLogger.Errorf("创建父文件夹失败：%v", err)
 		return err
 	}
 	mediaFile.NewPathId = newPathId
@@ -521,14 +521,14 @@ func (m *movieScrapeImpl) FinishMovie(mediaFile *models.ScrapeMediaFile) {
 		notif := &models.Notification{
 			Type:      models.ScrapeFinished,
 			Title:     fmt.Sprintf("✅ %s 刮削整理完成", mediaFile.Name),
-			Content:   fmt.Sprintf("📊 类型: 电影, 类别: %s, 分辨率: %s\n⏰ 时间: %s", mediaFile.CategoryName, mediaFile.Resolution, time.Now().Format("2006-01-02 15:04:05")),
+			Content:   fmt.Sprintf("📊 类型：电影，类别：%s，分辨率：%s\n⏰ 时间：%s", mediaFile.CategoryName, mediaFile.Resolution, time.Now().Format("2006-01-02 15:04:05")),
 			Image:     mediaFile.Media.PosterPath,
 			Timestamp: time.Now(),
 			Priority:  models.NormalPriority,
 		}
 		if notificationmanager.GlobalEnhancedNotificationManager != nil {
 			if err := notificationmanager.GlobalEnhancedNotificationManager.SendNotification(ctx, notif); err != nil {
-				helpers.AppLogger.Errorf("发送电影刮削完成通知失败: %v", err)
+				helpers.AppLogger.Errorf("发送电影刮削完成通知失败：%v", err)
 			}
 		}
 	}
@@ -538,31 +538,31 @@ func (m *movieScrapeImpl) FinishMovie(mediaFile *models.ScrapeMediaFile) {
 		// 如果是重新刮削（回退后），跳过删除源路径
 		// 如果不强制删除来源目录，跳过
 		// 如果视频在来源根目录，跳过
-		helpers.AppLogger.Infof("视频 %s 存在不符合删除来源目录的条件，跳过删除来源目录: %s", mediaFile.Name, mediaFile.Path)
+		helpers.AppLogger.Infof("视频 %s 不符合删除来源目录的条件，跳过删除来源目录：%s", mediaFile.Name, mediaFile.Path)
 		return
 	}
 	err := m.renameImpl.RemoveMediaSourcePath(mediaFile, m.scrapePath)
 	if err != nil {
-		helpers.AppLogger.Errorf("删除来源路径 %s 失败: %v", mediaFile.PathId, err)
+		helpers.AppLogger.Errorf("删除来源路径 %s 失败：%v", mediaFile.PathId, err)
 	}
 }
 
 func (m *movieScrapeImpl) CreateMediaFromNfo(mediaFile *models.ScrapeMediaFile) error {
 	if mediaFile.NfoFileId == "" {
-		return fmt.Errorf("其他类型必须有nfo文件")
+		return fmt.Errorf("其他类型必须有 NFO 文件")
 	}
-	// 读取nfo文件内容
+	// 读取 NFO 文件内容
 	nfoContent, err := m.renameImpl.ReadFileContent(mediaFile.NfoPickCode)
 	if err != nil {
 		return err
 	}
-	// 解析nfo文件
+	// 解析 NFO 文件
 	movie, err := helpers.ReadMovieNfo(nfoContent)
 	if err != nil {
-		helpers.AppLogger.Errorf("解析nfo文件 %s 路径 %s 失败: %v", mediaFile.NfoPath, mediaFile.Path, err)
+		helpers.AppLogger.Errorf("解析 NFO 文件 %s 路径 %s 失败：%v", mediaFile.NfoPath, mediaFile.Path, err)
 		return err
 	}
-	helpers.AppLogger.Infof("已从nfo文件中读取到媒体信息，名称：%s, 年份：%d, 番号: %s, TmdbID: %d", movie.Title, movie.Year, movie.Num, movie.TmdbId)
+	helpers.AppLogger.Infof("已从 NFO 文件中读取到媒体信息，名称：%s，年份：%d，番号：%s，TMDB ID：%d", movie.Title, movie.Year, movie.Num, movie.TmdbId)
 	var media *models.Media
 	existsMedia, _ := models.GetMediaByName(models.MediaTypeMovie, movie.Title, movie.Year)
 	if existsMedia != nil {
@@ -573,14 +573,14 @@ func (m *movieScrapeImpl) CreateMediaFromNfo(mediaFile *models.ScrapeMediaFile) 
 		if err != nil {
 			return err
 		}
-		helpers.AppLogger.Infof("使用nfo文件中的内容创建刮削信息，ID：%d, 名称：%s, 年份：%d, 番号: %s, TmdbID: %d", media.ID, movie.Title, movie.Year, movie.Num, movie.TmdbId)
+		helpers.AppLogger.Infof("使用 NFO 文件中的内容创建刮削信息，ID：%d，名称：%s，年份：%d，番号：%s，TMDB ID：%d", media.ID, movie.Title, movie.Year, movie.Num, movie.TmdbId)
 	}
 	mediaFile.MediaId = media.ID
 	mediaFile.Media = media
 	mediaFile.Name = media.Name
 	mediaFile.Year = media.Year
 	mediaFile.TmdbId = media.TmdbId
-	helpers.AppLogger.Infof("使用nfo中的信息补全刮削视频文件的信息，名称：%s, 年份：%d, 番号: %s, TmdbID: %d", media.Name, media.Year, movie.Num, media.TmdbId)
+	helpers.AppLogger.Infof("使用 NFO 中的信息补全刮削视频文件信息，名称：%s，年份：%d，番号：%s，TMDB ID：%d", media.Name, media.Year, movie.Num, media.TmdbId)
 	fileErr := mediaFile.Save()
 	if fileErr != nil {
 		return fileErr
@@ -589,7 +589,7 @@ func (m *movieScrapeImpl) CreateMediaFromNfo(mediaFile *models.ScrapeMediaFile) 
 }
 
 func (sm *movieScrapeImpl) GenerateMovieNfo(mediaFile *models.ScrapeMediaFile, localTempPath string, nfoName string, excludeNoImageActor bool) error {
-	// 生成nfo文件
+	// 生成 NFO 文件
 	nfoPath := filepath.Join(localTempPath, nfoName)
 	rates := []helpers.Rating{
 		{
@@ -599,7 +599,7 @@ func (sm *movieScrapeImpl) GenerateMovieNfo(mediaFile *models.ScrapeMediaFile, l
 			Votes: mediaFile.Media.VoteCount,
 		},
 	}
-	// 解析tmdb genre
+	// 解析 TMDB genre
 	genres := make([]string, 0)
 	for _, genre := range mediaFile.Media.Genres {
 		genres = append(genres, genre.Name)
@@ -645,8 +645,8 @@ func (sm *movieScrapeImpl) GenerateMovieNfo(mediaFile *models.ScrapeMediaFile, l
 			})
 		}
 	}
-	// 取第一张poster
-	// 取第一张backdrop
+	// 取第一张 poster
+	// 取第一张 backdrop
 	poster := mediaFile.Media.PosterPath
 	backdrop := mediaFile.Media.BackdropPath
 	thumbs := make([]helpers.Thumb, 0)
@@ -739,10 +739,10 @@ func (sm *movieScrapeImpl) GenerateMovieNfo(mediaFile *models.ScrapeMediaFile, l
 	}
 	err := helpers.WriteMovieNfo(m, nfoPath)
 	if err != nil {
-		helpers.AppLogger.Errorf("生成电影nfo文件失败，文件路径：%s 错误： %v", nfoPath, err)
+		helpers.AppLogger.Errorf("生成电影 NFO 文件失败，文件路径：%s，错误：%v", nfoPath, err)
 		return err
 	}
-	helpers.AppLogger.Infof("生成电影nfo文件成功，文件路径：%s", nfoPath)
+	helpers.AppLogger.Infof("生成电影 NFO 文件成功，文件路径：%s", nfoPath)
 	return nil
 }
 
@@ -756,7 +756,7 @@ func (m *movieScrapeImpl) MakeMediaFromTMDB(mediaFile *models.ScrapeMediaFile, t
 			TmdbId:       mediaFile.TmdbId,
 			Status:       models.MediaStatusUnScraped,
 		}
-		helpers.AppLogger.Infof("创建新的Media对象: %s, TMDBID=%d, 类型=%s", mediaFile.Media.Name, mediaFile.Media.TmdbId, mediaFile.Media.MediaType)
+		helpers.AppLogger.Infof("创建新的 Media 对象：%s，TMDB ID：%d，类型：%s", mediaFile.Media.Name, mediaFile.Media.TmdbId, mediaFile.Media.MediaType)
 	} else {
 		mediaFile.QueryRelation()
 	}
@@ -781,8 +781,8 @@ func (m *movieScrapeImpl) GetMovieRealName(sm *models.ScrapeMediaFile, name stri
 
 // 仅刮削的重新刮削逻辑：将对应刮削记录修改为待刮削
 // 刮削和整理的重新刮削逻辑：
-//   - 移动：将文件移动回源目录，如果源目录已删除，则新建同名目录并修改path、pathid等
-//   - 复制：检查源目录和源视频文件是否依然存在，如果存在则删除目录目录，如果不存在则将目标文件移动回源目录（源目录不存在则新建），并修改videofileid, videofilename, videopickcode,pathid, pathname等值
+//   - 移动：将文件移动回源目录，如果源目录已删除，则新建同名目录并修改 path、pathId 等
+//   - 复制：检查源目录和源视频文件是否依然存在，如果存在则删除目标目录；如果不存在，则将目标文件移动回源目录（源目录不存在则新建），并修改 videoFileId、videoFilename、videoPickCode、pathId、pathname 等值
 //   - 软链接、硬链接：同复制
 //
 // 其他类型不支持重新刮削
@@ -806,10 +806,10 @@ func (m *movieScrapeImpl) Rollback(mediaFile *models.ScrapeMediaFile) error {
 		// 删除这些文件
 		err := m.renameImpl.CheckAndDeleteFiles(mediaFile, files)
 		if err != nil {
-			helpers.AppLogger.Errorf("删除已上传的元数据文失败: %v", err)
+			helpers.AppLogger.Errorf("删除已上传的元数据文件失败：%v", err)
 			return err
 		}
-		helpers.AppLogger.Infof("删除已上传的元数据文件成功: %v", files)
+		helpers.AppLogger.Infof("删除已上传的元数据文件成功：%v", files)
 		// 字幕改名
 		if mediaFile.Media.SubtitleFiles != nil {
 			for _, sub := range mediaFile.Media.SubtitleFiles {
@@ -839,7 +839,7 @@ func (m *movieScrapeImpl) Rollback(mediaFile *models.ScrapeMediaFile) error {
 			var eerr error
 			existsPathId, eerr = m.renameImpl.ExistsAndRename(mediaFile.PathId, newBaseName)
 			if eerr != nil {
-				helpers.AppLogger.Errorf("重命名旧文件夹 %s 失败: %v", mediaFile.PathId, eerr)
+				helpers.AppLogger.Errorf("重命名旧文件夹 %s 失败：%v", mediaFile.PathId, eerr)
 				return eerr
 			}
 		}
@@ -848,7 +848,7 @@ func (m *movieScrapeImpl) Rollback(mediaFile *models.ScrapeMediaFile) error {
 				var err error
 				pathId, err = m.renameImpl.CheckAndMkDir(newPath, mediaFile.SourcePath, mediaFile.SourcePathId)
 				if err != nil {
-					helpers.AppLogger.Errorf("创建父文件夹 %s 失败: %v", newPath, err)
+					helpers.AppLogger.Errorf("创建父文件夹 %s 失败：%v", newPath, err)
 					return err
 				}
 			} else {
@@ -858,7 +858,7 @@ func (m *movieScrapeImpl) Rollback(mediaFile *models.ScrapeMediaFile) error {
 		} else {
 			pathId = existsPathId
 		}
-		// 将文件移动回pathId
+		// 将文件移动回 pathId
 		// 先移动字幕文件
 		if mediaFile.Media.SubtitleFiles != nil {
 			for _, sub := range mediaFile.Media.SubtitleFiles {
@@ -909,7 +909,7 @@ func (m *movieScrapeImpl) Rollback(mediaFile *models.ScrapeMediaFile) error {
 			}
 			merr := m.renameImpl.MoveFiles(moveFile)
 			if merr != nil {
-				helpers.AppLogger.Errorf("移动视频文件失败: %v", merr)
+				helpers.AppLogger.Errorf("移动视频文件失败：%v", merr)
 				return merr
 			}
 			if mediaFile.SourceType != models.SourceType115 {
@@ -921,13 +921,13 @@ func (m *movieScrapeImpl) Rollback(mediaFile *models.ScrapeMediaFile) error {
 		// 删除目标目录
 		derr := m.renameImpl.DeleteDir(mediaFile.Media.Path, mediaFile.Media.PathId)
 		if derr != nil {
-			helpers.AppLogger.Errorf("删除目标目录失败: %v", derr)
+			helpers.AppLogger.Errorf("删除目标目录失败：%v", derr)
 			return derr
 		}
 	}
-	// 删除media表的记录
+	// 删除 media 表的记录
 	db.Db.Delete(&models.Media{}, mediaFile.MediaId)
-	// 删除scrape_media_file表的记录
+	// 删除 scrape_media_file 表的记录
 	db.Db.Delete(&models.ScrapeMediaFile{}, mediaFile.ID)
 	return nil
 }

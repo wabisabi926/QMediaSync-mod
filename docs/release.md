@@ -41,7 +41,7 @@ scripts/release/release.sh major
 
 ## GitHub Actions 发布
 
-推送 `v*` 标签会触发 GitHub Actions 的 release 流程，生成 Windows/Linux 发布包、可选的飞牛 FPK，并创建 GitHub Release。
+推送 `v*` 标签会触发 GitHub Actions 的 release 流程，生成 Windows / Linux 发布包、可选的飞牛 FPK，并创建 GitHub Release。
 
 GitHub Release 的正文取自上一步提交的 `.changes/v0.xx.xx.md`；release workflow 会拒绝重复 GitHub Release 和缺失 `.changes/<tag>.md` 的发布。
 
@@ -53,6 +53,6 @@ GitHub Release 的正文取自上一步提交的 `.changes/v0.xx.xx.md`；releas
 
 飞牛 FPK 打包依赖飞牛官方工具 `fnpack`（不公开分发）。release workflow 通过仓库 Secret `FNPACK_DOWNLOAD_URL`（指向可下载 `fnpack` 可执行文件的地址）下载安装，再用 `backend/FNOS/` 下的素材执行 `fnpack build` 生成 `*.fpk`。
 
-未配置该 Secret 时，`fpk` job 和 `scripts/release/package-fnos.sh` 会自动跳过 FPK 打包，其余 Windows/Linux 发布包、Docker 镜像不受影响；若希望缺少工具时直接报错（而非静默跳过），可在脚本环境设置 `REQUIRE_FNPACK=1`。
+未配置该 Secret 时，`fpk` job 和 `scripts/release/package-fnos.sh` 会自动跳过 FPK 打包，其余 Windows / Linux 发布包、Docker 镜像不受影响；若希望缺少工具时直接报错（而非静默跳过），可在脚本环境设置 `REQUIRE_FNPACK=1`。
 
 调整 changelog 的分组、过滤规则可编辑仓库根目录的 `cliff.toml`。

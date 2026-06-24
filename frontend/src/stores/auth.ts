@@ -25,7 +25,7 @@ export const useAuthStore = defineStore('auth', () => {
   // 计算属性
   const isAuthenticated = computed(() => !!token.value)
 
-  // 从localStorage恢复登录状态
+  // 从 localStorage 恢复登录状态
   const initAuth = () => {
     if (hasInitialized.value) return
     const savedToken = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token')
@@ -37,7 +37,7 @@ export const useAuthStore = defineStore('auth', () => {
         user.value = JSON.parse(savedUser)
         authStatus.value = 'authenticated'
       } catch (error) {
-        console.error('解析用户信息失败:', error)
+        console.error('解析用户信息失败：', error)
         clearAuth()
       }
     }
@@ -62,7 +62,7 @@ export const useAuthStore = defineStore('auth', () => {
           return true
         }
       } catch (error) {
-        console.error('恢复登录会话失败:', error)
+        console.error('恢复登录会话失败：', error)
       }
 
       clearAuth()
@@ -87,12 +87,12 @@ export const useAuthStore = defineStore('auth', () => {
     storage.setItem('auth_token', authToken)
     storage.setItem('auth_user', jsonUser)
 
-    // 如果选择记住我，清除sessionStorage中的数据
+    // 如果选择记住我，清除 sessionStorage 中的数据
     if (rememberMe) {
       sessionStorage.removeItem('auth_token')
       sessionStorage.removeItem('auth_user')
     } else {
-      // 如果没选择记住我，清除localStorage中的数据
+      // 如果没选择记住我，清除 localStorage 中的数据
       localStorage.removeItem('auth_token')
       localStorage.removeItem('auth_user')
     }
@@ -105,7 +105,7 @@ export const useAuthStore = defineStore('auth', () => {
     clearAuth()
     setTimeout(() => {
       isLoggingOut.value = false
-    }, 1000) // 1秒后重置标志
+    }, 1000) // 1 秒后重置标志
   }
 
   const logoutWithServer = async (http: AxiosStatic) => {
@@ -114,7 +114,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       await http.post(`${SERVER_URL}/logout`, undefined, { withCredentials: true })
     } catch (error) {
-      console.error('服务端退出登录失败:', error)
+      console.error('服务端退出登录失败：', error)
     } finally {
       clearAuth()
       setTimeout(() => {
@@ -148,19 +148,19 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // 检查token是否有效
+  // 检查 Token 是否有效
   const checkTokenValidity = async () => {
     if (!token.value) return false
 
     try {
-      // 这里可以调用API验证token有效性
+      // 这里可以调用 API 验证 Token 有效性
       // const response = await api.validateToken(token.value)
       // return response.valid
 
-      // 临时返回true，实际项目中应该调用API验证
+      // 临时返回 true，实际项目中应该调用 API 验证
       return true
     } catch (error) {
-      console.error('Token验证失败:', error)
+      console.error('Token 验证失败：', error)
       clearAuth()
       return false
     }

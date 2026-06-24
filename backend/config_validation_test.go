@@ -13,7 +13,7 @@ func TestValidateInitialAdminCredentials(t *testing.T) {
 		wantError string
 	}{
 		{name: "用户名不能为空", username: "", password: "123456", wantError: "管理员用户名不能为空"},
-		{name: "密码不能少于六位", username: "admin", password: "12345", wantError: "密码长度至少6个字符"},
+		{name: "密码不能少于六位", username: "admin", password: "12345", wantError: "密码长度至少 6 个字符"},
 		{name: "合法账号", username: "admin", password: "123456", wantError: ""},
 	}
 

@@ -4,7 +4,7 @@
     <div class="sync-records-card">
       <div class="header-left">
         <h2 class="card-title hidden-md-and-down">同步记录</h2>
-        <p class="card-subtitle">只会保留3天的记录，每天0点会删除3天前的所有记录</p>
+        <p class="card-subtitle">只会保留 3 天的记录，每天 0 点会删除 3 天前的所有记录</p>
       </div>
       <div class="header-right">
         <!-- <el-button
@@ -177,7 +177,7 @@ const isMobileView = ref(checkIsMobile())
 const batchMode = ref(false)
 const selectedIds = ref<number[]>([])
 
-// 删除loading状态
+// 删除 loading 状态
 const deleteLoading = ref(false)
 const batchDeleteLoading = ref(false)
 const deleteOperationContextVersion = ref(0)
@@ -194,14 +194,14 @@ const pageSize = computed({
 })
 const total = ref(0)
 
-// 定时器相关 - 已停用，使用WebSocket替代
+// 定时器相关 - 已停用，使用 WebSocket 替代
 const refreshTimer = ref<number | null>(null)
 const pendingSyncRecordsRefresh = ref(false)
 let isPageActive = false
 const syncRecordsRequestGate = createActiveRequestGate(() => isPageActive)
 let stopDeviceTypeChange: (() => void) | null = null
 
-// WebSocket事件监听
+// WebSocket 事件监听
 import { useWSEvent } from '@/composables/useWebSocket'
 
 const onSyncStart = () => {
@@ -261,7 +261,7 @@ const getSubStatusText = (subStatus: number) => {
 }
 
 const syncRecordColumns: RecordColumn<SyncRecord>[] = [
-  { key: 'id', label: '任务ID', priority: 'primary', width: 88, align: 'center' },
+  { key: 'id', label: '任务 ID', priority: 'primary', width: 88, align: 'center' },
   { key: 'status', label: '状态', priority: 'primary', width: 96, align: 'center' },
   { key: 'sub_status', label: '子状态', priority: 'secondary', minWidth: 132 },
   {
@@ -456,7 +456,7 @@ const loadSyncRecords = async () => {
         if (!syncRecordsRequestGate.isCurrent(requestId)) {
           return
         }
-        console.error('加载同步记录错误:', error)
+        console.error('加载同步记录错误：', error)
       }
     })
   } finally {
@@ -494,7 +494,7 @@ const loadSyncRecords = async () => {
 //       }
 //     }
 //   } catch (error) {
-//     console.error('启动同步错误:', error)
+//     console.error('启动同步错误：', error)
 //     syncStatus.value = {
 //       title: '启动同步出错',
 //       type: 'error',
@@ -702,7 +702,7 @@ const batchDeleteRecords = async () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        timeout: 60000, // 1分钟超时
+        timeout: 60000, // 1 分钟超时
       },
     )
     if (!isDeleteOperationContextCurrent(operationContext, 'batch')) {

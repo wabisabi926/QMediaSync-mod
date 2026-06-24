@@ -62,7 +62,7 @@ func (t *EmbyLibraryRefreshTask) GetSyncPathIds() []uint {
 		return ids
 	}
 	if err := json.Unmarshal([]byte(t.SyncPathIdsStr), &ids); err != nil {
-		helpers.AppLogger.Warnf("解析Emby媒体库刷新任务sync_path_ids失败: %v", err)
+		helpers.AppLogger.Warnf("解析 Emby 媒体库刷新任务 sync_path_ids 失败：%v", err)
 		return []uint{}
 	}
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
@@ -118,17 +118,17 @@ func saveEmbyLibraryRefreshTask(task *EmbyLibraryRefreshTask) error {
 
 func RequestEmbyLibraryRefreshBySyncPathId(syncPathId uint) error {
 	if syncPathId == 0 {
-		helpers.AppLogger.Infof("临时同步路径不触发Emby媒体库刷新")
+		helpers.AppLogger.Infof("临时同步路径不触发 Emby 媒体库刷新")
 		return nil
 	}
 	if GlobalEmbyConfig == nil || GlobalEmbyConfig.EmbyUrl == "" || GlobalEmbyConfig.EmbyApiKey == "" || GlobalEmbyConfig.EnableRefreshLibrary == 0 {
-		helpers.AppLogger.Infof("Emby未配置或未启用刷新媒体库，跳过提交刷新任务")
+		helpers.AppLogger.Infof("Emby 未配置或未启用刷新媒体库，跳过提交刷新任务")
 		return nil
 	}
 
 	libraries := GetEmbyLibraryIdsBySyncPathId(syncPathId)
 	if len(libraries) == 0 {
-		helpers.AppLogger.Infof("同步目录 %d 未关联Emby媒体库，跳过提交刷新任务", syncPathId)
+		helpers.AppLogger.Infof("同步目录 %d 未关联 Emby 媒体库，跳过提交刷新任务", syncPathId)
 		return nil
 	}
 
@@ -237,7 +237,7 @@ func HasActiveStrmSyncTask(syncPathIds []uint) bool {
 func GetEmbySyncPathIdsByLibraryId(libraryId string) []uint {
 	var relations []EmbyLibrarySyncPath
 	if err := db.Db.Where("library_id = ?", libraryId).Find(&relations).Error; err != nil {
-		helpers.AppLogger.Errorf("查询Emby媒体库 %s 关联同步目录失败: %v", libraryId, err)
+		helpers.AppLogger.Errorf("查询 Emby 媒体库 %s 关联同步目录失败：%v", libraryId, err)
 		return []uint{}
 	}
 	ids := make([]uint, 0, len(relations))
@@ -387,7 +387,7 @@ func runEmbyLibraryRefreshDownloadEventBatcher() {
 	defer ticker.Stop()
 	for range ticker.C {
 		if err := flushPendingEmbyRefreshDownloadTaskChanges(); err != nil {
-			helpers.AppLogger.Errorf("批量处理下载任务状态变化事件失败: %v", err)
+			helpers.AppLogger.Errorf("批量处理下载任务状态变化事件失败：%v", err)
 		}
 	}
 }
@@ -411,7 +411,7 @@ func resetRefreshingEmbyLibraryRefreshTasks() {
 			"refresh_after_at": now + DefaultEmbyRefreshDebounceSeconds,
 			"error":            "服务重启后重置刷新中任务",
 		}).Error; err != nil {
-		helpers.AppLogger.Errorf("重置Emby媒体库刷新中任务失败: %v", err)
+		helpers.AppLogger.Errorf("重置 Emby 媒体库刷新中任务失败：%v", err)
 	}
 }
 
@@ -430,11 +430,11 @@ func runEmbyLibraryRefreshScanner() {
 
 func CheckPendingEmbyLibraryRefreshTasks() {
 	if GlobalEmbyConfig == nil || GlobalEmbyConfig.EmbyUrl == "" || GlobalEmbyConfig.EmbyApiKey == "" || GlobalEmbyConfig.EnableRefreshLibrary == 0 {
-		helpers.AppLogger.Infof("Emby未配置或未启用刷新媒体库，跳过待刷新任务扫描")
+		helpers.AppLogger.Infof("Emby 未配置或未启用刷新媒体库，跳过待刷新任务扫描")
 		return
 	}
 	if err := flushPendingEmbyRefreshDownloadTaskChanges(); err != nil {
-		helpers.AppLogger.Errorf("扫描Emby媒体库刷新任务前批量处理下载事件失败: %v", err)
+		helpers.AppLogger.Errorf("扫描 Emby 媒体库刷新任务前批量处理下载事件失败：%v", err)
 	}
 
 	var tasks []EmbyLibraryRefreshTask
@@ -443,7 +443,7 @@ func CheckPendingEmbyLibraryRefreshTasks() {
 		Where("refresh_after_at <= ? OR deadline_at <= ?", now, now).
 		Order("updated_at ASC").
 		Find(&tasks).Error; err != nil {
-		helpers.AppLogger.Errorf("查询Emby媒体库待刷新任务失败: %v", err)
+		helpers.AppLogger.Errorf("查询 Emby 媒体库待刷新任务失败：%v", err)
 		return
 	}
 
@@ -458,18 +458,18 @@ func CheckPendingEmbyLibraryRefreshTasks() {
 		}
 		if reason == "deadline_expired" {
 			if err := markEmbyRefreshTaskCancelled(&task, "等待超过最大时长，取消刷新"); err != nil {
-				helpers.AppLogger.Errorf("取消Emby媒体库 %s 刷新任务失败: %v", task.LibraryName, err)
+				helpers.AppLogger.Errorf("取消 Emby 媒体库 %s 刷新任务失败：%v", task.LibraryName, err)
 			}
-			helpers.AppLogger.Warnf("Emby媒体库 %s 等待超过最大时长，取消刷新", task.LibraryName)
+			helpers.AppLogger.Warnf("Emby 媒体库 %s 等待超过最大时长，取消刷新", task.LibraryName)
 			continue
 		}
 		if !ready {
 			saveEmbyLibraryRefreshTask(&task)
-			helpers.AppLogger.Debugf("Emby媒体库 %s 暂不刷新，原因: %s", task.LibraryName, reason)
+			helpers.AppLogger.Debugf("Emby 媒体库 %s 暂不刷新，原因：%s", task.LibraryName, reason)
 			continue
 		}
 		if err := refreshEmbyLibraryTask(&task); err != nil {
-			helpers.AppLogger.Errorf("刷新Emby媒体库 %s 失败: %v", task.LibraryName, err)
+			helpers.AppLogger.Errorf("刷新 Emby 媒体库 %s 失败：%v", task.LibraryName, err)
 		}
 	}
 }

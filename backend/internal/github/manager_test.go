@@ -14,24 +14,24 @@ func TestInitManager(t *testing.T) {
 	InitManager("http://proxy.example.com:8080")
 
 	if defaultManager == nil {
-		t.Error("InitManager应创建非nil的管理器")
+		t.Error("InitManager 应创建非 nil 的管理器")
 	}
 
 	if defaultManager.testTimeout != 3*time.Second {
-		t.Errorf("期望超时时间为3秒，实际为%v", defaultManager.testTimeout)
+		t.Errorf("期望超时时间为 3 秒，实际为 %v", defaultManager.testTimeout)
 	}
 
 	if defaultManager.cacheValid != 10*time.Minute {
-		t.Errorf("期望缓存有效期为10分钟，实际为%v", defaultManager.cacheValid)
+		t.Errorf("期望缓存有效期为 10 分钟，实际为 %v", defaultManager.cacheValid)
 	}
 
 	if defaultManager.httpProxy != "http://proxy.example.com:8080" {
-		t.Errorf("期望HTTP代理为http://proxy.example.com:8080，实际为%v", defaultManager.httpProxy)
+		t.Errorf("期望 HTTP 代理为 http://proxy.example.com:8080，实际为 %v", defaultManager.httpProxy)
 	}
 
-	// 验证GithubProxyURL常量
+	// 验证 GitHubProxyURL 常量
 	if GithubProxyURL != "https://gh.llkk.cc" {
-		t.Errorf("期望GithubProxyURL为https://gh.llkk.cc，实际为%v", GithubProxyURL)
+		t.Errorf("期望 GitHubProxyURL 为 https://gh.llkk.cc，实际为 %v", GithubProxyURL)
 	}
 }
 
@@ -42,13 +42,13 @@ func TestGetManager(t *testing.T) {
 	manager := GetManager()
 
 	if manager == nil {
-		t.Error("GetManager应返回非nil的管理器")
+		t.Error("GetManager 应返回非 nil 的管理器")
 	}
 
 	// 再次调用应返回同一个实例
 	manager2 := GetManager()
 	if manager != manager2 {
-		t.Error("GetManager应返回单例")
+		t.Error("GetManager 应返回单例")
 	}
 }
 
@@ -73,7 +73,7 @@ func TestManager_TestConnection(t *testing.T) {
 			proxyURL: "http://invalid-proxy:8080",
 		},
 		{
-			name:     "测试无效GitHub代理",
+			name:     "测试无效 GitHub 代理",
 			connType: ConnectionTypeGitHubProxy,
 			proxyURL: "http://invalid-github-proxy:8080",
 		},
@@ -81,7 +81,7 @@ func TestManager_TestConnection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// 这里只验证不会panic，结果可能因环境而异
+			// 这里只验证不会 panic，结果可能因环境而异。
 			got := manager.TestConnection(tt.connType, tt.proxyURL)
 			t.Logf("连接测试结果: %v (连接类型: %s, 代理: %s)", got, tt.connType, tt.proxyURL)
 		})
@@ -93,10 +93,10 @@ func TestManager_TestConnection_InvalidProxyURL(t *testing.T) {
 		testTimeout: 3 * time.Second,
 	}
 
-	// 测试无效的代理URL
+	// 测试无效的代理 URL
 	got := manager.TestConnection(ConnectionTypeProxy, "://invalid-url")
 	if got {
-		t.Error("无效URL应返回false")
+		t.Error("无效 URL 应返回 false")
 	}
 }
 
@@ -109,16 +109,16 @@ func TestManager_GetBestConnection(t *testing.T) {
 	// 测试获取最佳连接
 	access, err := manager.GetBestConnection()
 	if err != nil {
-		t.Logf("获取GitHub连接失败（可能网络不可达）: %v", err)
+		t.Logf("获取 GitHub 连接失败（可能网络不可达）: %v", err)
 		return
 	}
 
 	if access == nil {
-		t.Error("access不应为nil")
+		t.Error("access 不应为 nil")
 	}
 
 	if access.Client == nil {
-		t.Error("Client不应为nil")
+		t.Error("Client 不应为 nil")
 	}
 
 	if access.LastTested.IsZero() {
@@ -135,9 +135,9 @@ func TestManager_GetBestConnection(t *testing.T) {
 		t.Errorf("缓存失败: 第一次 %s, 第二次 %s", access.Type, access2.Type)
 	}
 
-	// Cached字段表示是否从缓存读取，第二次调用应该是true
+	// Cached 字段表示是否从缓存读取，第二次调用应该是 true。
 	if !access2.Cached {
-		t.Error("第二次调用应使用缓存（Cached应为true）")
+		t.Error("第二次调用应使用缓存（Cached 应为 true）")
 	}
 }
 
@@ -149,16 +149,16 @@ func TestManager_GetClient(t *testing.T) {
 
 	client, err := manager.GetClient()
 	if err != nil {
-		t.Logf("获取GitHub客户端失败（可能网络不可达）: %v", err)
+		t.Logf("获取 GitHub 客户端失败（可能网络不可达）: %v", err)
 		return
 	}
 
 	if client == nil {
-		t.Error("Client不应为nil")
+		t.Error("Client 不应为 nil")
 	}
 
 	if client.Timeout != 30*time.Second {
-		t.Errorf("Client超时应为30秒，实际为%v", client.Timeout)
+		t.Errorf("Client 超时应为 30 秒，实际为 %v", client.Timeout)
 	}
 }
 
@@ -191,7 +191,7 @@ func TestManager_GetClientWithCache_WithCache(t *testing.T) {
 	}
 
 	if client == nil {
-		t.Error("Client不应为nil")
+		t.Error("Client 不应为 nil")
 	}
 }
 
@@ -271,7 +271,7 @@ func TestConnectionType_String(t *testing.T) {
 			want: "proxy",
 		},
 		{
-			name: "GitHub代理",
+			name: "GitHub 代理",
 			ct:   ConnectionTypeGitHubProxy,
 			want: "github_proxy",
 		},

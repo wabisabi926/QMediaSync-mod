@@ -28,14 +28,14 @@ type EmbyPlaybackSession struct {
 
 // EmbyPlaybackInfo 播放信息
 type EmbyPlaybackInfo struct {
-	PositionTicks int64           `json:"PositionTicks"` // 当前播放位置（单位：1/10000微秒）
-	PlaySessionId string          `json:"PlaySessionId"` // 播放会话ID
+	PositionTicks int64           `json:"PositionTicks"` // 当前播放位置（单位：1/10000 微秒）
+	PlaySessionId string          `json:"PlaySessionId"` // 播放会话 ID
 	MediaSource   EmbyMediaSource `json:"MediaSource"`
 }
 
 // EmbyMediaSource 媒体源信息
 type EmbyMediaSource struct {
-	RunTimeTicks int64 `json:"RunTimeTicks"` // 总时长（单位：1/10000微秒）
+	RunTimeTicks int64 `json:"RunTimeTicks"` // 总时长（单位：1/10000 微秒）
 }
 
 // EmbyPlaybackItem Emby 播放媒体项信息
@@ -49,10 +49,10 @@ type EmbyPlaybackItem struct {
 	SeasonNumber   int               `json:"ParentIndexNumber,omitempty"` // 季号（剧集）
 	EpisodeNumber  int               `json:"IndexNumber,omitempty"`       // 集号（剧集）
 	ImageTags      map[string]string `json:"ImageTags,omitempty"`         // 图片标签
-	ID             string            `json:"Id"`                          // 媒体ID
+	ID             string            `json:"Id"`                          // 媒体 ID
 }
 
-// GetUserID 获取用户ID
+// GetUserID 获取用户 ID
 func (w *EmbyPlaybackWebhook) GetUserID() string {
 	return w.User.ID
 }
@@ -72,12 +72,12 @@ func (w *EmbyPlaybackWebhook) GetClientName() string {
 	return w.Session.Client
 }
 
-// GetPlaybackDuration 获取播放时长（毫秒，仅Stop事件）
+// GetPlaybackDuration 获取播放时长（毫秒，仅 Stop 事件）
 func (w *EmbyPlaybackWebhook) GetPlaybackDuration() int64 {
 	if w.Event != "playback.stop" {
 		return 0
 	}
-	// 将PositionTicks转换为毫秒（1 Tick = 100纳秒）
+	// 将 PositionTicks 转换为毫秒（1 Tick = 100 纳秒）
 	return w.PlaybackInfo.PositionTicks / 10000
 }
 
@@ -100,7 +100,7 @@ func FormatSeasonEpisode(season, episode int) string {
 // FormatPlaybackDuration 格式化播放时长（毫秒转可读格式）
 func FormatPlaybackDuration(durationMs int64) string {
 	if durationMs == 0 {
-		return "0秒"
+		return "0 秒"
 	}
 
 	duration := time.Duration(durationMs) * time.Millisecond
@@ -110,11 +110,11 @@ func FormatPlaybackDuration(durationMs int64) string {
 	seconds := int(duration.Seconds()) % 60
 
 	if hours > 0 {
-		return fmt.Sprintf("%d小时%d分钟", hours, minutes)
+		return fmt.Sprintf("%d 小时 %d 分钟", hours, minutes)
 	} else if minutes > 0 {
-		return fmt.Sprintf("%d分钟", minutes)
+		return fmt.Sprintf("%d 分钟", minutes)
 	} else {
-		return fmt.Sprintf("%d秒", seconds)
+		return fmt.Sprintf("%d 秒", seconds)
 	}
 }
 

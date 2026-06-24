@@ -1272,7 +1272,7 @@ func SourceFromCreateRequest(sourceType AuthSourceType, provider AuthProvider, a
 	case SourceTypeBuiltInAppID:
 		source, ok := FindSource(SourceTypeBuiltInAppID, ProviderOfficialPKCE, strings.TrimSpace(appID))
 		if !ok {
-			return Source{}, fmt.Errorf("不支持的内置 115 APPID")
+			return Source{}, fmt.Errorf("不支持的内置 115 App ID")
 		}
 		return source, nil
 	case SourceTypeBuiltInRelay:
@@ -1286,7 +1286,7 @@ func SourceFromCreateRequest(sourceType AuthSourceType, provider AuthProvider, a
 	case SourceTypeCustomAppID:
 		appID = strings.TrimSpace(appID)
 		if appID == "" {
-			return Source{}, fmt.Errorf("自定义应用ID不能为空")
+			return Source{}, fmt.Errorf("自定义应用 ID 不能为空")
 		}
 		name := strings.TrimSpace(customAppName)
 		if name == "" {
@@ -1294,7 +1294,7 @@ func SourceFromCreateRequest(sourceType AuthSourceType, provider AuthProvider, a
 		}
 		return Source{SourceType: SourceTypeCustomAppID, Provider: ProviderOfficialPKCE, AppID: appID, AppName: name, DisplayName: name}, nil
 	default:
-		return Source{}, fmt.Errorf("不支持的115授权来源")
+		return Source{}, fmt.Errorf("不支持的 115 授权来源")
 	}
 }
 
@@ -1363,10 +1363,10 @@ func sourceFromLegacyCreateRequest(appID string, selectedApp string, customAppNa
 		return relaySourceFromProvider(ProviderQMediaSync, selectedApp)
 	case BuiltInRelayQ115STRM, BuiltInRelayMQMediaLibrary:
 		return relaySourceFromProvider(ProviderMQFamily, selectedApp)
-	case "自定义", CustomAppName:
+	case "自定义", "自定义 App ID", CustomAppName:
 		appID = strings.TrimSpace(appID)
 		if appID == "" {
-			return Source{}, fmt.Errorf("自定义应用ID不能为空")
+			return Source{}, fmt.Errorf("自定义应用 ID 不能为空")
 		}
 		name := strings.TrimSpace(customAppName)
 		if name == "" {
@@ -1374,7 +1374,7 @@ func sourceFromLegacyCreateRequest(appID string, selectedApp string, customAppNa
 		}
 		return Source{SourceType: SourceTypeCustomAppID, Provider: ProviderOfficialPKCE, AppID: appID, AppName: name, DisplayName: name}, nil
 	default:
-		return Source{}, fmt.Errorf("不支持的115开放平台应用")
+		return Source{}, fmt.Errorf("不支持的 115 开放平台应用")
 	}
 }
 
@@ -1389,5 +1389,5 @@ func relaySourceFromProvider(provider AuthProvider, selectedApp string) (Source,
 		}
 		return source, nil
 	}
-	return Source{}, fmt.Errorf("不支持的115内置中转")
+	return Source{}, fmt.Errorf("不支持的 115 内置中转")
 }

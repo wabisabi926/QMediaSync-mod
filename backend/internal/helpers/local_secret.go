@@ -33,25 +33,25 @@ func InitEncryptionKey() error {
 	if err == nil {
 		key := strings.TrimSpace(string(data))
 		if key == "" {
-			return fmt.Errorf("本机加密密钥文件为空: %s", keyPath)
+			return fmt.Errorf("本机加密密钥文件为空：%s", keyPath)
 		}
 		localEncryptionKey = key
 		return nil
 	}
 	if !os.IsNotExist(err) {
-		return fmt.Errorf("读取本机加密密钥失败: %w", err)
+		return fmt.Errorf("读取本机加密密钥失败：%w", err)
 	}
 
 	if err := os.MkdirAll(ConfigDir, 0755); err != nil {
-		return fmt.Errorf("创建配置目录失败: %w", err)
+		return fmt.Errorf("创建配置目录失败：%w", err)
 	}
 	keyBytes := make([]byte, 32)
 	if _, err := rand.Read(keyBytes); err != nil {
-		return fmt.Errorf("生成本机加密密钥失败: %w", err)
+		return fmt.Errorf("生成本机加密密钥失败：%w", err)
 	}
 	key := base64.RawURLEncoding.EncodeToString(keyBytes)
 	if err := os.WriteFile(keyPath, []byte(key+"\n"), 0600); err != nil {
-		return fmt.Errorf("保存本机加密密钥失败: %w", err)
+		return fmt.Errorf("保存本机加密密钥失败：%w", err)
 	}
 	localEncryptionKey = key
 	return nil

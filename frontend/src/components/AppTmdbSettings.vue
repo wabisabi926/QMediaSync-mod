@@ -6,58 +6,58 @@
       :label-width="120"
       class="tmdb-form"
     >
-      <el-form-item label="是否启用代理" prop="tmdbEnableProxy">
+      <el-form-item label="启用代理" prop="tmdbEnableProxy">
         <el-switch
           v-model="formData.tmdbEnableProxy"
           active-text="启用"
           inactive-text="禁用"
           :disabled="loading"
         />
-        <div class="form-help">如果https://api.tmdb.org可以直连就禁用</div>
+        <div class="form-help">如果当前环境可以直连 https://api.tmdb.org，请保持关闭</div>
       </el-form-item>
 
-      <el-form-item label="TMDB接口地址" prop="tmdbUrl">
+      <el-form-item label="TMDB 接口地址" prop="tmdbUrl">
         <el-input
           v-model="formData.tmdbUrl"
-          placeholder="不填取默认值：https://api.tmdb.org"
+          placeholder="留空使用默认值：https://api.tmdb.org"
           :disabled="loading"
           maxlength="255"
         />
-        <div class="form-help">可以输入镜像地址，如果不清楚则留空</div>
+        <div class="form-help">可填写镜像地址，不确定时可以留空</div>
       </el-form-item>
 
-      <el-form-item label="TMDB图片地址" prop="tmdbImageUrl">
+      <el-form-item label="TMDB 图片地址" prop="tmdbImageUrl">
         <el-input
           v-model="formData.tmdbImageUrl"
-          placeholder="不填取默认值：https://image.tmdb.org"
+          placeholder="留空使用默认值：https://image.tmdb.org"
           :disabled="loading"
           maxlength="255"
         />
-        <div class="form-help">可以输入镜像地址，如果不清楚则留空</div>
+        <div class="form-help">可填写镜像地址，不确定时可以留空</div>
       </el-form-item>
 
-      <el-form-item label="TMDB密钥" prop="tmdbApiKey">
+      <el-form-item label="TMDB 密钥" prop="tmdbApiKey">
         <el-input
           v-model="formData.tmdbApiKey"
-          placeholder="系统内置，不填也可用，填自己的更稳定"
+          placeholder="系统已内置默认 Key，留空也可使用；填写自己的更稳定"
           type="password"
           :disabled="loading"
           show-password
           maxlength="255"
         />
-        <div class="form-help">TMDB 的 API KEY，用于刮削元数据，不清楚则留空</div>
+        <div class="form-help">TMDB API Key，用于刮削元数据；不确定时可以留空</div>
       </el-form-item>
 
-      <el-form-item label="Fanart密钥" prop="fanartApiKey">
+      <el-form-item label="fanart.tv API Key" prop="fanartApiKey">
         <el-input
           v-model="formData.fanartApiKey"
-          placeholder="系统内置，不填也可用，填自己的更稳定"
+          placeholder="系统已内置默认 Key，留空也可使用；填写自己的更稳定"
           type="password"
           :disabled="loading"
           show-password
           maxlength="255"
         />
-        <div class="form-help">Fanart.tv 的 API KEY，用于刮削艺术图，不清楚则留空</div>
+        <div class="form-help">fanart.tv API Key，用于刮削艺术图；不确定时可以留空</div>
       </el-form-item>
 
       <el-form-item label="首选元数据语言" prop="tmdbLanguage">
@@ -128,8 +128,8 @@
       <div class="warning-section">
         <el-alert title="使用提示" type="warning" :closable="false" show-icon>
           <template #default>
-            如果不了解如何设置，请全部留空，会使用默认配置。默认配置可能需要代理才可以访问。<br />
-            如果TMDB无法直接访问，请开启使用代理，确保代理配置正确。<br />
+            如果不了解如何设置，请全部留空，系统会使用默认配置。默认配置可能需要代理才能访问。<br />
+            如果 TMDB 无法直接访问，请开启代理，并确认代理配置正确。<br />
           </template>
         </el-alert>
       </div>
@@ -189,7 +189,7 @@ onMounted(async () => {
   await fetchTmdbSettings()
 })
 
-// 获取TMDB设置
+// 获取 TMDB 设置
 async function fetchTmdbSettings() {
   try {
     loading.value = true
@@ -209,14 +209,14 @@ async function fetchTmdbSettings() {
     formData.tmdbImageLanguage = response?.data.data.tmdb_image_language || 'en-US'
     formData.local_max_threads = response?.data.data.local_max_threads || 5
   } catch (error) {
-    console.error('获取TMDB设置失败:', error)
+    console.error('获取 TMDB 设置失败：', error)
     ElMessage.error('获取刮削设置失败，请稍后重试')
   } finally {
     loading.value = false
   }
 }
 
-// 保存TMDB设置
+// 保存 TMDB 设置
 async function saveSettings() {
   try {
     loading.value = true
@@ -248,12 +248,12 @@ async function saveSettings() {
       description: '刮削设置已成功保存',
     }
 
-    // 3秒后清除状态提示
+    // 3 秒后清除状态提示
     setTimeout(() => {
       saveStatus.value = null
     }, 3000)
   } catch (error) {
-    console.error('保存TMDB设置失败:', error)
+    console.error('保存 TMDB 设置失败：', error)
     saveStatus.value = {
       title: '保存失败',
       type: 'error',
@@ -264,7 +264,7 @@ async function saveSettings() {
   }
 }
 
-// 测试TMDB连通性
+// 测试 TMDB 连通性
 async function testConnection() {
   try {
     testing.value = true
@@ -292,22 +292,22 @@ async function testConnection() {
       testStatus.value = {
         title: '连接成功',
         type: 'success',
-        description: response.data.message || 'TMDB连通性测试成功',
+        description: response.data.message || 'TMDB 连通性测试成功',
       }
     } else {
       testStatus.value = {
         title: '连接失败',
         type: 'error',
-        description: response?.data?.message || 'TMDB连通性测试失败，请检查设置',
+        description: response?.data?.message || 'TMDB 连通性测试失败，请检查设置',
       }
     }
 
-    // 5秒后清除状态提示
+    // 5 秒后清除状态提示
     setTimeout(() => {
       testStatus.value = null
     }, 5000)
   } catch (error) {
-    console.error('测试TMDB连通性失败:', error)
+    console.error('测试 TMDB 连通性失败：', error)
     testStatus.value = {
       title: '连接失败',
       type: 'error',

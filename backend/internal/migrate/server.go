@@ -55,7 +55,7 @@ func (s *MigrateServer) Start() error {
 
 	data, err := migrateFiles.ReadFile("assets/migrate.html")
 	if err != nil {
-		return fmt.Errorf("读取迁移模板失败: %v", err)
+		return fmt.Errorf("读取迁移模板失败：%v", err)
 	}
 	tmpl := template.Must(template.New("migrate.html").Parse(string(data)))
 	r.SetHTMLTemplate(tmpl)
@@ -89,14 +89,14 @@ func (s *MigrateServer) Start() error {
 		Handler: r,
 	}
 
-	fmt.Printf("迁移服务已启动，请在浏览器中访问: http://ip%s\n", helpers.GlobalConfig.HttpHost)
+	fmt.Printf("迁移服务已启动，请在浏览器中访问：http://ip%s\n", helpers.GlobalConfig.HttpHost)
 	go func() {
 		time.Sleep(1 * time.Second)
 		helpers.OpenBrowser("http://127.0.0.1" + helpers.GlobalConfig.HttpHost)
 	}()
 
 	if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		return fmt.Errorf("启动迁移服务失败: %v", err)
+		return fmt.Errorf("启动迁移服务失败：%v", err)
 	}
 
 	return nil
@@ -116,7 +116,7 @@ func (s *MigrateServer) handleBackup(c *gin.Context) {
 	if backup.IsRunning() {
 		c.JSON(200, gin.H{
 			"success": false,
-			"error":   "备份任务正在运行中",
+			"error":   "备份任务正在运行",
 		})
 		return
 	}
@@ -125,14 +125,14 @@ func (s *MigrateServer) handleBackup(c *gin.Context) {
 	if err := os.MkdirAll(backupDir, 0755); err != nil {
 		c.JSON(200, gin.H{
 			"success": false,
-			"error":   "创建备份目录失败: " + err.Error(),
+			"error":   "创建备份目录失败：" + err.Error(),
 		})
 		return
 	}
 
 	go func() {
 		if err := s.performMigrateBackup(); err != nil {
-			log.Printf("迁移备份失败: %v", err)
+			log.Printf("迁移备份失败：%v", err)
 		}
 	}()
 
@@ -147,11 +147,11 @@ func (s *MigrateServer) performMigrateBackup() error {
 	count := 0
 	backupDir := filepath.Join(helpers.ConfigDir, "backups")
 	if err := os.MkdirAll(backupDir, 0755); err != nil {
-		helpers.AppLogger.Errorf("创建备份目录失败: %v", err)
+		helpers.AppLogger.Errorf("创建备份目录失败：%v", err)
 		return err
 	}
 	if backup.IsRunning() {
-		return fmt.Errorf("备份任务正在运行中")
+		return fmt.Errorf("备份任务正在运行")
 	}
 	backup.SetRunning(true)
 	defer backup.SetRunning(false)
@@ -279,12 +279,12 @@ func (s *MigrateServer) performMigrateBackup() error {
 		return err
 	}
 
-	backup.SetRunningResult("backup", "备份完成，正在停止内嵌数据库...", totalTable, count, "", false)
-	helpers.AppLogger.Infof("迁移备份完成，文件保存到: %s", s.backupPath)
+	backup.SetRunningResult("backup", "备份完成，正在停止内嵌数据库…", totalTable, count, "", false)
+	helpers.AppLogger.Infof("迁移备份完成，文件保存到：%s", s.backupPath)
 
 	if s.dbManager != nil {
 		if err := s.dbManager.Stop(); err != nil {
-			helpers.AppLogger.Warnf("停止内嵌数据库失败: %v", err)
+			helpers.AppLogger.Warnf("停止内嵌数据库失败：%v", err)
 		} else {
 			helpers.AppLogger.Info("内嵌数据库已停止")
 		}
@@ -298,7 +298,7 @@ func backupToJsonFile[T any](backupDir string, modelName string, totalTable int,
 	backupFilePath := filepath.Join(backupDir, modelName+".json")
 	backupFile, err := os.OpenFile(backupFilePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		helpers.AppLogger.Errorf("创建%s备份文件失败: %v", modelName, err)
+		helpers.AppLogger.Errorf("创建 %s 备份文件失败：%v", modelName, err)
 		return err
 	}
 	defer backupFile.Close()
@@ -309,18 +309,18 @@ func backupToJsonFile[T any](backupDir string, modelName string, totalTable int,
 	for {
 		var records []T
 		if err := db.Db.Model(&model).Offset(page * pageSize).Limit(pageSize).Find(&records).Error; err != nil {
-			helpers.AppLogger.Errorf("查询%s失败: %v", modelName, err)
+			helpers.AppLogger.Errorf("查询 %s 失败：%v", modelName, err)
 			break
 		}
 		if len(records) == 0 {
-			helpers.AppLogger.Infof("查询%s完成", modelName)
+			helpers.AppLogger.Infof("查询 %s 完成", modelName)
 			break
 		}
 
 		for _, record := range records {
 			jsonStr := helpers.JsonString(record)
 			if _, err := backupFile.WriteString(jsonStr + "\n"); err != nil {
-				helpers.AppLogger.Errorf("写入%s备份文件失败: %v", modelName, err)
+				helpers.AppLogger.Errorf("写入 %s 备份文件失败：%v", modelName, err)
 				return err
 			}
 			totalCount++
@@ -329,7 +329,7 @@ func backupToJsonFile[T any](backupDir string, modelName string, totalTable int,
 	}
 
 	*count++
-	backup.SetRunningResult("backup", fmt.Sprintf("已备份%s %d条", modelName, totalCount), totalTable, *count, "", false)
+	backup.SetRunningResult("backup", fmt.Sprintf("已备份 %s %d 条", modelName, totalCount), totalTable, *count, "", false)
 	return nil
 }
 
@@ -355,7 +355,7 @@ func (s *MigrateServer) handleTestDB(c *gin.Context) {
 		req.Host, req.Port, req.User, req.Password)
 	sqlDB, err := sql.Open("postgres", connStr)
 	if err != nil {
-		c.JSON(200, gin.H{"success": false, "error": "连接失败: " + err.Error()})
+		c.JSON(200, gin.H{"success": false, "error": "连接失败：" + err.Error()})
 		return
 	}
 	defer sqlDB.Close()
@@ -364,7 +364,7 @@ func (s *MigrateServer) handleTestDB(c *gin.Context) {
 	defer cancel()
 
 	if err := sqlDB.PingContext(ctx); err != nil {
-		c.JSON(200, gin.H{"success": false, "error": "连接失败: " + err.Error()})
+		c.JSON(200, gin.H{"success": false, "error": "连接失败：" + err.Error()})
 		return
 	}
 
@@ -396,7 +396,7 @@ func (s *MigrateServer) handleSaveConfig(c *gin.Context) {
 	}
 
 	if err := helpers.SaveConfig(&helpers.GlobalConfig); err != nil {
-		c.JSON(500, gin.H{"error": "保存配置失败: " + err.Error()})
+		c.JSON(500, gin.H{"error": "保存配置失败：" + err.Error()})
 		return
 	}
 
@@ -404,9 +404,9 @@ func (s *MigrateServer) handleSaveConfig(c *gin.Context) {
 	postgresBackupDir := filepath.Join(helpers.ConfigDir, "postgres-backup")
 	if helpers.PathExists(postgresDir) {
 		if err := os.Rename(postgresDir, postgresBackupDir); err != nil {
-			helpers.AppLogger.Warnf("重命名postgres目录失败: %v", err)
+			helpers.AppLogger.Warnf("重命名 PostgreSQL 目录失败：%v", err)
 		} else {
-			helpers.AppLogger.Info("已将postgres目录重命名为postgres-backup")
+			helpers.AppLogger.Info("已将 PostgreSQL 目录重命名为 postgres-backup")
 		}
 	}
 

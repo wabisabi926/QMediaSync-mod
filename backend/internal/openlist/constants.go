@@ -1,7 +1,7 @@
 package openlist
 
 var (
-	// API常量
+	// API 常量
 	OPEN_BASE_URL = "https://open-api.123pan.com"
 )
 

@@ -20,7 +20,7 @@ import (
 	ws "Q115-STRM/internal/websocket"
 )
 
-// 处理集的刮削任务，启动N个协程
+// 处理集的刮削任务，启动 N 个协程
 func (t *tvShowScrapeImpl) scrapeEpisode(taskIndex int, wg *sync.WaitGroup) {
 mainloop:
 	for {
@@ -38,13 +38,13 @@ mainloop:
 			mediaFile := models.GetScrapeMediaFileById(mediaFileId)
 			if mediaFile == nil {
 				wg.Done() // 处理完成后，计数-1
-				helpers.AppLogger.Errorf("根据ID查待刮削文件记录失败，ID: %d", mediaFileId)
+				helpers.AppLogger.Errorf("根据 ID 查询待刮削文件记录失败，ID：%d", mediaFileId)
 				continue mainloop
 			}
 			helpers.AppLogger.Infof("集刮削整理任务队列 %d 开始处理电视剧 %s 季 %d 集 %d", taskIndex, mediaFile.Name, mediaFile.SeasonNumber, mediaFile.EpisodeNumber)
 			err := t.Process(mediaFile)
 			if err != nil {
-				helpers.AppLogger.Errorf("集刮削整理任务队列 %d 刮削电视剧 %s 季 %d 集 %d 失败: %v", taskIndex, mediaFile.Name, mediaFile.SeasonNumber, mediaFile.EpisodeNumber, err)
+				helpers.AppLogger.Errorf("集刮削整理任务队列 %d 刮削电视剧 %s 季 %d 集 %d 失败：%v", taskIndex, mediaFile.Name, mediaFile.SeasonNumber, mediaFile.EpisodeNumber, err)
 			} else {
 				helpers.AppLogger.Infof("集刮削整理任务队列 %d 处理电视剧 %s 季 %d 集 %d 成功", taskIndex, mediaFile.Name, mediaFile.SeasonNumber, mediaFile.EpisodeNumber)
 			}
@@ -64,13 +64,13 @@ func (t *tvShowScrapeImpl) ScrapeEpisodeMedia(mediaFile *models.ScrapeMediaFile)
 	// 查询集详情
 	episodeDetail, err := t.tmdbClient.GetTvEpisodeDetail(mediaFile.TmdbId, mediaFile.SeasonNumber, mediaFile.EpisodeNumber, models.GlobalScrapeSettings.GetTmdbLanguage())
 	if err != nil {
-		helpers.AppLogger.Errorf("查询tmdb电视剧集详情失败,下次重试, 失败原因: %v", err)
+		helpers.AppLogger.Errorf("查询 TMDB 电视剧集详情失败，下次重试，失败原因：%v", err)
 		return err
 	}
 	// 查询集演员
 	credits, err := t.tmdbClient.GetTvEpisodeCredits(mediaFile.TmdbId, mediaFile.SeasonNumber, mediaFile.EpisodeNumber, models.GlobalScrapeSettings.GetTmdbLanguage())
 	if err != nil {
-		helpers.AppLogger.Errorf("查询tmdb电视剧集演员失败,下次重试, 失败原因: %v", err)
+		helpers.AppLogger.Errorf("查询 TMDB 电视剧集演员失败，下次重试，失败原因：%v", err)
 	} else {
 		episodeDetail.Cast = credits.Cast
 		episodeDetail.Crew = credits.Crew
@@ -80,12 +80,12 @@ func (t *tvShowScrapeImpl) ScrapeEpisodeMedia(mediaFile *models.ScrapeMediaFile)
 }
 
 func (t *tvShowScrapeImpl) Scrape(mediaFile *models.ScrapeMediaFile) error {
-	// 改为刮削中...
+	// 改为刮削中…
 	mediaFile.Scraping()
 	// 跳过已刮削的集
 	epError := t.ScrapeEpisodeMedia(mediaFile)
 	if epError != nil {
-		helpers.AppLogger.Errorf("电视剧 %s 季 %d 集 %d 刮削失败: %v", mediaFile.Name, mediaFile.SeasonNumber, mediaFile.EpisodeNumber, epError)
+		helpers.AppLogger.Errorf("电视剧 %s 季 %d 集 %d 刮削失败：%v", mediaFile.Name, mediaFile.SeasonNumber, mediaFile.EpisodeNumber, epError)
 		return epError
 	}
 	// 下载视频文件解析视频信息
@@ -96,18 +96,18 @@ func (t *tvShowScrapeImpl) Scrape(mediaFile *models.ScrapeMediaFile) error {
 		// 没有目录就创建
 		merr := os.MkdirAll(episodePath, 0777)
 		if merr != nil {
-			helpers.AppLogger.Errorf("创建季目录 %s 失败, 失败原因: %v", episodePath, merr)
+			helpers.AppLogger.Errorf("创建季目录 %s 失败，失败原因：%v", episodePath, merr)
 			return merr
 		}
 	}
 	if mediaFile.ScrapeType != models.ScrapeTypeOnlyRename {
-		// 生成nfo
+		// 生成 NFO
 		t.GenerateEpisodeNfo(mediaFile)
 		// 下载集的图片
 		episodeImageList := make(map[string]string)
 		episodeImageList[mediaFile.GetEpisodePosterName()] = mediaFile.MediaEpisode.PosterPath
 		t.DownloadImages(episodePath, v115open.DEFAULTUA, episodeImageList)
-		helpers.AppLogger.Infof("电视剧 %s 季 %d 集 %d 生成nfo和下载图片成功，路径：%s", mediaFile.Name, mediaFile.SeasonNumber, mediaFile.EpisodeNumber, episodePath)
+		helpers.AppLogger.Infof("电视剧 %s 季 %d 集 %d 生成 NFO 和下载图片成功，路径：%s", mediaFile.Name, mediaFile.SeasonNumber, mediaFile.EpisodeNumber, episodePath)
 	}
 	mediaFile.ScrapeFinish()
 	return nil
@@ -116,7 +116,7 @@ func (t *tvShowScrapeImpl) Scrape(mediaFile *models.ScrapeMediaFile) error {
 func (t *tvShowScrapeImpl) Process(mediaFile *models.ScrapeMediaFile) error {
 	mediaFile.ScrapeRootPath = filepath.Join(helpers.ConfigDir, "tmp", "刮削临时文件", fmt.Sprintf("%d", mediaFile.ScrapePathId), "电视剧")
 	if err := os.MkdirAll(mediaFile.ScrapeRootPath, 0777); err != nil {
-		helpers.AppLogger.Errorf("创建临时目录失败: %v", err)
+		helpers.AppLogger.Errorf("创建临时目录失败：%v", err)
 		return err
 	}
 	if mediaFile.MediaEpisode == nil || (mediaFile.MediaEpisode != nil && mediaFile.MediaEpisode.Status == models.MediaStatusUnScraped) {
@@ -182,7 +182,7 @@ func (t *tvShowScrapeImpl) FinishEpisode(mediaFile *models.ScrapeMediaFile) {
 			s = false
 			continue
 		}
-		// 检查季是否存在eList
+		// 检查季是否存在于 eList
 		if _, ok := eList[f.SeasonNumber]; !ok {
 			eList[f.SeasonNumber] = make([]int, 0)
 		}
@@ -190,7 +190,7 @@ func (t *tvShowScrapeImpl) FinishEpisode(mediaFile *models.ScrapeMediaFile) {
 	}
 	// 是否可以删除来源目录
 	if !s {
-		helpers.AppLogger.Infof("电视剧 %s 季 %d 集 %d 完成,但有未完成的记录，不能删除来源目录", mediaFile.Name, mediaFile.SeasonNumber, mediaFile.EpisodeNumber)
+		helpers.AppLogger.Infof("电视剧 %s 季 %d 集 %d 已完成，但还有未完成记录，不能删除来源目录", mediaFile.Name, mediaFile.SeasonNumber, mediaFile.EpisodeNumber)
 		return
 	}
 	seasonStrArray := make([]string, 0)
@@ -198,7 +198,7 @@ func (t *tvShowScrapeImpl) FinishEpisode(mediaFile *models.ScrapeMediaFile) {
 		if len(se) == 0 {
 			continue
 		}
-		// 对se进行排序，由小到大
+		// 对 se 进行升序排序
 		sort.Ints(se)
 		min := se[0]
 		max := se[len(se)-1]
@@ -210,20 +210,20 @@ func (t *tvShowScrapeImpl) FinishEpisode(mediaFile *models.ScrapeMediaFile) {
 	}
 	seasonStr := strings.Join(seasonStrArray, ", ")
 	// 发送通知
-	helpers.AppLogger.Infof("电视剧 %s 刮削整理完成， 新路径：%s  季集：%s", mediaFile.Name, mediaFile.NewPathName, seasonStr)
+	helpers.AppLogger.Infof("电视剧 %s 刮削整理完成，新路径：%s，季集：%s", mediaFile.Name, mediaFile.NewPathName, seasonStr)
 	if mediaFile.Media != nil {
 		ctx := context.Background()
 		notif := &models.Notification{
 			Type:      models.ScrapeFinished,
 			Title:     fmt.Sprintf("✅ %s 刮削整理完成", mediaFile.Name),
-			Content:   fmt.Sprintf("📊 类型: 电视剧, 类别: %s, 分辨率: %s\n📺 季集: %s\n⏰ 时间: %s", mediaFile.CategoryName, mediaFile.Resolution, seasonStr, time.Now().Format("2006-01-02 15:04:05")),
+			Content:   fmt.Sprintf("📊 类型：电视剧，类别：%s，分辨率：%s\n📺 季集：%s\n⏰ 时间：%s", mediaFile.CategoryName, mediaFile.Resolution, seasonStr, time.Now().Format("2006-01-02 15:04:05")),
 			Image:     mediaFile.Media.PosterPath,
 			Timestamp: time.Now(),
 			Priority:  models.NormalPriority,
 		}
 		if notificationmanager.GlobalEnhancedNotificationManager != nil {
 			if err := notificationmanager.GlobalEnhancedNotificationManager.SendNotification(ctx, notif); err != nil {
-				helpers.AppLogger.Errorf("发送电视剧刮削完成通知失败: %v", err)
+				helpers.AppLogger.Errorf("发送电视剧刮削完成通知失败：%v", err)
 			}
 		}
 	}
@@ -237,12 +237,12 @@ func (t *tvShowScrapeImpl) FinishEpisode(mediaFile *models.ScrapeMediaFile) {
 		// 如果是重新刮削（回退后），跳过删除源路径
 		// 如果不强制删除来源目录，跳过
 		// 如果视频在来源根目录，跳过
-		helpers.AppLogger.Infof("视频 %s 存在不符合删除来源目录的条件，跳过删除来源目录: %s", mediaFile.Name, mediaFile.Path)
+		helpers.AppLogger.Infof("视频 %s 不符合删除来源目录的条件，跳过删除来源目录：%s", mediaFile.Name, mediaFile.Path)
 		return
 	}
 	err := t.renameImpl.RemoveMediaSourcePath(mediaFile, t.scrapePath)
 	if err != nil {
-		helpers.AppLogger.Errorf("删除来源路径 %s 失败: %v", mediaFile.TvshowPath, err)
+		helpers.AppLogger.Errorf("删除来源路径 %s 失败：%v", mediaFile.TvshowPath, err)
 	}
 }
 
@@ -276,14 +276,14 @@ func (t *tvShowScrapeImpl) GenerateNewEpisodeName(mediaFile *models.ScrapeMediaF
 	mediaFile.NewVideoBaseName = baseName
 	mediaFile.VideoExt = ext
 	if mediaFile.ScrapeType == models.ScrapeTypeOnly {
-		helpers.AppLogger.Infof("仅刮削模式下，不改变文件名，生成去掉扩展名的文件名: %s, 扩展名: %s", baseName, ext)
+		helpers.AppLogger.Infof("仅刮削模式下，不改变文件名，生成去掉扩展名的文件名：%s，扩展名：%s", baseName, ext)
 		return
 	}
 	if t.scrapePath.FileNameTemplate != "" {
 		baseName = mediaFile.GenerateNameByTemplate(t.scrapePath.FileNameTemplate) // 不含扩展名
 	}
 	mediaFile.NewVideoBaseName = baseName
-	helpers.AppLogger.Infof("生成去掉扩展名的文件名: %s, 扩展名: %s", baseName, ext)
+	helpers.AppLogger.Infof("生成去掉扩展名的文件名：%s，扩展名：%s", baseName, ext)
 }
 
 func (t *tvShowScrapeImpl) GenerateEpisodeNfo(mediaFile *models.ScrapeMediaFile) error {
@@ -324,10 +324,10 @@ func (t *tvShowScrapeImpl) GenerateEpisodeNfo(mediaFile *models.ScrapeMediaFile)
 	episodeNfoFile := filepath.Join(episodePath, mediaFile.GetEpisodeNfoName())
 	err := helpers.WriteEpisodeNfo(episode, episodeNfoFile)
 	if err != nil {
-		helpers.AppLogger.Errorf("生成集的nfo文件失败，电视剧 %s 季 %d 集 %d 文件路径：%s 错误： %v", mediaFile.Name, mediaFile.SeasonNumber, mediaFile.EpisodeNumber, episodeNfoFile, err)
+		helpers.AppLogger.Errorf("生成集的 NFO 文件失败，电视剧 %s 季 %d 集 %d，文件路径：%s，错误：%v", mediaFile.Name, mediaFile.SeasonNumber, mediaFile.EpisodeNumber, episodeNfoFile, err)
 		return err
 	} else {
-		helpers.AppLogger.Infof("生成集的nfo文件成功，电视剧 %s 季 %d 集 %d 文件路径：%s", mediaFile.Name, mediaFile.SeasonNumber, mediaFile.EpisodeNumber, episodeNfoFile)
+		helpers.AppLogger.Infof("生成集的 NFO 文件成功，电视剧 %s 季 %d 集 %d 文件路径：%s", mediaFile.Name, mediaFile.SeasonNumber, mediaFile.EpisodeNumber, episodeNfoFile)
 	}
 	return nil
 }
@@ -361,15 +361,15 @@ func (t *tvShowScrapeImpl) GetEpisodeUploadFiles(mediaFile *models.ScrapeMediaFi
 	return fileList
 }
 
-// 先命中一个syncPath，使用newPath
+// 先命中一个 syncPath，使用 newPath
 func (t *tvShowScrapeImpl) SyncFilesToSTRMPath(mediaFile *models.ScrapeMediaFile, files []uploadFile) {
 	syncPath := t.scrapePath.GetSyncPathByPath(mediaFile.Media.Path)
 	if syncPath == nil {
-		helpers.AppLogger.Errorf("未命中任何STRM同步目录, 无法将文件同步到STRM目录 %s", mediaFile.Media.Path)
+		helpers.AppLogger.Errorf("未命中任何 STRM 同步目录，无法将文件同步到 STRM 目录 %s", mediaFile.Media.Path)
 		return
 	}
-	// 先生成STRM文件
-	// 1. 构造STRM文件路径
+	// 先生成 STRM 文件
+	// 1. 构造 STRM 文件路径
 	syncStrm := syncstrm.NewSyncStrmFromSyncPath(syncPath)
 	path := mediaFile.GetDestFullSeasonPath()
 	strmErr := syncStrm.ProcessStrmFile(&syncstrm.SyncFileCache{
@@ -388,11 +388,11 @@ func (t *tvShowScrapeImpl) SyncFilesToSTRMPath(mediaFile *models.ScrapeMediaFile
 	})
 	models.DeleteSyncRecordById(syncStrm.Sync.ID)
 	if strmErr != nil {
-		helpers.AppLogger.Errorf("生成STRM文件失败, 失败原因: %v", strmErr)
+		helpers.AppLogger.Errorf("生成 STRM 文件失败，失败原因：%v", strmErr)
 		return
 	}
 
-	// 将其他文件放入STRM同步目录内
+	// 将其他文件放入 STRM 同步目录内
 	if files == nil {
 		return
 	}
@@ -401,14 +401,14 @@ func (t *tvShowScrapeImpl) SyncFilesToSTRMPath(mediaFile *models.ScrapeMediaFile
 		if !helpers.PathExists(destPath) {
 			err := os.MkdirAll(destPath, 0755)
 			if err != nil {
-				helpers.AppLogger.Errorf("创建目录 %s 失败, 失败原因: %v", destPath, err)
+				helpers.AppLogger.Errorf("创建目录 %s 失败，失败原因：%v", destPath, err)
 			}
 		}
 		destFile := filepath.Join(destPath, file.FileName)
 		// 复制过去
 		err := helpers.CopyFile(file.SourcePath, destFile)
 		if err != nil {
-			helpers.AppLogger.Errorf("复制文件 %s 到 %s 失败, 失败原因: %v", file.SourcePath, destFile, err)
+			helpers.AppLogger.Errorf("复制文件 %s 到 %s 失败，失败原因：%v", file.SourcePath, destFile, err)
 		}
 		helpers.AppLogger.Infof("复制文件 %s 到 %s 成功", file.SourcePath, destFile)
 	}
@@ -417,7 +417,7 @@ func (t *tvShowScrapeImpl) SyncFilesToSTRMPath(mediaFile *models.ScrapeMediaFile
 func (t *tvShowScrapeImpl) UploadEpisodeScrapeFile(mediaFile *models.ScrapeMediaFile) error {
 	// helpers.AppLogger.Infof("开始处理电视剧 %s 季 %d 集 %d 的元数据", mediaFile.Name, mediaFile.SeasonNumber, mediaFile.EpisodeNumber)
 	files := t.GetEpisodeUploadFiles(mediaFile)
-	// 将文件同步到STRM同步目录内
+	// 将文件同步到 STRM 同步目录内
 	t.SyncFilesToSTRMPath(mediaFile, files)
 	// 如果是本地文件直接移动到目标位置
 	ok, err := t.MoveLocalTempFileToDest(mediaFile, files)
@@ -431,7 +431,7 @@ func (t *tvShowScrapeImpl) UploadEpisodeScrapeFile(mediaFile *models.ScrapeMedia
 	for _, file := range files {
 		err := models.AddUploadTaskFromMediaFile(mediaFile, t.scrapePath, file.FileName, file.SourcePath, filepath.Join(file.DestPath, file.FileName), file.DestPathId, false)
 		if err != nil {
-			helpers.AppLogger.Errorf("添加上传任务 %s 失败, 失败原因: %v", file.FileName, err)
+			helpers.AppLogger.Errorf("添加上传任务 %s 失败，失败原因：%v", file.FileName, err)
 		}
 	}
 	// // 将上传文件添加到上传队列

@@ -48,7 +48,7 @@ func WriteSeasonNfo(m *TVShowSeason, filename string) error {
 	strOutput = strings.Replace(strOutput, "]]&gt;", "]]>", -1)
 	err = os.WriteFile(filename, []byte(strOutput), 0766)
 	if err != nil {
-		return fmt.Errorf("写入文件失败: %v", err)
+		return fmt.Errorf("写入文件失败：%v", err)
 	}
 
 	return nil

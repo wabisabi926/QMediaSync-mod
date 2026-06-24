@@ -22,7 +22,7 @@
         <div class="task-info" v-loading="infoLoading">
           <h3>任务信息</h3>
           <el-descriptions :column="1" border>
-            <el-descriptions-item label="任务ID">{{ taskId }}</el-descriptions-item>
+            <el-descriptions-item label="任务 ID">{{ taskId }}</el-descriptions-item>
             <el-descriptions-item label="任务状态">
               <el-tag v-if="taskInfo" :type="getStatusType(taskInfo.status)">
                 {{ getStatusText(taskInfo.status) }}
@@ -49,7 +49,7 @@
             <el-descriptions-item label="总文件数">
               {{ taskInfo?.processed_files || 0 }}
             </el-descriptions-item>
-            <el-descriptions-item label="生成STRM">
+            <el-descriptions-item label="生成 STRM">
               {{ taskInfo?.created_strm || 0 }}
             </el-descriptions-item>
             <el-descriptions-item label="下载元数据数">
@@ -78,11 +78,11 @@
               </div>
               <div class="step-content">
                 <div class="step-title">{{ item.title }}</div>
-                <div class="step-time" v-if="item.time && item.time !== '进行中...'">
+                <div class="step-time" v-if="item.time && item.time !== '进行中…'">
                   {{ item.time }}
                 </div>
-                <div class="step-time" v-else-if="item.time === '进行中...'">进行中...</div>
-                <div class="step-duration" v-if="item.duration">耗时: {{ item.duration }}</div>
+                <div class="step-time" v-else-if="item.time === '进行中…'">进行中…</div>
+                <div class="step-duration" v-if="item.duration">耗时：{{ item.duration }}</div>
               </div>
               <div
                 v-if="index < getTimelineItems().length - 1"
@@ -142,17 +142,17 @@ const http: AxiosStatic | undefined = inject('$http')
 const route = useRoute()
 const router = useRouter()
 
-// 获取任务ID
+// 获取任务 ID
 const taskId = ref(route.params.id as string)
 
 // 数据状态
 const taskInfo = ref<TaskInfo | null>(null)
 const infoLoading = ref(false)
 
-// 定时器相关 - 已停用，使用WebSocket替代
+// 定时器相关 - 已停用，使用 WebSocket 替代
 const refreshTimer = ref<number | null>(null)
 
-// WebSocket事件监听
+// WebSocket 事件监听
 import { useWSEvent } from '@/composables/useWebSocket'
 
 const onSyncComplete = () => {
@@ -231,15 +231,15 @@ const getExecutionDuration = () => {
 // 格式化时长
 const formatDuration = (duration: number) => {
   if (duration < 60) {
-    return `${duration}秒`
+    return `${duration} 秒`
   } else if (duration < 3600) {
     const minutes = Math.floor(duration / 60)
     const seconds = duration % 60
-    return `${minutes}分${seconds}秒`
+    return `${minutes} 分 ${seconds} 秒`
   } else {
     const hours = Math.floor(duration / 3600)
     const minutes = Math.floor((duration % 3600) / 60)
-    return `${hours}小时${minutes}分`
+    return `${hours} 小时 ${minutes} 分`
   }
 }
 
@@ -249,7 +249,7 @@ const getTimelineItems = () => {
 
   const items = []
 
-  // 阶段1: 开始
+  // 阶段 1：开始
   const startTime = taskInfo.value.start_time
   items.push({
     title: '开始任务',
@@ -263,7 +263,7 @@ const getTimelineItems = () => {
       !taskInfo.value.net_file_start_at,
   })
 
-  // 阶段2: 处理网盘文件
+  // 阶段 2：处理网盘文件
   const netFileStartAt = taskInfo.value.net_file_start_at
   const netFileFinishAt = taskInfo.value.net_file_finish_at
   const netFileCompleted = netFileStartAt && netFileFinishAt
@@ -283,7 +283,7 @@ const getTimelineItems = () => {
     time: netFileStartAt
       ? netFileFinishAt
         ? formatDateTime(netFileStartAt)
-        : '进行中...'
+        : '进行中…'
       : '未开始',
     icon: netFileCurrent ? Loading : Document,
     duration: netFileDuration,
@@ -291,7 +291,7 @@ const getTimelineItems = () => {
     current: netFileCurrent,
   })
 
-  // 阶段3: 处理本地文件
+  // 阶段 3：处理本地文件
   const localFileStartAt = taskInfo.value.local_file_start_at
   const localFileFinishAt = taskInfo.value.local_file_finish_at
   const localFileCompleted = localFileStartAt && localFileFinishAt
@@ -311,7 +311,7 @@ const getTimelineItems = () => {
     time: localFileStartAt
       ? localFileFinishAt
         ? formatDateTime(localFileStartAt)
-        : '进行中...'
+        : '进行中…'
       : '未开始',
     icon: localFileCurrent ? Loading : Download,
     duration: localFileDuration,
@@ -319,7 +319,7 @@ const getTimelineItems = () => {
     current: localFileCurrent,
   })
 
-  // 阶段4: 结束
+  // 阶段 4：结束
   const endTime = taskInfo.value.end_time
   items.push({
     title: '完成任务',
@@ -357,7 +357,7 @@ const loadTaskInfo = async () => {
       }
     }
   } catch (error) {
-    console.error('加载任务信息错误:', error)
+    console.error('加载任务信息错误：', error)
   } finally {
     infoLoading.value = false
     // 不再需要定时器检查

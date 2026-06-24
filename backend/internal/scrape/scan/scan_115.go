@@ -15,7 +15,7 @@ import (
 	"Q115-STRM/internal/v115open"
 )
 
-// 从115扫描需要刮削的文件入库
+// 从 115 扫描需要刮削的文件入库
 type Scan115Impl struct {
 	scanBaseImpl
 	client *v115open.OpenClient
@@ -27,17 +27,17 @@ func New115ScanImpl(scrapePath *models.ScrapePath, client *v115open.OpenClient, 
 
 // 检查来源目录和目标目录是否存在
 func (s *Scan115Impl) CheckPathExists() error {
-	// 检查sourceId是否存在
+	// 检查来源目录 ID 是否存在
 	sourceDetail, err := s.client.GetFsDetailByCid(s.ctx, s.scrapePath.SourcePathId)
 	if err != nil || sourceDetail.FileId == "" {
-		ferr := fmt.Errorf("刮削来源目录 %s => %s 疑似不存在，请检查或编辑重新选择来源目录: %v", s.scrapePath.SourcePathId, s.scrapePath.SourcePath, err)
+		ferr := fmt.Errorf("刮削来源目录 %s => %s 疑似不存在，请检查或编辑后重新选择来源目录：%v", s.scrapePath.SourcePathId, s.scrapePath.SourcePath, err)
 		return ferr
 	}
 	if s.scrapePath.ScrapeType != models.ScrapeTypeOnly {
-		// 检查targetId是否存在
+		// 检查目标目录 ID 是否存在
 		targetDetail, err := s.client.GetFsDetailByCid(s.ctx, s.scrapePath.DestPathId)
 		if err != nil || targetDetail.FileId == "" {
-			ferr := fmt.Errorf("刮削目标目录 %s => %s 疑似不存在，请检查或编辑重新选择目标目录: %v", s.scrapePath.DestPathId, s.scrapePath.DestPath, err)
+			ferr := fmt.Errorf("刮削目标目录 %s => %s 疑似不存在，请检查或编辑后重新选择目标目录：%v", s.scrapePath.DestPathId, s.scrapePath.DestPath, err)
 			return ferr
 		}
 	}
@@ -54,25 +54,25 @@ func (s *Scan115Impl) GetNetFileFiles() error {
 	if !s.CheckIsRunning() {
 		return errors.New("任务已停止")
 	}
-	// 检查sourceId是否存在
+	// 检查来源目录 ID 是否存在
 	sourceDetail, err := s.client.GetFsDetailByCid(s.ctx, s.scrapePath.SourcePathId)
 	if err != nil || sourceDetail.FileId == "" {
-		ferr := fmt.Errorf("刮削目录 %s => %s 疑似不存在，请检查或编辑重新选择来源目录: %v", s.scrapePath.SourcePathId, s.scrapePath.SourcePath, err)
+		ferr := fmt.Errorf("刮削目录 %s => %s 疑似不存在，请检查或编辑后重新选择来源目录：%v", s.scrapePath.SourcePathId, s.scrapePath.SourcePath, err)
 		return ferr
 	}
 	// 初始化路径队列，容量为接口线程数
 	s.pathTasks = make(chan string, models.SettingsGlobal.FileDetailThreads)
-	// 启动一个控制buffer的context
+	// 启动一个控制 buffer 的 context
 	bufferCtx, cancelBuffer := context.WithCancel(context.Background())
-	// 启动buffer to task
+	// 启动 buffer 到任务队列的转移协程
 	go s.bufferMonitor(bufferCtx)
 	// 加入根目录
 	s.wg = sync.WaitGroup{}
 	s.addPathToTasks(s.scrapePath.SourcePathId)
 	// 启动一个协程处理目录
-	helpers.AppLogger.Infof("开始处理目录 %s, 开启 %d 个任务", s.scrapePath.SourcePath, models.SettingsGlobal.FileDetailThreads)
+	helpers.AppLogger.Infof("开始处理目录 %s，开启 %d 个任务", s.scrapePath.SourcePath, models.SettingsGlobal.FileDetailThreads)
 	for i := 0; i < models.SettingsGlobal.FileDetailThreads; i++ {
-		// 在限速器控制下执行StartPathWork
+		// 在限速器控制下执行 startPathWork
 		go s.startPathWorkWithLimiter(i)
 	}
 	go func() {
@@ -82,13 +82,13 @@ func (s *Scan115Impl) GetNetFileFiles() error {
 		}
 	}()
 	s.wg.Wait()        // 等待最后一个目录处理完
-	close(s.pathTasks) // 关闭pathTasks，释放资源
-	cancelBuffer()     // 取消bufferMonitor上下文，释放资源
+	close(s.pathTasks) // 关闭 pathTasks，释放资源
+	cancelBuffer()     // 取消 bufferMonitor 上下文，释放资源
 	return nil
 }
 
 func (s *Scan115Impl) startPathWorkWithLimiter(workerID int) {
-	// 从channel获取路径任务
+	// 从 channel 获取路径任务
 	for {
 		select {
 		case <-s.ctx.Done():
@@ -99,8 +99,8 @@ func (s *Scan115Impl) startPathWorkWithLimiter(workerID int) {
 			}
 			offset := 0
 			limit := models.GetFileListPageSize()
-			// 记录下图片、nfo、字幕文件
-			// 如果发现了视频文件，则寻找有没有视频文件对应的图片、nfo、字幕文件
+			// 记录图片、NFO、字幕文件
+			// 如果发现了视频文件，则查找对应的图片、NFO、字幕文件
 			// 如果没发现视频文件，则清空
 			picFiles := make([]*localFile, 0)
 			nfoFiles := make([]*localFile, 0)
@@ -111,15 +111,15 @@ func (s *Scan115Impl) startPathWorkWithLimiter(workerID int) {
 			for {
 				// 分页取文件夹内容
 				// 查询目录下所有文件和文件夹
-				helpers.AppLogger.Infof("worker %d 开始处理目录 %s, offset=%d, limit=%d", workerID, pathId, offset, limit)
+				helpers.AppLogger.Infof("worker %d 开始处理目录 %s，offset=%d，limit=%d", workerID, pathId, offset, limit)
 				fsList, err := s.client.GetFsList(s.ctx, pathId, true, false, true, offset, limit)
 				if err != nil {
 					if strings.Contains(err.Error(), "context canceled") {
 						s.wg.Done()
-						helpers.AppLogger.Infof("worker %d 处理目录 %s 失败 上下文已取消", workerID, pathId)
+						helpers.AppLogger.Infof("worker %d 处理目录 %s 失败：上下文已取消", workerID, pathId)
 						return
 					}
-					helpers.AppLogger.Errorf("worker %d 处理目录 %s 失败: %v", workerID, pathId, err)
+					helpers.AppLogger.Errorf("worker %d 处理目录 %s 失败：%v", workerID, pathId, err)
 					continue pageloop
 				}
 				parentPath = fsList.PathStr
@@ -177,7 +177,7 @@ func (s *Scan115Impl) startPathWorkWithLimiter(workerID int) {
 						continue fileloop
 					}
 					if ext == ".nfo" {
-						helpers.AppLogger.Infof("文件 %s 是nfo文件", file.FileName)
+						helpers.AppLogger.Infof("文件 %s 是 NFO 文件", file.FileName)
 						nfoFiles = append(nfoFiles, &localFile{
 							Id:       file.FileId,
 							PickCode: file.PickCode,
@@ -210,7 +210,7 @@ func (s *Scan115Impl) startPathWorkWithLimiter(workerID int) {
 				s.wg.Done()
 				return
 			}
-			// 任务完成，通知WaitGroup
+			// 任务完成，通知 WaitGroup
 			s.wg.Done()
 		}
 	}

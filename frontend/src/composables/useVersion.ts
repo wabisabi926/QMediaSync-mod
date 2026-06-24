@@ -22,7 +22,7 @@ export function useVersion() {
         versionInfo.value = null
       }
     } catch (error) {
-      console.error('加载系统版本信息错误:', error)
+      console.error('加载系统版本信息错误：', error)
       versionInfo.value = null
     } finally {
       versionLoading.value = false

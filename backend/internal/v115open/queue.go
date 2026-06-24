@@ -11,11 +11,11 @@ import (
 
 // QueuedRequest 队列中的请求
 type QueuedRequest struct {
-	// 请求的URL
+	// 请求的 URL
 	URL string
-	// HTTP方法（GET/POST）
+	// HTTP 方法（GET/POST）
 	Method string
-	// Resty请求对象
+	// Resty 请求对象
 	Request *resty.Request
 	// 是否绕过速率限制（播放请求等）
 	BypassRateLimit bool
@@ -54,7 +54,7 @@ type RequestStats struct {
 	ResponseTimes []int64 // 最近响应时间记录（毫秒）
 	MaxRecords    int     // 最多保留记录数
 	// 时间窗口统计
-	RequestLog []RequestLogEntry // 请求日志，用于统计qps/qpm/qph
+	RequestLog []RequestLogEntry // 请求日志，用于统计 QPS/QPM/QPH
 }
 
 // RequestLogEntry 请求日志条目
@@ -62,7 +62,7 @@ type RequestLogEntry struct {
 	Timestamp   time.Time // 请求时间
 	Duration    int64     // 响应时间（毫秒）
 	IsThrottled bool      // 是否限流
-	URL         string    // 请求URL
+	URL         string    // 请求 URL
 	Method      string    // 请求方法
 }
 
@@ -125,9 +125,9 @@ func (s *RequestStats) GetStats(duration time.Duration) *StatsSnapshot {
 	cutoff := now.Add(-duration)
 
 	var (
-		qpsCount         int64 // 最近1秒的请求数
-		qpmCount         int64 // 最近1分钟的请求数
-		qphCount         int64 // 最近1小时的请求数
+		qpsCount         int64 // 最近 1 秒的请求数
+		qpmCount         int64 // 最近 1 分钟的请求数
+		qphCount         int64 // 最近 1 小时的请求数
 		windowCount      int64 // 指定时间窗口内的请求数
 		throttledCount   int64 // 限流请求数
 		totalDuration    int64 // 总耗时
@@ -147,15 +147,15 @@ func (s *RequestStats) GetStats(duration time.Duration) *StatsSnapshot {
 		}
 
 		// 分别统计不同时间窗口
-		// 最近1秒
+		// 最近 1 秒
 		if entry.Timestamp.After(now.Add(-time.Second)) {
 			qpsCount++
 		}
-		// 最近1分钟
+		// 最近 1 分钟
 		if entry.Timestamp.After(now.Add(-time.Minute)) {
 			qpmCount++
 		}
-		// 最近1小时
+		// 最近 1 小时
 		if entry.Timestamp.After(now.Add(-time.Hour)) {
 			qphCount++
 		}
@@ -187,9 +187,9 @@ func (s *RequestStats) GetStats(duration time.Duration) *StatsSnapshot {
 // StatsSnapshot 统计数据快照
 type StatsSnapshot struct {
 	TotalRequests       int64         // 总请求数
-	QPSCount            int64         // 最近1秒请求数
-	QPMCount            int64         // 最近1分钟请求数
-	QPHCount            int64         // 最近1小时请求数
+	QPSCount            int64         // 最近 1 秒请求数
+	QPMCount            int64         // 最近 1 分钟请求数
+	QPHCount            int64         // 最近 1 小时请求数
 	ThrottledCount      int64         // 限流总次数
 	AvgResponseTime     int64         // 平均响应时间（毫秒）
 	LastThrottleTime    *time.Time    // 最后一次限流时间

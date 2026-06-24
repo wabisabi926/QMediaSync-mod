@@ -6,10 +6,7 @@
       <div class="top-actions">
         <div class="action-group">
           <div class="action-buttons">
-            <el-tooltip
-              content="将所选的识别错误的记录导出成一个文件，可以发送给作者"
-              placement="top"
-            >
+            <el-tooltip content="将所选识别错误记录导出为文件，方便反馈问题" placement="top">
               <el-button
                 type="primary"
                 @click="handleExportErrors"
@@ -18,7 +15,7 @@
               >
             </el-tooltip>
             <el-tooltip
-              content="将刮削记录删除后，对应的文件在下次扫描时会再次识别和刮削。"
+              content="删除刮削记录后，对应文件会在下次扫描时重新识别和刮削。"
               placement="top"
             >
               <el-button
@@ -29,7 +26,7 @@
               >
             </el-tooltip>
             <el-tooltip
-              content="请选择整理失败的记录，该操作会将所选记录标记为待整理，下次整理时重试。"
+              content="请选择整理失败的记录；所选记录会被标记为待整理，并在下次整理时重试。"
               placement="top"
             >
               <el-button
@@ -44,10 +41,7 @@
         </div>
         <div class="action-group">
           <div class="action-buttons">
-            <el-tooltip
-              content="会将列表中属于同一个电视剧的所有集合并成一条数据，方便查看"
-              placement="top"
-            >
+            <el-tooltip content="将同一部电视剧的所有集合并为一条记录，方便查看" placement="top">
               <el-button type="primary" @click="toggleMergeEpisodes">
                 {{ isMerged ? '显示电视剧集' : '合并电视剧集' }}
               </el-button>
@@ -223,7 +217,7 @@
           <el-descriptions-item label="新文件名">{{
             selectedRecord.new_dest_name || '-'
           }}</el-descriptions-item>
-          <el-descriptions-item label="TMDBID">{{
+          <el-descriptions-item label="TMDB ID">{{
             selectedRecord.tmdb_id || '-'
           }}</el-descriptions-item>
           <el-descriptions-item label="季集">
@@ -247,7 +241,7 @@
           <el-descriptions-item label="分辨率等级">{{
             selectedRecord.resolution_level || '-'
           }}</el-descriptions-item>
-          <el-descriptions-item label="是否HDR">{{
+          <el-descriptions-item label="HDR">{{
             selectedRecord.is_hdr ? '是' : '否'
           }}</el-descriptions-item>
           <el-descriptions-item label="状态">{{
@@ -315,7 +309,7 @@
               <el-form-item label="TMDB ID" class="tmdb-input">
                 <el-input
                   v-model="reScrapeForm.tmdb_id"
-                  placeholder="请输入TMDB ID"
+                  placeholder="请输入 TMDB ID"
                   type="number"
                   :min="1"
                 />
@@ -352,7 +346,7 @@
             <el-icon>
               <Film />
             </el-icon>
-            <span>搜索结果 ({{ searchResults.length }})</span>
+            <span>搜索结果（{{ searchResults.length }}）</span>
           </div>
           <div class="results-list">
             <div class="result-item" v-for="item in searchResults" :key="item.tmdb_id">
@@ -370,11 +364,11 @@
               <div class="result-info">
                 <div class="result-title">{{ item.title }}</div>
                 <div class="result-original-title" v-if="item.original_title !== item.title">
-                  原名: {{ item.original_title }}
+                  原名：{{ item.original_title }}
                 </div>
                 <div class="result-meta">
                   <el-tag size="small" type="info">{{ item.year || '未知年份' }}</el-tag>
-                  <el-tag size="small" type="warning">TMDB ID: {{ item.tmdb_id }}</el-tag>
+                  <el-tag size="small" type="warning">TMDB ID：{{ item.tmdb_id }}</el-tag>
                 </div>
                 <div class="result-overview" v-if="item.overview">
                   {{ item.overview }}
@@ -395,7 +389,7 @@
         </div>
 
         <div class="empty-results" v-if="hasSearched && searchResults.length === 0">
-          <el-empty description="未找到匹配的影片" :image-size="80" />
+          <el-empty description="未找到匹配结果" :image-size="80" />
         </div>
       </div>
       <template #footer>
@@ -417,7 +411,7 @@
           <span class="tips-text">
             当前刮削产生的临时文件存放在
             <strong>config/tmp/刮削临时文件/</strong>
-            目录下，可以观察是否存在异常情况，刮削完成的文件会删除临时文件
+            目录下，可用于排查异常情况；刮削完成后，相关临时文件会自动删除
           </span>
         </template>
       </el-alert>
@@ -431,7 +425,8 @@
       :before-close="handleRollbackDialogBeforeClose"
     >
       <p>
-        确认回滚该刮削记录吗？回滚后视频+字幕会放回原目录并且根据查询到的tmdb信息重命名，刮削记录会被删除，后续扫描时会重新刮削该影片。
+        确认回滚这条刮削记录吗？回滚后，视频和字幕会放回原目录，并根据已查询到的 TMDB
+        信息重命名；这条记录会被删除，后续扫描时会重新刮削该影片。
       </p>
       <template #footer>
         <div class="dialog-footer">
@@ -921,7 +916,7 @@ const loadRecords = async () => {
           pageSize: pageSize.value,
         }
 
-        // 根据需求，将statusFilter映射到media_type参数
+        // 根据需求，将 statusFilter 映射到 media_type 参数
         if (statusFilter.value) {
           params.status = statusFilter.value
         }
@@ -951,14 +946,14 @@ const loadRecords = async () => {
           )
           total.value = response.data.data.total
         } else {
-          ElMessage.error(`加载刮削记录失败: ${response?.data.message || '未知错误'}`)
+          ElMessage.error(`加载刮削记录失败：${response?.data.message || '未知错误'}`)
         }
       } catch (error) {
         if (!scrapeRecordsRequestGate.isCurrent(requestId)) {
           return
         }
-        console.error('加载刮削记录失败:', error)
-        ElMessage.error('加载刮削记录失败: 网络错误')
+        console.error('加载刮削记录失败：', error)
+        ElMessage.error('加载刮削记录失败：网络错误')
       }
     })
   } finally {
@@ -1060,7 +1055,7 @@ const handleExportErrors = async () => {
     }
 
     const ids = selectedRecords.value.map((record) => record.id)
-    // 构造URL，将ids作为GET参数传递
+    // 构造 URL，将 ids 作为 GET 参数传递
     const idsQuery = ids.join(',')
     const downloadUrl = `${SERVER_URL}/scrape/records/export?ids=${idsQuery}`
 
@@ -1068,8 +1063,8 @@ const handleExportErrors = async () => {
     window.open(downloadUrl, '_blank')
     ElMessage.success('导出请求已发送')
   } catch (error) {
-    console.error('导出失败:', error)
-    ElMessage.error('导出失败: 网络错误')
+    console.error('导出失败：', error)
+    ElMessage.error('导出失败：网络错误')
   }
 }
 
@@ -1106,8 +1101,8 @@ const handleDeleteSelectedRecords = async () => {
     }
 
     const ids = selectedRecords.value.map((record) => record.id)
-    // 发送DELETE请求，参数与导出识别错误文件接口一致
-    // 构造URL，将ids作为GET参数传递
+    // 发送 DELETE 请求，参数与导出识别错误文件接口一致
+    // 构造 URL，将 ids 作为 GET 参数传递
     const idsQuery = ids.join(',')
     const response = await http?.delete(`${SERVER_URL}/scrape/records?ids=${idsQuery}`)
 
@@ -1122,14 +1117,14 @@ const handleDeleteSelectedRecords = async () => {
       // 刷新记录列表
       loadRecords()
     } else {
-      ElMessage.error(`删除失败: ${response?.data.message || '未知错误'}`)
+      ElMessage.error(`删除失败：${response?.data.message || '未知错误'}`)
     }
   } catch (error) {
     if (!isScrapeRecordsMutationContextCurrent(operationContext)) {
       return
     }
-    console.error('删除失败:', error)
-    ElMessage.error('删除失败: 网络错误')
+    console.error('删除失败：', error)
+    ElMessage.error('删除失败：网络错误')
   } finally {
     if (isScrapeRecordsMutationContextCurrent(operationContext)) {
       finishScrapeRecordsMutationContext(operationContext)
@@ -1169,8 +1164,8 @@ const handleRename = async () => {
     }
 
     const ids = selectedRecords.value.map((record) => record.id)
-    // 发送DELETE请求，参数与导出识别错误文件接口一致
-    // 构造URL，将ids作为GET参数传递
+    // 发送 DELETE 请求，参数与导出识别错误文件接口一致
+    // 构造 URL，将 ids 作为 GET 参数传递
     const idsQuery = ids.join(',')
     const response = await http?.post(`${SERVER_URL}/scrape/rename-failed?ids=${idsQuery}`)
 
@@ -1185,14 +1180,14 @@ const handleRename = async () => {
       // 刷新记录列表
       loadRecords()
     } else {
-      ElMessage.error(`重新整理失败: ${response?.data.message || '未知错误'}`)
+      ElMessage.error(`重新整理失败：${response?.data.message || '未知错误'}`)
     }
   } catch (error) {
     if (!isScrapeRecordsMutationContextCurrent(operationContext)) {
       return
     }
-    console.error('重新整理失败:', error)
-    ElMessage.error('重新整理失败: 网络错误')
+    console.error('重新整理失败：', error)
+    ElMessage.error('重新整理失败：网络错误')
   } finally {
     if (isScrapeRecordsMutationContextCurrent(operationContext)) {
       finishScrapeRecordsMutationContext(operationContext)
@@ -1254,7 +1249,7 @@ const searchTmdb = async () => {
     }
   } else {
     if (!reScrapeForm.value.tmdb_id) {
-      ElMessage.warning('请输入TMDB ID')
+      ElMessage.warning('请输入 TMDB ID')
       return
     }
   }
@@ -1296,8 +1291,8 @@ const searchTmdb = async () => {
     if (!isRecordActionContextCurrent(operationContext, recordId)) {
       return
     }
-    console.error('TMDB搜索失败:', error)
-    ElMessage.error('搜索失败: 网络错误')
+    console.error('TMDB 搜索失败：', error)
+    ElMessage.error('搜索失败：网络错误')
   } finally {
     if (isRecordActionContextCurrent(operationContext, recordId)) {
       searchLoading.value = false
@@ -1343,8 +1338,8 @@ const selectSearchResult = async (item: TmdbSearchResult) => {
     if (!isRecordActionContextCurrent(operationContext, recordId)) {
       return
     }
-    console.error('重新识别失败:', error)
-    ElMessage.error('重新识别失败: 网络错误')
+    console.error('重新识别失败：', error)
+    ElMessage.error('重新识别失败：网络错误')
   } finally {
     item.selecting = false
   }
@@ -1400,17 +1395,17 @@ const handleDeleteFailedRecords = async () => {
     }
 
     if (response?.data.code === 200) {
-      ElMessage.success('清除所有刮削失败的记录成功')
+      ElMessage.success('刮削失败记录已清除')
       loadRecords()
     } else {
-      ElMessage.error(`清除所有刮削失败的记录失败: ${response?.data.message || '未知错误'}`)
+      ElMessage.error(`清除刮削失败记录失败：${response?.data.message || '未知错误'}`)
     }
   } catch (error) {
     if (!isScrapeRecordsMutationContextCurrent(operationContext)) {
       return
     }
-    console.error('清除所有刮削失败的记录失败:', error)
-    ElMessage.error('清除所有刮削失败的记录失败: 网络错误')
+    console.error('清除刮削失败记录失败：', error)
+    ElMessage.error('清除刮削失败记录失败：网络错误')
   } finally {
     if (isScrapeRecordsMutationContextCurrent(operationContext)) {
       finishScrapeRecordsMutationContext(operationContext)
@@ -1462,7 +1457,7 @@ const handleTruncateAll = async () => {
       // 刷新记录列表
       loadRecords()
     } else {
-      ElMessage.error(`清空记录失败: ${response?.data.message || '未知错误'}`)
+      ElMessage.error(`清空记录失败：${response?.data.message || '未知错误'}`)
     }
   } catch (error) {
     if (!isScrapeRecordsMutationContextCurrent(operationContext)) {
@@ -1470,8 +1465,8 @@ const handleTruncateAll = async () => {
     }
     // 如果用户取消操作，不显示错误消息
     if (!isMessageBoxCancelError(error)) {
-      console.error('清空记录失败:', error)
-      ElMessage.error('清空记录失败: 网络错误')
+      console.error('清空记录失败：', error)
+      ElMessage.error('清空记录失败：网络错误')
     }
   } finally {
     if (isScrapeRecordsMutationContextCurrent(operationContext)) {
@@ -1508,7 +1503,7 @@ const markAsFinished = async (record: ScrapeRecord) => {
       return
     }
 
-    // 发送POST请求到/scrape/finish接口
+    // 发送 POST 请求到/scrape/finish 接口
     const response = await http?.post(`${SERVER_URL}/scrape/finish`, { id: record.id })
 
     if (!isRecordActionContextCurrent(operationContext, record.id)) {
@@ -1520,7 +1515,7 @@ const markAsFinished = async (record: ScrapeRecord) => {
       // 刷新记录列表
       loadRecords()
     } else {
-      ElMessage.error(`标记为已整理失败: ${response?.data.message || '未知错误'}`)
+      ElMessage.error(`标记为已整理失败：${response?.data.message || '未知错误'}`)
     }
   } catch (error) {
     if (!isRecordActionContextCurrent(operationContext, record.id)) {
@@ -1528,8 +1523,8 @@ const markAsFinished = async (record: ScrapeRecord) => {
     }
     // 如果用户取消操作，不显示错误消息
     if (!isMessageBoxCancelError(error)) {
-      console.error('标记为已整理失败:', error)
-      ElMessage.error('标记为已整理失败: 网络错误')
+      console.error('标记为已整理失败：', error)
+      ElMessage.error('标记为已整理失败：网络错误')
     }
   } finally {
     if (isRecordActionContextCurrent(operationContext, record.id)) {
@@ -1543,19 +1538,19 @@ const getStatusTooltip = (status: string): string => {
     case 'scanned':
       return '文件已扫描入库，等待刮削'
     case 'scraping':
-      return '正在刮削中...'
+      return '正在刮削中…'
     case 'scraped':
       return '刮削成功，等待整理。如果本次没有成功，下次任务启动时会继续处理'
     case 'scrape_failed':
-      return '刮削失败，需要重新识别。'
+      return '刮削失败，需要重新识别'
     case 'renaming':
-      return '正在整理...'
+      return '正在整理…'
     case 'renamed':
       return '整理成功，无需额外处理'
     case 'rename_failed':
-      return '整理失败，请删除刮削记录或者标记为待整理后等待下次任务启动时重新整理。'
+      return '整理失败，可删除刮削记录，或标记为待整理后等待下次任务重新处理'
     case 'rollbacking':
-      return '等待回滚任务执行时会将视频+字幕放回原目录，然后删除该刮削记录'
+      return '等待回滚任务执行时会将视频和字幕放回原目录，然后删除该刮削记录'
     default:
       return '未知状态'
   }
@@ -1590,11 +1585,11 @@ const getSourceTypeName = (type: string): string => {
     case 'local':
       return '本地文件'
     case '115':
-      return '115云盘'
+      return '115 网盘'
     case 'openlist':
       return 'OpenList'
     case '123':
-      return '123云盘'
+      return '123 网盘'
     case 'baidupan':
       return '百度网盘'
     default:

@@ -15,8 +15,8 @@ import (
 // @Accept json
 // @Produce json
 // @Param status query string false "任务状态"
-// @Param page query integer false "页码，默认1"
-// @Param page_size query integer false "每页数量，默认100"
+// @Param page query integer false "页码，默认 1"
+// @Param page_size query integer false "每页数量，默认 100"
 // @Success 200 {object} object
 // @Failure 200 {object} object
 // @Router /upload/queue [get]
@@ -40,16 +40,16 @@ func UploadList(ctx *gin.Context) {
 		req.PageSize = 100
 	}
 	// 从请求中获取文件列表
-	// 从model/upload.go中查询上传队列列表
+	// 从 model/upload.go 中查询上传队列列表
 	type uploadQueueResp struct {
 		Total     int                    `json:"total"`
 		Uploading int                    `json:"uploading"`
 		List      []*models.DbUploadTask `json:"list"`
 	}
 	// 从请求中获取文件列表
-	// 从model/upload.go中查询上传队列列表
+	// 从 model/upload.go 中查询上传队列列表
 	uploadList, total := models.GetUploadTaskList(req.Status, req.Page, req.PageSize)
-	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "上传队列列表查询成功", Data: uploadQueueResp{
+	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取上传队列成功", Data: uploadQueueResp{
 		Total:     int(total),
 		Uploading: int(models.GetUploadingCount()),
 		List:      uploadList,
@@ -68,7 +68,7 @@ func UploadList(ctx *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func ClearPendingUploadTasks(ctx *gin.Context) {
-	// 调用全局上传队列的ClearPendingTasks方法
+	// 调用全局上传队列的 ClearPendingTasks 方法
 	err := models.ClearPendingUploadTasks()
 	if err != nil {
 		ctx.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "清除待上传任务失败", Data: nil})
@@ -76,7 +76,7 @@ func ClearPendingUploadTasks(ctx *gin.Context) {
 	}
 
 	// 返回结果
-	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "成功清除待上传任务", Data: nil})
+	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "待上传任务已清除", Data: nil})
 }
 
 // ClearUploadSuccessAndFailedTasks 清除上传队列中成功和失败的任务
@@ -93,11 +93,11 @@ func ClearPendingUploadTasks(ctx *gin.Context) {
 func ClearUploadSuccessAndFailedTasks(ctx *gin.Context) {
 	err := models.ClearUploadSuccessAndFailed()
 	if err != nil {
-		ctx.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "删除成功和失败任务失败", Data: nil})
+		ctx.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "删除已完成和失败的上传任务失败", Data: nil})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "成功删除成功和失败任务", Data: nil})
+	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "已完成和失败的上传任务已删除", Data: nil})
 }
 
 // RetryFailedUploadTasks 重试所有失败的上传任务
@@ -114,11 +114,11 @@ func ClearUploadSuccessAndFailedTasks(ctx *gin.Context) {
 func RetryFailedUploadTasks(ctx *gin.Context) {
 	err := models.RetryFailedUploadTasks(models.DefaultQueueRetryMax)
 	if err != nil {
-		ctx.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "重试失败任务失败", Data: nil})
+		ctx.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "重试失败的上传任务失败", Data: nil})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "重试失败任务成功", Data: nil})
+	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "失败的上传任务已重新加入队列", Data: nil})
 }
 
 // RetryFailedDownloadTasks 重试所有失败的下载任务
@@ -135,11 +135,11 @@ func RetryFailedUploadTasks(ctx *gin.Context) {
 func RetryFailedDownloadTasks(ctx *gin.Context) {
 	err := models.RetryFailedDownloadTasks(models.DefaultQueueRetryMax)
 	if err != nil {
-		ctx.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "重试失败任务失败", Data: nil})
+		ctx.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "重试失败的下载任务失败", Data: nil})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "重试失败任务成功", Data: nil})
+	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "失败的下载任务已重新加入队列", Data: nil})
 }
 
 // StartUploadQueue 启动上传队列
@@ -154,11 +154,11 @@ func RetryFailedDownloadTasks(ctx *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func StartUploadQueue(ctx *gin.Context) {
-	// 调用全局上传队列的Start方法
+	// 调用全局上传队列的 Start 方法
 	models.GlobalUploadQueue.Restart()
 
 	// 返回结果
-	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "下载队列已启动", Data: nil})
+	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "上传队列已启动", Data: nil})
 }
 
 // StopUploadQueue 停止上传队列
@@ -173,7 +173,7 @@ func StartUploadQueue(ctx *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func StopUploadQueue(ctx *gin.Context) {
-	// 调用全局上传队列的Stop方法
+	// 调用全局上传队列的 Stop 方法
 	models.GlobalUploadQueue.Stop()
 
 	// 返回结果
@@ -192,11 +192,11 @@ func StopUploadQueue(ctx *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func UploadQueueStatus(ctx *gin.Context) {
-	// 调用全局上传队列的GetStatus方法
+	// 调用全局上传队列的 GetStatus 方法
 	status := models.GlobalUploadQueue.IsRunning()
 
 	// 返回结果
-	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "下载队列状态查询成功", Data: status})
+	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取上传队列状态成功", Data: status})
 }
 
 // DownloadList 获取下载队列列表
@@ -206,8 +206,8 @@ func UploadQueueStatus(ctx *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param status query string false "任务状态"
-// @Param page query integer false "页码，默认1"
-// @Param page_size query integer false "每页数量，默认100"
+// @Param page query integer false "页码，默认 1"
+// @Param page_size query integer false "每页数量，默认 100"
 // @Success 200 {object} object
 // @Failure 200 {object} object
 // @Router /download/queue [get]
@@ -236,9 +236,9 @@ func DownloadList(ctx *gin.Context) {
 		req.PageSize = 100
 	}
 	// 从请求中获取文件列表
-	// 从model/download.go中查询下载队列列表
+	// 从 model/download.go 中查询下载队列列表
 	downloadList, total := models.GetDownloadTaskList(req.Status, req.Page, req.PageSize)
-	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "下载队列列表查询成功", Data: downloadQueueResp{
+	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取下载队列成功", Data: downloadQueueResp{
 		Total:       total,
 		Downloading: models.GetDownloadingCount(),
 		List:        downloadList,
@@ -257,15 +257,15 @@ func DownloadList(ctx *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func ClearPendingDownloadTasks(ctx *gin.Context) {
-	// 调用全局下载队列的ClearPendingTasks方法
+	// 调用全局下载队列的 ClearPendingTasks 方法
 	err := models.ClearDownloadPendingTasks()
 	if err != nil {
-		ctx.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "清除下载任务失败", Data: nil})
+		ctx.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "清除待下载任务失败", Data: nil})
 		return
 	}
 
 	// 返回结果
-	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "成功清除下载任务", Data: nil})
+	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "待下载任务已清除", Data: nil})
 }
 
 // StartDownloadQueue 启动下载队列
@@ -280,7 +280,7 @@ func ClearPendingDownloadTasks(ctx *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func StartDownloadQueue(ctx *gin.Context) {
-	// 调用全局下载队列的Start方法
+	// 调用全局下载队列的 Start 方法
 	models.GlobalDownloadQueue.Restart()
 
 	// 返回结果
@@ -299,7 +299,7 @@ func StartDownloadQueue(ctx *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func StopDownloadQueue(ctx *gin.Context) {
-	// 调用全局下载队列的Stop方法
+	// 调用全局下载队列的 Stop 方法
 	models.GlobalDownloadQueue.Stop()
 
 	// 返回结果
@@ -318,11 +318,11 @@ func StopDownloadQueue(ctx *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func DownloadQueueStatus(ctx *gin.Context) {
-	// 调用全局下载队列的GetStatus方法
+	// 调用全局下载队列的 GetStatus 方法
 	status := models.GlobalDownloadQueue.IsRunning()
 
 	// 返回结果
-	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "下载队列状态查询成功", Data: status})
+	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取下载队列状态成功", Data: status})
 }
 
 // ClearDownloadSuccessAndFailedTasks 清除下载队列中成功和失败的任务
@@ -337,13 +337,13 @@ func DownloadQueueStatus(ctx *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func ClearDownloadSuccessAndFailedTasks(ctx *gin.Context) {
-	// 调用全局下载队列的DeleteSuccessAndFailed方法
+	// 调用全局下载队列的 DeleteSuccessAndFailed 方法
 	err := models.ClearDownloadSuccessAndFailed()
 	if err != nil {
-		ctx.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "删除成功和失败任务失败", Data: nil})
+		ctx.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "删除已完成和失败的下载任务失败", Data: nil})
 		return
 	}
 
 	// 返回结果
-	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "成功删除成功和失败任务", Data: nil})
+	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "已完成和失败的下载任务已删除", Data: nil})
 }

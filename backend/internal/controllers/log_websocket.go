@@ -39,7 +39,7 @@ func parseLogLine(line string) LogEntry {
 		Timestamp: time.Now().Format("2006-01-02 15:04:05.000000"),
 	}
 
-	// 解析日志格式：2025/11/29 12:33:09.530499 [INFO] 开始处理同步任务: 类型=刮削整理, ID=2
+	// 解析日志格式：2025/11/29 12:33:09.530499 [INFO] 开始处理同步任务：类型=刮削整理，ID=2
 	// 正则表达式匹配日志格式
 	pattern := `^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}\.\d{6}) \[(\w+)\] (.+)$`
 	regex := regexp.MustCompile(pattern)
@@ -81,7 +81,7 @@ type OldLogsResponse struct {
 	StartPos int64      `json:"start_pos"`
 }
 
-// GetOldLogs 通过HTTP接口获取旧日志，返回JSON格式
+// GetOldLogs 通过 HTTP 接口获取旧日志，返回 JSON 格式。
 func GetOldLogs(c *gin.Context) {
 	var req *OldLogsRequest
 	err := c.ShouldBind(&req)
@@ -100,7 +100,7 @@ func GetOldLogs(c *gin.Context) {
 
 	if pos == 0 && direction == "forward" {
 		// 已经到了文件开头
-		// 返回JSON结果
+		// 返回 JSON 结果
 		c.JSON(http.StatusOK, OldLogsResponse{
 			Entries:  make([]LogEntry, 0),
 			Pos:      0,
@@ -119,16 +119,16 @@ func GetOldLogs(c *gin.Context) {
 	}
 	resultLines, newPos, err := helpers.ReadLines(fullLogPath, int64(pos), limit, direction)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("读取日志文件失败: %v", err)})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("读取日志文件失败：%v", err)})
 		return
 	}
-	// 解析日志行，转换为LogEntry结构
+	// 解析日志行，转换为 LogEntry 结构
 	entries := make([]LogEntry, 0, len(resultLines))
 	for _, line := range resultLines {
 		entries = append(entries, parseLogLine(line))
 	}
 
-	// 返回JSON结果
+	// 返回 JSON 结果
 	c.JSON(http.StatusOK, OldLogsResponse{
 		Entries:  entries,
 		Pos:      newPos,
@@ -148,7 +148,7 @@ func DownloadLogFile(c *gin.Context) {
 	// 拼接完整日志文件路径
 	fullLogPath, err := helpers.SafeJoin(filepath.Join(helpers.ConfigDir, "logs"), logPath)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("路径遍历攻击 detected: %v", err)})
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("日志文件路径不合法：%v", err)})
 		return
 	}
 
@@ -171,12 +171,12 @@ func DownloadLogFile(c *gin.Context) {
 	c.File(fullLogPath)
 }
 
-// LogWebSocket 通过websocket查看日志
+// LogWebSocket 通过 WebSocket 查看日志。
 func LogWebSocket(c *gin.Context) {
-	// 升级HTTP连接为WebSocket连接
+	// 升级 HTTP 连接为 WebSocket 连接
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		helpers.AppLogger.Errorf("升级WebSocket连接失败: %v", err)
+		helpers.AppLogger.Errorf("升级 WebSocket 连接失败：%v", err)
 		return
 	}
 	defer conn.Close()
@@ -186,11 +186,11 @@ func LogWebSocket(c *gin.Context) {
 	if logPath == "" {
 		entry := LogEntry{
 			Level:     "error",
-			Message:   "错误: 未提供日志文件路径",
+			Message:   "错误：未提供日志文件路径",
 			Timestamp: time.Now().Format("2006-01-02 15:04:05.000000"),
 		}
 		if werr := conn.WriteJSON(entry); werr != nil {
-			helpers.AppLogger.Errorf("发送错误消息失败: %v", werr)
+			helpers.AppLogger.Errorf("发送错误消息失败：%v", werr)
 		}
 		return
 	}
@@ -202,11 +202,11 @@ func LogWebSocket(c *gin.Context) {
 	if _, serr := os.Stat(fullLogPath); os.IsNotExist(serr) {
 		entry := LogEntry{
 			Level:     "error",
-			Message:   fmt.Sprintf("错误: 日志文件不存在: %s", fullLogPath),
+			Message:   fmt.Sprintf("错误：日志文件不存在：%s", fullLogPath),
 			Timestamp: time.Now().Format("2006-01-02 15:04:05.000000"),
 		}
 		if werr := conn.WriteJSON(entry); werr != nil {
-			helpers.AppLogger.Errorf("发送错误消息失败: %v", werr)
+			helpers.AppLogger.Errorf("发送错误消息失败：%v", werr)
 		}
 		return
 	}
@@ -216,11 +216,11 @@ func LogWebSocket(c *gin.Context) {
 	if err != nil {
 		entry := LogEntry{
 			Level:     "error",
-			Message:   fmt.Sprintf("错误: 打开日志文件失败: %v", err),
+			Message:   fmt.Sprintf("错误：打开日志文件失败：%v", err),
 			Timestamp: time.Now().Format("2006-01-02 15:04:05.000000"),
 		}
 		if werr := conn.WriteJSON(entry); werr != nil {
-			helpers.AppLogger.Errorf("发送错误消息失败: %v", werr)
+			helpers.AppLogger.Errorf("发送错误消息失败：%v", werr)
 		}
 		return
 	}
@@ -231,11 +231,11 @@ func LogWebSocket(c *gin.Context) {
 	if err != nil {
 		entry := LogEntry{
 			Level:     "error",
-			Message:   fmt.Sprintf("错误: 获取文件信息失败: %v", err),
+			Message:   fmt.Sprintf("错误：获取文件信息失败：%v", err),
 			Timestamp: time.Now().Format("2006-01-02 15:04:05.000000"),
 		}
 		if werr := conn.WriteJSON(entry); werr != nil {
-			helpers.AppLogger.Errorf("发送错误消息失败: %v", werr)
+			helpers.AppLogger.Errorf("发送错误消息失败：%v", werr)
 		}
 		return
 	}
@@ -243,11 +243,11 @@ func LogWebSocket(c *gin.Context) {
 	// 发送初始消息
 	entry := LogEntry{
 		Level:     "info",
-		Message:   fmt.Sprintf("开始监控日志文件: %s", fullLogPath),
+		Message:   fmt.Sprintf("开始监控日志文件：%s", fullLogPath),
 		Timestamp: time.Now().Format("2006-01-02 15:04:05.000000"),
 	}
 	if werr := conn.WriteJSON(entry); werr != nil {
-		helpers.AppLogger.Errorf("发送初始消息失败: %v", werr)
+		helpers.AppLogger.Errorf("发送初始消息失败：%v", werr)
 		return
 	}
 
@@ -256,11 +256,11 @@ func LogWebSocket(c *gin.Context) {
 	if err != nil {
 		entry := LogEntry{
 			Level:     "error",
-			Message:   fmt.Sprintf("错误: 创建文件监听器失败: %v", err),
+			Message:   fmt.Sprintf("错误：创建文件监听器失败：%v", err),
 			Timestamp: time.Now().Format("2006-01-02 15:04:05.000000"),
 		}
 		if werr := conn.WriteJSON(entry); werr != nil {
-			helpers.AppLogger.Errorf("发送错误消息失败: %v", werr)
+			helpers.AppLogger.Errorf("发送错误消息失败：%v", werr)
 		}
 		return
 	}
@@ -270,11 +270,11 @@ func LogWebSocket(c *gin.Context) {
 	if err := watcher.Add(fullLogPath); err != nil {
 		entry := LogEntry{
 			Level:     "error",
-			Message:   fmt.Sprintf("错误: 添加文件到监听器失败: %v", err),
+			Message:   fmt.Sprintf("错误：添加文件到监听器失败：%v", err),
 			Timestamp: time.Now().Format("2006-01-02 15:04:05.000000"),
 		}
 		if werr := conn.WriteJSON(entry); werr != nil {
-			helpers.AppLogger.Errorf("发送错误消息失败: %v", werr)
+			helpers.AppLogger.Errorf("发送错误消息失败：%v", werr)
 		}
 		return
 	}
@@ -291,14 +291,14 @@ func LogWebSocket(c *gin.Context) {
 				// 客户端断开连接，这是正常情况，不需要记录错误
 				return
 			}
-			// 不再处理客户端消息，因为旧日志已经通过HTTP接口获取
+			// 不再处理客户端消息，因为旧日志已经通过 HTTP 接口获取
 		}
 	}()
 
 	// 移动到文件末尾，只获取新内容
 	if _, err := file.Seek(0, io.SeekEnd); err != nil {
-		if werr := conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("错误: 定位文件末尾失败: %v", err))); werr != nil {
-			helpers.AppLogger.Errorf("发送错误消息失败: %v", werr)
+		if werr := conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("错误：定位文件末尾失败：%v", err))); werr != nil {
+			helpers.AppLogger.Errorf("发送错误消息失败：%v", werr)
 		}
 		return
 	}
@@ -318,7 +318,7 @@ func LogWebSocket(c *gin.Context) {
 				if err != nil {
 					if err != io.EOF {
 						// 简单处理，直接转换为字符串
-						errMsg := fmt.Sprintf("错误: 读取日志文件失败: %v", err)
+						errMsg := fmt.Sprintf("错误：读取日志文件失败：%v", err)
 						// 发送错误消息
 						entry := LogEntry{
 							Level:     "error",
@@ -365,10 +365,10 @@ func LogWebSocket(c *gin.Context) {
 							validLines[i], validLines[j] = validLines[j], validLines[i]
 						}
 
-						// 解析日志行，转换为LogEntry结构
+						// 解析日志行，转换为 LogEntry 结构
 						for _, line := range validLines {
 							entry := parseLogLine(line)
-							// 发送日志内容（JSON格式）
+							// 发送日志内容（JSON 格式）
 							if err := conn.WriteJSON(entry); err != nil {
 								// 连接已关闭，退出协程
 								return
@@ -401,11 +401,11 @@ func LogWebSocket(c *gin.Context) {
 			}
 			entry := LogEntry{
 				Level:     "error",
-				Message:   fmt.Sprintf("错误: 文件监控失败: %v", err),
+				Message:   fmt.Sprintf("错误：文件监控失败：%v", err),
 				Timestamp: time.Now().Format("2006-01-02 15:04:05.000000"),
 			}
 			if werr := conn.WriteJSON(entry); werr != nil {
-				helpers.AppLogger.Errorf("发送错误消息失败: %v", werr)
+				helpers.AppLogger.Errorf("发送错误消息失败：%v", werr)
 				// 连接已关闭，退出主循环
 				return
 			}

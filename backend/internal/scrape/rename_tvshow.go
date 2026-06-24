@@ -41,8 +41,8 @@ func NewRenameTvShowImpl(scrapePath *models.ScrapePath, ctx context.Context, v11
 
 func (r *renameTvShowImpl) RenameAndMove(mediaFile *models.ScrapeMediaFile, destPath, destPathId, newName string) error {
 	if mediaFile.NewPathId == "" {
-		helpers.AppLogger.Errorf("新目录ID为空，无法改名和移动文件")
-		return errors.New("新目录ID为空")
+		helpers.AppLogger.Errorf("新目录 ID 为空，无法改名和移动文件")
+		return errors.New("新目录 ID 为空")
 	}
 	if newName == "" {
 		newName = fmt.Sprintf("%s%s", mediaFile.NewVideoBaseName, mediaFile.VideoExt)

@@ -30,7 +30,7 @@ func NewOpenAPIResponseError(code int, errno int, message string, errorText stri
 
 func (e *OpenAPIError) Error() string {
 	if e.Code == 0 {
-		return fmt.Sprintf("115接口错误: %s", e.Message)
+		return fmt.Sprintf("115 接口错误：%s", e.Message)
 	}
-	return fmt.Sprintf("115接口错误(%d): %s", e.Code, e.Message)
+	return fmt.Sprintf("115 接口错误（%d）：%s", e.Code, e.Message)
 }

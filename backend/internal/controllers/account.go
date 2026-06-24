@@ -14,7 +14,7 @@ import (
 
 // GetAccountList 获取所有开放平台账号列表
 // @Summary 获取账号列表
-// @Description 获取所有已配置的开放平台账号（如115、OpenList等）
+// @Description 获取所有已配置的开放平台账号（如 115、OpenList 等）
 // @Tags 账号管理
 // @Accept json
 // @Produce json
@@ -95,14 +95,14 @@ func GetAccountList(c *gin.Context) {
 
 // CreateTmpAccount 创建临时开放平台账号
 // @Summary 创建账号
-// @Description 创建新的开放平台账号（支持115、OpenList等）
+// @Description 创建新的开放平台账号（支持 115、OpenList 等）
 // @Tags 账号管理
 // @Accept json
 // @Produce json
 // @Param source_type query string true "账号源类型"
 // @Param name query string true "账号名称"
-// @Param app_id query string false "应用ID（自定义时必需）"
-// @Param app_id_name query string false "选择的115开放平台应用（QMediaSync、Q115-STRM、MQ的媒体库、自定义）"
+// @Param app_id query string false "应用 ID（自定义时必需）"
+// @Param app_id_name query string false "选择的 115 开放平台应用（QMediaSync、Q115-STRM、MQ的媒体库、自定义 App ID）"
 // @Success 200 {object} object
 // @Failure 200 {object} object
 // @Router /account/create [post]
@@ -167,11 +167,11 @@ func CreateTmpAccount(c *gin.Context) {
 
 // UpdateAccountInfo 更新账号资料
 // @Summary 更新账号资料
-// @Description 更新账号备注和自定义开放平台应用名，不修改授权凭据或OpenList连接配置
+// @Description 更新账号备注和自定义开放平台应用名，不修改授权凭据或 OpenList 连接配置
 // @Tags 账号管理
 // @Accept json
 // @Produce json
-// @Param id query integer true "账号ID"
+// @Param id query integer true "账号 ID"
 // @Param name query string false "账号备注"
 // @Param app_id_name query string false "自定义应用名"
 // @Success 200 {object} object
@@ -204,11 +204,11 @@ func UpdateAccountInfo(c *gin.Context) {
 
 // DeleteAccount 删除开放平台账号
 // @Summary 删除账号
-// @Description 删除指定ID的开放平台账号
+// @Description 删除指定 ID 的开放平台账号
 // @Tags 账号管理
 // @Accept json
 // @Produce json
-// @Param id query integer true "账号ID"
+// @Param id query integer true "账号 ID"
 // @Success 200 {object} object
 // @Failure 200 {object} object
 // @Router /account/delete [delete]
@@ -236,17 +236,17 @@ func DeleteAccount(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "删除开放平台账号成功", Data: nil})
 }
 
-// CreateOpenListAccount 创建或更新OpenList账号
-// @Summary 创建/更新OpenList账号
-// @Description 创建新的OpenList账号或更新现有账号的凭证，支持直接使用Token认证
+// CreateOpenListAccount 创建或更新 OpenList 账号。
+// @Summary 创建或更新 OpenList 账号
+// @Description 创建新的 OpenList 账号或更新现有账号的凭证，支持直接使用 Token 认证
 // @Tags 账号管理
 // @Accept json
 // @Produce json
-// @Param id query integer false "账号ID（指定则为更新操作）"
-// @Param base_url query string true "OpenList服务器地址"
+// @Param id query integer false "账号 ID（指定则为更新操作）"
+// @Param base_url query string true "OpenList 服务器地址"
 // @Param username query string true "用户名"
 // @Param password query string true "密码"
-// @Param token query string false "直接提供的访问Token（优先使用）"
+// @Param token query string false "直接提供的访问 Token（优先使用）"
 // @Success 200 {object} object
 // @Failure 200 {object} object
 // @Router /account/openlist [post]
@@ -270,33 +270,33 @@ func CreateOpenListAccount(c *gin.Context) {
 		return
 	}
 	if req.Token == "" && (req.Password == "" || req.Username == "") {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "必须提供Token或用户名密码", Data: nil})
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "必须提供 Token，或同时提供用户名和密码", Data: nil})
 		return
 	}
-	// 如果不以http开头则添加http://
+	// 如果不以 http 开头则添加 http://
 	if !strings.HasPrefix(req.BaseUrl, "http://") && !strings.HasPrefix(req.BaseUrl, "https://") {
 		req.BaseUrl = "http://" + req.BaseUrl
 	}
-	// 如果结尾有/则删除
+	// 如果结尾有 / 则删除
 	req.BaseUrl = strings.TrimSuffix(req.BaseUrl, "/")
 	if req.Id != 0 {
 		account, err := models.GetAccountById(req.Id)
 		if err != nil {
-			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("查询openlist账号失败: %s", err.Error()), Data: nil})
+			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("查询 OpenList 账号失败：%s", err.Error()), Data: nil})
 			return
 		}
 		if err := account.UpdateOpenList(req.BaseUrl, req.Username, req.Password, req.Token); err != nil {
-			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("更新openlist账号失败: %s", err.Error()), Data: nil})
+			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("更新 OpenList 账号失败：%s", err.Error()), Data: nil})
 			return
 		}
-		c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "更新openlist账号成功", Data: nil})
+		c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "OpenList 账号已更新", Data: nil})
 		return
 	}
-	// 创建openlist账号
+	// 创建 OpenList 账号
 	_, err := models.CreateOpenListAccount(req.BaseUrl, req.Username, req.Password, req.Token)
 	if err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("创建openlist账号失败: %s", err.Error()), Data: nil})
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("创建 OpenList 账号失败：%s", err.Error()), Data: nil})
 		return
 	}
-	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "创建openlist账号成功", Data: nil})
+	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "OpenList 账号已创建", Data: nil})
 }

@@ -6,7 +6,7 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
-// 计算cron表达式的下count次执行时间
+// 计算 Cron 表达式的下 count 次执行时间
 func GetNextTimeByCronStr(cronStr string, count int) []time.Time {
 	schedule, err := cron.ParseStandard(cronStr)
 	if err != nil {

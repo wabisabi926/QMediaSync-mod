@@ -8,20 +8,20 @@ import (
 )
 
 // https://api.themoviedb.org/3/search/tv
-// 搜索TV
+// 搜索 TV
 type SearchTv struct {
 	Adult            bool     `json:"adult"`             // 是否成人内容
-	BackdropPath     string   `json:"backdrop_path"`     //  背景图片(选定语言的版本)
-	GenreIDs         []int    `json:"genre_ids"`         // 流派ID
-	ID               int64    `json:"id"`                // id
-	Name             string   `json:"name"`              // 名称(选定语言的版本)
+	BackdropPath     string   `json:"backdrop_path"`     // 背景图片（选定语言的版本）
+	GenreIDs         []int    `json:"genre_ids"`         // 流派 ID
+	ID               int64    `json:"id"`                // ID
+	Name             string   `json:"name"`              // 名称（选定语言的版本）
 	OriginalName     string   `json:"original_name"`     // 原始名称
 	Overview         string   `json:"overview"`          // 描述
-	PosterPath       string   `json:"poster_path"`       // 封面图片(选定语言的版本)
+	PosterPath       string   `json:"poster_path"`       // 封面图片（选定语言的版本）
 	FirstAirDate     string   `json:"first_air_date"`    // 首播日期
 	Popularity       float64  `json:"popularity"`        // 流行度
 	OriginalLanguage string   `json:"original_language"` // 原始语言
-	OriginCountry    []string `json:"origin_country"`    // 原始国家,国家代码数组
+	OriginCountry    []string `json:"origin_country"`    // 原始国家，国家代码数组
 	VoteCount        int64    `json:"vote_count"`        // 投票数
 	VoteAverage      float64  `json:"vote_average"`      // 平均评分
 }
@@ -47,7 +47,7 @@ type Season struct {
 type TvNetwork struct {
 	ID            int64  `json:"id"`
 	Name          string `json:"name"`
-	LogoPath      string `json:"logo_path"`      // 播放平台logo
+	LogoPath      string `json:"logo_path"`      // 播放平台 logo
 	OriginCountry string `json:"origin_country"` // 原始国家
 }
 
@@ -70,7 +70,7 @@ type TvDetail struct {
 }
 
 type TvKeywords struct {
-	ID      int64     `json:"id"`      // 影片ID
+	ID      int64     `json:"id"`      // 影片 ID
 	Results []Keyword `json:"results"` // 关键词列表
 }
 
@@ -78,13 +78,13 @@ type Episode struct {
 	AirDate        string  `json:"air_date"`        // 播出时间
 	EpisodeNumber  int     `json:"episode_number"`  // 集编号
 	EpisodeType    string  `json:"episode_type"`    // 集类型
-	ID             int64   `json:"id"`              // 集ID
+	ID             int64   `json:"id"`              // 集 ID
 	Name           string  `json:"name"`            // 集名称
 	Overview       string  `json:"overview"`        // 集描述
 	ProductionCode string  `json:"production_code"` // 集生产代码
 	Runtime        int     `json:"runtime"`         // 集时长
 	SeasonNumber   int     `json:"season_number"`   // 集所属季编号
-	ShowID         int64   `json:"show_id"`         // 集所属TVID
+	ShowID         int64   `json:"show_id"`         // 集所属 TV ID
 	StillPath      string  `json:"still_path"`      // 集封面图片
 	VoteAverage    float64 `json:"vote_average"`    // 集平均评分
 	VoteCount      int64   `json:"vote_count"`      // 集投票数
@@ -93,7 +93,7 @@ type Episode struct {
 }
 
 type SeasonDetail struct {
-	ID           int64  `json:"id"`            // 季ID
+	ID           int64  `json:"id"`            // 季 ID
 	Name         string `json:"name"`          // 季名称
 	Overview     string `json:"overview"`      // 季描述
 	AirDate      string `json:"air_date"`      // 播出时间
@@ -116,12 +116,12 @@ func (c *Client) SearchTv(tvName string, year int, language string, switchLangua
 	}
 	resp, err := c.doRequest(fmt.Sprintf("/search/tv?query=%s", url.QueryEscape(tvName)), req, MakeRequestConfig(2, 5, 5))
 	if err != nil {
-		helpers.TMDBLog.Errorf("搜索TV失败:%+v", err)
+		helpers.TMDBLog.Errorf("搜索电视剧失败：%+v", err)
 		return nil, err
 	}
 	if !resp.IsSuccess() {
-		helpers.TMDBLog.Errorf("搜索TV失败:%s", resp.String())
-		return nil, fmt.Errorf("搜索TV失败:%s", resp.String())
+		helpers.TMDBLog.Errorf("搜索电视剧失败：%s", resp.String())
+		return nil, fmt.Errorf("搜索电视剧失败：%s", resp.String())
 	}
 	if len(respResult.Results) == 0 && switchLanguage {
 		// 换一种语言搜索
@@ -141,12 +141,12 @@ func (c *Client) GetTvDetail(tvID int64, language string) (*TvDetail, error) {
 	// req.SetQueryParam("api_key", c.apiKey)
 	resp, err := c.doRequest(fmt.Sprintf("/tv/%d?language=%s", tvID, language), req, MakeRequestConfig(2, 5, 5))
 	if err != nil {
-		helpers.TMDBLog.Errorf("获取TV详情失败:%+v", err)
+		helpers.TMDBLog.Errorf("获取电视剧详情失败：%+v", err)
 		return nil, err
 	}
 	if !resp.IsSuccess() {
-		helpers.TMDBLog.Errorf("获取TV详情失败:%s", resp.String())
-		return nil, fmt.Errorf("获取TV详情失败:%s", resp.String())
+		helpers.TMDBLog.Errorf("获取电视剧详情失败：%s", resp.String())
+		return nil, fmt.Errorf("获取电视剧详情失败：%s", resp.String())
 	}
 	return &respResult, nil
 }
@@ -159,12 +159,12 @@ func (c *Client) GetTvImages(tvId int64, langauge string) (*Images, error) {
 	// req.SetQueryParam("api_key", c.apiKey)
 	resp, err := c.doRequest(fmt.Sprintf("/tv/%d/images?language=%s", tvId, langauge), req, MakeRequestConfig(2, 5, 5))
 	if err != nil {
-		helpers.TMDBLog.Errorf("获取TV图片失败:%+v", err)
+		helpers.TMDBLog.Errorf("获取电视剧图片失败：%+v", err)
 		return nil, err
 	}
 	if !resp.IsSuccess() {
-		helpers.TMDBLog.Errorf("获取TV图片失败:%s", resp.String())
-		return nil, fmt.Errorf("获取TV图片失败:%s", resp.String())
+		helpers.TMDBLog.Errorf("获取电视剧图片失败：%s", resp.String())
+		return nil, fmt.Errorf("获取电视剧图片失败：%s", resp.String())
 	}
 	if len(respResult.Posters) == 0 && len(respResult.Backdrops) == 0 && len(respResult.Logos) == 0 {
 		if langauge == "en-US" {
@@ -173,12 +173,12 @@ func (c *Client) GetTvImages(tvId int64, langauge string) (*Images, error) {
 		// 重新查询
 		resp, err := c.doRequest(fmt.Sprintf("/tv/%d/images?language=%s", tvId, langauge), req, MakeRequestConfig(2, 5, 5))
 		if err != nil {
-			helpers.TMDBLog.Errorf("获取TV图片失败:%+v", err)
+			helpers.TMDBLog.Errorf("获取电视剧图片失败：%+v", err)
 			return nil, err
 		}
 		if !resp.IsSuccess() {
-			helpers.TMDBLog.Errorf("获取TV图片失败:%s", resp.String())
-			return nil, fmt.Errorf("获取TV图片失败:%s", resp.String())
+			helpers.TMDBLog.Errorf("获取电视剧图片失败：%s", resp.String())
+			return nil, fmt.Errorf("获取电视剧图片失败：%s", resp.String())
 		}
 	}
 	return &respResult, nil
@@ -192,30 +192,30 @@ func (c *Client) GetTvCredits(tvId int64, langauge string) (*PepolesRes, error) 
 	// req.SetQueryParam("api_key", c.apiKey)
 	resp, err := c.doRequest(fmt.Sprintf("/tv/%d/credits?language=%s", tvId, langauge), req, MakeRequestConfig(2, 5, 5))
 	if err != nil {
-		helpers.TMDBLog.Errorf("获取TV演职人员失败:%+v", err)
+		helpers.TMDBLog.Errorf("获取电视剧演职人员失败：%+v", err)
 		return nil, err
 	}
 	if !resp.IsSuccess() {
-		helpers.TMDBLog.Errorf("获取TV演职人员失败:%s", resp.String())
-		return nil, fmt.Errorf("获取TV演职人员失败:%s", resp.String())
+		helpers.TMDBLog.Errorf("获取电视剧演职人员失败：%s", resp.String())
+		return nil, fmt.Errorf("获取电视剧演职人员失败：%s", resp.String())
 	}
 	return &respResult, nil
 }
 
 // https://api.themoviedb.org/3/tv/{series_id}/keywords
-// 查询电视剧的关键词(标签)
+// 查询电视剧的关键词（标签）
 func (c *Client) GetTvKeywords(tvId int64) (*TvKeywords, error) {
 	respResult := TvKeywords{}
 	req := c.resty.R().SetMethod("GET").SetResult(&respResult)
 	// req.SetQueryParam("api_key", c.apiKey)
 	resp, err := c.doRequest(fmt.Sprintf("/tv/%d/keywords", tvId), req, MakeRequestConfig(2, 5, 5))
 	if err != nil {
-		helpers.TMDBLog.Errorf("获取TV关键词失败:%+v", err)
+		helpers.TMDBLog.Errorf("获取电视剧关键词失败：%+v", err)
 		return nil, err
 	}
 	if !resp.IsSuccess() {
-		helpers.TMDBLog.Errorf("获取TV关键词失败:%s", resp.String())
-		return nil, fmt.Errorf("获取TV关键词失败:%s", resp.String())
+		helpers.TMDBLog.Errorf("获取电视剧关键词失败：%s", resp.String())
+		return nil, fmt.Errorf("获取电视剧关键词失败：%s", resp.String())
 	}
 	return &respResult, nil
 }
@@ -226,12 +226,12 @@ func (c *Client) GetTvSeasonDetail(tvId int64, seasonNumber int, langauge string
 	// req.SetQueryParam("api_key", c.apiKey)
 	resp, err := c.doRequest(fmt.Sprintf("/tv/%d/season/%d?language=%s", tvId, seasonNumber, langauge), req, MakeRequestConfig(2, 5, 5))
 	if err != nil {
-		helpers.TMDBLog.Errorf("获取TV季详情失败:%+v", err)
+		helpers.TMDBLog.Errorf("获取电视剧季详情失败：%+v", err)
 		return nil, err
 	}
 	if !resp.IsSuccess() {
-		helpers.TMDBLog.Errorf("获取TV季详情失败:%s", resp.String())
-		return nil, fmt.Errorf("获取TV季详情失败:%s", resp.String())
+		helpers.TMDBLog.Errorf("获取电视剧季详情失败：%s", resp.String())
+		return nil, fmt.Errorf("获取电视剧季详情失败：%s", resp.String())
 	}
 	return &respResult, nil
 }
@@ -244,12 +244,12 @@ func (c *Client) GetTvSeasonCredits(tvId int64, seasonNumber int, langauge strin
 	// req.SetQueryParam("api_key", c.apiKey)
 	resp, err := c.doRequest(fmt.Sprintf("/tv/%d/season/%d/credits?language=%s", tvId, seasonNumber, langauge), req, MakeRequestConfig(2, 5, 5))
 	if err != nil {
-		helpers.TMDBLog.Errorf("获取TV季演职人员失败:%+v", err)
+		helpers.TMDBLog.Errorf("获取电视剧季演职人员失败：%+v", err)
 		return nil, err
 	}
 	if !resp.IsSuccess() {
-		helpers.TMDBLog.Errorf("获取TV季演职人员失败:%s", resp.String())
-		return nil, fmt.Errorf("获取TV季演职人员失败:%s", resp.String())
+		helpers.TMDBLog.Errorf("获取电视剧季演职人员失败：%s", resp.String())
+		return nil, fmt.Errorf("获取电视剧季演职人员失败：%s", resp.String())
 	}
 	return &respResult, nil
 }
@@ -262,12 +262,12 @@ func (c *Client) GetTvSeasonImages(tvId int64, seasonNumber int, langauge string
 	// req.SetQueryParam("api_key", c.apiKey)
 	resp, err := c.doRequest(fmt.Sprintf("/tv/%d/season/%d/images?language=%s", tvId, seasonNumber, langauge), req, MakeRequestConfig(2, 5, 5))
 	if err != nil {
-		helpers.TMDBLog.Errorf("获取TV季图片失败:%+v", err)
+		helpers.TMDBLog.Errorf("获取电视剧季图片失败：%+v", err)
 		return nil, err
 	}
 	if !resp.IsSuccess() {
-		helpers.TMDBLog.Errorf("获取TV季图片失败:%s", resp.String())
-		return nil, fmt.Errorf("获取TV季图片失败:%s", resp.String())
+		helpers.TMDBLog.Errorf("获取电视剧季图片失败：%s", resp.String())
+		return nil, fmt.Errorf("获取电视剧季图片失败：%s", resp.String())
 	}
 	return &respResult, nil
 }
@@ -277,12 +277,12 @@ func (c *Client) GetTvEpisodeDetail(tvId int64, seasonNumber int, episodeNumber 
 	req := c.resty.R().SetMethod("GET").SetResult(&respResult)
 	resp, err := c.doRequest(fmt.Sprintf("/tv/%d/season/%d/episode/%d?language=%s", tvId, seasonNumber, episodeNumber, langauge), req, MakeRequestConfig(2, 5, 5))
 	if err != nil {
-		helpers.TMDBLog.Errorf("获取TV集详情失败:%+v", err)
+		helpers.TMDBLog.Errorf("获取电视剧集详情失败：%+v", err)
 		return nil, err
 	}
 	if !resp.IsSuccess() {
-		helpers.TMDBLog.Errorf("获取TV集详情失败:%s", resp.String())
-		return nil, fmt.Errorf("获取TV集详情失败:%s", resp.String())
+		helpers.TMDBLog.Errorf("获取电视剧集详情失败：%s", resp.String())
+		return nil, fmt.Errorf("获取电视剧集详情失败：%s", resp.String())
 	}
 	respResult.Cast = make([]Cast, 0)
 	respResult.Crew = make([]Crew, 0)
@@ -297,12 +297,12 @@ func (c *Client) GetTvEpisodeCredits(tvId int64, seasonNumber int, episodeNumber
 	// req.SetQueryParam("api_key", c.apiKey)
 	resp, err := c.doRequest(fmt.Sprintf("/tv/%d/season/%d/episode/%d/credits?language=%s", tvId, seasonNumber, episodeNumber, langauge), req, MakeRequestConfig(2, 5, 5))
 	if err != nil {
-		helpers.TMDBLog.Errorf("获取TV集演职人员失败:%+v", err)
+		helpers.TMDBLog.Errorf("获取电视剧集演职人员失败：%+v", err)
 		return nil, err
 	}
 	if !resp.IsSuccess() {
-		helpers.TMDBLog.Errorf("获取TV集演职人员失败:%s", resp.String())
-		return nil, fmt.Errorf("获取TV集演职人员失败:%s", resp.String())
+		helpers.TMDBLog.Errorf("获取电视剧集演职人员失败：%s", resp.String())
+		return nil, fmt.Errorf("获取电视剧集演职人员失败：%s", resp.String())
 	}
 	return &respResult, nil
 }

@@ -12,6 +12,6 @@ func setHideWindow(attr *syscall.SysProcAttr) {
 func getSysProcAttr() *syscall.SysProcAttr {
 	return &syscall.SysProcAttr{
 		HideWindow:    true,
-		CreationFlags: 0x08000000, // CREATE_NO_WINDOW: 强制不创建控制台窗口
+		CreationFlags: 0x08000000, // CREATE_NO_WINDOW：强制不创建控制台窗口
 	}
 }

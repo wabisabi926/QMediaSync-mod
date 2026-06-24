@@ -3,7 +3,10 @@
     <div class="card-header">
       <div>
         <h2 class="hidden-md-and-down">上传队列</h2>
-        <p>上传队列包含 STRM 同步和刮削流程产生的元数据上传任务，可在这里查看进度、重试失败任务或清理记录。</p>
+        <p>
+          上传队列包含 STRM
+          同步和刮削流程产生的元数据上传任务，可在这里查看进度、重试失败任务或清理记录。
+        </p>
       </div>
       <div class="header-actions">
         <div class="queue-control-actions">
@@ -14,15 +17,13 @@
             >全部暂停</el-button
           >
           <el-button type="primary" @click="resumeAllTasks" :disabled="queueStatus === 1"
-            >全部开始</el-button
+            >全部恢复</el-button
           >
         </div>
         <div class="queue-cleanup-actions">
           <el-button type="warning" @click="retryAllFailedTasks">重试失败</el-button>
           <el-button type="warning" @click="clearQueue">清空等待</el-button>
-          <el-button type="danger" @click="clearSuccessAndFailedTasks"
-            >清空完成/失败</el-button
-          >
+          <el-button type="danger" @click="clearSuccessAndFailedTasks">清空完成/失败</el-button>
         </div>
       </div>
     </div>
@@ -119,7 +120,7 @@
       height="calc(100vh - 300px)"
       class="hidden-md-and-down"
     >
-      <el-table-column prop="id" label="任务ID" width="64" />
+      <el-table-column prop="id" label="任务 ID" width="64" />
       <el-table-column prop="source" label="来源" width="96" show-overflow-tooltip />
       <el-table-column prop="status" label="状态" width="104">
         <template #default="scope">
@@ -368,11 +369,11 @@ const getSourceTypeName = (type: string): string => {
     case 'local':
       return '本地文件'
     case '115':
-      return '115云盘'
+      return '115 网盘'
     case 'openlist':
       return 'OpenList'
     case '123':
-      return '123云盘'
+      return '123 网盘'
     default:
       return '其他'
   }
@@ -438,7 +439,7 @@ const loadQueueData = async () => {
         if (!queueDataRequestGate.isCurrent(requestId)) {
           return
         }
-        console.error('加载上传队列数据错误:', error)
+        console.error('加载上传队列数据错误：', error)
         ElMessage.error('获取上传队列数据失败')
       }
     })
@@ -487,7 +488,7 @@ const clearQueue = async () => {
       return
     }
     if (!isMessageBoxCancelError(error)) {
-      console.error('清空队列错误:', error)
+      console.error('清空队列错误：', error)
       ElMessage.error('清空队列失败')
     }
   } finally {
@@ -525,14 +526,14 @@ const clearSuccessAndFailedTasks = async () => {
       ElMessage.success('队列已清空')
       loadQueueData()
     } else {
-      ElMessage.error(`清空队列失败: ${response?.data.message || ''}`)
+      ElMessage.error(`清空队列失败：${response?.data.message || ''}`)
     }
   } catch (error) {
     if (!isQueueMutationContextCurrent(operationContext)) {
       return
     }
     if (!isMessageBoxCancelError(error)) {
-      console.error('清空队列失败:', error)
+      console.error('清空队列失败：', error)
       ElMessage.error('清空队列失败')
     }
   } finally {
@@ -564,18 +565,18 @@ const retryAllFailedTasks = async () => {
     }
 
     if (response?.data.code === 200) {
-      ElMessage.success('已开始重试所有失败的任务')
+      ElMessage.success('已开始重试所有失败任务')
       loadQueueData()
     } else {
-      ElMessage.error(`重试失败的任务失败: ${response?.data.message || ''}`)
+      ElMessage.error(`重试失败任务时出错：${response?.data.message || ''}`)
     }
   } catch (error) {
     if (!isQueueMutationContextCurrent(operationContext)) {
       return
     }
     if (!isMessageBoxCancelError(error)) {
-      console.error('重试失败的任务失败:', error)
-      ElMessage.error('重试失败的任务失败')
+      console.error('重试失败任务时出错：', error)
+      ElMessage.error('重试失败任务时出错')
     }
   } finally {
     if (isQueueMutationContextCurrent(operationContext)) {
@@ -599,13 +600,13 @@ const pauseAllTasks = async () => {
       ElMessage.success('已暂停所有任务')
       loadQueueData()
     } else {
-      ElMessage.error(`暂停所有任务失败: ${response?.data.message || ''}`)
+      ElMessage.error(`暂停所有任务失败：${response?.data.message || ''}`)
     }
   } catch (error) {
     if (!isQueueMutationContextCurrent(operationContext)) {
       return
     }
-    console.error('暂停所有任务失败:', error)
+    console.error('暂停所有任务失败：', error)
     ElMessage.error('暂停所有任务失败')
   } finally {
     if (isQueueMutationContextCurrent(operationContext)) {
@@ -626,17 +627,17 @@ const resumeAllTasks = async () => {
     }
 
     if (response?.data.code === 200) {
-      ElMessage.success('已开始所有任务')
+      ElMessage.success('已恢复所有任务')
       loadQueueData()
     } else {
-      ElMessage.error(`开始所有任务失败: ${response?.data.message || ''}`)
+      ElMessage.error(`恢复所有任务失败：${response?.data.message || ''}`)
     }
   } catch (error) {
     if (!isQueueMutationContextCurrent(operationContext)) {
       return
     }
-    console.error('开始所有任务失败:', error)
-    ElMessage.error('开始所有任务失败')
+    console.error('恢复所有任务失败：', error)
+    ElMessage.error('恢复所有任务失败')
   } finally {
     if (isQueueMutationContextCurrent(operationContext)) {
       finishQueueMutationContext(operationContext)
@@ -659,13 +660,13 @@ const loadQueueStatus = async () => {
       // 0-停止，1-运行中
       queueStatus.value = response.data.data ? 1 : 0
     } else {
-      console.error('获取队列状态失败:', response?.data.message)
+      console.error('获取队列状态失败：', response?.data.message)
     }
   } catch (error) {
     if (!queueStatusRequestGate.isCurrent(requestId)) {
       return
     }
-    console.error('获取队列状态错误:', error)
+    console.error('获取队列状态错误：', error)
   }
 }
 

@@ -36,12 +36,12 @@ type DbUploadTask struct {
 	BaseModel
 	Source               UploadSource     `json:"source"` // 任务来源
 	AccountId            uint             `json:"account_id"`
-	SyncFileId           uint             `json:"sync_file_id"`                                     // 同步文件ID
-	ScrapeMediaFileId    uint             `json:"scrape_media_file_id"`                             // 刮削文件ID
+	SyncFileId           uint             `json:"sync_file_id"`                                     // 同步文件 ID
+	ScrapeMediaFileId    uint             `json:"scrape_media_file_id"`                             // 刮削文件 ID
 	SourceType           SourceType       `json:"source_type"`                                      // 任务来源类型
 	LocalFullPath        string           `json:"local_full_path" gorm:"index:idx_local_full_path"` // 本地完整文件路径，包含文件名
-	RemoteFileId         string           `json:"remote_file_id" gorm:"index:idx_remote_file_id"`   // 远程文件ID，包含完整路径
-	RemotePathId         string           `json:"remote_path_id"`                                   // 父目录CID，如果115就是文件夹ID，如果是openlist就是父文件夹路径
+	RemoteFileId         string           `json:"remote_file_id" gorm:"index:idx_remote_file_id"`   // 远程文件 ID，包含完整路径
+	RemotePathId         string           `json:"remote_path_id"`                                   // 父目录 CID，如果是 115 则是文件夹 ID，如果是 OpenList 则是父文件夹路径
 	FileName             string           `json:"file_name"`                                        // 要上传的文件名
 	Status               UploadStatus     `json:"status" gorm:"index:idx_status_new"`               // 任务状态
 	FileSize             int64            `json:"file_size"`                                        // 文件大小
@@ -96,7 +96,7 @@ func (task *DbUploadTask) Complete() {
 	task.EndTime = time.Now().Unix()
 	err := db.Db.Save(task).Error
 	if err != nil {
-		helpers.AppLogger.Warnf("[上传] 标记为已完成失败: %s", err.Error())
+		helpers.AppLogger.Warnf("[上传] 标记为已完成失败：%s", err.Error())
 	}
 }
 
@@ -107,7 +107,7 @@ func (task *DbUploadTask) Fail(err error) {
 	task.Error = err.Error()
 	err = db.Db.Save(task).Error
 	if err != nil {
-		helpers.AppLogger.Warnf("[上传] 标记为失败失败: %s", err.Error())
+		helpers.AppLogger.Warnf("[上传] 标记为失败失败：%s", err.Error())
 	}
 }
 
@@ -117,7 +117,7 @@ func (task *DbUploadTask) Cancel() {
 	task.EndTime = time.Now().Unix()
 	err := db.Db.Save(task).Error
 	if err != nil {
-		helpers.AppLogger.Warnf("[上传] 标记为已取消失败: %s", err.Error())
+		helpers.AppLogger.Warnf("[上传] 标记为已取消失败：%s", err.Error())
 	}
 }
 
@@ -126,7 +126,7 @@ func (task *DbUploadTask) Uploading() {
 	task.StartTime = time.Now().Unix()
 	err := db.Db.Save(task).Error
 	if err != nil {
-		helpers.AppLogger.Warnf("[上传] 标记为上传中失败: %s", err.Error())
+		helpers.AppLogger.Warnf("[上传] 标记为上传中失败：%s", err.Error())
 	}
 }
 
@@ -134,7 +134,7 @@ func (task *DbUploadTask) GetAccount() *Account {
 	if task.Account != nil {
 		return task.Account
 	}
-	// 通过AccountId查询账户，然后判断是什么来源
+	// 通过 AccountId 查询账户，然后判断是什么来源
 	account, err := GetAccountById(task.AccountId)
 	if err != nil {
 		task.Fail(err)
@@ -173,7 +173,7 @@ func (task *DbUploadTask) Upload() {
 	}
 	// 标记为已完成
 	task.Complete()
-	// 如果是刮削类型,需要进行后续通知
+	// 如果是刮削类型，需要进行后续通知
 	if task.Source == UploadSourceScrape {
 		// 通知刮削整理完成
 		scrapeMediaFile := GetScrapeMediaFileById(task.ScrapeMediaFileId)
@@ -195,7 +195,7 @@ func (task *DbUploadTask) Upload115File() bool {
 	// 上传文件
 	client := account.Get115Client()
 	if client == nil {
-		task.Fail(fmt.Errorf("账户 %s 115客户端不存在", account.Name))
+		task.Fail(fmt.Errorf("账户 %s 115 客户端不存在", account.Name))
 		return false
 	}
 	task.Uploading()
@@ -222,7 +222,7 @@ func (task *DbUploadTask) Upload115File() bool {
 				task.Fail(fmt.Errorf("同步文件 %d 不存在", task.SyncFileId))
 				return false
 			}
-			helpers.AppLogger.Infof("回调刮削整理：刮削文件 %d 上传成功, 文件ID: %s", task.ScrapeMediaFileId, task.RemoteFileId)
+			helpers.AppLogger.Infof("回调刮削整理：刮削文件 %d 上传成功，文件 ID：%s", task.ScrapeMediaFileId, task.RemoteFileId)
 			scrapeMediaFile.RemoveTmpFiles(task)
 			return true
 		}
@@ -230,41 +230,41 @@ func (task *DbUploadTask) Upload115File() bool {
 	// 检查父目录是否存在
 	detail, existsErr = client.GetFsDetailByCid(context.Background(), task.RemotePathId)
 	if existsErr != nil {
-		task.Fail(fmt.Errorf("115检查父目录 %s 失败: %s", task.RemotePathId, existsErr.Error()))
+		task.Fail(fmt.Errorf("115 检查父目录 %s 失败：%s", task.RemotePathId, existsErr.Error()))
 		return false
 	}
 	if detail.FileId == "" {
-		task.Fail(fmt.Errorf("115检查父目录 %s 失败: 返回空文件ID", task.RemotePathId))
+		task.Fail(fmt.Errorf("115 检查父目录 %s 失败：返回空文件 ID", task.RemotePathId))
 		return false
 	}
-	helpers.AppLogger.Infof("准备将文件 %s 上传到115目录 %s", task.LocalFullPath, task.RemotePathId)
+	helpers.AppLogger.Infof("准备将文件 %s 上传到 115 目录 %s", task.LocalFullPath, task.RemotePathId)
 	// 上传文件
 	fileId, err := client.Upload(context.Background(), task.LocalFullPath, task.RemotePathId, "", "")
 	if err != nil {
-		task.Fail(fmt.Errorf("调用115上传API失败: %v", err))
+		task.Fail(fmt.Errorf("调用 115 上传 API 失败：%v", err))
 		return false
 	}
 	if fileId == "" {
-		task.Fail(fmt.Errorf("115上传文件 %s 失败: 返回空文件ID", task.FileName))
+		task.Fail(fmt.Errorf("115 上传文件 %s 失败：返回空文件 ID", task.FileName))
 		return false
 	}
-	helpers.AppLogger.Infof("115上传文件 %s 成功, 新的文件ID: %s", task.LocalFullPath, fileId)
+	helpers.AppLogger.Infof("115 上传文件 %s 成功，新的文件 ID：%s", task.LocalFullPath, fileId)
 	if task.Source == UploadSourceStrm {
 		// 查询文件详情，然后更新本地文件的修改时间
 		detail, err = client.GetFsDetailByCid(context.Background(), fileId)
 		if err != nil {
-			task.Fail(fmt.Errorf("115查询文件详情 %s 失败: %s", fileId, err.Error()))
+			task.Fail(fmt.Errorf("115 查询文件详情 %s 失败：%s", fileId, err.Error()))
 			return false
 		}
 		if detail.FileId == "" {
-			task.Fail(fmt.Errorf("115查询文件详情 %s 失败: 返回空文件ID", fileId))
+			task.Fail(fmt.Errorf("115 查询文件详情 %s 失败：返回空文件 ID", fileId))
 			return false
 		}
 		mtime := helpers.StringToInt64(detail.Ptime)
 		// 更新本地文件的修改时间
 		err = os.Chtimes(task.LocalFullPath, time.Unix(mtime, 0), time.Unix(mtime, 0))
 		if err != nil {
-			task.Fail(fmt.Errorf("更新本地文件 %s 修改时间失败: %v", task.LocalFullPath, err))
+			task.Fail(fmt.Errorf("更新本地文件 %s 修改时间失败：%v", task.LocalFullPath, err))
 			return false
 		}
 	}
@@ -289,7 +289,7 @@ func (task *DbUploadTask) UploadBaiduPanFile() bool {
 	// 调用上传方法
 	resp, err := client.Upload(context.Background(), task.LocalFullPath, task.RemoteFileId)
 	if err != nil {
-		task.Fail(fmt.Errorf("百度网盘上传文件 %s 失败: %v", task.FileName, err))
+		task.Fail(fmt.Errorf("百度网盘上传文件 %s 失败：%v", task.FileName, err))
 		return false
 	}
 	if task.Source == UploadSourceStrm {
@@ -297,7 +297,7 @@ func (task *DbUploadTask) UploadBaiduPanFile() bool {
 		// 更新本地文件的修改时间
 		err = os.Chtimes(task.LocalFullPath, t, t)
 		if err != nil {
-			task.Fail(fmt.Errorf("更新本地文件 %s 修改时间失败: %v", task.LocalFullPath, err))
+			task.Fail(fmt.Errorf("更新本地文件 %s 修改时间失败：%v", task.LocalFullPath, err))
 			return false
 		}
 	}
@@ -314,32 +314,32 @@ func (task *DbUploadTask) UploadOpenListFile() bool {
 	// 上传文件
 	client := account.GetOpenListClient()
 	if client == nil {
-		task.Fail(fmt.Errorf("账户 %s OpenList客户端不存在", account.Name))
+		task.Fail(fmt.Errorf("账户 %s OpenList 客户端不存在", account.Name))
 		return false
 	}
 	task.Uploading()
 	_, err := client.Upload(task.LocalFullPath, task.RemoteFileId)
 	if err != nil {
-		task.Fail(fmt.Errorf("OpenList上传文件 %s 失败: %v", task.FileName, err))
+		task.Fail(fmt.Errorf("OpenList 上传文件 %s 失败：%v", task.FileName, err))
 		return false
 	}
 	if task.Source == UploadSourceStrm {
 		// 查询文件详情
 		detail, err := client.FileDetail(task.RemoteFileId)
 		if err != nil {
-			task.Fail(fmt.Errorf("OpenList查询文件详情 %s 失败: %s", task.RemoteFileId, err.Error()))
+			task.Fail(fmt.Errorf("OpenList 查询文件详情 %s 失败：%s", task.RemoteFileId, err.Error()))
 			return false
 		}
-		// 将ISO 8601格式的日期字符串转换为时间戳
+		// 将 ISO 8601 格式的日期字符串转换为时间戳
 		t, err := time.Parse(time.RFC3339, detail.Modified)
 		if err != nil {
-			helpers.AppLogger.Warnf("解析时间格式失败: %v, 时间字符串: %s", err, detail.Modified)
+			helpers.AppLogger.Warnf("解析时间格式失败：%v, 时间字符串：%s", err, detail.Modified)
 			return true
 		}
 		// 更新本地文件的修改时间
 		err = os.Chtimes(task.LocalFullPath, t, t)
 		if err != nil {
-			task.Fail(fmt.Errorf("更新本地文件 %s 修改时间失败: %v", task.LocalFullPath, err))
+			task.Fail(fmt.Errorf("更新本地文件 %s 修改时间失败：%v", task.LocalFullPath, err))
 			return false
 		}
 	}
@@ -350,7 +350,7 @@ func (task *DbUploadTask) UploadLocalFile() bool {
 	task.Uploading()
 	err := helpers.CopyFile(task.LocalFullPath, task.RemoteFileId)
 	if err != nil {
-		task.Fail(fmt.Errorf("本地文件 %s 复制到 %s 失败: %v", task.LocalFullPath, task.RemoteFileId, err))
+		task.Fail(fmt.Errorf("本地文件 %s 复制到 %s 失败：%v", task.LocalFullPath, task.RemoteFileId, err))
 		return false
 	}
 	return true
@@ -370,7 +370,7 @@ func CheckCanUploadByLocalPath(source UploadSource, localPath string) bool {
 	return true
 }
 
-// 检查任务是否已经存在，通过Source + RemoteFileId
+// 检查任务是否已经存在，通过 Source + RemoteFileId
 func CheckUploadTaskExist(source UploadSource, remoteFileId string) *DbUploadTask {
 	var task *DbUploadTask
 	err := db.Db.Model(&DbUploadTask{}).
@@ -382,7 +382,7 @@ func CheckUploadTaskExist(source UploadSource, remoteFileId string) *DbUploadTas
 	return task
 }
 
-// 添加strm同步产生的上传任务
+// 添加 STRM 同步产生的上传任务
 func AddUploadTaskFromSyncFile(file *SyncFile) error {
 	// 先检查是否存在
 	if task := CheckUploadTaskExist(UploadSourceStrm, file.FileId); task != nil {
@@ -415,7 +415,7 @@ func AddUploadTaskFromSyncFile(file *SyncFile) error {
 	}
 	err := db.Db.Save(task).Error
 	if err != nil {
-		helpers.AppLogger.Errorf("添加上传任务 %s => %s 失败: %s", file.LocalFilePath, remoteFileId, err.Error())
+		helpers.AppLogger.Errorf("添加上传任务 %s => %s 失败：%s", file.LocalFilePath, remoteFileId, err.Error())
 		return err
 	}
 	helpers.AppLogger.Infof("添加上传任务 %s => %s 成功", file.LocalFilePath, remoteFileId)
@@ -496,7 +496,7 @@ func ClearPendingUploadTasks() error {
 		Where("status = ?", UploadStatusPending).
 		Delete(&DbUploadTask{}).Error
 	if err != nil {
-		helpers.AppLogger.Errorf("清除待上传任务失败: %v", err)
+		helpers.AppLogger.Errorf("清除待上传任务失败：%v", err)
 		return err
 	}
 	return err
@@ -507,10 +507,10 @@ func ClearExpireUploadTasks() error {
 		Where("created_at < ?", time.Now().AddDate(0, 0, -3).Unix()).
 		Delete(&DbUploadTask{}).Error
 	if err != nil {
-		helpers.AppLogger.Errorf("清除3天前的上传任务失败: %v", err)
+		helpers.AppLogger.Errorf("清除 3 天前的上传任务失败：%v", err)
 		return err
 	} else {
-		helpers.AppLogger.Infof("清除3天前的上传任务成功")
+		helpers.AppLogger.Infof("已清除 3 天前的上传任务")
 	}
 	return err
 }
@@ -520,7 +520,7 @@ func ClearUploadSuccessAndFailed() error {
 		Where("status IN (?, ?)", UploadStatusCompleted, UploadStatusFailed).
 		Delete(&DbUploadTask{}).Error
 	if err != nil {
-		helpers.AppLogger.Errorf("清除上传成功和失败任务失败: %v", err)
+		helpers.AppLogger.Errorf("清除上传成功和失败任务失败：%v", err)
 		return err
 	} else {
 		helpers.AppLogger.Infof("清除上传成功和失败任务成功")
@@ -533,7 +533,7 @@ func UpdateUploadingToPending() error {
 		Where("status = ?", UploadStatusUploading).
 		Update("status", UploadStatusPending).Error
 	if err != nil {
-		helpers.AppLogger.Errorf("更新上传中的任务为待上传失败: %v", err)
+		helpers.AppLogger.Errorf("更新上传中的任务为待上传失败：%v", err)
 		return err
 	} else {
 		helpers.AppLogger.Infof("更新上传中的任务为待上传成功")
@@ -552,7 +552,7 @@ func RetryFailedUploadTasks(maxRetry int) error {
 		Where("status = ? AND retry_count < ?", UploadStatusFailed, maxRetry).
 		Updates(updateData).Error
 	if err != nil {
-		helpers.AppLogger.Errorf("重试失败的上传任务失败: %v", err)
+		helpers.AppLogger.Errorf("重试失败的上传任务失败：%v", err)
 		return err
 	}
 	helpers.AppLogger.Infof("重试失败的上传任务成功")

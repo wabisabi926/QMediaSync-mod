@@ -74,11 +74,17 @@ const pinia = createPinia()
 const app = createApp(App)
 
 app.use(pinia)
-app.use(router)
-app.provide('$http', axios)
-app.provide('SERVER_URL', SERVER_URL)
 
-// 初始化本地认证缓存
-useAuthStore().initAuth()
+const bootstrap = async () => {
+  const authStore = useAuthStore()
+  await authStore.bootstrapAuth(axios)
 
-app.mount('#app')
+  app.use(router)
+  app.provide('$http', axios)
+  app.provide('SERVER_URL', SERVER_URL)
+
+  await router.isReady()
+  app.mount('#app')
+}
+
+void bootstrap()

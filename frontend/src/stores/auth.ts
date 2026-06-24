@@ -10,13 +10,17 @@ export interface User {
   role?: string
 }
 
+type AuthStatus = 'checking' | 'authenticated' | 'anonymous'
+
 export const useAuthStore = defineStore('auth', () => {
   // 状态
   const token = ref<string | null>(null)
   const user = ref<User | null>(null)
+  const authStatus = ref<AuthStatus>('checking')
   const isLoading = ref(false)
   const isLoggingOut = ref(false) // 防止重复登出
   const hasInitialized = ref(false)
+  let bootstrapPromise: Promise<boolean> | null = null
 
   // 计算属性
   const isAuthenticated = computed(() => !!token.value)
@@ -31,6 +35,7 @@ export const useAuthStore = defineStore('auth', () => {
       token.value = savedToken
       try {
         user.value = JSON.parse(savedUser)
+        authStatus.value = 'authenticated'
       } catch (error) {
         console.error('解析用户信息失败:', error)
         clearAuth()
@@ -39,26 +44,44 @@ export const useAuthStore = defineStore('auth', () => {
     hasInitialized.value = true
   }
 
-  const restoreSession = async (http: AxiosStatic) => {
-    initAuth()
-    if (token.value) return true
-    try {
-      const response = await http.get(`${SERVER_URL}/session`, { withCredentials: true })
-      if (response.data?.code === 200 && response.data.data?.token && response.data.data?.user) {
-        login(response.data.data.token, response.data.data.user, false)
+  const bootstrapAuth = async (http: AxiosStatic) => {
+    if (bootstrapPromise) return bootstrapPromise
+
+    bootstrapPromise = (async () => {
+      authStatus.value = 'checking'
+      initAuth()
+      if (token.value) {
+        authStatus.value = 'authenticated'
         return true
       }
-    } catch (error) {
-      console.error('恢复登录会话失败:', error)
-    }
-    clearAuth()
-    return false
+
+      try {
+        const response = await http.get(`${SERVER_URL}/session`, { withCredentials: true })
+        if (response.data?.code === 200 && response.data.data?.token && response.data.data?.user) {
+          login(response.data.data.token, response.data.data.user, false)
+          return true
+        }
+      } catch (error) {
+        console.error('恢复登录会话失败:', error)
+      }
+
+      clearAuth()
+      return false
+    })()
+
+    return bootstrapPromise
+  }
+
+  const restoreSession = async (http: AxiosStatic) => {
+    return bootstrapAuth(http)
   }
 
   // 登录
   const login = (authToken: string, userData: User, rememberMe: boolean = false) => {
     token.value = authToken
     user.value = userData
+    authStatus.value = 'authenticated'
+    hasInitialized.value = true
     const jsonUser = JSON.stringify(userData)
     const storage = rememberMe ? localStorage : sessionStorage
     storage.setItem('auth_token', authToken)
@@ -104,6 +127,8 @@ export const useAuthStore = defineStore('auth', () => {
   const clearAuth = () => {
     token.value = null
     user.value = null
+    authStatus.value = 'anonymous'
+    hasInitialized.value = true
 
     // 清除所有存储的认证信息
     localStorage.removeItem('auth_token')
@@ -145,6 +170,7 @@ export const useAuthStore = defineStore('auth', () => {
     // 状态
     token,
     user,
+    authStatus,
     isLoading,
     isLoggingOut,
     hasInitialized,
@@ -154,6 +180,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     // 方法
     initAuth,
+    bootstrapAuth,
     restoreSession,
     login,
     logout,

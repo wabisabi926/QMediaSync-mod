@@ -19,8 +19,6 @@ type LoginRequest struct {
 	RememberMe bool   `json:"rememberMe" form:"rememberMe"`
 }
 
-var LoginedUser *models.User = nil
-
 type EnableTwoFactorRequest struct {
 	TOTPCode string `json:"totp_code" form:"totp_code"`
 }

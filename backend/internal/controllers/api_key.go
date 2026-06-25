@@ -54,14 +54,14 @@ func CreateAPIKey(c *gin.Context) {
 		return
 	}
 
-	// 获取当前登录用户
-	if LoginedUser == nil {
+	currentUser, ok := CurrentUser(c)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "用户未登录", Data: nil})
 		return
 	}
 
 	// 创建 API Key
-	apiKey, rawKey, err := models.CreateAPIKey(LoginedUser.ID, req.Name)
+	apiKey, rawKey, err := models.CreateAPIKey(currentUser.ID, req.Name)
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("创建 API Key 失败：%v", err), Data: nil})
 		return
@@ -96,14 +96,14 @@ func CreateAPIKey(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func ListAPIKeys(c *gin.Context) {
-	// 获取当前登录用户
-	if LoginedUser == nil {
+	currentUser, ok := CurrentUser(c)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "用户未登录", Data: nil})
 		return
 	}
 
 	// 查询用户的 API Key
-	apiKeys, err := models.GetAPIKeysByUserID(LoginedUser.ID)
+	apiKeys, err := models.GetAPIKeysByUserID(currentUser.ID)
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("查询 API Key 失败：%v", err), Data: nil})
 		return
@@ -142,8 +142,8 @@ func ListAPIKeys(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func DeleteAPIKey(c *gin.Context) {
-	// 获取当前登录用户
-	if LoginedUser == nil {
+	currentUser, ok := CurrentUser(c)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "用户未登录", Data: nil})
 		return
 	}
@@ -157,7 +157,7 @@ func DeleteAPIKey(c *gin.Context) {
 	}
 
 	// 删除 API Key（确保只能删除自己的）
-	err = models.DeleteAPIKey(uint(id), LoginedUser.ID)
+	err = models.DeleteAPIKey(uint(id), currentUser.ID)
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("删除 API Key 失败：%v", err), Data: nil})
 		return
@@ -189,8 +189,8 @@ type UpdateAPIKeyStatusRequest struct {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func UpdateAPIKeyStatus(c *gin.Context) {
-	// 获取当前登录用户
-	if LoginedUser == nil {
+	currentUser, ok := CurrentUser(c)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "用户未登录", Data: nil})
 		return
 	}
@@ -211,7 +211,7 @@ func UpdateAPIKeyStatus(c *gin.Context) {
 	}
 
 	// 更新 API Key 状态（确保只能更新自己的）
-	err = models.UpdateAPIKeyStatus(uint(id), LoginedUser.ID, req.IsActive)
+	err = models.UpdateAPIKeyStatus(uint(id), currentUser.ID, req.IsActive)
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("更新 API Key 状态失败：%v", err), Data: nil})
 		return

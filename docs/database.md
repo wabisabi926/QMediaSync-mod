@@ -25,7 +25,7 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 当 `migrator` 表不存在时，`InitDB()` 会直接执行：
 
 1. `BatchCreateTable()`：对 `AllTables` 逐表执行 `AutoMigrate`。
-2. `InitMigrationTable(MaxVersionCode)`：写入当前版本号，当前值是 `44`。
+2. `InitMigrationTable(MaxVersionCode)`：写入当前版本号，当前值是 `45`。
 3. `InitSettings()`：创建默认 `settings` 记录。
 4. `InitUser()`：创建默认管理员用户。
 5. `InitScrapeSetting()`：创建默认刮削配置和默认分类。
@@ -50,7 +50,8 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 | 41 | `users`、`db_download_tasks`、`db_upload_tasks` 补齐两步验证和队列重试字段。 |
 | 42 | 新增 `emby_library_refresh_tasks`。 |
 | 43 | 下载 / 上传任务的 `source` 从展示文案迁移为稳定存储值。 |
-| 44 | 当前数据库版本。 |
+| 44 | 任务来源枚举迁移后的结构版本。 |
+| 45 | 当前数据库版本；新增 `user_sessions` 表，用于浏览器登录会话撤销、CSRF 校验和登录设备管理。 |
 
 ## 修复与重建
 
@@ -99,7 +100,7 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 
 - `id`：固定为 `1`。
 - `created_at` / `updated_at`：创建和更新时间。
-- `version_code`：当前数据库版本号，当前值为 `44`。
+- `version_code`：当前数据库版本号，当前值为 `45`。
 
 ### `users`
 
@@ -144,6 +145,19 @@ API Key 认证表。
 - `key_prefix`：前 8 位明文前缀，用于列表展示。
 - `last_used_at`：最后使用时间戳。
 - `is_active`：是否启用。
+
+### `user_sessions`
+
+浏览器登录会话表。JWT 只作为客户端 Cookie 中的会话票据，实际有效性以本表为准。
+
+- `session_id`：会话 ID，写入 JWT claims，用于查表。
+- `token_id`：JWT `jti`，用于审计和排查。
+- `user_id` / `username`：关联用户和登录用户名快照。
+- `csrf_token_hash`：CSRF Token 的 SHA256 哈希，原始值只保存在前端可读 `csrf_token` Cookie 和内存状态中。
+- `user_agent` / `ip_address`：登录设备信息。
+- `expires_at`：会话过期时间戳。
+- `last_seen_at`：最后活跃时间戳。
+- `revoked_at` / `revoke_reason`：撤销时间和原因。
 
 ### `settings`
 

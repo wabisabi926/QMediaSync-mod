@@ -19,11 +19,11 @@ type Migrator struct {
 	VersionCode int `json:"version_code"` // 版本号
 }
 
-var MaxVersionCode = 44
+var MaxVersionCode = 45
 var AllTables = []any{
 	Migrator{},
 	BackupConfig{}, BackupRecord{},
-	ApiKey{}, Settings{}, Sync{}, User{}, Account{},
+	ApiKey{}, UserSession{}, Settings{}, Sync{}, User{}, Account{},
 	SyncPath{}, SyncFile{}, SyncPathScrapePath{},
 	ScrapeSettings{}, ScrapePath{}, MovieCategory{}, TvShowCategory{}, ScrapePathCategory{},
 	ScrapeMediaFile{}, Media{}, MediaSeason{}, MediaEpisode{}, ScrapeStrmPath{},
@@ -514,6 +514,12 @@ func Migrate() {
 		}
 		helpers.AppLogger.Info("已迁移任务来源枚举存储值")
 		helpers.AppLogger.Infof("同步库结构更新完毕，当前数据库版本：%d", migrator.VersionCode)
+	}
+	if migrator.VersionCode == 44 {
+		// 添加可撤销登录会话表
+		db.Db.AutoMigrate(UserSession{})
+		helpers.AppLogger.Info("已添加 user_sessions 表")
+		migrator.UpdateVersionCode(db.Db)
 	}
 	helpers.AppLogger.Infof("当前数据库版本 %d", migrator.VersionCode)
 }

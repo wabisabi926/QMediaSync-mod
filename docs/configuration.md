@@ -14,6 +14,15 @@
 - 浏览器登录使用 `auth_token` HttpOnly Cookie，不在 Web Storage 保存 JWT。
 - 服务端通过 `user_sessions` 表控制会话有效性，退出登录、修改密码、两步验证变更和登录设备撤销都会更新该表。
 - `csrf_token` Cookie 可被前端读取，前端会在 `POST`、`PUT`、`PATCH`、`DELETE` 请求中通过 `X-CSRF-Token` 发送，服务端同时校验请求来源和 session 中的 CSRF 哈希。
+- CORS 和 CSRF 共享可信来源判断：同源请求自动允许，默认允许 Vite 开发来源 `http://localhost:5173`、`http://127.0.0.1:5173` 和 `http://[::1]:5173`。自定义前后端跨源部署时，在 `config/config.yaml` 中配置精确来源：
+
+  ```yaml
+  trustedOrigins:
+    - https://qms.example.com
+  ```
+
+  `trustedOrigins` 按 `scheme://host[:port]` 精确匹配，显式默认端口 `http:80`、`https:443` 会按无端口来源处理。前端和 API 使用同一个域名访问时不需要配置；旧配置缺少该字段会按空列表处理。
+  通过 Nginx / Caddy 等反向代理绑定域名时，应保留原始 `Host` 并传递 `X-Forwarded-Proto`，这样同源判断可以按用户访问的域名生效。
 - API Key 调用支持 `X-API-Key` header 和 `?api_key=` 查询参数，不需要 CSRF。
 
 ## 数据库

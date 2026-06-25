@@ -2,8 +2,6 @@ package controllers
 
 import (
 	"net/http"
-	"net/url"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,21 +13,6 @@ func isUnsafeMethod(method string) bool {
 	default:
 		return false
 	}
-}
-
-func requestOriginAllowed(c *gin.Context) bool {
-	origin := c.Request.Header.Get("Origin")
-	if origin == "" {
-		origin = c.Request.Header.Get("Referer")
-	}
-	if origin == "" {
-		return false
-	}
-	parsed, err := url.Parse(origin)
-	if err != nil {
-		return false
-	}
-	return strings.EqualFold(parsed.Host, c.Request.Host)
 }
 
 func validateCSRF(c *gin.Context) bool {

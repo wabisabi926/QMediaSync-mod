@@ -66,18 +66,19 @@ type ConfigStrm struct {
 }
 
 type Config struct {
-	Log           ConfigLog  `yaml:"log"`
-	Db            ConfigDb   `yaml:"db"`
-	CacheSize     int        `yaml:"cacheSize"` // 数据库缓存大小，单位字节
-	JwtSecret     string     `yaml:"jwtSecret"`
-	HttpHost      string     `yaml:"httpHost"`  // HTTP 主机地址
-	HttpsHost     string     `yaml:"httpsHost"` // HTTPS 主机地址
-	Strm          ConfigStrm `yaml:"strm"`
-	AuthServer    string     `yaml:"authServer"`
-	NewAuthServer string     `yaml:"newAuthServer"`
-	BaiDuPanAppId string     `yaml:"baiDuPanAppId"`
-	AdminUsername string     `yaml:"adminUsername"`
-	AdminPassword string     `yaml:"adminPassword"`
+	Log            ConfigLog  `yaml:"log"`
+	Db             ConfigDb   `yaml:"db"`
+	CacheSize      int        `yaml:"cacheSize"` // 数据库缓存大小，单位字节
+	JwtSecret      string     `yaml:"jwtSecret"`
+	HttpHost       string     `yaml:"httpHost"`       // HTTP 主机地址
+	HttpsHost      string     `yaml:"httpsHost"`      // HTTPS 主机地址
+	TrustedOrigins []string   `yaml:"trustedOrigins"` // 允许携带浏览器登录凭证的跨源前端来源
+	Strm           ConfigStrm `yaml:"strm"`
+	AuthServer     string     `yaml:"authServer"`
+	NewAuthServer  string     `yaml:"newAuthServer"`
+	BaiDuPanAppId  string     `yaml:"baiDuPanAppId"`
+	AdminUsername  string     `yaml:"adminUsername"`
+	AdminPassword  string     `yaml:"adminPassword"`
 }
 
 var GlobalConfig Config
@@ -292,15 +293,16 @@ func MakeDefaultConfig() *Config {
 				MaxIdleConns: 25,
 			},
 		},
-		CacheSize:     20971520,
-		JwtSecret:     DefaultJWTSecret,
-		HttpHost:      ":12333",
-		HttpsHost:     ":12332",
-		AuthServer:    "https://api.mqfamily.top",
-		NewAuthServer: "https://oauth.qmediasync.cn",
-		BaiDuPanAppId: "QMediaSync",
-		AdminUsername: "admin",
-		AdminPassword: "admin123",
+		CacheSize:      20971520,
+		JwtSecret:      DefaultJWTSecret,
+		HttpHost:       ":12333",
+		HttpsHost:      ":12332",
+		TrustedOrigins: []string{},
+		AuthServer:     "https://api.mqfamily.top",
+		NewAuthServer:  "https://oauth.qmediasync.cn",
+		BaiDuPanAppId:  "QMediaSync",
+		AdminUsername:  "admin",
+		AdminPassword:  "admin123",
 		Strm: ConfigStrm{
 			VideoExt:     []string{".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".3gp", ".ts"},
 			MetaExt:      []string{".jpg", ".jpeg", ".png", ".webp", ".nfo", ".srt", ".ass", ".svg", ".sup", ".lrc"},

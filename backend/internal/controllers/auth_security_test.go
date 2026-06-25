@@ -15,6 +15,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"gopkg.in/yaml.v2"
 	"gorm.io/gorm"
 )
 
@@ -23,7 +24,7 @@ func setupAuthSecurityTest(t *testing.T) (*gin.Engine, *models.User, *models.Use
 
 	gin.SetMode(gin.TestMode)
 	helpers.AppLogger = &helpers.QLogger{Logger: log.New(io.Discard, "", 0)}
-	helpers.GlobalConfig.JwtSecret = "test-secret"
+	helpers.GlobalConfig = helpers.Config{JwtSecret: "test-secret"}
 	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
@@ -60,6 +61,104 @@ func setupAuthSecurityTest(t *testing.T) (*gin.Engine, *models.User, *models.Use
 	return r, user, session, csrfToken
 }
 
+func TestCorsRestrictsCredentialedOrigins(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	helpers.GlobalConfig = helpers.Config{}
+	r := gin.New()
+	r.Use(Cors())
+	r.GET("/protected", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	req.Host = "localhost:12333"
+	req.Header.Set("Origin", "https://evil.example")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("不可信 Origin 不应被允许，got %q", got)
+	}
+	if got := w.Header().Get("Access-Control-Allow-Credentials"); got != "" {
+		t.Fatalf("不可信 Origin 不应允许携带凭证，got %q", got)
+	}
+}
+
+func TestCorsAllowsConfiguredTrustedOrigin(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	helpers.GlobalConfig = helpers.Config{}
+	if err := yaml.Unmarshal([]byte("trustedOrigins:\n  - https://qms.example.com\n"), &helpers.GlobalConfig); err != nil {
+		t.Fatalf("解析 trustedOrigins 失败: %v", err)
+	}
+	r := gin.New()
+	r.Use(Cors())
+	r.GET("/protected", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	req.Host = "api.example.com"
+	req.Header.Set("Origin", "https://qms.example.com")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "https://qms.example.com" {
+		t.Fatalf("配置的可信 Origin 应被允许，got %q", got)
+	}
+	if got := w.Header().Get("Access-Control-Allow-Credentials"); got != "true" {
+		t.Fatalf("配置的可信 Origin 应允许携带凭证，got %q", got)
+	}
+}
+
+func TestCorsAllowsConfiguredTrustedOriginWithDefaultPort(t *testing.T) {
+	cases := []struct {
+		name            string
+		trustedOrigin   string
+		browserOrigin   string
+		requestHost     string
+		wantAllowOrigin string
+	}{
+		{
+			name:            "HTTPS 默认端口",
+			trustedOrigin:   "https://qms.example.com:443",
+			browserOrigin:   "https://qms.example.com",
+			requestHost:     "api.example.com",
+			wantAllowOrigin: "https://qms.example.com",
+		},
+		{
+			name:            "HTTP 默认端口",
+			trustedOrigin:   "http://localhost:80",
+			browserOrigin:   "http://localhost",
+			requestHost:     "api.example.com",
+			wantAllowOrigin: "http://localhost",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			helpers.GlobalConfig = helpers.Config{}
+			if err := yaml.Unmarshal([]byte("trustedOrigins:\n  - "+tc.trustedOrigin+"\n"), &helpers.GlobalConfig); err != nil {
+				t.Fatalf("解析 trustedOrigins 失败: %v", err)
+			}
+			r := gin.New()
+			r.Use(Cors())
+			r.GET("/protected", func(c *gin.Context) {
+				c.JSON(http.StatusOK, gin.H{"ok": true})
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+			req.Host = tc.requestHost
+			req.Header.Set("Origin", tc.browserOrigin)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			if got := w.Header().Get("Access-Control-Allow-Origin"); got != tc.wantAllowOrigin {
+				t.Fatalf("带默认端口的可信 Origin 配置应被允许，got %q", got)
+			}
+		})
+	}
+}
+
 func TestCookieSessionRequiresCSRFForUnsafeMethod(t *testing.T) {
 	r, _, session, csrfToken := setupAuthSecurityTest(t)
 	tokenString := buildSessionCookieTokenForTest(t, session)
@@ -85,6 +184,45 @@ func TestCookieSessionRequiresCSRFForUnsafeMethod(t *testing.T) {
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("带 CSRF 时 HTTP = %d, body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestCookieSessionAllowsDefaultViteOrigin(t *testing.T) {
+	r, _, session, csrfToken := setupAuthSecurityTest(t)
+	tokenString := buildSessionCookieTokenForTest(t, session)
+
+	req := httptest.NewRequest(http.MethodPost, "/protected", nil)
+	req.Host = "localhost:12333"
+	req.Header.Set("Origin", "http://localhost:5173")
+	req.Header.Set(csrfHeaderName, csrfToken)
+	req.AddCookie(&http.Cookie{Name: authCookieName, Value: tokenString})
+	req.AddCookie(&http.Cookie{Name: csrfCookieName, Value: csrfToken})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("默认 Vite 开发来源应通过 CSRF，HTTP = %d, body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestCookieSessionAllowsConfiguredTrustedOrigin(t *testing.T) {
+	r, _, session, csrfToken := setupAuthSecurityTest(t)
+	if err := yaml.Unmarshal([]byte("trustedOrigins:\n  - https://qms.example.com\n"), &helpers.GlobalConfig); err != nil {
+		t.Fatalf("解析 trustedOrigins 失败: %v", err)
+	}
+	tokenString := buildSessionCookieTokenForTest(t, session)
+
+	req := httptest.NewRequest(http.MethodPost, "/protected", nil)
+	req.Host = "api.example.com"
+	req.Header.Set("Origin", "https://qms.example.com")
+	req.Header.Set(csrfHeaderName, csrfToken)
+	req.AddCookie(&http.Cookie{Name: authCookieName, Value: tokenString})
+	req.AddCookie(&http.Cookie{Name: csrfCookieName, Value: csrfToken})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("配置的可信来源应通过 CSRF，HTTP = %d, body=%s", w.Code, w.Body.String())
 	}
 }
 

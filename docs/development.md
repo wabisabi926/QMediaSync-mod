@@ -21,6 +21,13 @@ pnpm run dev
 
 前端开发环境默认连接 `http://localhost:12333/api`。
 
+后端默认允许 Vite 开发来源 `http://localhost:5173`、`http://127.0.0.1:5173` 和 `http://[::1]:5173` 携带浏览器登录 Cookie。若修改 Vite 端口、使用自定义开发域名，或让前端跨源访问后端，需要把前端来源加入 `config/config.yaml`：
+
+```yaml
+trustedOrigins:
+  - http://dev.example.local:5173
+```
+
 ## 常用验证
 
 ```bash

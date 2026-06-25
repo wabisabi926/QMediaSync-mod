@@ -175,7 +175,9 @@ func Cors() gin.HandlerFunc {
 		// 	headerStr = "access-control-allow-origin, access-control-allow-headers"
 		// }
 		if origin != "" {
-			origin := c.Request.Header.Get("Origin")
+			c.Header("Vary", "Origin")
+		}
+		if origin != "" && originAllowed(c, origin) {
 			c.Header("Access-Control-Allow-Origin", origin)                                    // 允许访问当前请求来源
 			c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE,UPDATE") // 服务器支持的跨域请求方法，避免浏览器重复预检。
 			// Header 类型
@@ -184,8 +186,7 @@ func Cors() gin.HandlerFunc {
 			c.Header("Access-Control-Expose-Headers", "Content-Length, Access-Control-Allow-Origin, Access-Control-Allow-Headers,Cache-Control,Content-Language,Content-Type,Expires,Last-Modified,Pragma,FooBar") // 跨域关键设置，让浏览器可以解析。
 			c.Header("Access-Control-Max-Age", "172800")                                                                                                                                                           // 缓存预检请求信息，单位为秒。
 			c.Header("Access-Control-Allow-Credentials", "true")                                                                                                                                                   // 允许前端开发环境携带 Cookie。
-			c.Header("Vary", "Origin")
-			c.Set("content-type", "application/json") // 设置返回格式为 JSON 。
+			c.Set("content-type", "application/json")                                                                                                                                                              // 设置返回格式为 JSON 。
 		}
 
 		// 放行所有 OPTIONS 方法

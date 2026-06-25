@@ -12,6 +12,13 @@
     />
 
     <el-alert
+      title="提示：恢复成功后请重启服务，让所有数据和配置生效！"
+      type="warning"
+      :closable="false"
+      style="margin-bottom: 20px"
+    />
+
+    <el-alert
       title="恢复说明：仅支持 .sql 或 .zip 格式的备份文件，文件大小不超过 1 GB"
       type="info"
       :closable="false"
@@ -140,13 +147,17 @@ const startRestore = async () => {
 
   try {
     await ElMessageBox.confirm(
-      '此操作将覆盖当前数据库，数据库将暂时不可用，确认继续吗？',
+      `<div style="line-height: 1.8;">
+        <p>此操作将覆盖当前数据库，数据库将暂时不可用，确认继续吗？</p>
+        <p style="color: #F56C6C; font-weight: bold; font-size: 16px; margin-top: 8px;">⚠️ 注意：恢复成功后请重启服务让所有数据和配置生效！</p>
+      </div>`,
       '危险操作确认',
       {
         confirmButtonText: '确认恢复',
         cancelButtonText: '取消',
-        type: 'error',
+        type: 'warning',
         confirmButtonClass: 'el-button--danger',
+        dangerouslyUseHTMLString: true,
       },
     )
 

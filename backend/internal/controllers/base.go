@@ -2,10 +2,8 @@ package controllers
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"Q115-STRM/internal/helpers"
@@ -13,14 +11,7 @@ import (
 	"Q115-STRM/internal/v115open"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 )
-
-type LoginUser struct {
-	ID       uint   `json:"id"`
-	Username string `json:"username"`
-	jwt.RegisteredClaims
-}
 
 type APIResponseCode int
 
@@ -38,91 +29,84 @@ type APIResponse[T any] struct {
 // JWTAuthMiddleware 基于 JWT 的认证中间件，用于验证用户是否登录。
 func JWTAuthMiddleware() func(c *gin.Context) {
 	return func(c *gin.Context) {
-		// 优先检查 API Key（GET 参数 api_key）
-		apiKey := c.Query("api_key")
+		apiKey := apiKeyFromRequest(c)
 		if apiKey != "" {
-			// 验证 API Key
-			apiKeyModel, err := models.ValidateAPIKey(apiKey)
-			if err == nil && apiKeyModel != nil {
-				// API Key 验证成功
-				// 获取关联的用户信息
-				user, err := models.GetUserById(apiKeyModel.UserID)
-				if err == nil && user != nil {
-					LoginedUser = user
-					// 将用户名保存到上下文
-					c.Set("username", user.Username)
-					// 异步更新最后使用时间
-					go func() {
-						apiKeyModel.UpdateLastUsedAt()
-					}()
-					c.Next()
-					return
-				}
+			if !authenticateAPIKey(c, apiKey) {
+				c.Abort()
+				return
 			}
+			c.Next()
+			return
 		}
 
-		// 回退到 JWT Token 验证
-		// 1. 优先从 Cookie 获取 token
-		var tokenString string
-		cookie, err := c.Request.Cookie("auth_token")
-		if err == nil && cookie.Value != "" {
-			tokenString = cookie.Value
-			// helpers.AppLogger.Debugf("从 Cookie 获取 token")
-		} else {
-			// 2. Cookie 不存在时，从 Authorization Header 获取
-			authHeader := c.Request.Header.Get("Authorization")
-			if authHeader == "" {
-				c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "登录凭证不存在", Data: nil})
-				c.Abort()
-				return
-			}
-			// 按空格分割
-			parts := strings.Split(authHeader, ".")
-			if len(parts) != 3 {
-				c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "登录凭证格式不正确", Data: nil})
-				c.Abort()
-				return
-			}
-			tokenString = strings.Replace(authHeader, "Bearer ", "", 1)
-			// helpers.AppLogger.Debugf("从 Authorization Header 获取 token")
-		}
-		// helpers.AppLogger.Debugf("tokenString：%s", tokenString)
-		loginUser, err := ValidateJWT(tokenString)
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("登录凭证无效：%v", err), Data: nil})
+		if !authenticateCookieSession(c) {
 			c.Abort()
 			return
 		}
-		// helpers.AppLogger.Debugf("已认证用户：%s", loginUser.Username)
-		LoginedUser, err = models.GetUserById(loginUser.ID)
-		if err != nil {
-			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("获取用户信息失败：%v", err), Data: nil})
+		if !validateCSRF(c) {
 			c.Abort()
 			return
-		} else {
-			// helpers.AppLogger.Debugf("获取用户信息成功：%+v", LoginedUser)
 		}
-		// 将当前请求的 username 信息保存到请求上下文。
-		c.Set("username", loginUser.Username)
-		c.Next() // 后续处理函数可以通过 c.Get("username") 获取当前请求的用户信息。
+		c.Next()
 	}
 }
 
-// ValidateJWT 校验 JWT。
-func ValidateJWT(tokenString string) (*LoginUser, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &LoginUser{}, func(token *jwt.Token) (any, error) {
-		return []byte(helpers.GlobalConfig.JwtSecret), nil
-	})
-	// helpers.AppLogger.Debugf("%+v", token)
-	if err != nil || !token.Valid {
-		return nil, fmt.Errorf("登录凭证校验失败：%v", err)
+func apiKeyFromRequest(c *gin.Context) string {
+	apiKey := c.Request.Header.Get(apiKeyHeaderName)
+	if apiKey == "" {
+		apiKey = c.Query("api_key")
 	}
-	claims := token.Claims.(*LoginUser)
-	if claims.Username == "" {
-		return nil, fmt.Errorf("登录凭证中无法获取用户名")
-	}
+	return apiKey
+}
 
-	return claims, nil
+func authenticateAPIKey(c *gin.Context, apiKey string) bool {
+	apiKeyModel, err := models.ValidateAPIKey(apiKey)
+	if err != nil || apiKeyModel == nil {
+		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "API Key 无效", Data: nil})
+		return false
+	}
+	user, err := models.GetUserById(apiKeyModel.UserID)
+	if err != nil || user == nil || user.ID == 0 {
+		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "API Key 用户不存在", Data: nil})
+		return false
+	}
+	SetCurrentUser(c, user, authMethodAPIKey)
+	go func() {
+		_ = apiKeyModel.UpdateLastUsedAt()
+	}()
+	return true
+}
+
+func authenticateCookieSession(c *gin.Context) bool {
+	cookie, err := c.Request.Cookie(authCookieName)
+	if err != nil || cookie.Value == "" {
+		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "登录凭证不存在", Data: nil})
+		return false
+	}
+	loginUser, err := ValidateJWT(cookie.Value)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "登录凭证无效", Data: nil})
+		return false
+	}
+	now := time.Now().Unix()
+	session, err := models.GetActiveUserSession(loginUser.SessionID, now)
+	if err != nil || session.UserID != loginUser.ID {
+		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "登录会话已失效", Data: nil})
+		return false
+	}
+	user, err := models.GetUserById(loginUser.ID)
+	if err != nil || user == nil || user.ID == 0 {
+		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "登录用户不存在", Data: nil})
+		return false
+	}
+	SetCurrentUser(c, user, authMethodSession)
+	SetCurrentSession(c, session)
+	if now-session.LastSeenAt >= 60 {
+		go func() {
+			_ = models.TouchUserSession(session.SessionID, now)
+		}()
+	}
+	return true
 }
 
 func Proxy115(c *gin.Context) {
@@ -195,12 +179,13 @@ func Cors() gin.HandlerFunc {
 			c.Header("Access-Control-Allow-Origin", origin)                                    // 允许访问当前请求来源
 			c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE,UPDATE") // 服务器支持的跨域请求方法，避免浏览器重复预检。
 			// Header 类型
-			c.Header("Access-Control-Allow-Headers", "Authorization, Content-Length, X-CSRF-Token, Token,session,X_Requested_With,Accept, Origin, Host, Connection, Accept-Encoding, Accept-Language,DNT, X-CustomHeader, Keep-Alive, User-Agent, X-Requested-With, If-Modified-Since, Cache-Control, Content-Type, Pragma")
+			c.Header("Access-Control-Allow-Headers", "Authorization, X-API-Key, Content-Length, X-CSRF-Token, Token, session, X_Requested_With, Accept, Origin, Host, Connection, Accept-Encoding, Accept-Language, DNT, X-CustomHeader, Keep-Alive, User-Agent, X-Requested-With, If-Modified-Since, Cache-Control, Content-Type, Pragma")
 			// 允许浏览器读取这些跨域响应头。
 			c.Header("Access-Control-Expose-Headers", "Content-Length, Access-Control-Allow-Origin, Access-Control-Allow-Headers,Cache-Control,Content-Language,Content-Type,Expires,Last-Modified,Pragma,FooBar") // 跨域关键设置，让浏览器可以解析。
 			c.Header("Access-Control-Max-Age", "172800")                                                                                                                                                           // 缓存预检请求信息，单位为秒。
-			c.Header("Access-Control-Allow-Credentials", "false")                                                                                                                                                  // 跨域请求不携带 Cookie 信息。
-			c.Set("content-type", "application/json")                                                                                                                                                              // 设置返回格式为 JSON 。
+			c.Header("Access-Control-Allow-Credentials", "true")                                                                                                                                                   // 允许前端开发环境携带 Cookie。
+			c.Header("Vary", "Origin")
+			c.Set("content-type", "application/json") // 设置返回格式为 JSON 。
 		}
 
 		// 放行所有 OPTIONS 方法

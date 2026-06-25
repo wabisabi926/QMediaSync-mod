@@ -28,13 +28,13 @@ const (
 type UploadSource string
 
 const (
-	UploadSourceStrm   UploadSource = "strm同步"
-	UploadSourceScrape UploadSource = "刮削整理"
+	UploadSourceStrm   UploadSource = "strm_sync"
+	UploadSourceScrape UploadSource = "scrape_organize"
 )
 
 type DbUploadTask struct {
 	BaseModel
-	Source               UploadSource     `json:"source"` // 任务来源
+	Source               UploadSource     `json:"source"` // 上传来源存储值，展示文案由前端映射
 	AccountId            uint             `json:"account_id"`
 	SyncFileId           uint             `json:"sync_file_id"`                                     // 同步文件 ID
 	ScrapeMediaFileId    uint             `json:"scrape_media_file_id"`                             // 刮削文件 ID

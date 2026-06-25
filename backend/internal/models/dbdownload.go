@@ -18,9 +18,9 @@ import (
 type DownloadSource string
 
 const (
-	DownloadSourceStrm      = "strm同步"
-	DownloadSourceLocalFile = "本地文件"
-	DownloadSourceEmbyMedia = "emby媒体信息提取"
+	DownloadSourceStrm      DownloadSource = "strm_sync"
+	DownloadSourceLocalFile DownloadSource = "local_file"
+	DownloadSourceEmbyMedia DownloadSource = "emby_media"
 )
 
 // DownloadStatus 下载状态
@@ -45,7 +45,7 @@ type DbDownloadTask struct {
 	FileName      string         `json:"file_name"`                              // 文件名，用来显示
 	RemotePath    string         `json:"remote_path"`                            // 远程路径，不含文件名
 	LocalFullPath string         `json:"local_full_path"`                        // 本地文件路径，下载到这个位置，如果已存在不覆盖，下载前先检查
-	Source        DownloadSource `json:"source" gorm:"index:idx_source"`         // 下载来源，目前只有 STRM 同步
+	Source        DownloadSource `json:"source" gorm:"index:idx_source"`         // 下载来源存储值，展示文案由前端映射
 	Status        DownloadStatus `json:"status" gorm:"index:idx_status"`         // 下载状态
 	Size          int64          `json:"size"`                                   // 文件大小
 	StartTime     int64          `json:"start_time"`                             // 开始时间

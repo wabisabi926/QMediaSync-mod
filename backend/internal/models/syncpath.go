@@ -22,7 +22,7 @@ const (
 	SourceType123       SourceType = "123"
 	SourceTypeOpenList  SourceType = "openlist"
 	SourceTypeBaiduPan  SourceType = "baidupan"
-	SourceTypeEmbyMedia SourceType = "emby媒体信息提取" // Emby 媒体信息提取专用
+	SourceTypeEmbyMedia SourceType = "emby_media" // Emby 媒体信息提取专用
 )
 
 func (s SourceType) String() string {

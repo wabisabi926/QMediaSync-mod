@@ -19,7 +19,7 @@ type Migrator struct {
 	VersionCode int `json:"version_code"` // 版本号
 }
 
-var MaxVersionCode = 43
+var MaxVersionCode = 44
 var AllTables = []any{
 	Migrator{},
 	BackupConfig{}, BackupRecord{},
@@ -496,6 +496,25 @@ func Migrate() {
 		helpers.AppLogger.Info("已添加 emby_library_refresh_tasks 表")
 		migrator.UpdateVersionCode(db.Db)
 	}
+	if migrator.VersionCode == 43 {
+		// 将任务来源字段从展示文案迁移为稳定存储值
+		if err := db.Db.Transaction(func(tx *gorm.DB) error {
+			if err := migrateTaskSourceEnumValues(tx); err != nil {
+				return err
+			}
+			nextVersion := migrator.VersionCode + 1
+			if err := tx.Model(&migrator).Update("version_code", nextVersion).Error; err != nil {
+				return fmt.Errorf("更新迁移版本失败：%w", err)
+			}
+			migrator.VersionCode = nextVersion
+			return nil
+		}); err != nil {
+			helpers.AppLogger.Errorf("迁移任务来源枚举存储值失败：%v", err)
+			return
+		}
+		helpers.AppLogger.Info("已迁移任务来源枚举存储值")
+		helpers.AppLogger.Infof("同步库结构更新完毕，当前数据库版本：%d", migrator.VersionCode)
+	}
 	helpers.AppLogger.Infof("当前数据库版本 %d", migrator.VersionCode)
 }
 
@@ -899,6 +918,39 @@ func addNewNotificationRulesForExistingChannels(dbConn *gorm.DB) {
 	}
 
 	helpers.AppLogger.Infof("数据库迁移完成：已为 %d 个渠道添加新的播放通知类型规则", addedCount)
+}
+
+func migrateTaskSourceEnumValues(dbConn *gorm.DB) error {
+	updates := []struct {
+		model    any
+		label    string
+		column   string
+		oldValue string
+		newValue string
+	}{
+		{model: &DbDownloadTask{}, label: "下载任务来源", column: "source", oldValue: "strm同步", newValue: string(DownloadSourceStrm)},
+		{model: &DbDownloadTask{}, label: "下载任务来源", column: "source", oldValue: "本地文件", newValue: string(DownloadSourceLocalFile)},
+		{model: &DbDownloadTask{}, label: "下载任务来源", column: "source", oldValue: "emby媒体信息提取", newValue: string(DownloadSourceEmbyMedia)},
+		{model: &DbDownloadTask{}, label: "下载任务来源类型", column: "source_type", oldValue: "emby媒体信息提取", newValue: string(SourceTypeEmbyMedia)},
+		{model: &DbUploadTask{}, label: "上传任务来源", column: "source", oldValue: "strm同步", newValue: string(UploadSourceStrm)},
+		{model: &DbUploadTask{}, label: "上传任务来源", column: "source", oldValue: "刮削整理", newValue: string(UploadSourceScrape)},
+	}
+
+	for _, update := range updates {
+		if err := updateTaskSourceColumn(dbConn, update.model, update.label, update.column, update.oldValue, update.newValue); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func updateTaskSourceColumn(dbConn *gorm.DB, model any, label string, column string, oldValue string, newValue string) error {
+	result := dbConn.Model(model).Where(column+" = ?", oldValue).Update(column, newValue)
+	if result.Error != nil {
+		return fmt.Errorf("迁移%s失败：%s -> %s：%w", label, oldValue, newValue, result.Error)
+	}
+	helpers.AppLogger.Infof("迁移%s完成：%s -> %s，影响 %d 条", label, oldValue, newValue, result.RowsAffected)
+	return nil
 }
 
 func fillSyncPathIdInEmbyMediaSyncFile(dbConn *gorm.DB) {

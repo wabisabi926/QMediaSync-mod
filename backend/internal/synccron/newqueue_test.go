@@ -1,6 +1,7 @@
 package synccron
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -205,4 +206,83 @@ func TestPauseResumeAll(t *testing.T) {
 	}
 
 	time.Sleep(100 * time.Millisecond)
+}
+
+func TestSyncTaskTypeFmtStringUsesMachineValue(t *testing.T) {
+	tests := []struct {
+		name     string
+		taskType SyncTaskType
+		want     string
+	}{
+		{name: "STRM 同步", taskType: SyncTaskTypeStrm, want: "strm_sync"},
+		{name: "刮削整理", taskType: SyncTaskTypeScrape, want: "scrape_organize"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := fmt.Sprintf("%s", tt.taskType); got != tt.want {
+				t.Fatalf("fmt 字符串值 = %s，期望 %s", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSyncTaskTypeValuesAndDisplayNames(t *testing.T) {
+	tests := []struct {
+		name        string
+		taskType    SyncTaskType
+		wantValue   string
+		wantDisplay string
+	}{
+		{name: "STRM 同步", taskType: SyncTaskTypeStrm, wantValue: "strm_sync", wantDisplay: "STRM 同步"},
+		{name: "刮削整理", taskType: SyncTaskTypeScrape, wantValue: "scrape_organize", wantDisplay: "刮削整理"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if string(tt.taskType) != tt.wantValue {
+				t.Fatalf("任务类型存储值 = %s，期望 %s", tt.taskType, tt.wantValue)
+			}
+			if tt.taskType.DisplayName() != tt.wantDisplay {
+				t.Fatalf("任务类型展示名 = %s，期望 %s", tt.taskType.DisplayName(), tt.wantDisplay)
+			}
+		})
+	}
+}
+
+func TestNewSyncTaskKeyUsesMachineTaskTypeValue(t *testing.T) {
+	tests := []struct {
+		name string
+		task NewSyncTask
+		want string
+	}{
+		{
+			name: "ID 任务使用机器值",
+			task: NewSyncTask{ID: 7, TaskType: SyncTaskTypeStrm},
+			want: "7-strm_sync",
+		},
+		{
+			name: "路径任务使用机器值",
+			task: NewSyncTask{SourcePathId: "/movie", TaskType: SyncTaskTypeScrape},
+			want: "/movie-scrape_organize",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.task.Key(); got != tt.want {
+				t.Fatalf("任务 key = %s，期望 %s", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestQueueStatusReturnsMachineTaskTypeValue(t *testing.T) {
+	queue := NewQueuePerType(models.SourceType115)
+	queue.currentTask = &NewSyncTask{ID: 8, TaskType: SyncTaskTypeStrm}
+
+	status := queue.GetStatus()
+	if status["current_task_type"] != "strm_sync" {
+		t.Fatalf("current_task_type = %v，期望 strm_sync", status["current_task_type"])
+	}
 }

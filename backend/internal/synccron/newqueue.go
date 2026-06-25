@@ -17,9 +17,20 @@ import (
 type SyncTaskType string
 
 const (
-	SyncTaskTypeStrm   SyncTaskType = "STRM同步"
-	SyncTaskTypeScrape SyncTaskType = "刮削整理"
+	SyncTaskTypeStrm   SyncTaskType = "strm_sync"
+	SyncTaskTypeScrape SyncTaskType = "scrape_organize"
 )
+
+func (t SyncTaskType) DisplayName() string {
+	switch t {
+	case SyncTaskTypeStrm:
+		return "STRM 同步"
+	case SyncTaskTypeScrape:
+		return "刮削整理"
+	default:
+		return string(t)
+	}
+}
 
 func logInfo(format string, args ...interface{}) {
 	if helpers.AppLogger != nil {
@@ -58,10 +69,9 @@ type NewSyncTask struct {
 
 func (t *NewSyncTask) Key() string {
 	if t.ID > 0 {
-		return fmt.Sprintf("%d-%s", t.ID, t.TaskType)
-	} else {
-		return fmt.Sprintf("%s-%s", t.SourcePathId, t.TaskType)
+		return fmt.Sprintf("%d-%s", t.ID, string(t.TaskType))
 	}
+	return fmt.Sprintf("%s-%s", t.SourcePathId, string(t.TaskType))
 }
 
 type NewSyncQueuePerType struct {
@@ -111,11 +121,11 @@ func (q *NewSyncQueuePerType) AddTask(task *NewSyncTask) error {
 	defer q.mutex.Unlock()
 
 	if q.isTaskExistsUnsafe(task) {
-		return fmt.Errorf("任务已存在：类型=%s，ID=%d", task.TaskType, task.ID)
+		return fmt.Errorf("任务已存在：类型=%s，ID=%d", task.TaskType.DisplayName(), task.ID)
 	}
 
 	if len(q.waitingQueue) >= cap(q.taskChan) {
-		return fmt.Errorf("任务队列已满：类型=%s，ID=%d", task.TaskType, task.ID)
+		return fmt.Errorf("任务队列已满：类型=%s，ID=%d", task.TaskType.DisplayName(), task.ID)
 	}
 
 	q.waitingQueue[task.Key()] = task
@@ -124,16 +134,16 @@ func (q *NewSyncQueuePerType) AddTask(task *NewSyncTask) error {
 		select {
 		case q.taskChan <- task:
 			if helpers.AppLogger != nil {
-				logInfo("任务已加入队列：类型=%s，ID=%d", task.TaskType, task.ID)
+				logInfo("任务已加入队列：类型=%s，ID=%d", task.TaskType.DisplayName(), task.ID)
 			}
 		default:
 			delete(q.waitingQueue, task.Key())
-			return fmt.Errorf("任务队列已满：类型=%s，ID=%d", task.TaskType, task.ID)
+			return fmt.Errorf("任务队列已满：类型=%s，ID=%d", task.TaskType.DisplayName(), task.ID)
 		}
 		q.startProcessorIfNotRunningUnsafe()
 	} else {
 		if helpers.AppLogger != nil {
-			logInfo("任务已加入暂停队列：类型=%s，ID=%d", task.TaskType, task.ID)
+			logInfo("任务已加入暂停队列：类型=%s，ID=%d", task.TaskType.DisplayName(), task.ID)
 		}
 	}
 
@@ -186,7 +196,7 @@ func (q *NewSyncQueuePerType) process() {
 			q.mutex.Lock()
 
 			if _, exists := q.waitingQueue[task.Key()]; !exists {
-				logInfo("任务已被取消，跳过处理：类型=%s，ID=%d", task.TaskType, task.ID)
+				logInfo("任务已被取消，跳过处理：类型=%s，ID=%d", task.TaskType.DisplayName(), task.ID)
 				q.mutex.Unlock()
 				continue
 			}
@@ -195,7 +205,7 @@ func (q *NewSyncQueuePerType) process() {
 			delete(q.waitingQueue, task.Key())
 			q.mutex.Unlock()
 
-			logInfo("开始处理任务：类型=%s，ID=%d", task.TaskType, task.ID)
+			logInfo("开始处理任务：类型=%s，ID=%d", task.TaskType.DisplayName(), task.ID)
 
 			q.executeTask(task)
 
@@ -203,7 +213,7 @@ func (q *NewSyncQueuePerType) process() {
 			q.currentTask = nil
 			q.mutex.Unlock()
 
-			logInfo("任务处理完成：类型=%s，ID=%d", task.TaskType, task.ID)
+			logInfo("任务处理完成：类型=%s，ID=%d", task.TaskType.DisplayName(), task.ID)
 		}
 	}
 }
@@ -214,7 +224,7 @@ func (q *NewSyncQueuePerType) executeTask(task *NewSyncTask) {
 			stack := make([]byte, 4096)
 			length := runtime.Stack(stack, false)
 			stackStr := string(stack[:length])
-			logError("任务执行异常：类型=%s，ID=%d，错误=%v\n堆栈信息：\n%s", task.TaskType, task.ID, r, stackStr)
+			logError("任务执行异常：类型=%s，ID=%d，错误=%v\n堆栈信息：\n%s", task.TaskType.DisplayName(), task.ID, r, stackStr)
 		}
 	}()
 
@@ -337,11 +347,11 @@ func (q *NewSyncQueuePerType) CancelTask(id uint, taskType SyncTaskType) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	key := fmt.Sprintf("%d-%s", id, taskType)
+	key := fmt.Sprintf("%d-%s", id, string(taskType))
 
 	if _, exists := q.waitingQueue[key]; exists {
 		delete(q.waitingQueue, key)
-		logInfo("任务已从等待队列移除：类型=%s，ID=%d", taskType, id)
+		logInfo("任务已从等待队列移除：类型=%s，ID=%d", taskType.DisplayName(), id)
 		return nil
 	}
 
@@ -358,14 +368,14 @@ func (q *NewSyncQueuePerType) CancelTask(id uint, taskType SyncTaskType) error {
 		return nil
 	}
 
-	return fmt.Errorf("任务未找到：类型=%s，ID=%d", taskType, id)
+	return fmt.Errorf("任务未找到：类型=%s，ID=%d", taskType.DisplayName(), id)
 }
 
 func (q *NewSyncQueuePerType) CheckTaskStatus(id uint, taskType SyncTaskType) int {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	key := fmt.Sprintf("%d-%s", id, taskType)
+	key := fmt.Sprintf("%d-%s", id, string(taskType))
 
 	if _, exists := q.waitingQueue[key]; exists {
 		return TaskStatusWaiting
@@ -550,7 +560,7 @@ func (m *NewSyncQueueManager) CancelTask(id uint, taskType SyncTaskType) error {
 		sourceType = scrapePath.SourceType
 
 	default:
-		return fmt.Errorf("未知的任务类型：%s", taskType)
+		return fmt.Errorf("未知的任务类型：%s", taskType.DisplayName())
 	}
 
 	queue := m.getQueue(sourceType)

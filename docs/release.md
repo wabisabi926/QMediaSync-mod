@@ -25,6 +25,8 @@ scripts/release/release.sh major
 
 ## 发布脚本行为
 
+`scripts/release/release.sh` 和 `scripts/release/gen-changelog.sh` 共享 `scripts/release/lib.sh` 中的 tag、版本号和重复发布校验逻辑。
+
 该脚本会：
 
 - 校验 tag 格式必须为 `v<major>.<minor>.<patch>`，例如 `v0.15.3`。

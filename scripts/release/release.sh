@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# shellcheck source=lib.sh
+source "$SCRIPT_DIR/lib.sh"
+
 usage() {
   cat <<'EOF'
 用法:
@@ -21,92 +26,6 @@ usage() {
   7. 推送 main 和 tag，触发 release workflow
   8. 将 release commit 快进同步回 dev 并推送 dev
 EOF
-}
-
-die() {
-  echo "错误: $*" >&2
-  exit 1
-}
-
-require_command() {
-  local name="$1"
-  if ! command -v "$name" >/dev/null 2>&1; then
-    die "未找到命令 ${name}"
-  fi
-}
-
-validate_release_tag() {
-  local tag="$1"
-  if [[ ! "$tag" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-    die "tag 格式必须是 v<major>.<minor>.<patch>，例如 v0.15.3；大版本请使用 v16.0.0"
-  fi
-  TARGET_MAJOR="${BASH_REMATCH[1]}"
-  TARGET_MINOR="${BASH_REMATCH[2]}"
-  TARGET_PATCH="${BASH_REMATCH[3]}"
-}
-
-validate_release_input() {
-  local value="$1"
-  case "$value" in
-    patch|minor|major)
-      return
-      ;;
-  esac
-
-  validate_release_tag "$value"
-}
-
-parse_version_parts() {
-  local tag="$1"
-  if [[ ! "$tag" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-    return 1
-  fi
-  printf '%s %s %s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}"
-}
-
-compare_versions() {
-  local left_major="$1"
-  local left_minor="$2"
-  local left_patch="$3"
-  local right_major="$4"
-  local right_minor="$5"
-  local right_patch="$6"
-
-  if (( left_major > right_major )); then
-    printf '1\n'
-    return
-  fi
-  if (( left_major < right_major )); then
-    printf -- '-1\n'
-    return
-  fi
-  if (( left_minor > right_minor )); then
-    printf '1\n'
-    return
-  fi
-  if (( left_minor < right_minor )); then
-    printf -- '-1\n'
-    return
-  fi
-  if (( left_patch > right_patch )); then
-    printf '1\n'
-    return
-  fi
-  if (( left_patch < right_patch )); then
-    printf -- '-1\n'
-    return
-  fi
-  printf '0\n'
-}
-
-latest_semver_tag() {
-  local tag
-  while IFS= read -r tag; do
-    if [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-      printf '%s\n' "$tag"
-      return
-    fi
-  done < <(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname)
 }
 
 derive_release_tag() {
@@ -294,7 +213,6 @@ validate_release_input "$RELEASE_INPUT"
 require_command git
 require_command git-cliff
 
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
 git fetch "$REMOTE" --tags

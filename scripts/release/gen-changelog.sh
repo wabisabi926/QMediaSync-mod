@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# shellcheck source=lib.sh
+source "$SCRIPT_DIR/lib.sh"
+
 # 从 git 提交日志自动生成指定版本的 changelog（基于 git-cliff + 仓库根目录的 cliff.toml）。
 #
 # 作用：
@@ -13,34 +18,6 @@ set -euo pipefail
 # 依赖：git-cliff（安装：https://git-cliff.org/docs/installation/，例如 `cargo install git-cliff`
 #       / `brew install git-cliff` / `npm i -g git-cliff`）
 
-escape_regex() {
-  printf '%s' "$1" | sed 's/[][(){}.^$*+?|\\]/\\&/g'
-}
-
-ensure_new_changelog_version() {
-  local tag="$1"
-  local changelog="$2"
-  local changes_dir="$3"
-  local notes="${changes_dir}/${tag}.md"
-  local escaped_tag
-
-  if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
-    echo "版本 ${tag} 的 git tag 已存在" >&2
-    return 1
-  fi
-
-  if [ -e "$notes" ]; then
-    echo "版本 ${tag} 的发布说明已存在: ${notes}" >&2
-    return 1
-  fi
-
-  escaped_tag="$(escape_regex "$tag")"
-  if [ -f "$changelog" ] && grep -Eq "^## \\[?${escaped_tag}\\]?([[:space:]]|$)" "$changelog"; then
-    echo "版本 ${tag} 已存在于 ${changelog}" >&2
-    return 1
-  fi
-}
-
 TAG="${1:-}"
 if [ -z "$TAG" ]; then
   echo "用法: $0 <tag>，例如 $0 v0.14.24" >&2
@@ -52,13 +29,12 @@ if ! command -v git-cliff >/dev/null 2>&1; then
   exit 1
 fi
 
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
 CHANGELOG="CHANGELOG.md"
 NOTES=".changes/${TAG}.md"
 
-ensure_new_changelog_version "$TAG" "$CHANGELOG" ".changes"
+ensure_new_release_version "$TAG" "$CHANGELOG" ".changes"
 
 mkdir -p .changes
 

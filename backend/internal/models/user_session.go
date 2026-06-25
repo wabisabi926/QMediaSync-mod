@@ -105,6 +105,10 @@ func ListActiveUserSessions(userID uint, now int64) ([]UserSession, error) {
 	return sessions, err
 }
 
+func SaveUserSession(session *UserSession) error {
+	return db.Db.Save(session).Error
+}
+
 func RevokeUserSession(userID uint, sessionID string, reason string) error {
 	return db.Db.Model(&UserSession{}).
 		Where("user_id = ? AND session_id = ? AND revoked_at = 0", userID, sessionID).

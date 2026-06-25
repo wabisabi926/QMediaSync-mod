@@ -536,7 +536,6 @@ func setRouter(r *gin.Engine) {
 	r.POST("/emby/webhook", controllers.Webhook)
 	r.POST("/api/login", controllers.LoginAction)
 	r.GET("/api/session", controllers.SessionAction)
-	r.POST("/api/logout", controllers.LogoutAction)
 	r.GET("/115/url/*filename", controllers.Get115UrlByPickCode)           // 查询 115 直链，按 PickCode 查询，支持 ISO，路径最后一部分为 .扩展名格式
 	r.GET("/115/newurl", controllers.Get115UrlByPickCode)                  // 查询 115 直链，按 PickCode 查询
 	r.GET("/baidupan/url/*filename", controllers.GetBaiduPanUrlByPickCode) // 查询百度网盘直链，按 fs_id 查询，支持 ISO，路径最后一部分为 .扩展名格式
@@ -592,6 +591,7 @@ func setRouter(r *gin.Engine) {
 		api.POST("/update/cancel", controllers.CancelUpdate)        // 取消更新
 
 		api.GET("/user/info", controllers.GetUserInfo)
+		api.POST("/logout", controllers.LogoutAction)
 		api.GET("/user/two-factor/status", controllers.GetTwoFactorStatus)
 		api.POST("/user/two-factor/setup", controllers.SetupTwoFactor)
 		api.POST("/user/two-factor/enable", controllers.EnableTwoFactor)

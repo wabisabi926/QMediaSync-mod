@@ -10,7 +10,6 @@ import (
 	"Q115-STRM/internal/models"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 )
 
 type LoginRequest struct {
@@ -55,22 +54,30 @@ func writeLoginFailure(c *gin.Context) {
 // @Failure 200 {object} object
 // @Router /api/login [post]
 func LoginAction(c *gin.Context) {
-	user := &models.User{}
 	var req LoginRequest
 	if err := c.ShouldBind(&req); err != nil {
 		writeLoginFailure(c)
 		return
 	}
-	username := req.Username
+	username := strings.TrimSpace(req.Username)
 	password := req.Password
 	if username == "" || password == "" {
 		writeLoginFailure(c)
 		return
 	}
 
-	// 查询用户是否存在
+	clientIP := c.ClientIP()
+	if allowed, wait := defaultLoginRateLimiter.Allow(clientIP, username); !allowed {
+		if helpers.AppLogger != nil {
+			helpers.AppLogger.Warnf("登录限流：ip=%s username=%s wait=%s", clientIP, username, wait)
+		}
+		writeLoginRateLimited(c, wait)
+		return
+	}
+
 	user, userErr := models.CheckLogin(username, password)
 	if userErr != nil || user.ID == 0 {
+		defaultLoginRateLimiter.RecordFailure(clientIP, username, "password_or_user_invalid")
 		writeLoginFailure(c)
 		return
 	}
@@ -78,6 +85,7 @@ func LoginAction(c *gin.Context) {
 	if user.IsTwoFactorEnabled() {
 		secret, err := helpers.DecryptLocalSecret(user.TwoFactorSecret)
 		if err != nil || !helpers.ValidateTOTPCode(secret, req.TOTPCode) {
+			defaultLoginRateLimiter.RecordFailure(clientIP, username, "totp_invalid")
 			writeLoginFailure(c)
 			return
 		}
@@ -90,92 +98,127 @@ func LoginAction(c *gin.Context) {
 		tokenExpire = time.Hour * 24 * 30
 		cookieMaxAge = int(tokenExpire.Seconds())
 	}
-
-	claims := &LoginUser{
-		ID:       user.ID,
-		Username: user.Username,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(tokenExpire)),
-		},
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte(helpers.GlobalConfig.JwtSecret))
+	expiresAt := time.Now().Add(tokenExpire).Unix()
+	session, csrfToken, err := models.CreateUserSession(models.CreateUserSessionInput{
+		UserID:    user.ID,
+		Username:  user.Username,
+		UserAgent: c.Request.UserAgent(),
+		IPAddress: clientIP,
+		ExpiresAt: expiresAt,
+	})
 	if err != nil {
-		helpers.AppLogger.Errorf("登录签名失败：%v", err)
+		if helpers.AppLogger != nil {
+			helpers.AppLogger.Errorf("创建登录会话失败：%v", err)
+		}
 		writeLoginFailure(c)
 		return
 	}
-
-	// 设置 HttpOnly Cookie
-	c.SetCookie(
-		"auth_token", // Cookie 名称
-		tokenString,  // Cookie 值
-		cookieMaxAge, // MaxAge（秒），0 表示会话 Cookie
-		"/",          // Path
-		"",           // Domain（空表示当前域名）
-		false,        // Secure（false 兼容飞牛 HTTP 环境）
-		true,         // HttpOnly（防止 XSS 攻击）
-	)
-	LoginedUser = user
-	res := make(map[string]interface{})
-	u := make(map[string]string)
-	u["id"] = fmt.Sprintf("%d", user.ID)
-	u["username"] = user.Username
-	u["email"] = ""
-	u["role"] = "admin"
-	res["user"] = u
-	res["token"] = tokenString
-	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "登录成功", Data: res})
-}
-
-func getTokenFromRequest(c *gin.Context) string {
-	if cookie, err := c.Request.Cookie("auth_token"); err == nil && cookie.Value != "" {
-		return cookie.Value
+	tokenString, err := SignSessionJWT(SessionClaimsInput{
+		UserID:    user.ID,
+		Username:  user.Username,
+		SessionID: session.SessionID,
+		TokenID:   session.TokenID,
+		ExpiresAt: expiresAt,
+	})
+	if err != nil {
+		if helpers.AppLogger != nil {
+			helpers.AppLogger.Errorf("登录签名失败：%v", err)
+		}
+		writeLoginFailure(c)
+		return
 	}
-	authHeader := c.Request.Header.Get("Authorization")
-	if strings.HasPrefix(authHeader, "Bearer ") {
-		return strings.TrimPrefix(authHeader, "Bearer ")
-	}
-	return ""
+	setSessionCookies(c, tokenString, csrfToken, cookieMaxAge)
+	defaultLoginRateLimiter.Reset(clientIP, username)
+
+	c.JSON(http.StatusOK, APIResponse[any]{
+		Code:    Success,
+		Message: "登录成功",
+		Data: gin.H{
+			"user":       buildLoginUserResponse(user),
+			"session":    buildSessionResponse(session, session.SessionID),
+			"csrf_token": csrfToken,
+		},
+	})
 }
 
 // SessionAction 返回当前登录会话
 func SessionAction(c *gin.Context) {
-	tokenString := getTokenFromRequest(c)
-	if tokenString == "" {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "登录凭证不存在", Data: nil})
+	cookie, err := c.Request.Cookie(authCookieName)
+	if err != nil || cookie.Value == "" {
+		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "登录凭证不存在", Data: nil})
 		return
 	}
-	loginUser, err := ValidateJWT(tokenString)
+	loginUser, err := ValidateJWT(cookie.Value)
 	if err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("登录凭证无效：%v", err), Data: nil})
+		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "登录凭证无效", Data: nil})
 		return
 	}
-	user, err := models.GetUserById(loginUser.ID)
-	if err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("获取用户信息失败：%v", err), Data: nil})
+	session, err := models.GetActiveUserSession(loginUser.SessionID, time.Now().Unix())
+	if err != nil || session.UserID != loginUser.ID {
+		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "登录会话已失效", Data: nil})
 		return
+	}
+	user, err := models.GetUserById(session.UserID)
+	if err != nil || user.ID == 0 {
+		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "登录用户不存在", Data: nil})
+		return
+	}
+	csrfCookie, err := c.Request.Cookie(csrfCookieName)
+	if err != nil || csrfCookie.Value == "" || !session.ValidateCSRFToken(csrfCookie.Value) {
+		csrfToken, csrfErr := models.GenerateSessionSecret(32)
+		if csrfErr != nil {
+			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "刷新 CSRF Token 失败", Data: nil})
+			return
+		}
+		session.CSRFTokenHash = models.HashSessionSecret(csrfToken)
+		if err := models.SaveUserSession(session); err != nil {
+			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "刷新会话失败", Data: nil})
+			return
+		}
+		setCSRFCookie(c, csrfToken, 0)
+		csrfCookie = &http.Cookie{Name: csrfCookieName, Value: csrfToken}
 	}
 	c.JSON(http.StatusOK, APIResponse[any]{
 		Code:    Success,
 		Message: "获取会话成功",
-		Data: map[string]any{
-			"token": tokenString,
-			"user": map[string]string{
-				"id":       fmt.Sprintf("%d", user.ID),
-				"username": user.Username,
-				"email":    "",
-				"role":     "admin",
-			},
+		Data: gin.H{
+			"user":       buildLoginUserResponse(user),
+			"session":    buildSessionResponse(session, session.SessionID),
+			"csrf_token": csrfCookie.Value,
 		},
 	})
 }
 
 // LogoutAction 清除登录 Cookie
 func LogoutAction(c *gin.Context) {
-	c.SetCookie("auth_token", "", -1, "/", "", false, true)
-	LoginedUser = nil
+	if user, ok := CurrentUser(c); ok {
+		if session, ok := CurrentSession(c); ok {
+			_ = models.RevokeUserSession(user.ID, session.SessionID, "logout")
+		}
+	}
+	clearSessionCookies(c)
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "退出登录成功", Data: nil})
+}
+
+func buildLoginUserResponse(user *models.User) map[string]string {
+	return map[string]string{
+		"id":       fmt.Sprintf("%d", user.ID),
+		"username": user.Username,
+		"email":    "",
+		"role":     "admin",
+	}
+}
+
+func buildSessionResponse(session *models.UserSession, currentSessionID string) gin.H {
+	return gin.H{
+		"session_id":   session.SessionID,
+		"current":      session.SessionID == currentSessionID,
+		"ip_address":   session.IPAddress,
+		"user_agent":   session.UserAgent,
+		"last_seen_at": session.LastSeenAt,
+		"expires_at":   session.ExpiresAt,
+		"created_at":   session.CreatedAt,
+	}
 }
 
 // ChangePassword 修改密码或用户名
@@ -204,27 +247,40 @@ func ChangePassword(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "用户名不能为空", Data: nil})
 		return
 	}
+	currentUser, ok := CurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "用户未登录", Data: nil})
+		return
+	}
 	isChange := false
 	isChange2 := false
 	var err error
-	if req.Username != LoginedUser.Username {
+	if req.Username != currentUser.Username {
 		isChange = true
 	}
-	isChange2, err = LoginedUser.ChangeUsernameAndPassword(req.Username, req.NewPassword)
+	isChange2, err = currentUser.ChangeUsernameAndPassword(req.Username, req.NewPassword)
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "修改失败：" + err.Error(), Data: nil})
 		return
+	}
+	if isChange || isChange2 {
+		currentSessionID := ""
+		if session, ok := CurrentSession(c); ok {
+			currentSessionID = session.SessionID
+		}
+		_ = models.RevokeOtherUserSessions(currentUser.ID, currentSessionID, "credential_changed")
 	}
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "修改成功", Data: isChange || isChange2})
 }
 
 // GetTwoFactorStatus 获取两步验证状态
 func GetTwoFactorStatus(c *gin.Context) {
-	if LoginedUser == nil {
+	currentUser, ok := CurrentUser(c)
+	if !ok {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取两步验证状态失败", Data: nil})
 		return
 	}
-	user, err := models.GetUserById(LoginedUser.ID)
+	user, err := models.GetUserById(currentUser.ID)
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取两步验证状态失败", Data: nil})
 		return
@@ -236,11 +292,12 @@ func GetTwoFactorStatus(c *gin.Context) {
 
 // SetupTwoFactor 创建两步验证配置草稿
 func SetupTwoFactor(c *gin.Context) {
-	if LoginedUser == nil {
+	currentUser, ok := CurrentUser(c)
+	if !ok {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取用户失败", Data: nil})
 		return
 	}
-	user, err := models.GetUserById(LoginedUser.ID)
+	user, err := models.GetUserById(currentUser.ID)
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取用户失败", Data: nil})
 		return
@@ -273,11 +330,12 @@ func EnableTwoFactor(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "验证码错误", Data: nil})
 		return
 	}
-	if LoginedUser == nil {
+	currentUser, ok := CurrentUser(c)
+	if !ok {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请先生成两步验证密钥", Data: nil})
 		return
 	}
-	user, err := models.GetUserById(LoginedUser.ID)
+	user, err := models.GetUserById(currentUser.ID)
 	if err != nil || user.TwoFactorPendingSecret == "" {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请先生成两步验证密钥", Data: nil})
 		return
@@ -292,6 +350,11 @@ func EnableTwoFactor(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "启用两步验证失败", Data: nil})
 		return
 	}
+	currentSessionID := ""
+	if session, ok := CurrentSession(c); ok {
+		currentSessionID = session.SessionID
+	}
+	_ = models.RevokeOtherUserSessions(currentUser.ID, currentSessionID, "two_factor_changed")
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "启用两步验证成功", Data: nil})
 }
 
@@ -302,11 +365,12 @@ func DisableTwoFactor(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "关闭两步验证失败", Data: nil})
 		return
 	}
-	if LoginedUser == nil {
+	currentUser, ok := CurrentUser(c)
+	if !ok {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "关闭两步验证失败", Data: nil})
 		return
 	}
-	user, err := models.GetUserById(LoginedUser.ID)
+	user, err := models.GetUserById(currentUser.ID)
 	if err != nil || !user.IsTwoFactorEnabled() {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "关闭两步验证失败", Data: nil})
 		return
@@ -325,6 +389,11 @@ func DisableTwoFactor(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "关闭两步验证失败", Data: nil})
 		return
 	}
+	currentSessionID := ""
+	if session, ok := CurrentSession(c); ok {
+		currentSessionID = session.SessionID
+	}
+	_ = models.RevokeOtherUserSessions(currentUser.ID, currentSessionID, "two_factor_changed")
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "关闭两步验证成功", Data: nil})
 }
 
@@ -340,9 +409,14 @@ func DisableTwoFactor(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func GetUserInfo(c *gin.Context) {
+	currentUser, ok := CurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "用户未登录", Data: nil})
+		return
+	}
 	// 返回当前用户 ID 和用户名
 	respData := make(map[string]string)
-	respData["id"] = fmt.Sprintf("%d", LoginedUser.ID)
-	respData["username"] = LoginedUser.Username
+	respData["id"] = fmt.Sprintf("%d", currentUser.ID)
+	respData["username"] = currentUser.Username
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取用户信息成功", Data: respData})
 }

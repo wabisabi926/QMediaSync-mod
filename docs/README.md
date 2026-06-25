@@ -11,6 +11,7 @@
 
 - [开发调试](development.md)：本地后端、前端调试启动方式和常用验证命令。
 - [项目结构](project-structure.md)：仓库目录说明和前端构建产物位置。
+- [任务来源枚举](task-source-enums.md)：下载 / 上传队列来源字段、同步队列任务类型的存储值和展示文案边界。
 - [发布流程](release.md)：版本发布脚本、changelog 生成、GitHub Actions 发布流程和飞牛 FPK 打包说明。
 
 ## 代码内文档

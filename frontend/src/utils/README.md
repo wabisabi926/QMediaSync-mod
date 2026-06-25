@@ -87,6 +87,16 @@ OAuth 回调参数收集：
 
 当前启用的来源类型包括 `115`、`baidupan`、`openlist`、`local`。
 
+## taskSourceUtils.ts
+
+任务来源、同步队列任务类型和来源类型展示映射：
+
+- `getDownloadSourceName(source)`
+- `getUploadSourceName(source)`
+- `getSyncTaskTypeName(taskType)`
+- `getTaskSourceTypeName(type)`
+- `getTaskSourceTypeTagType(type)`
+
 ## timeUtils.ts
 
 时间、存储空间和状态样式辅助：

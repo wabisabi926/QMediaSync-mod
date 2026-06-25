@@ -157,12 +157,15 @@ import (
 
 ### 命名
 
-- 导出类型 / 函数使用 `PascalCase`，例如 `SyncPath`、`GetSyncPathById`、`CreateSyncPath`。
+- 新增标识符优先遵循 Go 惯用命名；存量命名不做无关批量重命名。
+- 导出类型 / 函数使用 `PascalCase`，例如 `SyncPath`、`GetSyncPathByID`、`CreateSyncPath`。
 - 未导出字段 / 函数使用 `camelCase`，例如 `isRelease`、`httpServer`、`loadYaml`。
 - 常量导出用 `PascalCase`，未导出用 `camelCase`。
-- 接口使用 `PascalCase`，带描述性后缀，例如 `IdentifyImpl`、`driverImpl`、`EventHandler`。
-- 布尔字段使用 `Is` / `Enable` / `Has` 前缀，例如 `IsRunning`、`EnableCron`、`HasRemoteSeasonPath`。
-- 包级全局变量使用 `PascalCase`，例如 `GlobalConfig`、`AppLogger`、`SettingsGlobal`、`GlobalDownloadQueue`。
+- 常见 initialism 使用 Go 约定的大写形式，例如 `ID`、`URL`、`API`、`HTTP`、`JSON`、`SQL`、`OAuth`。
+- 修改已有接口、模型、配置字段、JSON 字段或跨包导出符号时，优先保持兼容；可以顺便询问用户是否需要按命名规范调整，但只有在用户明确要求时才改动公共 API。
+- 接口按行为或职责命名，例如 `Reader`、`Writer`、`EventHandler`、`Scraper`、`Driver`；不强制使用 `Impl` 后缀。
+- 布尔字段优先使用自然状态名，例如 `IsRunning`、`HasRemoteSeasonPath`、`CronEnabled`；已有 `EnableXxx` 命名可继续保持。
+- 包级变量按可见性命名：跨包需要访问时使用 `PascalCase`，仅包内使用时使用 `camelCase`。
 - 所有 Go 标识符使用英文，中文仅出现在注释和字符串字面量中。
 
 ### 注释

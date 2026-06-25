@@ -11,24 +11,13 @@
 
 ## 创建客户端
 
-```go
-import "Q115-STRM/internal/open123"
-
-func newOpen123Client() *open123.Client {
-    client := open123.NewClient("your_client_id", "your_client_secret")
-
-    client.SetRateLimit("/api/v2/file/list", 10)
-    client.SetRateLimit("/upload/v2/file/domain", 5)
-    client.SetRateLimit("/api/v1/file/download_info", 15)
-
-    return client
-}
-```
-
-使用完成后关闭底层 HTTP 客户端：
+先通过 `open123.NewClient` 创建客户端，再按需要调用 `SetRateLimit` 配置各接口限流。使用完成后调用 `Close()` 关闭底层 HTTP 客户端。
 
 ```go
+client := open123.NewClient(clientID, clientSecret)
 defer client.Close()
+
+client.SetRateLimit("/api/v2/file/list", 10)
 ```
 
 ## 已导出的能力
@@ -48,26 +37,10 @@ defer client.Close()
 - `DeleteFile(ctx, fileID)`
 - `DeleteFolder(ctx, dirID)`
 
-```go
-ctx := context.Background()
+`ListFiles` 返回目录内容，调用方自行遍历结果；`CreateFolder` 返回新建目录信息；`DeleteFile` 和 `DeleteFolder` 用于删除对象。
 
+```go
 files, err := client.ListFiles(ctx, 0, 1, 50)
-if err != nil {
-    log.Fatal(err)
-}
-
-for _, file := range files.FileList {
-    fmt.Printf("File: %s (ID: %d, Size: %d)\n", file.FileName, file.FileID, file.FileSize)
-}
-```
-
-```go
-folder, err := client.CreateFolder(ctx, "MyFolder", 0)
-if err != nil {
-    log.Fatal(err)
-}
-
-fmt.Printf("Created folder with ID: %d\n", folder.DirID)
 ```
 
 ### 上传
@@ -75,13 +48,10 @@ fmt.Printf("Created folder with ID: %d\n", folder.DirID)
 - `GetUploadDomain(ctx) (string, error)`
 - `UploadFile(ctx, filePath, parentFileID)`
 
-```go
-uploadResult, err := client.UploadFile(ctx, "/path/to/local/file.txt", 0)
-if err != nil {
-    log.Fatal(err)
-}
+`UploadFile` 负责上传本地文件并返回上传结果，`GetUploadDomain` 用于获取上传域名。
 
-fmt.Printf("Uploaded file with ID: %d\n", uploadResult.FileID)
+```go
+uploadResult, err := client.UploadFile(ctx, filePath, parentFileID)
 ```
 
 ### 下载链接
@@ -89,30 +59,19 @@ fmt.Printf("Uploaded file with ID: %d\n", uploadResult.FileID)
 - `GetFileDownloadInfo(ctx, fileID)`
 - `GetDirectLink(ctx, fileID)`
 
-```go
-downloadInfo, err := client.GetFileDownloadInfo(ctx, 12345)
-if err != nil {
-    log.Fatal(err)
-}
+`GetFileDownloadInfo` 返回下载信息，`GetDirectLink` 返回直链地址。
 
-fmt.Printf("Download URL: %s\n", downloadInfo.DownloadURL)
-fmt.Printf("File Name: %s\n", downloadInfo.FileName)
-fmt.Printf("File Size: %d\n", downloadInfo.FileSize)
-fmt.Printf("Expire Time: %d\n", downloadInfo.ExpireTime)
+```go
+downloadInfo, err := client.GetFileDownloadInfo(ctx, fileID)
 ```
 
 ## 错误辅助
 
+可配合 `IsTokenExpired` 和 `IsRateLimited` 判断常见错误类型，再按业务需要继续处理。
+
 ```go
-downloadInfo, err := client.GetFileDownloadInfo(ctx, fileID)
-if err != nil {
-    if open123.IsTokenExpired(err) {
-        log.Println("token expired")
-    } else if open123.IsRateLimited(err) {
-        log.Println("rate limit exceeded")
-    } else {
-        log.Printf("error: %v\n", err)
-    }
+if open123.IsTokenExpired(err) {
+    return err
 }
 ```
 

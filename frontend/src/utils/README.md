@@ -18,16 +18,12 @@
 - `isMobile()`
 - `onDeviceTypeChange(callback)`
 
+在组件中按需导入这两个函数即可；`onDeviceTypeChange` 会返回一个取消监听的函数。
+
 ```typescript
-import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
-
-const mobile = isMobile()
-
 const removeListener = onDeviceTypeChange((nextIsMobile) => {
-  console.log('设备类型变化:', nextIsMobile ? '移动端' : '桌面端')
+  console.log(nextIsMobile)
 })
-
-removeListener()
 ```
 
 ## fileIconUtils.ts
@@ -39,9 +35,6 @@ removeListener()
 - `getFileIconByName(filename, isDirectory)`
 
 ```typescript
-import { getFileIconByName, getFileType } from '@/utils/fileIconUtils'
-
-const type = getFileType('movie.mp4')
 const icon = getFileIconByName('movie.mp4')
 ```
 

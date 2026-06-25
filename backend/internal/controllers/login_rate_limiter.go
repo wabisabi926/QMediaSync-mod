@@ -48,6 +48,27 @@ func loginRateLimitKey(ip string, username string) string {
 	return strings.TrimSpace(ip) + "\x00" + strings.ToLower(strings.TrimSpace(username))
 }
 
+func loginFailureReasonText(reason string) string {
+	switch reason {
+	case "password_or_user_invalid":
+		return "用户名或密码错误"
+	case "totp_invalid":
+		return "动态验证码错误"
+	default:
+		if strings.TrimSpace(reason) == "" {
+			return "未知原因"
+		}
+		return reason
+	}
+}
+
+func loginLockedUntilText(lockedUntil time.Time) string {
+	if lockedUntil.IsZero() {
+		return "未锁定"
+	}
+	return lockedUntil.Format(time.RFC3339)
+}
+
 func (l *LoginRateLimiter) Allow(ip string, username string) (bool, time.Duration) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -85,7 +106,14 @@ func (l *LoginRateLimiter) RecordFailure(ip string, username string, reason stri
 		entry.LockedUntil = now.Add(l.lockDuration)
 	}
 	if helpers.AppLogger != nil {
-		helpers.AppLogger.Warnf("登录失败：ip=%s username=%s reason=%s count=%d locked_until=%s", ip, username, reason, entry.Count, entry.LockedUntil.Format(time.RFC3339))
+		helpers.AppLogger.Warnf(
+			"登录失败：ip=%s username=%s reason=%s count=%d locked_until=%s",
+			ip,
+			username,
+			loginFailureReasonText(reason),
+			entry.Count,
+			loginLockedUntilText(entry.LockedUntil),
+		)
 	}
 }
 

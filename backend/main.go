@@ -592,6 +592,9 @@ func setRouter(r *gin.Engine) {
 
 		api.GET("/user/info", controllers.GetUserInfo)
 		api.POST("/logout", controllers.LogoutAction)
+		api.GET("/user/sessions", controllers.ListUserSessions)
+		api.DELETE("/user/sessions/:session_id", controllers.RevokeUserSessionAction)
+		api.POST("/user/sessions/revoke-others", controllers.RevokeOtherUserSessionsAction)
 		api.GET("/user/two-factor/status", controllers.GetTwoFactorStatus)
 		api.POST("/user/two-factor/setup", controllers.SetupTwoFactor)
 		api.POST("/user/two-factor/enable", controllers.EnableTwoFactor)

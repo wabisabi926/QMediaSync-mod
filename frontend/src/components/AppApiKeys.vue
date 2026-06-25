@@ -2,7 +2,7 @@
   <div class="main-content-container api-keys-container">
     <el-alert type="info" :closable="false" show-icon>
       <template #title>
-        API Key 认证已启用，在请求中追加 api_key 参数即可访问需要认证的接口。
+        API Key 认证已启用，推荐在请求头中使用 X-API-Key，也可以在 URL 中追加 api_key 参数。
       </template>
       <p class="alert-tip">完整密钥仅在创建时显示一次，请妥善保存。</p>
     </el-alert>
@@ -94,7 +94,7 @@
     <el-alert type="warning" show-icon :closable="false" class="created-warning">
       <template #title> 只会显示一次，关闭后无法再次查看完整密钥。 </template>
       <p class="alert-tip">
-        调用接口时在 URL 中追加 api_key 参数即可使用，例如：/api/user/info?api_key=YOUR_API_KEY
+        推荐：X-API-Key: YOUR_API_KEY；兼容：/api/user/info?api_key=YOUR_API_KEY
       </p>
     </el-alert>
 

@@ -23,6 +23,7 @@ const AppUploadQueue = () => import('@/components/AppUploadQueue.vue')
 const AppDownloadQueue = () => import('@/components/AppDownloadQueue.vue')
 const AppNotificationChannels = () => import('@/components/AppNotificationChannels.vue')
 const AppApiKeys = () => import('@/components/AppApiKeys.vue')
+const AppLoginSessions = () => import('@/components/user-settings/LoginSessions.vue')
 const AppFileManager = () => import('@/components/AppFileManager.vue')
 const AppUpdate = () => import('@/components/AppUpdate.vue')
 
@@ -367,6 +368,18 @@ const routes = [
       requiresAuth: true,
       parent: 'settings',
       icon: 'Key',
+      showInMenu: true,
+    },
+  },
+  {
+    path: '/settings/sessions',
+    name: 'settings-sessions',
+    component: AppLoginSessions,
+    meta: {
+      title: '登录设备',
+      requiresAuth: true,
+      parent: 'settings',
+      icon: 'Monitor',
       showInMenu: true,
     },
   },

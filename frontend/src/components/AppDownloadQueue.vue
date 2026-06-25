@@ -65,10 +65,12 @@
       <el-table-column type="expand" width="30">
         <template #default="scope">
           <el-descriptions class="margin-top" :column="2" border size="small">
-            <el-descriptions-item label="来源">{{ scope.row.source }}</el-descriptions-item>
+            <el-descriptions-item label="来源">{{
+              getDownloadSourceName(scope.row.source)
+            }}</el-descriptions-item>
             <el-descriptions-item label="类型">
-              <el-tag :type="getSourceTypeTagType(scope.row.source_type)">
-                {{ getSourceTypeName(scope.row.source_type) }}
+              <el-tag :type="getTaskSourceTypeTagType(scope.row.source_type)">
+                {{ getTaskSourceTypeName(scope.row.source_type) }}
               </el-tag>
             </el-descriptions-item>
             <el-descriptions-item label="状态">
@@ -115,7 +117,11 @@
       class="hidden-md-and-down"
     >
       <el-table-column prop="id" label="ID" width="64" />
-      <el-table-column prop="source" label="来源" width="96" show-overflow-tooltip />
+      <el-table-column prop="source" label="来源" width="128" show-overflow-tooltip>
+        <template #default="scope">
+          {{ getDownloadSourceName(scope.row.source) }}
+        </template>
+      </el-table-column>
       <el-table-column prop="status" label="状态" width="104">
         <template #default="scope">
           <div v-if="scope.row.error">
@@ -154,8 +160,8 @@
       </el-table-column>
       <el-table-column prop="source_type" label="类型" width="72">
         <template #default="scope">
-          <el-tag :type="getSourceTypeTagType(scope.row.source_type)">
-            {{ getSourceTypeName(scope.row.source_type) }}
+          <el-tag :type="getTaskSourceTypeTagType(scope.row.source_type)">
+            {{ getTaskSourceTypeName(scope.row.source_type) }}
           </el-tag>
         </template>
       </el-table-column>
@@ -204,6 +210,11 @@ import { mergeStableList, retainExistingKeys } from '@/composables/useStableList
 import { usePageStateStore } from '@/stores/pageState'
 import type { AxiosStatic } from 'axios'
 import { formatFileSize } from '@/utils/fileSizeUtils'
+import {
+  getDownloadSourceName,
+  getTaskSourceTypeName,
+  getTaskSourceTypeTagType,
+} from '@/utils/taskSourceUtils'
 import { formatDateTime } from '@/utils/timeUtils'
 import 'element-plus/theme-chalk/display.css'
 
@@ -363,36 +374,6 @@ const handleExpandChange = (row: DownloadTask, expandedRows: DownloadTask[]) => 
   )
 }
 
-const getSourceTypeName = (type: string): string => {
-  switch (type) {
-    case 'local':
-      return '本地文件'
-    case '115':
-      return '115 网盘'
-    case 'openlist':
-      return 'OpenList'
-    case '123':
-      return '123 网盘'
-    default:
-      return '其他'
-  }
-}
-
-// 获取类型标签类型
-const getSourceTypeTagType = (type: string): string => {
-  switch (type) {
-    case 'local':
-      return 'warning'
-    case '115':
-      return 'primary'
-    case 'openlist':
-      return 'success'
-    case '123':
-      return 'info'
-    default:
-      return 'info'
-  }
-}
 // 加载队列数据
 const loadQueueData = async () => {
   if (!isPageActive) {

@@ -131,7 +131,6 @@ import { Check } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { isMobile } from '@/utils/deviceUtils'
-import { useAuthStore } from '@/stores/auth'
 
 interface ThreadSettings {
   downloadThreads: number
@@ -148,7 +147,6 @@ interface SaveStatus {
   description: string
 }
 const http: AxiosStatic | undefined = inject('$http')
-const authStore = useAuthStore()
 const checkIsMobile = ref(isMobile())
 const loading = ref(false)
 const saveStatus = ref<SaveStatus | null>(null)
@@ -172,11 +170,7 @@ onMounted(async () => {
 async function fetchThreadSettings() {
   try {
     loading.value = true
-    const response = await http?.get(`${SERVER_URL}/setting/threads`, {
-      headers: {
-        Authorization: `Bearer ${authStore.token}`,
-      },
-    })
+    const response = await http?.get(`${SERVER_URL}/setting/threads`)
 
     formData.downloadThreads = response?.data.data.download_threads
     formData.fileDetailThreads = response?.data.data.file_detail_threads
@@ -206,11 +200,7 @@ async function saveSettings() {
       file_list_page_size: formData.fileListPageSize,
     }
 
-    await http?.post(`${SERVER_URL}/setting/threads`, payload, {
-      headers: {
-        Authorization: `Bearer ${authStore.token}`,
-      },
-    })
+    await http?.post(`${SERVER_URL}/setting/threads`, payload)
 
     saveStatus.value = {
       title: '保存成功',

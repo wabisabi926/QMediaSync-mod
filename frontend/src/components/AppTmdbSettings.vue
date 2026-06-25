@@ -144,7 +144,6 @@ import { Check, Refresh } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { isMobile } from '@/utils/deviceUtils'
-import { useAuthStore } from '@/stores/auth'
 
 interface TmdbSettings {
   tmdbUrl: string
@@ -164,7 +163,6 @@ interface SaveStatus {
   description: string
 }
 const http: AxiosStatic | undefined = inject('$http')
-const authStore = useAuthStore()
 const checkIsMobile = ref(isMobile())
 const loading = ref(false)
 const testing = ref(false)
@@ -193,11 +191,7 @@ onMounted(async () => {
 async function fetchTmdbSettings() {
   try {
     loading.value = true
-    const response = await http?.get(`${SERVER_URL}/scrape/tmdb`, {
-      headers: {
-        Authorization: `Bearer ${authStore.token}`,
-      },
-    })
+    const response = await http?.get(`${SERVER_URL}/scrape/tmdb`)
 
     formData.tmdbUrl = response?.data.data.tmdb_url || ''
     formData.tmdbImageUrl = response?.data.data.tmdb_image_url || ''
@@ -236,11 +230,7 @@ async function saveSettings() {
       payload.local_max_threads = 5
     }
 
-    await http?.post(`${SERVER_URL}/scrape/tmdb`, payload, {
-      headers: {
-        Authorization: `Bearer ${authStore.token}`,
-      },
-    })
+    await http?.post(`${SERVER_URL}/scrape/tmdb`, payload)
 
     saveStatus.value = {
       title: '保存成功',
@@ -282,9 +272,6 @@ async function testConnection() {
 
     const response = await http?.post(`${SERVER_URL}/scrape/tmdb-test`, payload, {
       timeout: 20000,
-      headers: {
-        Authorization: `Bearer ${authStore.token}`,
-      },
     })
 
     // 根据接口返回结果显示不同的状态

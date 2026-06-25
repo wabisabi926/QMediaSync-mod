@@ -1,5 +1,4 @@
 import { ref, onActivated, onBeforeUnmount, onDeactivated } from 'vue'
-import { useAuthStore } from '@/stores/auth'
 
 // WebSocket 事件类型
 export type WSEventType =
@@ -41,7 +40,6 @@ function connect() {
     return
   }
 
-  const authStore = useAuthStore()
   const url = getWsUrl()
 
   try {
@@ -54,10 +52,6 @@ function connect() {
   wsInstance.onopen = () => {
     wsConnected.value = true
     reconnectAttempts = 0
-    // 发送认证消息
-    if (authStore.token) {
-      wsInstance?.send(JSON.stringify({ type: 'auth', token: authStore.token }))
-    }
   }
 
   wsInstance.onmessage = (event) => {

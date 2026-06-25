@@ -450,41 +450,30 @@ const router = createRouter({
 })
 
 // 路由守卫
-router.beforeEach(async (to, from, next) => {
+router.beforeEach(async (to) => {
   const authStore = useAuthStore()
 
-  // 如果要访问的页面需要认证
-  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    next({
-      name: 'login',
-      query: { redirect: to.fullPath },
-    })
-    return
+  if (!authStore.hasInitialized && authStore.authStatus === 'checking') {
+    const axios = (await import('axios')).default
+    await authStore.bootstrapAuth(axios)
   }
 
-  if (to.meta.requiresAuth) {
-    const isValid = await authStore.checkTokenValidity()
-    if (!isValid) {
-      next({
-        name: 'login',
-        query: { redirect: to.fullPath },
-      })
-      return
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+    return {
+      name: 'login',
+      query: { redirect: to.fullPath },
     }
   }
 
-  // 如果已登录用户访问登录页面，重定向到首页
   if (to.name === 'login' && authStore.isAuthenticated) {
-    next({ name: 'home' })
-    return
+    return { name: 'home' }
   }
 
-  // 设置页面标题
   if (to.meta.title) {
     document.title = `${to.meta.title} - QMediaSync`
   }
 
-  next()
+  return true
 })
 
 export default router

@@ -1,7 +1,7 @@
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { computed, shallowRef } from 'vue'
 
 export interface User {
   id: string
@@ -10,63 +10,99 @@ export interface User {
   role?: string
 }
 
+export interface UserSession {
+  session_id: string
+  current?: boolean
+  ip_address?: string
+  user_agent?: string
+  created_at?: number
+  last_seen_at?: number
+  expires_at: number
+}
+
+export interface LoginPayload {
+  user: User
+  csrfToken: string
+  session?: UserSession
+}
+
 type AuthStatus = 'checking' | 'authenticated' | 'anonymous'
 
+type SessionResponseData = {
+  user?: User
+  csrf_token?: string
+  session?: UserSession
+}
+
+const clearLegacyWebStorage = () => {
+  localStorage.removeItem('auth_token')
+  localStorage.removeItem('auth_user')
+  sessionStorage.removeItem('auth_token')
+  sessionStorage.removeItem('auth_user')
+}
+
 export const useAuthStore = defineStore('auth', () => {
-  // 状态
-  const token = ref<string | null>(null)
-  const user = ref<User | null>(null)
-  const authStatus = ref<AuthStatus>('checking')
-  const isLoading = ref(false)
-  const isLoggingOut = ref(false) // 防止重复登出
-  const hasInitialized = ref(false)
+  const user = shallowRef<User | null>(null)
+  const session = shallowRef<UserSession | null>(null)
+  const csrfToken = shallowRef<string | null>(null)
+  const authStatus = shallowRef<AuthStatus>('checking')
+  const isLoading = shallowRef(false)
+  const isLoggingOut = shallowRef(false)
+  const hasInitialized = shallowRef(false)
   let bootstrapPromise: Promise<boolean> | null = null
 
-  // 计算属性
-  const isAuthenticated = computed(() => !!token.value)
+  const isAuthenticated = computed(() => authStatus.value === 'authenticated' && !!user.value)
 
-  // 从 localStorage 恢复登录状态
-  const initAuth = () => {
-    if (hasInitialized.value) return
-    const savedToken = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token')
-    const savedUser = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user')
-
-    if (savedToken && savedUser) {
-      token.value = savedToken
-      try {
-        user.value = JSON.parse(savedUser)
-        authStatus.value = 'authenticated'
-      } catch (error) {
-        console.error('解析用户信息失败：', error)
-        clearAuth()
-      }
-    }
+  const applySession = (payload: LoginPayload) => {
+    user.value = payload.user
+    session.value = payload.session || null
+    csrfToken.value = payload.csrfToken
+    authStatus.value = 'authenticated'
     hasInitialized.value = true
+    clearLegacyWebStorage()
+  }
+
+  const clearAuth = () => {
+    user.value = null
+    session.value = null
+    csrfToken.value = null
+    authStatus.value = 'anonymous'
+    hasInitialized.value = true
+    bootstrapPromise = null
+    clearLegacyWebStorage()
+  }
+
+  const applySessionResponse = (data?: SessionResponseData) => {
+    if (!data?.user || !data.csrf_token) return false
+    applySession({
+      user: data.user,
+      csrfToken: data.csrf_token,
+      session: data.session,
+    })
+    return true
+  }
+
+  const refreshSession = async (http: AxiosStatic) => {
+    authStatus.value = 'checking'
+    try {
+      const response = await http.get(`${SERVER_URL}/session`, { withCredentials: true })
+      if (response.data?.code === 200 && applySessionResponse(response.data.data)) {
+        return true
+      }
+    } catch (error) {
+      console.error('恢复登录会话失败：', error)
+    }
+    clearAuth()
+    return false
   }
 
   const bootstrapAuth = async (http: AxiosStatic) => {
     if (bootstrapPromise) return bootstrapPromise
 
     bootstrapPromise = (async () => {
-      authStatus.value = 'checking'
-      initAuth()
-      if (token.value) {
-        authStatus.value = 'authenticated'
-        return true
-      }
-
-      try {
-        const response = await http.get(`${SERVER_URL}/session`, { withCredentials: true })
-        if (response.data?.code === 200 && response.data.data?.token && response.data.data?.user) {
-          login(response.data.data.token, response.data.data.user, false)
-          return true
-        }
-      } catch (error) {
-        console.error('恢复登录会话失败：', error)
-      }
-
-      clearAuth()
-      return false
+      const ok = await refreshSession(http)
+      bootstrapPromise = null
+      return ok
     })()
 
     return bootstrapPromise
@@ -76,36 +112,22 @@ export const useAuthStore = defineStore('auth', () => {
     return bootstrapAuth(http)
   }
 
-  // 登录
-  const login = (authToken: string, userData: User, rememberMe: boolean = false) => {
-    token.value = authToken
-    user.value = userData
-    authStatus.value = 'authenticated'
-    hasInitialized.value = true
-    const jsonUser = JSON.stringify(userData)
-    const storage = rememberMe ? localStorage : sessionStorage
-    storage.setItem('auth_token', authToken)
-    storage.setItem('auth_user', jsonUser)
-
-    // 如果选择记住我，清除 sessionStorage 中的数据
-    if (rememberMe) {
-      sessionStorage.removeItem('auth_token')
-      sessionStorage.removeItem('auth_user')
-    } else {
-      // 如果没选择记住我，清除 localStorage 中的数据
-      localStorage.removeItem('auth_token')
-      localStorage.removeItem('auth_user')
-    }
+  const initAuth = () => {
+    if (hasInitialized.value) return
+    clearAuth()
   }
 
-  // 登出
+  const login = (payload: LoginPayload) => {
+    applySession(payload)
+  }
+
   const logout = () => {
-    if (isLoggingOut.value) return // 防止重复登出
+    if (isLoggingOut.value) return
     isLoggingOut.value = true
     clearAuth()
     setTimeout(() => {
       isLoggingOut.value = false
-    }, 1000) // 1 秒后重置标志
+    }, 1000)
   }
 
   const logoutWithServer = async (http: AxiosStatic) => {
@@ -123,70 +145,29 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // 清除认证信息
-  const clearAuth = () => {
-    token.value = null
-    user.value = null
-    authStatus.value = 'anonymous'
-    hasInitialized.value = true
-
-    // 清除所有存储的认证信息
-    localStorage.removeItem('auth_token')
-    localStorage.removeItem('auth_user')
-    sessionStorage.removeItem('auth_token')
-    sessionStorage.removeItem('auth_user')
-  }
-
-  // 更新用户信息
   const updateUser = (userData: Partial<User>) => {
     if (user.value) {
       user.value = { ...user.value, ...userData }
-
-      // 更新存储中的用户信息
-      const storage = localStorage.getItem('auth_token') ? localStorage : sessionStorage
-      storage.setItem('auth_user', JSON.stringify(user.value))
-    }
-  }
-
-  // 检查 Token 是否有效
-  const checkTokenValidity = async () => {
-    if (!token.value) return false
-
-    try {
-      // 这里可以调用 API 验证 Token 有效性
-      // const response = await api.validateToken(token.value)
-      // return response.valid
-
-      // 临时返回 true，实际项目中应该调用 API 验证
-      return true
-    } catch (error) {
-      console.error('Token 验证失败：', error)
-      clearAuth()
-      return false
     }
   }
 
   return {
-    // 状态
-    token,
     user,
+    session,
+    csrfToken,
     authStatus,
     isLoading,
     isLoggingOut,
     hasInitialized,
-
-    // 计算属性
     isAuthenticated,
-
-    // 方法
     initAuth,
     bootstrapAuth,
+    refreshSession,
     restoreSession,
     login,
     logout,
     logoutWithServer,
     clearAuth,
     updateUser,
-    checkTokenValidity,
   }
 })

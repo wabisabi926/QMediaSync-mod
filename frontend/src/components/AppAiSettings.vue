@@ -133,7 +133,6 @@ import { Check, Refresh } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { isMobile } from '@/utils/deviceUtils'
-import { useAuthStore } from '@/stores/auth'
 
 interface AiSettings {
   aiBaseUrl: string
@@ -148,7 +147,6 @@ interface SaveStatus {
   description: string
 }
 const http: AxiosStatic | undefined = inject('$http')
-const authStore = useAuthStore()
 const checkIsMobile = ref(isMobile())
 const loading = ref(false)
 const testing = ref(false)
@@ -197,11 +195,7 @@ onMounted(async () => {
 async function fetchAiSettings() {
   try {
     loading.value = true
-    const response = await http?.get(`${SERVER_URL}/scrape/ai-settings`, {
-      headers: {
-        Authorization: `Bearer ${authStore.token}`,
-      },
-    })
+    const response = await http?.get(`${SERVER_URL}/scrape/ai-settings`)
     formData.aiBaseUrl = response?.data.data.ai_base_url || ''
     formData.aiApiKey = response?.data.data.ai_api_key || ''
     formData.aiModelName = response?.data.data.ai_model_name || ''
@@ -236,11 +230,7 @@ async function saveSettings() {
       ai_timeout: formData.ai_timeout,
     }
 
-    await http?.post(`${SERVER_URL}/scrape/ai-settings`, payload, {
-      headers: {
-        Authorization: `Bearer ${authStore.token}`,
-      },
-    })
+    await http?.post(`${SERVER_URL}/scrape/ai-settings`, payload)
 
     saveStatus.value = {
       title: '保存成功',
@@ -284,9 +274,6 @@ async function testConnection() {
 
     const response = await http?.post(`${SERVER_URL}/scrape/ai-test`, payload, {
       timeout: 120000,
-      headers: {
-        Authorization: `Bearer ${authStore.token}`,
-      },
     })
 
     // 根据接口返回结果显示不同的状态

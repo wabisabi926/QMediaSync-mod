@@ -13,6 +13,7 @@ import App from './App.vue'
 import router from './router/index'
 import { useAuthStore } from '@/stores/auth'
 import { SERVER_URL } from '@/const'
+import { getCSRFTokenFromCookie, shouldAttachCSRFToken } from '@/utils/csrf'
 
 // 配置 axios
 axios.defaults.timeout = 10000
@@ -22,9 +23,15 @@ axios.defaults.withCredentials = true
 // 请求拦截器
 axios.interceptors.request.use(
   (config) => {
+    const headers = config.headers as Record<string, string>
+    delete headers.Authorization
+
     const authStore = useAuthStore()
-    if (authStore.token) {
-      config.headers.Authorization = `Bearer ${authStore.token}`
+    if (shouldAttachCSRFToken(config.method)) {
+      const csrfToken = authStore.csrfToken || getCSRFTokenFromCookie()
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken
+      }
     }
     return config
   },

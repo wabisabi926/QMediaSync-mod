@@ -134,9 +134,11 @@ const handleLogin = async () => {
     )
 
     if (response?.data.code === 200) {
-      const { token, user } = response.data.data
-      // 保存登录状态
-      authStore.login(token, user, loginForm.rememberMe)
+      authStore.login({
+        user: response.data.data.user,
+        csrfToken: response.data.data.csrf_token,
+        session: response.data.data.session,
+      })
 
       ElMessage.success('登录成功')
 

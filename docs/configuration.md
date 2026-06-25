@@ -9,6 +9,13 @@
 
 管理员密码使用 bcrypt 哈希保存，新生成和修改后的密码使用成本参数 `12`。旧成本哈希会在用户下一次成功登录后自动升级。
 
+## 浏览器登录会话
+
+- 浏览器登录使用 `auth_token` HttpOnly Cookie，不在 Web Storage 保存 JWT。
+- 服务端通过 `user_sessions` 表控制会话有效性，退出登录、修改密码、两步验证变更和登录设备撤销都会更新该表。
+- `csrf_token` Cookie 可被前端读取，前端会在 `POST`、`PUT`、`PATCH`、`DELETE` 请求中通过 `X-CSRF-Token` 发送，服务端同时校验请求来源和 session 中的 CSRF 哈希。
+- API Key 调用支持 `X-API-Key` header 和 `?api_key=` 查询参数，不需要 CSRF。
+
 ## 数据库
 
 首次启动且不存在 `config/config.yaml` 时，后端会先启动配置向导。向导当前提供 SQLite 和外部 PostgreSQL 两种选择；保存后会生成 `config/config.yaml`，旧版 `config.yml` 仍可读取。

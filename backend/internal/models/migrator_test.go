@@ -92,8 +92,11 @@ func TestMigrateTaskSourceEnumValues(t *testing.T) {
 	if err := db.Db.First(&migrator).Error; err != nil {
 		t.Fatalf("读取迁移版本失败: %v", err)
 	}
-	if migrator.VersionCode != 44 {
-		t.Fatalf("迁移版本 = %d，期望 44", migrator.VersionCode)
+	if migrator.VersionCode != 45 {
+		t.Fatalf("迁移版本 = %d，期望 45", migrator.VersionCode)
+	}
+	if !db.Db.Migrator().HasTable(UserSession{}) {
+		t.Fatal("迁移到版本 45 应创建 user_sessions 表")
 	}
 
 	assertDownloadTaskSource(t, "download-strm", "strm_sync", "115")

@@ -50,6 +50,14 @@ func SaveUser(user *User) error {
 	return nil
 }
 
+func HashUserPassword(password string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), UserPasswordBcryptCost)
+	if err != nil {
+		return "", err
+	}
+	return string(hash), nil
+}
+
 // 修改用户密码
 // 传入用户 ID 和新密码，更新用户的密码
 func (user *User) ChangeUsernameAndPassword(username, newPassword string) (bool, error) {
@@ -61,12 +69,12 @@ func (user *User) ChangeUsernameAndPassword(username, newPassword string) (bool,
 		if err := ValidateUserPassword(newPassword); err != nil {
 			return false, err
 		}
-		hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.MinCost)
+		hash, err := HashUserPassword(newPassword)
 		if err != nil {
 			helpers.AppLogger.Warnf("生成用户新密码失败：%v", err)
 			return false, err
 		}
-		user.Password = string(hash)
+		user.Password = hash
 		isChange = true
 	}
 	user.Username = username
@@ -116,11 +124,33 @@ func CheckLogin(username, password string) (*User, error) {
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
 		return nil, err
 	}
+	user.ensurePasswordHashCost(password)
 	return user, nil
+}
+
+func (user *User) ensurePasswordHashCost(password string) {
+	cost, err := bcrypt.Cost([]byte(user.Password))
+	if err != nil || cost >= UserPasswordBcryptCost {
+		return
+	}
+	nextHash, err := HashUserPassword(password)
+	if err != nil {
+		if helpers.AppLogger != nil {
+			helpers.AppLogger.Warnf("升级用户密码哈希成本失败：%v", err)
+		}
+		return
+	}
+	if err := db.Db.Model(user).Update("password", nextHash).Error; err != nil {
+		if helpers.AppLogger != nil {
+			helpers.AppLogger.Warnf("保存升级后的用户密码哈希失败：%v", err)
+		}
+		return
+	}
+	user.Password = nextHash
 }
 
 // GetPwd 给密码加密
 func GetPwd(pwd string) ([]byte, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(pwd), bcrypt.DefaultCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(pwd), UserPasswordBcryptCost)
 	return hash, err
 }

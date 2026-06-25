@@ -2,6 +2,8 @@ package helpers
 
 import (
 	"bufio"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -99,6 +101,7 @@ var DEFAULT_FANART_API_KEY = ""  // 默认基线：环境变量 > ldflags
 const (
 	ConfigFileName       = "config.yaml"
 	legacyConfigFileName = "config.yml"
+	DefaultJWTSecret     = "Q115-STRM-JWT-TOKEN-250706"
 )
 
 func ConfigFilePath() string {
@@ -145,6 +148,35 @@ func InitConfig() error {
 	}
 	if GlobalConfig.NewAuthServer == "" {
 		GlobalConfig.NewAuthServer = "https://oauth.qmediasync.cn"
+	}
+	if err := EnsureJWTSecret(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func generateRandomJWTSecret() (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("生成 JWT 密钥失败：%w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
+}
+
+func EnsureJWTSecret() error {
+	if GlobalConfig.JwtSecret != "" && GlobalConfig.JwtSecret != DefaultJWTSecret {
+		return nil
+	}
+	secret, err := generateRandomJWTSecret()
+	if err != nil {
+		return err
+	}
+	GlobalConfig.JwtSecret = secret
+	if err := SaveConfig(&GlobalConfig); err != nil {
+		return fmt.Errorf("保存自动生成的 JWT 密钥失败：%w", err)
+	}
+	if AppLogger != nil {
+		AppLogger.Warnf("检测到 jwtSecret 为空或为公开默认值，已自动生成强随机密钥并写回配置")
 	}
 	return nil
 }
@@ -261,7 +293,7 @@ func MakeDefaultConfig() *Config {
 			},
 		},
 		CacheSize:     20971520,
-		JwtSecret:     "Q115-STRM-JWT-TOKEN-250706",
+		JwtSecret:     DefaultJWTSecret,
 		HttpHost:      ":12333",
 		HttpsHost:     ":12332",
 		AuthServer:    "https://api.mqfamily.top",

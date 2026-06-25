@@ -7,6 +7,8 @@
 - Web 默认端口：HTTP `12333`，HTTPS `12332`
 - Emby 代理默认端口：HTTP `8095`，HTTPS `8094`
 
+管理员密码使用 bcrypt 哈希保存，新生成和修改后的密码使用成本参数 `12`。旧成本哈希会在用户下一次成功登录后自动升级。
+
 ## 数据库
 
 首次启动且不存在 `config/config.yaml` 时，后端会先启动配置向导。向导当前提供 SQLite 和外部 PostgreSQL 两种选择；保存后会生成 `config/config.yaml`，旧版 `config.yml` 仍可读取。
@@ -29,5 +31,9 @@
 ## 本地敏感数据
 
 两步验证等本机敏感数据使用实例本地密钥：每个实例首次启动自动生成并保存到 `config/encryption.key`。
+
+`jwtSecret` 是 JWT Cookie 会话票据签名密钥。启动时如果为空或仍为公开默认值，程序会自动生成 32 字节强随机密钥并写回 `config/config.yaml`；如果配置目录不可写，启动会失败。
+
+修改 `jwtSecret` 会让现有登录 Cookie 无法通过签名校验，用户需要重新登录。
 
 网盘 OAuth 中转使用共享密钥 `OAUTH_RELAY_ENCRYPTION_KEY`，可编译时通过 ldflags 变量 `main.OAuthRelayEncryptionKey` 传入，或运行时通过环境变量 / `config/.env` 注入。

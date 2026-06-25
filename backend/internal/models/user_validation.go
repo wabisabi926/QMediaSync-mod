@@ -3,6 +3,7 @@ package models
 import "fmt"
 
 const MinUserPasswordLength = 6
+const UserPasswordBcryptCost = 12
 
 // ValidateUserPassword 校验管理员密码长度。
 func ValidateUserPassword(password string) error {

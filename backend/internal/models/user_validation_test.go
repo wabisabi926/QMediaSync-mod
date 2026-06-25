@@ -22,3 +22,9 @@ func TestValidateUserPassword(t *testing.T) {
 		})
 	}
 }
+
+func TestUserPasswordBcryptCostIsStrong(t *testing.T) {
+	if UserPasswordBcryptCost < 12 {
+		t.Fatalf("UserPasswordBcryptCost = %d, want >= 12", UserPasswordBcryptCost)
+	}
+}

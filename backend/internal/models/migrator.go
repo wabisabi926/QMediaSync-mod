@@ -625,7 +625,7 @@ func InitUser() {
 	if err := ValidateUserPassword(defaultUser.Password); err != nil {
 		panic(fmt.Sprintf("管理员初始密码无效：%v", err))
 	}
-	password, _ := bcrypt.GenerateFromPassword([]byte(defaultUser.Password), bcrypt.MinCost)
+	password, _ := bcrypt.GenerateFromPassword([]byte(defaultUser.Password), UserPasswordBcryptCost)
 	defaultUser.Password = string(password)
 	uerr := db.Db.Model(&User{}).First(&defaultUser).Error
 	if errors.Is(uerr, gorm.ErrRecordNotFound) {

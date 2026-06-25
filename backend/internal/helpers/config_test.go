@@ -78,6 +78,40 @@ func TestSaveConfigWritesConfigYaml(t *testing.T) {
 	})
 }
 
+func TestEnsureJWTSecretReplacesEmptyAndDefault(t *testing.T) {
+	cases := []struct {
+		name      string
+		secret    string
+		wantRenew bool
+	}{
+		{name: "空值", secret: "", wantRenew: true},
+		{name: "公开默认值", secret: DefaultJWTSecret, wantRenew: true},
+		{name: "自定义值", secret: "custom-secret-value", wantRenew: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			withTempConfigDir(t, func(configDir string) {
+				GlobalConfig = *MakeDefaultConfig()
+				GlobalConfig.JwtSecret = tc.secret
+
+				if err := EnsureJWTSecret(); err != nil {
+					t.Fatalf("EnsureJWTSecret() error = %v", err)
+				}
+				if GlobalConfig.JwtSecret == "" || GlobalConfig.JwtSecret == DefaultJWTSecret {
+					t.Fatalf("JwtSecret 未替换为强随机值: %q", GlobalConfig.JwtSecret)
+				}
+				if !tc.wantRenew && GlobalConfig.JwtSecret != tc.secret {
+					t.Fatalf("自定义 JwtSecret 被错误替换: %q", GlobalConfig.JwtSecret)
+				}
+				if tc.wantRenew && len(GlobalConfig.JwtSecret) < 43 {
+					t.Fatalf("JwtSecret 长度过短: %d", len(GlobalConfig.JwtSecret))
+				}
+			})
+		})
+	}
+}
+
 func withTempConfigDir(t *testing.T, run func(configDir string)) {
 	t.Helper()
 

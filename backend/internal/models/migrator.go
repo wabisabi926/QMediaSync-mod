@@ -518,7 +518,7 @@ func Migrate() {
 	helpers.AppLogger.Infof("当前数据库版本 %d", migrator.VersionCode)
 }
 
-// 重建不存在的表，然后修复主键
+// 补齐缺失的表、字段和索引
 func BatchCreateTable() error {
 	db.Db.Statement.PrepareStmt = true
 

@@ -217,19 +217,19 @@ func IsFnOS(c *gin.Context) {
 }
 
 func RepairDB(c *gin.Context) {
-	// 修复数据库，重建所有表
+	// 修复数据库，补齐缺失的表、字段和索引
 	err := models.BatchCreateTable()
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "修复数据库失败：" + err.Error(), Data: nil})
 		return
 	}
-	// 修复数据库表的主键序列
+	// PostgreSQL 下修复数据库表的主键序列
 	err = models.BatchRepairTableSeq()
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "修复数据库表的主键序列失败：" + err.Error(), Data: nil})
 		return
 	}
-	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "已重建全部数据表，并修复主键序列", Data: nil})
+	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "已补齐数据库表结构，并完成主键序列检查", Data: nil})
 }
 
 func GetAnnounce(c *gin.Context) {

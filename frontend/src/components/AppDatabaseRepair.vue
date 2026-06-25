@@ -29,7 +29,7 @@ const repairDatabase = async () => {
   <div class="database-repair-container">
     <div class="page-header">
       <div class="header-content">
-        <p>修复数据库表缺失问题</p>
+        <p>补齐缺失表结构并检查主键序列</p>
       </div>
     </div>
 
@@ -40,7 +40,7 @@ const repairDatabase = async () => {
       </div>
       <div class="repair-content">
         <p class="repair-description">
-          本操作会重建所有数据库表（不会影响已存在的表和数据），如果有以下问题：<br />
+          本操作会补齐缺失的数据表、字段和索引，不会删除已存在的表和数据；PostgreSQL 会同步检查并修复主键序列。如果有以下问题：<br />
           日志错误提示：SQL logic error: no such table: 表名 <br />
           日志错误提示：pg duplicate key value violates unique constraint "表名_pkey" <br />
           <br />

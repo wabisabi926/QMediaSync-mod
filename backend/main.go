@@ -568,7 +568,7 @@ func setRouter(r *gin.Engine) {
 		})
 		api.POST("/database/delete-all-table", controllers.DeleteAllTabble) // 删除所有表
 		api.GET("/announce", controllers.GetAnnounce)                       // 获取公告
-		api.POST("/database/repair", controllers.RepairDB)                  // 更新系统设置
+		api.POST("/database/repair", controllers.RepairDB)                  // 修复数据库表结构和主键序列
 		api.POST("/auth/115-qrcode-open", controllers.GetLoginQrCodeOpen)   // 获取 115 开放平台登录二维码
 		api.POST("/auth/115-qrcode-status", controllers.GetQrCodeStatus)    // 查询 115 二维码扫码状态
 		api.GET("/115/status", controllers.Get115Status)                    // 查询 115 状态

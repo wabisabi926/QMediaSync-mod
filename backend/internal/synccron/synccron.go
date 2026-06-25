@@ -303,19 +303,18 @@ func InitCron() {
 		}
 	})
 	GlobalCron.AddFunc("0 4 * * *", func() {
-		// 每天 4 点修复数据库表的主键序列
-		// 修复数据库，重建所有表
+		// 每天 4 点补齐数据库表结构，并检查 PostgreSQL 主键序列
 		err := models.BatchCreateTable()
 		if err != nil {
 			helpers.AppLogger.Errorf("修复数据库失败：%v", err)
 			return
 		} else {
-			helpers.AppLogger.Infof("已重建全部数据表（不影响已存在的表和数据）")
+			helpers.AppLogger.Infof("已补齐数据库表结构（不影响已存在的表和数据）")
 		}
 		if err := models.BatchRepairTableSeq(); err != nil {
 			helpers.AppLogger.Errorf("修复数据库表的主键序列失败：%v", err)
 		} else {
-			helpers.AppLogger.Infof("已修复所有表的主键序列")
+			helpers.AppLogger.Infof("已完成数据库表主键序列检查")
 		}
 	})
 

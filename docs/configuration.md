@@ -13,6 +13,8 @@
 
 代码默认配置是 `postgres + embedded`。Docker 镜像会安装 `postgresql15`，可以直接配合内嵌 PostgreSQL 使用；裸二进制和本地开发环境不随仓库携带 PostgreSQL 二进制，如果要使用 PostgreSQL，建议安装 PostgreSQL 15 及以上并配置为外部数据库，或自行保证内嵌模式所需的 PostgreSQL 命令可用。
 
+数据库引擎、配置项、迁移和维护入口的完整说明见 [数据库](database.md)。
+
 ## 需要自备的密钥
 
 - 115 开放平台 APPID：前端支持扫码授权和网页授权；自定义 APPID 走扫码授权 。

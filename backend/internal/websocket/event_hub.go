@@ -15,6 +15,11 @@ const (
 	EventScraperItemComplete  = "scraper_item_complete"
 	EventStrmSyncTaskStart    = "strm_sync_task_start"
 	EventStrmSyncTaskComplete = "strm_sync_task_complete"
+
+	EventUploadQueueStatusChanged   = "upload_queue_status_changed"
+	EventDownloadQueueStatusChanged = "download_queue_status_changed"
+	EventUploadQueueChanged         = "upload_queue_changed"
+	EventDownloadQueueChanged       = "download_queue_changed"
 )
 
 // WSEvent WebSocket 事件结构
@@ -22,6 +27,19 @@ type WSEvent struct {
 	EventType string    `json:"event_type"`
 	Timestamp time.Time `json:"timestamp"`
 	Data      any       `json:"data"`
+}
+
+// QueueStatusPayload 队列运行状态变更事件数据。
+type QueueStatusPayload struct {
+	Running bool `json:"running"`
+}
+
+// QueueChangedPayload 队列列表变更事件数据。
+type QueueChangedPayload struct {
+	TaskID uint   `json:"task_id,omitempty"`
+	Status int    `json:"status,omitempty"`
+	Source string `json:"source,omitempty"`
+	Reason string `json:"reason,omitempty"`
 }
 
 // Client WebSocket 客户端
@@ -105,6 +123,16 @@ func BroadcastEvent(eventType string, data any) {
 		return
 	}
 	GlobalEventHub.broadcast <- msg
+}
+
+// BroadcastQueueStatusChanged 广播队列运行状态变更。
+func BroadcastQueueStatusChanged(eventType string, running bool) {
+	BroadcastEvent(eventType, QueueStatusPayload{Running: running})
+}
+
+// BroadcastQueueChanged 广播队列列表变更。
+func BroadcastQueueChanged(eventType string, payload QueueChangedPayload) {
+	BroadcastEvent(eventType, payload)
 }
 
 // RegisterClient 注册客户端

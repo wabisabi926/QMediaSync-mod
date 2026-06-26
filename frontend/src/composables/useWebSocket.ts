@@ -7,6 +7,10 @@ export type WSEventType =
   | 'scraper_item_complete'
   | 'strm_sync_task_start'
   | 'strm_sync_task_complete'
+  | 'upload_queue_status_changed'
+  | 'download_queue_status_changed'
+  | 'upload_queue_changed'
+  | 'download_queue_changed'
 
 // WebSocket 事件结构
 export interface WSEvent {

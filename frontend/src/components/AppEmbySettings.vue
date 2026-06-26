@@ -958,7 +958,6 @@ const startSync = async () => {
       ElMessage.success('同步已启动')
       syncPolling.value = true
       await querySyncStatus()
-      startSyncPolling()
     } else {
       ElMessage.error(response?.data.message || '启动同步失败')
     }
@@ -978,6 +977,7 @@ const querySyncStatus = async () => {
       syncInfo.value = response.data.data
       syncPolling.value = response.data.data?.is_running
       if (syncPolling.value) {
+        startSyncPolling()
       } else {
         stopSyncPolling()
       }
@@ -988,6 +988,9 @@ const querySyncStatus = async () => {
 }
 
 const startSyncPolling = () => {
+  if (syncPollTimer !== null) {
+    return
+  }
   syncPollTimer = window.setInterval(async () => {
     try {
       const response = await http?.get(`${SERVER_URL}/emby/sync/status`)

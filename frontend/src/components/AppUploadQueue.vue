@@ -208,6 +208,7 @@ import { SERVER_URL } from '@/const'
 import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
 import { useBackgroundRefresh } from '@/composables/useBackgroundRefresh'
 import { mergeStableList, retainExistingKeys } from '@/composables/useStableList'
+import { useWSEvent } from '@/composables/useWebSocket'
 import { usePageStateStore } from '@/stores/pageState'
 import type { AxiosStatic } from 'axios'
 import { formatFileSize } from '@/utils/fileSizeUtils'
@@ -267,6 +268,12 @@ const statusFilter = computed({
   get: () => Number(pageState.filters.status ?? -1),
   set: (value) => pageStateStore.setFilter('upload-queue', 'status', value),
 })
+const hasActiveQueueWork = computed(
+  () =>
+    queueStatus.value === 1 ||
+    uploading.value > 0 ||
+    queueData.value.some((task) => task.status <= 1),
+)
 
 // 定时器
 const refreshTimer = ref<number | null>(null)
@@ -412,6 +419,11 @@ const loadQueueData = async () => {
             'upload-queue',
             retainExistingKeys(pageState.expandedRowKeys, queueData.value, (row) => row.id),
           )
+          if (hasActiveQueueWork.value) {
+            startAutoRefresh()
+          } else {
+            stopAutoRefresh()
+          }
         } else {
           ElMessage.error('获取上传队列数据失败')
         }
@@ -665,15 +677,16 @@ const handleCurrentChange = (val: number) => {
 
 // 启动定时刷新
 const startAutoRefresh = () => {
-  if (refreshTimer.value) {
-    clearInterval(refreshTimer.value)
+  if (refreshTimer.value || !hasActiveQueueWork.value) {
+    return
   }
 
   refreshTimer.value = window.setInterval(() => {
-    // 只有在页面可见时才刷新
-    if (!document.hidden) {
+    if (!document.hidden && hasActiveQueueWork.value) {
       loadQueueData()
-      loadQueueStatus()
+    }
+    if (!hasActiveQueueWork.value) {
+      stopAutoRefresh()
     }
   }, 5000)
 }
@@ -714,6 +727,21 @@ const handleStatusChange = (val: number) => {
   currentPage.value = 1
   loadQueueData()
 }
+
+useWSEvent('upload_queue_status_changed', (data) => {
+  if (typeof data.running === 'boolean') {
+    queueStatus.value = data.running ? 1 : 0
+  }
+  if (isPageActive) {
+    loadQueueData()
+  }
+})
+
+useWSEvent('upload_queue_changed', () => {
+  if (isPageActive && !document.hidden) {
+    loadQueueData()
+  }
+})
 
 // 页面生命周期
 onMounted(activateQueuePage)

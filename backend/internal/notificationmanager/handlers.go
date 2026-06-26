@@ -35,7 +35,9 @@ type TelegramChannelHandler struct {
 	proxyURL       string // 系统代理 URL
 	bot            *helpers.TelegramBot
 	initOnce       sync.Once
-	stopChan       chan struct{}                                     // 用于停止信号
+	listenMu       sync.Mutex
+	listenCancel   context.CancelFunc
+	listenToken    *struct{}
 	customCommands map[string]func([]string) helpers.CommandResponse // 保存从外部注入的命令
 }
 
@@ -156,6 +158,19 @@ func (h *TelegramChannelHandler) Start(ctx context.Context) {
 		helpers.AppLogger.Errorf("初始化 Telegram Bot 失败：%v", err)
 		return
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	listenCtx, cancel := context.WithCancel(ctx)
+	listenToken := &struct{}{}
+	h.listenMu.Lock()
+	if h.listenCancel != nil {
+		h.listenCancel()
+	}
+	h.listenCancel = cancel
+	h.listenToken = listenToken
+	h.listenMu.Unlock()
 
 	// 在协程中运行监听，避免阻塞主进程
 	go func() {
@@ -163,15 +178,28 @@ func (h *TelegramChannelHandler) Start(ctx context.Context) {
 
 		// 调用你现有的监听逻辑，并把自定义命令传进去
 		// 注意：我们需要对 StartListening 做一点小改动，让它能感知 ctx
-		h.bot.StartListening(ctx, h.customCommands)
+		h.bot.StartListening(listenCtx, h.customCommands)
+
+		h.listenMu.Lock()
+		if h.listenToken == listenToken {
+			h.listenCancel = nil
+			h.listenToken = nil
+		}
+		h.listenMu.Unlock()
 
 		helpers.AppLogger.Infof("Telegram Bot 监听协程已安全退出")
 	}()
 }
 
 func (h *TelegramChannelHandler) Stop() {
-	if h.stopChan != nil {
-		close(h.stopChan)
+	h.listenMu.Lock()
+	cancel := h.listenCancel
+	h.listenCancel = nil
+	h.listenToken = nil
+	h.listenMu.Unlock()
+
+	if cancel != nil {
+		cancel()
 	}
 }
 

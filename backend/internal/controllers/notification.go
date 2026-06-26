@@ -88,9 +88,21 @@ func parseNotificationChannelID(c *gin.Context) (uint, bool) {
 	return idReq.ID, true
 }
 
-func refreshNotificationManagerChannels() {
+func reloadNotificationManagerChannel(channelID uint) {
 	if notificationmanager.GlobalEnhancedNotificationManager != nil {
-		notificationmanager.GlobalEnhancedNotificationManager.LoadChannels()
+		_ = notificationmanager.GlobalEnhancedNotificationManager.ReloadChannel(channelID)
+	}
+}
+
+func reloadNotificationManagerRules() {
+	if notificationmanager.GlobalEnhancedNotificationManager != nil {
+		notificationmanager.GlobalEnhancedNotificationManager.ReloadRules()
+	}
+}
+
+func removeNotificationManagerChannel(channelID uint) {
+	if notificationmanager.GlobalEnhancedNotificationManager != nil {
+		notificationmanager.GlobalEnhancedNotificationManager.RemoveChannel(channelID)
 	}
 }
 
@@ -167,7 +179,7 @@ func CreateTelegramChannel(c *gin.Context) {
 	}
 
 	// 重新加载管理器
-	refreshNotificationManagerChannels()
+	reloadNotificationManagerChannel(channel.ID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"code":    0,
@@ -253,7 +265,7 @@ func CreateMeoWChannel(c *gin.Context) {
 	}
 
 	// 重新加载管理器
-	refreshNotificationManagerChannels()
+	reloadNotificationManagerChannel(channel.ID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"code":    0,
@@ -346,7 +358,7 @@ func CreateBarkChannel(c *gin.Context) {
 	}
 
 	// 重新加载管理器
-	refreshNotificationManagerChannels()
+	reloadNotificationManagerChannel(channel.ID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"code":    0,
@@ -432,7 +444,7 @@ func CreateServerChanChannel(c *gin.Context) {
 	}
 
 	// 重新加载管理器
-	refreshNotificationManagerChannels()
+	reloadNotificationManagerChannel(channel.ID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"code":    0,
@@ -528,7 +540,7 @@ func CreateCustomWebhookChannel(c *gin.Context) {
 	}
 
 	// 刷新通知管理器
-	refreshNotificationManagerChannels()
+	reloadNotificationManagerChannel(channel.ID)
 
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "创建成功", "data": toNotificationChannelResponse(channel)})
 }
@@ -662,7 +674,7 @@ func UpdateCustomWebhookChannel(c *gin.Context) {
 	}
 
 	// 刷新通知管理器
-	refreshNotificationManagerChannels()
+	reloadNotificationManagerChannel(channel.ID)
 
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功", "data": toNotificationChannelResponse(channel)})
 }
@@ -744,7 +756,7 @@ func UpdateTelegramChannel(c *gin.Context) {
 	}
 
 	// 刷新通知管理器
-	refreshNotificationManagerChannels()
+	reloadNotificationManagerChannel(channel.ID)
 
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功", "data": toNotificationChannelResponse(channel)})
 }
@@ -826,7 +838,7 @@ func UpdateMeoWChannel(c *gin.Context) {
 	}
 
 	// 刷新通知管理器
-	refreshNotificationManagerChannels()
+	reloadNotificationManagerChannel(channel.ID)
 
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功", "data": toNotificationChannelResponse(channel)})
 }
@@ -916,7 +928,7 @@ func UpdateBarkChannel(c *gin.Context) {
 	}
 
 	// 刷新通知管理器
-	refreshNotificationManagerChannels()
+	reloadNotificationManagerChannel(channel.ID)
 
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功", "data": toNotificationChannelResponse(channel)})
 }
@@ -998,7 +1010,7 @@ func UpdateServerChanChannel(c *gin.Context) {
 	}
 
 	// 刷新通知管理器
-	refreshNotificationManagerChannels()
+	reloadNotificationManagerChannel(channel.ID)
 
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功", "data": toNotificationChannelResponse(channel)})
 }
@@ -1044,7 +1056,7 @@ func UpdateChannelStatus(c *gin.Context) {
 	}
 
 	// 重新加载管理器
-	refreshNotificationManagerChannels()
+	reloadNotificationManagerChannel(r.ChannelID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"code":    0,
@@ -1314,6 +1326,8 @@ func DeleteChannel(c *gin.Context) {
 		return
 	}
 
+	removeNotificationManagerChannel(channelID)
+
 	c.JSON(http.StatusOK, gin.H{
 		"code":    0,
 		"message": "删除成功",
@@ -1427,7 +1441,7 @@ func UpdateNotificationRule(c *gin.Context) {
 	}
 
 	// 重新加载规则
-	refreshNotificationManagerChannels()
+	reloadNotificationManagerRules()
 
 	c.JSON(http.StatusOK, gin.H{
 		"code":    0,

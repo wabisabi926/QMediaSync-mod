@@ -30,6 +30,32 @@ func setupNotificationManagerTest(t *testing.T) (*EnhancedNotificationManager, *
 	return manager, testDb, &buf
 }
 
+type testBackgroundHandler struct {
+	channelType string
+	stopCount   int
+}
+
+func (h *testBackgroundHandler) Send(context.Context, *notification.Notification) error {
+	return nil
+}
+
+func (h *testBackgroundHandler) GetChannelType() string {
+	if h.channelType == "" {
+		return "test"
+	}
+	return h.channelType
+}
+
+func (h *testBackgroundHandler) IsHealthy() bool {
+	return true
+}
+
+func (h *testBackgroundHandler) Start(context.Context) {}
+
+func (h *testBackgroundHandler) Stop() {
+	h.stopCount++
+}
+
 func TestSendNotificationWithoutChannelsIsQuiet(t *testing.T) {
 	manager, _, buf := setupNotificationManagerTest(t)
 	if err := manager.LoadChannels(); err != nil {
@@ -87,5 +113,88 @@ func TestLoadChannelsRoutesEnabledRulesForDuplicateChannelTypes(t *testing.T) {
 	defer manager.mu.RUnlock()
 	if got := len(manager.rules[string(notification.SyncFinished)]); got != 2 {
 		t.Fatalf("sync_finish 启用渠道数量 = %d，期望 2", got)
+	}
+}
+
+func TestReloadRulesPreservesBackgroundHandlers(t *testing.T) {
+	manager, testDb, _ := setupNotificationManagerTest(t)
+	channel := notification.NotificationChannel{ChannelType: "telegram", ChannelName: "Telegram", IsEnabled: true}
+	if err := testDb.Create(&channel).Error; err != nil {
+		t.Fatalf("创建通知渠道失败: %v", err)
+	}
+	handler := &testBackgroundHandler{channelType: "telegram"}
+	manager.handlers[channel.ID] = &channelInfo{handler: handler, config: &channel}
+	rule := notification.NotificationRule{
+		ChannelID: channel.ID,
+		EventType: string(notification.SyncFinished),
+		IsEnabled: true,
+	}
+	if err := testDb.Create(&rule).Error; err != nil {
+		t.Fatalf("创建通知规则失败: %v", err)
+	}
+
+	manager.ReloadRules()
+
+	manager.mu.RLock()
+	gotHandler := manager.handlers[channel.ID].handler
+	gotRuleIDs := append([]uint(nil), manager.rules[string(notification.SyncFinished)]...)
+	manager.mu.RUnlock()
+	if gotHandler != handler {
+		t.Fatal("刷新通知规则不应替换已有后台 handler")
+	}
+	if handler.stopCount != 0 {
+		t.Fatalf("刷新通知规则不应停止后台 handler，实际停止次数: %d", handler.stopCount)
+	}
+	if len(gotRuleIDs) != 1 || gotRuleIDs[0] != channel.ID {
+		t.Fatalf("sync_finish 规则路由 = %v，期望仅包含渠道 %d", gotRuleIDs, channel.ID)
+	}
+}
+
+func TestRemoveChannelStopsBackgroundHandlerAndDropsRules(t *testing.T) {
+	manager, testDb, _ := setupNotificationManagerTest(t)
+	channel := notification.NotificationChannel{ChannelType: "telegram", ChannelName: "Telegram", IsEnabled: true}
+	if err := testDb.Create(&channel).Error; err != nil {
+		t.Fatalf("创建通知渠道失败: %v", err)
+	}
+	handler := &testBackgroundHandler{channelType: "telegram"}
+	manager.handlers[channel.ID] = &channelInfo{handler: handler, config: &channel}
+	if err := testDb.Create(&notification.NotificationRule{
+		ChannelID: channel.ID,
+		EventType: string(notification.SyncFinished),
+		IsEnabled: true,
+	}).Error; err != nil {
+		t.Fatalf("创建通知规则失败: %v", err)
+	}
+	manager.ReloadRules()
+
+	manager.RemoveChannel(channel.ID)
+
+	manager.mu.RLock()
+	_, handlerExists := manager.handlers[channel.ID]
+	gotRuleIDs := append([]uint(nil), manager.rules[string(notification.SyncFinished)]...)
+	manager.mu.RUnlock()
+	if handlerExists {
+		t.Fatal("卸载通知渠道后不应保留 handler")
+	}
+	if handler.stopCount != 1 {
+		t.Fatalf("卸载通知渠道应停止一次后台 handler，实际停止次数: %d", handler.stopCount)
+	}
+	if len(gotRuleIDs) != 0 {
+		t.Fatalf("卸载通知渠道后不应保留规则路由，实际: %v", gotRuleIDs)
+	}
+}
+
+func TestTelegramChannelHandlerStopCancelsListeningContext(t *testing.T) {
+	handler := &TelegramChannelHandler{}
+	ctx, cancel := context.WithCancel(context.Background())
+	handler.listenCancel = cancel
+
+	handler.Stop()
+	handler.Stop()
+
+	select {
+	case <-ctx.Done():
+	case <-time.After(time.Second):
+		t.Fatal("停止 Telegram handler 应取消监听 context")
 	}
 }

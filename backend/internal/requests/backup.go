@@ -1,6 +1,79 @@
 package requests
 
-import "qmediasync/internal/validation"
+import (
+	"strconv"
+	"strings"
+
+	"qmediasync/internal/validation"
+)
+
+// BackupCreateRequest 创建备份请求。
+type BackupCreateRequest struct {
+	Reason string `json:"reason"`
+}
+
+// Validate 校验创建备份请求。
+func (r *BackupCreateRequest) Validate() error {
+	r.Reason = strings.TrimSpace(r.Reason)
+	if r.Reason == "" {
+		r.Reason = "手动备份"
+	}
+	return nil
+}
+
+// BackupListRequest 备份列表请求。
+type BackupListRequest struct {
+	Page     int    `json:"page" form:"page"`
+	PageSize int    `json:"page_size" form:"page_size"`
+	Type     string `json:"type" form:"type"`
+}
+
+// Normalize 规范化备份列表请求。
+func (r *BackupListRequest) Normalize() {
+	if r.Page < 1 {
+		r.Page = 1
+	}
+	if r.PageSize < 1 || r.PageSize > 100 {
+		r.PageSize = 20
+	}
+	r.Type = strings.TrimSpace(r.Type)
+	if r.Type == "" {
+		r.Type = "all"
+	}
+}
+
+// BackupRecordIDRequest 备份记录 ID 请求。
+type BackupRecordIDRequest struct {
+	ID uint `json:"id" form:"id"`
+}
+
+// Validate 校验备份记录 ID 请求。
+func (r BackupRecordIDRequest) Validate() error {
+	return validation.PositiveID("id", r.ID)
+}
+
+// ParseBackupRecordIDRequest 解析备份记录路径 ID。
+func ParseBackupRecordIDRequest(rawID string) (BackupRecordIDRequest, error) {
+	id, err := strconv.ParseUint(rawID, 10, 64)
+	if err != nil {
+		return BackupRecordIDRequest{}, err
+	}
+	req := BackupRecordIDRequest{ID: uint(id)}
+	if err := req.Validate(); err != nil {
+		return BackupRecordIDRequest{}, err
+	}
+	return req, nil
+}
+
+// BackupRestoreRequest 备份恢复请求。
+type BackupRestoreRequest struct {
+	RecordID uint `json:"record_id"`
+}
+
+// Validate 校验备份恢复请求。
+func (r BackupRestoreRequest) Validate() error {
+	return validation.PositiveID("record_id", r.RecordID)
+}
 
 // BackupConfigUpdateRequest 更新备份配置请求。
 type BackupConfigUpdateRequest struct {

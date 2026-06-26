@@ -38,3 +38,98 @@ func TestBackupConfigRequestValidate(t *testing.T) {
 		})
 	}
 }
+
+func TestBackupCreateRequestValidate(t *testing.T) {
+	tests := []struct {
+		name       string
+		req        BackupCreateRequest
+		wantReason string
+		wantErr    bool
+	}{
+		{name: "原因为空使用默认值", req: BackupCreateRequest{}, wantReason: "手动备份"},
+		{name: "原因会去除首尾空白", req: BackupCreateRequest{Reason: " 手动执行 "}, wantReason: "手动执行"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := tt.req
+			err := req.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if req.Reason != tt.wantReason {
+				t.Fatalf("Reason = %q, want %q", req.Reason, tt.wantReason)
+			}
+		})
+	}
+}
+
+func TestBackupListRequestNormalize(t *testing.T) {
+	tests := []struct {
+		name         string
+		req          BackupListRequest
+		wantPage     int
+		wantPageSize int
+		wantType     string
+	}{
+		{name: "空参数使用默认值", req: BackupListRequest{}, wantPage: 1, wantPageSize: 20, wantType: "all"},
+		{name: "合法分页通过", req: BackupListRequest{Page: 2, PageSize: 50, Type: "manual"}, wantPage: 2, wantPageSize: 50, wantType: "manual"},
+		{name: "非法分页回退默认值", req: BackupListRequest{Page: -1, PageSize: 101}, wantPage: 1, wantPageSize: 20, wantType: "all"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := tt.req
+			req.Normalize()
+			if req.Page != tt.wantPage || req.PageSize != tt.wantPageSize || req.Type != tt.wantType {
+				t.Fatalf("Normalize() = page %d page_size %d type %q, want page %d page_size %d type %q",
+					req.Page, req.PageSize, req.Type, tt.wantPage, tt.wantPageSize, tt.wantType)
+			}
+		})
+	}
+}
+
+func TestParseBackupRecordIDRequest(t *testing.T) {
+	tests := []struct {
+		name    string
+		rawID   string
+		wantID  uint
+		wantErr bool
+	}{
+		{name: "合法 ID 通过", rawID: "12", wantID: 12},
+		{name: "非数字失败", rawID: "bad", wantErr: true},
+		{name: "零值失败", rawID: "0", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := ParseBackupRecordIDRequest(tt.rawID)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("ParseBackupRecordIDRequest() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if req.ID != tt.wantID {
+				t.Fatalf("ID = %d, want %d", req.ID, tt.wantID)
+			}
+		})
+	}
+}
+
+func TestBackupRestoreRequestValidate(t *testing.T) {
+	tests := []struct {
+		name    string
+		req     BackupRestoreRequest
+		wantErr bool
+	}{
+		{name: "合法备份记录 ID 通过", req: BackupRestoreRequest{RecordID: 1}},
+		{name: "备份记录 ID 为空失败", req: BackupRestoreRequest{}, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.req.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}

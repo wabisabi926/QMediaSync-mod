@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -20,17 +19,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type BackupCreateRequest struct {
-	Reason string `json:"reason"`
-}
-
-type BackupRestoreRequest struct {
-	RecordID uint `json:"record_id"`
-}
-
 func CreateBackup(c *gin.Context) {
-	var req BackupCreateRequest
+	var req requests.BackupCreateRequest
 	if err := c.ShouldBind(&req); err != nil {
+		req = requests.BackupCreateRequest{}
+	}
+	if err := req.Validate(); err != nil {
 		req.Reason = "手动备份"
 	}
 
@@ -55,19 +49,14 @@ func CreateBackup(c *gin.Context) {
 }
 
 func GetBackupList(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	backupType := c.DefaultQuery("type", "all")
-
-	if page < 1 {
-		page = 1
+	var req requests.BackupListRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		req.Type = c.DefaultQuery("type", "all")
 	}
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
-	}
+	req.Normalize()
 
 	service := models.GetBackupService()
-	records, total, err := service.GetBackupRecords(page, pageSize, backupType)
+	records, total, err := service.GetBackupRecords(req.Page, req.PageSize, req.Type)
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    BadRequest,
@@ -83,15 +72,14 @@ func GetBackupList(c *gin.Context) {
 		Data: map[string]interface{}{
 			"list":      records,
 			"total":     total,
-			"page":      page,
-			"page_size": pageSize,
+			"page":      req.Page,
+			"page_size": req.PageSize,
 		},
 	})
 }
 
 func GetBackupRecord(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 64)
+	req, err := requests.ParseBackupRecordIDRequest(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    BadRequest,
@@ -102,7 +90,7 @@ func GetBackupRecord(c *gin.Context) {
 	}
 
 	var record models.BackupRecord
-	if err := db.Db.First(&record, id).Error; err != nil {
+	if err := db.Db.First(&record, req.ID).Error; err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    BadRequest,
 			Message: "备份记录不存在",
@@ -119,8 +107,7 @@ func GetBackupRecord(c *gin.Context) {
 }
 
 func DeleteBackup(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 64)
+	req, err := requests.ParseBackupRecordIDRequest(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    BadRequest,
@@ -131,7 +118,7 @@ func DeleteBackup(c *gin.Context) {
 	}
 
 	service := models.GetBackupService()
-	if err := service.DeleteBackup(uint(id), true); err != nil {
+	if err := service.DeleteBackup(req.ID, true); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    BadRequest,
 			Message: fmt.Sprintf("删除备份失败：%v", err),
@@ -148,8 +135,7 @@ func DeleteBackup(c *gin.Context) {
 }
 
 func DownloadBackup(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 64)
+	req, err := requests.ParseBackupRecordIDRequest(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    BadRequest,
@@ -160,7 +146,7 @@ func DownloadBackup(c *gin.Context) {
 	}
 
 	var record models.BackupRecord
-	if err := db.Db.First(&record, id).Error; err != nil {
+	if err := db.Db.First(&record, req.ID).Error; err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    BadRequest,
 			Message: "备份记录不存在",
@@ -276,7 +262,7 @@ func GetBackupStatus(c *gin.Context) {
 }
 
 func RestoreFromBackup(c *gin.Context) {
-	var req BackupRestoreRequest
+	var req requests.BackupRestoreRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    BadRequest,
@@ -286,7 +272,7 @@ func RestoreFromBackup(c *gin.Context) {
 		return
 	}
 
-	if req.RecordID == 0 {
+	if err := req.Validate(); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    BadRequest,
 			Message: "请指定要恢复的备份记录 ID",

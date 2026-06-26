@@ -13,26 +13,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type LoginRequest struct {
-	Username   string `json:"username" form:"username"`
-	Password   string `json:"password" form:"password"`
-	TOTPCode   string `json:"totp_code" form:"totp_code"`
-	RememberMe bool   `json:"rememberMe" form:"rememberMe"`
-}
-
-type EnableTwoFactorRequest struct {
-	TOTPCode string `json:"totp_code" form:"totp_code"`
-}
-
-type DisableTwoFactorRequest struct {
-	Password string `json:"password" form:"password"`
-	TOTPCode string `json:"totp_code" form:"totp_code"`
-}
-
-func (req DisableTwoFactorRequest) IsValid() bool {
-	return req.Password != "" && req.TOTPCode != ""
-}
-
 func loginFailureMessage() string {
 	return "登录失败"
 }
@@ -53,17 +33,17 @@ func writeLoginFailure(c *gin.Context) {
 // @Failure 200 {object} object
 // @Router /api/login [post]
 func LoginAction(c *gin.Context) {
-	var req LoginRequest
+	var req requests.LoginRequest
 	if err := c.ShouldBind(&req); err != nil {
+		writeLoginFailure(c)
+		return
+	}
+	if err := req.Validate(); err != nil {
 		writeLoginFailure(c)
 		return
 	}
 	username := strings.TrimSpace(req.Username)
 	password := req.Password
-	if username == "" || password == "" {
-		writeLoginFailure(c)
-		return
-	}
 
 	clientIP := c.ClientIP()
 	if allowed, wait := defaultLoginRateLimiter.Allow(clientIP, username); !allowed {
@@ -322,8 +302,12 @@ func SetupTwoFactor(c *gin.Context) {
 
 // EnableTwoFactor 启用两步验证
 func EnableTwoFactor(c *gin.Context) {
-	var req EnableTwoFactorRequest
-	if err := c.ShouldBind(&req); err != nil || req.TOTPCode == "" {
+	var req requests.EnableTwoFactorRequest
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "验证码错误", Data: nil})
+		return
+	}
+	if err := req.Validate(); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "验证码错误", Data: nil})
 		return
 	}
@@ -357,8 +341,12 @@ func EnableTwoFactor(c *gin.Context) {
 
 // DisableTwoFactor 关闭两步验证
 func DisableTwoFactor(c *gin.Context) {
-	var req DisableTwoFactorRequest
-	if err := c.ShouldBind(&req); err != nil || !req.IsValid() {
+	var req requests.DisableTwoFactorRequest
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "关闭两步验证失败", Data: nil})
+		return
+	}
+	if err := req.Validate(); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "关闭两步验证失败", Data: nil})
 		return
 	}

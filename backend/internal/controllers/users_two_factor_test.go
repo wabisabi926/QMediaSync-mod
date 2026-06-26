@@ -1,6 +1,10 @@
 package controllers
 
-import "testing"
+import (
+	"testing"
+
+	"qmediasync/internal/requests"
+)
 
 func TestLoginFailureMessageIsGeneric(t *testing.T) {
 	msg := loginFailureMessage()
@@ -10,16 +14,16 @@ func TestLoginFailureMessageIsGeneric(t *testing.T) {
 }
 
 func TestDisableTwoFactorRequiresPasswordAndCode(t *testing.T) {
-	req := DisableTwoFactorRequest{}
-	if req.IsValid() {
+	req := requests.DisableTwoFactorRequest{}
+	if req.Validate() == nil {
 		t.Fatal("空密码和空验证码不应允许关闭 2FA")
 	}
 	req.Password = "admin123"
-	if req.IsValid() {
+	if req.Validate() == nil {
 		t.Fatal("缺少 TOTP 验证码不应允许关闭 2FA")
 	}
 	req.TOTPCode = "123456"
-	if !req.IsValid() {
+	if req.Validate() != nil {
 		t.Fatal("同时提供密码和 TOTP 验证码后请求格式应有效")
 	}
 }

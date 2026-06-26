@@ -76,9 +76,9 @@ DTO 负责：
 | `requests/accounts.go` | 账号、OpenList 账号、API Key | 账号来源类型、名称长度、115 授权来源组合、OpenList URL 规范化、用户名/密码或 Token、API Key 状态。 |
 | `requests/connections.go` | HTTP 代理、OAuth、二维码、远程直链、反代、请求队列限制和统计 | 代理 URL、账号 ID、OAuth 回调 URL、`data`/`payload` 条件必填、二维码 UID、PickCode、反代下载域名白名单、QPS/QPM/QPH、统计窗口和清理天数。 |
 | `requests/emby.go` | Emby 配置 | Emby URL、同步 Cron、布尔开关枚举、媒体库 JSON 字符串。 |
-| `requests/backup.go` | 备份配置 | 启用开关、Cron、保留天数、最大备份数、压缩开关。 |
+| `requests/backup.go` | 备份创建、列表、记录 ID、恢复和配置 | 手动备份原因默认值、分页默认值、备份记录 ID、启用开关、Cron、保留天数、最大备份数、压缩开关。 |
 | `requests/notification.go` | Telegram、MeoW、Bark、ServerChan、自定义 Webhook 渠道 | 渠道名称、必填凭据、URL、Webhook 方法、格式、认证方式和模板格式。 |
-| `requests/users.go` | 当前用户用户名/密码修改 | 用户名长度、密码最小长度。 |
+| `requests/users.go` | 登录、启用/关闭两步验证、当前用户用户名/密码修改 | 登录用户名和密码必填、两步验证码必填、用户名长度、密码最小长度。 |
 | `requests/operations.go` | 分页、ID、路径浏览、网盘文件、目录操作、队列、同步/刮削关联、日志、临时图片、版本更新 | 分页默认值和范围、ID 列表、CSV ID、来源类型、文件夹名、路径穿越防护、日志文件名限制、版本号格式、日期范围。 |
 
 ## 重要兼容性规则
@@ -91,6 +91,9 @@ DTO 负责：
 - `QueueListRequest.Status` 当前只绑定为 `int`，不做枚举限制，继续兼容现有前端和模型状态值。
 - `AISettingsRequest.EnableAI` 允许空值，避免旧前端或局部保存请求被误拒。
 - `CreateOpenListAccountRequest` 会自动补全缺失的 `http://` 协议，并去掉末尾 `/`。
+- `LoginRequest` 只做基础必填校验；控制器仍统一返回「登录失败」，不向客户端暴露用户名、密码或验证码的具体失败原因。
+- `BackupCreateRequest` 在原因为空时默认使用「手动备份」，与旧控制器行为一致。
+- `BackupListRequest` 保留旧分页兼容策略：页码小于 1 时回退为 1，每页数量小于 1 或大于 100 时回退为 20，类型为空时回退为 `all`。
 - 备份配置中 `backup_retention` 为 0 时表示不更新或使用既有值；大于 0 时限制为 1 到 365。
 
 ## 安全敏感校验
@@ -105,11 +108,10 @@ DTO 负责：
 
 以下接口或参数仍是特殊实现，不应作为新增接口的默认写法：
 
-- 登录、启用/关闭两步验证仍在 `controllers/users.go` 使用控制器内局部 Request 结构和业务校验。
 - 用户会话撤销使用 `session_id` 路径参数，当前直接从 `c.Param("session_id")` 读取。
 - 同步记录、同步任务详情、同步路径列表查询仍在 `controllers/sync.go` 使用控制器内局部 Request 结构。
 - Cron 预览和 Cron 验证工具接口仍在 `controllers/settings.go` 使用控制器内局部 Request 结构。
-- 备份创建、备份恢复、备份列表和备份记录路径参数仍有控制器内结构或就地解析逻辑。
+- 备份上传恢复使用 multipart 文件流，文件读取、扩展名和临时文件处理仍保留在控制器中。
 - 迁移临时服务 `internal/migrate/server.go` 使用独立的启动期接口和匿名请求结构，不纳入常规 API DTO 目录。
 - 部分只读或触发型接口没有外部参数，或只做运行状态检查，不需要 DTO。
 
@@ -151,5 +153,5 @@ DTO 负责：
 
 - 按路由生成「接口 → DTO → 测试文件」映射表，便于审查覆盖率。
 - 统一路径参数 ID 的小型辅助函数或 DTO，减少控制器内重复 `strconv.ParseUint`。
-- 评估登录、两步验证、备份恢复和迁移服务是否需要纳入统一请求目录；这些接口涉及安全或启动流程，迁移前要单独评估兼容性。
+- 评估迁移服务是否需要在 `internal/migrate` 包内补充私有 DTO；该服务涉及启动流程，迁移前要单独评估兼容性。
 - 为 Swagger 注解补充 DTO 字段说明，避免接口文档仍停留在旧的散字段描述。

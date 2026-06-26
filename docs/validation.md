@@ -71,7 +71,7 @@ DTO 负责：
 | --- | --- | --- |
 | `requests/settings.go` | 线程配置、全局 STRM 配置 | 线程范围、页面大小范围、STRM Base URL、Cron、扩展名、STRM 开关枚举。 |
 | `requests/sync.go` | 同步路径创建和更新、自定义 STRM 配置 | 来源类型、非本地来源账号 ID、路径必填、自定义配置、继承值 `-1`、远程路径规范化。 |
-| `requests/scrape_path.go` | 刮削路径保存 | 来源类型、媒体类型、刮削类型、重命名类型、非本地来源只允许移动重命名、源/目标路径、扩展名、最小文件大小、线程上限、Cron。 |
+| `requests/scrape_path.go` | 刮削路径保存 | 创建和更新分场景校验；更新时使用旧记录补齐不可编辑的来源类型、账号和媒体类型；刮削类型、整理方式、源路径、按场景要求的目标路径、扩展名、最小文件大小、线程上限、Cron。 |
 | `requests/scrape_settings.go` | TMDB、AI、分类和 TMDB 搜索 | URL、语言代码、国家代码、AI 动作枚举、模型名长度、超时范围、分类名称、Genre ID、年份范围。 |
 | `requests/accounts.go` | 账号、OpenList 账号、API Key | 账号来源类型、名称长度、115 授权来源组合、OpenList URL 规范化、用户名/密码或 Token、API Key 状态。 |
 | `requests/connections.go` | HTTP 代理、OAuth、二维码、远程直链、反代、请求队列限制和统计 | 代理 URL、账号 ID、OAuth 回调 URL、`data`/`payload` 条件必填、二维码 UID、PickCode、反代下载域名白名单、QPS/QPM/QPH、统计窗口和清理天数。 |
@@ -87,6 +87,9 @@ DTO 负责：
 
 - `SyncPathRequest` 同时支持计划中的嵌套 `setting` 字段和旧前端使用的顶层 STRM 字段；存在非零嵌套配置时优先使用 `setting`。
 - 同步路径自定义 STRM 配置使用 `-1` 表示继承全局值；全局 STRM 配置不接受 `-1`。
+- `SaveScrapePathRequest` 新增请求要求提供来源类型、账号和媒体类型；更新请求沿用旧记录中的这些不可编辑字段，避免旧前端编辑请求被误拒。
+- 刮削路径 `only_scrape` 模式不要求目标路径，整理方式只能为 `same`；需要整理或重命名时才要求目标路径。
+- 刮削路径本地来源支持移动、复制、软链接和硬链接整理；115、百度网盘和 OpenList 支持移动和复制整理；其他远程来源只保守允许移动整理。
 - `SaveRelScrapePathRequest` 同时支持旧字段 `id`、`scrape_path_id` 和新字段 `sync_path_id`、`scrape_path_ids`。
 - 同步路径和刮削路径的关联保存允许空 ID 列表，用于清空关联；通用 `IDListRequest` 不允许空列表。
 - `IDCSVRequest` 保留 `ids=1,2` 的 Query 格式，用于刮削记录批量操作。

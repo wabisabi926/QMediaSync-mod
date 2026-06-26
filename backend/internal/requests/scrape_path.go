@@ -33,8 +33,40 @@ type SaveScrapePathRequest struct {
 	MaxThreads            int               `json:"max_threads" form:"max_threads"`
 }
 
-// Validate 校验刮削路径请求。
+// Validate 校验刮削路径创建请求。
 func (r SaveScrapePathRequest) Validate() error {
+	return r.ValidateCreate()
+}
+
+// ValidateCreate 校验新增刮削路径请求。
+func (r SaveScrapePathRequest) ValidateCreate() error {
+	return r.validate()
+}
+
+// ValidateUpdate 使用旧记录补齐不可编辑字段后校验更新请求。
+func (r *SaveScrapePathRequest) ValidateUpdate(oldScrapePath *models.ScrapePath) error {
+	if err := validation.PositiveID("id", r.ID); err != nil {
+		return err
+	}
+	if oldScrapePath == nil {
+		return validation.New("id", "刮削路径不存在")
+	}
+	if r.SourceType != "" && r.SourceType != oldScrapePath.SourceType {
+		return validation.New("source_type", "不能修改来源类型")
+	}
+	if r.AccountID != 0 && r.AccountID != oldScrapePath.AccountId {
+		return validation.New("account_id", "不能修改账号")
+	}
+	if r.MediaType != "" && r.MediaType != oldScrapePath.MediaType {
+		return validation.New("media_type", "不能修改媒体类型")
+	}
+	r.SourceType = oldScrapePath.SourceType
+	r.AccountID = oldScrapePath.AccountId
+	r.MediaType = oldScrapePath.MediaType
+	return r.validate()
+}
+
+func (r SaveScrapePathRequest) validate() error {
 	sourceValues := []string{
 		string(models.SourceTypeLocal),
 		string(models.SourceType115),
@@ -62,22 +94,16 @@ func (r SaveScrapePathRequest) Validate() error {
 	}); err != nil {
 		return err
 	}
-	if err := validation.OneOfString("rename_type", string(r.RenameType), []string{
-		string(models.RenameTypeMove),
-		string(models.RenameTypeCopy),
-		string(models.RenameTypeSoftSymlink),
-		string(models.RenameTypeHardSymlink),
-	}); err != nil {
+	if err := validateScrapePathRenameType(r.SourceType, r.ScrapeType, r.RenameType); err != nil {
 		return err
-	}
-	if r.SourceType != models.SourceTypeLocal && r.RenameType != models.RenameTypeMove {
-		return validation.New("rename_type", "非本地来源只支持移动重命名")
 	}
 	if err := validation.NonBlank("source_path", r.SourcePath); err != nil {
 		return err
 	}
-	if err := validation.NonBlank("dest_path", r.DestPath); err != nil {
-		return err
+	if r.ScrapeType != models.ScrapeTypeOnly {
+		if err := validation.NonBlank("dest_path", r.DestPath); err != nil {
+			return err
+		}
 	}
 	if err := validation.ExtList("video_ext_list", r.VideoExtList, true); err != nil {
 		return err
@@ -96,6 +122,33 @@ func (r SaveScrapePathRequest) Validate() error {
 		return validation.Cron("cron_expression", r.CronExpression, false)
 	}
 	return validation.Cron("cron_expression", r.CronExpression, true)
+}
+
+func validateScrapePathRenameType(sourceType models.SourceType, scrapeType models.ScrapeType, renameType models.RenameType) error {
+	if scrapeType == models.ScrapeTypeOnly {
+		if renameType != models.RenameTypeSame {
+			return validation.New("rename_type", "仅刮削不需要整理方式")
+		}
+		return nil
+	}
+
+	allowed := []string{
+		string(models.RenameTypeMove),
+	}
+	switch sourceType {
+	case models.SourceTypeLocal:
+		allowed = append(allowed,
+			string(models.RenameTypeCopy),
+			string(models.RenameTypeSoftSymlink),
+			string(models.RenameTypeHardSymlink),
+		)
+	case models.SourceType115, models.SourceTypeBaiduPan, models.SourceTypeOpenList:
+		allowed = append(allowed, string(models.RenameTypeCopy))
+	}
+	if err := validation.OneOfString("rename_type", string(renameType), allowed); err != nil {
+		return err
+	}
+	return nil
 }
 
 // ToModel 转换为刮削路径模型。

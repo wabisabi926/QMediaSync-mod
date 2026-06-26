@@ -37,6 +37,7 @@ const (
 	RenameTypeSoftSymlink RenameType = "soft_symlink" // 软链接
 	RenameTypeMove        RenameType = "move"         // 移动
 	RenameTypeCopy        RenameType = "copy"         // 复制
+	RenameTypeSame        RenameType = "same"         // 不整理
 )
 
 type ScrapeFile struct {

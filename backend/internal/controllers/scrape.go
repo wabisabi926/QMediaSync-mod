@@ -542,7 +542,14 @@ func SaveScrapePath(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
-	if err := req.Validate(); err != nil {
+	var oldScrapePath *models.ScrapePath
+	if req.ID > 0 {
+		oldScrapePath = models.GetScrapePathByID(req.ID)
+		if err := req.ValidateUpdate(oldScrapePath); err != nil {
+			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+			return
+		}
+	} else if err := req.ValidateCreate(); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
@@ -578,7 +585,6 @@ func SaveScrapePath(c *gin.Context) {
 	var cronChanged bool
 	if reqData.ID > 0 {
 		// 更新操作
-		oldScrapePath := models.GetScrapePathByID(reqData.ID)
 		if oldScrapePath != nil {
 			oldCronExpr = oldScrapePath.CronExpression
 			cronChanged = oldCronExpr != reqData.CronExpression

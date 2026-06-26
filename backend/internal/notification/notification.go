@@ -5,7 +5,7 @@ import "time"
 // NotificationChannel 通知渠道基础配置
 type NotificationChannel struct {
 	ID          uint   `json:"id" gorm:"primaryKey"`
-	ChannelType string `json:"channel_type" gorm:"index,uniqueIndex:idx_channel_type"`
+	ChannelType string `json:"channel_type" gorm:"index:idx_channel_type"`
 	ChannelName string `json:"channel_name"`
 	Description string `json:"description"`
 	IsEnabled   bool   `json:"is_enabled" gorm:"default:true"`

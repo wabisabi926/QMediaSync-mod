@@ -19,7 +19,7 @@ type Migrator struct {
 	VersionCode int `json:"version_code"` // 版本号
 }
 
-var MaxVersionCode = 45
+var MaxVersionCode = 46
 var AllTables = []any{
 	Migrator{},
 	BackupConfig{}, BackupRecord{},
@@ -521,6 +521,14 @@ func Migrate() {
 		helpers.AppLogger.Info("已添加 user_sessions 表")
 		migrator.UpdateVersionCode(db.Db)
 	}
+	if migrator.VersionCode == 45 {
+		if err := migrateNotificationChannelTypeIndex(db.Db); err != nil {
+			helpers.AppLogger.Errorf("迁移通知渠道类型索引失败：%v", err)
+			return
+		}
+		addMissingNotificationRulesForExistingChannels(db.Db)
+		migrator.UpdateVersionCode(db.Db)
+	}
 	helpers.AppLogger.Infof("当前数据库版本 %d", migrator.VersionCode)
 }
 
@@ -881,17 +889,16 @@ func migrateExistingNotificationSettings(dbConn *gorm.DB) {
 	}
 }
 
-// addNewNotificationRulesForExistingChannels 为已有渠道添加新的播放通知类型规则
-func addNewNotificationRulesForExistingChannels(dbConn *gorm.DB) {
-	// 新增的播放通知类型
-	newPlaybackTypes := []notification.NotificationType{
-		notification.PlaybackStart,
-		notification.PlaybackPause,
-		notification.PlaybackStop,
-		notification.ScrapeError,
+func migrateNotificationChannelTypeIndex(dbConn *gorm.DB) error {
+	if dbConn.Migrator().HasIndex(&NotificationChannel{}, "idx_channel_type") {
+		if err := dbConn.Migrator().DropIndex(&NotificationChannel{}, "idx_channel_type"); err != nil {
+			return err
+		}
 	}
+	return dbConn.AutoMigrate(&NotificationChannel{})
+}
 
-	// 获取所有已有的通知渠道
+func addMissingNotificationRulesForExistingChannels(dbConn *gorm.DB) {
 	var channels []NotificationChannel
 	if err := dbConn.Find(&channels).Error; err != nil {
 		helpers.AppLogger.Errorf("获取通知渠道失败：%v", err)
@@ -900,30 +907,37 @@ func addNewNotificationRulesForExistingChannels(dbConn *gorm.DB) {
 
 	addedCount := 0
 	for _, channel := range channels {
-		for _, eventType := range newPlaybackTypes {
-			// 检查规则是否已存在
+		for _, eventType := range notification.AllNotificationTypes {
 			var existingRule NotificationRule
 			err := dbConn.Where("channel_id = ? AND event_type = ?", channel.ID, string(eventType)).
 				First(&existingRule).Error
-
-			if err == gorm.ErrRecordNotFound {
-				// 规则不存在，创建新规则
-				newRule := NotificationRule{
-					ChannelID: channel.ID,
-					EventType: string(eventType),
-					IsEnabled: true,
-				}
-				if err := dbConn.Create(&newRule).Error; err != nil {
-					helpers.AppLogger.Errorf("为渠道 %d 添加播放通知规则失败：%v", channel.ID, err)
-				} else {
-					addedCount++
-					helpers.AppLogger.Infof("为渠道 %d（%s）添加播放通知规则：%s", channel.ID, channel.ChannelName, eventType)
-				}
+			if err == nil {
+				continue
+			}
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				helpers.AppLogger.Errorf("查询渠道 %d 通知规则失败：%v", channel.ID, err)
+				continue
+			}
+			newRule := NotificationRule{
+				ChannelID: channel.ID,
+				EventType: string(eventType),
+				IsEnabled: true,
+			}
+			if err := dbConn.Create(&newRule).Error; err != nil {
+				helpers.AppLogger.Errorf("为渠道 %d 添加通知规则失败：%v", channel.ID, err)
+			} else {
+				addedCount++
+				helpers.AppLogger.Infof("为渠道 %d（%s）添加通知规则：%s", channel.ID, channel.ChannelName, eventType)
 			}
 		}
 	}
 
-	helpers.AppLogger.Infof("数据库迁移完成：已为 %d 个渠道添加新的播放通知类型规则", addedCount)
+	helpers.AppLogger.Infof("数据库迁移完成：已为 %d 个渠道规则补齐通知类型", addedCount)
+}
+
+// addNewNotificationRulesForExistingChannels 为已有渠道补齐缺失的通知类型规则。
+func addNewNotificationRulesForExistingChannels(dbConn *gorm.DB) {
+	addMissingNotificationRulesForExistingChannels(dbConn)
 }
 
 func migrateTaskSourceEnumValues(dbConn *gorm.DB) error {

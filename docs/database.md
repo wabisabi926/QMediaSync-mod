@@ -25,7 +25,7 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 当 `migrator` 表不存在时，`InitDB()` 会直接执行：
 
 1. `BatchCreateTable()`：对 `AllTables` 逐表执行 `AutoMigrate`。
-2. `InitMigrationTable(MaxVersionCode)`：写入当前版本号，当前值是 `45`。
+2. `InitMigrationTable(MaxVersionCode)`：写入当前版本号，当前值是 `46`。
 3. `InitSettings()`：创建默认 `settings` 记录。
 4. `InitUser()`：创建默认管理员用户。
 5. `InitScrapeSetting()`：创建默认刮削配置和默认分类。
@@ -51,7 +51,8 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 | 42 | 新增 `emby_library_refresh_tasks`。 |
 | 43 | 下载 / 上传任务的 `source` 从展示文案迁移为稳定存储值。 |
 | 44 | 任务来源枚举迁移后的结构版本。 |
-| 45 | 当前数据库版本；新增 `user_sessions` 表，用于浏览器登录会话撤销、CSRF 校验和登录设备管理。 |
+| 45 | 新增 `user_sessions` 表，用于浏览器登录会话撤销、CSRF 校验和登录设备管理。 |
+| 46 | 当前数据库版本；通知渠道类型索引从唯一索引改为普通索引，并为已有渠道补齐缺失通知规则。 |
 
 ## 修复与重建
 
@@ -100,7 +101,7 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 
 - `id`：固定为 `1`。
 - `created_at` / `updated_at`：创建和更新时间。
-- `version_code`：当前数据库版本号，当前值为 `45`。
+- `version_code`：当前数据库版本号，当前值为 `46`。
 
 ### `users`
 
@@ -704,7 +705,7 @@ Emby 媒体库刷新任务表。
 
 通知渠道基础表。
 
-- `channel_type`：渠道类型，当前内置实现包括 `telegram`、`meow`、`bark`、`serverchan`、`webhook`。
+- `channel_type`：渠道类型，当前内置实现包括 `telegram`、`meow`、`bark`、`serverchan`、`webhook`；允许创建多个相同类型渠道。
 - `channel_name`：渠道名称。
 - `description`：渠道说明。
 - `is_enabled`：是否启用。

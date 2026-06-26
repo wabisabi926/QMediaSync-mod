@@ -10,6 +10,7 @@ import (
 
 	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
+	"qmediasync/internal/notification"
 )
 
 func TestBatchCreateTableCreatesMigratorTable(t *testing.T) {
@@ -62,6 +63,70 @@ func setupMigratorVersion43TestDB(t *testing.T) {
 	}
 }
 
+type legacyUniqueNotificationChannel struct {
+	ID          uint   `gorm:"primaryKey"`
+	ChannelType string `gorm:"index,uniqueIndex:idx_channel_type"`
+	ChannelName string
+	IsEnabled   bool `gorm:"default:true"`
+}
+
+func (legacyUniqueNotificationChannel) TableName() string {
+	return "notification_channels"
+}
+
+func setupMigratorVersion45NotificationTestDB(t *testing.T) {
+	t.Helper()
+	if helpers.AppLogger == nil {
+		helpers.AppLogger = &helpers.QLogger{
+			Logger: log.New(io.Discard, "", 0),
+		}
+	}
+	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	db.Db = testDb
+	if err := db.Db.AutoMigrate(&Migrator{}, &legacyUniqueNotificationChannel{}, &NotificationRule{}); err != nil {
+		t.Fatalf("创建旧通知渠道测试表失败: %v", err)
+	}
+	if err := db.Db.Create(&Migrator{VersionCode: 45}).Error; err != nil {
+		t.Fatalf("创建迁移版本记录失败: %v", err)
+	}
+	if err := db.Db.Create(&legacyUniqueNotificationChannel{ChannelType: "telegram", ChannelName: "Telegram A", IsEnabled: true}).Error; err != nil {
+		t.Fatalf("创建旧通知渠道失败: %v", err)
+	}
+}
+
+func TestMigrateNotificationChannelAllowsDuplicateTypesAndBackfillsRules(t *testing.T) {
+	setupMigratorVersion45NotificationTestDB(t)
+
+	Migrate()
+
+	var migrator Migrator
+	if err := db.Db.First(&migrator).Error; err != nil {
+		t.Fatalf("读取迁移版本失败: %v", err)
+	}
+	if migrator.VersionCode != 46 {
+		t.Fatalf("迁移版本 = %d，期望 46", migrator.VersionCode)
+	}
+
+	if err := db.Db.Create(&NotificationChannel{ChannelType: "telegram", ChannelName: "Telegram B", IsEnabled: true}).Error; err != nil {
+		t.Fatalf("迁移后应允许创建同类型通知渠道: %v", err)
+	}
+
+	var channel NotificationChannel
+	if err := db.Db.Where("channel_name = ?", "Telegram A").First(&channel).Error; err != nil {
+		t.Fatalf("读取已有通知渠道失败: %v", err)
+	}
+	var total int64
+	if err := db.Db.Model(&NotificationRule{}).Where("channel_id = ?", channel.ID).Count(&total).Error; err != nil {
+		t.Fatalf("统计通知规则失败: %v", err)
+	}
+	if total != int64(len(notification.AllNotificationTypes)) {
+		t.Fatalf("补齐规则数量 = %d，期望 %d", total, len(notification.AllNotificationTypes))
+	}
+}
+
 func TestMigrateTaskSourceEnumValues(t *testing.T) {
 	setupMigratorVersion43TestDB(t)
 
@@ -92,11 +157,11 @@ func TestMigrateTaskSourceEnumValues(t *testing.T) {
 	if err := db.Db.First(&migrator).Error; err != nil {
 		t.Fatalf("读取迁移版本失败: %v", err)
 	}
-	if migrator.VersionCode != 45 {
-		t.Fatalf("迁移版本 = %d，期望 45", migrator.VersionCode)
+	if migrator.VersionCode != 46 {
+		t.Fatalf("迁移版本 = %d，期望 46", migrator.VersionCode)
 	}
 	if !db.Db.Migrator().HasTable(UserSession{}) {
-		t.Fatal("迁移到版本 45 应创建 user_sessions 表")
+		t.Fatal("迁移应创建 user_sessions 表")
 	}
 
 	assertDownloadTaskSource(t, "download-strm", "strm_sync", "115")

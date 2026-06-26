@@ -51,20 +51,6 @@ type AiSettings struct {
 	AiTimeout   int             `json:"ai_timeout" form:"ai_timeout"`
 }
 
-type MovieCategoryReq struct {
-	ID            uint     `json:"id" form:"id"`
-	Name          string   `json:"name" form:"name"`
-	LanguageArray []string `json:"language_array" form:"language_array"`
-	GenreIDArray  []int    `json:"genre_id_array" form:"genre_id_array"`
-}
-
-type TvshowCategoryReq struct {
-	ID           uint     `json:"id" form:"id"`
-	Name         string   `json:"name" form:"name"`
-	CountryArray []string `json:"country_array" form:"country_array"`
-	GenreIDArray []int    `json:"genre_id_array" form:"genre_id_array"`
-}
-
 // GetTmdbSettings 获取 TMDB 设置。
 // @Summary 获取 TMDB 设置
 // @Description 获取当前的 TMDB API 配置
@@ -109,16 +95,20 @@ func GetTmdbSettings(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func SaveTmdbSettings(c *gin.Context) {
-	reqData := TmdbSettings{}
+	reqData := requests.TMDBSettingsRequest{}
 	if err := c.ShouldBindJSON(&reqData); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
-	if err := models.GlobalScrapeSettings.SaveTmdb(reqData.TmdbApiKey, reqData.TmdbAccessToken, reqData.TmdbUrl, reqData.TmdbImageUrl, reqData.TmdbLanguage, reqData.TmdbImageLanguage, reqData.TmdbEnableProxy); err != nil {
+	if err := reqData.Validate(); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
-	if err := models.GlobalScrapeSettings.SaveKeys(reqData.FanartApiKey); err != nil {
+	if err := models.GlobalScrapeSettings.SaveTmdb(reqData.TmdbAPIKey, reqData.TmdbAccessToken, reqData.TmdbURL, reqData.TmdbImageURL, reqData.TmdbLanguage, reqData.TmdbImageLanguage, reqData.TmdbEnableProxy); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
+	}
+	if err := models.GlobalScrapeSettings.SaveKeys(reqData.FanartAPIKey); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
@@ -141,16 +131,20 @@ func SaveTmdbSettings(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func TestTmdbSettings(c *gin.Context) {
-	reqData := TmdbSettings{}
+	reqData := requests.TMDBSettingsRequest{}
 	if err := c.ShouldBindJSON(&reqData); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
+	if err := reqData.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
+	}
 	tmpScrapeSetting := &models.ScrapeSettings{
-		TmdbApiKey:        reqData.TmdbApiKey,
+		TmdbApiKey:        reqData.TmdbAPIKey,
 		TmdbAccessToken:   reqData.TmdbAccessToken,
-		TmdbUrl:           reqData.TmdbUrl,
-		TmdbImageUrl:      reqData.TmdbImageUrl,
+		TmdbUrl:           reqData.TmdbURL,
+		TmdbImageUrl:      reqData.TmdbImageURL,
 		TmdbLanguage:      reqData.TmdbLanguage,
 		TmdbImageLanguage: reqData.TmdbImageLanguage,
 		TmdbEnableProxy:   reqData.TmdbEnableProxy,
@@ -176,12 +170,16 @@ func TestTmdbSettings(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func SaveAiSettings(c *gin.Context) {
-	reqData := AiSettings{}
+	reqData := requests.AISettingsRequest{}
 	if err := c.ShouldBindJSON(&reqData); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
-	if err := models.GlobalScrapeSettings.SaveAi(reqData.AiApiKey, reqData.AiBaseUrl, reqData.AiModelName, reqData.AiTimeout); err != nil {
+	if err := reqData.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
+	}
+	if err := models.GlobalScrapeSettings.SaveAi(reqData.AIAPIKey, reqData.AIBaseURL, reqData.AIModelName, reqData.AITimeout); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
@@ -203,19 +201,23 @@ func SaveAiSettings(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func TestAiSettings(c *gin.Context) {
-	reqData := AiSettings{}
+	reqData := requests.AISettingsRequest{}
 	if err := c.ShouldBindJSON(&reqData); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
-	if reqData.AiApiKey == "" || reqData.AiBaseUrl == "" || reqData.AiModelName == "" {
+	if err := reqData.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
+	}
+	if reqData.AIAPIKey == "" || reqData.AIBaseURL == "" || reqData.AIModelName == "" {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请填写 API Key、接口地址和模型名称", Data: nil})
 		return
 	}
 	tmpScrapeSetting := &models.ScrapeSettings{
-		AiApiKey:    reqData.AiApiKey,
-		AiBaseUrl:   reqData.AiBaseUrl,
-		AiModelName: reqData.AiModelName,
+		AiApiKey:    reqData.AIAPIKey,
+		AiBaseUrl:   reqData.AIBaseURL,
+		AiModelName: reqData.AIModelName,
 	}
 	testResult := tmpScrapeSetting.TestAi()
 	if testResult != nil {
@@ -358,8 +360,12 @@ func GetTvshowCategories(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func SaveMovieCategory(c *gin.Context) {
-	reqData := MovieCategoryReq{}
+	reqData := requests.MovieCategoryRequest{}
 	if err := c.ShouldBindJSON(&reqData); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
+	}
+	if err := reqData.Validate(); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
@@ -392,8 +398,12 @@ func SaveMovieCategory(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func SaveTvshowCategory(c *gin.Context) {
-	reqData := TvshowCategoryReq{}
+	reqData := requests.TVShowCategoryRequest{}
 	if err := c.ShouldBindJSON(&reqData); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
+	}
+	if err := reqData.Validate(); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
@@ -1258,25 +1268,19 @@ type TmdbSearchResp struct {
 }
 
 func TmdbSearch(c *gin.Context) {
-	type TmdbSearchReq struct {
-		Name   string           `json:"name" form:"name"`
-		Year   int              `json:"year" form:"year"`
-		Type   models.MediaType `json:"type" form:"type" binding:"required"`
-		TmdbId int              `json:"tmdb_id" form:"tmdb_id"`
-	}
-	var req TmdbSearchReq
+	var req requests.TMDBSearchRequest
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请求参数错误：" + err.Error(), Data: nil})
 		return
 	}
-	if req.Name == "" && req.TmdbId == 0 {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请输入名称或 TMDB ID", Data: nil})
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 	tmdbClient := models.GlobalScrapeSettings.GetTmdbClient()
 	switch req.Type {
 	case models.MediaTypeMovie:
-		if req.TmdbId == 0 {
+		if req.TmdbID == 0 {
 			// 搜索电影
 			resp, err := tmdbClient.SearchMovie(req.Name, req.Year, models.GlobalScrapeSettings.GetTmdbLanguage(), true, false)
 			if err != nil {
@@ -1302,7 +1306,7 @@ func TmdbSearch(c *gin.Context) {
 			c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "搜索电影成功", Data: tmdbResp})
 			return
 		} else {
-			resp, err := tmdbClient.GetMovieDetail(int64(req.TmdbId), models.GlobalScrapeSettings.GetTmdbLanguage())
+			resp, err := tmdbClient.GetMovieDetail(int64(req.TmdbID), models.GlobalScrapeSettings.GetTmdbLanguage())
 			if err != nil {
 				c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取电影详情失败：" + err.Error(), Data: nil})
 				return
@@ -1321,7 +1325,7 @@ func TmdbSearch(c *gin.Context) {
 			return
 		}
 	case models.MediaTypeTvShow:
-		if req.TmdbId == 0 {
+		if req.TmdbID == 0 {
 			// 搜索电视剧
 			resp, err := tmdbClient.SearchTv(req.Name, req.Year, models.GlobalScrapeSettings.GetTmdbLanguage(), true)
 			if err != nil {
@@ -1347,7 +1351,7 @@ func TmdbSearch(c *gin.Context) {
 			c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "搜索电视剧成功", Data: tmdbResp})
 			return
 		} else {
-			resp, err := tmdbClient.GetTvDetail(int64(req.TmdbId), models.GlobalScrapeSettings.GetTmdbLanguage())
+			resp, err := tmdbClient.GetTvDetail(int64(req.TmdbID), models.GlobalScrapeSettings.GetTmdbLanguage())
 			if err != nil {
 				c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取电视剧详情失败：" + err.Error(), Data: nil})
 				return

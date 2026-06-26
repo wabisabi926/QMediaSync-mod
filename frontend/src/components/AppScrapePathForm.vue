@@ -264,8 +264,12 @@
           <el-input-number
             v-model="form.max_threads"
             :disabled="loading"
-            :min="1"
-            :max="form.source_type === 'local' ? 20 : 5"
+            :min="SCRAPE_THREAD_LIMITS.min"
+            :max="
+              form.source_type === 'local'
+                ? SCRAPE_THREAD_LIMITS.localMax
+                : SCRAPE_THREAD_LIMITS.remoteMax
+            "
             :step="1"
             style="width: 100%"
           />
@@ -638,8 +642,12 @@
           <el-input-number
             v-model="form.max_threads"
             :disabled="loading"
-            :min="1"
-            :max="form.source_type === 'local' ? 20 : 5"
+            :min="SCRAPE_THREAD_LIMITS.min"
+            :max="
+              form.source_type === 'local'
+                ? SCRAPE_THREAD_LIMITS.localMax
+                : SCRAPE_THREAD_LIMITS.remoteMax
+            "
             :step="1"
             style="width: 100%"
           />
@@ -773,6 +781,7 @@
 
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
+import { SCRAPE_THREAD_LIMITS } from '@/constants/validation'
 import type { AxiosStatic } from 'axios'
 import { inject, onMounted, onUnmounted, ref, reactive, watch, useTemplateRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -881,7 +890,7 @@ const form = reactive<ScrapePath>({
   cron_expression: '',
   cron_description: '',
   enable_fanart_tv: false,
-  max_threads: 5,
+  max_threads: SCRAPE_THREAD_LIMITS.remoteMax,
 })
 
 const formRules: FormRules = {
@@ -986,7 +995,7 @@ const loadDirectoryData = async (id: number) => {
       form.cron_expression = directory.cron_expression || ''
       form.cron_description = directory.cron_description || ''
       form.enable_fanart_tv = directory.enable_fanart_tv || false
-      form.max_threads = parseInt(directory.max_threads + '') || 5
+      form.max_threads = parseInt(directory.max_threads + '') || SCRAPE_THREAD_LIMITS.remoteMax
 
       // } else {
       //   ElMessage.error('未找到该刮削目录')

@@ -9,8 +9,8 @@
       <el-form-item label="下载队列每秒处理数量" prop="downloadThreads">
         <el-input-number
           v-model="formData.downloadThreads"
-          :min="1"
-          :max="10"
+          :min="THREAD_LIMITS.downloadThreads.min"
+          :max="THREAD_LIMITS.downloadThreads.max"
           :disabled="loading"
           size="large"
         />
@@ -23,8 +23,8 @@
       <el-form-item label="网盘接口每秒请求数量" prop="fileDetailThreads">
         <el-input-number
           v-model="formData.fileDetailThreads"
-          :min="2"
-          :max="10"
+          :min="THREAD_LIMITS.fileDetailThreads.min"
+          :max="THREAD_LIMITS.fileDetailThreads.max"
           :disabled="loading"
           size="large"
         />
@@ -36,8 +36,8 @@
       <el-form-item label="OpenList 接口请求 QPS" prop="openlistQPS">
         <el-input-number
           v-model="formData.openlistQPS"
-          :min="2"
-          :max="10"
+          :min="THREAD_LIMITS.openlistQPS.min"
+          :max="THREAD_LIMITS.openlistQPS.max"
           :disabled="loading"
           size="large"
         />
@@ -47,8 +47,8 @@
       <el-form-item label="OpenList 接口重试次数" prop="openlistRetryCount">
         <el-input-number
           v-model="formData.openlistRetryCount"
-          :min="1"
-          :max="10"
+          :min="THREAD_LIMITS.openlistRetry.min"
+          :max="THREAD_LIMITS.openlistRetry.max"
           :disabled="loading"
           size="large"
         />
@@ -62,8 +62,8 @@
       <el-form-item label="OpenList 接口重试间隔秒数" prop="openlistRetryDelay">
         <el-input-number
           v-model="formData.openlistRetryDelay"
-          :min="30"
-          :max="3600"
+          :min="THREAD_LIMITS.openlistRetryDelay.min"
+          :max="THREAD_LIMITS.openlistRetryDelay.max"
           :disabled="loading"
           size="large"
         />
@@ -75,8 +75,8 @@
       <el-form-item label="115 文件列表每页查询数量" prop="fileListPageSize">
         <el-input-number
           v-model="formData.fileListPageSize"
-          :min="100"
-          :max="1150"
+          :min="THREAD_LIMITS.fileListPageSize.min"
+          :max="THREAD_LIMITS.fileListPageSize.max"
           :disabled="loading"
           size="large"
         />
@@ -129,6 +129,7 @@ import { reactive, ref, inject, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Check } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
+import { THREAD_LIMITS } from '@/constants/validation'
 import type { AxiosStatic } from 'axios'
 import { isMobile } from '@/utils/deviceUtils'
 

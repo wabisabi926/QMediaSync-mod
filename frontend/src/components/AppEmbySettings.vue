@@ -347,7 +347,7 @@
             <el-form-item label="同步时间" prop="sync_cron">
               <el-input
                 v-model="embyData.sync_cron"
-                placeholder="请输入 Cron 表达式，如：0 2 * * *"
+                :placeholder="`请输入 Cron 表达式，如：${CRON_DEFAULTS.embySync}`"
                 :disabled="embyLoading || !embyData.sync_enabled"
                 class="limited-width-input"
                 @blur="fetchCronNextTimes"
@@ -356,7 +356,10 @@
               <div class="form-help">
                 <el-icon><InfoFilled /></el-icon>
                 <span
-                  >Cron 表达式，格式：秒 分 时 日 月 周（如：0 2 * * * 表示每天凌晨 2 点执行）</span
+                  >Cron 表达式，格式：秒 分 时 日 月 周（如：{{
+                    CRON_DEFAULTS.embySync
+                  }}
+                  表示每天凌晨 2 点执行）</span
                 >
               </div>
             </el-form-item>
@@ -619,6 +622,7 @@
 
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
+import { CRON_DEFAULTS, HTTP_URL_PATTERN } from '@/constants/validation'
 import type { AxiosStatic } from 'axios'
 import {
   Check,
@@ -665,7 +669,7 @@ const embyData = reactive({
   emby_url: '',
   emby_api_key: '',
   sync_enabled: 1,
-  sync_cron: '0 2 * * *',
+  sync_cron: CRON_DEFAULTS.embySync,
   enable_refresh_library: 1,
   enable_extract_media_info: 1,
   enable_delete_netdisk: 0,
@@ -711,7 +715,7 @@ const formRules: FormRules = {
       trigger: 'blur',
     },
     {
-      pattern: /^(http|https):\/\/[^\s/$.?#].[^\s]*$/,
+      pattern: HTTP_URL_PATTERN,
       message: '请输入有效的 URL 格式，如：http://ip:port',
       trigger: 'blur',
     },
@@ -722,7 +726,7 @@ const defaultConfig = {
   emby_url: '',
   emby_api_key: '',
   sync_enabled: 1,
-  sync_cron: '0 2 * * *',
+  sync_cron: CRON_DEFAULTS.embySync,
   enable_refresh_library: 1,
   enable_extract_media_info: 1,
   enable_delete_netdisk: 0,
@@ -742,7 +746,7 @@ const loadEmbyConfig = async () => {
         embyData.emby_url = config.emby_url || ''
         embyData.emby_api_key = config.emby_api_key || ''
         embyData.sync_enabled = config.sync_enabled ?? 1
-        embyData.sync_cron = config.sync_cron || '0 2 * * *'
+        embyData.sync_cron = config.sync_cron || CRON_DEFAULTS.embySync
         embyData.enable_refresh_library = config.enable_refresh_library ?? 1
         embyData.enable_extract_media_info = config.enable_extract_media_info ?? 1
         embyData.enable_delete_netdisk = config.enable_delete_netdisk ?? 0

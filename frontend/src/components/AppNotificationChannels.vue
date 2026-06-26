@@ -628,12 +628,7 @@ const getChannelIcon = (type: ChannelType): Component => {
   return iconMap[type] || Link
 }
 
-// 可用的渠道类型选项（过滤掉已存在的）
-const channelTypes = computed(() => {
-  // const existingTypes = channels.value.map(channel => channel.channel_type)
-  // return allChannelTypes.filter(type => !existingTypes.includes(type.value))
-  return allChannelTypes
-})
+const channelTypes = computed(() => allChannelTypes)
 
 // 渠道表单
 const channelForm = reactive<ChannelFormData>({
@@ -687,15 +682,6 @@ const loadChannels = async () => {
 
 // 显示创建对话框
 const showCreateDialog = () => {
-  // 检查是否还有可用的渠道类型
-  const existingTypes = channels.value.map((channel) => channel.channel_type)
-  const availableTypes = allChannelTypes.filter((type) => !existingTypes.includes(type.value))
-
-  if (availableTypes.length === 0) {
-    ElMessage.warning('所有渠道类型都已添加，每种类型只能添加一个渠道')
-    return
-  }
-
   selectedChannelType.value = ''
   resetChannelForm()
   createDialogVisible.value = true

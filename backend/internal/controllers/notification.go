@@ -16,6 +16,36 @@ import (
 	"gorm.io/gorm"
 )
 
+type notificationChannelResponse struct {
+	ID          uint   `json:"id"`
+	ChannelType string `json:"channel_type"`
+	ChannelName string `json:"channel_name"`
+	Description string `json:"description"`
+	IsEnabled   bool   `json:"is_enabled"`
+	CreatedAt   int64  `json:"created_at"`
+	UpdatedAt   int64  `json:"updated_at"`
+}
+
+func toNotificationChannelResponse(channel models.NotificationChannel) notificationChannelResponse {
+	return notificationChannelResponse{
+		ID:          channel.ID,
+		ChannelType: channel.ChannelType,
+		ChannelName: channel.ChannelName,
+		Description: channel.Description,
+		IsEnabled:   channel.IsEnabled,
+		CreatedAt:   channel.CreatedAt.Unix(),
+		UpdatedAt:   channel.UpdatedAt.Unix(),
+	}
+}
+
+func toNotificationChannelResponses(channels []models.NotificationChannel) []notificationChannelResponse {
+	responses := make([]notificationChannelResponse, 0, len(channels))
+	for _, channel := range channels {
+		responses = append(responses, toNotificationChannelResponse(channel))
+	}
+	return responses
+}
+
 // GetNotificationChannels 获取所有通知渠道
 // @Summary 获取通知渠道列表
 // @Description 获取已配置的通知渠道列表
@@ -41,7 +71,7 @@ func GetNotificationChannels(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"code":    0,
 		"message": "获取成功",
-		"data":    channels,
+		"data":    toNotificationChannelResponses(channels),
 	})
 }
 
@@ -142,7 +172,7 @@ func CreateTelegramChannel(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"code":    0,
 		"message": "创建成功",
-		"data":    channel,
+		"data":    toNotificationChannelResponse(channel),
 	})
 }
 
@@ -228,7 +258,7 @@ func CreateMeoWChannel(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"code":    0,
 		"message": "创建成功",
-		"data":    channel,
+		"data":    toNotificationChannelResponse(channel),
 	})
 }
 
@@ -321,7 +351,7 @@ func CreateBarkChannel(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"code":    0,
 		"message": "创建成功",
-		"data":    channel,
+		"data":    toNotificationChannelResponse(channel),
 	})
 }
 
@@ -407,7 +437,7 @@ func CreateServerChanChannel(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"code":    0,
 		"message": "创建成功",
-		"data":    channel,
+		"data":    toNotificationChannelResponse(channel),
 	})
 }
 
@@ -500,7 +530,7 @@ func CreateCustomWebhookChannel(c *gin.Context) {
 	// 刷新通知管理器
 	refreshNotificationManagerChannels()
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "创建成功", "data": channel})
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "创建成功", "data": toNotificationChannelResponse(channel)})
 }
 
 // UpdateCustomWebhookChannel 更新自定义 Webhook 渠道配置
@@ -634,7 +664,7 @@ func UpdateCustomWebhookChannel(c *gin.Context) {
 	// 刷新通知管理器
 	refreshNotificationManagerChannels()
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功", "data": channel})
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功", "data": toNotificationChannelResponse(channel)})
 }
 
 // UpdateTelegramChannel 更新 Telegram 渠道配置
@@ -716,7 +746,7 @@ func UpdateTelegramChannel(c *gin.Context) {
 	// 刷新通知管理器
 	refreshNotificationManagerChannels()
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功", "data": channel})
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功", "data": toNotificationChannelResponse(channel)})
 }
 
 // UpdateMeoWChannel 更新 MeoW 渠道配置
@@ -798,7 +828,7 @@ func UpdateMeoWChannel(c *gin.Context) {
 	// 刷新通知管理器
 	refreshNotificationManagerChannels()
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功", "data": channel})
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功", "data": toNotificationChannelResponse(channel)})
 }
 
 // UpdateBarkChannel 更新 Bark 渠道配置
@@ -888,7 +918,7 @@ func UpdateBarkChannel(c *gin.Context) {
 	// 刷新通知管理器
 	refreshNotificationManagerChannels()
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功", "data": channel})
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功", "data": toNotificationChannelResponse(channel)})
 }
 
 // UpdateServerChanChannel 更新 Server酱渠道配置
@@ -970,7 +1000,7 @@ func UpdateServerChanChannel(c *gin.Context) {
 	// 刷新通知管理器
 	refreshNotificationManagerChannels()
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功", "data": channel})
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功", "data": toNotificationChannelResponse(channel)})
 }
 
 // UpdateChannelStatus 启用/禁用渠道
@@ -1055,7 +1085,7 @@ func GetTelegramChannel(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "获取成功", "data": gin.H{
-		"channel": channel,
+		"channel": toNotificationChannelResponse(channel),
 		"config":  cfg,
 	}})
 }
@@ -1092,7 +1122,7 @@ func GetMeoWChannel(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "获取成功", "data": gin.H{
-		"channel": channel,
+		"channel": toNotificationChannelResponse(channel),
 		"config":  cfg,
 	}})
 }
@@ -1129,7 +1159,7 @@ func GetBarkChannel(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "获取成功", "data": gin.H{
-		"channel": channel,
+		"channel": toNotificationChannelResponse(channel),
 		"config":  cfg,
 	}})
 }
@@ -1166,7 +1196,7 @@ func GetServerChanChannel(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "获取成功", "data": gin.H{
-		"channel": channel,
+		"channel": toNotificationChannelResponse(channel),
 		"config":  cfg,
 	}})
 }
@@ -1208,7 +1238,7 @@ func GetCustomWebhookChannel(c *gin.Context) {
 		json.Unmarshal([]byte(cfg.Headers), &headers)
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "获取成功", "data": gin.H{
-		"channel": channel,
+		"channel": toNotificationChannelResponse(channel),
 		"config": gin.H{
 			"id":              cfg.ID,
 			"channel_id":      cfg.ChannelID,

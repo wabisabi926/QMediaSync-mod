@@ -6,6 +6,7 @@ export type EventType =
   | 'sync_finish'
   | 'sync_error'
   | 'scrape_finish'
+  | 'scrape_error'
   | 'system_alert'
   | 'media_added'
   | 'media_removed'
@@ -102,6 +103,7 @@ export function getEventTypeName(type: EventType): string {
     sync_finish: 'STRM 同步完成',
     sync_error: 'STRM 同步错误',
     scrape_finish: '刮削完成',
+    scrape_error: '刮削错误',
     system_alert: '系统警告',
     media_added: 'Emby 媒体添加',
     media_removed: 'Emby 媒体移除',
@@ -118,6 +120,7 @@ export function getEventTypeDescription(type: EventType): string {
     sync_finish: '同步任务成功完成时发送通知',
     sync_error: '同步任务出现错误时发送通知',
     scrape_finish: '刮削任务完成时发送通知',
+    scrape_error: '刮削任务出现错误时发送通知',
     system_alert: '系统出现重要警告时发送通知',
     media_added: '新媒体添加到媒体库时发送通知',
     media_removed: '媒体从媒体库移除时发送通知',

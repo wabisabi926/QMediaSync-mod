@@ -7,6 +7,7 @@ import (
 	"qmediasync/internal/github"
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
+	"qmediasync/internal/requests"
 	"qmediasync/internal/synccron"
 
 	"github.com/gin-gonic/gin"
@@ -345,33 +346,19 @@ func GetStrmConfig(c *gin.Context) {
 // @Security ApiKeyAuth
 func UpdateStrmConfig(c *gin.Context) {
 	// 获取请求参数
-	var req models.SettingStrm
+	var req requests.UpdateStrmConfigRequest
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误：" + err.Error(), Data: nil})
 		return
 	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
+	}
+	modelReq := req.ToModel()
 	oldCron := models.SettingsGlobal.Cron
-	// 数据校验
-	if req.StrmBaseUrl == "" {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "STRM 基础 URL 不能为空", Data: nil})
-		return
-	}
-	if req.Cron == "" {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "Cron 表达式不能为空", Data: nil})
-		return
-	}
-	if req.MinVideoSize < 0 {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "最小视频大小必须大于等于 0", Data: nil})
-		return
-	}
-	// 检查 Cron 表达式是否符合要求。
-	runTimes := helpers.GetNextTimeByCronStr(req.Cron, 2)
-	if runTimes == nil {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "Cron 表达式格式不正确", Data: nil})
-		return
-	}
 	// 更新设置
-	if !models.SettingsGlobal.UpdateStrm(req) {
+	if !models.SettingsGlobal.UpdateStrm(modelReq) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "更新 STRM 配置失败", Data: nil})
 		return
 	}
@@ -481,14 +468,19 @@ func GetThreads(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func UpdateThreads(c *gin.Context) {
-	var req models.SettingThreads
+	var req requests.UpdateThreadsRequest
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误：" + err.Error(), Data: nil})
 		return
 	}
-	downloadThreads := req.DownloadThreads
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
+	}
+	modelReq := req.ToModel()
+	downloadThreads := modelReq.DownloadThreads
 	// 更新设置，传递当前的百度网盘限速值
-	if !models.SettingsGlobal.UpdateThreads(req) {
+	if !models.SettingsGlobal.UpdateThreads(modelReq) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "更新线程数失败", Data: nil})
 		return
 	}

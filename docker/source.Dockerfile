@@ -8,7 +8,7 @@ RUN corepack enable && \
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./frontend/
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store cd frontend && pnpm install --frozen-lockfile
 COPY frontend ./frontend
-RUN mkdir -p backend && cd frontend && pnpm run build
+RUN cd frontend && pnpm run build
 
 FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS backend-builder
 ENV TZ=Asia/Shanghai \
@@ -54,7 +54,7 @@ RUN apk add --no-cache ca-certificates tzdata inotify-tools postgresql15 su-exec
 
 WORKDIR /app
 COPY --from=backend-builder --chmod=0755 /app/backend/QMediaSync ./QMediaSync
-COPY --from=frontend-builder /app/backend/web_statics ./web_statics/
+COPY --from=frontend-builder /app/frontend/dist ./web_statics/
 COPY --chmod=0755 docker/entrypoint.sh ./scripts/docker-entrypoint.sh
 COPY --chmod=0755 docker/watch-update.sh ./scripts/watch_update.sh
 COPY backend/icon.ico ./icon.ico

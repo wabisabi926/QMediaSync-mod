@@ -38,6 +38,8 @@ trustedOrigins:
 (cd frontend && pnpm run build)
 ```
 
+前端生产构建输出到 `frontend/dist`。发布、Docker 和离线包会把该目录作为 Web UI 静态资源输入，并在最终运行目录中放置为 `web_statics`。
+
 ## 退出
 
 - Linux：按 `Ctrl+C` 退出。

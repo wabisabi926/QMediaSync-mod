@@ -9,7 +9,7 @@
     "build": "pnpm run type-check && pnpm run build-only",
     "lint": "eslint \"./src/**/*.{js,jsx,ts,tsx,vue}\"",
     "lint:fix": "eslint \"./src/**/*.{js,jsx,ts,tsx,vue}\" --fix",
-    "build-only": "vite build --mode=production --emptyOutDir --outDir ../backend/web_statics",
+    "build-only": "vite build --mode=production --emptyOutDir --outDir dist",
     "dev": "vite",
     "format": "prettier --write src/",
     "format:check": "prettier --check src/",

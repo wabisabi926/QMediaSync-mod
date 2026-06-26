@@ -82,13 +82,12 @@ jobs:
 
       - name: Include standalone backend assets
         run: |
-          mkdir -p backend/web_statics
-          cp backend/assets/db_config.html backend/web_statics/
+          cp backend/assets/db_config.html frontend/dist/
 
       - uses: actions/upload-artifact@v7
         with:
           name: web-statics
-          path: backend/web_statics
+          path: frontend/dist
           if-no-files-found: error
 
   packages:

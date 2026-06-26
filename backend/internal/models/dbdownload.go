@@ -13,6 +13,7 @@ import (
 	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/v115open"
+	ws "qmediasync/internal/websocket"
 )
 
 type DownloadSource string
@@ -60,6 +61,16 @@ type DbDownloadTask struct {
 // CanRetry 判断下载任务是否还能重试
 func (task *DbDownloadTask) CanRetry(maxRetry int) bool {
 	return task != nil && task.Status == DownloadStatusFailed && task.RetryCount < maxRetry
+}
+
+func publishDownloadQueueChanged(task *DbDownloadTask, reason string) {
+	payload := ws.QueueChangedPayload{Reason: reason}
+	if task != nil {
+		payload.TaskID = task.ID
+		payload.Status = int(task.Status)
+		payload.Source = string(task.Source)
+	}
+	ws.BroadcastQueueChanged(ws.EventDownloadQueueChanged, payload)
 }
 
 // PrepareDownloadRetry 将下载失败任务重新放回等待中
@@ -130,7 +141,9 @@ func (task *DbDownloadTask) Downloading() {
 	err := db.Db.Save(task).Error
 	if err != nil {
 		helpers.AppLogger.Warnf("[下载] 标记为下载中失败：%s", err.Error())
+		return
 	}
+	publishDownloadQueueChanged(task, "status_changed")
 }
 
 func publishDownloadTaskStatusChanged(task *DbDownloadTask) {
@@ -144,6 +157,7 @@ func publishDownloadTaskStatusChanged(task *DbDownloadTask) {
 		Status:     task.Status,
 		Source:     task.Source,
 	})
+	publishDownloadQueueChanged(task, "status_changed")
 }
 
 // 执行下载
@@ -400,6 +414,9 @@ func AddDownloadTaskFromSyncFile(file *SyncFile) error {
 		MTime:         file.MTime,
 	}
 	err := db.Db.Save(task).Error
+	if err == nil {
+		publishDownloadQueueChanged(task, "created")
+	}
 	return err
 }
 
@@ -426,6 +443,9 @@ func AddDownloadTaskFromEmbyMedia(url, itemId, itemName string) error {
 		SourceType:    SourceTypeEmbyMedia,
 	}
 	err := db.Db.Save(task).Error
+	if err == nil {
+		publishDownloadQueueChanged(task, "created")
+	}
 	return err
 }
 
@@ -463,6 +483,7 @@ func RetryFailedDownloadTasks(maxRetry int) error {
 		return err
 	}
 	helpers.AppLogger.Infof("重试失败的下载任务成功")
+	publishDownloadQueueChanged(nil, "retry_failed")
 	return nil
 }
 
@@ -490,6 +511,7 @@ func ClearDownloadPendingTasks() error {
 		helpers.AppLogger.Errorf("清除待下载任务失败：%v", err)
 		return err
 	}
+	publishDownloadQueueChanged(nil, "clear_pending")
 	return err
 }
 
@@ -514,6 +536,7 @@ func ClearDownloadSuccessAndFailed() error {
 		helpers.AppLogger.Errorf("清除待下载任务失败：%v", err)
 		return err
 	}
+	publishDownloadQueueChanged(nil, "clear_success_failed")
 	return err
 }
 

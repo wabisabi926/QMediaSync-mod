@@ -116,7 +116,7 @@ import {
   Download,
   SuccessFilled,
 } from '@element-plus/icons-vue'
-import { inject, onMounted, onUnmounted, ref } from 'vue'
+import { inject, onMounted, ref } from 'vue'
 import AppLogViewer from './AppLogViewer.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { formatDateTime } from '@/utils/timeUtils'
@@ -148,9 +148,6 @@ const taskId = ref(route.params.id as string)
 // 数据状态
 const taskInfo = ref<TaskInfo | null>(null)
 const infoLoading = ref(false)
-
-// 定时器相关 - 已停用，使用 WebSocket 替代
-const refreshTimer = ref<number | null>(null)
 
 // WebSocket 事件监听
 import { useWSEvent } from '@/composables/useWebSocket'
@@ -367,15 +364,6 @@ const loadTaskInfo = async () => {
 // 页面挂载时加载数据
 onMounted(() => {
   loadTaskInfo()
-})
-
-// 页面卸载时清理定时器（已停用）
-onUnmounted(() => {
-  // 旧的定时器清理，已不再需要
-  if (refreshTimer.value) {
-    clearInterval(refreshTimer.value)
-    refreshTimer.value = null
-  }
 })
 </script>
 

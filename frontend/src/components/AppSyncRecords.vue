@@ -194,8 +194,6 @@ const pageSize = computed({
 })
 const total = ref(0)
 
-// 定时器相关 - 已停用，使用 WebSocket 替代
-const refreshTimer = ref<number | null>(null)
 const pendingSyncRecordsRefresh = ref(false)
 let isPageActive = false
 const syncRecordsRequestGate = createActiveRequestGate(() => isPageActive)
@@ -575,7 +573,6 @@ onDeactivated(() => {
 
 onDeactivated(deactivateSyncRecordsPage)
 
-// 页面卸载时清理定时器（已停用）
 onUnmounted(() => {
   isPageActive = false
   pendingSyncRecordsRefresh.value = false
@@ -584,11 +581,6 @@ onUnmounted(() => {
   stopDeviceTypeChange = null
   syncRecordsRequestGate.invalidate()
   invalidateDeleteOperationContext()
-  // 旧的定时器清理，已不再需要
-  if (refreshTimer.value) {
-    clearInterval(refreshTimer.value)
-    refreshTimer.value = null
-  }
 })
 
 // 判断记录是否可删除（完成或失败）

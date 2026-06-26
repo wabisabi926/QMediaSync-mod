@@ -737,15 +737,6 @@ const saveScrapePathRelation = async () => {
   }
 }
 
-const autoRefreshTimer = ref<number | null>(null)
-
-const clearAutoRefreshTimer = () => {
-  if (autoRefreshTimer.value) {
-    clearInterval(autoRefreshTimer.value)
-    autoRefreshTimer.value = null
-  }
-}
-
 // WebSocket 事件监听
 import { useWSEvent } from '@/composables/useWebSocket'
 
@@ -770,7 +761,6 @@ onUnmounted(() => {
   if (removeDeviceTypeListener) {
     removeDeviceTypeListener()
   }
-  clearAutoRefreshTimer()
 })
 </script>
 

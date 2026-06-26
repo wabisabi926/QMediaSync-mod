@@ -104,8 +104,8 @@ func Webhook(ctx *gin.Context) {
 
 	// 检查是否启用鉴权
 	if models.GlobalEmbyConfig.EnableAuth == 1 {
-		// 从 query 参数获取 API Key。
-		apiKey := ctx.Query("api_key")
+		// 优先从 X-API-Key 请求头读取，保留 api_key 查询参数兼容 Emby Webhook 配置。
+		apiKey := apiKeyFromRequest(ctx)
 		if apiKey == "" {
 			ctx.JSON(http.StatusUnauthorized, gin.H{
 				"message": "缺少 API Key",

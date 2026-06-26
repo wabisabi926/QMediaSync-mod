@@ -122,10 +122,11 @@
             <div class="form-help" v-if="embyData.enable_auth">
               <el-icon><WarningFilled /></el-icon>
               <span class="warning-text"
-                >已开启鉴权，请确保在 Emby 的通知链接中添加 API Key 参数，示例：<code
+                >已开启鉴权，请在 Emby 的通知链接中追加 API Key 参数，示例：<code
                   class="inline-code"
                   >{{ webhookUrl }}?api_key=你的 API Key</code
-                ></span
+                >。也支持通过请求头
+                <code class="inline-code">X-API-Key: 你的 API Key</code> 传递</span
               >
             </div>
           </el-form-item>
@@ -147,7 +148,9 @@
             <div class="form-help">
               <el-icon><InfoFilled /></el-icon>
               <span
-                >启用后，Emby Webhook 请求必须携带 API Key
+                >启用后，Emby Webhook 请求必须通过
+                <code class="inline-code">X-API-Key</code> 请求头或
+                <code class="inline-code">api_key</code> 查询参数携带 API Key
                 才会生效。外网使用通知链接时建议开启。请到<router-link
                   to="/settings/api-keys"
                   class="help-link"

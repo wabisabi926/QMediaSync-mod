@@ -542,21 +542,20 @@ func setRouter(r *gin.Engine) {
 
 	r.GET("/openlist/url", controllers.GetOpenListFileUrl) // 查询 OpenList 直链
 
-	r.GET("/proxy-115", controllers.Proxy115) // 115 CDN 反代路由
-
-	r.GET("/api/scrape/tmp-image", controllers.ScrapeTmpImage)           // 获取临时图片
-	r.GET("/api/scrape/records/export", controllers.ExportScrapeRecords) // 导出刮削记录
-	r.GET("/api/logs/ws", controllers.LogWebSocket)                      // WebSocket 日志查看
-	r.GET("/api/events/ws", controllers.EventWebSocket)                  // WebSocket 事件推送
-	r.GET("/api/logs/old", controllers.GetOldLogs)                       // 通过 HTTP 获取旧日志
-	r.GET("/api/logs/download", controllers.DownloadLogFile)             // 下载日志文件
-
+	r.GET("/proxy-115", controllers.Proxy115)                      // 115 CDN 反代路由
 	r.POST("/api/update-fn-access-path", controllers.UpdateFNPath) // 更新飞牛访问路径
-	r.GET("/api/path/is-fn-os", controllers.IsFnOS)                // 查询是否是飞牛环境
 
 	api := r.Group("/api")
 	api.Use(controllers.JWTAuthMiddleware())
 	{
+		api.GET("/scrape/tmp-image", controllers.ScrapeTmpImage)           // 获取临时图片
+		api.GET("/scrape/records/export", controllers.ExportScrapeRecords) // 导出刮削记录
+		api.GET("/logs/ws", controllers.LogWebSocket)                      // WebSocket 日志查看
+		api.GET("/events/ws", controllers.EventWebSocket)                  // WebSocket 事件推送
+		api.GET("/logs/old", controllers.GetOldLogs)                       // 通过 HTTP 获取旧日志
+		api.GET("/logs/download", controllers.DownloadLogFile)             // 下载日志文件
+		api.GET("/path/is-fn-os", controllers.IsFnOS)                      // 查询是否是飞牛环境
+
 		api.GET("/version", func(c *gin.Context) {
 			c.JSON(http.StatusOK, map[string]interface{}{
 				"version":   Version,

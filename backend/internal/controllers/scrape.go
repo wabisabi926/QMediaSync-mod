@@ -838,6 +838,8 @@ func GetScrapeRecords(c *gin.Context) {
 // @Success 200 {file} file "图片文件"
 // @Failure 200 {object} object
 // @Router /scrape/tmp-image [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func ScrapeTmpImage(c *gin.Context) {
 	imagePath := c.Query("path")
 	mediaType := models.MediaType(c.Query("type"))

@@ -108,6 +108,16 @@ wsUrl = wsUrl.replace('https', 'ws')
 const WS_URL = `${wsUrl}/logs/ws`
 const HTTP_URL = `${SERVER_URL}/logs/old`
 
+const readLogResponseError = async (response: Response) => {
+  try {
+    const body = await response.json()
+    if (body?.error) return String(body.error)
+  } catch {
+    // 忽略非 JSON 错误响应
+  }
+  return 'HTTP 请求失败'
+}
+
 // 限制显示的日志条目
 const limitedLogLines = computed(() => {
   return logLines.value.slice(0, MAX_LOG_ENTRIES)
@@ -156,7 +166,7 @@ const loadInitialLogs = async () => {
   try {
     const response = await fetch(apiUrl)
     if (!response.ok) {
-      throw new Error('HTTP 请求失败')
+      throw new Error(await readLogResponseError(response))
     }
     const rs = await response.json()
     const entries = rs.entries || []
@@ -371,9 +381,9 @@ const loadOldLogs = () => {
 
   // 发送 HTTP 请求
   fetch(apiUrl)
-    .then((response) => {
+    .then(async (response) => {
       if (!response.ok) {
-        throw new Error('HTTP 请求失败')
+        throw new Error(await readLogResponseError(response))
       }
       return response.json() // 解析为 JSON 格式
     })

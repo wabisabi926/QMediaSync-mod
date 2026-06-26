@@ -470,7 +470,32 @@ func validateLogPath(path string) error {
 	if err := validateRelativePath("path", path); err != nil {
 		return err
 	}
-	if strings.ContainsAny(path, `/\`) {
+	rawPath := strings.TrimSpace(path)
+	if strings.Contains(rawPath, `\`) {
+		return validation.New("path", "只能是日志文件名或 libs 下的日志文件")
+	}
+	for _, part := range strings.Split(rawPath, "/") {
+		if part == "." || part == ".." {
+			return validation.New("path", "不能包含路径穿越")
+		}
+	}
+
+	cleaned := filepath.ToSlash(filepath.Clean(rawPath))
+	parts := strings.Split(cleaned, "/")
+	if len(parts) == 1 {
+		return validateLogFileName(parts[0])
+	}
+	if len(parts) == 2 && parts[0] == "libs" {
+		return validateLogFileName(parts[1])
+	}
+	return validation.New("path", "只能是日志文件名或 libs 下的日志文件")
+}
+
+func validateLogFileName(name string) error {
+	if name == "" || name == "." || name == ".." {
+		return validation.New("path", "日志文件名不合法")
+	}
+	if strings.ContainsAny(name, `/\`) {
 		return validation.New("path", "只能是日志文件名")
 	}
 	return nil

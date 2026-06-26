@@ -165,6 +165,27 @@ func TestLogRequestValidate(t *testing.T) {
 			t.Fatal("Validate() error = nil, want error")
 		}
 	})
+
+	t.Run("同步任务日志子目录通过", func(t *testing.T) {
+		req := OldLogsRequest{Path: "libs/sync_5.log", Limit: 100, Direction: "forward"}
+		if err := req.Validate(); err != nil {
+			t.Fatalf("Validate() error = %v", err)
+		}
+	})
+
+	t.Run("日志多级子目录失败", func(t *testing.T) {
+		req := OldLogsRequest{Path: "libs/nested/sync_5.log", Limit: 100, Direction: "forward"}
+		if err := req.Validate(); err == nil {
+			t.Fatal("Validate() error = nil, want error")
+		}
+	})
+
+	t.Run("日志非白名单子目录失败", func(t *testing.T) {
+		req := OldLogsRequest{Path: "tmp/app.log", Limit: 100, Direction: "forward"}
+		if err := req.Validate(); err == nil {
+			t.Fatal("Validate() error = nil, want error")
+		}
+	})
 }
 
 func TestUpdateRequestValidate(t *testing.T) {

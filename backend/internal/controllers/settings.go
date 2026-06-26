@@ -148,15 +148,16 @@ func ParseEmby(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func UpdateHttpProxy(c *gin.Context) {
-	type updateHttpProxyRequest struct {
-		HttpProxy string `form:"http_proxy" json:"http_proxy"` // HTTP 代理地址
-	}
-	var req updateHttpProxyRequest
+	var req requests.HTTPProxyRequest
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请求参数错误：" + err.Error(), Data: nil})
 		return
 	}
-	httpProxy := req.HttpProxy
+	if err := req.ValidateSave(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
+	}
+	httpProxy := req.HTTPProxy
 	// 更新设置
 	if !models.SettingsGlobal.UpdateHttpProxy(httpProxy) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "更新 HTTP 代理设置失败", Data: nil})
@@ -210,24 +211,18 @@ func GetHttpProxy(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func TestHttpProxy(c *gin.Context) {
-	type testHttpProxyRequest struct {
-		HttpProxy string `form:"http_proxy" json:"http_proxy" binding:"required"` // HTTP 代理地址
-		Detailed  int    `form:"detailed" json:"detailed"`                        // 是否返回详细测试结果，"1" 表示返回，"0" 表示不返回
-	}
-	var req testHttpProxyRequest
+	var req requests.HTTPProxyRequest
 	// 获取请求参数
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误：" + err.Error(), Data: nil})
 		return
 	}
-	httpProxy := req.HttpProxy
-	detailed := req.Detailed == 1
-
-	// 数据校验
-	if httpProxy == "" {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "HTTP 代理地址不能为空", Data: nil})
+	if err := req.ValidateTest(); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
+	httpProxy := req.HTTPProxy
+	detailed := req.Detailed == 1
 
 	if detailed {
 		// 使用高级测试，返回详细结果

@@ -11,7 +11,9 @@ import (
 
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
+	"qmediasync/internal/requests"
 	"qmediasync/internal/v115open"
+	"qmediasync/internal/validation"
 
 	"github.com/gin-gonic/gin"
 )
@@ -113,18 +115,21 @@ func authenticateCookieSession(c *gin.Context) bool {
 }
 
 func Proxy115(c *gin.Context) {
-	// 获取原始 URL 参数
-	target := c.Request.URL.Query().Get("url")
-	baidupan := c.Request.URL.Query().Get("baidupan")
-	if target == "" {
+	var proxyReq requests.Proxy115Request
+	if err := c.ShouldBindQuery(&proxyReq); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误：" + err.Error(), Data: nil})
+		return
+	}
+	if proxyReq.URL == "" {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "缺少 URL 参数", Data: nil})
 		return
 	}
-	if allowed, host := validateProxy115Target(target); !allowed {
-		helpers.AppLogger.Warnf("拒绝反代非 115/百度网盘下载链接，host=%s，url=%s", host, target)
+	if err := proxyReq.Validate(); err != nil {
+		helpers.AppLogger.Warnf("拒绝反代非 115/百度网盘下载链接，url=%s，err=%v", proxyReq.URL, err)
 		c.JSON(http.StatusForbidden, APIResponse[any]{Code: BadRequest, Message: "只允许反代 115 或百度网盘下载链接", Data: nil})
 		return
 	}
+	target := proxyReq.URL
 	helpers.AppLogger.Infof("反代网盘下载链接：%s", target)
 	// 创建请求
 	req, err := http.NewRequest("GET", target, nil)
@@ -139,7 +144,7 @@ func Proxy115(c *gin.Context) {
 			req.Header[k] = v
 		}
 	}
-	if baidupan != "" {
+	if proxyReq.BaiduPan != "" {
 		req.Header.Set("User-Agent", "pan.baidu.com")
 	} else {
 		req.Header.Set("User-Agent", v115open.DEFAULTUA)
@@ -169,34 +174,26 @@ func Proxy115(c *gin.Context) {
 	_, _ = io.Copy(c.Writer, resp.Body)
 }
 
-func validateProxy115Target(target string) (bool, string) {
-	parsedURL, err := url.Parse(target)
-	if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
-		return false, ""
-	}
-	host := strings.ToLower(strings.TrimSuffix(parsedURL.Hostname(), "."))
-	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return false, host
-	}
-
-	allowed := isHostOrSubdomain(host, "115cdn.net") ||
-		host == "d.pcs.baidu.com" ||
-		isHostOrSubdomain(host, "baidupcs.com")
-	return allowed, host
-}
-
 func validateProxy115Redirect(req *http.Request, via []*http.Request) error {
 	if len(via) >= 10 {
 		return fmt.Errorf("重定向次数过多")
 	}
-	if allowed, host := validateProxy115Target(req.URL.String()); !allowed {
-		return fmt.Errorf("拒绝重定向到非 115/百度网盘下载链接，host=%s", host)
+	if err := validation.DownloadProxyURL("url", req.URL.String()); err != nil {
+		return fmt.Errorf("拒绝重定向到非 115/百度网盘下载链接：%w", err)
 	}
 	return nil
 }
 
-func isHostOrSubdomain(host string, domain string) bool {
-	return host == domain || strings.HasSuffix(host, "."+domain)
+func validateProxy115Target(target string) (bool, string) {
+	parsedURL, err := url.Parse(target)
+	if err != nil || parsedURL.Host == "" {
+		return false, ""
+	}
+	host := strings.ToLower(strings.TrimSuffix(parsedURL.Hostname(), "."))
+	if err := validation.DownloadProxyURL("url", target); err != nil {
+		return false, host
+	}
+	return true, host
 }
 
 func Cors() gin.HandlerFunc {

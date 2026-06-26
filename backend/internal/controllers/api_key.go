@@ -4,16 +4,13 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"qmediasync/internal/models"
+	"qmediasync/internal/requests"
 
 	"github.com/gin-gonic/gin"
 )
-
-// CreateAPIKeyRequest 创建 API Key 请求。
-type CreateAPIKeyRequest struct {
-	Name string `json:"name" binding:"required"`
-}
 
 // CreateAPIKeyResponse 创建 API Key 响应。
 type CreateAPIKeyResponse struct {
@@ -48,9 +45,13 @@ type APIKeyListItem struct {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func CreateAPIKey(c *gin.Context) {
-	var req CreateAPIKeyRequest
+	var req requests.CreateAPIKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("参数错误：%v", err), Data: nil})
+		return
+	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 
@@ -61,7 +62,7 @@ func CreateAPIKey(c *gin.Context) {
 	}
 
 	// 创建 API Key
-	apiKey, rawKey, err := models.CreateAPIKey(currentUser.ID, req.Name)
+	apiKey, rawKey, err := models.CreateAPIKey(currentUser.ID, strings.TrimSpace(req.Name))
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("创建 API Key 失败：%v", err), Data: nil})
 		return
@@ -170,11 +171,6 @@ func DeleteAPIKey(c *gin.Context) {
 	})
 }
 
-// UpdateAPIKeyStatusRequest 更新 API Key 状态请求。
-type UpdateAPIKeyStatusRequest struct {
-	IsActive bool `json:"is_active"`
-}
-
 // UpdateAPIKeyStatus 更新 API Key 状态。
 // @Summary 启用或禁用 API Key
 // @Description 更新指定 API Key 的启用状态
@@ -204,21 +200,25 @@ func UpdateAPIKeyStatus(c *gin.Context) {
 	}
 
 	// 解析请求体
-	var req UpdateAPIKeyStatusRequest
+	var req requests.UpdateAPIKeyStatusRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("参数错误：%v", err), Data: nil})
 		return
 	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
+	}
 
 	// 更新 API Key 状态（确保只能更新自己的）
-	err = models.UpdateAPIKeyStatus(uint(id), currentUser.ID, req.IsActive)
+	err = models.UpdateAPIKeyStatus(uint(id), currentUser.ID, *req.IsActive)
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("更新 API Key 状态失败：%v", err), Data: nil})
 		return
 	}
 
 	statusText := "禁用"
-	if req.IsActive {
+	if *req.IsActive {
 		statusText = "启用"
 	}
 

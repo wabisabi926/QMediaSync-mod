@@ -12,6 +12,7 @@ import (
 	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
+	"qmediasync/internal/requests"
 
 	"github.com/gin-gonic/gin"
 )
@@ -38,15 +39,16 @@ type BaiDuPanStatusResp struct {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func GetBaiDuPanStatus(c *gin.Context) {
-	type statusReq struct {
-		AccountId uint `json:"account_id" form:"account_id"`
-	}
-	var req statusReq
+	var req requests.AccountIDRequest
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "参数错误", Data: nil})
 		return
 	}
-	account, err := models.GetAccountById(req.AccountId)
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
+	}
+	account, err := models.GetAccountById(req.AccountID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "账号 ID 不存在", Data: nil})
 		return
@@ -94,14 +96,16 @@ func GetBaiDuPanStatus(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func GetBaiDuPanOAuthUrl(c *gin.Context) {
-	accountId := c.Query("account_id")
-	redirectUrl := c.Query("redirect_url")
-
-	if accountId == "" {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "缺少账号 ID 参数", Data: nil})
+	var req requests.OAuthURLRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "参数错误", Data: nil})
 		return
 	}
-	account, err := models.GetAccountById(uint(helpers.StringToInt(accountId)))
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
+	}
+	account, err := models.GetAccountById(req.AccountID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "账号 ID 不存在", Data: nil})
 		return
@@ -125,8 +129,8 @@ func GetBaiDuPanOAuthUrl(c *gin.Context) {
 		State:       helpers.RandStr(16),
 		Time:        time.Now().Unix(),
 		ClientId:    clientId,
-		AccountId:   accountId,
-		RedirectUrl: fmt.Sprintf("%s?source=baidupan", redirectUrl),
+		AccountId:   helpers.IntToString(int(req.AccountID)),
+		RedirectUrl: fmt.Sprintf("%s?source=baidupan", req.RedirectURL),
 	}
 	// helpers.AppLogger.Infof("生成 OAuth 登录地址状态参数：%+v", stateObj)
 	stateJson, _ := json.Marshal(stateObj)
@@ -157,16 +161,20 @@ func GetBaiDuPanOAuthUrl(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func ConfirmBaiDuPanOAuthCode(c *gin.Context) {
-	type oauthReq struct {
-		AccountId uint   `json:"account_id" form:"account_id"`
-		Data      string `json:"data" form:"data"`
-	}
-	var req oauthReq
+	var req requests.OAuthConfirmRequest
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "参数错误", Data: nil})
 		return
 	}
-	account, err := models.GetAccountById(req.AccountId)
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
+	}
+	if req.Data == "" {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "data 不能为空", Data: nil})
+		return
+	}
+	account, err := models.GetAccountById(req.AccountID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "账号 ID 不存在", Data: nil})
 		return
@@ -202,18 +210,17 @@ func ConfirmBaiDuPanOAuthCode(c *gin.Context) {
 
 // 通过百度网盘文件的 fs_id 获取下载链接，参数名沿用 pickcode 以兼容 115。
 func GetBaiduPanUrlByPickCode(c *gin.Context) {
-	type fileIdReq struct {
-		UserId   string `json:"userid" form:"userid"`
-		PickCode string `json:"pickcode" form:"pickcode"`
-		Force    int    `json:"force" form:"force"`
-	}
-	var req fileIdReq
+	var req requests.RemoteFileURLRequest
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "参数错误", Data: nil})
 		return
 	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
+	}
 	pickCode := req.PickCode
-	userId := req.UserId
+	userId := req.UserID
 	var account *models.Account
 	if userId == "" {
 		// 查询 SyncFile

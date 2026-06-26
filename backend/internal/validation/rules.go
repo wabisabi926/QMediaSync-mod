@@ -83,3 +83,64 @@ func ExtList(field string, values []string, allowEmpty bool) error {
 	}
 	return nil
 }
+
+func Length(field string, value string, min int, max int) error {
+	value = strings.TrimSpace(value)
+	if len([]rune(value)) < min || len([]rune(value)) > max {
+		return New(field, "长度超出允许范围")
+	}
+	for _, r := range value {
+		if r < 32 || r == 127 {
+			return New(field, "不能包含控制字符")
+		}
+	}
+	return nil
+}
+
+func PositiveID(field string, value uint) error {
+	if value == 0 {
+		return New(field, "必须大于 0")
+	}
+	return nil
+}
+
+func ProxyURL(field string, raw string, allowEmpty bool) error {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		if allowEmpty {
+			return nil
+		}
+		return New(field, "不能为空")
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Host == "" {
+		return New(field, "必须是有效的代理 URL")
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return New(field, "只支持 http 或 https")
+	}
+	return nil
+}
+
+func DownloadProxyURL(field string, raw string) error {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return New(field, "不能为空")
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return New(field, "必须是有效的网盘下载 URL")
+	}
+	host := strings.ToLower(strings.TrimSuffix(parsed.Hostname(), "."))
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return New(field, "只支持 http 或 https")
+	}
+	if host == "d.pcs.baidu.com" || isHostOrSubdomain(host, "115cdn.net") || isHostOrSubdomain(host, "baidupcs.com") {
+		return nil
+	}
+	return New(field, "只允许 115 或百度网盘下载域名")
+}
+
+func isHostOrSubdomain(host string, domain string) bool {
+	return host == domain || strings.HasSuffix(host, "."+domain)
+}

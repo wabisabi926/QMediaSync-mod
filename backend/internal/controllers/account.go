@@ -7,6 +7,7 @@ import (
 
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
+	"qmediasync/internal/requests"
 	"qmediasync/internal/v115auth"
 
 	"github.com/gin-gonic/gin"
@@ -109,18 +110,13 @@ func GetAccountList(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func CreateTmpAccount(c *gin.Context) {
-	type tmpAccountReq struct {
-		SourceType     models.SourceType       `json:"source_type" form:"source_type"`
-		Name           string                  `json:"name" form:"name"`
-		AppId          string                  `json:"app_id" form:"app_id"`
-		AuthSourceType v115auth.AuthSourceType `json:"auth_source_type" form:"auth_source_type"`
-		AuthProvider   v115auth.AuthProvider   `json:"auth_provider" form:"auth_provider"`
-		SelectedApp    string                  `json:"app_id_name" form:"app_id_name"`
-		CustomAppName  string                  `json:"custom_app_name" form:"custom_app_name"`
-	}
-	tmpAccount := &tmpAccountReq{}
+	tmpAccount := &requests.CreateAccountRequest{}
 	if err := c.ShouldBind(tmpAccount); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误", Data: nil})
+		return
+	}
+	if err := tmpAccount.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 	// 创建临时账号
@@ -131,7 +127,7 @@ func CreateTmpAccount(c *gin.Context) {
 	}
 
 	if models.SourceType115 == tmpAccount.SourceType {
-		source, err := v115auth.SourceFromCreateRequest(tmpAccount.AuthSourceType, tmpAccount.AuthProvider, tmpAccount.AppId, tmpAccount.SelectedApp, tmpAccount.CustomAppName)
+		source, err := v115auth.SourceFromCreateRequest(tmpAccount.AuthSourceType, tmpAccount.AuthProvider, tmpAccount.AppID, tmpAccount.SelectedApp, tmpAccount.CustomAppName)
 		if err != nil {
 			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 			return
@@ -180,14 +176,13 @@ func CreateTmpAccount(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func UpdateAccountInfo(c *gin.Context) {
-	type updateAccountInfoReq struct {
-		ID            uint   `json:"id" form:"id"`
-		Name          string `json:"name" form:"name"`
-		CustomAppName string `json:"app_id_name" form:"app_id_name"`
-	}
-	req := &updateAccountInfoReq{}
-	if err := c.ShouldBind(req); err != nil || req.ID == 0 {
+	req := &requests.UpdateAccountInfoRequest{}
+	if err := c.ShouldBind(req); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误", Data: nil})
+		return
+	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 	account, err := models.GetAccountById(req.ID)
@@ -215,12 +210,13 @@ func UpdateAccountInfo(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func DeleteAccount(c *gin.Context) {
-	type deleteAccountReq struct {
-		ID uint `json:"id" form:"id"`
-	}
-	req := &deleteAccountReq{}
+	req := &requests.DeleteAccountRequest{}
 	if err := c.ShouldBind(req); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误", Data: nil})
+		return
+	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 	account, err := models.GetAccountById(req.ID)
@@ -253,39 +249,22 @@ func DeleteAccount(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func CreateOpenListAccount(c *gin.Context) {
-	type createOpenListAccountReq struct {
-		Id       uint   `json:"id" form:"id"`
-		BaseUrl  string `json:"base_url" form:"base_url"`
-		Username string `json:"username" form:"username"`
-		Password string `json:"password" form:"password"`
-		Token    string `json:"token" form:"token"`
-	}
-	req := &createOpenListAccountReq{}
+	req := &requests.CreateOpenListAccountRequest{}
 	if err := c.ShouldBind(req); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误", Data: nil})
 		return
 	}
-	if req.BaseUrl == "" {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误", Data: nil})
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
-	if req.Token == "" && (req.Password == "" || req.Username == "") {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "必须提供 Token，或同时提供用户名和密码", Data: nil})
-		return
-	}
-	// 如果不以 http 开头则添加 http://
-	if !strings.HasPrefix(req.BaseUrl, "http://") && !strings.HasPrefix(req.BaseUrl, "https://") {
-		req.BaseUrl = "http://" + req.BaseUrl
-	}
-	// 如果结尾有 / 则删除
-	req.BaseUrl = strings.TrimSuffix(req.BaseUrl, "/")
-	if req.Id != 0 {
-		account, err := models.GetAccountById(req.Id)
+	if req.ID != 0 {
+		account, err := models.GetAccountById(req.ID)
 		if err != nil {
 			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("查询 OpenList 账号失败：%s", err.Error()), Data: nil})
 			return
 		}
-		if err := account.UpdateOpenList(req.BaseUrl, req.Username, req.Password, req.Token); err != nil {
+		if err := account.UpdateOpenList(req.BaseURL, req.Username, req.Password, req.Token); err != nil {
 			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("更新 OpenList 账号失败：%s", err.Error()), Data: nil})
 			return
 		}
@@ -293,7 +272,7 @@ func CreateOpenListAccount(c *gin.Context) {
 		return
 	}
 	// 创建 OpenList 账号
-	_, err := models.CreateOpenListAccount(req.BaseUrl, req.Username, req.Password, req.Token)
+	_, err := models.CreateOpenListAccount(req.BaseURL, req.Username, req.Password, req.Token)
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("创建 OpenList 账号失败：%s", err.Error()), Data: nil})
 		return

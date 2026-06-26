@@ -5,6 +5,7 @@ import (
 
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
+	"qmediasync/internal/requests"
 
 	"github.com/gin-gonic/gin"
 )
@@ -21,20 +22,16 @@ import (
 // @Failure 200 {object} object
 // @Router /openlist/url [get]
 func GetOpenListFileUrl(c *gin.Context) {
-	type fileUrlReq struct {
-		AccountId uint   `json:"account_id" form:"account_id"`
-		Path      string `json:"path" form:"path"`
-	}
-	var req fileUrlReq
+	var req requests.OpenListFileURLRequest
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "参数错误", Data: nil})
 		return
 	}
-	if req.Path == "" {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "path 参数不能为空", Data: nil})
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
-	account, err := models.GetAccountById(req.AccountId)
+	account, err := models.GetAccountById(req.AccountID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "账号 ID 不存在", Data: nil})
 		return

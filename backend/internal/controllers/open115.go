@@ -13,6 +13,7 @@ import (
 	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
+	"qmediasync/internal/requests"
 	"qmediasync/internal/v115auth"
 	"qmediasync/internal/v115open"
 
@@ -78,15 +79,16 @@ func (kl *KeyLockWithTimeout) Unlock(key string) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func Get115Status(c *gin.Context) {
-	type statusReq struct {
-		AccountId uint `json:"account_id" form:"account_id"`
-	}
-	var req statusReq
+	var req requests.AccountIDRequest
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "参数错误", Data: nil})
 		return
 	}
-	account, err := models.GetAccountById(req.AccountId)
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
+	}
+	account, err := models.GetAccountById(req.AccountID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "账号 ID 不存在", Data: nil})
 		return
@@ -151,18 +153,17 @@ var keyLock KeyLockWithTimeout
 // @Failure 200 {object} object
 // @Router /115/newurl [get]
 func Get115UrlByPickCode(c *gin.Context) {
-	type fileIdReq struct {
-		UserId   string `json:"userid" form:"userid"`
-		PickCode string `json:"pickcode" form:"pickcode"`
-		Force    int    `json:"force" form:"force"`
-	}
-	var req fileIdReq
+	var req requests.RemoteFileURLRequest
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "参数错误", Data: nil})
 		return
 	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
+	}
 	pickCode := req.PickCode
-	userId := req.UserId
+	userId := req.UserID
 	var account *models.Account
 	if userId == "" {
 		// 查询 SyncFile
@@ -250,15 +251,16 @@ func Get115UrlByPickCode(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func GetLoginQrCodeOpen(c *gin.Context) {
-	type qrcodeReq struct {
-		AccountId uint `json:"account_id" form:"account_id"`
-	}
-	var req qrcodeReq
+	var req requests.AccountIDRequest
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "参数错误", Data: nil})
 		return
 	}
-	account, err := models.GetAccountById(req.AccountId)
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
+	}
+	account, err := models.GetAccountById(req.AccountID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "账号 ID 不存在", Data: nil})
 		return
@@ -273,7 +275,7 @@ func GetLoginQrCodeOpen(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取二维码失败：" + err.Error(), Data: nil})
 		return
 	}
-	saveOpen115AuthState(req.AccountId, qrCodeData)
+	saveOpen115AuthState(req.AccountID, qrCodeData)
 	c.JSON(http.StatusOK, APIResponse[any]{
 		Code:    Success,
 		Message: "获取二维码成功",
@@ -301,21 +303,21 @@ func GetLoginQrCodeOpen(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func GetQrCodeStatus(c *gin.Context) {
-	type qrcodeReq struct {
-		Uid       string `json:"uid" form:"uid"`
-		AccountId uint   `json:"account_id" form:"account_id"`
-	}
-	var req qrcodeReq
+	var req requests.QRCodeStatusRequest
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "参数错误", Data: nil})
 		return
 	}
-	state, ok := getOpen115AuthState(req.AccountId, req.Uid)
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
+	}
+	state, ok := getOpen115AuthState(req.AccountID, req.UID)
 	if !ok {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "二维码授权状态不存在或已过期", Data: nil})
 		return
 	}
-	account, err := models.GetAccountById(req.AccountId)
+	account, err := models.GetAccountById(req.AccountID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "账号 ID 不存在", Data: nil})
 		return
@@ -326,7 +328,7 @@ func GetQrCodeStatus(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取二维码状态失败：" + err.Error(), Data: nil})
 		return
 	}
-	setOpen115AuthLastStatus(req.AccountId, req.Uid, status)
+	setOpen115AuthLastStatus(req.AccountID, req.UID, status)
 	if status != v115open.QrCodeScanStatusConfirmed {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    Success,
@@ -335,7 +337,7 @@ func GetQrCodeStatus(c *gin.Context) {
 		})
 		return
 	}
-	if !markOpen115AuthTokenSaving(req.AccountId, req.Uid) {
+	if !markOpen115AuthTokenSaving(req.AccountID, req.UID) {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    Success,
 			Message: "",
@@ -345,7 +347,7 @@ func GetQrCodeStatus(c *gin.Context) {
 	}
 	openToken, err := client.GetToken(state.CodeData)
 	if err != nil || openToken == nil {
-		resetOpen115AuthTokenSaving(req.AccountId, req.Uid)
+		resetOpen115AuthTokenSaving(req.AccountID, req.UID)
 		errMsg := "获取 Token 失败"
 		if err != nil {
 			errMsg += "：" + err.Error()
@@ -354,22 +356,22 @@ func GetQrCodeStatus(c *gin.Context) {
 		return
 	}
 	if !account.UpdateToken(openToken.AccessToken, openToken.RefreshToken, openToken.ExpiresIn) {
-		resetOpen115AuthTokenSaving(req.AccountId, req.Uid)
+		resetOpen115AuthTokenSaving(req.AccountID, req.UID)
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "保存 115 访问凭证失败", Data: nil})
 		return
 	}
 	userInfo, err := client.UserInfo()
 	if err != nil {
-		resetOpen115AuthTokenSaving(req.AccountId, req.Uid)
+		resetOpen115AuthTokenSaving(req.AccountID, req.UID)
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取 115 用户信息失败：" + err.Error(), Data: nil})
 		return
 	}
 	if !account.UpdateUser(string(userInfo.UserId), userInfo.UserName) {
-		resetOpen115AuthTokenSaving(req.AccountId, req.Uid)
+		resetOpen115AuthTokenSaving(req.AccountID, req.UID)
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "更新用户信息失败", Data: nil})
 		return
 	}
-	deleteOpen115AuthState(req.AccountId, req.Uid)
+	deleteOpen115AuthState(req.AccountID, req.UID)
 	c.JSON(http.StatusOK, APIResponse[any]{
 		Code:    Success,
 		Message: "",
@@ -386,14 +388,16 @@ type OAuthURLResponse struct {
 
 // 生成并返回 115 OAuth 登录地址
 func GetOAuthUrl(c *gin.Context) {
-	accountId := c.Query("account_id")
-	redirectUrl := c.Query("redirect_url")
-
-	if accountId == "" {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "缺少账号 ID 参数", Data: nil})
+	var req requests.OAuthURLRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "参数错误", Data: nil})
 		return
 	}
-	account, err := models.GetAccountById(uint(helpers.StringToInt(accountId)))
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
+	}
+	account, err := models.GetAccountById(req.AccountID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "账号 ID 不存在", Data: nil})
 		return
@@ -411,7 +415,7 @@ func GetOAuthUrl(c *gin.Context) {
 	result, err := provider.BuildAuth(c.Request.Context(), v115auth.OAuthURLRequest{
 		AccountID:   account.ID,
 		AppID:       source.AppID,
-		RedirectURL: redirectUrl,
+		RedirectURL: req.RedirectURL,
 		Provider:    source.Provider,
 	})
 	if err != nil {
@@ -431,17 +435,16 @@ func GetOAuthUrl(c *gin.Context) {
 }
 
 func ConfirmOAuthCode(c *gin.Context) {
-	type oauthReq struct {
-		AccountId uint              `json:"account_id" form:"account_id"`
-		Data      string            `json:"data" form:"data"`
-		Payload   map[string]string `json:"payload" form:"payload"`
-	}
-	var req oauthReq
+	var req requests.OAuthConfirmRequest
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "参数错误", Data: nil})
 		return
 	}
-	account, err := models.GetAccountById(req.AccountId)
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
+	}
+	account, err := models.GetAccountById(req.AccountID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "账号 ID 不存在", Data: nil})
 		return
@@ -479,13 +482,16 @@ func ConfirmOAuthCode(c *gin.Context) {
 }
 
 func GetOAuthStatus(c *gin.Context) {
-	accountId := c.Query("account_id")
-	state := c.Query("state")
-	if accountId == "" || state == "" {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "缺少账号 ID 或授权状态参数", Data: nil})
+	var req requests.OAuthStatusRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "参数错误", Data: nil})
 		return
 	}
-	account, err := models.GetAccountById(uint(helpers.StringToInt(accountId)))
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
+	}
+	account, err := models.GetAccountById(req.AccountID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "账号 ID 不存在", Data: nil})
 		return
@@ -496,7 +502,7 @@ func GetOAuthStatus(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "不支持的 115 网页授权服务", Data: nil})
 		return
 	}
-	token, err := provider.Poll(c.Request.Context(), state)
+	token, err := provider.Poll(c.Request.Context(), req.State)
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "查询 OAuth 授权状态失败：" + err.Error(), Data: nil})
 		return
@@ -570,14 +576,14 @@ func GetQueueStats(c *gin.Context) {
 
 // SetQueueRateLimit 设置 115 开放平台请求队列的速率限制参数。
 func SetQueueRateLimit(c *gin.Context) {
-	var req struct {
-		QPS int `json:"qps" binding:"required,min=1,max=1000"`
-		QPM int `json:"qpm" binding:"required,min=1,max=100000"`
-		QPH int `json:"qph" binding:"required,min=1,max=1000000"`
-	}
+	var req requests.QueueRateLimitRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请求参数错误：" + err.Error(), Data: nil})
+		return
+	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 
@@ -685,13 +691,13 @@ func GetRequestStatsByHour(c *gin.Context) {
 
 // CleanOldRequestStats 清理旧的请求统计数据
 func CleanOldRequestStats(c *gin.Context) {
-	type cleanReq struct {
-		Days int `json:"days" binding:"required,min=1,max=365"`
-	}
-
-	var req cleanReq
+	var req requests.CleanRequestStatsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请求参数错误：" + err.Error(), Data: nil})
+		return
+	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 

@@ -4,14 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"regexp"
-	"strings"
 	"time"
 
 	"qmediasync/internal/db"
 	"qmediasync/internal/models"
 	"qmediasync/internal/notification"
 	"qmediasync/internal/notificationmanager"
+	"qmediasync/internal/requests"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -61,19 +60,17 @@ func GetNotificationChannels(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func CreateTelegramChannel(c *gin.Context) {
-	type req struct {
-		ChannelName string `json:"channel_name" binding:"required"`
-		BotToken    string `json:"bot_token" binding:"required"`
-		ChatID      string `json:"chat_id" binding:"required"`
-	}
-
-	var r req
+	var r requests.CreateTelegramChannelRequest
 	if err := c.ShouldBindJSON(&r); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code":    1,
 			"message": "参数错误",
 			"data":    nil,
 		})
+		return
+	}
+	if err := r.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1, "message": err.Error(), "data": nil})
 		return
 	}
 
@@ -147,19 +144,17 @@ func CreateTelegramChannel(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func CreateMeoWChannel(c *gin.Context) {
-	type req struct {
-		ChannelName string `json:"channel_name" binding:"required"`
-		Nickname    string `json:"nickname" binding:"required"`
-		Endpoint    string `json:"endpoint"`
-	}
-
-	var r req
+	var r requests.CreateMeoWChannelRequest
 	if err := c.ShouldBindJSON(&r); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code":    1,
 			"message": "参数错误",
 			"data":    nil,
 		})
+		return
+	}
+	if err := r.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1, "message": err.Error(), "data": nil})
 		return
 	}
 
@@ -239,21 +234,17 @@ func CreateMeoWChannel(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func CreateBarkChannel(c *gin.Context) {
-	type req struct {
-		ChannelName string `json:"channel_name" binding:"required"`
-		DeviceKey   string `json:"device_key" binding:"required"`
-		ServerURL   string `json:"server_url"`
-		Sound       string `json:"sound"`
-		Icon        string `json:"icon"`
-	}
-
-	var r req
+	var r requests.CreateBarkChannelRequest
 	if err := c.ShouldBindJSON(&r); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code":    1,
 			"message": "参数错误",
 			"data":    nil,
 		})
+		return
+	}
+	if err := r.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1, "message": err.Error(), "data": nil})
 		return
 	}
 
@@ -336,19 +327,17 @@ func CreateBarkChannel(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func CreateServerChanChannel(c *gin.Context) {
-	type req struct {
-		ChannelName string `json:"channel_name" binding:"required"`
-		SCKEY       string `json:"sc_key" binding:"required"`
-		Endpoint    string `json:"endpoint"`
-	}
-
-	var r req
+	var r requests.CreateServerChanChannelRequest
 	if err := c.ShouldBindJSON(&r); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code":    1,
 			"message": "参数错误",
 			"data":    nil,
 		})
+		return
+	}
+	if err := r.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1, "message": err.Error(), "data": nil})
 		return
 	}
 
@@ -437,91 +426,13 @@ func CreateServerChanChannel(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func CreateCustomWebhookChannel(c *gin.Context) {
-	type req struct {
-		ChannelName string `json:"channel_name" binding:"required"`
-		Endpoint    string `json:"endpoint" binding:"required"`
-		Method      string `json:"method" binding:"required"`   // GET | POST
-		Template    string `json:"template" binding:"required"` // 模板字符串
-		Format      string `json:"format"`                      // POST: json|form|text；GET 可忽略
-		QueryParam  string `json:"query_param"`                 // GET 参数名，默认 q
-		// 鉴权与扩展
-		AuthType      string            `json:"auth_type"` // none|bearer|basic|header|query
-		AuthToken     string            `json:"auth_token"`
-		AuthUser      string            `json:"auth_user"`
-		AuthPass      string            `json:"auth_pass"`
-		AuthHeaderKey string            `json:"auth_header_key"`
-		AuthQueryKey  string            `json:"auth_query_key"`
-		Headers       map[string]string `json:"headers"` // 额外请求头
-		Description   string            `json:"description"`
-	}
-
-	var r req
+	var r requests.CustomWebhookChannelRequest
 	if err := c.ShouldBindJSON(&r); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 1, "message": "参数错误", "data": nil})
 		return
 	}
-
-	method := strings.ToUpper(strings.TrimSpace(r.Method))
-	format := strings.ToLower(strings.TrimSpace(r.Format))
-	if r.QueryParam == "" {
-		r.QueryParam = "q"
-	}
-
-	// 鉴权字段基本校验
-	switch strings.ToLower(strings.TrimSpace(r.AuthType)) {
-	case "", "none":
-		// 无需额外校验
-	case "bearer":
-		if strings.TrimSpace(r.AuthToken) == "" {
-			c.JSON(http.StatusOK, gin.H{"code": 1, "message": "Bearer 鉴权需要提供 auth_token", "data": nil})
-			return
-		}
-	case "basic":
-		if strings.TrimSpace(r.AuthUser) == "" && strings.TrimSpace(r.AuthPass) == "" {
-			c.JSON(http.StatusOK, gin.H{"code": 1, "message": "Basic 鉴权需要提供 auth_user 或 auth_pass", "data": nil})
-			return
-		}
-	case "header":
-		if strings.TrimSpace(r.AuthHeaderKey) == "" || strings.TrimSpace(r.AuthToken) == "" {
-			c.JSON(http.StatusOK, gin.H{"code": 1, "message": "Header 鉴权需要提供 auth_header_key 与 auth_token", "data": nil})
-			return
-		}
-	case "query":
-		if strings.TrimSpace(r.AuthQueryKey) == "" || strings.TrimSpace(r.AuthToken) == "" {
-			c.JSON(http.StatusOK, gin.H{"code": 1, "message": "Query 鉴权需要提供 auth_query_key 与 auth_token", "data": nil})
-			return
-		}
-	default:
-		c.JSON(http.StatusOK, gin.H{"code": 1, "message": "auth_type 必须是 none、bearer、basic、header 或 query", "data": nil})
-		return
-	}
-
-	// 模板校验
-	switch method {
-	case "POST":
-		switch format {
-		case "json":
-			s := replaceVarsWithEmpty(r.Template)
-			var js interface{}
-			if err := json.Unmarshal([]byte(s), &js); err != nil {
-				c.JSON(http.StatusOK, gin.H{"code": 1, "message": "JSON 模板无效：" + err.Error(), "data": nil})
-				return
-			}
-		case "form":
-			re := regexp.MustCompile(`^[A-Za-z0-9_.-]+=[^&]*(?:&[A-Za-z0-9_.-]+=[^&]*)*$`)
-			if !re.MatchString(strings.TrimSpace(r.Template)) {
-				c.JSON(http.StatusOK, gin.H{"code": 1, "message": "Form 模板无效：必须是 key=value&key2=value2 格式", "data": nil})
-				return
-			}
-		case "text", "":
-		default:
-			c.JSON(http.StatusOK, gin.H{"code": 1, "message": "format 必须是 JSON、form 或 text", "data": nil})
-			return
-		}
-	case "GET":
-		// GET 模板不做特殊格式校验
-	default:
-		c.JSON(http.StatusOK, gin.H{"code": 1, "message": "method 必须是 GET 或 POST", "data": nil})
+	if err := r.ValidateCreate(); err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 1, "message": err.Error(), "data": nil})
 		return
 	}
 
@@ -552,11 +463,11 @@ func CreateCustomWebhookChannel(c *gin.Context) {
 	cfg := models.CustomWebhookChannelConfig{
 		ChannelID:     channel.ID,
 		Endpoint:      r.Endpoint,
-		Method:        method,
+		Method:        r.Method,
 		Template:      r.Template,
-		Format:        format,
-		QueryParam:    strings.TrimSpace(r.QueryParam),
-		AuthType:      strings.ToLower(strings.TrimSpace(r.AuthType)),
+		Format:        r.Format,
+		QueryParam:    r.QueryParam,
+		AuthType:      r.AuthType,
 		AuthToken:     r.AuthToken,
 		AuthUser:      r.AuthUser,
 		AuthPass:      r.AuthPass,
@@ -610,27 +521,13 @@ func CreateCustomWebhookChannel(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func UpdateCustomWebhookChannel(c *gin.Context) {
-	type req struct {
-		ChannelID     uint              `json:"channel_id" binding:"required"`
-		ChannelName   string            `json:"channel_name"`
-		Endpoint      string            `json:"endpoint"`
-		Method        string            `json:"method"`
-		Template      string            `json:"template"`
-		Format        string            `json:"format"`
-		QueryParam    string            `json:"query_param"`
-		AuthType      string            `json:"auth_type"`
-		AuthToken     string            `json:"auth_token"`
-		AuthUser      string            `json:"auth_user"`
-		AuthPass      string            `json:"auth_pass"`
-		AuthHeaderKey string            `json:"auth_header_key"`
-		AuthQueryKey  string            `json:"auth_query_key"`
-		Headers       map[string]string `json:"headers"`
-		Description   string            `json:"description"`
-	}
-
-	var r req
+	var r requests.CustomWebhookChannelRequest
 	if err := c.ShouldBindJSON(&r); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 1, "message": "参数错误", "data": nil})
+		return
+	}
+	if r.ChannelID == 0 {
+		c.JSON(http.StatusOK, gin.H{"code": 1, "message": "channel_id：不能为空", "data": nil})
 		return
 	}
 
@@ -651,6 +548,10 @@ func UpdateCustomWebhookChannel(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"code": 1, "message": "配置不存在", "data": nil})
 		return
 	}
+	if err := r.ValidateUpdate(cfg.Method, cfg.Format); err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 1, "message": err.Error(), "data": nil})
+		return
+	}
 
 	// 更新渠道基本信息
 	if r.ChannelName != "" {
@@ -667,84 +568,21 @@ func UpdateCustomWebhookChannel(c *gin.Context) {
 		updates["endpoint"] = r.Endpoint
 	}
 	if r.Method != "" {
-		method := strings.ToUpper(strings.TrimSpace(r.Method))
-		if method != "GET" && method != "POST" {
-			c.JSON(http.StatusOK, gin.H{"code": 1, "message": "method 必须是 GET 或 POST", "data": nil})
-			return
-		}
-		updates["method"] = method
+		updates["method"] = r.Method
 	}
 	if r.Template != "" {
-		// 执行模板校验
-		method := cfg.Method
-		if r.Method != "" {
-			method = strings.ToUpper(strings.TrimSpace(r.Method))
-		}
-		format := cfg.Format
-		if r.Format != "" {
-			format = strings.ToLower(strings.TrimSpace(r.Format))
-		}
-
-		if method == "POST" {
-			switch format {
-			case "json":
-				s := replaceVarsWithEmpty(r.Template)
-				var js interface{}
-				if err := json.Unmarshal([]byte(s), &js); err != nil {
-					c.JSON(http.StatusOK, gin.H{"code": 1, "message": "JSON 模板无效：" + err.Error(), "data": nil})
-					return
-				}
-			case "form":
-				re := regexp.MustCompile(`^[A-Za-z0-9_.-]+=[^&]*(?:&[A-Za-z0-9_.-]+=[^&]*)*$`)
-				if !re.MatchString(strings.TrimSpace(r.Template)) {
-					c.JSON(http.StatusOK, gin.H{"code": 1, "message": "Form 模板无效：必须是 key=value&key2=value2 格式", "data": nil})
-					return
-				}
-			case "text", "":
-			default:
-				c.JSON(http.StatusOK, gin.H{"code": 1, "message": "format 必须是 JSON、form 或 text", "data": nil})
-				return
-			}
-		}
 		updates["template"] = r.Template
 	}
 	if r.Format != "" {
-		updates["format"] = strings.ToLower(strings.TrimSpace(r.Format))
+		updates["format"] = r.Format
 	}
 	if r.QueryParam != "" {
-		updates["query_param"] = strings.TrimSpace(r.QueryParam)
+		updates["query_param"] = r.QueryParam
 	}
 
 	// 鉴权字段更新
 	if r.AuthType != "" {
-		authType := strings.ToLower(strings.TrimSpace(r.AuthType))
-		switch authType {
-		case "", "none":
-		case "bearer":
-			if strings.TrimSpace(r.AuthToken) == "" {
-				c.JSON(http.StatusOK, gin.H{"code": 1, "message": "Bearer 鉴权需要提供 auth_token", "data": nil})
-				return
-			}
-		case "basic":
-			if strings.TrimSpace(r.AuthUser) == "" && strings.TrimSpace(r.AuthPass) == "" {
-				c.JSON(http.StatusOK, gin.H{"code": 1, "message": "Basic 鉴权需要提供 auth_user 或 auth_pass", "data": nil})
-				return
-			}
-		case "header":
-			if strings.TrimSpace(r.AuthHeaderKey) == "" || strings.TrimSpace(r.AuthToken) == "" {
-				c.JSON(http.StatusOK, gin.H{"code": 1, "message": "Header 鉴权需要提供 auth_header_key 与 auth_token", "data": nil})
-				return
-			}
-		case "query":
-			if strings.TrimSpace(r.AuthQueryKey) == "" || strings.TrimSpace(r.AuthToken) == "" {
-				c.JSON(http.StatusOK, gin.H{"code": 1, "message": "Query 鉴权需要提供 auth_query_key 与 auth_token", "data": nil})
-				return
-			}
-		default:
-			c.JSON(http.StatusOK, gin.H{"code": 1, "message": "auth_type 必须是 none、bearer、basic、header 或 query", "data": nil})
-			return
-		}
-		updates["auth_type"] = authType
+		updates["auth_type"] = r.AuthType
 	}
 	if r.AuthToken != "" {
 		updates["auth_token"] = r.AuthToken
@@ -809,17 +647,13 @@ func UpdateCustomWebhookChannel(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func UpdateTelegramChannel(c *gin.Context) {
-	type req struct {
-		ChannelID   uint   `json:"channel_id" binding:"required"`
-		ChannelName string `json:"channel_name"`
-		BotToken    string `json:"bot_token"`
-		ChatID      string `json:"chat_id"`
-		Description string `json:"description"`
-	}
-
-	var r req
+	var r requests.UpdateTelegramChannelRequest
 	if err := c.ShouldBindJSON(&r); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 1, "message": "参数错误", "data": nil})
+		return
+	}
+	if err := r.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1, "message": err.Error(), "data": nil})
 		return
 	}
 
@@ -897,17 +731,13 @@ func UpdateTelegramChannel(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func UpdateMeoWChannel(c *gin.Context) {
-	type req struct {
-		ChannelID   uint   `json:"channel_id" binding:"required"`
-		ChannelName string `json:"channel_name"`
-		Nickname    string `json:"nickname"`
-		Endpoint    string `json:"endpoint"`
-		Description string `json:"description"`
-	}
-
-	var r req
+	var r requests.UpdateMeoWChannelRequest
 	if err := c.ShouldBindJSON(&r); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 1, "message": "参数错误", "data": nil})
+		return
+	}
+	if err := r.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1, "message": err.Error(), "data": nil})
 		return
 	}
 
@@ -987,19 +817,13 @@ func UpdateMeoWChannel(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func UpdateBarkChannel(c *gin.Context) {
-	type req struct {
-		ChannelID   uint   `json:"channel_id" binding:"required"`
-		ChannelName string `json:"channel_name"`
-		DeviceKey   string `json:"device_key"`
-		ServerURL   string `json:"server_url"`
-		Sound       string `json:"sound"`
-		Icon        string `json:"icon"`
-		Description string `json:"description"`
-	}
-
-	var r req
+	var r requests.UpdateBarkChannelRequest
 	if err := c.ShouldBindJSON(&r); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 1, "message": "参数错误", "data": nil})
+		return
+	}
+	if err := r.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1, "message": err.Error(), "data": nil})
 		return
 	}
 
@@ -1083,17 +907,13 @@ func UpdateBarkChannel(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func UpdateServerChanChannel(c *gin.Context) {
-	type req struct {
-		ChannelID   uint   `json:"channel_id" binding:"required"`
-		ChannelName string `json:"channel_name"`
-		SCKEY       string `json:"sc_key"`
-		Endpoint    string `json:"endpoint"`
-		Description string `json:"description"`
-	}
-
-	var r req
+	var r requests.UpdateServerChanChannelRequest
 	if err := c.ShouldBindJSON(&r); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 1, "message": "参数错误", "data": nil})
+		return
+	}
+	if err := r.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1, "message": err.Error(), "data": nil})
 		return
 	}
 
@@ -1152,14 +972,6 @@ func UpdateServerChanChannel(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功", "data": channel})
-}
-
-func replaceVarsWithEmpty(s string) string {
-	s = strings.ReplaceAll(s, "{{title}}", "")
-	s = strings.ReplaceAll(s, "{{content}}", "")
-	s = strings.ReplaceAll(s, "{{timestamp}}", "")
-	s = strings.ReplaceAll(s, "{{image}}", "")
-	return s
 }
 
 // UpdateChannelStatus 启用/禁用渠道

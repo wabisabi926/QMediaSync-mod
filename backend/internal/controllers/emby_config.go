@@ -5,6 +5,7 @@ import (
 
 	"qmediasync/internal/db"
 	"qmediasync/internal/models"
+	"qmediasync/internal/requests"
 	"qmediasync/internal/synccron"
 
 	"github.com/gin-gonic/gin"
@@ -43,23 +44,6 @@ func GetEmbyConfig(c *gin.Context) {
 	})
 }
 
-type updateEmbyConfigRequest struct {
-	EmbyUrl                 string `json:"emby_url"`
-	EmbyApiKey              string `json:"emby_api_key"`
-	EnableDeleteNetdisk     int    `json:"enable_delete_netdisk"`
-	EnableRefreshLibrary    int    `json:"enable_refresh_library"`
-	EnableMediaNotification int    `json:"enable_media_notification"`
-	EnableExtractMediaInfo  int    `json:"enable_extract_media_info"`
-	EnableAuth              int    `json:"enable_auth"`
-	SyncEnabled             int    `json:"sync_enabled"`
-	SyncCron                string `json:"sync_cron"`
-	SelectedLibraries       string `json:"selected_libraries"`
-	SyncAllLibraries        int    `json:"sync_all_libraries"`
-	EnablePlaybackOverview  int    `json:"enable_playback_overview"`
-	EnablePlaybackProgress  int    `json:"enable_playback_progress"`
-	// DeleteNetdiskLibrary    []string `json:"delete_netdisk_library"` // 允许联动删除的媒体库 ID
-}
-
 // UpdateEmbyConfig 更新 Emby 配置。
 // @Summary 更新 Emby 配置
 // @Description 更新 Emby 媒体服务器的配置信息
@@ -81,9 +65,13 @@ type updateEmbyConfigRequest struct {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func UpdateEmbyConfig(c *gin.Context) {
-	var req updateEmbyConfigRequest
+	var req requests.UpdateEmbyConfigRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误：" + err.Error()})
+		return
+	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error()})
 		return
 	}
 
@@ -105,8 +93,8 @@ func UpdateEmbyConfig(c *gin.Context) {
 	if req.SyncCron == "" {
 		req.SyncCron = "0 * * * *"
 	}
-	config.EmbyUrl = req.EmbyUrl
-	config.EmbyApiKey = req.EmbyApiKey
+	config.EmbyUrl = req.EmbyURL
+	config.EmbyApiKey = req.EmbyAPIKey
 	config.EnableDeleteNetdisk = req.EnableDeleteNetdisk
 	config.EnableRefreshLibrary = req.EnableRefreshLibrary
 	config.EnableMediaNotification = req.EnableMediaNotification

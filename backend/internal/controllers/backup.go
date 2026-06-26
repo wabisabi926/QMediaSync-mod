@@ -14,6 +14,7 @@ import (
 	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
+	"qmediasync/internal/requests"
 	"qmediasync/internal/synccron"
 
 	"github.com/gin-gonic/gin"
@@ -25,14 +26,6 @@ type BackupCreateRequest struct {
 
 type BackupRestoreRequest struct {
 	RecordID uint `json:"record_id"`
-}
-
-type BackupConfigUpdateRequest struct {
-	BackupEnabled   int    `json:"backup_enabled"`
-	BackupCron      string `json:"backup_cron"`
-	BackupRetention int    `json:"backup_retention"`
-	BackupMaxCount  int    `json:"backup_max_count"`
-	BackupCompress  int    `json:"backup_compress"`
 }
 
 func CreateBackup(c *gin.Context) {
@@ -214,11 +207,19 @@ func GetBackupConfig(c *gin.Context) {
 }
 
 func UpdateBackupConfig(c *gin.Context) {
-	var req BackupConfigUpdateRequest
+	var req requests.BackupConfigUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    BadRequest,
 			Message: "请求参数不正确",
+			Data:    nil,
+		})
+		return
+	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{
+			Code:    BadRequest,
+			Message: err.Error(),
 			Data:    nil,
 		})
 		return

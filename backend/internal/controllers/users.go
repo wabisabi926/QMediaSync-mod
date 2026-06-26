@@ -8,6 +8,7 @@ import (
 
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
+	"qmediasync/internal/requests"
 
 	"github.com/gin-gonic/gin"
 )
@@ -233,18 +234,16 @@ func buildSessionResponse(session *models.UserSession, currentSessionID string) 
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func ChangePassword(c *gin.Context) {
-	var req struct {
-		Username    string `json:"username" form:"username"`
-		NewPassword string `json:"new_password" form:"new_password"`
-	}
+	var req requests.ChangeUserCredentialRequest
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("参数错误：%v", err), Data: nil})
 		return
 	}
-	if req.Username == "" {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "用户名不能为空", Data: nil})
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
+	req.Username = strings.TrimSpace(req.Username)
 	currentUser, ok := CurrentUser(c)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "用户未登录", Data: nil})

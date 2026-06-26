@@ -8,16 +8,16 @@ import (
 	"sync"
 )
 
-// OpenError ffmpeg 打开文件失败
+// OpenError FFmpeg 打开文件失败
 const OpenError = "Error opening input:"
 
-// mu 任务逐个执行
+// mu 控制任务逐个执行
 var mu sync.Mutex
 
 // InspectInfo 检查指定路径文件的元信息
 func InspectInfo(path string) (Info, error) {
 	if !execOk {
-		return Info{}, errors.New("ffmpeg 未初始化")
+		return Info{}, errors.New("FFmpeg 未初始化")
 	}
 	mu.Lock()
 	defer mu.Unlock()
@@ -40,7 +40,7 @@ func InspectInfo(path string) (Info, error) {
 // InspectMusic 检查指定音乐文件的元信息
 func InspectMusic(path string) (Music, error) {
 	if !execOk {
-		return Music{}, errors.New("ffmpeg 未初始化")
+		return Music{}, errors.New("FFmpeg 未初始化")
 	}
 	mu.Lock()
 	defer mu.Unlock()
@@ -131,7 +131,7 @@ func InspectMusic(path string) (Music, error) {
 // ExtractMusicCover 解析音乐海报
 func ExtractMusicCover(path string) ([]byte, error) {
 	if !execOk {
-		return nil, errors.New("ffmpeg 未初始化")
+		return nil, errors.New("FFmpeg 未初始化")
 	}
 	mu.Lock()
 	defer mu.Unlock()
@@ -151,7 +151,7 @@ func ExtractMusicCover(path string) ([]byte, error) {
 	return append([]byte(nil), outputBytes...), nil
 }
 
-// GenSilentMP3Bytes 使用 ffmpeg 生成静音 MP3 并返回字节内容
+// GenSilentMP3Bytes 使用 FFmpeg 生成静音 MP3 并返回字节内容
 func GenSilentMP3Bytes(durationSec float64) ([]byte, error) {
 	args := []string{
 		"-f", "lavfi",

@@ -22,11 +22,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Redirect2Transcode 将 master 请求重定向到本地 ts 代理
+// Redirect2Transcode 将 master 请求重定向到本地 TS 代理
 func Redirect2Transcode(c *gin.Context) {
 	templateId := c.Query("template_id")
 	if strs.AnyEmpty(templateId) {
-		// 尝试从 mediaSourceId 中获取 templateId
+		// 尝试从 MediaSourceId 中获取 TemplateId
 		itemInfo, err := resolveItemInfo(c, RouteTranscode)
 		if checkErr(c, err) {
 			return
@@ -41,7 +41,7 @@ func Redirect2Transcode(c *gin.Context) {
 		return
 	}
 
-	// 只有 template id 时, 需要先获取 openlist path
+	// 只有 TemplateId 时, 需要先获取 OpenList Path
 	if strs.AnyEmpty(openlistPath) {
 		Redirect2OpenlistLink(c)
 		return
@@ -56,7 +56,7 @@ func Redirect2Transcode(c *gin.Context) {
 	c.Redirect(http.StatusTemporaryRedirect, tu.String())
 }
 
-// Redirect2OpenlistLink 重定向资源到 openlist 网盘直链
+// Redirect2OpenlistLink 将资源重定向到 OpenList 网盘直链
 func Redirect2OpenlistLink(c *gin.Context) {
 	// 不处理字幕接口
 	if strings.Contains(strings.ToLower(c.Request.RequestURI), "subtitles") {
@@ -81,7 +81,7 @@ func Redirect2OpenlistLink(c *gin.Context) {
 		q.Set(QueryApiKeyName, itemInfo.ApiKey)
 		q.Set("openlist_path", itemInfo.MsInfo.OpenlistPath)
 		u.RawQuery = q.Encode()
-		logs.Success("重定向 playlist: %s", u.String())
+		logs.Success("重定向播放列表: %s", u.String())
 		c.Redirect(http.StatusTemporaryRedirect, u.String())
 		return
 	}
@@ -92,19 +92,19 @@ func Redirect2OpenlistLink(c *gin.Context) {
 		return
 	}
 
-	// logs.Info("检查 %s 是否nfs协议的strm文件", embyPath)
+	// logs.Info("检查 %s 是否为 NFS 协议的 STRM 文件", embyPath)
 	strmUrl := ""
-	// nfs协议开头，说明是一个nfs文件路径，打开该路径读取strm内容，然后跳转到strm内的地址
+	// NFS 协议开头表示这是一个 NFS 文件路径, 打开该路径读取 STRM 内容, 再跳转到 STRM 内的地址。
 	if strings.HasPrefix(embyPath, "nfs:") && strings.HasSuffix(embyPath, ".strm") {
-		logs.Info("检查到 nfs 协议的 strm文件：%s", embyPath)
-		// 打开nfs文件
+		logs.Info("检测到 NFS 协议的 STRM 文件: %s", embyPath)
+		// 打开 NFS 文件
 		f, err := os.Open(embyPath)
 		if err == nil {
-			// 读取strm内容
+			// 读取 STRM 内容
 			buf := bytes.NewBufferString("")
 			io.Copy(buf, f)
 			strmUrl = buf.String()
-			logs.Success("读取到 strm 文件 %s 的内容: %s", embyPath, strmUrl)
+			logs.Success("读取到 STRM 文件 %s 的内容: %s", embyPath, strmUrl)
 			f.Close()
 		}
 	}
@@ -112,26 +112,26 @@ func Redirect2OpenlistLink(c *gin.Context) {
 		strmUrl = embyPath
 	}
 	isProxyUrl := ""
-	// 4 如果是远程地址 (strm) 且不包含qmediasync的本地代理播放链接, 重定向处理
+	// 4 如果是远程地址 (STRM) 且不包含 QMediaSync 的本地代理播放链接, 则重定向处理。
 	if urls.IsRemote(strmUrl) || strings.HasPrefix(strmUrl, "http") || strings.HasPrefix(strmUrl, "nfs:") {
 		finalPath := getFinalRedirectLink(strmUrl, c.Request.Header.Clone())
 		if !strings.Contains(finalPath, "/proxy-115") {
-			logs.Success("重定向 strm 到直连地址: %s", finalPath)
+			logs.Success("重定向 STRM 到直连地址: %s", finalPath)
 			c.Header(cache.HeaderKeyExpired, cache.Duration(time.Minute*10))
 			c.Redirect(http.StatusTemporaryRedirect, finalPath)
 			return
 		} else {
-			logs.Warn("重定向 strm 包含qmediasync本地代理播放链接，回源处理（会走NAS流量）: %s", finalPath)
+			logs.Warn("重定向 STRM 包含 QMediaSync 本地代理播放链接, 将回源处理（会走 NAS 流量）: %s", finalPath)
 			isProxyUrl = finalPath
 		}
 	}
 
 	// 5 如果是本地地址, 回源处理
-	// 1. 以/开头
-	// 2. 以windows盘符开头, 正则匹配
+	// 1. 以 / 开头
+	// 2. 以 Windows 盘符开头, 通过正则匹配
 	pattern := `^[A-Za-z]:`
 	matchedWin, _ := regexp.MatchString(pattern, embyPath)
-	// \\开头是Emby网络共享地址
+	// \\ 开头表示 Emby 网络共享地址
 	if strings.HasPrefix(embyPath, "/") || matchedWin || strings.HasPrefix(embyPath, "\\") || isProxyUrl != "" {
 		logs.Info("本地或代理路径: %s, 回源处理", embyPath)
 		newUri := strings.Replace(c.Request.RequestURI, "stream", "original", 1)
@@ -139,7 +139,7 @@ func Redirect2OpenlistLink(c *gin.Context) {
 		c.Redirect(http.StatusTemporaryRedirect, newUri)
 		return
 	}
-	// // 6 请求 openlist 资源
+	// // 6 请求 OpenList 资源
 	// fi := openlist.FetchInfo{
 	// 	Header:       c.Request.Header.Clone(),
 	// 	UseTranscode: useTranscode,
@@ -148,14 +148,14 @@ func Redirect2OpenlistLink(c *gin.Context) {
 	// openlistPathRes := path.Emby2Openlist(embyPath)
 
 	// allErrors := strings.Builder{}
-	// // handleOpenlistResource 根据传递的 path 请求 openlist 资源
+	// // handleOpenlistResource 根据传入的 Path 请求 OpenList 资源
 	// handleOpenlistResource := func(path string) bool {
 	// 	logs.Info("尝试请求 Openlist 资源: %s", path)
 	// 	fi.Path = path
 	// 	res := openlist.FetchResource(fi)
 
 	// 	if res.Code != http.StatusOK {
-	// 		allErrors.WriteString(fmt.Sprintf("请求 Openlist 失败, code: %d, msg: %s, path: %s;", res.Code, res.Msg, path))
+	// 		allErrors.WriteString(fmt.Sprintf("请求 OpenList 失败, 状态码: %d, 消息: %s, Path: %s;", res.Code, res.Msg, path))
 	// 		return false
 	// 	}
 
@@ -213,7 +213,7 @@ func ProxyOriginalResource(c *gin.Context) {
 	// }
 
 	// 如果是本地媒体, 代理回源
-	// 2. 以windows盘符开头, 正则匹配
+	// 2. 以 Windows 盘符开头, 通过正则匹配
 	// pattern := `^[A-Za-z]:`
 	// matchedWin, _ := regexp.MatchString(pattern, embyPath)
 	// if strings.HasPrefix(embyPath, "/") || matchedWin || !strings.Contains(embyPath, "/proxy-115") {
@@ -231,7 +231,7 @@ func checkErr(c *gin.Context, err error) bool {
 		return false
 	}
 
-	// 异常接口, 不缓存
+	// 异常接口不缓存
 	c.Header(cache.HeaderKeyExpired, "-1")
 
 	// 采用拒绝策略, 直接返回错误

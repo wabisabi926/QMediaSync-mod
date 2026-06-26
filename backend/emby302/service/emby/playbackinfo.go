@@ -35,10 +35,10 @@ const (
 
 var (
 
-	// ValidCacheItemsTypeRegex 校验 Items 的 Type 参数, 通过正则才覆盖 PlaybackInfo 缓存
+	// ValidCacheItemsTypeRegex 校验 Items 的 Type 参数, 匹配后才覆盖 PlaybackInfo 缓存
 	ValidCacheItemsTypeRegex = regexp.MustCompile(`(?i)(movie|episode)`)
 
-	// UnvalidCacheItemsUARegex 特定客户端的 Items 请求, 不覆盖 PlaybackInfo 缓存
+	// UnvalidCacheItemsUARegex 特定客户端的 Items 请求不覆盖 PlaybackInfo 缓存
 	UnvalidCacheItemsUARegex = regexp.MustCompile(`(?i)(infuse)`)
 )
 
@@ -64,7 +64,7 @@ func TransferPlaybackInfo(c *gin.Context) {
 		return
 	}
 
-	// 2 请求 emby 源服务器的 PlaybackInfo 信息
+	// 2 请求 Emby 源服务器的 PlaybackInfo 信息
 	c.Request.Header.Del("Accept-Encoding")
 	originRequestBody := c.Request.Body
 	c.Request.Body = io.NopCloser(bytes.NewBufferString(PlaybackCommonPayload))
@@ -110,7 +110,7 @@ func TransferPlaybackInfo(c *gin.Context) {
 
 		// 如果是本地媒体, 不处理
 		embyPath, _ := source.Attr("Path").String()
-		// 2. 以windows盘符开头, 正则匹配
+		// 2. 以 Windows 盘符开头, 通过正则匹配
 		pattern := `^[A-Za-z]:`
 		matchedWin, _ := regexp.MatchString(pattern, embyPath)
 		if strings.HasPrefix(embyPath, "/") || matchedWin {
@@ -131,18 +131,18 @@ func TransferPlaybackInfo(c *gin.Context) {
 			itemInfo.Id, source.Attr("Id").Val(), itemInfo.ApiKeyName, itemInfo.ApiKey,
 		)
 		if strings.Contains(path, "baidupan/url") {
-			logs.Success("发现百度网盘链接，发送一个请求拿到直链：%s", path)
+			logs.Success("发现百度网盘链接, 正在获取直链: %s", path)
 			location, lerr := https.GetLocation(path)
 			if lerr != nil {
-				logs.Error("请求302跳转链接失败：", lerr)
+				logs.Error("请求 302 跳转链接失败: %v", lerr)
 				return lerr
 			}
-			logs.Success("百度网盘直链地址：%s", location)
+			logs.Success("百度网盘直链地址: %s", location)
 			if !strings.Contains(location, "proxy-115") {
-				// 设置中要求使用本地代理播放，返回默认值
+				// 设置中要求使用本地代理播放, 返回默认值
 				newUrl = location
 			} else {
-				logs.Warn("直链地址包含 proxy-115，不能返回直链，要求回源处理")
+				logs.Warn("直链地址包含 proxy-115, 无法返回直链, 将回源处理")
 			}
 
 		}
@@ -193,7 +193,7 @@ func TransferPlaybackInfo(c *gin.Context) {
 	jsons.OkResp(c.Writer, resJson)
 }
 
-// handleSpecialPlayback 判断如果请求的 PlaybackInfo 信息是特殊类型, 直接代理回源服务
+// handleSpecialPlayback 判断 PlaybackInfo 是否属于特殊类型, 是则直接代理回源服务
 func handleSpecialPlayback(c *gin.Context, itemInfo ItemInfo) bool {
 	// 请求必须携带 MediaSourceId
 	if itemInfo.MsInfo.Empty {
@@ -221,10 +221,10 @@ func handleSpecialPlayback(c *gin.Context, itemInfo ItemInfo) bool {
 
 		// 本地媒体
 		path, _ := value.Attr("Path").String()
-		// 2. 以windows盘符开头, 正则匹配
+		// 2. 以 Windows 盘符开头, 通过正则匹配
 		pattern := `^[A-Za-z]:`
 		matchedWin, _ := regexp.MatchString(pattern, path)
-		// \\开头是Emby网络共享地址
+		// \\ 开头表示 Emby 网络共享地址
 		if strings.HasPrefix(path, "/") || matchedWin || strings.HasPrefix(path, "\\") {
 			logs.Info("本地媒体: %s, 回源处理", path)
 			flag = true
@@ -243,16 +243,16 @@ func handleSpecialPlayback(c *gin.Context, itemInfo ItemInfo) bool {
 	return err == haveReturned
 }
 
-// useCacheSpacePlaybackInfo 请求缓存空间的 PlaybackInfo 信息, 前提是开启了缓存功能
+// useCacheSpacePlaybackInfo 在开启缓存功能后请求缓存空间中的 PlaybackInfo 信息
 //
 // ① 请求携带 MediaSourceId:
 //
-//	从缓存空间的全量缓存中匹配 MediaSourceId, 没有全量缓存或者匹配失败直接报 500 错误
+//	从缓存空间的全量缓存中匹配 MediaSourceId, 没有全量缓存或匹配失败时直接返回 500 错误
 //
 // ② 请求不携带 MediaSourceId:
 //
-//	先判断缓存空间是否有缓存, 没有缓存返回 false, 由主函数请求全量信息并缓存
-//	有缓存则直接返回缓存中的全量信息
+//	先判断缓存空间是否有缓存, 没有缓存时返回 false, 由主函数请求全量信息并缓存
+//	有缓存时直接返回缓存中的全量信息
 func useCacheSpacePlaybackInfo(c *gin.Context, itemInfo ItemInfo) bool {
 	if c == nil {
 		return false
@@ -384,15 +384,15 @@ func useCacheSpacePlaybackInfo(c *gin.Context, itemInfo ItemInfo) bool {
 
 	// 如果是单个查询, 则手动请求一次全量
 	if _, err := fetchFullPlaybackInfo(itemInfo); err != nil {
-		logs.Error("更新缓存空间 PlaybackInfo 信息异常: %v", err)
-		c.String(http.StatusInternalServerError, "查无缓存, 请稍后尝试重新播放")
+		logs.Error("更新缓存空间 PlaybackInfo 信息失败: %v", err)
+		c.String(http.StatusInternalServerError, "未找到缓存, 请稍后重新播放")
 		return true
 	}
 
 	return useCacheSpacePlaybackInfo(c, itemInfo)
 }
 
-// LoadCacheItems 拦截并代理 items 接口
+// LoadCacheItems 拦截并代理 Items 接口
 //
 // 如果 PlaybackInfo 缓存空间有相应的缓存
 // 则将缓存中的 MediaSources 信息覆盖到响应中
@@ -406,7 +406,7 @@ func LoadCacheItems(c *gin.Context) {
 	}
 	resJson := res.Data
 
-	// path 参数解码
+	// Path 参数解码
 	if path, jok := resJson.Attr("Path").String(); jok {
 		resJson.Attr("Path").Set(urls.Unescape(path))
 	}
@@ -431,7 +431,7 @@ func LoadCacheItems(c *gin.Context) {
 		return
 	}
 
-	// 解析出 ItemId
+	// 解析 ItemId
 	itemInfo, err := resolveItemInfo(c, RouteItems)
 	if err != nil {
 		return
@@ -463,7 +463,7 @@ func LoadCacheItems(c *gin.Context) {
 	// 缓存空间中没有当前 Item 的 PlaybackInfo 数据, 手动请求
 	bodyJson, err := fetchFullPlaybackInfo(itemInfo)
 	if err != nil {
-		logs.Warn("更新 Items 缓存异常: %v", err)
+		logs.Warn("更新 Items 缓存失败: %v", err)
 		return
 	}
 	coverMediaSources(bodyJson)
@@ -473,7 +473,7 @@ func LoadCacheItems(c *gin.Context) {
 func fetchFullPlaybackInfo(itemInfo ItemInfo) (*jsons.Item, error) {
 	u, err := url.Parse(config.ServerInternalRequestHost() + itemInfo.PlaybackInfoUri)
 	if err != nil {
-		return nil, fmt.Errorf("PlaybackInfo 地址异常: %v, uri: %s", err, itemInfo.PlaybackInfoUri)
+		return nil, fmt.Errorf("PlaybackInfo 地址异常: %v, URI: %s", err, itemInfo.PlaybackInfoUri)
 	}
 	q := u.Query()
 	q.Del("MediaSourceId")
@@ -491,7 +491,7 @@ func fetchFullPlaybackInfo(itemInfo ItemInfo) (*jsons.Item, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("获取全量 PlaybackInfo 失败, code: %d", resp.StatusCode)
+		return nil, fmt.Errorf("获取全量 PlaybackInfo 失败, 状态码: %d", resp.StatusCode)
 	}
 
 	bodyJson, err := jsons.Read(resp.Body)
@@ -502,7 +502,7 @@ func fetchFullPlaybackInfo(itemInfo ItemInfo) (*jsons.Item, error) {
 	return bodyJson, nil
 }
 
-// calcPlaybackInfoSpaceCacheKey 根据请求的 item 信息计算 PlaybackInfo 在缓存空间中的 key
+// calcPlaybackInfoSpaceCacheKey 根据请求的 Item 信息计算 PlaybackInfo 在缓存空间中的 key
 func calcPlaybackInfoSpaceCacheKey(itemInfo ItemInfo) string {
 	return itemInfo.Id + "_" + itemInfo.ApiKey
 }

@@ -9,7 +9,7 @@ import (
 	"qmediasync/emby302/util/strs"
 )
 
-// SslDir ssl 证书存放目录名称
+// SslDir SSL 证书存放目录名称
 const SslDir = ""
 
 type Ssl struct {
@@ -25,7 +25,7 @@ func (s *Ssl) Init() error {
 	}
 
 	if err := initSslDir(); err != nil {
-		return fmt.Errorf("初始化 ssl 目录失败: %v", err)
+		return fmt.Errorf("初始化 SSL 目录失败: %v", err)
 	}
 
 	// 非空校验
@@ -38,16 +38,16 @@ func (s *Ssl) Init() error {
 
 	// 判断证书密钥是否存在
 	if stat, err := os.Stat(s.CrtPath()); err != nil || stat.IsDir() {
-		return fmt.Errorf("检测不到证书文件, err: %v", err)
+		return fmt.Errorf("检测不到证书文件, 错误: %v", err)
 	}
 	if stat, err := os.Stat(s.KeyPath()); err != nil || stat.IsDir() {
-		return fmt.Errorf("检测不到密钥文件, err: %v", err)
+		return fmt.Errorf("检测不到密钥文件, 错误: %v", err)
 	}
 
 	return nil
 }
 
-// CrtPath 获取 cert 证书的绝对路径
+// CrtPath 获取证书的绝对路径
 func (s *Ssl) CrtPath() string {
 	return filepath.Join(BasePath, SslDir, s.Crt)
 }
@@ -57,7 +57,7 @@ func (s *Ssl) KeyPath() string {
 	return filepath.Join(BasePath, SslDir, s.Key)
 }
 
-// initSslDir 初始化 ssl 目录
+// initSslDir 初始化 SSL 目录
 func initSslDir() error {
 	absPath := filepath.Join(BasePath, SslDir)
 	stat, err := os.Stat(absPath)

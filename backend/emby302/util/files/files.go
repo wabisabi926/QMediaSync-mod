@@ -7,8 +7,8 @@ import (
 
 // ReleasePath 释放本地文件路径
 //
-// 如果 p 是目录, 则整个目录被删除
-// 如果 p 是文件, 则文件被删除
+// 如果 p 是目录, 则删除整个目录。
+// 如果 p 是文件, 则删除该文件。
 func ReleasePath(p string) error {
 	stat, err := os.Stat(p)
 	if err != nil {

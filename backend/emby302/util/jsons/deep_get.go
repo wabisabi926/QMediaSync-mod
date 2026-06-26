@@ -7,7 +7,7 @@ type TempItem struct {
 	item *Item
 }
 
-// Attr 获取对象 item 某个 key 的值
+// Attr 获取对象 Item 中某个键的值
 // 如果需要立即获得 *Item 对象, 需要链式调用 Done() 方法获取
 func (ti *TempItem) Attr(key string) *TempItem {
 	if ti.item == nil {
@@ -25,7 +25,7 @@ func (ti *TempItem) Attr(key string) *TempItem {
 	return ti
 }
 
-// Idx 获取数组 item 某个 index 的值
+// Idx 获取数组 Item 中某个索引的值
 // 如果需要立即获得 *Item 对象, 需要链式调用 Done() 方法获取
 func (ti *TempItem) Idx(index int) *TempItem {
 	if ti.item == nil {
@@ -112,7 +112,7 @@ func (ti *TempItem) String() (string, bool) {
 	return "", false
 }
 
-// Val 获取链式调用后的 val 值, 类型不匹配时返回 nil
+// Val 获取链式调用后的值, 类型不匹配时返回 nil
 func (ti *TempItem) Val() any {
 	if ti.item == nil || ti.item.jType != JsonTypeVal {
 		return nil
@@ -120,7 +120,7 @@ func (ti *TempItem) Val() any {
 	return ti.item.val
 }
 
-// Set 设置当前链式调用后的 val 值, 类型不匹配时不作更改
+// Set 设置当前链式调用后的值, 类型不匹配时不作更改
 func (ti *TempItem) Set(val any) *TempItem {
 	if ti.item == nil || ti.item.jType != JsonTypeVal {
 		return ti

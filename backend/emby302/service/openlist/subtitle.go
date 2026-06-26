@@ -2,7 +2,7 @@ package openlist
 
 var (
 
-	// langDisplayNames 将 openlist 的字幕代码转换成对应名称
+	// langDisplayNames 将 OpenList 的字幕代码转换成对应名称
 	langDisplayNames = map[string]string{
 		"chi": "简体中文",
 		"eng": "English",
@@ -10,7 +10,7 @@ var (
 	}
 )
 
-// SubLangDisplayName 将 lang 转换成对应名称
+// SubLangDisplayName 将字幕语言代码转换成对应名称
 func SubLangDisplayName(lang string) string {
 	if name, ok := langDisplayNames[lang]; ok {
 		return name

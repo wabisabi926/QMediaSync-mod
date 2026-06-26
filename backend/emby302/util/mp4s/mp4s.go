@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// GenWithDuration 生成指定时长的 mp4 视频数据
+// GenWithDuration 生成指定时长的 MP4 视频数据
 func GenWithDuration(d time.Duration) []byte {
 	var buf bytes.Buffer
 
@@ -18,49 +18,49 @@ func GenWithDuration(d time.Duration) []byte {
 	})
 
 	writeBox(&buf, "moov", func(moov *bytes.Buffer) {
-		// mvhd (全局 movie duration)
+		// mvhd (全局影片时长)
 		writeBox(moov, "mvhd", func(b *bytes.Buffer) {
-			b.WriteByte(0x00)                                           // version
-			b.Write([]byte{0x00, 0x00, 0x00})                           // flags
-			b.Write(make([]byte, 4))                                    // creation_time
-			b.Write(make([]byte, 4))                                    // modification_time
-			binary.Write(b, binary.BigEndian, uint32(1000))             // timescale
+			b.WriteByte(0x00)                                           // 版本
+			b.Write([]byte{0x00, 0x00, 0x00})                           // 标志位
+			b.Write(make([]byte, 4))                                    // 创建时间
+			b.Write(make([]byte, 4))                                    // 修改时间
+			binary.Write(b, binary.BigEndian, uint32(1000))             // 时间刻度
 			binary.Write(b, binary.BigEndian, uint32(d.Milliseconds())) // duration: 视频时长
-			binary.Write(b, binary.BigEndian, uint32(0x00010000))       // rate 1.0
-			binary.Write(b, binary.BigEndian, uint16(0x0100))           // volume 1.0
-			b.Write(make([]byte, 10))                                   // reserved
+			binary.Write(b, binary.BigEndian, uint32(0x00010000))       // 播放速率 1.0
+			binary.Write(b, binary.BigEndian, uint16(0x0100))           // 音量 1.0
+			b.Write(make([]byte, 10))                                   // 保留字段
 			binary.Write(b, binary.BigEndian, [9]uint32{
 				0x00010000, 0, 0,
 				0, 0x00010000, 0,
 				0, 0, 0x40000000,
-			}) // unity matrix
-			b.Write(make([]byte, 24))                    // pre-defined
-			binary.Write(b, binary.BigEndian, uint32(2)) // next track ID
+			}) // 单位矩阵
+			b.Write(make([]byte, 24))                    // 预定义字段
+			binary.Write(b, binary.BigEndian, uint32(2)) // 下一个 track ID
 		})
 
 		// trak (伪轨道)
 		writeBox(moov, "trak", func(trak *bytes.Buffer) {
-			// tkhd (track header)
+			// tkhd (轨道头)
 			writeBox(trak, "tkhd", func(b *bytes.Buffer) {
 				b.WriteByte(0x00)
-				b.Write([]byte{0x00, 0x00, 0x07})                           // flags: track enabled, in movie, in preview
-				b.Write(make([]byte, 4))                                    // creation_time
-				b.Write(make([]byte, 4))                                    // modification_time
+				b.Write([]byte{0x00, 0x00, 0x07})                           // 标志位: 轨道启用, 位于影片和预览中
+				b.Write(make([]byte, 4))                                    // 创建时间
+				b.Write(make([]byte, 4))                                    // 修改时间
 				binary.Write(b, binary.BigEndian, uint32(1))                // track_ID
-				b.Write(make([]byte, 4))                                    // reserved
+				b.Write(make([]byte, 4))                                    // 保留字段
 				binary.Write(b, binary.BigEndian, uint32(d.Milliseconds())) // duration
-				b.Write(make([]byte, 8))                                    // reserved
-				binary.Write(b, binary.BigEndian, uint16(0))                // layer
-				binary.Write(b, binary.BigEndian, uint16(0))                // alternate group
-				binary.Write(b, binary.BigEndian, uint16(0))                // volume
-				b.Write([]byte{0x00, 0x00})                                 // reserved
+				b.Write(make([]byte, 8))                                    // 保留字段
+				binary.Write(b, binary.BigEndian, uint16(0))                // 图层
+				binary.Write(b, binary.BigEndian, uint16(0))                // 备用分组
+				binary.Write(b, binary.BigEndian, uint16(0))                // 音量
+				b.Write([]byte{0x00, 0x00})                                 // 保留字段
 				binary.Write(b, binary.BigEndian, [9]uint32{
 					0x00010000, 0, 0,
 					0, 0x00010000, 0,
 					0, 0, 0x40000000,
-				}) // matrix
-				binary.Write(b, binary.BigEndian, uint32(0)) // width
-				binary.Write(b, binary.BigEndian, uint32(0)) // height
+				}) // 矩阵
+				binary.Write(b, binary.BigEndian, uint32(0)) // 宽度
+				binary.Write(b, binary.BigEndian, uint32(0)) // 高度
 			})
 
 			// mdia
@@ -69,25 +69,25 @@ func GenWithDuration(d time.Duration) []byte {
 				writeBox(mdia, "mdhd", func(b *bytes.Buffer) {
 					b.WriteByte(0x00)
 					b.Write([]byte{0x00, 0x00, 0x00})
-					b.Write(make([]byte, 4))                                    // creation_time
-					b.Write(make([]byte, 4))                                    // modification_time
-					binary.Write(b, binary.BigEndian, uint32(1000))             // timescale
+					b.Write(make([]byte, 4))                                    // 创建时间
+					b.Write(make([]byte, 4))                                    // 修改时间
+					binary.Write(b, binary.BigEndian, uint32(1000))             // 时间刻度
 					binary.Write(b, binary.BigEndian, uint32(d.Milliseconds())) // duration
 					binary.Write(b, binary.BigEndian, uint16(0x55c4))           // language = und (ISO-639-2/T code)
-					b.Write([]byte{0x00, 0x00})                                 // pre-defined
+					b.Write([]byte{0x00, 0x00})                                 // 预定义字段
 				})
 
 				// hdlr (handler type: vide)
 				writeBox(mdia, "hdlr", func(b *bytes.Buffer) {
-					b.Write([]byte{0x00, 0x00, 0x00, 0x00}) // version + flags
-					b.Write(make([]byte, 4))                // pre_defined
+					b.Write([]byte{0x00, 0x00, 0x00, 0x00}) // 版本 + 标志位
+					b.Write(make([]byte, 4))                // 预定义字段
 					b.Write([]byte("vide"))                 // handler_type
-					b.Write(make([]byte, 12))               // reserved
-					b.WriteString("Fake Video Handler")     // name
-					b.WriteByte(0x00)                       // null terminator
+					b.Write(make([]byte, 12))               // 保留字段
+					b.WriteString("Fake Video Handler")     // 名称
+					b.WriteByte(0x00)                       // 结束符
 				})
 
-				// minf（可选，不加也能解析）
+				// minf（可选, 不加也能解析）
 			})
 		})
 	})

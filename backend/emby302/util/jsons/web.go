@@ -5,12 +5,12 @@ import (
 	"strconv"
 )
 
-// OkResp 返回 json 响应, 状态码 200
+// OkResp 返回 JSON 响应, 状态码 200
 func OkResp(w http.ResponseWriter, data *Item) {
 	Resp(w, http.StatusOK, data)
 }
 
-// Resp 返回 json 响应
+// Resp 返回 JSON 响应
 func Resp(w http.ResponseWriter, code int, data *Item) {
 	if w == nil {
 		return

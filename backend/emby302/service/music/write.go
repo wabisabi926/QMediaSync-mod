@@ -47,7 +47,7 @@ func WriteNFO(filePath string, meta ffmpeg.Music) error {
 	return enc.Encode(info)
 }
 
-// WriteFakeMP3 将音乐元数据写入一个本地虚假 mp3 文件中, 需要先初始化 ffmpeg
+// WriteFakeMP3 将音乐元数据写入一个本地虚假 MP3 文件中, 需要先初始化 FFmpeg
 //
 // 可通过 d 参数指定生成音频的时长
 func WriteFakeMP3(filePath string, meta ffmpeg.Music, pic []byte) error {
@@ -86,7 +86,7 @@ func WriteFakeMP3(filePath string, meta ffmpeg.Music, pic []byte) error {
 	// 写标签到文件头
 	buf := bytes.Buffer{}
 	if _, err := id3tag.WriteTo(&buf); err != nil {
-		return fmt.Errorf("写入标签至缓冲区发生异常: %w", err)
+		return fmt.Errorf("写入标签到缓冲区失败: %w", err)
 	}
 
 	silent, err := ffmpeg.GenSilentMP3Bytes(meta.Duration.Seconds())
@@ -94,7 +94,7 @@ func WriteFakeMP3(filePath string, meta ffmpeg.Music, pic []byte) error {
 		return fmt.Errorf("生成虚拟静音音频失败: %w", err)
 	}
 	if _, err := buf.Write(silent); err != nil {
-		return fmt.Errorf("写入虚拟静音音频至缓冲区发生异常: %w", err)
+		return fmt.Errorf("写入虚拟静音音频到缓冲区失败: %w", err)
 	}
 
 	return os.WriteFile(filePath, buf.Bytes(), os.ModePerm)

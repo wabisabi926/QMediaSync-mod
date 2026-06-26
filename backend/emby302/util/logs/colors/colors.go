@@ -14,7 +14,7 @@ const (
 	reset = "\x1b[0m"
 )
 
-// Enabler
+// Enabler 控制是否启用颜色输出
 type Enabler interface {
 
 	// EnableColor 标记是否启用颜色输出

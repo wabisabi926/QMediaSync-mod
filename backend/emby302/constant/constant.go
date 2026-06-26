@@ -47,7 +47,7 @@ const (
 )
 
 const (
-	RouteSubMatchGinKey = "routeSubMatches" // 路由匹配成功时, 会将匹配的正则结果存放到 Gin 上下文
+	RouteSubMatchGinKey = "routeSubMatches" // 路由匹配成功时, 将匹配到的正则结果存放到 Gin 上下文
 
 	CustomJsDirName  = "custom-js"  // 自定义脚本存放目录
 	CustomCssDirName = "custom-css" // 自定义样式存放目录

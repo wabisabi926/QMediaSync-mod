@@ -16,17 +16,17 @@ import (
 	"qmediasync/emby302/util/strs"
 )
 
-// NewEmptyObj 初始化一个对象类型的 json 数据
+// NewEmptyObj 初始化一个对象类型的 JSON 数据
 func NewEmptyObj() *Item {
 	return &Item{obj: make(map[string]*Item), jType: JsonTypeObj}
 }
 
-// NewEmptyArr 初始化一个数组类型的 json 数据
+// NewEmptyArr 初始化一个数组类型的 JSON 数据
 func NewEmptyArr() *Item {
 	return &Item{arr: make([]*Item, 0), jType: JsonTypeArr}
 }
 
-// FromObject 根据对象初始化 json 数据
+// FromObject 根据对象初始化 JSON 数据
 func FromObject(obj any) *Item {
 	if obj == nil {
 		return FromValue(nil)
@@ -63,7 +63,7 @@ func FromObject(obj any) *Item {
 	return item
 }
 
-// FromArray 根据数组初始化 json 数据
+// FromArray 根据数组初始化 JSON 数据
 func FromArray(arr any) *Item {
 	if arr == nil {
 		return FromValue(nil)
@@ -88,7 +88,7 @@ func FromArray(arr any) *Item {
 	return item
 }
 
-// FromValue 根据指定普通值初始化 json 数据, 如果是数组或对象类型也会自动转化
+// FromValue 根据指定普通值初始化 JSON 数据, 如果是数组或对象类型也会自动转化
 func FromValue(val any) *Item {
 	item := &Item{jType: JsonTypeVal}
 	if val == nil {
@@ -118,7 +118,7 @@ func FromValue(val any) *Item {
 	}
 }
 
-// New 从 json 字符串中初始化成 item 对象
+// New 从 JSON 字符串中初始化为 Item 对象
 func New(rawJson string) (i *Item, err error) {
 	defer func() {
 		if rec := recover(); rec != nil {
@@ -174,7 +174,7 @@ func makeObject(rawData map[string]json.RawMessage) (*Item, error) {
 		return item, nil
 	}
 
-	// map 转切片, 分块处理
+	// map 转切片后分块处理
 	keys := maps.Keys(rawData)
 	ranges := parallels.SliceChunk(len(keys))
 

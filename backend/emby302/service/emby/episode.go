@@ -17,7 +17,7 @@ import (
 // ResortEpisodes 代理剧集列表请求
 //
 // 如果开启了 emby.episodes-unplay-prior 配置,
-// 则会将未播剧集排在前面位置
+// 则将未播剧集排在前面
 func ResortEpisodes(c *gin.Context) {
 	// 1 检查配置是否开启
 	if !config.C.Emby.EpisodesUnplayPrior {
@@ -77,7 +77,7 @@ func ResortEpisodes(c *gin.Context) {
 	playedItems, allItems := make([]json.RawMessage, 0, len(ih.Items)), make([]json.RawMessage, 0, len(ih.Items))
 	for idx, value := range ih.Items {
 		if len(allItems) > 0 {
-			// 找到第一个未播的剧集之后, 剩余剧集都当作是未播的
+			// 找到第一个未播剧集之后, 剩余剧集都按未播处理
 			allItems = slices.Concat(allItems, ih.Items[idx:])
 			break
 		}

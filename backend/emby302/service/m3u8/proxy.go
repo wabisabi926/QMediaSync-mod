@@ -35,12 +35,12 @@ func baseCheck(c *gin.Context) (ProxyParams, error) {
 	return params, nil
 }
 
-// ProxyPlaylist 代理 m3u8 转码地址
+// ProxyPlaylist 代理 M3U8 转码地址
 func ProxyPlaylist(c *gin.Context) {
 	params, err := baseCheck(c)
 	if err != nil {
-		logs.Error("代理 m3u8 失败: %v", err.Error())
-		c.String(http.StatusBadRequest, "代理 m3u8 失败, 请检查日志")
+		logs.Error("代理 M3U8 失败: %v", err.Error())
+		c.String(http.StatusBadRequest, "代理 M3U8 失败, 请检查日志")
 		return
 	}
 
@@ -68,12 +68,12 @@ func ProxyPlaylist(c *gin.Context) {
 	c.String(http.StatusBadRequest, "获取不到播放列表, 请检查日志")
 }
 
-// ProxyTsLink 代理 ts 直链地址
+// ProxyTsLink 代理 TS 直链地址
 func ProxyTsLink(c *gin.Context) {
 	params, err := baseCheck(c)
 	if err != nil {
-		logs.Error("代理 ts 失败: %v", err)
-		c.String(http.StatusBadRequest, "代理 ts 失败, 请检查日志")
+		logs.Error("代理 TS 失败: %v", err)
+		c.String(http.StatusBadRequest, "代理 TS 失败, 请检查日志")
 		return
 	}
 
@@ -84,7 +84,7 @@ func ProxyTsLink(c *gin.Context) {
 	}
 
 	okRedirect := func(link string) {
-		logs.Success("重定向 ts: %s", link)
+		logs.Success("重定向 TS: %s", link)
 		c.Redirect(http.StatusTemporaryRedirect, link)
 	}
 
@@ -102,7 +102,7 @@ func ProxyTsLink(c *gin.Context) {
 		okRedirect(tsLink)
 		return
 	}
-	c.String(http.StatusBadRequest, "获取不到 ts, 请检查日志")
+	c.String(http.StatusBadRequest, "获取不到 TS, 请检查日志")
 }
 
 // ProxySubtitle 代理字幕请求

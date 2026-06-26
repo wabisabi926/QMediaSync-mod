@@ -16,7 +16,7 @@ import (
 	"qmediasync/emby302/util/strs"
 )
 
-// FetchResource 请求 openlist 资源 url 直链
+// FetchResource 请求 OpenList 资源 URL 直链
 func FetchResource(fi FetchInfo) model.HttpRes[Resource] {
 	if strs.AnyEmpty(fi.Path) {
 		return model.HttpRes[Resource]{Code: http.StatusBadRequest, Msg: "参数 path 不能为空"}
@@ -81,7 +81,7 @@ func FetchResource(fi FetchInfo) model.HttpRes[Resource] {
 	}
 }
 
-// FetchFsList 请求 openlist "/api/fs/list" 接口
+// FetchFsList 请求 OpenList "/api/fs/list" 接口
 //
 // 传入 path 与接口的 path 作用一致
 func FetchFsList(path string, header http.Header) model.HttpRes[FsList] {
@@ -104,7 +104,7 @@ func FetchFsList(path string, header http.Header) model.HttpRes[FsList] {
 	return model.HttpRes[FsList]{Code: http.StatusOK, Data: res}
 }
 
-// FetchFsGet 请求 openlist "/api/fs/get" 接口
+// FetchFsGet 请求 OpenList "/api/fs/get" 接口
 //
 // 传入 path 与接口的 path 作用一致
 func FetchFsGet(path string, header http.Header) model.HttpRes[FsGet] {
@@ -127,7 +127,7 @@ func FetchFsGet(path string, header http.Header) model.HttpRes[FsGet] {
 	return model.HttpRes[FsGet]{Code: http.StatusOK, Data: res}
 }
 
-// FetchFsOther 请求 openlist "/api/fs/other" 接口
+// FetchFsOther 请求 OpenList "/api/fs/other" 接口
 //
 // 传入 path 与接口的 path 作用一致
 func FetchFsOther(path string, header http.Header) model.HttpRes[FsOther] {
@@ -150,7 +150,7 @@ func FetchFsOther(path string, header http.Header) model.HttpRes[FsOther] {
 	return model.HttpRes[FsOther]{Code: http.StatusOK, Data: res}
 }
 
-// Fetch 请求 openlist api, 响应封装在 v 指针指向的结构中
+// Fetch 请求 OpenList API, 响应封装在 v 指针指向的结构中
 func Fetch(uri, method string, header http.Header, body map[string]any, v any, closeConn bool) error {
 	host := config.C.Openlist.Host
 	token := config.C.Openlist.Token
@@ -205,14 +205,14 @@ func Fetch(uri, method string, header http.Header, body map[string]any, v any, c
 	return nil
 }
 
-// addMainApiRunner 添加主 api 请求标记
+// addMainApiRunner 添加主 API 请求标记
 func addMainApiRunner() {
 	walkWaiterMu.Lock()
 	mainApiRunnerCount++
 	walkWaiterMu.Unlock()
 }
 
-// removeMainApiRunner 移除主 api 请求标记
+// removeMainApiRunner 移除主 API 请求标记
 func removeMainApiRunner() {
 	walkWaiterMu.Lock()
 	if mainApiRunnerCount > 0 {

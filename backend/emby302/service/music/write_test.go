@@ -14,7 +14,7 @@ const host = "http://0.0.0.0:12345"
 func requireIntegration(t *testing.T) {
 	t.Helper()
 	if os.Getenv("QMS_INTEGRATION_TESTS") != "1" {
-		t.Skip("set QMS_INTEGRATION_TESTS=1 to run music integration tests")
+		t.Skip("设置 QMS_INTEGRATION_TESTS=1 后运行音乐集成测试")
 	}
 	helpers.ConfigDir = t.TempDir()
 	helpers.AppLogger = helpers.NewLogger("test.log", true, false)

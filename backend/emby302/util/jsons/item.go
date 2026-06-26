@@ -6,7 +6,7 @@ import (
 	"slices"
 )
 
-// JsonType json 属性值类型
+// JsonType JSON 属性值类型
 type JsonType string
 
 const (
@@ -15,8 +15,8 @@ const (
 	JsonTypeArr JsonType = "arr"
 )
 
-// ErrBreakRange 停止遍历
-var ErrBreakRange = errors.New("break arr or obj range")
+// ErrBreakRange 停止遍历数组或对象
+var ErrBreakRange = errors.New("停止遍历数组或对象")
 
 // Item 表示一个 JSON 数据项
 type Item struct {
@@ -34,12 +34,12 @@ type Item struct {
 	jType JsonType
 }
 
-// Type 获取 json 项类型
+// Type 获取 JSON 项类型
 func (i *Item) Type() JsonType {
 	return i.jType
 }
 
-// Put obj 设置键值对
+// Put 为对象设置键值对
 func (i *Item) Put(key string, value *Item) {
 	if i.jType != JsonTypeObj || value == nil {
 		return
@@ -47,7 +47,7 @@ func (i *Item) Put(key string, value *Item) {
 	i.obj[key] = value
 }
 
-// Attr 获取对象属性的某个 key 值
+// Attr 获取对象属性的某个键值
 func (i *Item) Attr(key string) *TempItem {
 	ti := &TempItem{item: i}
 	return ti.Attr(key)
@@ -77,7 +77,7 @@ func (i *Item) DelKey(key string) {
 	delete(i.obj, key)
 }
 
-// Append arr 添加属性
+// Append 向数组添加元素
 func (i *Item) Append(values ...*Item) {
 	if i.jType != JsonTypeArr || len(values) == 0 {
 		return
@@ -101,7 +101,7 @@ func (i *Item) Idx(index int) *TempItem {
 	return ti.Idx(index)
 }
 
-// PutIdx 设置数组指定索引的 item
+// PutIdx 设置数组指定索引的 Item
 func (i *Item) PutIdx(index int, newItem *Item) {
 	if i.jType != JsonTypeArr || newItem == nil || index < 0 {
 		return
@@ -151,9 +151,9 @@ func (i *Item) FindIdx(filterFunc func(val *Item) bool) int {
 	return idx
 }
 
-// Filter 过滤数组元素, 返回一个新的 item 对象
+// Filter 过滤数组元素, 返回一个新的 Item 对象
 //
-// 如果 i 不为数组, 返回空数组 item 对象
+// 如果 i 不为数组, 返回空数组 Item 对象
 func (i *Item) Filter(filterFunc func(val *Item) bool) *Item {
 	res := NewEmptyArr()
 	if i.jType != JsonTypeArr {
@@ -181,7 +181,7 @@ func (i *Item) Map(mapFunc func(val *Item) any) []any {
 	return res
 }
 
-// Shuffle 打乱一个数组, 只有这个 item 是数组类型时, 才生效
+// Shuffle 打乱数组, 只有当前 Item 是数组类型时才生效
 func (i *Item) Shuffle() {
 	if i.jType != JsonTypeArr {
 		return
@@ -204,7 +204,7 @@ func (i *Item) DelIdx(index int) {
 
 // Len 返回子项个数
 //
-//	如果 Type 为 obj 和 arr, 返回子项个数
+//	如果 Type 为 obj 或 arr, 返回子项个数
 //	如果 Type 为 val, 返回 0
 func (i *Item) Len() int {
 	switch i.jType {

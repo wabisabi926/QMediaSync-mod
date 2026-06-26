@@ -17,16 +17,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// HandleSyncDownload 处理 Sync 下载接口, 重定向到直链
+// HandleSyncDownload 处理 Sync 下载接口, 并重定向到直链
 func HandleSyncDownload(c *gin.Context) {
-	// 解析出 JobItems id
+	// 解析 JobItems ID
 	itemInfo, err := resolveItemInfo(c, RouteSyncDownload)
 	if checkErr(c, err) {
 		return
 	}
-	logs.Info("解析出来的 itemInfo 信息: %v", itemInfo)
+	logs.Info("解析得到的 ItemInfo 信息: %v", itemInfo)
 	if itemInfo.Id == "" {
-		checkErr(c, errors.New("JobItems id 为空"))
+		checkErr(c, errors.New("JobItems ID 为空"))
 		return
 	}
 
@@ -34,7 +34,7 @@ func HandleSyncDownload(c *gin.Context) {
 	targetUri := "/Sync/Targets?api_key=" + itemInfo.ApiKey
 	resp, _ := Fetch(targetUri, http.MethodGet, nil, nil)
 	if resp.Code != http.StatusOK {
-		checkErr(c, fmt.Errorf("请求 emby 失败: %v, uri: %s", resp.Msg, targetUri))
+		checkErr(c, fmt.Errorf("请求 Emby 失败: %v, URI: %s", resp.Msg, targetUri))
 		return
 	}
 	targets := resp.Data
@@ -43,7 +43,7 @@ func HandleSyncDownload(c *gin.Context) {
 		return
 	}
 
-	// 每个 id 逐一尝试
+	// 逐个 ID 尝试
 	readyUriTmpl := "/Sync/Items/Ready?api_key=" + itemInfo.ApiKey + "&TargetId="
 	targets.RangeArr(func(_ int, target *jsons.Item) error {
 		id, ok := target.Attr("Id").String()
@@ -55,7 +55,7 @@ func HandleSyncDownload(c *gin.Context) {
 		readyUri := readyUriTmpl + id
 		resp, _ := Fetch(readyUri, http.MethodGet, nil, nil)
 		if resp.Code != http.StatusOK {
-			checkErr(c, fmt.Errorf("请求 emby 失败: %v, uri: %s", resp.Msg, readyUri))
+			checkErr(c, fmt.Errorf("请求 Emby 失败: %v, URI: %s", resp.Msg, readyUri))
 			return jsons.ErrBreakRange
 		}
 		readyItems := resp.Data
@@ -63,7 +63,7 @@ func HandleSyncDownload(c *gin.Context) {
 			return nil
 		}
 
-		// 遍历所有 item
+		// 遍历所有 Item
 		breakRange := false
 		readyItems.RangeArr(func(_ int, ri *jsons.Item) error {
 			jobId, ok := ri.Attr("SyncJobItemId").Int()
@@ -74,20 +74,20 @@ func HandleSyncDownload(c *gin.Context) {
 				return nil
 			}
 
-			// 匹配成功, 获取到下载项目的 ItemId, 重新封装请求, 进行直链重定向
+			// 匹配成功后获取下载项目的 ItemId, 重新封装请求并重定向到直链
 			itemId, ok := ri.Attr("Item").Attr("Id").String()
 			if !ok {
-				checkErr(c, fmt.Errorf("解析 emby 响应异常: 获取不到 itemId, 原始响应: %v", ri))
+				checkErr(c, fmt.Errorf("解析 Emby 响应失败: 获取不到 ItemId, 原始响应: %v", ri))
 				breakRange = true
 				return jsons.ErrBreakRange
 			}
 			msId, ok := ri.Attr("Item").Attr("MediaSources").Idx(0).Attr("Id").String()
 			if !ok {
-				checkErr(c, fmt.Errorf("解析 emby 响应异常: 获取不到 mediaSourceId, 原始响应: %v", ri))
+				checkErr(c, fmt.Errorf("解析 Emby 响应失败: 获取不到 MediaSourceId, 原始响应: %v", ri))
 				breakRange = true
 				return jsons.ErrBreakRange
 			}
-			logs.Success("成功匹配到 itemId: %s, mediaSourceId: %s", itemId, msId)
+			logs.Success("已匹配到 ItemId: %s, MediaSourceId: %s", itemId, msId)
 
 			newUrl, _ := url.Parse(fmt.Sprintf("/videos/%s/stream?MediaSourceId=%s&api_key=%s&Static=true", itemId, msId, itemInfo.ApiKey))
 			c.Redirect(http.StatusTemporaryRedirect, newUrl.String())

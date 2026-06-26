@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-// Struct 将 item 转换为结构体对象
+// Struct 将 Item 转换为结构体对象
 func (i *Item) Struct() any {
 	switch i.jType {
 	case JsonTypeVal:
@@ -28,7 +28,7 @@ func (i *Item) Struct() any {
 	}
 }
 
-// bufPool json 序列化时复用缓冲区
+// bufPool JSON 序列化时复用缓冲区
 var bufPool = sync.Pool{
 	New: func() any {
 		return new(bytes.Buffer)
@@ -58,7 +58,7 @@ func (i *Item) MarshalJSON() ([]byte, error) {
 	}
 }
 
-// Bytes 将 item 转换为字节切片
+// Bytes 将 Item 转换为字节切片
 func (i *Item) Bytes() []byte {
 	buf := bufPool.Get().(*bytes.Buffer)
 	buf.Reset()
@@ -71,7 +71,7 @@ func (i *Item) Bytes() []byte {
 	return append([]byte(nil), buf.Bytes()...)
 }
 
-// String 将 item 转换为 json 字符串
+// String 将 Item 转换为 JSON 字符串
 func (i *Item) String() string {
 	return string(i.Bytes())
 }

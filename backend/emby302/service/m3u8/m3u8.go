@@ -11,7 +11,7 @@ import (
 
 const (
 
-	// MaxPlaylistNum 在内存中最多维护的 m3u8 列表个数
+	// MaxPlaylistNum 在内存中最多维护的 M3U8 播放列表个数
 	// 超出则淘汰最久没有读取的一个
 	MaxPlaylistNum = 10
 
@@ -23,10 +23,10 @@ func init() {
 	go loopMaintainPlaylist()
 }
 
-// GetPlaylist 获取 m3u 播放列表, 返回 m3u 文本
+// GetPlaylist 获取 M3U8 播放列表, 返回 M3U8 文本
 var GetPlaylist func(openlistPath, templateId string, proxy, main bool, routePrefix, clientApiKey string) (string, bool)
 
-// GetTsLink 获取 m3u 播放列表中的某个 ts 链接
+// GetTsLink 获取 M3U8 播放列表中的某个 TS 链接
 var GetTsLink func(openlistPath, templateId string, idx int) (string, bool)
 
 // GetSubtitleLink 获取字幕链接
@@ -40,10 +40,10 @@ var preMaintainInfoChan = make(chan Info, PreChanSize)
 // preChanHandlingGroup 维护预处理通道的处理状态
 //
 // 当有新的任务加入通道时, group + 1
-// 当 gouroutine 处理完一个任务时, group - 1
+// 当 goroutine 处理完一个任务时, group - 1
 var preChanHandlingGroup = sync.WaitGroup{}
 
-// PushPlaylistAsync 将一个 openlist 转码资源异步缓存到内存中
+// PushPlaylistAsync 将一个 OpenList 转码资源异步缓存到内存中
 func PushPlaylistAsync(info Info) {
 	if info.OpenlistPath == "" || info.TemplateId == "" {
 		return
@@ -67,27 +67,27 @@ func PushPlaylistAsync(info Info) {
 
 // loopMaintainPlaylist 由单独的 goroutine 执行
 //
-// 维护内存中的 m3u8 播放列表
+// 维护内存中的 M3U8 播放列表
 func loopMaintainPlaylist() {
 	// map 记录播放列表, 用于快速响应客户端
 	infoMap := map[string]*Info{}
 	// arr 记录播放列表, 便于实现淘汰机制
 	infoArr := make([]*Info, 0)
 
-	// maintainDuration goroutine 维护 playlist 的间隔
+	// maintainDuration goroutine 维护播放列表的间隔
 	maintainDuration := time.Minute * 10
-	// stopUpdateTimeMillis 超过这个时间未读, playlist 停止更新
+	// stopUpdateTimeMillis 超过这个时间未读, 播放列表停止更新
 	stopUpdateTimeMillis := (maintainDuration + time.Minute).Milliseconds()
-	// removeTimeMillis 超过这个时间未读, playlist 被移除
+	// removeTimeMillis 超过这个时间未读, 播放列表被移除
 	removeTimeMillis := time.Hour.Milliseconds()
 
-	// publicApiUpdateMutex 对外部暴露的 api 的内部实现中
-	// 如果涉及到更新的操作, 需要获取这个锁, 避免频繁请求 openlist
+	// publicApiUpdateMutex 对外部暴露的 API 的内部实现中
+	// 如果涉及更新操作, 需要获取这个锁, 避免频繁请求 OpenList。
 	publicApiUpdateMutex := sync.Mutex{}
 
 	// printErr 打印错误日志
 	printErr := func(info *Info, err error) {
-		logs.Error("playlist 更新失败, path: %s, template: %s, err: %v", info.OpenlistPath, info.TemplateId, err)
+		logs.Error("播放列表更新失败, OpenListPath: %s, TemplateId: %s, 错误: %v", info.OpenlistPath, info.TemplateId, err)
 	}
 
 	// calcMapKey 计算 info 在 map 中的 key
@@ -204,7 +204,7 @@ func loopMaintainPlaylist() {
 			// 长时间未读, 移除
 			if beforeNow(info.LastUpdate + removeTimeMillis) {
 				removeInfo(key)
-				logs.Tip("playlist 长时间未被更新, 已移除, openlistPath: %s, templateId: %s", info.OpenlistPath, info.TemplateId)
+				logs.Tip("播放列表长时间未更新, 已移除, OpenListPath: %s, TemplateId: %s", info.OpenlistPath, info.TemplateId)
 				tot--
 				continue
 			}
@@ -225,7 +225,7 @@ func loopMaintainPlaylist() {
 		}
 
 		if len(cpArr) > 0 {
-			logs.Progress("当前正在维护的 playlist 个数: %d, 活跃个数: %d", tot, active)
+			logs.Progress("当前正在维护的播放列表数: %d, 活跃数: %d", tot, active)
 		}
 	}
 
@@ -267,7 +267,7 @@ func loopMaintainPlaylist() {
 		copy(toDeletes, infoArr)
 		for _, toDel := range toDeletes {
 			removeInfo(calcMapKey(Info{OpenlistPath: toDel.OpenlistPath, TemplateId: toDel.TemplateId}))
-			logs.Tip("playlist 被淘汰并从内存中移除, openlistPath: %s, templateId: %s", toDel.OpenlistPath, toDel.TemplateId)
+			logs.Tip("播放列表已被淘汰并从内存中移除, OpenListPath: %s, TemplateId: %s", toDel.OpenlistPath, toDel.TemplateId)
 		}
 	}
 

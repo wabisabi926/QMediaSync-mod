@@ -12,8 +12,8 @@ import (
 
 // respCacheWriter 自定义的请求响应器
 type respCacheWriter struct {
-	gin.ResponseWriter               // gin 原始的响应器
-	body               *bytes.Buffer // gin 回写响应时, 同步缓存
+	gin.ResponseWriter               // Gin 原始响应器
+	body               *bytes.Buffer // Gin 回写响应时同步缓存
 }
 
 func (rcw *respCacheWriter) Write(b []byte) (int, error) {
@@ -72,7 +72,7 @@ func (c *respCache) BodyBytes() []byte {
 	return append([]byte(nil), c.body...)
 }
 
-// JsonBody 将响应体转化成 json 返回
+// JsonBody 将响应体转换成 JSON 返回
 func (c *respCache) JsonBody() (*jsons.Item, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()

@@ -42,17 +42,17 @@ var validDlStrategy = map[DlStrategy]struct{}{
 type Emby struct {
 	// Emby 源服务器地址
 	Host string `yaml:"host"`
-	// rclone 或者 cd 的挂载目录
+	// Rclone 或 CloudDrive 的挂载目录
 	MountPath string `yaml:"mount-path"`
 	// EpisodesUnplayPrior 在获取剧集列表时是否将未播资源优先展示
 	EpisodesUnplayPrior bool `yaml:"episodes-unplay-prior"`
-	// ResortRandomItems 是否对随机的 items 进行重排序
+	// ResortRandomItems 是否对随机 Items 进行重排序
 	ResortRandomItems bool `yaml:"resort-random-items"`
 	// ProxyErrorStrategy 代理错误时的处理策略
 	ProxyErrorStrategy PeStrategy `yaml:"proxy-error-strategy"`
 	// ImagesQuality 图片质量
 	ImagesQuality int `yaml:"images-quality"`
-	// Strm strm 配置
+	// Strm STRM 配置
 	Strm *Strm `yaml:"strm"`
 	// DownloadStrategy 下载接口响应策略
 	DownloadStrategy DlStrategy `yaml:"download-strategy"`
@@ -106,7 +106,7 @@ func (e *Emby) Init() error {
 	return nil
 }
 
-// Strm strm 配置
+// Strm STRM 配置
 type Strm struct {
 	// PathMap 远程路径映射
 	PathMap []string `yaml:"path-map"`
@@ -128,7 +128,7 @@ func (s *Strm) Init() error {
 	return nil
 }
 
-// MapPath 将传入路径按照预配置的映射关系从上到下按顺序进行映射,
+// MapPath 按照预配置的映射关系自上而下映射传入路径,
 // 至多成功映射一次
 func (s *Strm) MapPath(path string) string {
 	for _, m := range s.pathMap {

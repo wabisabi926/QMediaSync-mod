@@ -8,9 +8,9 @@ type VideoPreview struct {
 	// IgnoreTemplateIds 忽略的转码清晰度
 	IgnoreTemplateIds []string `yaml:"ignore-template-ids"`
 
-	// containerMap 依据 Containers 初始化该 map, 便于后续快速判断
+	// containerMap 依据 Containers 初始化的映射表, 便于后续快速判断
 	containerMap map[string]struct{}
-	// ignoreTemplateIdMap 依据 IgnoreTemplateIds 初始化该 map
+	// ignoreTemplateIdMap 依据 IgnoreTemplateIds 初始化的映射表
 	ignoreTemplateIdMap map[string]struct{}
 }
 

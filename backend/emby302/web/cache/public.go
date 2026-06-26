@@ -18,7 +18,7 @@ type RespCache interface {
 	// BodyBytes 克隆一个响应体
 	BodyBytes() []byte
 
-	// JsonBody 将响应体转化成 json 返回
+	// JsonBody 将响应体转换成 JSON 返回
 	JsonBody() (*jsons.Item, error)
 
 	// Header 获取响应头属性

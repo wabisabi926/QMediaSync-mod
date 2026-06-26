@@ -20,11 +20,11 @@ type OpenlistPathRes struct {
 	// Path 转换后的路径
 	Path string
 
-	// Range 遍历所有 Openlist 根路径生成的子路径
+	// Range 遍历所有 OpenList 根路径生成的子路径
 	Range func() ([]string, error)
 }
 
-// Emby2Openlist Emby 资源路径转 Openlist 资源路径
+// Emby2Openlist 将 Emby 资源路径转换为 OpenList 资源路径
 func Emby2Openlist(embyPath string) OpenlistPathRes {
 	pathRoutes := strings.Builder{}
 	pathRoutes.WriteString("[")
@@ -45,17 +45,17 @@ func Emby2Openlist(embyPath string) OpenlistPathRes {
 		pathRoutes.WriteString("\n\n【命中 emby2openlist 映射】 => " + openlistFilePath)
 	}
 	pathRoutes.WriteString("\n]")
-	logs.Tip("embyPath 转换路径: %s", pathRoutes.String())
+	logs.Tip("Emby 路径转换过程: %s", pathRoutes.String())
 
 	rangeFunc := func() ([]string, error) {
 		filePath, err := SplitFromSecondSlash(openlistFilePath)
 		if err != nil {
-			return nil, fmt.Errorf("openlistFilePath 解析异常: %s, error: %v", openlistFilePath, err)
+			return nil, fmt.Errorf("解析 OpenList 文件路径失败: %s, 错误: %v", openlistFilePath, err)
 		}
 
 		res := openlist.FetchFsList("/", nil)
 		if res.Code != http.StatusOK {
-			return nil, fmt.Errorf("请求 openlist fs list 接口异常: %s", res.Msg)
+			return nil, fmt.Errorf("请求 OpenList fs list 接口失败: %s", res.Msg)
 		}
 
 		paths := make([]string, 0, len(res.Data.Content))

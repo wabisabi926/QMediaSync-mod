@@ -8,9 +8,9 @@ import (
 )
 
 type Openlist struct {
-	// Token 访问 openlist 接口的密钥, 在 openlist 管理后台获取
+	// Token 访问 OpenList 接口的密钥, 可在 OpenList 管理后台获取
 	Token string `yaml:"token"`
-	// Host openlist 访问地址（如果 openlist 使用本地代理模式, 则这个地址必须配置公网可访问地址）
+	// Host OpenList 访问地址（如果 OpenList 使用本地代理模式, 该地址必须可公网访问）
 	Host string `yaml:"host"`
 
 	// LocalTreeGen 本地目录树生成相关
@@ -33,13 +33,13 @@ type LocalTreeGen struct {
 	// Enable 是否启用
 	Enable bool `yaml:"enable"`
 
-	// FFmpegEnable 是否启用 ffmpeg
+	// FFmpegEnable 是否启用 FFmpeg
 	FFmpegEnable bool `yaml:"ffmpeg-enable"`
 
 	// VirtualContainers 虚拟媒体容器, 原始串, 以英文逗号分割
 	VirtualContainers string `yaml:"virtual-containers"`
 
-	// StrmContainers strm 媒体容器, 原始串, 以英文逗号分割
+	// StrmContainers STRM 媒体容器, 原始串, 以英文逗号分割
 	StrmContainers string `yaml:"strm-containers"`
 
 	// MusicContainers 音乐媒体容器, 原始串, 以英文逗号分割
@@ -60,16 +60,16 @@ type LocalTreeGen struct {
 	// Threads 同步线程数
 	Threads int `yaml:"threads"`
 
-	// virtualContainers 虚拟媒体容器集合 便于快速查询
+	// virtualContainers 虚拟媒体容器集合, 便于快速查询
 	virtualContainers map[string]struct{}
 
-	// strmContainers strm 媒体容器集合 便于快速查询
+	// strmContainers STRM 媒体容器集合, 便于快速查询
 	strmContainers map[string]struct{}
 
-	// musicContainers 音乐媒体容器集合 便于快速查询
+	// musicContainers 音乐媒体容器集合, 便于快速查询
 	musicContainers map[string]struct{}
 
-	// ignoreContainers 忽略指定容器集合 便于快速查询
+	// ignoreContainers 忽略容器集合, 便于快速查询
 	ignoreContainers map[string]struct{}
 }
 
@@ -81,7 +81,7 @@ func (ltg *LocalTreeGen) Init() error {
 
 	if ltg.FFmpegEnable {
 		if err := ffmpeg.AutoDownloadExec(BasePath); err != nil {
-			return fmt.Errorf("ffmpeg 初始化失败: %w", err)
+			return fmt.Errorf("FFmpeg 初始化失败: %w", err)
 		}
 	}
 
@@ -146,7 +146,7 @@ func (ltg *LocalTreeGen) IsVirtual(container string) bool {
 	return ok
 }
 
-// IsStrm 判断一个容器是否属于 strm 容器
+// IsStrm 判断一个容器是否属于 STRM 容器
 func (ltg *LocalTreeGen) IsStrm(container string) bool {
 	container = strings.ToLower(container)
 	_, ok := ltg.strmContainers[container]
@@ -167,7 +167,7 @@ func (ltg *LocalTreeGen) IsIgnore(container string) bool {
 	return ok
 }
 
-// IsValidPrefix 判断一个 openlist 路径是否在扫描前缀的范围中
+// IsValidPrefix 判断一个 OpenList 路径是否在扫描前缀范围内
 func (ltg *LocalTreeGen) IsValidPrefix(path string) bool {
 	for _, prefix := range ltg.ScanPrefixes {
 		if strings.HasPrefix(path, prefix) || strings.HasPrefix(prefix, path) {

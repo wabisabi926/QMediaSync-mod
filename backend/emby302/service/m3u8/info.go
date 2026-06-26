@@ -19,9 +19,9 @@ import (
 	"qmediasync/emby302/util/urls"
 )
 
-// NewByContent 根据 m3u8 文本初始化一个 info 对象
+// NewByContent 根据 M3U8 文本初始化一个 Info 对象
 //
-// 如果文本中的 ts 地址是相对地址, 可通过 baseUrl 指定请求前缀
+// 如果文本中的 TS 地址是相对地址, 可通过 baseUrl 指定请求前缀。
 func NewByContent(baseUrl string, content io.Reader) (*Info, error) {
 	info := Info{
 		RemoteBase:    baseUrl,
@@ -39,7 +39,7 @@ func NewByContent(baseUrl string, content io.Reader) (*Info, error) {
 			continue
 		}
 
-		// 1 扫描到一行 ts
+		// 1 扫描到一行 TS
 		if lineBytes[0] != '#' {
 			lineBytes, found := bytes.CutPrefix(lineBytes, []byte(baseUrl))
 			if found {
@@ -76,7 +76,7 @@ func NewByContent(baseUrl string, content io.Reader) (*Info, error) {
 	return &info, nil
 }
 
-// NewByRemote 从一个远程的 m3u8 地址中初始化 info 对象
+// NewByRemote 从一个远程 M3U8 地址中初始化 Info 对象
 func NewByRemote(url string, header http.Header) (*Info, error) {
 	// 1 解析 base 地址
 	queryPos := strings.Index(url, "?")
@@ -85,28 +85,28 @@ func NewByRemote(url string, header http.Header) (*Info, error) {
 	}
 	lastSepPos := strings.LastIndex(url[:queryPos], "/")
 	if lastSepPos == -1 {
-		return nil, fmt.Errorf("错误的 m3u8 地址: %s", url)
+		return nil, fmt.Errorf("错误的 M3U8 地址: %s", url)
 	}
 	baseUrl := url[:lastSepPos+1]
 
 	// 2 请求远程地址
 	resp, err := https.Get(url).Header(header).Do()
 	if err != nil {
-		return nil, fmt.Errorf("请求远程地址失败, url: %s, err: %v", url, err)
+		return nil, fmt.Errorf("请求远程地址失败, URL: %s, 错误: %v", url, err)
 	}
 	defer resp.Body.Close()
 
-	// 3 判断是否为 m3u8 响应
+	// 3 判断是否为 M3U8 响应
 	contentType := resp.Header.Get("Content-Type")
 	if _, ok := ValidM3U8Contents[contentType]; !ok {
-		return nil, fmt.Errorf("不是有效的 m3u8 响应: %s", contentType)
+		return nil, fmt.Errorf("不是有效的 M3U8 响应: %s", contentType)
 	}
 
 	// 4 解析远程响应
 	return NewByContent(baseUrl, resp.Body)
 }
 
-// GetTsLink 获取 ts 流的直链地址
+// GetTsLink 获取 TS 流的直链地址
 func (i *Info) GetTsLink(idx int) (string, bool) {
 	size := len(i.RemoteTsInfos)
 	if idx < 0 || idx >= size {
@@ -115,9 +115,9 @@ func (i *Info) GetTsLink(idx int) (string, bool) {
 	return i.RemoteBase + i.RemoteTsInfos[idx].Url, true
 }
 
-// Deprecated: MasterFunc 获取变体 m3u8
+// Deprecated: MasterFunc 获取变体 M3U8
 //
-// 当 info 包含有字幕时, 需要调用这个方法返回
+// 当 Info 包含字幕时, 需要调用这个方法返回
 func (i *Info) MasterFunc(cntMapper func() string, clientApiKey string) string {
 	sb := strings.Builder{}
 	sb.WriteString("#EXTM3U\n")
@@ -139,10 +139,10 @@ func (i *Info) MasterFunc(cntMapper func() string, clientApiKey string) string {
 	return sb.String()
 }
 
-// ContentFunc 将 i 对象转换成 m3u8 文本
+// ContentFunc 将 i 对象转换成 M3U8 文本
 //
-// tsMapper 函数可以将当前 info 中的 ts 地址映射为自定义地址
-// 两个参数分别是 ts 的索引和地址值
+// tsMapper 函数可以将当前 Info 中的 TS 地址映射为自定义地址。
+// 两个参数分别是 TS 索引和地址值。
 func (i *Info) ContentFunc(tsMapper func(int, string) string) string {
 	sb := strings.Builder{}
 
@@ -151,7 +151,7 @@ func (i *Info) ContentFunc(tsMapper func(int, string) string) string {
 		sb.WriteString(cmt + "\n")
 	}
 
-	// 2 写 ts
+	// 2 写 TS
 	for idx, ti := range i.RemoteTsInfos {
 		for _, cmt := range ti.Comments {
 			sb.WriteString(cmt + "\n")
@@ -169,7 +169,7 @@ func (i *Info) ContentFunc(tsMapper func(int, string) string) string {
 	return res
 }
 
-// ProxyContent 将 i 转换为 m3u8 本地代理文本
+// ProxyContent 将 i 转换为 M3U8 本地代理文本
 func (i *Info) ProxyContent(main bool, routePrefix, clientApiKey string) string {
 	baseRoute := strings.Builder{}
 	if routePrefix != "" {
@@ -177,7 +177,7 @@ func (i *Info) ProxyContent(main bool, routePrefix, clientApiKey string) string 
 		baseRoute.WriteString("/")
 	}
 
-	// 有内封字幕的资源, 切换为变体 m3u8
+	// 有内封字幕的资源, 切换为变体 M3U8
 	if !main && len(i.Subtitles) > 0 {
 		baseRoute.WriteString("proxy_playlist")
 		return i.MasterFunc(func() string {
@@ -205,36 +205,36 @@ func (i *Info) ProxyContent(main bool, routePrefix, clientApiKey string) string 
 	})
 }
 
-// Content 将 i 转换为 m3u8 文本
+// Content 将 i 转换为 M3U8 文本
 func (i *Info) Content() string {
 	return i.ContentFunc(func(_ int, url string) string {
 		return i.RemoteBase + url
 	})
 }
 
-// UpdateContent 从 openlist 获取最新的 m3u8 并更新对象
+// UpdateContent 从 OpenList 获取最新的 M3U8 并更新对象
 //
 // 通过 OpenlistPath 和 TemplateId 定位到唯一一个转码资源地址
 func (i *Info) UpdateContent() error {
 	if i.OpenlistPath == "" || i.TemplateId == "" {
-		return errors.New("参数为设置, 无法更新")
+		return errors.New("参数未设置, 无法更新")
 	}
-	logs.Progress("更新 playlist, openlistPath: %s, templateId: %s", i.OpenlistPath, i.TemplateId)
+	logs.Progress("正在更新播放列表, OpenListPath: %s, TemplateId: %s", i.OpenlistPath, i.TemplateId)
 
-	// 请求 openlist 资源
+	// 请求 OpenList 资源
 	res := openlist.FetchResource(openlist.FetchInfo{
 		Path:         i.OpenlistPath,
 		UseTranscode: true,
 		Format:       i.TemplateId,
 	})
 	if res.Code != http.StatusOK {
-		return errors.New("请求 openlist 失败: " + res.Msg)
+		return errors.New("请求 OpenList 失败: " + res.Msg)
 	}
 
 	// 解析地址
 	newInfo, err := NewByRemote(res.Data.Url, nil)
 	if err != nil {
-		return fmt.Errorf("解析远程 m3u8 失败, url: %s, err: %v", res.Data, err)
+		return fmt.Errorf("解析远程 M3U8 失败, URL: %s, 错误: %v", res.Data, err)
 	}
 
 	// 拷贝最新数据

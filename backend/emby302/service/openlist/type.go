@@ -6,16 +6,16 @@ import (
 	"time"
 )
 
-// FetchInfo 请求 openlist 资源需要的参数信息
+// FetchInfo 请求 OpenList 资源需要的参数信息
 type FetchInfo struct {
-	Path                  string      // openlist 资源绝对路径
+	Path                  string      // OpenList 资源绝对路径
 	UseTranscode          bool        // 是否请求转码资源 (只支持视频资源)
 	Format                string      // 要请求的转码资源格式, 如: FHD
 	TryRawIfTranscodeFail bool        // 如果请求转码资源失败, 是否尝试请求原画资源
 	Header                http.Header // 自定义的请求头
 }
 
-// Resource openlist 资源信息封装
+// Resource OpenList 资源信息封装
 type Resource struct {
 	Url       string                    // 资源远程路径
 	Subtitles []TranscodingSubtitleInfo // 字幕信息
@@ -39,7 +39,7 @@ type TranscodingVideoInfo struct {
 	Url            string `json:"url"`             // 转码资源链接
 }
 
-// RemoteCommonResult openlist 远程响应的通用结果结构
+// RemoteCommonResult OpenList 远程响应的通用结果结构
 type RemoteCommonResult struct {
 	Code    int             `json:"code"`    // 响应状态码
 	Message string          `json:"message"` // 响应消息

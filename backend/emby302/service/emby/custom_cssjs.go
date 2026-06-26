@@ -25,7 +25,7 @@ var customJsList []string
 // customCssList 首次访问时, 将所有自定义样式预加载在内存中
 var customCssList []string
 
-// loadAllCustomCssJs 加载所有自定义脚本
+// loadAllCustomCssJs 加载所有自定义脚本和样式表
 var loadAllCustomCssJs = sync.OnceFunc(func() {
 	loadRemoteContent := func(originBytes []byte) ([]byte, error) {
 		if len(originBytes) == 0 {
@@ -41,16 +41,16 @@ var loadAllCustomCssJs = sync.OnceFunc(func() {
 
 		resp, err := https.Get(u.String()).Do()
 		if err != nil {
-			return nil, fmt.Errorf("远程加载失败: %s, err: %v", u.String(), err)
+			return nil, fmt.Errorf("远程加载失败: %s, 错误: %v", u.String(), err)
 		}
 		defer resp.Body.Close()
 		if !https.IsSuccessCode(resp.StatusCode) {
-			return nil, fmt.Errorf("远程错误响应: %s, err: %s", u.String(), resp.Status)
+			return nil, fmt.Errorf("远程返回错误响应: %s, 状态: %s", u.String(), resp.Status)
 		}
 
 		bytes, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, fmt.Errorf("远程读取失败: %s, err: %v", u.String(), err)
+			return nil, fmt.Errorf("读取远程内容失败: %s, 错误: %v", u.String(), err)
 		}
 
 		return bytes, nil
@@ -58,12 +58,12 @@ var loadAllCustomCssJs = sync.OnceFunc(func() {
 
 	loadFiles := func(fp, ext, successLogPrefix string) ([]string, error) {
 		if err := os.MkdirAll(fp, os.ModePerm); err != nil {
-			return nil, fmt.Errorf("目录初始化失败: %s, err: %v", fp, err)
+			return nil, fmt.Errorf("初始化目录失败: %s, 错误: %v", fp, err)
 		}
 
 		files, err := os.ReadDir(fp)
 		if err != nil {
-			return nil, fmt.Errorf("读取目录失败: %s, err: %v, 无法注入自定义脚本", fp, err)
+			return nil, fmt.Errorf("读取目录失败: %s, 错误: %v, 无法注入自定义脚本", fp, err)
 		}
 
 		res := []string{}
@@ -89,13 +89,13 @@ var loadAllCustomCssJs = sync.OnceFunc(func() {
 			g.Go(func() error {
 				content, err := os.ReadFile(filepath.Join(fp, file.Name()))
 				if err != nil {
-					return fmt.Errorf("读取文件失败: %s, err: %v", file.Name(), err)
+					return fmt.Errorf("读取文件失败: %s, 错误: %v", file.Name(), err)
 				}
 
 				// 支持远程加载
 				content, err = loadRemoteContent(content)
 				if err != nil {
-					return fmt.Errorf("远程加载失败: %s, err: %v", file.Name(), err)
+					return fmt.Errorf("远程加载失败: %s, 错误: %v", file.Name(), err)
 				}
 
 				ch <- string(content)
@@ -117,7 +117,7 @@ var loadAllCustomCssJs = sync.OnceFunc(func() {
 	fp := filepath.Join(config.BasePath, constant.CustomJsDirName)
 	jsList, err := loadFiles(fp, ".js", "自定义脚本")
 	if err != nil {
-		logs.Error("加载自定义脚本异常: %v", err)
+		logs.Error("加载自定义脚本失败: %v", err)
 		return
 	}
 	customJsList = jsList
@@ -125,13 +125,13 @@ var loadAllCustomCssJs = sync.OnceFunc(func() {
 	fp = filepath.Join(config.BasePath, constant.CustomCssDirName)
 	cssList, err := loadFiles(fp, ".css", "自定义样式表")
 	if err != nil {
-		logs.Error("加载自定义样式表异常: %v", err)
+		logs.Error("加载自定义样式表失败: %v", err)
 		return
 	}
 	customCssList = cssList
 })
 
-// ProxyIndexHtml 代理 index.html 注入自定义脚本样式文件
+// ProxyIndexHtml 代理 index.html, 注入自定义脚本和样式文件
 func ProxyIndexHtml(c *gin.Context) {
 	resp, err := https.ProxyRequest(c.Request, config.C.Emby.Host)
 	if checkErr(c, err) {

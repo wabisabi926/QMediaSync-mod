@@ -16,7 +16,7 @@ import (
 
 const (
 
-	// ReleasePage ffmpeg 发布页地址
+	// ReleasePage FFmpeg 发布页地址
 	ReleasePage = "https://github.tbedu.top/https://github.com/AmbitiousJun/ffmpeg-release/releases/latest/download"
 )
 
@@ -35,7 +35,7 @@ var arch2ExecNameMap = map[string]string{
 }
 
 var (
-	execPath string // 根据当前系统架构自动生成一个二进制文件地址
+	execPath string // 根据当前系统架构自动生成的二进制文件地址
 	execOk   bool   // 标记二进制是否检测通过
 )
 
@@ -64,7 +64,7 @@ func (p *progressWriter) Read(buf []byte) (int, error) {
 	return n, err
 }
 
-// AutoDownloadExec 自动根据系统架构下载对应版本的 ffmpeg 到数据目录下
+// AutoDownloadExec 自动根据系统架构下载对应版本的 FFmpeg 到数据目录下
 //
 // 下载失败只会进行日志输出, 不会影响到程序运行
 func AutoDownloadExec(parentPath string) error {
@@ -74,7 +74,7 @@ func AutoDownloadExec(parentPath string) error {
 	// 生成二进制文件地址
 	execName, ok := arch2ExecNameMap[fmt.Sprintf("%s/%s", gos, garch)]
 	if !ok {
-		return fmt.Errorf("不支持的芯片架构: %s/%s, ffmpeg 相关功能失效", gos, garch)
+		return fmt.Errorf("不支持的芯片架构: %s/%s, FFmpeg 相关功能失效", gos, garch)
 	}
 	execPath = filepath.Join(parentPath, "lib", "ffmpeg", execName)
 
@@ -91,17 +91,17 @@ func AutoDownloadExec(parentPath string) error {
 			return fmt.Errorf("二进制文件路径被目录占用: %s, 请手动处理后尝试重启服务", execPath)
 		}
 		execOk = true
-		logs.Success("ffmpeg 环境检测通过 ✓")
+		logs.Success("FFmpeg 环境检测通过 ✓")
 		return nil
 	}
 
-	logs.Info("检测不到 ffmpeg 环境, 即将开始自动下载")
+	logs.Info("检测不到 FFmpeg 环境, 即将开始自动下载")
 
 	if err = os.MkdirAll(filepath.Dir(execPath), os.ModePerm); err != nil {
-		return fmt.Errorf("数据目录异常: %s, err: %v", filepath.Dir(execPath), err)
+		return fmt.Errorf("数据目录异常: %s, 错误: %v", filepath.Dir(execPath), err)
 	}
 
-	logs.Info("ffmpeg 下载发布页: %s", ReleasePage)
+	logs.Info("FFmpeg 下载发布页: %s", ReleasePage)
 
 	resp, err := https.Get(ReleasePage + "/" + execName).Do()
 	if err != nil {
@@ -115,7 +115,7 @@ func AutoDownloadExec(parentPath string) error {
 
 	execFile, err := os.OpenFile(execPath, os.O_CREATE|os.O_RDWR, os.ModePerm)
 	if err != nil {
-		return fmt.Errorf("初始化二进制文件路径失败: %s, err: %v", execPath, err)
+		return fmt.Errorf("初始化二进制文件路径失败: %s, 错误: %v", execPath, err)
 	}
 	defer execFile.Close()
 
@@ -142,7 +142,7 @@ func AutoDownloadExec(parentPath string) error {
 	}
 
 	// 标记就绪状态
-	logs.Success("ffmpeg 自动下载成功 ✓, 路径: %s", execPath)
+	logs.Success("FFmpeg 自动下载成功 ✓, 路径: %s", execPath)
 	execOk = true
 	return nil
 }

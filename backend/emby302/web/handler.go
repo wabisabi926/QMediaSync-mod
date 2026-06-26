@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// MatchRouteKey 存储在 gin 上下文的路由匹配字段
+// MatchRouteKey 存储在 Gin 上下文中的路由匹配字段
 const MatchRouteKey = "matchRoute"
 
 // globalDftHandler 全局默认兜底的请求处理器
@@ -38,14 +38,14 @@ func compileRules(rs [][2]any) [][2]any {
 	for _, rule := range rs {
 		reg, err := regexp.Compile(rule[0].(string))
 		if err != nil {
-			logs.Error("路由正则编译失败, pattern: %v, error: %v", rule[0], err)
+			logs.Error("路由正则编译失败, pattern: %v, 错误: %v", rule[0], err)
 			continue
 		}
 		rule[0] = reg
 
 		rawHandler, ok := rule[1].(func(*gin.Context))
 		if !ok {
-			logs.Error("错误的请求处理器, pattern: %v", rule[0])
+			logs.Error("请求处理器无效, pattern: %v", rule[0])
 			continue
 		}
 		var handler gin.HandlerFunc = rawHandler

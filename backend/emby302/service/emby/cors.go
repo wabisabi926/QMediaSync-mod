@@ -12,7 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ChangeBaseVideoModuleCorsDefined 调整 emby 的播放器 cors 配置, 使其支持跨域播放
+// ChangeBaseVideoModuleCorsDefined 调整 Emby 播放器的 CORS 配置, 使其支持跨域播放
 func ChangeBaseVideoModuleCorsDefined(c *gin.Context) {
 	// 1 代理请求
 	c.Request.Header.Del("If-Modified-Since")
@@ -22,7 +22,7 @@ func ChangeBaseVideoModuleCorsDefined(c *gin.Context) {
 		return
 	}
 	if resp.StatusCode != http.StatusOK {
-		checkErr(c, fmt.Errorf("emby 返回非预期状态码: %d", resp.StatusCode))
+		checkErr(c, fmt.Errorf("Emby 返回非预期状态码: %d", resp.StatusCode))
 		return
 	}
 	resp.Header.Del("Content-Length")
@@ -33,7 +33,7 @@ func ChangeBaseVideoModuleCorsDefined(c *gin.Context) {
 	modObjDefault := modObj + ".default"
 	modObjPrototype := modObjDefault + ".prototype"
 	modObjCorsFunc := modObjPrototype + ".getCrossOriginValue"
-	jsScript := fmt.Sprintf(`(function(){ var modFunc; modFunc = function(){if(!%s||!%s||!%s||!%s){console.log('emby 未初始化完成...');setTimeout(modFunc);return;}%s=function(mediaSource,playMethod){return null;};console.log('cors 脚本补丁已注入')}; modFunc() })()`, modObj, modObjDefault, modObjPrototype, modObjCorsFunc, modObjCorsFunc)
+	jsScript := fmt.Sprintf(`(function(){ var modFunc; modFunc = function(){if(!%s||!%s||!%s||!%s){console.log('Emby 尚未初始化完成...');setTimeout(modFunc);return;}%s=function(mediaSource,playMethod){return null;};console.log('CORS 脚本补丁已注入')}; modFunc() })()`, modObj, modObjDefault, modObjPrototype, modObjCorsFunc, modObjCorsFunc)
 
 	c.Status(http.StatusOK)
 	https.CloneHeader(c.Writer, resp.Header)

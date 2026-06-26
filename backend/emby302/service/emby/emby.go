@@ -28,7 +28,7 @@ func ProxySocket() func(*gin.Context) {
 		origin := config.C.Emby.Host
 		u, err := url.Parse(origin)
 		if err != nil {
-			panic("转换 emby host 异常: " + err.Error())
+			panic("转换 Emby Host 失败: " + err.Error())
 		}
 
 		proxy = httputil.NewSingleHostReverseProxy(u)
@@ -48,8 +48,8 @@ func ProxySocket() func(*gin.Context) {
 // HandleImages 处理图片请求
 //
 // 修改图片质量参数为配置值
-// TODO 尝试跳转到115缩略图地址
-// 根据itemid查询SyncFile，如果有115缩略图地址，就跳转过去
+// TODO 尝试跳转到 115 缩略图地址
+// 根据 ItemId 查询 SyncFile, 如果有 115 缩略图地址就跳转过去
 func HandleImages(c *gin.Context) {
 	q := c.Request.URL.Query()
 	q.Del("quality")
@@ -66,7 +66,7 @@ func ProxyOrigin(c *gin.Context) {
 	}
 	origin := config.C.Emby.Host
 
-	// 传递客户端 IP 到 emby
+	// 传递客户端 IP 到 Emby
 	c.Request.Header.Set("X-Forwarded-For", c.ClientIP())
 	c.Request.Header.Set("X-Real-IP", c.ClientIP())
 
@@ -75,8 +75,8 @@ func ProxyOrigin(c *gin.Context) {
 	}
 }
 
-// TestProxyUri 用于测试的代理,
-// 主要是为了查看实际请求的详细信息, 方便测试
+// TestProxyUri 是用于测试的代理,
+// 主要用于查看实际请求的详细信息
 func TestProxyUri(c *gin.Context) bool {
 	testUris := []string{}
 
@@ -114,7 +114,7 @@ func TestProxyUri(c *gin.Context) bool {
 
 	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		logs.Error("测试 uri 执行异常: %v", err)
+		logs.Error("测试 URI 执行异常: %v", err)
 		return false
 	}
 	infos.Body = string(bodyBytes)
@@ -125,7 +125,7 @@ func TestProxyUri(c *gin.Context) bool {
 		Body(io.NopCloser(bytes.NewBuffer(bodyBytes))).
 		Do()
 	if err != nil {
-		logs.Error("测试 uri 执行异常: %v", err)
+		logs.Error("测试 URI 执行异常: %v", err)
 		return false
 	}
 	defer resp.Body.Close()
@@ -139,12 +139,12 @@ func TestProxyUri(c *gin.Context) bool {
 
 	bodyBytes, err = io.ReadAll(resp.Body)
 	if err != nil {
-		logs.Error("测试 uri 执行异常: %v", err)
+		logs.Error("测试 URI 执行异常: %v", err)
 		return false
 	}
 	infos.RespBody = string(bodyBytes)
 	infos.RespStatus = resp.StatusCode
-	logs.Warn("测试 uri 代理信息: %s", jsons.FromValue(infos))
+	logs.Warn("测试 URI 代理信息: %s", jsons.FromValue(infos))
 
 	c.Status(infos.RespStatus)
 	c.Writer.Write(bodyBytes)
@@ -152,7 +152,7 @@ func TestProxyUri(c *gin.Context) bool {
 	return true
 }
 
-// ProxyRoot web 首页代理
+// ProxyRoot 代理 Web 首页
 func ProxyRoot(c *gin.Context) {
 	resp, err := https.Request(c.Request.Method, config.C.Emby.Host+c.Request.URL.String()).
 		Header(c.Request.Header).

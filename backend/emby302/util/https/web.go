@@ -59,7 +59,7 @@ func IsErrorStatus(code int) bool {
 	return strings.HasPrefix(str, "4") || strings.HasPrefix(str, "5")
 }
 
-// CloneHeader 克隆 http 头部到 web 的响应头中
+// CloneHeader 将 HTTP 头部克隆到 Web 响应头中
 func CloneHeader(dst http.ResponseWriter, src http.Header) {
 	if dst == nil || src == nil {
 		return

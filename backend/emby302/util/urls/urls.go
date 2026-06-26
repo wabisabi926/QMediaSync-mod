@@ -32,7 +32,7 @@ func TransferSlash(p string) string {
 	return strings.ReplaceAll(p, `\`, `/`)
 }
 
-// ResolveResourceName 解析一个资源 url 的名称
+// ResolveResourceName 解析资源 URL 的名称
 //
 // 比如 http://example.com/a.txt?a=1&b=2 会返回 a.txt
 func ResolveResourceName(resUrl string) string {
@@ -56,7 +56,7 @@ func ReplaceAll(rawUrl string, oldNews ...string) string {
 	return rawUrl
 }
 
-// AppendArgs 往 url 中添加 query 参数
+// AppendArgs 往 URL 中添加 query 参数
 //
 // 添加参数按照键值对的顺序依次传递到函数中,
 // 仅出现偶数个参数才会成功匹配出一个 query 参数
@@ -69,7 +69,7 @@ func AppendArgs(rawUrl string, kvs ...string) string {
 
 	u, err := url.Parse(rawUrl)
 	if err != nil {
-		log.Printf("AppendUrlArgs 转换 rawUrl 时出现异常: %v", err)
+		log.Printf("AppendUrlArgs 转换 rawUrl 失败: %v", err)
 		return rawUrl
 	}
 
@@ -81,7 +81,7 @@ func AppendArgs(rawUrl string, kvs ...string) string {
 	return u.String()
 }
 
-// Unescape 将 rawUrl 进行 url 解码, 解码失败返回原始值
+// Unescape 对 rawUrl 进行 URL 解码, 解码失败时返回原始值
 func Unescape(rawUrl string) string {
 	dc, err := url.PathUnescape(rawUrl)
 	if err != nil {

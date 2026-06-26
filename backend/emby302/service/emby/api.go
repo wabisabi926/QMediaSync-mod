@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// proxyAndSetRespHeader 代理 emby 接口
+// proxyAndSetRespHeader 代理 Emby 接口
 // 返回响应内容, 并将响应头写入 c
 //
 // 如果请求是失败的响应, 会直接返回客户端, 并在第二个参数中返回 false
@@ -28,16 +28,16 @@ func proxyAndSetRespHeader(c *gin.Context) (model.HttpRes[*jsons.Item], bool) {
 	return res, true
 }
 
-// Fetch 请求 emby api 接口, 使用 map 请求体
+// Fetch 请求 Emby API 接口, 使用 map 请求体
 func Fetch(uri, method string, header http.Header, body map[string]any) (model.HttpRes[*jsons.Item], http.Header) {
 	return RawFetch(uri, method, header, https.MapBody(body))
 }
 
-// RawFetch 请求 emby api 接口, 使用流式请求体
+// RawFetch 请求 Emby API 接口, 使用流式请求体
 func RawFetch(uri, method string, header http.Header, body io.ReadCloser) (model.HttpRes[*jsons.Item], http.Header) {
 	u := config.C.Emby.Host + uri
 
-	// 构造请求头, 发出请求
+	// 构造请求头并发出请求
 	if header == nil {
 		header = make(http.Header)
 	}

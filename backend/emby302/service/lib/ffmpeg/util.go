@@ -25,7 +25,7 @@ var (
 	lyricsReg     = regexp.MustCompile(`(?mi):\s*(\[.*?\].*?)\s*$`)
 )
 
-// resolveDuration 解析 ffmpeg 的 Duration 参数
+// resolveDuration 解析 FFmpeg 的 Duration 参数
 func resolveDuration(raw string) time.Duration {
 	if !durationReg.MatchString(raw) {
 		return 0
@@ -44,7 +44,7 @@ func resolveDuration(raw string) time.Duration {
 		time.Duration(float64(time.Second)*second)
 }
 
-// resolveLyrics 解析 ffmpeg 的 Lyrics 参数
+// resolveLyrics 解析 FFmpeg 的 Lyrics 参数
 func resolveLyrics(raw string) string {
 	if !lyricsReg.MatchString(raw) {
 		return ""
@@ -63,7 +63,7 @@ func resolveLyrics(raw string) string {
 	return sb.String()
 }
 
-// resolveTrack 解析 ffmpeg 的 Track 参数
+// resolveTrack 解析 FFmpeg 的 Track 参数
 func resolveTrack(raw string) string {
 	if !trackReg.MatchString(raw) {
 		return ""
@@ -82,7 +82,7 @@ func resolveTrack(raw string) string {
 	return fmt.Sprintf("%s/%s", track, trackTotal)
 }
 
-// resolveDisc 解析 ffmpeg 的 Disc 参数
+// resolveDisc 解析 FFmpeg 的 Disc 参数
 func resolveDisc(raw string) string {
 	if !discReg.MatchString(raw) {
 		return ""
@@ -101,7 +101,7 @@ func resolveDisc(raw string) string {
 	return fmt.Sprintf("%s/%s", disc, discTotal)
 }
 
-// resolveTitle 解析 ffmpeg 的 title 参数
+// resolveTitle 解析 FFmpeg 的 title 参数
 func resolveTitle(raw string) string {
 	// 移除 Duration 字段之后的信息, 防止匹配到干扰字段
 	if durationReg.MatchString(raw) {
@@ -119,7 +119,7 @@ func resolveTitle(raw string) string {
 		}
 	}
 
-	// title 为空则空歌词中的 ti 属性提取
+	// title 为空时, 从歌词中的 ti 属性提取
 	if titleTiReg.MatchString(raw) {
 		return strings.TrimSpace(titleTiReg.FindStringSubmatch(raw)[1])
 	}

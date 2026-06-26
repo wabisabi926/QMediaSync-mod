@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// durationMap 字符串配置映射成 time.Duration
+// durationMap 将字符串时间单位映射为 time.Duration
 var durationMap = map[string]time.Duration{
 	"d": time.Hour * 24,
 	"h": time.Hour,
@@ -17,7 +17,7 @@ var durationMap = map[string]time.Duration{
 type Cache struct {
 	Enable  bool          `yaml:"enable"`  // 是否启用缓存
 	Expired string        `yaml:"expired"` // 缓存过期时间
-	expired time.Duration // 配置初始化转换之后的标准时间对象
+	expired time.Duration // 配置初始化后转换出的标准时间对象
 }
 
 func (c *Cache) ExpiredDuration() time.Duration {
@@ -26,7 +26,7 @@ func (c *Cache) ExpiredDuration() time.Duration {
 
 func (c *Cache) Init() error {
 	if len(c.Expired) == 0 {
-		// 缓存默认过期时间一天
+		// 缓存默认过期时间为一天
 		c.expired = time.Hour * 24
 	} else {
 		timeFlag := c.Expired[len(c.Expired)-1:]
@@ -39,7 +39,7 @@ func (c *Cache) Init() error {
 			return fmt.Errorf("cache.expired 配置错误: %v", err)
 		}
 		if base < 1 {
-			return fmt.Errorf("cache.exipred 配置错误: %d, 值需大于 0", base)
+			return fmt.Errorf("cache.expired 配置错误: %d, 值需大于 0", base)
 		}
 		c.expired = time.Duration(base) * duration
 	}

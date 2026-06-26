@@ -15,7 +15,7 @@ type RequestHolder struct {
 	// method 请求方法
 	method string
 
-	// url 请求地址
+	// url 请求 URL
 	url string
 
 	// header 请求头
@@ -87,35 +87,35 @@ func (r *RequestHolder) Body(body io.ReadCloser) *RequestHolder {
 	return r
 }
 
-// CloseConn 请求完毕之后关闭 tcp 连接
+// CloseConn 请求结束后关闭 TCP 连接
 func (r *RequestHolder) CloseConn() *RequestHolder {
 	r.closeConn = true
 	return r
 }
 
-// Do 发起请求 自动重定向
+// Do 发起请求并自动重定向
 func (r *RequestHolder) Do() (*http.Response, error) {
 	r.redirect = true
 	_, resp, err := r.execute()
 	return resp, err
 }
 
-// DoSingle 发起请求 不自动重定向
+// DoSingle 发起请求且不自动重定向
 func (r *RequestHolder) DoSingle() (*http.Response, error) {
 	_, resp, err := r.execute()
 	return resp, err
 }
 
-// DoRedirect 发起请求 自动重定向 获取最终地址
+// DoRedirect 发起请求并自动重定向, 返回最终地址
 func (r *RequestHolder) DoRedirect() (string, *http.Response, error) {
 	r.redirect = true
 	return r.execute()
 }
 
-// execute 发起 http 请求获取响应
+// execute 发起 HTTP 请求并获取响应
 //
 // 如果一个请求有多次重定向并且进行了 autoRedirect,
-// 则最后一次重定向的 url 会作为第一个参数返回
+// 则最后一次重定向的 URL 会作为第一个参数返回。
 func (r *RequestHolder) execute() (string, *http.Response, error) {
 	var inner func(method, url string, header http.Header, body io.ReadCloser, autoRedirect bool, depth int) (string, *http.Response, error)
 	inner = func(method, url string, header http.Header, body io.ReadCloser, autoRedirect bool, depth int) (string, *http.Response, error) {
@@ -172,7 +172,7 @@ func (r *RequestHolder) execute() (string, *http.Response, error) {
 func GetLocation(url string) (string, error) {
 	client := &http.Client{
 		Timeout: 1 * time.Second, // 设置较短超时
-		// 禁用自动重定向，返回最后一个响应
+		// 禁用自动重定向, 返回最后一个响应
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
@@ -180,7 +180,7 @@ func GetLocation(url string) (string, error) {
 
 	resp, err := client.Get(url)
 	if err != nil {
-		fmt.Println("Error:", err)
+		fmt.Println("获取跳转地址失败:", err)
 		return "", err
 	}
 	defer resp.Body.Close()

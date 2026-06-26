@@ -21,7 +21,7 @@ const (
 
 var client *http.Client
 
-// RedirectCodes 有重定向含义的 http 响应码
+// RedirectCodes 有重定向含义的 HTTP 响应码
 var RedirectCodes = [4]int{http.StatusMovedPermanently, http.StatusFound, http.StatusTemporaryRedirect, http.StatusPermanentRedirect}
 
 func init() {
@@ -39,7 +39,7 @@ func init() {
 	}
 }
 
-// IsRedirectCode 判断 http code 是否是重定向
+// IsRedirectCode 判断 HTTP 状态码是否表示重定向
 //
 // 301, 302, 307, 308
 func IsRedirectCode(code int) bool {
@@ -51,13 +51,13 @@ func IsRedirectCode(code int) bool {
 	return false
 }
 
-// IsSuccessCode 判断 http code 是否为成功状态
+// IsSuccessCode 判断 HTTP 状态码是否为成功状态
 func IsSuccessCode(code int) bool {
 	codeStr := strconv.Itoa(code)
 	return strings.HasPrefix(codeStr, "2")
 }
 
-// IsErrorCode 判断 http code 是否为错误状态
+// IsErrorCode 判断 HTTP 状态码是否为错误状态
 func IsErrorCode(code int) bool {
 	codeStr := strconv.Itoa(code)
 	return strings.HasPrefix(codeStr, "4") || strings.HasPrefix(codeStr, "5")
@@ -70,7 +70,7 @@ func MapBody(body map[string]any) io.ReadCloser {
 	}
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {
-		log.Printf("MapBody 转换失败, body: %v, err : %v", body, err)
+		log.Printf("MapBody 转换失败, body: %v, 错误: %v", body, err)
 		return nil
 	}
 	return io.NopCloser(bytes.NewBuffer(bodyBytes))

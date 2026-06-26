@@ -19,16 +19,16 @@ import (
 
 // AuthUri 鉴权地址
 //
-// 通过此 uri, 可以判断出客户端传递的 api_key 是否是被 emby 服务器认可的
+// 通过此 URI 可以判断客户端传递的 api_key 是否被 Emby 服务器认可
 const AuthUri = "/emby/Auth/Keys"
 
-// validApiKeys 已经校验通过的 api_key, 下次就不再校验
+// validApiKeys 记录已经校验通过的 api_key, 下次不再重复校验
 //
-// 这个 map 不会进行大小限制, 考虑到 emby 原服务器中合法的 api_key 个数不是无限个
-// 所以这里也不用限制太多
+// 这个 map 不做大小限制。Emby 源服务器中的合法 api_key 数量有限,
+// 这里无需额外限制。
 var validApiKeys = sync.Map{}
 
-// ApiKeyType 标记 emby 支持的不同种 api_key 传递方式
+// ApiKeyType 标记 Emby 支持的不同 api_key 传递方式
 type ApiKeyType string
 
 const (
@@ -48,10 +48,10 @@ const UnauthorizedResp = "Access token is invalid or expired."
 // AuthorizationTokenExtractReg 匹配 Authorization 头中 Token 字段
 var AuthorizationTokenExtractReg = regexp.MustCompile(`(?i)token="([^"]+)"`)
 
-// ApiKeyChecker 对指定的 api 进行鉴权
+// ApiKeyChecker 对指定 API 进行鉴权
 //
-// 该中间件会将客户端传递的 api_key 发送给 emby 服务器, 如果 emby 返回 401 异常
-// 说明这个 api_key 是客户端伪造的, 阻断客户端的请求
+// 该中间件会将客户端传递的 api_key 发送给 Emby 服务器。如果 Emby 返回 401,
+// 说明该 api_key 未通过校验, 阻断客户端请求。
 func ApiKeyChecker() gin.HandlerFunc {
 
 	patterns := []*regexp.Regexp{
@@ -70,12 +70,12 @@ func ApiKeyChecker() gin.HandlerFunc {
 		// 1 取出 api_key
 		kType, kName, apiKey := getApiKey(c)
 
-		// 2 如果该 key 已经是被信任的, 跳过校验
+		// 2 如果该 key 已经被信任, 跳过校验
 		if _, ok := validApiKeys.Load(apiKey); ok {
 			return
 		}
 
-		// 3 判断当前请求的 uri 是否需要被校验
+		// 3 判断当前请求的 URI 是否需要校验
 		needCheck := false
 		for _, pattern := range patterns {
 			if pattern.MatchString(c.Request.RequestURI) {
@@ -87,7 +87,7 @@ func ApiKeyChecker() gin.HandlerFunc {
 			return
 		}
 
-		// 4 发出请求, 验证 api_key
+		// 4 发出请求验证 api_key
 		u := config.C.Emby.Host + AuthUri
 		var header http.Header
 		if kType == Query {

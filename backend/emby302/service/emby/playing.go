@@ -33,7 +33,7 @@ func PlayingStoppedHelper(c *gin.Context) {
 	// 代理原始 Stopped 接口
 	ProxyOrigin(c)
 
-	// 提取 api apiKey
+	// 提取 API key
 	kType, kName, apiKey := getApiKey(c)
 
 	// 至少播放 5 分钟才记录进度
@@ -58,7 +58,7 @@ func PlayingStoppedHelper(c *gin.Context) {
 	go sendPlayingProgress(kType, kName, apiKey, body)
 }
 
-// PlayingProgressHelper 拦截 Progress 请求, 如果进度报告为 0, 认为是无效请求
+// PlayingProgressHelper 拦截 Progress 请求, 如果进度报告为 0 则认为是无效请求
 func PlayingProgressHelper(c *gin.Context) {
 	// 取出原始请求体信息
 	bodyBytes, newBody, err := https.ExtractReqBody(c.Request.Body)
@@ -105,12 +105,12 @@ func sendPlayingProgress(kType ApiKeyType, kName, apiKey string, body *jsons.Ite
 
 	logs.Tip("开始发送辅助 Progress 进度记录, 内容: %v", body)
 	if err := inner(config.C.Emby.Host + "/emby/Sessions/Playing/Progress"); err != nil {
-		logs.Warn("辅助发送 Progress 进度记录失败: %v", err)
+		logs.Warn("发送辅助 Progress 进度记录失败: %v", err)
 		return
 	}
 	if err := inner(config.C.Emby.Host + "/emby/Sessions/Playing/Stopped"); err != nil {
-		logs.Warn("辅助发送 Progress 进度记录失败: %v", err)
+		logs.Warn("发送辅助 Progress 进度记录失败: %v", err)
 		return
 	}
-	logs.Success("辅助发送 Progress 进度记录成功")
+	logs.Success("辅助 Progress 进度记录发送成功")
 }

@@ -17,7 +17,7 @@ var rules [][2]any
 func initRulePatterns() {
 	logs.Info("正在初始化路由规则...")
 	rules = compileRules([][2]any{
-		// websocket
+		// WebSocket
 		{constant.Reg_Socket, emby.ProxySocket()},
 
 		// PlaybackInfo 接口
@@ -34,7 +34,7 @@ func initRulePatterns() {
 		{constant.Reg_UserEpisodeItems, emby.ProxyAddItemsPreviewInfo},
 		// 随机列表接口
 		{constant.Reg_UserItemsRandomResort, emby.ResortRandomItems},
-		// 代理原始的随机列表接口, 去除 limit 限制, 并进行缓存
+		// 代理原始的随机列表接口, 去除 Limit 限制并缓存
 		{constant.Reg_UserItemsRandomWithLimit, emby.RandomItemsWithLimit},
 		// 代理 Latest 接口, 解码媒体的 Path 字段
 		{constant.Reg_UserLatestItems, emby.ProxyLatestItems},
@@ -47,17 +47,17 @@ func initRulePatterns() {
 
 		// 资源重定向到直链
 		{constant.Reg_ResourceStream, emby.Redirect2OpenlistLink},
-		// master 重定向到本地 m3u8 代理
+		// master 重定向到本地 M3U8 代理
 		{constant.Reg_ResourceMaster, emby.Redirect2Transcode},
 		// main 路由到直链接口
 		{constant.Reg_ResourceMain, emby.Redirect2Transcode},
 		// 处理 original 资源
 		{constant.Reg_ResourceOriginal, emby.ProxyOriginalResource},
-		// m3u8 转码播放列表
+		// M3U8 转码播放列表
 		{constant.Reg_ProxyPlaylist, m3u8.ProxyPlaylist},
-		// ts 重定向到直链
+		// TS 重定向到直链
 		{constant.Reg_ProxyTs, m3u8.ProxyTsLink},
-		// m3u8 字幕
+		// M3U8 字幕
 		{constant.Reg_ProxySubtitle, m3u8.ProxySubtitle},
 
 		// 资源下载, 重定向到直链
@@ -67,10 +67,10 @@ func initRulePatterns() {
 		// 处理图片请求
 		{constant.Reg_Images, emby.HandleImages},
 
-		// web cors 处理
+		// Web CORS 处理
 		{constant.Reg_VideoModWebDefined, emby.ChangeBaseVideoModuleCorsDefined},
 		{"forgotpassword.html", func(c *gin.Context) {
-			// 返回404
+			// 返回 404
 			c.Status(404)
 			c.Writer.WriteString("404 Not Found")
 		}},

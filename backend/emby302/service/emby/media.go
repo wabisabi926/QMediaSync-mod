@@ -31,32 +31,32 @@ const MediaSourceIdSegment = "[[_]]"
 
 // getEmbyFileLocalPath 获取 Emby 指定媒体的 Path 参数
 //
-// uri 中必须有 query 参数 MediaSourceId,
-// 如果没有携带该参数, 可能会请求到多个媒体, 默认返回第一个媒体的本地路径
+// URI 中必须有查询参数 MediaSourceId。
+// 如果没有携带该参数, 可能会请求到多个媒体, 默认返回第一个媒体的本地路径。
 func getEmbyFileLocalPath(itemInfo ItemInfo) (string, error) {
 	var header http.Header
 	switch itemInfo.ApiKeyType {
 	case Header:
-		// 带上请求头的 api key
+		// 通过请求头携带 API key
 		header = http.Header{itemInfo.ApiKeyName: []string{itemInfo.ApiKey}}
 	case Query:
-		// 如果是 query 格式的 api key, 则往请求头中补充信息
+		// 如果是 query 格式的 API key, 则往请求头中补充信息
 		header = http.Header{HeaderFullAuthName: []string{"Token=" + itemInfo.ApiKey}}
 	}
 
 	innerRequest := func(method string) (*http.Response, error) {
 		resp, err := https.Request(method, config.C.Emby.Host+itemInfo.PlaybackInfoUri).Header(header).Do()
 		if err != nil {
-			return nil, fmt.Errorf("请求 Emby 接口异常, error: %v", err)
+			return nil, fmt.Errorf("请求 Emby 接口失败, 错误: %v", err)
 		}
 		if resp.StatusCode != http.StatusOK {
 			resp.Body.Close()
-			return nil, fmt.Errorf("请求 Emby 接口异常, status: %s", resp.Status)
+			return nil, fmt.Errorf("请求 Emby 接口失败, 状态: %s", resp.Status)
 		}
 		contentType := resp.Header.Get("Content-Type")
 		if !strings.HasPrefix(contentType, "application/json") {
 			resp.Body.Close()
-			return nil, fmt.Errorf("请求 Emby 接口异常, 非 json 响应, contentType: %s", contentType)
+			return nil, fmt.Errorf("请求 Emby 接口失败, 非 JSON 响应, Content-Type: %s", contentType)
 		}
 		return resp, nil
 	}
@@ -80,11 +80,11 @@ func getEmbyFileLocalPath(itemInfo ItemInfo) (string, error) {
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("读取 Emby 响应异常, error: %v", err)
+		return "", fmt.Errorf("读取 Emby 响应失败, 错误: %v", err)
 	}
 	var holder MediaSourcesHolder
 	if err = json.Unmarshal(bodyBytes, &holder); err != nil {
-		return "", fmt.Errorf("解析 Emby 响应异常, error: %v, 原始响应: %s", err, string(bodyBytes))
+		return "", fmt.Errorf("解析 Emby 响应失败, 错误: %v, 原始响应: %s", err, string(bodyBytes))
 	}
 
 	if len(holder.MediaSources) == 0 {
@@ -122,7 +122,7 @@ func getEmbyFileLocalPath(itemInfo ItemInfo) (string, error) {
 
 // findVideoPreviewInfos 查找 source 的所有转码资源
 //
-// 传递 resChan 进行异步查询, 通过监听 resChan 获取查询结果
+// 传入 resChan 进行异步查询, 调用方通过监听 resChan 获取结果
 func findVideoPreviewInfos(source *jsons.Item, clientApiKey string, resChan chan []*jsons.Item) {
 	if resChan == nil {
 		return
@@ -142,7 +142,7 @@ func findVideoPreviewInfos(source *jsons.Item, clientApiKey string, resChan chan
 		return
 	}
 
-	// 转换 openlist 绝对路径
+	// 转换 OpenList 绝对路径
 	openlistPathRes := path.Emby2Openlist(source.Attr("Path").Val().(string))
 	var transcodingList []openlist.TranscodingVideoInfo
 	var subtitleList []openlist.TranscodingSubtitleInfo
@@ -162,11 +162,11 @@ func findVideoPreviewInfos(source *jsons.Item, clientApiKey string, resChan chan
 		}
 	}
 
-	// 首次请求失败, 遍历 openlist 所有根目录, 重新请求
+	// 首次请求失败时, 遍历 OpenList 所有根目录重新请求
 	if !firstFetchSuccess {
 		paths, err := openlistPathRes.Range()
 		if err != nil {
-			logs.Error("转换 openlist 路径异常: %v", err)
+			logs.Error("转换 OpenList 路径失败: %v", err)
 			resChan <- nil
 			return
 		}
@@ -204,7 +204,7 @@ func findVideoPreviewInfos(source *jsons.Item, clientApiKey string, resChan chan
 			format := fmt.Sprintf("%dx%d", transcode.TemplateWidth, transcode.TemplateHeight)
 			copySource.Attr("Name").Set(fmt.Sprintf("(%s_%s) %s", transcode.TemplateId, format, originName))
 
-			// 重要！！！这里的 id 必须和原本的 id 不一样, 但又要确保能够正常反推出原本的 id
+			// 这里的 ID 必须不同于原始 ID, 同时要能反推出原始 ID。
 			newId := fmt.Sprintf(
 				"%s%s%s%s%s%s%s",
 				source.Attr("Id").Val(), MediaSourceIdSegment,
@@ -252,9 +252,9 @@ func findVideoPreviewInfos(source *jsons.Item, clientApiKey string, resChan chan
 
 // addSubtitles2MediaStreams 添加转码字幕到 PlaybackInfo 的 MediaStreams 项中
 //
-// subtitleList 是请求 openlist 转码信息接口获取到的字幕列表
+// subtitleList 是请求 OpenList 转码信息接口获取到的字幕列表
 func addSubtitles2MediaStreams(source *jsons.Item, subtitleList []openlist.TranscodingSubtitleInfo, openlistPath, templateId, clientApiKey string) {
-	// 1 json 参数类型校验
+	// 1 JSON 参数类型校验
 	if source == nil || len(subtitleList) == 0 {
 		return
 	}
@@ -339,7 +339,7 @@ func detectVirtualVideoDisplayTitle(source *jsons.Item) {
 
 	displayTitle, _ := vs.Attr("DisplayTitle").String()
 	if displayTitle == "" {
-		vs.Put("DisplayTitle", jsons.FromValue("Virtual Media"))
+		vs.Put("DisplayTitle", jsons.FromValue("虚拟媒体"))
 	}
 }
 
@@ -372,13 +372,13 @@ func simplifyMediaName(source *jsons.Item) {
 	// }
 }
 
-// resolveItemInfo 解析 emby 资源 item 信息
+// resolveItemInfo 解析 Emby 资源 Item 信息
 func resolveItemInfo(c *gin.Context, routeType RouteType) (ItemInfo, error) {
 	if c == nil {
 		return ItemInfo{}, errors.New("参数 c 不能为空")
 	}
 
-	// 匹配 item id
+	// 匹配 Item ID
 	uri := c.Request.URL.Path
 	itemInfo := ItemInfo{RouteType: routeType}
 	switch routeType {
@@ -390,22 +390,22 @@ func resolveItemInfo(c *gin.Context, routeType RouteType) (ItemInfo, error) {
 		return ItemInfo{}, fmt.Errorf("不支持的 RouteType: %s", routeType)
 	}
 
-	// 获取客户端请求的 api_key
+	// 获取客户端请求中的 api_key
 	itemInfo.ApiKeyType, itemInfo.ApiKeyName, itemInfo.ApiKey = getApiKey(c)
 
 	// 解析请求的媒体信息
 	msInfo, err := resolveMediaSourceId(getRequestMediaSourceId(c))
 	if err != nil {
-		return ItemInfo{}, fmt.Errorf("解析 MediaSource 失败, uri: %s, err: %v", uri, err)
+		return ItemInfo{}, fmt.Errorf("解析 MediaSource 失败, URI: %s, 错误: %v", uri, err)
 	}
 	itemInfo.MsInfo = msInfo
 
 	u, err := url.Parse(fmt.Sprintf("/Items/%s/PlaybackInfo", itemInfo.Id))
 	if err != nil {
-		return ItemInfo{}, fmt.Errorf("构建 PlaybackInfo uri 失败, err: %v", err)
+		return ItemInfo{}, fmt.Errorf("构建 PlaybackInfo URI 失败, 错误: %v", err)
 	}
 	q := u.Query()
-	// 默认只携带 query 形式的 api key
+	// 默认只携带 query 形式的 API key
 	if itemInfo.ApiKeyType == Query {
 		q.Set(itemInfo.ApiKeyName, itemInfo.ApiKey)
 	}

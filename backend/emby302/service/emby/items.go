@@ -25,14 +25,14 @@ import (
 
 const (
 
-	// ItemsCacheSpace 专门存放 items 信息的缓存空间
+	// ItemsCacheSpace 专门存放 Items 信息的缓存空间
 	ItemsCacheSpace = "UserItems"
 
-	// ResortMinNum 至少请求多少个 item 时才会走重排序逻辑
+	// ResortMinNum 至少请求多少个 Item 才会走重排序逻辑
 	ResortMinNum = 300
 )
 
-// ResortRandomItems 对随机的 items 列表进行重排序
+// ResortRandomItems 对随机 Items 列表进行重排序
 func ResortRandomItems(c *gin.Context) {
 	// 如果没有开启配置, 代理原请求并返回
 	if !config.C.Emby.ResortRandomItems {
@@ -50,7 +50,7 @@ func ResortRandomItems(c *gin.Context) {
 	// 从缓存空间中获取列表
 	spaceCache, ok := cache.GetSpaceCache(ItemsCacheSpace, calcRandomItemsCacheKey(c))
 
-	// 缓存空间没有数据时, 默认使用 emby 的原始随机结果
+	// 缓存空间没有数据时, 默认使用 Emby 的原始随机结果
 	if !ok {
 		u := strings.ReplaceAll(c.Request.RequestURI, "/Items", "/Items/with_limit")
 		c.Redirect(http.StatusTemporaryRedirect, u)
@@ -61,14 +61,13 @@ func ResortRandomItems(c *gin.Context) {
 	code := spaceCache.Code()
 	header := spaceCache.Headers()
 
-	// 响应客户端, 根据 err 自动判断
-	// 如果 err 不为空, 使用原始 bodyBytes
+	// 响应客户端。发生错误时, 回退使用原始 bodyBytes。
 	err = nil
 	var ih ItemsHolder
 	defer func() {
 		respBody, _ := json.Marshal(ih)
 		if err != nil {
-			logs.Error("随机排序接口非预期响应, err: %v, 返回原始响应", err)
+			logs.Error("随机排序接口返回非预期响应, 错误: %v, 已返回原始响应", err)
 			respBody = bodyBytes
 		}
 
@@ -78,7 +77,7 @@ func ResortRandomItems(c *gin.Context) {
 		c.Writer.Write(respBody)
 	}()
 
-	// 对 item 内部结构不关心, 故使用原始的 json 序列化提高处理速度
+	// 不关心 Item 内部结构, 直接使用原始 JSON 序列化结果提高处理速度
 	if err = json.Unmarshal(bodyBytes, &ih); err != nil {
 		return
 	}
@@ -128,7 +127,7 @@ func RandomItemsWithLimit(c *gin.Context) {
 	io.CopyBuffer(c.Writer, resp.Body, buf.Bytes())
 }
 
-// calcRandomItemsCacheKey 计算 random items 在缓存空间中的 key 值
+// calcRandomItemsCacheKey 计算随机 Items 在缓存空间中的 key 值
 func calcRandomItemsCacheKey(c *gin.Context) string {
 	return c.Query("IncludeItemTypes") +
 		c.Query("Recursive") +
@@ -153,7 +152,7 @@ func ProxyAddItemsPreviewInfo(c *gin.Context) {
 
 	// 检查响应, 读取为 JSON
 	if resp.StatusCode != http.StatusOK {
-		checkErr(c, fmt.Errorf("emby 远程返回了错误的响应码: %d", resp.StatusCode))
+		checkErr(c, fmt.Errorf("Emby 远程返回错误响应码: %d", resp.StatusCode))
 		return
 	}
 	resJson, err := jsons.Read(resp.Body)
@@ -243,7 +242,7 @@ func ProxyLatestItems(c *gin.Context) {
 
 	// 检查响应, 读取为 JSON
 	if resp.StatusCode != http.StatusOK {
-		checkErr(c, fmt.Errorf("emby 远程返回了错误的响应码: %d", resp.StatusCode))
+		checkErr(c, fmt.Errorf("Emby 远程返回错误响应码: %d", resp.StatusCode))
 		return
 	}
 	resJson, err := jsons.Read(resp.Body)
@@ -257,7 +256,7 @@ func ProxyLatestItems(c *gin.Context) {
 		jsons.OkResp(c.Writer, resJson)
 	}()
 
-	// 遍历 MediaSources 解码 path
+	// 遍历 MediaSources 并解码 Path
 	if resJson.Type() != jsons.JsonTypeArr {
 		return
 	}

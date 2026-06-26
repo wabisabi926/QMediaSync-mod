@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 )
 
-// Md5Hash 对字符串 raw 进行 md5 哈希运算, 返回十六进制
+// Md5Hash 对字符串 raw 进行 MD5 哈希运算, 返回十六进制
 func Md5Hash(raw string) string {
 	hash := md5.New()
 	hash.Write([]byte(raw))

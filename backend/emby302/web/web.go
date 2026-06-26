@@ -30,9 +30,9 @@ func Listen() error {
 
 	select {
 	case err := <-errChanHTTP:
-		log.Fatal("http 服务异常: ", err)
+		log.Fatal("HTTP 服务异常: ", err)
 	case err := <-errChanHTTPS:
-		log.Fatal("https 服务异常: ", err)
+		log.Fatal("HTTPS 服务异常: ", err)
 	}
 	return nil
 }
@@ -49,7 +49,7 @@ func initRouter(r *gin.Engine) {
 	initRoutes(r)
 }
 
-// listenHTTP 在指定端口上监听 http 服务
+// listenHTTP 在指定端口上监听 HTTP 服务
 //
 // 出现错误时, 会写入 errChan 中
 func listenHTTP(errChan chan error) {
@@ -66,7 +66,7 @@ func listenHTTP(errChan chan error) {
 	close(errChan)
 }
 
-// listenHTTPS 在指定端口上监听 https 服务
+// listenHTTPS 在指定端口上监听 HTTPS 服务
 //
 // 出现错误时, 会写入 errChan 中
 func listenHTTPS(errChan chan error) {

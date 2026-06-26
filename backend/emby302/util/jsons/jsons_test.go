@@ -35,7 +35,7 @@ func TestUnmarshal(t *testing.T) {
 	}
 	log.Println("反序列化成功")
 
-	log.Println("当前 json 类型: ", item.Type())
+	log.Println("当前 JSON 类型: ", item.Type())
 	item.Attr("Test").Set("This val has modified by test program")
 
 	item.Attr("MediaSources").Idx(0).Attr("DefaultAudioStreamIndex").Set("😁")

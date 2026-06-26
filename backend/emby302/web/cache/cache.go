@@ -20,9 +20,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// CacheKeyIgnoreParams 忽略的请求头或者参数
+// CacheKeyIgnoreParams 忽略的请求头或参数
 //
-// 如果请求地址包含列表中的请求头或者参数, 则不参与 cacheKey 运算
+// 如果请求地址包含列表中的请求头或参数, 则不参与 cache key 运算。
 var CacheKeyIgnoreParams = map[string]struct{}{
 	// Fileball
 	"StartTimeTicks": {}, "X-Playback-Session-Id": {},
@@ -78,7 +78,7 @@ func RequestCacher() gin.HandlerFunc {
 		// 2 计算 cache key
 		cacheKey, err := calcCacheKey(c)
 		if err != nil {
-			logs.Warn("cache key 计算异常: %v, 跳过缓存", err)
+			logs.Warn("计算 cache key 失败: %v, 跳过缓存", err)
 			// 如果没有调用 Abort, Gin 会自动继续调用处理器链
 			return
 		}
@@ -125,7 +125,7 @@ func RequestCacher() gin.HandlerFunc {
 	}
 }
 
-// Duration 将一个标准的时间转换成适用于缓存时间的字符串
+// Duration 将标准时间转换成适用于缓存时间的字符串
 func Duration(d time.Duration) string {
 	expired := d.Milliseconds() + time.Now().UnixMilli()
 	return fmt.Sprintf("%v", expired)
@@ -138,8 +138,8 @@ func WaitingForHandleChan() {
 
 // calcCacheKey 计算缓存 key
 //
-// 计算方式: 取出 请求方法, 请求路径, 请求体, 请求头 转换成字符串之后字典排序,
-// 再进行 Md5Hash
+// 计算方式: 取出请求方法、请求路径、请求体、请求头并转换成字符串,
+// 字典排序后再进行 MD5 哈希。
 func calcCacheKey(c *gin.Context) (string, error) {
 	method := c.Request.Method
 
@@ -173,10 +173,10 @@ func calcCacheKey(c *gin.Context) (string, error) {
 	headerStr := header.String()
 	preEnc := strs.Sort(c.Request.URL.RawQuery + body + headerStr)
 	if headerStr != "" {
-		logs.Tip("headers to encode cacheKey: %s", colors.ToYellow(headerStr))
+		logs.Tip("参与 cache key 计算的请求头: %s", colors.ToYellow(headerStr))
 	}
 
-	// 为防止字典排序后, 不同的 uri 冲突, 这里在排序完的字符串前再加上原始的 uri
+	// 为防止字典排序后不同 URI 冲突, 这里在排序完的字符串前再加上原始 URI。
 	uriNoArgs := urls.ReplaceAll(
 		uri,
 		"?"+c.Request.URL.RawQuery, "",

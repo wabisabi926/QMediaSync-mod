@@ -13,7 +13,7 @@ import (
 
 const (
 
-	// MaxCacheSize 缓存最大大小 (Byte)
+	// MaxCacheSize 缓存最大大小（字节）
 	//
 	// 这里的大小指的是响应体大小, 实际占用大小可能略大一些
 	MaxCacheSize int64 = 100 * 1024 * 1024
@@ -25,7 +25,7 @@ const (
 	HeaderKeyExpired = "Expired"
 )
 
-// currentCacheSize 当前内存中的缓存大小 (Byte)
+// currentCacheSize 当前内存中的缓存大小（字节）
 var currentCacheSize int64 = 0
 
 // DefaultExpired 默认的请求过期时间
@@ -50,10 +50,10 @@ func init() {
 	go loopMaintainCache()
 }
 
-// loopMaintainCache cacheMap 由单独的 goroutine 维护
+// loopMaintainCache 由单独的 goroutine 维护 cacheMap
 func loopMaintainCache() {
 
-	// cleanCache 清洗缓存数据
+	// cleanCache 清理缓存数据
 	cleanCache := func() {
 		validCnt := 0
 		nowMillis := time.Now().UnixMilli()
@@ -139,7 +139,7 @@ func putCache(cacheKey string, c *gin.Context, respBody []byte, respHeader respH
 		header:   respHeader,
 	}
 
-	// 依据先进先淘汰原则, 将最新缓存放入预缓存通道中
+	// 依据先进先淘汰原则, 将最新缓存放入预缓存通道
 	cacheHandleWaitGroup.Add(1)
 	doneOnce := sync.OnceFunc(cacheHandleWaitGroup.Done)
 	for {

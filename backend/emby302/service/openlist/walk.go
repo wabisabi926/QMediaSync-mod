@@ -22,29 +22,29 @@ type Walker[T any] struct {
 	Next func() (T, error)
 }
 
-// walkWaiter 用于当客户端需要请求 openlist 时, 暂时阻塞所有 walk 操作
+// walkWaiter 用于当客户端需要请求 OpenList 时, 暂时阻塞所有 walk 操作
 var (
 	walkWaiterMu       = sync.Mutex{}
 	walkWaiter         = sync.NewCond(&walkWaiterMu)
 	mainApiRunnerCount = 0
 )
 
-// waitForMainComplete 阻塞等待主 api 请求完毕
+// waitForMainComplete 阻塞等待主 API 请求完毕
 func waitForMainComplete() {
 	walkWaiterMu.Lock()
 	var flag bool
 	for mainApiRunnerCount > 0 {
-		logs.Info("优先处理客户端 fs 请求, openlist walk 暂停...")
+		logs.Info("优先处理客户端 fs 请求, OpenList walk 暂停...")
 		flag = true
 		walkWaiter.Wait()
 	}
 	if flag {
-		logs.Info("openlist walk 继续运行")
+		logs.Info("OpenList walk 继续运行")
 	}
 	walkWaiterMu.Unlock()
 }
 
-// FetchFsList 请求 openlist "/api/fs/list" 接口, 支持分页
+// WalkFsList 请求 OpenList "/api/fs/list" 接口, 支持分页
 //
 // 传入 path 与接口的 path 作用一致
 func WalkFsList(path string, perPage int) *Walker[FsList] {

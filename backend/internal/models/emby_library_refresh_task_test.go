@@ -1,11 +1,13 @@
 package models
 
 import (
+	"bytes"
 	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -139,6 +141,45 @@ func TestRequestEmbyLibraryRefreshSkipsDisabledConfig(t *testing.T) {
 	db.Db.Model(&EmbyLibraryRefreshTask{}).Count(&total)
 	if total != 0 {
 		t.Fatalf("关闭刷新时不应创建任务，实际 %d", total)
+	}
+}
+
+func setEmbyRefreshTestLogger(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	helpers.AppLogger = &helpers.QLogger{
+		Logger: log.New(&buf, "", 0),
+	}
+	return &buf
+}
+
+func TestCheckPendingEmbyLibraryRefreshTasksLogsDisabledTransitionOnce(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	buf := setEmbyRefreshTestLogger(t)
+	resetEmbyRefreshScannerConfigStateForTest()
+
+	GlobalEmbyConfig.EnableRefreshLibrary = 0
+	CheckPendingEmbyLibraryRefreshTasks()
+	CheckPendingEmbyLibraryRefreshTasks()
+	if strings.Contains(buf.String(), "暂停待刷新任务扫描") {
+		t.Fatalf("启动时未启用刷新不应写扫描暂停日志，实际日志：%s", buf.String())
+	}
+
+	GlobalEmbyConfig.EnableRefreshLibrary = 1
+	CheckPendingEmbyLibraryRefreshTasks()
+	GlobalEmbyConfig.EnableRefreshLibrary = 0
+	CheckPendingEmbyLibraryRefreshTasks()
+	CheckPendingEmbyLibraryRefreshTasks()
+	if got := strings.Count(buf.String(), "暂停待刷新任务扫描"); got != 1 {
+		t.Fatalf("启用变为未启用时应只写 1 条暂停日志，实际 %d，日志：%s", got, buf.String())
+	}
+
+	GlobalEmbyConfig.EnableRefreshLibrary = 1
+	CheckPendingEmbyLibraryRefreshTasks()
+	GlobalEmbyConfig.EnableRefreshLibrary = 0
+	CheckPendingEmbyLibraryRefreshTasks()
+	if got := strings.Count(buf.String(), "暂停待刷新任务扫描"); got != 2 {
+		t.Fatalf("重新启用后再次关闭应再写 1 条暂停日志，实际 %d，日志：%s", got, buf.String())
 	}
 }
 

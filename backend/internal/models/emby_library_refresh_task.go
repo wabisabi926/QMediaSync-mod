@@ -32,6 +32,11 @@ var IsStrmSyncTaskActiveFunc func(syncPathId uint) bool
 var embyRefreshCheckChan = make(chan struct{}, 1)
 var embyRefreshCoordinatorOnce sync.Once
 var embyRefreshDownloadEventBatch = &downloadEventBatch{syncFileIds: make(map[uint]struct{})}
+var embyRefreshScannerConfigState = struct {
+	sync.Mutex
+	initialized bool
+	enabled     bool
+}{}
 
 type downloadEventBatch struct {
 	mutex       sync.Mutex
@@ -110,6 +115,33 @@ func newPendingEmbyLibraryRefreshTask(libraryId string, libraryName string, sync
 	}
 	task.SetSyncPathIds(syncPathIds)
 	return task
+}
+
+func isEmbyLibraryRefreshEnabled() bool {
+	return GlobalEmbyConfig != nil &&
+		GlobalEmbyConfig.EmbyUrl != "" &&
+		GlobalEmbyConfig.EmbyApiKey != "" &&
+		GlobalEmbyConfig.EnableRefreshLibrary != 0
+}
+
+func markEmbyRefreshScannerConfigState(enabled bool) bool {
+	embyRefreshScannerConfigState.Lock()
+	defer embyRefreshScannerConfigState.Unlock()
+
+	shouldLogDisabledTransition := embyRefreshScannerConfigState.initialized &&
+		embyRefreshScannerConfigState.enabled &&
+		!enabled
+	embyRefreshScannerConfigState.initialized = true
+	embyRefreshScannerConfigState.enabled = enabled
+	return shouldLogDisabledTransition
+}
+
+func resetEmbyRefreshScannerConfigStateForTest() {
+	embyRefreshScannerConfigState.Lock()
+	defer embyRefreshScannerConfigState.Unlock()
+
+	embyRefreshScannerConfigState.initialized = false
+	embyRefreshScannerConfigState.enabled = false
 }
 
 func saveEmbyLibraryRefreshTask(task *EmbyLibraryRefreshTask) error {
@@ -429,10 +461,13 @@ func runEmbyLibraryRefreshScanner() {
 }
 
 func CheckPendingEmbyLibraryRefreshTasks() {
-	if GlobalEmbyConfig == nil || GlobalEmbyConfig.EmbyUrl == "" || GlobalEmbyConfig.EmbyApiKey == "" || GlobalEmbyConfig.EnableRefreshLibrary == 0 {
-		helpers.AppLogger.Infof("Emby 未配置或未启用刷新媒体库，跳过待刷新任务扫描")
+	if !isEmbyLibraryRefreshEnabled() {
+		if markEmbyRefreshScannerConfigState(false) {
+			helpers.AppLogger.Infof("Emby 未配置或未启用刷新媒体库，暂停待刷新任务扫描")
+		}
 		return
 	}
+	markEmbyRefreshScannerConfigState(true)
 	if err := flushPendingEmbyRefreshDownloadTaskChanges(); err != nil {
 		helpers.AppLogger.Errorf("扫描 Emby 媒体库刷新任务前批量处理下载事件失败：%v", err)
 	}

@@ -63,6 +63,7 @@ import { ref, computed, onMounted, onUnmounted, watch, useTemplateRef } from 'vu
 import { Connection, Close, Delete, Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { SERVER_URL } from '@/const'
+import { formatDateTime } from '@/utils/timeUtils'
 
 // 定义组件属性
 interface Props {
@@ -253,7 +254,7 @@ const addSystemLog = (message: string, level: LogEntry['level'] = 'info') => {
   addLogEntry({
     level,
     message,
-    timestamp: new Date().toISOString(),
+    timestamp: formatDateTime(Math.floor(Date.now() / 1000)),
   })
 }
 

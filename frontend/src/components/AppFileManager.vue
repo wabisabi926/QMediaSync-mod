@@ -175,7 +175,7 @@
                       <strong>大小：</strong
                       >{{ row.is_directory ? '--' : formatFileSize(row.size) }}
                     </p>
-                    <p><strong>修改时间：</strong>{{ formatDateTime(row.modified_time * 1000) }}</p>
+                    <p><strong>修改时间：</strong>{{ formatDateTime(row.modified_time) }}</p>
                     <div style="margin-top: 10px">
                       <el-button
                         size="small"

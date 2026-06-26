@@ -207,6 +207,7 @@ import { SERVER_URL } from '@/const'
 import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
 import { useBackgroundRefresh } from '@/composables/useBackgroundRefresh'
 import { mergeStableList, retainExistingKeys } from '@/composables/useStableList'
+import { useWSEvent } from '@/composables/useWebSocket'
 import { usePageStateStore } from '@/stores/pageState'
 import type { AxiosStatic } from 'axios'
 import { formatFileSize } from '@/utils/fileSizeUtils'
@@ -265,10 +266,15 @@ const statusFilter = computed({
   get: () => Number(pageState.filters.status ?? -1),
   set: (value) => pageStateStore.setFilter('download-queue', 'status', value),
 })
+const hasActiveQueueWork = computed(
+  () =>
+    queueStatus.value === 1 ||
+    downloading.value > 0 ||
+    queueData.value.some((task) => task.status <= 1),
+)
 
 // 定时器
 const refreshTimer = ref<number | null>(null)
-const statusRefreshTimer = ref<number | null>(null)
 const pendingQueueDataRefresh = ref(false)
 let isPageActive = false
 const queueDataRequestGate = createActiveRequestGate(() => isPageActive)
@@ -411,6 +417,11 @@ const loadQueueData = async () => {
             'download-queue',
             retainExistingKeys(pageState.expandedRowKeys, queueData.value, (row) => row.id),
           )
+          if (hasActiveQueueWork.value) {
+            startAutoRefresh()
+          } else {
+            stopAutoRefresh()
+          }
         } else {
           ElMessage.error('获取下载队列数据失败')
         }
@@ -670,28 +681,18 @@ const handleStatusChange = (val: number) => {
 
 // 启动定时刷新
 const startAutoRefresh = () => {
-  if (refreshTimer.value) {
-    clearInterval(refreshTimer.value)
+  if (refreshTimer.value || !hasActiveQueueWork.value) {
+    return
   }
 
   refreshTimer.value = window.setInterval(() => {
-    // 只有在页面可见时才刷新
-    if (!document.hidden) {
+    if (!document.hidden && hasActiveQueueWork.value) {
       loadQueueData()
     }
-  }, 5000)
-
-  // 启动队列状态定时刷新
-  if (statusRefreshTimer.value) {
-    clearInterval(statusRefreshTimer.value)
-  }
-
-  statusRefreshTimer.value = window.setInterval(() => {
-    // 只有在页面可见时才刷新
-    if (!document.hidden) {
-      loadQueueStatus()
+    if (!hasActiveQueueWork.value) {
+      stopAutoRefresh()
     }
-  }, 3000)
+  }, 5000)
 }
 
 // 停止定时刷新
@@ -699,11 +700,6 @@ const stopAutoRefresh = () => {
   if (refreshTimer.value) {
     clearInterval(refreshTimer.value)
     refreshTimer.value = null
-  }
-
-  if (statusRefreshTimer.value) {
-    clearInterval(statusRefreshTimer.value)
-    statusRefreshTimer.value = null
   }
 }
 
@@ -728,6 +724,21 @@ const deactivateQueuePage = () => {
   invalidateQueueMutationContext()
   stopAutoRefresh()
 }
+
+useWSEvent('download_queue_status_changed', (data) => {
+  if (typeof data.running === 'boolean') {
+    queueStatus.value = data.running ? 1 : 0
+  }
+  if (isPageActive) {
+    loadQueueData()
+  }
+})
+
+useWSEvent('download_queue_changed', () => {
+  if (isPageActive && !document.hidden) {
+    loadQueueData()
+  }
+})
 
 // 页面生命周期
 onMounted(activateQueuePage)

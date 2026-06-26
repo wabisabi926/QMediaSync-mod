@@ -1,0 +1,122 @@
+package requests
+
+import (
+	"runtime"
+	"testing"
+
+	"qmediasync/internal/models"
+)
+
+func TestSyncPathRequestValidate(t *testing.T) {
+	valid := SyncPathRequest{
+		SourceType:   models.SourceType115,
+		AccountID:    1,
+		BaseCid:      "123",
+		LocalPath:    "/media/strm",
+		RemotePath:   "/movies",
+		EnableCron:   true,
+		CustomConfig: true,
+		Setting: SyncPathStrmRequest{
+			LocalProxy:     -1,
+			StrmBaseURL:    "http://127.0.0.1:8096",
+			Cron:           "0 2 * * *",
+			MinVideoSize:   -1,
+			VideoExtArr:    []string{".mp4", ".mkv"},
+			MetaExtArr:     []string{".nfo"},
+			ExcludeNameArr: []string{},
+			UploadMeta:     -1,
+			DownloadMeta:   -1,
+			DeleteDir:      -1,
+			AddPath:        -1,
+			CheckMetaMtime: -1,
+		},
+	}
+
+	tests := []struct {
+		name    string
+		mutate  func(*SyncPathRequest)
+		wantErr bool
+	}{
+		{name: "合法网盘同步路径通过"},
+		{name: "未知来源类型失败", mutate: func(r *SyncPathRequest) { r.SourceType = models.SourceType("bad") }, wantErr: true},
+		{name: "非本地缺少账号失败", mutate: func(r *SyncPathRequest) { r.AccountID = 0 }, wantErr: true},
+		{name: "本地来源允许账号为空", mutate: func(r *SyncPathRequest) { r.SourceType = models.SourceTypeLocal; r.AccountID = 0 }},
+		{name: "自定义配置 Cron 错误失败", mutate: func(r *SyncPathRequest) { r.Setting.Cron = "bad" }, wantErr: true},
+		{name: "自定义配置枚举错误失败", mutate: func(r *SyncPathRequest) { r.Setting.DownloadMeta = 3 }, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := valid
+			if tt.mutate != nil {
+				tt.mutate(&req)
+			}
+			err := req.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestSyncPathRequestValidateTopLevelStrmFields(t *testing.T) {
+	req := SyncPathRequest{
+		SourceType:   models.SourceType115,
+		AccountID:    1,
+		BaseCid:      "123",
+		LocalPath:    "/media/strm",
+		RemotePath:   "/movies",
+		CustomConfig: true,
+		SyncPathStrmRequest: SyncPathStrmRequest{
+			LocalProxy:     -1,
+			StrmBaseURL:    "http://127.0.0.1:8096",
+			Cron:           "0 2 * * *",
+			MinVideoSize:   -1,
+			VideoExtArr:    []string{".mp4"},
+			MetaExtArr:     []string{".nfo"},
+			UploadMeta:     -1,
+			DownloadMeta:   -1,
+			DeleteDir:      -1,
+			AddPath:        -1,
+			CheckMetaMtime: -1,
+		},
+	}
+
+	if err := req.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
+func TestSyncPathRequestUpdateValidate(t *testing.T) {
+	req := UpdateSyncPathRequest{
+		ID: 1,
+		SyncPathRequest: SyncPathRequest{
+			SourceType: models.SourceType115,
+			AccountID:  1,
+			BaseCid:    "123",
+			LocalPath:  "/media/strm",
+			RemotePath: "/movies",
+		},
+	}
+	if err := req.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+
+	req.ID = 0
+	if err := req.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want error")
+	}
+}
+
+func TestSyncPathRequestNormalizedRemotePath(t *testing.T) {
+	req := SyncPathRequest{SourceType: models.SourceType115, RemotePath: "\\movies\\2026"}
+	if got := req.NormalizedRemotePath(); got != "movies/2026" {
+		t.Fatalf("NormalizedRemotePath() = %q", got)
+	}
+
+	local := SyncPathRequest{SourceType: models.SourceTypeLocal, RemotePath: "media"}
+	got := local.NormalizedRemotePath()
+	if runtime.GOOS != "windows" && got != "/media" {
+		t.Fatalf("NormalizedRemotePath() = %q", got)
+	}
+}

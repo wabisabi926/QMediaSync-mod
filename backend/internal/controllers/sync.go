@@ -4,13 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
+	"qmediasync/internal/requests"
 	"qmediasync/internal/synccron"
 	"qmediasync/internal/v115open"
 
@@ -164,17 +163,6 @@ func GetSyncPathList(c *gin.Context) {
 	}})
 }
 
-type addSyncPathRequest struct {
-	SourceType   models.SourceType `json:"source_type" form:"source_type" binding:"required"` // 来源类型
-	AccountId    uint              `json:"account_id" form:"account_id"`                      // 网盘账号 ID
-	BaseCid      string            `json:"base_cid" form:"base_cid" binding:"required"`       // 来源路径 ID 或本地路径
-	LocalPath    string            `json:"local_path" form:"local_path" binding:"required"`   // 本地路径
-	RemotePath   string            `json:"remote_path" form:"remote_path" binding:"required"` // 同步源路径，115 网盘和 123 网盘需要该字段
-	EnableCron   bool              `json:"enable_cron" form:"enable_cron"`                    // 是否启用定时任务
-	CustomConfig bool              `json:"custom_config" form:"custom_config"`                // 自定义配置
-	models.SettingStrm
-}
-
 // AddSyncPath 添加同步路径
 // @Summary 添加同步路径
 // @Description 创建新的同步路径配置
@@ -194,16 +182,20 @@ type addSyncPathRequest struct {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func AddSyncPath(c *gin.Context) {
-	var req addSyncPathRequest
+	var req requests.SyncPathRequest
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("请求参数错误：%v", err), Data: nil})
+		return
+	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 	baseCid := req.BaseCid
 	localPath := req.LocalPath
 	if req.SourceType != models.SourceTypeLocal {
 		// 检查 accountId 是否存在
-		account, accountErr := models.GetAccountById(req.AccountId)
+		account, accountErr := models.GetAccountById(req.AccountID)
 		if accountErr != nil || account == nil {
 			c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "账号不存在", Data: nil})
 			return
@@ -214,25 +206,9 @@ func AddSyncPath(c *gin.Context) {
 			return
 		}
 	}
-	remotePath := req.RemotePath
-	if req.SourceType != models.SourceTypeLocal {
-		remotePath = strings.TrimPrefix(req.RemotePath, "/")
-		remotePath = strings.TrimPrefix(req.RemotePath, "/")
-		remotePath = filepath.ToSlash(filepath.Clean(req.RemotePath))
-	}
-	// 非 Windows + 本地类型，remotePath 需要以 / 开头
-	if runtime.GOOS != "windows" && req.SourceType == models.SourceTypeLocal {
-		if !strings.HasPrefix(remotePath, "/") {
-			remotePath = "/" + remotePath
-		}
-	}
-	// if req.SourceType == models.SourceTypeOpenList {
-	// 	// 将 remotePath 中的 \ 都替换为 /
-	// 	remotePath = strings.ReplaceAll(remotePath, "\\", "/")
-	// 	baseCid = strings.ReplaceAll(req.BaseCid, "\\", "/")
-	// }
+	remotePath := req.NormalizedRemotePath()
 	// 创建同步路径
-	syncPath := models.CreateSyncPath(req.SourceType, req.AccountId, baseCid, localPath, remotePath, req.EnableCron, req.CustomConfig, req.SettingStrm)
+	syncPath := models.CreateSyncPath(req.SourceType, req.AccountID, baseCid, localPath, remotePath, req.EnableCron, req.CustomConfig, req.StrmSettingModel())
 	if syncPath == nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "创建同步路径失败", Data: nil})
 		return
@@ -263,13 +239,13 @@ func AddSyncPath(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func UpdateSyncPath(c *gin.Context) {
-	type updateSyncPathRequest struct {
-		ID uint `json:"id" form:"id"` // 同步路径 ID
-		addSyncPathRequest
-	}
-	var req updateSyncPathRequest
+	var req requests.UpdateSyncPathRequest
 	if err := c.ShouldBind(&req); err != nil {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误", Data: nil})
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("请求参数错误：%v", err), Data: nil})
+		return
+	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 	id := req.ID
@@ -282,8 +258,8 @@ func UpdateSyncPath(c *gin.Context) {
 	oldCron := syncPath.Cron
 	if req.SourceType != models.SourceTypeLocal {
 		// 检查 accountId 是否存在
-		account, err := models.GetAccountById(syncPath.AccountId)
-		if err != nil {
+		account, err := models.GetAccountById(req.AccountID)
+		if err != nil || account == nil {
 			c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "账号不存在", Data: nil})
 			return
 		}
@@ -293,25 +269,13 @@ func UpdateSyncPath(c *gin.Context) {
 			return
 		}
 	}
-	remotePath := req.RemotePath
-	if req.SourceType != models.SourceTypeLocal {
-		remotePath = strings.TrimPrefix(req.RemotePath, "/")
-		remotePath = strings.TrimPrefix(req.RemotePath, "/")
-		remotePath = filepath.ToSlash(filepath.Clean(req.RemotePath))
-	}
-	// 非 Windows + 本地类型，remotePath 需要以 / 开头
-	if runtime.GOOS != "windows" && req.SourceType == models.SourceTypeLocal {
-		if !strings.HasPrefix(remotePath, "/") {
-			remotePath = "/" + remotePath
-		}
-	}
+	baseCid := req.BaseCid
+	remotePath := req.NormalizedRemotePath()
 	if req.SourceType == models.SourceTypeOpenList {
-		// 将 remotePath 中的 \ 都替换为 /
-		req.RemotePath = strings.ReplaceAll(req.RemotePath, "\\", "/")
-		req.BaseCid = strings.ReplaceAll(req.BaseCid, "\\", "/")
+		baseCid = strings.ReplaceAll(req.BaseCid, "\\", "/")
 	}
 	// helpers.AppLogger.Infof("更新同步路径 %d 定时任务：%s", syncPath.ID, req.Cron)
-	updateErr := syncPath.Update(req.SourceType, req.AccountId, req.BaseCid, req.LocalPath, remotePath, req.EnableCron, req.CustomConfig, req.SettingStrm)
+	updateErr := syncPath.Update(req.SourceType, req.AccountID, baseCid, req.LocalPath, remotePath, req.EnableCron, req.CustomConfig, req.StrmSettingModel())
 	if updateErr != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "更新同步路径失败：" + updateErr.Error(), Data: nil})
 		return

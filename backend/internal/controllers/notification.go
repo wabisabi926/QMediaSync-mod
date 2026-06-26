@@ -58,6 +58,12 @@ func parseNotificationChannelID(c *gin.Context) (uint, bool) {
 	return idReq.ID, true
 }
 
+func refreshNotificationManagerChannels() {
+	if notificationmanager.GlobalEnhancedNotificationManager != nil {
+		notificationmanager.GlobalEnhancedNotificationManager.LoadChannels()
+	}
+}
+
 // CreateTelegramChannel 创建 Telegram 渠道
 // @Summary 创建 Telegram 渠道
 // @Description 创建 Telegram 通知渠道并保存配置
@@ -131,9 +137,7 @@ func CreateTelegramChannel(c *gin.Context) {
 	}
 
 	// 重新加载管理器
-	if notificationmanager.GlobalEnhancedNotificationManager != nil {
-		notificationmanager.GlobalEnhancedNotificationManager.ReloadChannel(channel.ID)
-	}
+	refreshNotificationManagerChannels()
 
 	c.JSON(http.StatusOK, gin.H{
 		"code":    0,
@@ -219,9 +223,7 @@ func CreateMeoWChannel(c *gin.Context) {
 	}
 
 	// 重新加载管理器
-	if notificationmanager.GlobalEnhancedNotificationManager != nil {
-		notificationmanager.GlobalEnhancedNotificationManager.ReloadChannel(channel.ID)
-	}
+	refreshNotificationManagerChannels()
 
 	c.JSON(http.StatusOK, gin.H{
 		"code":    0,
@@ -314,9 +316,7 @@ func CreateBarkChannel(c *gin.Context) {
 	}
 
 	// 重新加载管理器
-	if notificationmanager.GlobalEnhancedNotificationManager != nil {
-		notificationmanager.GlobalEnhancedNotificationManager.ReloadChannel(channel.ID)
-	}
+	refreshNotificationManagerChannels()
 
 	c.JSON(http.StatusOK, gin.H{
 		"code":    0,
@@ -402,9 +402,7 @@ func CreateServerChanChannel(c *gin.Context) {
 	}
 
 	// 重新加载管理器
-	if notificationmanager.GlobalEnhancedNotificationManager != nil {
-		notificationmanager.GlobalEnhancedNotificationManager.ReloadChannel(channel.ID)
-	}
+	refreshNotificationManagerChannels()
 
 	c.JSON(http.StatusOK, gin.H{
 		"code":    0,
@@ -500,9 +498,7 @@ func CreateCustomWebhookChannel(c *gin.Context) {
 	}
 
 	// 刷新通知管理器
-	if notificationmanager.GlobalEnhancedNotificationManager != nil {
-		notificationmanager.GlobalEnhancedNotificationManager.ReloadChannel(channel.ID)
-	}
+	refreshNotificationManagerChannels()
 
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "创建成功", "data": channel})
 }
@@ -636,9 +632,7 @@ func UpdateCustomWebhookChannel(c *gin.Context) {
 	}
 
 	// 刷新通知管理器
-	if notificationmanager.GlobalEnhancedNotificationManager != nil {
-		notificationmanager.GlobalEnhancedNotificationManager.ReloadChannel(channel.ID)
-	}
+	refreshNotificationManagerChannels()
 
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功", "data": channel})
 }
@@ -720,9 +714,7 @@ func UpdateTelegramChannel(c *gin.Context) {
 	}
 
 	// 刷新通知管理器
-	if notificationmanager.GlobalEnhancedNotificationManager != nil {
-		notificationmanager.GlobalEnhancedNotificationManager.ReloadChannel(channel.ID)
-	}
+	refreshNotificationManagerChannels()
 
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功", "data": channel})
 }
@@ -804,9 +796,7 @@ func UpdateMeoWChannel(c *gin.Context) {
 	}
 
 	// 刷新通知管理器
-	if notificationmanager.GlobalEnhancedNotificationManager != nil {
-		notificationmanager.GlobalEnhancedNotificationManager.ReloadChannel(channel.ID)
-	}
+	refreshNotificationManagerChannels()
 
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功", "data": channel})
 }
@@ -896,9 +886,7 @@ func UpdateBarkChannel(c *gin.Context) {
 	}
 
 	// 刷新通知管理器
-	if notificationmanager.GlobalEnhancedNotificationManager != nil {
-		notificationmanager.GlobalEnhancedNotificationManager.ReloadChannel(channel.ID)
-	}
+	refreshNotificationManagerChannels()
 
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功", "data": channel})
 }
@@ -980,9 +968,7 @@ func UpdateServerChanChannel(c *gin.Context) {
 	}
 
 	// 刷新通知管理器
-	if notificationmanager.GlobalEnhancedNotificationManager != nil {
-		notificationmanager.GlobalEnhancedNotificationManager.ReloadChannel(channel.ID)
-	}
+	refreshNotificationManagerChannels()
 
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功", "data": channel})
 }
@@ -1028,9 +1014,7 @@ func UpdateChannelStatus(c *gin.Context) {
 	}
 
 	// 重新加载管理器
-	if notificationmanager.GlobalEnhancedNotificationManager != nil {
-		notificationmanager.GlobalEnhancedNotificationManager.ReloadChannel(r.ChannelID)
-	}
+	refreshNotificationManagerChannels()
 
 	c.JSON(http.StatusOK, gin.H{
 		"code":    0,
@@ -1413,9 +1397,7 @@ func UpdateNotificationRule(c *gin.Context) {
 	}
 
 	// 重新加载规则
-	if notificationmanager.GlobalEnhancedNotificationManager != nil {
-		notificationmanager.GlobalEnhancedNotificationManager.LoadChannels()
-	}
+	refreshNotificationManagerChannels()
 
 	c.JSON(http.StatusOK, gin.H{
 		"code":    0,

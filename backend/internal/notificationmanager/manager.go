@@ -48,7 +48,6 @@ func (m *EnhancedNotificationManager) LoadChannels() error {
 	defer m.mu.Unlock()
 
 	m.handlers = make(map[uint]*channelInfo)
-	m.rules = make(map[string][]uint)
 
 	// 加载所有启用的通知渠道
 	var channels []notification.NotificationChannel
@@ -71,18 +70,29 @@ func (m *EnhancedNotificationManager) LoadChannels() error {
 		}
 	}
 
-	// 加载通知规则
-	var rules []notification.NotificationRule
-	if err := m.db.Where("is_enabled = ?", true).Find(&rules).Error; err != nil {
-		helpers.AppLogger.Warnf("加载通知规则失败：%v", err)
-	} else {
-		for _, rule := range rules {
-			m.rules[rule.EventType] = append(m.rules[rule.EventType], rule.ChannelID)
-		}
-	}
+	m.loadEnabledRulesLocked()
 
 	helpers.AppLogger.Infof("已加载 %d 个通知渠道", len(m.handlers))
 	return nil
+}
+
+func (m *EnhancedNotificationManager) loadEnabledRulesLocked() {
+	m.rules = make(map[string][]uint)
+	var rules []notification.NotificationRule
+	err := m.db.
+		Model(&notification.NotificationRule{}).
+		Joins("JOIN notification_channels ON notification_channels.id = notification_rules.channel_id").
+		Where("notification_rules.is_enabled = ? AND notification_channels.is_enabled = ?", true, true).
+		Find(&rules).Error
+	if err != nil {
+		helpers.AppLogger.Warnf("加载通知规则失败：%v", err)
+		return
+	}
+	for _, rule := range rules {
+		if _, ok := m.handlers[rule.ChannelID]; ok {
+			m.rules[rule.EventType] = append(m.rules[rule.EventType], rule.ChannelID)
+		}
+	}
 }
 
 // StartAll 启动所有支持后台运行的渠道处理器
@@ -160,10 +170,14 @@ func (m *EnhancedNotificationManager) SendNotification(ctx context.Context, noti
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
+	if len(m.handlers) == 0 {
+		return nil
+	}
+
 	// 获取此事件类型启用的渠道
-	channelIDs, exists := m.rules[string(notification.Type)]
-	if !exists {
-		helpers.AppLogger.Warnf("未找到事件类型 %s 的通知规则", notification.Type)
+	channelIDs := m.rules[string(notification.Type)]
+	if len(channelIDs) == 0 {
+		helpers.AppLogger.Debugf("事件类型 %s 没有启用的通知规则，跳过发送", notification.Type)
 		return nil
 	}
 
@@ -211,6 +225,7 @@ func (m *EnhancedNotificationManager) ReloadChannel(channelID uint) error {
 
 	if !channel.IsEnabled {
 		delete(m.handlers, channelID)
+		m.loadEnabledRulesLocked()
 		return nil
 	}
 
@@ -228,6 +243,7 @@ func (m *EnhancedNotificationManager) ReloadChannel(channelID uint) error {
 		bg.Start(context.Background())
 	}
 
+	m.loadEnabledRulesLocked()
 	helpers.AppLogger.Infof("已重新加载渠道：%s", channel.ChannelName)
 	return nil
 }

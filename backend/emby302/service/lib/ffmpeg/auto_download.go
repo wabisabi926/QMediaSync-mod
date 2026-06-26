@@ -8,10 +8,10 @@ import (
 	"runtime"
 	"strconv"
 
-	"Q115-STRM/emby302/util/bytess"
-	"Q115-STRM/emby302/util/https"
-	"Q115-STRM/emby302/util/logs"
-	"Q115-STRM/emby302/util/logs/colors"
+	"qmediasync/emby302/util/bytess"
+	"qmediasync/emby302/util/https"
+	"qmediasync/emby302/util/logs"
+	"qmediasync/emby302/util/logs/colors"
 )
 
 const (

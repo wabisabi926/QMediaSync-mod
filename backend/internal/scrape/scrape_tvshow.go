@@ -10,13 +10,13 @@ import (
 	"sync"
 	"time"
 
-	"Q115-STRM/internal/baidupan"
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/openlist"
-	"Q115-STRM/internal/tmdb"
-	"Q115-STRM/internal/v115open"
+	"qmediasync/internal/baidupan"
+	"qmediasync/internal/db"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/models"
+	"qmediasync/internal/openlist"
+	"qmediasync/internal/tmdb"
+	"qmediasync/internal/v115open"
 )
 
 type tvShowScrapeImpl struct {

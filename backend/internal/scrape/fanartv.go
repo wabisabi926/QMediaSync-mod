@@ -1,9 +1,9 @@
 package scrape
 
 import (
-	"Q115-STRM/internal/fanart"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
+	"qmediasync/internal/fanart"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/models"
 )
 
 // 从 fanart.tv 刮削元数据

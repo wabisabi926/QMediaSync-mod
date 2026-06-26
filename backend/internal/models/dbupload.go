@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/helpers"
+	"qmediasync/internal/db"
+	"qmediasync/internal/helpers"
 
 	"gorm.io/gorm"
 )

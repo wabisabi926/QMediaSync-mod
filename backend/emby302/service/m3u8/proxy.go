@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"strconv"
 
-	"Q115-STRM/emby302/service/openlist"
-	"Q115-STRM/emby302/util/bytess"
-	"Q115-STRM/emby302/util/https"
-	"Q115-STRM/emby302/util/logs"
-	"Q115-STRM/emby302/util/strs"
+	"qmediasync/emby302/service/openlist"
+	"qmediasync/emby302/util/bytess"
+	"qmediasync/emby302/util/https"
+	"qmediasync/emby302/util/logs"
+	"qmediasync/emby302/util/strs"
 
 	"github.com/gin-gonic/gin"
 )

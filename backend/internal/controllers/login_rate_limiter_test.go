@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"Q115-STRM/internal/helpers"
+	"qmediasync/internal/helpers"
 )
 
 func TestLoginRateLimiterLocksByIPAndUsername(t *testing.T) {

@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"time"
 
-	"Q115-STRM/emby302/util/https"
-	"Q115-STRM/emby302/util/logs/colors"
+	"qmediasync/emby302/util/https"
+	"qmediasync/emby302/util/logs/colors"
 
 	"github.com/gin-gonic/gin"
 )

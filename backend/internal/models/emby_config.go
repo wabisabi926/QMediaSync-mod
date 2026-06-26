@@ -1,6 +1,6 @@
 package models
 
-import "Q115-STRM/internal/db"
+import "qmediasync/internal/db"
 
 // EmbyConfig 独立的 Emby 配置表
 type EmbyConfig struct {

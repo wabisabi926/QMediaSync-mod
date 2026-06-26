@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"sync"
 
-	"Q115-STRM/emby302/util/jsons"
+	"qmediasync/emby302/util/jsons"
 
 	"github.com/gin-gonic/gin"
 )

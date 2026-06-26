@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"Q115-STRM/internal/db"
+	"qmediasync/internal/db"
 
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"

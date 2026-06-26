@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/helpers"
+	"qmediasync/internal/db"
+	"qmediasync/internal/helpers"
 
 	"golang.org/x/time/rate"
 )

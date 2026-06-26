@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"Q115-STRM/internal/helpers"
+	"qmediasync/internal/helpers"
 )
 
 func TestOAuthProviderRegistry(t *testing.T) {

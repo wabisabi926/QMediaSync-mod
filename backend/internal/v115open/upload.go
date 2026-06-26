@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"Q115-STRM/internal/helpers"
+	"qmediasync/internal/helpers"
 
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss/credentials"

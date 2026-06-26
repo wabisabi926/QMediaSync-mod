@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"Q115-STRM/internal/helpers"
+	"qmediasync/internal/helpers"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"

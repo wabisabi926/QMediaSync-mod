@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/notificationmanager"
-	"Q115-STRM/internal/tmdb"
+	"qmediasync/internal/db"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/notificationmanager"
+	"qmediasync/internal/tmdb"
 
 	"github.com/flosch/pongo2/v5"
 	"gorm.io/gorm"

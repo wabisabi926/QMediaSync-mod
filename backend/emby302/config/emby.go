@@ -6,9 +6,9 @@ import (
 	"maps"
 	"strings"
 
-	"Q115-STRM/emby302/util/logs"
-	"Q115-STRM/emby302/util/randoms"
-	"Q115-STRM/emby302/util/strs"
+	"qmediasync/emby302/util/logs"
+	"qmediasync/emby302/util/randoms"
+	"qmediasync/emby302/util/strs"
 )
 
 // PeStrategy 代理异常策略类型

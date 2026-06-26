@@ -9,9 +9,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	embyclientrestgo "Q115-STRM/internal/embyclient-rest-go"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
+	embyclientrestgo "qmediasync/internal/embyclient-rest-go"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/models"
 )
 
 var embySyncRunning int32

@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"strings"
 
-	"Q115-STRM/internal/helpers"
+	"qmediasync/internal/helpers"
 
 	"github.com/gin-gonic/gin"
 )

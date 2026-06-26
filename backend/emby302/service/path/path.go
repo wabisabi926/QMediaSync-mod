@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"strings"
 
-	"Q115-STRM/emby302/config"
-	"Q115-STRM/emby302/service/openlist"
-	"Q115-STRM/emby302/util/logs"
-	"Q115-STRM/emby302/util/urls"
+	"qmediasync/emby302/config"
+	"qmediasync/emby302/service/openlist"
+	"qmediasync/emby302/util/logs"
+	"qmediasync/emby302/util/urls"
 )
 
 // OpenlistPathRes 路径转换结果

@@ -5,7 +5,7 @@ import (
 	"runtime"
 	"testing"
 
-	"Q115-STRM/emby302/util/parallels"
+	"qmediasync/emby302/util/parallels"
 )
 
 func TestSliceChunk(t *testing.T) {

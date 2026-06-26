@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/tmdb"
+	"qmediasync/internal/db"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/tmdb"
 )
 
 type MediaStatus string

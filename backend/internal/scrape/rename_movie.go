@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 
-	"Q115-STRM/internal/baidupan"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/openlist"
-	"Q115-STRM/internal/scrape/rename"
-	"Q115-STRM/internal/v115open"
+	"qmediasync/internal/baidupan"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/models"
+	"qmediasync/internal/openlist"
+	"qmediasync/internal/scrape/rename"
+	"qmediasync/internal/v115open"
 )
 
 // 重命名电影文件

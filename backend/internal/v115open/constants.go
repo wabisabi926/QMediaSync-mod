@@ -3,7 +3,7 @@ package v115open
 import (
 	"fmt"
 
-	"Q115-STRM/internal/helpers"
+	"qmediasync/internal/helpers"
 )
 
 const (

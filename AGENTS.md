@@ -18,7 +18,7 @@
 QMediaSync 是媒体同步和刮削系统，用于管理 115 网盘、百度网盘、OpenList 等云存储与 Emby 媒体服务器之间的文件同步、STRM 生成、媒体刮削（TMDB/fanart.tv）等功能。
 
 - 语言：Go 1.25
-- 模块名：`Q115-STRM`
+- 模块名：`qmediasync`
 - Web 框架：Gin
 - ORM：GORM
 - 数据库：SQLite / PostgreSQL（支持内嵌和外部）
@@ -79,10 +79,10 @@ docker build -f docker/source.Dockerfile -t qmediasync .
 
 ```bash
 (cd backend && go vet ./...)
-(cd backend && goimports -local Q115-STRM -w .)
+(cd backend && goimports -local qmediasync -w .)
 ```
 
-后端没有配置 Go lint 工具（无 `.golangci.yml`、无 Makefile）。Go 格式化统一使用 `goimports -local Q115-STRM -w .`，不要手工维护 import 分组。
+后端没有配置 Go lint 工具（无 `.golangci.yml`、无 Makefile）。Go 格式化统一使用 `goimports -local qmediasync -w .`，不要手工维护 import 分组。
 
 前端常用验证：
 
@@ -136,8 +136,8 @@ scripts/install/         # Linux 裸机安装辅助脚本
 ### 导入和格式化
 
 - Go 文件使用 `goimports` 维护 import，不要手工调整 import 分组。
-- `-local Q115-STRM` 用于识别本项目包。
-- 由于模块名 `Q115-STRM` 不是域名式路径，导入分组以 `goimports -local Q115-STRM` 的实际输出为准。
+- `-local qmediasync` 用于识别本项目包。
+- 由于模块名 `qmediasync` 不是域名式路径，导入分组以 `goimports -local qmediasync` 的实际输出为准。
 
 常见输出为标准库、本项目包、第三方包三组：
 
@@ -147,8 +147,8 @@ import (
     "fmt"
     "net/http"
 
-    "Q115-STRM/internal/db"
-    "Q115-STRM/internal/helpers"
+    "qmediasync/internal/db"
+    "qmediasync/internal/helpers"
 
     "github.com/gin-gonic/gin"
     "gorm.io/gorm"

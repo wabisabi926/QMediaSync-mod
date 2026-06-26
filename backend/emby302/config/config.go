@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"reflect"
 
-	"Q115-STRM/emby302/web/webport"
+	"qmediasync/emby302/web/webport"
 
 	"gopkg.in/yaml.v3"
 )

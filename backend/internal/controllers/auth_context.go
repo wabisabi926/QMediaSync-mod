@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	"Q115-STRM/internal/models"
+	"qmediasync/internal/models"
 
 	"github.com/gin-gonic/gin"
 )

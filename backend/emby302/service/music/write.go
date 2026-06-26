@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"Q115-STRM/emby302/service/lib/ffmpeg"
+	"qmediasync/emby302/service/lib/ffmpeg"
 
 	"github.com/bogem/id3v2"
 )

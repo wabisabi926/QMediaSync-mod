@@ -11,9 +11,9 @@ import (
 	"strings"
 	"sync"
 
-	"Q115-STRM/emby302/util/maps"
-	"Q115-STRM/emby302/util/parallels"
-	"Q115-STRM/emby302/util/strs"
+	"qmediasync/emby302/util/maps"
+	"qmediasync/emby302/util/parallels"
+	"qmediasync/emby302/util/strs"
 )
 
 // NewEmptyObj 初始化一个对象类型的 json 数据

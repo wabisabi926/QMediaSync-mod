@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"Q115-STRM/internal/db"
+	"qmediasync/internal/db"
 )
 
 type UserSession struct {

@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"regexp"
 
-	"Q115-STRM/emby302/constant"
-	"Q115-STRM/emby302/util/logs"
+	"qmediasync/emby302/constant"
+	"qmediasync/emby302/util/logs"
 
 	"github.com/gin-gonic/gin"
 )

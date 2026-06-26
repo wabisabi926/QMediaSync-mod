@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"Q115-STRM/emby302/util/logs"
+	"qmediasync/emby302/util/logs"
 )
 
 type Path struct {

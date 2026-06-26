@@ -14,12 +14,12 @@ import (
 	"sync"
 	"time"
 
-	"Q115-STRM/internal/emby"
-	embyclientrestgo "Q115-STRM/internal/embyclient-rest-go"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/notification"
-	"Q115-STRM/internal/notificationmanager"
+	"qmediasync/internal/emby"
+	embyclientrestgo "qmediasync/internal/embyclient-rest-go"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/models"
+	"qmediasync/internal/notification"
+	"qmediasync/internal/notificationmanager"
 
 	"github.com/gin-gonic/gin"
 )
@@ -507,7 +507,7 @@ func sendNewItemNotification(content string, detail *embyclientrestgo.BaseItemDt
 		if imageUrl != "" {
 			// 将图片下载到 /tmp 目录，作为通知图片。
 			posterPath := filepath.Join(os.TempDir(), fmt.Sprintf("%s.jpg", detail.Id))
-			derr := helpers.DownloadFile(imageUrl, posterPath, "Q115-STRM")
+			derr := helpers.DownloadFile(imageUrl, posterPath, "QMediaSync")
 			if derr != nil {
 				helpers.AppLogger.Errorf("下载 Emby 海报失败：%v", derr)
 			} else {

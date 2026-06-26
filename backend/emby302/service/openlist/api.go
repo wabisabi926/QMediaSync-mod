@@ -8,12 +8,12 @@ import (
 	"reflect"
 	"strings"
 
-	"Q115-STRM/emby302/config"
-	"Q115-STRM/emby302/model"
-	"Q115-STRM/emby302/util/https"
-	"Q115-STRM/emby302/util/jsons"
-	"Q115-STRM/emby302/util/logs"
-	"Q115-STRM/emby302/util/strs"
+	"qmediasync/emby302/config"
+	"qmediasync/emby302/model"
+	"qmediasync/emby302/util/https"
+	"qmediasync/emby302/util/jsons"
+	"qmediasync/emby302/util/logs"
+	"qmediasync/emby302/util/strs"
 )
 
 // FetchResource 请求 openlist 资源 url 直链

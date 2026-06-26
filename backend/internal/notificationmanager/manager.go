@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/notification"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/notification"
 
 	"gorm.io/gorm"
 )

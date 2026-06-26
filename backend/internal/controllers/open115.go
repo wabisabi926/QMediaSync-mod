@@ -10,11 +10,11 @@ import (
 	"sync"
 	"time"
 
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/v115auth"
-	"Q115-STRM/internal/v115open"
+	"qmediasync/internal/db"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/models"
+	"qmediasync/internal/v115auth"
+	"qmediasync/internal/v115open"
 
 	"github.com/gin-gonic/gin"
 )

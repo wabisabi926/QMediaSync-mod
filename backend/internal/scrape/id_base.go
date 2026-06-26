@@ -3,7 +3,7 @@ package scrape
 import (
 	"context"
 
-	"Q115-STRM/internal/models"
+	"qmediasync/internal/models"
 )
 
 type IdBase struct {

@@ -1,8 +1,8 @@
 package models
 
 import (
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/v115open"
+	"qmediasync/internal/db"
+	"qmediasync/internal/v115open"
 )
 
 type SyncTreeItemMetaAction int

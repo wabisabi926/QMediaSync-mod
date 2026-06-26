@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strings"
 
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/v115auth"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/models"
+	"qmediasync/internal/v115auth"
 
 	"github.com/gin-gonic/gin"
 )

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"Q115-STRM/internal/helpers"
+	"qmediasync/internal/helpers"
 )
 
 type UserInfoSpace struct {

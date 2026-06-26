@@ -5,7 +5,7 @@ import (
 	"log"
 	"testing"
 
-	"Q115-STRM/emby302/util/urls"
+	"qmediasync/emby302/util/urls"
 )
 
 func TestResolveResourceName(t *testing.T) {

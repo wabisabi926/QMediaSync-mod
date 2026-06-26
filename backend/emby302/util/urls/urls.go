@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"Q115-STRM/emby302/util/strs"
+	"qmediasync/emby302/util/strs"
 )
 
 // IsRemote 检查一个地址是否是远程地址

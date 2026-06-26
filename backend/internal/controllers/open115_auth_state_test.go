@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"Q115-STRM/internal/v115open"
+	"qmediasync/internal/v115open"
 )
 
 func TestOpen115AuthStateExpires(t *testing.T) {

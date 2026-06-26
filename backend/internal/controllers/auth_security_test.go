@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
+	"qmediasync/internal/db"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"

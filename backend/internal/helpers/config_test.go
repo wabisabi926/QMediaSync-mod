@@ -86,6 +86,7 @@ func TestEnsureJWTSecretReplacesEmptyAndDefault(t *testing.T) {
 	}{
 		{name: "空值", secret: "", wantRenew: true},
 		{name: "公开默认值", secret: DefaultJWTSecret, wantRenew: true},
+		{name: "旧公开默认值", secret: "Q115-STRM-JWT-TOKEN-250706", wantRenew: true},
 		{name: "自定义值", secret: "custom-secret-value", wantRenew: false},
 	}
 

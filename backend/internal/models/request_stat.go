@@ -3,7 +3,7 @@ package models
 import (
 	"time"
 
-	"Q115-STRM/internal/db"
+	"qmediasync/internal/db"
 )
 
 // RequestStat 请求统计记录

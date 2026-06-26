@@ -3,7 +3,7 @@ package tmdb
 import (
 	"fmt"
 
-	"Q115-STRM/internal/helpers"
+	"qmediasync/internal/helpers"
 )
 
 type SearchMovie struct {

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"testing"
 
-	"Q115-STRM/emby302/util/jsons"
+	"qmediasync/emby302/util/jsons"
 )
 
 func TestMarshal(t *testing.T) {

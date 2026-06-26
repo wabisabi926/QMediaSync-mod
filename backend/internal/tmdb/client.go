@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/v115open"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/v115open"
 
 	"golang.org/x/time/rate"
 	"resty.dev/v3"

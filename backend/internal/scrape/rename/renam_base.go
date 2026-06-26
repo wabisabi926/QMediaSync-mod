@@ -3,7 +3,7 @@ package rename
 import (
 	"context"
 
-	"Q115-STRM/internal/models"
+	"qmediasync/internal/models"
 )
 
 type RenameBase struct {

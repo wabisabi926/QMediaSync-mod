@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"time"
 
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/notificationmanager"
-	"Q115-STRM/internal/synccron"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/models"
+	"qmediasync/internal/notificationmanager"
+	"qmediasync/internal/synccron"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )

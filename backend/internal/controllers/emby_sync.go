@@ -3,10 +3,10 @@ package controllers
 import (
 	"net/http"
 
-	"Q115-STRM/internal/emby"
-	embyclientrestgo "Q115-STRM/internal/embyclient-rest-go"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
+	"qmediasync/internal/emby"
+	embyclientrestgo "qmediasync/internal/embyclient-rest-go"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/models"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"

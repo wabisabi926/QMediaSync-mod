@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"Q115-STRM/emby302/util/logs/colors"
-	"Q115-STRM/internal/helpers"
+	"qmediasync/emby302/util/logs/colors"
+	"qmediasync/internal/helpers"
 )
 
 // Info 输出蓝色 Info 日志

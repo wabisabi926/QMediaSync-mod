@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"Q115-STRM/internal/helpers"
+	"qmediasync/internal/helpers"
 )
 
 type TokenData struct {

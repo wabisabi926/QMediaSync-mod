@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"Q115-STRM/internal/helpers"
-	openapiclient "Q115-STRM/openxpanapi"
+	"qmediasync/internal/helpers"
+	openapiclient "qmediasync/openxpanapi"
 )
 
 type Client struct {

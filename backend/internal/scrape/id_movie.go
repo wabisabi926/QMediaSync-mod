@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/models"
 )
 
 // 识别电影

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"Q115-STRM/internal/github"
-	"Q115-STRM/internal/helpers"
+	"qmediasync/internal/github"
+	"qmediasync/internal/helpers"
 
 	"github.com/hashicorp/go-version"
 )

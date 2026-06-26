@@ -9,9 +9,9 @@ import (
 	"reflect"
 	"strings"
 
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
+	"qmediasync/internal/db"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/models"
 )
 
 // 从文件还原到数据库

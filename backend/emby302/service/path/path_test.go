@@ -4,7 +4,7 @@ import (
 	"log"
 	"testing"
 
-	"Q115-STRM/emby302/service/path"
+	"qmediasync/emby302/service/path"
 )
 
 func TestSplit(t *testing.T) {

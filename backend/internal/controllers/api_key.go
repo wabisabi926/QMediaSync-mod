@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"Q115-STRM/internal/models"
+	"qmediasync/internal/models"
 
 	"github.com/gin-gonic/gin"
 )

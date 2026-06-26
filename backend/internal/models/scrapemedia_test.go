@@ -3,7 +3,7 @@ package models
 import (
 	"testing"
 
-	"Q115-STRM/internal/helpers"
+	"qmediasync/internal/helpers"
 )
 
 func createTestMovieData() *ScrapeMediaFile {

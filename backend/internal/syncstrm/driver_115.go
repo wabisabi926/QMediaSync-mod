@@ -9,10 +9,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"Q115-STRM/internal/baidupan"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/v115open"
+	"qmediasync/internal/baidupan"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/models"
+	"qmediasync/internal/v115open"
 )
 
 type open115Driver struct {

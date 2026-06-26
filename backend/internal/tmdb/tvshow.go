@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/url"
 
-	"Q115-STRM/internal/helpers"
+	"qmediasync/internal/helpers"
 )
 
 // https://api.themoviedb.org/3/search/tv

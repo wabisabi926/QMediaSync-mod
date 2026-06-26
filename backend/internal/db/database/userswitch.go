@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"strings"
 
-	"Q115-STRM/internal/helpers"
+	"qmediasync/internal/helpers"
 )
 
 // UserSwitcher 用户切换器

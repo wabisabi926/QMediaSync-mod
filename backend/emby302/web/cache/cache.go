@@ -8,14 +8,14 @@ import (
 	"strings"
 	"time"
 
-	"Q115-STRM/emby302/constant"
-	"Q115-STRM/emby302/util/encrypts"
-	"Q115-STRM/emby302/util/https"
-	"Q115-STRM/emby302/util/logs"
-	"Q115-STRM/emby302/util/logs/colors"
+	"qmediasync/emby302/constant"
+	"qmediasync/emby302/util/encrypts"
+	"qmediasync/emby302/util/https"
+	"qmediasync/emby302/util/logs"
+	"qmediasync/emby302/util/logs/colors"
 
-	"Q115-STRM/emby302/util/strs"
-	"Q115-STRM/emby302/util/urls"
+	"qmediasync/emby302/util/strs"
+	"qmediasync/emby302/util/urls"
 
 	"github.com/gin-gonic/gin"
 )

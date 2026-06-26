@@ -5,10 +5,10 @@ import (
 	"io"
 	"net/http"
 
-	"Q115-STRM/emby302/config"
-	"Q115-STRM/emby302/model"
-	"Q115-STRM/emby302/util/https"
-	"Q115-STRM/emby302/util/jsons"
+	"qmediasync/emby302/config"
+	"qmediasync/emby302/model"
+	"qmediasync/emby302/util/https"
+	"qmediasync/emby302/util/jsons"
 
 	"github.com/gin-gonic/gin"
 )

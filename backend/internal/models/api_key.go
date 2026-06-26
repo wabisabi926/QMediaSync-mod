@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/helpers"
+	"qmediasync/internal/db"
+	"qmediasync/internal/helpers"
 )
 
 // ApiKey 表示 API Key 认证密钥。

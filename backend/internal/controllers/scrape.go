@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"strings"
 
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/synccron"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/models"
+	"qmediasync/internal/synccron"
 
 	"github.com/gin-gonic/gin"
 )

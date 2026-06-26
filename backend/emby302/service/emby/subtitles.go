@@ -5,8 +5,8 @@ import (
 	"net/url"
 	"time"
 
-	"Q115-STRM/emby302/util/strs"
-	"Q115-STRM/emby302/web/cache"
+	"qmediasync/emby302/util/strs"
+	"qmediasync/emby302/web/cache"
 
 	"github.com/gin-gonic/gin"
 )

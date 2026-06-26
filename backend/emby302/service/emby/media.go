@@ -12,16 +12,16 @@ import (
 	"strings"
 	"sync"
 
-	"Q115-STRM/emby302/config"
-	"Q115-STRM/emby302/service/openlist"
-	"Q115-STRM/emby302/service/path"
-	"Q115-STRM/emby302/util/https"
-	"Q115-STRM/emby302/util/jsons"
-	"Q115-STRM/emby302/util/logs"
+	"qmediasync/emby302/config"
+	"qmediasync/emby302/service/openlist"
+	"qmediasync/emby302/service/path"
+	"qmediasync/emby302/util/https"
+	"qmediasync/emby302/util/jsons"
+	"qmediasync/emby302/util/logs"
 
-	"Q115-STRM/emby302/util/randoms"
-	"Q115-STRM/emby302/util/strs"
-	"Q115-STRM/emby302/util/urls"
+	"qmediasync/emby302/util/randoms"
+	"qmediasync/emby302/util/strs"
+	"qmediasync/emby302/util/urls"
 
 	"github.com/gin-gonic/gin"
 )

@@ -5,11 +5,11 @@ import (
 	"log"
 	"net/http"
 
-	"Q115-STRM/emby302/config"
-	"Q115-STRM/emby302/service/emby"
-	"Q115-STRM/emby302/util/logs"
-	"Q115-STRM/emby302/web/cache"
-	"Q115-STRM/emby302/web/webport"
+	"qmediasync/emby302/config"
+	"qmediasync/emby302/service/emby"
+	"qmediasync/emby302/util/logs"
+	"qmediasync/emby302/web/cache"
+	"qmediasync/emby302/web/webport"
 
 	"github.com/gin-gonic/gin"
 )

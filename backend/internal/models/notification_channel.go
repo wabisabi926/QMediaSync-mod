@@ -1,7 +1,7 @@
 package models
 
 import (
-	"Q115-STRM/internal/notification"
+	"qmediasync/internal/notification"
 )
 
 // NotificationChannel 通知渠道基础配置 - 别名供 models 包使用

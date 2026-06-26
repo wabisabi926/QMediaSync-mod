@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"Q115-STRM/internal/helpers"
+	"qmediasync/internal/helpers"
 )
 
 // ThrottleManager 全局限流管理器，用于管理 API 访问频率限制

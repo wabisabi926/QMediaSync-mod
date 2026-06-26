@@ -59,7 +59,7 @@ func TestHttpProxy(proxyURL string) (bool, error) {
 		}
 
 		// 设置请求头，模拟正常浏览器请求
-		req.Header.Set("User-Agent", "Q115-STRM/1.0 (Proxy Test)")
+		req.Header.Set("User-Agent", "qmediasync/1.0 (Proxy Test)")
 		req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 		req.Header.Set("Accept-Language", "en-US,en;q=0.5")
 		req.Header.Set("Accept-Encoding", "gzip, deflate")
@@ -163,7 +163,7 @@ func TestHttpProxyAdvanced(proxyURL string) (*ProxyTestResult, error) {
 		}
 
 		// 设置请求头
-		req.Header.Set("User-Agent", "Q115-STRM/1.0 (Proxy Test)")
+		req.Header.Set("User-Agent", "qmediasync/1.0 (Proxy Test)")
 		req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 
 		resp, err := client.Do(req)

@@ -5,7 +5,7 @@ import (
 
 	gorillaws "github.com/gorilla/websocket"
 
-	"Q115-STRM/internal/websocket"
+	"qmediasync/internal/websocket"
 
 	"github.com/gin-gonic/gin"
 )

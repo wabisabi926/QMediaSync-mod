@@ -12,12 +12,12 @@ import (
 	"sync"
 	"time"
 
-	"Q115-STRM/internal/baidupan"
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/openai"
-	"Q115-STRM/internal/openlist"
-	"Q115-STRM/internal/v115open"
+	"qmediasync/internal/baidupan"
+	"qmediasync/internal/db"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/openai"
+	"qmediasync/internal/openlist"
+	"qmediasync/internal/v115open"
 
 	"github.com/robfig/cron/v3"
 )

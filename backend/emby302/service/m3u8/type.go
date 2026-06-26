@@ -1,6 +1,6 @@
 package m3u8
 
-import "Q115-STRM/emby302/service/openlist"
+import "qmediasync/emby302/service/openlist"
 
 // ParentHeadComments 记录文件头注释
 var ParentHeadComments = map[string]struct{}{

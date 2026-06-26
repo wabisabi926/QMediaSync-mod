@@ -4,9 +4,9 @@ import (
 	"path/filepath"
 	"sync"
 
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/v115open"
+	"qmediasync/internal/db"
+	"qmediasync/internal/models"
+	"qmediasync/internal/v115open"
 )
 
 // 115 网盘的同步器

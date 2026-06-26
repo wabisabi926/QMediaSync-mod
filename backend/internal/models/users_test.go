@@ -3,7 +3,7 @@ package models
 import (
 	"testing"
 
-	"Q115-STRM/internal/db"
+	"qmediasync/internal/db"
 
 	"github.com/glebarez/sqlite"
 	"golang.org/x/crypto/bcrypt"

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/tmdb"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/models"
+	"qmediasync/internal/tmdb"
 )
 
 // 从 TMDB 刮削元数据

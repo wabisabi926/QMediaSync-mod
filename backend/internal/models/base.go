@@ -1,7 +1,7 @@
 package models
 
 import (
-	"Q115-STRM/internal/db"
+	"qmediasync/internal/db"
 
 	"gorm.io/gorm"
 )

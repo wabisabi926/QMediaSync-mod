@@ -3,7 +3,7 @@ package v115auth
 import (
 	"testing"
 
-	"Q115-STRM/internal/helpers"
+	"qmediasync/internal/helpers"
 )
 
 func TestSharedEncryptionKeyMissing(t *testing.T) {

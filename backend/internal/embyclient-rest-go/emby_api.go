@@ -10,7 +10,7 @@ import (
 	"slices"
 	"time"
 
-	"Q115-STRM/internal/helpers"
+	"qmediasync/internal/helpers"
 )
 
 // Client 是与 Emby API 交互的客户端。

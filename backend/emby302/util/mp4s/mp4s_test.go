@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"Q115-STRM/emby302/util/mp4s"
+	"qmediasync/emby302/util/mp4s"
 )
 
 func TestGenWithDuration(t *testing.T) {

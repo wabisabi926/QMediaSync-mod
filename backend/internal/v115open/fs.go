@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"Q115-STRM/internal/helpers"
+	"qmediasync/internal/helpers"
 )
 
 type FileType string

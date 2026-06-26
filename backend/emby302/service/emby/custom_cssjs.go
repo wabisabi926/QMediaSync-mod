@@ -10,10 +10,10 @@ import (
 	"strings"
 	"sync"
 
-	"Q115-STRM/emby302/config"
-	"Q115-STRM/emby302/constant"
-	"Q115-STRM/emby302/util/https"
-	"Q115-STRM/emby302/util/logs"
+	"qmediasync/emby302/config"
+	"qmediasync/emby302/constant"
+	"qmediasync/emby302/util/https"
+	"qmediasync/emby302/util/logs"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/sync/errgroup"

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/notification"
+	"qmediasync/internal/db"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/notification"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"Q115-STRM/internal/models"
+	"qmediasync/internal/models"
 )
 
 func TestNewSyncQueuePerType(t *testing.T) {

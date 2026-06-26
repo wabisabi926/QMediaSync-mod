@@ -8,10 +8,10 @@ import (
 	"net/url"
 	"time"
 
-	"Q115-STRM/internal/baidupan"
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
+	"qmediasync/internal/baidupan"
+	"qmediasync/internal/db"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/models"
 
 	"github.com/gin-gonic/gin"
 )

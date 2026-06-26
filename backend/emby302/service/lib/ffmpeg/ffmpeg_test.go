@@ -7,8 +7,8 @@ import (
 	"os"
 	"testing"
 
-	"Q115-STRM/emby302/service/lib/ffmpeg"
-	"Q115-STRM/internal/helpers"
+	"qmediasync/emby302/service/lib/ffmpeg"
+	"qmediasync/internal/helpers"
 )
 
 const host = "http://0.0.0.0:12345"

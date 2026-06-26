@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"Q115-STRM/emby302/util/logs"
-	"Q115-STRM/emby302/util/urls"
+	"qmediasync/emby302/util/logs"
+	"qmediasync/emby302/util/urls"
 )
 
 const (

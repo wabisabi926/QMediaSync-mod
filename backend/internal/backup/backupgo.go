@@ -8,11 +8,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/emby"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/synccron"
+	"qmediasync/internal/db"
+	"qmediasync/internal/emby"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/models"
+	"qmediasync/internal/synccron"
 )
 
 var isRuning int32 = 0

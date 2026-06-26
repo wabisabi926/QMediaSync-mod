@@ -5,9 +5,9 @@ import (
 	"io"
 	"net/http"
 
-	"Q115-STRM/emby302/config"
-	"Q115-STRM/emby302/util/bytess"
-	"Q115-STRM/emby302/util/https"
+	"qmediasync/emby302/config"
+	"qmediasync/emby302/util/bytess"
+	"qmediasync/emby302/util/https"
 
 	"github.com/gin-gonic/gin"
 )

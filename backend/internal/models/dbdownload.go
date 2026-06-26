@@ -10,9 +10,9 @@ import (
 
 	"gorm.io/gorm"
 
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/v115open"
+	"qmediasync/internal/db"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/v115open"
 )
 
 type DownloadSource string

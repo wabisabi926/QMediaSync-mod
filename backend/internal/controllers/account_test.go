@@ -12,8 +12,8 @@ import (
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/models"
+	"qmediasync/internal/db"
+	"qmediasync/internal/models"
 )
 
 func setupAccountControllerTest(t *testing.T) {

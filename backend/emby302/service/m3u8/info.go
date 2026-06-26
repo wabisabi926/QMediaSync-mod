@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"Q115-STRM/emby302/service/emby"
-	"Q115-STRM/emby302/service/openlist"
-	"Q115-STRM/emby302/util/https"
-	"Q115-STRM/emby302/util/logs"
-	"Q115-STRM/emby302/util/urls"
+	"qmediasync/emby302/service/emby"
+	"qmediasync/emby302/service/openlist"
+	"qmediasync/emby302/util/https"
+	"qmediasync/emby302/util/logs"
+	"qmediasync/emby302/util/urls"
 )
 
 // NewByContent 根据 m3u8 文本初始化一个 info 对象

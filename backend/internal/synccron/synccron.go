@@ -6,14 +6,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	"Q115-STRM/internal/baidupan"
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/emby"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/notificationmanager"
-	"Q115-STRM/internal/scrape"
-	"Q115-STRM/internal/v115open"
+	"qmediasync/internal/baidupan"
+	"qmediasync/internal/db"
+	"qmediasync/internal/emby"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/models"
+	"qmediasync/internal/notificationmanager"
+	"qmediasync/internal/scrape"
+	"qmediasync/internal/v115open"
 
 	"github.com/robfig/cron/v3"
 )

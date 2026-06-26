@@ -3,11 +3,11 @@ package controllers
 import (
 	"net/http"
 
-	"Q115-STRM/internal/emby"
-	"Q115-STRM/internal/github"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/synccron"
+	"qmediasync/internal/emby"
+	"qmediasync/internal/github"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/models"
+	"qmediasync/internal/synccron"
 
 	"github.com/gin-gonic/gin"
 )

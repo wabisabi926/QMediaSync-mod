@@ -5,7 +5,7 @@ package cache
 import (
 	"sync"
 
-	"Q115-STRM/emby302/util/strs"
+	"qmediasync/emby302/util/strs"
 )
 
 const (

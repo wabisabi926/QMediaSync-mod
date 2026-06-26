@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"Q115-STRM/emby302/util/strs"
+	"qmediasync/emby302/util/strs"
 )
 
 // SslDir ssl 证书存放目录名称

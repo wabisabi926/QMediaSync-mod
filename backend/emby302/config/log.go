@@ -1,6 +1,6 @@
 package config
 
-import "Q115-STRM/emby302/util/logs/colors"
+import "qmediasync/emby302/util/logs/colors"
 
 // Log 日志配置
 type Log struct {

@@ -6,13 +6,13 @@ import (
 	"strings"
 	"time"
 
-	"Q115-STRM/internal/baidupan"
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/notificationmanager"
-	"Q115-STRM/internal/openlist"
-	"Q115-STRM/internal/v115auth"
-	"Q115-STRM/internal/v115open"
+	"qmediasync/internal/baidupan"
+	"qmediasync/internal/db"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/notificationmanager"
+	"qmediasync/internal/openlist"
+	"qmediasync/internal/v115auth"
+	"qmediasync/internal/v115open"
 )
 
 type Account struct {

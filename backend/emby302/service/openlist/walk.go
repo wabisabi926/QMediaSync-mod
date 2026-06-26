@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"sync"
 
-	"Q115-STRM/emby302/util/logs"
+	"qmediasync/emby302/util/logs"
 )
 
 // ErrWalkEOF 标记分页遍历结束

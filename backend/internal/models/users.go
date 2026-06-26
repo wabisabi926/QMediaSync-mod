@@ -1,8 +1,8 @@
 package models
 
 import (
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/helpers"
+	"qmediasync/internal/db"
+	"qmediasync/internal/helpers"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"Q115-STRM/emby302/service/lib/ffmpeg"
+	"qmediasync/emby302/service/lib/ffmpeg"
 )
 
 type Openlist struct {

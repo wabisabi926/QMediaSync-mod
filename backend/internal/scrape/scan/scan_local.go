@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/models"
 )
 
 // 从本地目录扫描需要刮削的文件入库

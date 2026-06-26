@@ -11,13 +11,13 @@ import (
 	"sync"
 	"time"
 
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/notificationmanager"
-	"Q115-STRM/internal/syncstrm"
-	"Q115-STRM/internal/tmdb"
-	"Q115-STRM/internal/v115open"
-	ws "Q115-STRM/internal/websocket"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/models"
+	"qmediasync/internal/notificationmanager"
+	"qmediasync/internal/syncstrm"
+	"qmediasync/internal/tmdb"
+	"qmediasync/internal/v115open"
+	ws "qmediasync/internal/websocket"
 )
 
 // 处理集的刮削任务，启动 N 个协程

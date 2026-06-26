@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"Q115-STRM/internal/helpers"
+	"qmediasync/internal/helpers"
 
 	_ "gorm.io/driver/postgres"
 )

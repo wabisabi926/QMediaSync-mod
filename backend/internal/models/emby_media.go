@@ -6,12 +6,12 @@ import (
 	"strings"
 	"time"
 
-	"Q115-STRM/internal/baidupan"
-	"Q115-STRM/internal/db"
-	embyclientrestgo "Q115-STRM/internal/embyclient-rest-go"
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/openlist"
-	"Q115-STRM/internal/v115open"
+	"qmediasync/internal/baidupan"
+	"qmediasync/internal/db"
+	embyclientrestgo "qmediasync/internal/embyclient-rest-go"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/openlist"
+	"qmediasync/internal/v115open"
 
 	"gorm.io/gorm"
 )

@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"Q115-STRM/internal/helpers"
-	"Q115-STRM/internal/notification"
+	"qmediasync/internal/helpers"
+	"qmediasync/internal/notification"
 )
 
 // ChannelHandler 通知渠道处理器接口

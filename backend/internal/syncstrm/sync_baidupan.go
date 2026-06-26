@@ -6,8 +6,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/v115open"
+	"qmediasync/internal/models"
+	"qmediasync/internal/v115open"
 )
 
 // 启动百度网盘同步

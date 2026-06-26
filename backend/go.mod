@@ -1,4 +1,4 @@
-module Q115-STRM
+module qmediasync
 
 go 1.25
 

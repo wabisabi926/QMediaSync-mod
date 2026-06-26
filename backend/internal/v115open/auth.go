@@ -1,7 +1,7 @@
 package v115open
 
 import (
-	"Q115-STRM/internal/helpers"
+	"qmediasync/internal/helpers"
 
 	"fmt"
 	"time"

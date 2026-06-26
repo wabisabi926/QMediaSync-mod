@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"Q115-STRM/internal/db"
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/notification"
-	"Q115-STRM/internal/notificationmanager"
+	"qmediasync/internal/db"
+	"qmediasync/internal/models"
+	"qmediasync/internal/notification"
+	"qmediasync/internal/notificationmanager"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"

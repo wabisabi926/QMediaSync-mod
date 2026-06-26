@@ -72,7 +72,7 @@ fi
 # 添加其他默认配置
 cat >> "$TRIM_PKGETC/config.yaml" << EOF
 cacheSize: 20971520
-jwtSecret: Q115-STRM-JWT-TOKEN-250706
+jwtSecret: QMediaSync-JWT-TOKEN-250706
 httpHost: :12333
 httpsHost: :12332
 strm:

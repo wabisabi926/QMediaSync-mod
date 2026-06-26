@@ -11,13 +11,13 @@ import (
 	"strings"
 	"time"
 
-	"Q115-STRM/emby302/config"
-	"Q115-STRM/emby302/util/https"
-	"Q115-STRM/emby302/util/logs"
-	"Q115-STRM/emby302/util/strs"
+	"qmediasync/emby302/config"
+	"qmediasync/emby302/util/https"
+	"qmediasync/emby302/util/logs"
+	"qmediasync/emby302/util/strs"
 
-	"Q115-STRM/emby302/util/urls"
-	"Q115-STRM/emby302/web/cache"
+	"qmediasync/emby302/util/urls"
+	"qmediasync/emby302/web/cache"
 
 	"github.com/gin-gonic/gin"
 )

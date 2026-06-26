@@ -8,8 +8,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"Q115-STRM/internal/models"
-	"Q115-STRM/internal/v115open"
+	"qmediasync/internal/models"
+	"qmediasync/internal/v115open"
 
 	"golang.org/x/sync/errgroup"
 )

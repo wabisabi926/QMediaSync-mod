@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"Q115-STRM/internal/github"
+	"qmediasync/internal/github"
 )
 
 // 获取本机网卡 IP

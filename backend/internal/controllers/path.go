@@ -16,7 +16,7 @@ import (
 	"qmediasync/internal/v115open"
 
 	"github.com/gin-gonic/gin"
-	"github.com/shirou/gopsutil/disk"
+	"github.com/shirou/gopsutil/v4/disk"
 )
 
 type DirResp struct {
@@ -82,8 +82,10 @@ func GetLocalPath(parentPath string) ([]DirResp, error) {
 		if runtime.GOOS == "windows" {
 			// helpers.AppLogger.Infof("parentPath：%s", parentPath)
 			if parentPath == "" {
-				// 获取盘符列表
-				partitions, err := disk.Partitions(false)
+				// 获取盘符列表，限制异常磁盘驱动导致的等待时间。
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				partitions, err := disk.PartitionsWithContext(ctx, false)
 				// helpers.AppLogger.Infof("partitions：%+v", partitions)
 				if err != nil {
 					helpers.AppLogger.Errorf("获取盘符失败：%v", err)

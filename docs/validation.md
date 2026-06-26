@@ -81,6 +81,8 @@ DTO 负责：
 | `requests/users.go` | 登录、启用/关闭两步验证、当前用户用户名/密码修改 | 登录用户名和密码必填、两步验证码必填、用户名长度、密码最小长度。 |
 | `requests/operations.go` | 分页、ID、路径浏览、网盘文件、目录操作、队列、同步/刮削关联、日志、临时图片、版本更新 | 分页默认值和范围、ID 列表、CSV ID、来源类型、文件夹名、路径穿越防护、日志文件名限制、版本号格式、日期范围。 |
 
+迁移临时服务是启动期流程，不纳入公共 `backend/internal/requests` 目录。它在 `backend/internal/migrate` 包内使用私有 DTO 校验 PostgreSQL 测试连接和保存配置请求。
+
 ## 重要兼容性规则
 
 - `SyncPathRequest` 同时支持计划中的嵌套 `setting` 字段和旧前端使用的顶层 STRM 字段；存在非零嵌套配置时优先使用 `setting`。
@@ -95,6 +97,7 @@ DTO 负责：
 - `BackupCreateRequest` 在原因为空时默认使用「手动备份」，与旧控制器行为一致。
 - `BackupListRequest` 保留旧分页兼容策略：页码小于 1 时回退为 1，每页数量小于 1 或大于 100 时回退为 20，类型为空时回退为 `all`。
 - 备份配置中 `backup_retention` 为 0 时表示不更新或使用既有值；大于 0 时限制为 1 到 365。
+- `internal/migrate` 的测试连接请求允许 `database` 为空，并继续固定连接 `dbname=postgres`；保存配置请求要求 `database` 非空。
 
 ## 安全敏感校验
 
@@ -112,7 +115,7 @@ DTO 负责：
 - 同步记录、同步任务详情、同步路径列表查询仍在 `controllers/sync.go` 使用控制器内局部 Request 结构。
 - Cron 预览和 Cron 验证工具接口仍在 `controllers/settings.go` 使用控制器内局部 Request 结构。
 - 备份上传恢复使用 multipart 文件流，文件读取、扩展名和临时文件处理仍保留在控制器中。
-- 迁移临时服务 `internal/migrate/server.go` 使用独立的启动期接口和匿名请求结构，不纳入常规 API DTO 目录。
+- 迁移临时服务 `internal/migrate/server.go` 使用独立的启动期接口和包内私有 DTO，不纳入常规 API DTO 目录。
 - 部分只读或触发型接口没有外部参数，或只做运行状态检查，不需要 DTO。
 
 新增或改造接口时，不应继续扩大这些例外；如果改动触及上述接口，可以顺手迁移到 `backend/internal/requests`，但要保持外部响应兼容。
@@ -153,5 +156,4 @@ DTO 负责：
 
 - 按路由生成「接口 → DTO → 测试文件」映射表，便于审查覆盖率。
 - 统一路径参数 ID 的小型辅助函数或 DTO，减少控制器内重复 `strconv.ParseUint`。
-- 评估迁移服务是否需要在 `internal/migrate` 包内补充私有 DTO；该服务涉及启动流程，迁移前要单独评估兼容性。
 - 为 Swagger 注解补充 DTO 字段说明，避免接口文档仍停留在旧的散字段描述。

@@ -339,14 +339,12 @@ func (s *MigrateServer) handleBackupStatus(c *gin.Context) {
 }
 
 func (s *MigrateServer) handleTestDB(c *gin.Context) {
-	var req struct {
-		Host     string `json:"host"`
-		Port     int    `json:"port"`
-		User     string `json:"user"`
-		Password string `json:"password"`
-		Database string `json:"database"`
-	}
+	var req testDBRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"success": false, "error": err.Error()})
+		return
+	}
+	if err := req.Validate(); err != nil {
 		c.JSON(400, gin.H{"success": false, "error": err.Error()})
 		return
 	}
@@ -372,14 +370,12 @@ func (s *MigrateServer) handleTestDB(c *gin.Context) {
 }
 
 func (s *MigrateServer) handleSaveConfig(c *gin.Context) {
-	var req struct {
-		Host     string `json:"host"`
-		Port     int    `json:"port"`
-		User     string `json:"user"`
-		Password string `json:"password"`
-		Database string `json:"database"`
-	}
+	var req saveConfigRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	if err := req.Validate(); err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}

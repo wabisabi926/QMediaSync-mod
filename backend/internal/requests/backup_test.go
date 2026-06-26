@@ -89,31 +89,6 @@ func TestBackupListRequestNormalize(t *testing.T) {
 	}
 }
 
-func TestParseBackupRecordIDRequest(t *testing.T) {
-	tests := []struct {
-		name    string
-		rawID   string
-		wantID  uint
-		wantErr bool
-	}{
-		{name: "合法 ID 通过", rawID: "12", wantID: 12},
-		{name: "非数字失败", rawID: "bad", wantErr: true},
-		{name: "零值失败", rawID: "0", wantErr: true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req, err := ParseBackupRecordIDRequest(tt.rawID)
-			if (err != nil) != tt.wantErr {
-				t.Fatalf("ParseBackupRecordIDRequest() error = %v, wantErr %v", err, tt.wantErr)
-			}
-			if req.ID != tt.wantID {
-				t.Fatalf("ID = %d, want %d", req.ID, tt.wantID)
-			}
-		})
-	}
-}
-
 func TestBackupRestoreRequestValidate(t *testing.T) {
 	tests := []struct {
 		name    string

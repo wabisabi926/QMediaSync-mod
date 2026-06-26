@@ -4,10 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 
-	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
 	"qmediasync/internal/requests"
 	"qmediasync/internal/synccron"
@@ -333,14 +331,13 @@ func DeleteSyncPath(c *gin.Context) {
 // @Security ApiKeyAuth
 func GetSyncPathById(c *gin.Context) {
 	// 从路径参数获取 ID
-	idStr := c.Param("id")
-	id := uint(helpers.StringToInt(idStr))
-	if id == 0 {
+	idReq, err := requests.ParsePositiveIDRequest(c.Param("id"))
+	if err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "ID 参数格式错误", Data: nil})
 		return
 	}
 
-	syncPath := models.GetSyncPathById(uint(id))
+	syncPath := models.GetSyncPathById(idReq.ID)
 	if syncPath == nil {
 		c.JSON(http.StatusNotFound, APIResponse[any]{Code: BadRequest, Message: "同步路径不存在", Data: nil})
 		return
@@ -587,16 +584,16 @@ func SaveRelScrapePath(c *gin.Context) {
 
 func GetRelScrapePath(c *gin.Context) {
 	idStr := c.Param("id")
-	if idStr == "" {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "ID 参数不能为空", Data: nil})
-		return
-	}
-	id, err := strconv.ParseUint(idStr, 10, 64)
+	idReq, err := requests.ParsePositiveIDRequest(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "ID 参数格式错误", Data: nil})
+		message := "ID 参数格式错误"
+		if strings.TrimSpace(idStr) == "" {
+			message = "ID 参数不能为空"
+		}
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: message, Data: nil})
 		return
 	}
-	syncPath := models.GetSyncPathById(uint(id))
+	syncPath := models.GetSyncPathById(idReq.ID)
 	if syncPath == nil {
 		c.JSON(http.StatusNotFound, APIResponse[any]{Code: BadRequest, Message: "同步路径不存在", Data: nil})
 		return

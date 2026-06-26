@@ -52,6 +52,33 @@ func TestOperationRequestValidate(t *testing.T) {
 	})
 }
 
+func TestParsePositiveIDRequest(t *testing.T) {
+	tests := []struct {
+		name    string
+		rawID   string
+		wantID  uint
+		wantErr bool
+	}{
+		{name: "合法路径 ID 通过", rawID: "12", wantID: 12},
+		{name: "路径 ID 会去除首尾空白", rawID: " 12 ", wantID: 12},
+		{name: "路径 ID 为空失败", rawID: " ", wantErr: true},
+		{name: "路径 ID 非数字失败", rawID: "bad", wantErr: true},
+		{name: "路径 ID 为 0 失败", rawID: "0", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := ParsePositiveIDRequest(tt.rawID)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("ParsePositiveIDRequest() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if req.ID != tt.wantID {
+				t.Fatalf("ID = %d, want %d", req.ID, tt.wantID)
+			}
+		})
+	}
+}
+
 func TestAssociationRequestValidate(t *testing.T) {
 	t.Run("同步路径关联允许清空刮削路径", func(t *testing.T) {
 		req := SaveRelScrapePathRequest{SyncPathID: 1, ScrapePathIDs: []uint{}}

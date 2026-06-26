@@ -45,6 +45,19 @@ func GetNotificationChannels(c *gin.Context) {
 	})
 }
 
+func parseNotificationChannelID(c *gin.Context) (uint, bool) {
+	idReq, err := requests.ParsePositiveIDRequest(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    1,
+			"message": "参数错误",
+			"data":    nil,
+		})
+		return 0, false
+	}
+	return idReq.ID, true
+}
+
 // CreateTelegramChannel 创建 Telegram 渠道
 // @Summary 创建 Telegram 渠道
 // @Description 创建 Telegram 通知渠道并保存配置
@@ -1039,7 +1052,10 @@ func UpdateChannelStatus(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func GetTelegramChannel(c *gin.Context) {
-	channelID := c.Param("id")
+	channelID, ok := parseNotificationChannelID(c)
+	if !ok {
+		return
+	}
 	var channel models.NotificationChannel
 	if err := db.Db.First(&channel, channelID).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 1, "message": "渠道不存在", "data": nil})
@@ -1073,7 +1089,10 @@ func GetTelegramChannel(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func GetMeoWChannel(c *gin.Context) {
-	channelID := c.Param("id")
+	channelID, ok := parseNotificationChannelID(c)
+	if !ok {
+		return
+	}
 	var channel models.NotificationChannel
 	if err := db.Db.First(&channel, channelID).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 1, "message": "渠道不存在", "data": nil})
@@ -1107,7 +1126,10 @@ func GetMeoWChannel(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func GetBarkChannel(c *gin.Context) {
-	channelID := c.Param("id")
+	channelID, ok := parseNotificationChannelID(c)
+	if !ok {
+		return
+	}
 	var channel models.NotificationChannel
 	if err := db.Db.First(&channel, channelID).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 1, "message": "渠道不存在", "data": nil})
@@ -1141,7 +1163,10 @@ func GetBarkChannel(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func GetServerChanChannel(c *gin.Context) {
-	channelID := c.Param("id")
+	channelID, ok := parseNotificationChannelID(c)
+	if !ok {
+		return
+	}
 	var channel models.NotificationChannel
 	if err := db.Db.First(&channel, channelID).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 1, "message": "渠道不存在", "data": nil})
@@ -1175,7 +1200,10 @@ func GetServerChanChannel(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func GetCustomWebhookChannel(c *gin.Context) {
-	channelID := c.Param("id")
+	channelID, ok := parseNotificationChannelID(c)
+	if !ok {
+		return
+	}
 	var channel models.NotificationChannel
 	if err := db.Db.First(&channel, channelID).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 1, "message": "渠道不存在", "data": nil})
@@ -1231,13 +1259,8 @@ func GetCustomWebhookChannel(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func DeleteChannel(c *gin.Context) {
-	channelID := c.Param("id")
-	if channelID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    1,
-			"message": "参数错误",
-			"data":    nil,
-		})
+	channelID, ok := parseNotificationChannelID(c)
+	if !ok {
 		return
 	}
 

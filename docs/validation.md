@@ -79,7 +79,7 @@ DTO 负责：
 | `requests/backup.go` | 备份创建、列表、记录 ID、恢复和配置 | 手动备份原因默认值、分页默认值、备份记录 ID、启用开关、Cron、保留天数、最大备份数、压缩开关。 |
 | `requests/notification.go` | Telegram、MeoW、Bark、ServerChan、自定义 Webhook 渠道 | 渠道名称、必填凭据、URL、Webhook 方法、格式、认证方式和模板格式。 |
 | `requests/users.go` | 登录、启用/关闭两步验证、当前用户用户名/密码修改 | 登录用户名和密码必填、两步验证码必填、用户名长度、密码最小长度。 |
-| `requests/operations.go` | 分页、ID、路径浏览、网盘文件、目录操作、队列、同步/刮削关联、日志、临时图片、版本更新 | 分页默认值和范围、ID 列表、CSV ID、来源类型、文件夹名、路径穿越防护、日志文件名限制、版本号格式、日期范围。 |
+| `requests/operations.go` | 分页、ID、路径浏览、网盘文件、目录操作、队列、同步/刮削关联、日志、临时图片、版本更新 | 分页默认值和范围、HTTP path 正 ID、ID 列表、CSV ID、来源类型、文件夹名、路径穿越防护、日志文件名限制、版本号格式、日期范围。 |
 
 迁移临时服务是启动期流程，不纳入公共 `backend/internal/requests` 目录。它在 `backend/internal/migrate` 包内使用私有 DTO 校验 PostgreSQL 测试连接和保存配置请求。
 
@@ -90,6 +90,7 @@ DTO 负责：
 - `SaveRelScrapePathRequest` 同时支持旧字段 `id`、`scrape_path_id` 和新字段 `sync_path_id`、`scrape_path_ids`。
 - 同步路径和刮削路径的关联保存允许空 ID 列表，用于清空关联；通用 `IDListRequest` 不允许空列表。
 - `IDCSVRequest` 保留 `ids=1,2` 的 Query 格式，用于刮削记录批量操作。
+- `ParsePositiveIDRequest` 用于解析 HTTP path 中的正整数 `id`，控制器仍按各自模块既有响应格式返回错误。
 - `QueueListRequest.Status` 当前只绑定为 `int`，不做枚举限制，继续兼容现有前端和模型状态值。
 - `AISettingsRequest.EnableAI` 允许空值，避免旧前端或局部保存请求被误拒。
 - `CreateOpenListAccountRequest` 会自动补全缺失的 `http://` 协议，并去掉末尾 `/`。
@@ -155,5 +156,4 @@ DTO 负责：
 ## 后续可补充内容
 
 - 按路由生成「接口 → DTO → 测试文件」映射表，便于审查覆盖率。
-- 统一路径参数 ID 的小型辅助函数或 DTO，减少控制器内重复 `strconv.ParseUint`。
 - 为 Swagger 注解补充 DTO 字段说明，避免接口文档仍停留在旧的散字段描述。

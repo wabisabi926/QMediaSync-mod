@@ -79,7 +79,7 @@ func GetBackupList(c *gin.Context) {
 }
 
 func GetBackupRecord(c *gin.Context) {
-	req, err := requests.ParseBackupRecordIDRequest(c.Param("id"))
+	req, err := requests.ParsePositiveIDRequest(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    BadRequest,
@@ -107,7 +107,7 @@ func GetBackupRecord(c *gin.Context) {
 }
 
 func DeleteBackup(c *gin.Context) {
-	req, err := requests.ParseBackupRecordIDRequest(c.Param("id"))
+	req, err := requests.ParsePositiveIDRequest(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    BadRequest,
@@ -135,7 +135,7 @@ func DeleteBackup(c *gin.Context) {
 }
 
 func DownloadBackup(c *gin.Context) {
-	req, err := requests.ParseBackupRecordIDRequest(c.Param("id"))
+	req, err := requests.ParsePositiveIDRequest(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{
 			Code:    BadRequest,

@@ -433,9 +433,13 @@ func SaveTvshowCategory(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func DeleteMovieCategory(c *gin.Context) {
-	id := helpers.StringToInt(c.Param("id"))
+	idReq, err := requests.ParsePositiveIDRequest(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "ID 参数格式错误", Data: nil})
+		return
+	}
 
-	if err := models.DeleteMovieCategory(uint(id)); err != nil {
+	if err := models.DeleteMovieCategory(idReq.ID); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
@@ -455,8 +459,12 @@ func DeleteMovieCategory(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func DeleteTvshowCategory(c *gin.Context) {
-	id := helpers.StringToInt(c.Param("id"))
-	if err := models.DeleteTvshowCategory(uint(id)); err != nil {
+	idReq, err := requests.ParsePositiveIDRequest(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "ID 参数格式错误", Data: nil})
+		return
+	}
+	if err := models.DeleteTvshowCategory(idReq.ID); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
@@ -497,8 +505,12 @@ func GetScrapePathes(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func GetScrapePath(c *gin.Context) {
-	id := helpers.StringToInt(c.Param("id"))
-	scrapePath := models.GetScrapePathByID(uint(id))
+	idReq, err := requests.ParsePositiveIDRequest(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "ID 参数格式错误", Data: nil})
+		return
+	}
+	scrapePath := models.GetScrapePathByID(idReq.ID)
 	if scrapePath == nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "刮削目录不存在", Data: nil})
 		return
@@ -603,23 +615,27 @@ func SaveScrapePath(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func DeleteScrapePath(c *gin.Context) {
-	id := helpers.StringToInt(c.Param("id"))
+	idReq, err := requests.ParsePositiveIDRequest(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "ID 参数格式错误", Data: nil})
+		return
+	}
 
 	// 检查是否是启用了 Cron 的刮削目录
-	oldScrapePath := models.GetScrapePathByID(uint(id))
+	oldScrapePath := models.GetScrapePathByID(idReq.ID)
 	shouldReloadCron := false
 	if oldScrapePath != nil && oldScrapePath.EnableCron && oldScrapePath.CronExpression != "" {
 		shouldReloadCron = true
 	}
 
-	if err := models.DeleteScrapePath(uint(id)); err != nil {
+	if err := models.DeleteScrapePath(idReq.ID); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 
 	// 如果删除的是启用了 Cron 的刮削目录，重新加载定时任务
 	if shouldReloadCron {
-		helpers.AppLogger.Infof("检测到删除的刮削目录 %d 启用了 Cron，重新加载定时任务", id)
+		helpers.AppLogger.Infof("检测到删除的刮削目录 %d 启用了 Cron，重新加载定时任务", idReq.ID)
 		synccron.InitScrapeCron()
 	}
 

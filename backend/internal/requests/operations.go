@@ -57,6 +57,23 @@ func (r PositiveIDRequest) Validate() error {
 	return validation.PositiveID("id", r.ID)
 }
 
+// ParsePositiveIDRequest 解析路径中的正 ID。
+func ParsePositiveIDRequest(rawID string) (PositiveIDRequest, error) {
+	rawID = strings.TrimSpace(rawID)
+	if rawID == "" {
+		return PositiveIDRequest{}, validation.New("id", "不能为空")
+	}
+	id, err := strconv.ParseUint(rawID, 10, strconv.IntSize)
+	if err != nil {
+		return PositiveIDRequest{}, validation.New("id", "格式不正确")
+	}
+	req := PositiveIDRequest{ID: uint(id)}
+	if err := req.Validate(); err != nil {
+		return PositiveIDRequest{}, err
+	}
+	return req, nil
+}
+
 // IDListRequest ID 列表请求。
 type IDListRequest struct {
 	IDs []uint `json:"ids" form:"ids"`

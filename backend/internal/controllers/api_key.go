@@ -3,7 +3,6 @@ package controllers
 import (
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"qmediasync/internal/models"
@@ -150,15 +149,14 @@ func DeleteAPIKey(c *gin.Context) {
 	}
 
 	// 获取 API Key ID
-	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 32)
+	idReq, err := requests.ParsePositiveIDRequest(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "无效的 API Key ID", Data: nil})
 		return
 	}
 
 	// 删除 API Key（确保只能删除自己的）
-	err = models.DeleteAPIKey(uint(id), currentUser.ID)
+	err = models.DeleteAPIKey(idReq.ID, currentUser.ID)
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("删除 API Key 失败：%v", err), Data: nil})
 		return
@@ -192,8 +190,7 @@ func UpdateAPIKeyStatus(c *gin.Context) {
 	}
 
 	// 获取 API Key ID
-	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 32)
+	idReq, err := requests.ParsePositiveIDRequest(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "无效的 API Key ID", Data: nil})
 		return
@@ -211,7 +208,7 @@ func UpdateAPIKeyStatus(c *gin.Context) {
 	}
 
 	// 更新 API Key 状态（确保只能更新自己的）
-	err = models.UpdateAPIKeyStatus(uint(id), currentUser.ID, *req.IsActive)
+	err = models.UpdateAPIKeyStatus(idReq.ID, currentUser.ID, *req.IsActive)
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("更新 API Key 状态失败：%v", err), Data: nil})
 		return

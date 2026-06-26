@@ -1,7 +1,6 @@
 package requests
 
 import (
-	"strconv"
 	"strings"
 
 	"qmediasync/internal/validation"
@@ -40,29 +39,6 @@ func (r *BackupListRequest) Normalize() {
 	if r.Type == "" {
 		r.Type = "all"
 	}
-}
-
-// BackupRecordIDRequest 备份记录 ID 请求。
-type BackupRecordIDRequest struct {
-	ID uint `json:"id" form:"id"`
-}
-
-// Validate 校验备份记录 ID 请求。
-func (r BackupRecordIDRequest) Validate() error {
-	return validation.PositiveID("id", r.ID)
-}
-
-// ParseBackupRecordIDRequest 解析备份记录路径 ID。
-func ParseBackupRecordIDRequest(rawID string) (BackupRecordIDRequest, error) {
-	id, err := strconv.ParseUint(rawID, 10, 64)
-	if err != nil {
-		return BackupRecordIDRequest{}, err
-	}
-	req := BackupRecordIDRequest{ID: uint(id)}
-	if err := req.Validate(); err != nil {
-		return BackupRecordIDRequest{}, err
-	}
-	return req, nil
 }
 
 // BackupRestoreRequest 备份恢复请求。

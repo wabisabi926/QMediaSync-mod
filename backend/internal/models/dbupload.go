@@ -9,6 +9,7 @@ import (
 
 	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
+	ws "qmediasync/internal/websocket"
 
 	"gorm.io/gorm"
 )
@@ -79,6 +80,16 @@ func (task *DbUploadTask) CanRetry(maxRetry int) bool {
 	return task != nil && task.Status == UploadStatusFailed && task.RetryCount < maxRetry
 }
 
+func publishUploadQueueChanged(task *DbUploadTask, reason string) {
+	payload := ws.QueueChangedPayload{Reason: reason}
+	if task != nil {
+		payload.TaskID = task.ID
+		payload.Status = int(task.Status)
+		payload.Source = string(task.Source)
+	}
+	ws.BroadcastQueueChanged(ws.EventUploadQueueChanged, payload)
+}
+
 // PrepareUploadRetry 将上传失败任务重新放回等待中
 func (task *DbUploadTask) PrepareUploadRetry(maxRetry int) {
 	if !task.CanRetry(maxRetry) {
@@ -97,7 +108,9 @@ func (task *DbUploadTask) Complete() {
 	err := db.Db.Save(task).Error
 	if err != nil {
 		helpers.AppLogger.Warnf("[上传] 标记为已完成失败：%s", err.Error())
+		return
 	}
+	publishUploadQueueChanged(task, "status_changed")
 }
 
 func (task *DbUploadTask) Fail(err error) {
@@ -108,7 +121,9 @@ func (task *DbUploadTask) Fail(err error) {
 	err = db.Db.Save(task).Error
 	if err != nil {
 		helpers.AppLogger.Warnf("[上传] 标记为失败失败：%s", err.Error())
+		return
 	}
+	publishUploadQueueChanged(task, "status_changed")
 }
 
 func (task *DbUploadTask) Cancel() {
@@ -118,7 +133,9 @@ func (task *DbUploadTask) Cancel() {
 	err := db.Db.Save(task).Error
 	if err != nil {
 		helpers.AppLogger.Warnf("[上传] 标记为已取消失败：%s", err.Error())
+		return
 	}
+	publishUploadQueueChanged(task, "status_changed")
 }
 
 func (task *DbUploadTask) Uploading() {
@@ -127,7 +144,9 @@ func (task *DbUploadTask) Uploading() {
 	err := db.Db.Save(task).Error
 	if err != nil {
 		helpers.AppLogger.Warnf("[上传] 标记为上传中失败：%s", err.Error())
+		return
 	}
+	publishUploadQueueChanged(task, "status_changed")
 }
 
 func (task *DbUploadTask) GetAccount() *Account {
@@ -419,6 +438,7 @@ func AddUploadTaskFromSyncFile(file *SyncFile) error {
 		return err
 	}
 	helpers.AppLogger.Infof("添加上传任务 %s => %s 成功", file.LocalFilePath, remoteFileId)
+	publishUploadQueueChanged(task, "created")
 	return nil
 }
 
@@ -454,6 +474,9 @@ func AddUploadTaskFromMediaFile(mediaFile *ScrapeMediaFile, scrapePath *ScrapePa
 		IsSeasonOrTvshowFile: isSeasonOrTvshowFile,
 	}
 	derr := db.Db.Save(task).Error
+	if derr == nil {
+		publishUploadQueueChanged(task, "created")
+	}
 	return derr
 }
 
@@ -499,6 +522,7 @@ func ClearPendingUploadTasks() error {
 		helpers.AppLogger.Errorf("清除待上传任务失败：%v", err)
 		return err
 	}
+	publishUploadQueueChanged(nil, "clear_pending")
 	return err
 }
 
@@ -525,6 +549,7 @@ func ClearUploadSuccessAndFailed() error {
 	} else {
 		helpers.AppLogger.Infof("清除上传成功和失败任务成功")
 	}
+	publishUploadQueueChanged(nil, "clear_success_failed")
 	return err
 }
 
@@ -556,6 +581,7 @@ func RetryFailedUploadTasks(maxRetry int) error {
 		return err
 	}
 	helpers.AppLogger.Infof("重试失败的上传任务成功")
+	publishUploadQueueChanged(nil, "retry_failed")
 	return nil
 }
 

@@ -31,14 +31,16 @@ type BackgroundHandler interface {
 
 // TelegramChannelHandler Telegram 渠道处理器
 type TelegramChannelHandler struct {
-	config         *notification.TelegramChannelConfig
-	proxyURL       string // 系统代理 URL
-	bot            *helpers.TelegramBot
-	initOnce       sync.Once
-	listenMu       sync.Mutex
-	listenCancel   context.CancelFunc
-	listenToken    *struct{}
-	customCommands map[string]func([]string) helpers.CommandResponse // 保存从外部注入的命令
+	config             *notification.TelegramChannelConfig
+	proxyURL           string // 系统代理 URL
+	bot                *helpers.TelegramBot
+	initOnce           sync.Once
+	listenMu           sync.Mutex
+	listenCancel       context.CancelFunc
+	listenToken        *struct{}
+	initBotFunc        func() error
+	startListeningFunc func(context.Context, map[string]func([]string) helpers.CommandResponse)
+	customCommands     map[string]func([]string) helpers.CommandResponse // 保存从外部注入的命令
 }
 
 func NewTelegramChannelHandler(config *notification.TelegramChannelConfig) *TelegramChannelHandler {
@@ -154,10 +156,6 @@ func (h *TelegramChannelHandler) SetCommands(cmds map[string]func([]string) help
 
 // Start 实现 BackgroundHandler 接口
 func (h *TelegramChannelHandler) Start(ctx context.Context) {
-	if err := h.initBot(); err != nil {
-		helpers.AppLogger.Errorf("初始化 Telegram Bot 失败：%v", err)
-		return
-	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -176,19 +174,53 @@ func (h *TelegramChannelHandler) Start(ctx context.Context) {
 	go func() {
 		helpers.AppLogger.Infof("Telegram Bot 监听协程启动…")
 
-		// 调用你现有的监听逻辑，并把自定义命令传进去
-		// 注意：我们需要对 StartListening 做一点小改动，让它能感知 ctx
-		h.bot.StartListening(listenCtx, h.customCommands)
-
-		h.listenMu.Lock()
-		if h.listenToken == listenToken {
-			h.listenCancel = nil
-			h.listenToken = nil
+		if err := h.initializeBot(); err != nil {
+			helpers.AppLogger.Errorf("初始化 Telegram Bot 失败：%v", err)
+			h.clearListenState(listenToken)
+			return
 		}
-		h.listenMu.Unlock()
+		select {
+		case <-listenCtx.Done():
+			h.clearListenState(listenToken)
+			helpers.AppLogger.Infof("Telegram Bot 监听协程已安全退出")
+			return
+		default:
+		}
+
+		h.startListening(listenCtx, h.customCommands)
+		h.clearListenState(listenToken)
 
 		helpers.AppLogger.Infof("Telegram Bot 监听协程已安全退出")
 	}()
+}
+
+func (h *TelegramChannelHandler) initializeBot() error {
+	if h.initBotFunc != nil {
+		return h.initBotFunc()
+	}
+	return h.initBot()
+}
+
+func (h *TelegramChannelHandler) startListening(ctx context.Context, cmds map[string]func([]string) helpers.CommandResponse) {
+	if h.startListeningFunc != nil {
+		h.startListeningFunc(ctx, cmds)
+		return
+	}
+	if h.bot == nil {
+		helpers.AppLogger.Errorf("Telegram Bot 未初始化")
+		return
+	}
+	h.bot.StartListening(ctx, cmds)
+}
+
+func (h *TelegramChannelHandler) clearListenState(listenToken *struct{}) {
+	h.listenMu.Lock()
+	defer h.listenMu.Unlock()
+
+	if h.listenToken == listenToken {
+		h.listenCancel = nil
+		h.listenToken = nil
+	}
 }
 
 func (h *TelegramChannelHandler) Stop() {

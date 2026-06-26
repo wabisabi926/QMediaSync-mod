@@ -198,3 +198,81 @@ func TestTelegramChannelHandlerStopCancelsListeningContext(t *testing.T) {
 		t.Fatal("停止 Telegram handler 应取消监听 context")
 	}
 }
+
+func TestTelegramChannelHandlerStartInitializesBotInBackground(t *testing.T) {
+	initStarted := make(chan struct{})
+	allowInitReturn := make(chan struct{})
+	listeningStarted := make(chan struct{}, 1)
+	handler := &TelegramChannelHandler{
+		initBotFunc: func() error {
+			close(initStarted)
+			<-allowInitReturn
+			return nil
+		},
+		startListeningFunc: func(context.Context, map[string]func([]string) helpers.CommandResponse) {
+			listeningStarted <- struct{}{}
+		},
+	}
+
+	done := make(chan struct{})
+	go func() {
+		handler.Start(context.Background())
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Telegram handler Start 不应等待 Bot 初始化完成")
+	}
+	select {
+	case <-initStarted:
+	case <-time.After(time.Second):
+		t.Fatal("Telegram handler Start 应在后台启动 Bot 初始化")
+	}
+
+	close(allowInitReturn)
+	select {
+	case <-listeningStarted:
+	case <-time.After(time.Second):
+		t.Fatal("Bot 初始化完成后应进入监听")
+	}
+}
+
+func TestTelegramChannelHandlerStopBeforeInitCompletesSkipsListening(t *testing.T) {
+	initStarted := make(chan struct{})
+	allowInitReturn := make(chan struct{})
+	initReturned := make(chan struct{})
+	listeningStarted := make(chan struct{}, 1)
+	handler := &TelegramChannelHandler{
+		initBotFunc: func() error {
+			close(initStarted)
+			<-allowInitReturn
+			close(initReturned)
+			return nil
+		},
+		startListeningFunc: func(context.Context, map[string]func([]string) helpers.CommandResponse) {
+			listeningStarted <- struct{}{}
+		},
+	}
+
+	handler.Start(context.Background())
+	select {
+	case <-initStarted:
+	case <-time.After(time.Second):
+		t.Fatal("Telegram handler Start 应在后台启动 Bot 初始化")
+	}
+
+	handler.Stop()
+	close(allowInitReturn)
+	select {
+	case <-initReturned:
+	case <-time.After(time.Second):
+		t.Fatal("测试中的 Bot 初始化未按预期结束")
+	}
+	select {
+	case <-listeningStarted:
+		t.Fatal("停止 Telegram handler 后，不应在初始化完成后继续进入监听")
+	case <-time.After(100 * time.Millisecond):
+	}
+}

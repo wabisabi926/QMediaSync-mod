@@ -10,8 +10,7 @@
           <p class="page-subtitle">管理媒体文件的刮削和整理规则</p>
         </div>
         <div class="header-actions">
-          <el-button type="primary" class="add-btn" @click="goToAdd">
-            <el-icon><Plus /></el-icon>
+          <el-button type="primary" class="add-btn" :icon="Plus" @click="goToAdd">
             <span class="btn-text">添加刮削目录</span>
           </el-button>
         </div>
@@ -173,11 +172,11 @@
                 type="success"
                 size="small"
                 plain
+                :icon="VideoPlay"
                 @click="handleScan(row)"
                 :loading="row.scanning"
                 v-if="row.is_running === 0"
               >
-                <el-icon><VideoPlay /></el-icon>
                 启动
               </el-button>
 
@@ -185,16 +184,15 @@
                 type="info"
                 size="small"
                 plain
+                :icon="VideoPause"
                 @click="handleStop(row)"
                 :loading="row.scanning"
                 v-if="row.is_running !== 0"
               >
-                <el-icon><VideoPause /></el-icon>
                 停止
               </el-button>
 
-              <el-button type="primary" size="small" plain @click="goToEdit(row)">
-                <el-icon><Edit /></el-icon>
+              <el-button type="primary" size="small" plain :icon="Edit" @click="goToEdit(row)">
                 编辑
               </el-button>
 
@@ -202,10 +200,10 @@
                 type="danger"
                 size="small"
                 plain
+                :icon="Delete"
                 @click="handleDelete(row, index)"
                 :loading="row.deleting"
               >
-                <el-icon><Delete /></el-icon>
                 删除
               </el-button>
 
@@ -214,9 +212,9 @@
                 type="warning"
                 size="small"
                 plain
+                :icon="Link"
                 @click="openSyncPathDialog(row)"
               >
-                <el-icon><Link /></el-icon>
                 关联
               </el-button>
             </div>
@@ -235,10 +233,7 @@
         </div>
         <h3 class="empty-title">暂无刮削目录</h3>
         <p class="empty-description">点击上方按钮添加第一个刮削目录</p>
-        <el-button type="primary" @click="goToAdd">
-          <el-icon><Plus /></el-icon>
-          添加刮削目录
-        </el-button>
+        <el-button type="primary" :icon="Plus" @click="goToAdd"> 添加刮削目录 </el-button>
       </div>
 
       <div class="loading-state" v-if="loading">
@@ -1374,10 +1369,6 @@ onUnmounted(() => {
     min-width: 0;
     width: 100%;
     margin: 0;
-  }
-
-  .card-footer .el-button :deep(.el-icon) {
-    margin-right: 4px;
   }
 
   .empty-state {

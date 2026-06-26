@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { inject, onMounted, reactive, shallowRef } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Key, CircleCheck, Lock } from '@element-plus/icons-vue'
 import QRCode from 'qrcode'
 import type { AxiosStatic } from 'axios'
 import { SERVER_URL } from '@/const'
@@ -111,6 +112,8 @@ onMounted(() => {
     <template v-if="!twoFactorStatus.enabled">
       <el-button
         type="primary"
+        size="large"
+        :icon="Key"
         :loading="twoFactorLoading"
         class="two-factor-setup-button"
         @click="setupTwoFactor"
@@ -126,7 +129,9 @@ onMounted(() => {
           maxlength="6"
           inputmode="numeric"
         />
-        <el-button type="success" @click="enableTwoFactor">启用两步验证</el-button>
+        <el-button type="success" size="large" :icon="CircleCheck" @click="enableTwoFactor">
+          启用两步验证
+        </el-button>
       </div>
     </template>
 
@@ -144,7 +149,9 @@ onMounted(() => {
           maxlength="6"
           inputmode="numeric"
         />
-        <el-button type="danger" @click="disableTwoFactor">关闭两步验证</el-button>
+        <el-button type="danger" size="large" :icon="Lock" @click="disableTwoFactor">
+          关闭两步验证
+        </el-button>
       </div>
     </template>
   </section>

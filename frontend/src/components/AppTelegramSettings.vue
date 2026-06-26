@@ -49,6 +49,7 @@
                 @click="testBot"
                 :loading="testing"
                 :disabled="loading || !formData.enabled"
+                size="large"
                 :icon="Message"
               >
                 测试机器人
@@ -60,6 +61,7 @@
                 @click="saveSettings"
                 :loading="loading"
                 :disabled="testing"
+                size="large"
                 :icon="Check"
               >
                 保存设置
@@ -188,10 +190,9 @@ const saveSettings = async () => {
 
     if (response?.data.code === 200) {
       const statusMessage = formData.enabled ? 'Telegram 通知已启用并保存' : 'Telegram 通知已禁用'
-      ElMessage.success(statusMessage)
 
       testStatus.value = {
-        title: '设置已保存',
+        title: statusMessage,
         type: 'info',
         description: formData.enabled
           ? '配置已成功保存，您可以开始接收 Telegram 通知了'

@@ -41,7 +41,15 @@
       </el-form-item>
 
       <div class="form-actions">
-        <el-button type="primary" @click="saveSettings" :loading="loading"> 保存设置 </el-button>
+        <el-button
+          type="success"
+          @click="saveSettings"
+          :loading="loading"
+          size="large"
+          :icon="Check"
+        >
+          保存设置
+        </el-button>
       </div>
     </el-form>
 
@@ -71,6 +79,7 @@
 <script setup lang="ts">
 import { reactive, shallowRef, inject, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Check } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import { isMobile } from '@/utils/deviceUtils'
@@ -147,8 +156,6 @@ const saveSettings = async () => {
     })
 
     if (response?.data.code === 200) {
-      ElMessage.success('用户设置已保存')
-
       saveStatus.value = {
         title: '用户设置已保存',
         type: 'success',

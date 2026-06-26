@@ -1,9 +1,6 @@
 <template>
   <div class="scrape-path-form-page" :class="{ 'is-mobile': checkIsMobile }">
-    <el-button type="primary" @click="goBack" size="large" link>
-      <el-icon>
-        <ArrowLeft />
-      </el-icon>
+    <el-button type="primary" :icon="ArrowLeft" @click="goBack" size="large" link>
       返回刮削目录
     </el-button>
 

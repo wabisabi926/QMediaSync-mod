@@ -1,9 +1,6 @@
 <template>
   <div class="sync-directory-form-page" :class="{ 'is-mobile': checkIsMobile }">
-    <el-button type="primary" @click="goBack" size="large" link>
-      <el-icon>
-        <ArrowLeft />
-      </el-icon>
+    <el-button type="primary" :icon="ArrowLeft" @click="goBack" size="large" link>
       返回 STRM 同步目录
     </el-button>
 
@@ -303,12 +300,8 @@
               <el-radio-button :label="STRM_CUSTOM_OPTIONS.checkMetaMtime[0]"
                 >使用 STRM 设置</el-radio-button
               >
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.checkMetaMtime[2]"
-                >是</el-radio-button
-              >
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.checkMetaMtime[1]"
-                >否</el-radio-button
-              >
+              <el-radio-button :label="STRM_CUSTOM_OPTIONS.checkMetaMtime[2]">是</el-radio-button>
+              <el-radio-button :label="STRM_CUSTOM_OPTIONS.checkMetaMtime[1]">否</el-radio-button>
             </el-radio-group>
             <div class="form-help">
               <p>
@@ -652,12 +645,8 @@
               <el-radio-button :label="STRM_CUSTOM_OPTIONS.checkMetaMtime[0]"
                 >使用 STRM 设置</el-radio-button
               >
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.checkMetaMtime[2]"
-                >是</el-radio-button
-              >
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.checkMetaMtime[1]"
-                >否</el-radio-button
-              >
+              <el-radio-button :label="STRM_CUSTOM_OPTIONS.checkMetaMtime[2]">是</el-radio-button>
+              <el-radio-button :label="STRM_CUSTOM_OPTIONS.checkMetaMtime[1]">否</el-radio-button>
             </el-radio-group>
             <div class="form-help">
               <p>

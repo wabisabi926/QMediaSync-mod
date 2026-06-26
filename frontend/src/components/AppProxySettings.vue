@@ -23,26 +23,24 @@
           <div>
             <el-button
               type="primary"
+              size="large"
+              :icon="Connection"
               @click="testProxy"
               :loading="testingProxy"
               :disabled="proxyLoading"
             >
-              <el-icon>
-                <Connection />
-              </el-icon>
               测试
             </el-button>
           </div>
           <div>
             <el-button
               type="success"
+              size="large"
+              :icon="Check"
               @click="saveProxy"
               :loading="proxyLoading"
               :disabled="testingProxy"
             >
-              <el-icon>
-                <Check />
-              </el-icon>
               保存
             </el-button>
           </div>

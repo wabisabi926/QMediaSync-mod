@@ -7,22 +7,30 @@
           <div class="header-actions">
             <!-- 只有实时日志模式才显示连接、断开、清空按钮 -->
             <template v-if="isRealTime">
-              <el-button type="primary" @click="connect" size="small" :disabled="isConnected">
-                <el-icon v-if="!isConnected"><Connection /></el-icon>
+              <el-button
+                type="primary"
+                :icon="Connection"
+                @click="connect"
+                size="small"
+                :disabled="isConnected"
+              >
                 连接
               </el-button>
-              <el-button type="danger" @click="disconnect" size="small" :disabled="!isConnected">
-                <el-icon v-if="isConnected"><Close /></el-icon>
+              <el-button
+                type="danger"
+                :icon="Close"
+                @click="disconnect"
+                size="small"
+                :disabled="!isConnected"
+              >
                 断开
               </el-button>
-              <el-button type="info" @click="clearLogs" size="small">
-                <el-icon><Delete /></el-icon>
+              <el-button type="info" :icon="Delete" @click="clearLogs" size="small">
                 清空
               </el-button>
             </template>
             <!-- 下载按钮始终显示 -->
-            <el-button type="success" @click="downloadLogs" size="small">
-              <el-icon><Download /></el-icon>
+            <el-button type="success" :icon="Download" @click="downloadLogs" size="small">
               下载日志
             </el-button>
           </div>

@@ -22,14 +22,12 @@ const visibleActions = computed(() => props.actions.filter(isVisible))
       v-for="action in visibleActions"
       :key="action.key"
       :type="action.type ?? 'primary'"
+      :icon="action.icon"
       :disabled="isDisabled(action)"
       size="small"
       link
       @click="emit('action', { actionKey: action.key, row })"
     >
-      <el-icon v-if="action.icon" aria-hidden="true">
-        <component :is="action.icon" />
-      </el-icon>
       <span>{{ action.label }}</span>
     </el-button>
   </div>

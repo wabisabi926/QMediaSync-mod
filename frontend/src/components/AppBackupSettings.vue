@@ -45,7 +45,15 @@
       </el-form-item>
 
       <el-form-item>
-        <el-button type="primary" :loading="configSaving" @click="saveConfig"> 保存配置 </el-button>
+        <el-button
+          type="success"
+          size="large"
+          :icon="Check"
+          :loading="configSaving"
+          @click="saveConfig"
+        >
+          保存配置
+        </el-button>
       </el-form-item>
     </el-form>
   </div>
@@ -53,7 +61,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, inject, watch } from 'vue'
-import { Setting } from '@element-plus/icons-vue'
+import { Check, Setting } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { AxiosStatic } from 'axios'
 import { SERVER_URL } from '@/const'

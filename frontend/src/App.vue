@@ -79,19 +79,11 @@
         <!-- 移动端顶部栏 -->
         <div v-if="isMobile" class="mobile-header">
           <div class="left-section">
-            <el-button link class="menu-toggle" @click="toggleMenu">
-              <el-icon size="20">
-                <Menu />
-              </el-icon>
-            </el-button>
+            <el-button link class="menu-toggle" :icon="Menu" @click="toggleMenu" />
             <h2 class="page-title">{{ getCurrentPageTitle() }}</h2>
           </div>
           <el-dropdown class="user-dropdown">
-            <el-button link class="user-btn">
-              <el-icon>
-                <User />
-              </el-icon>
-            </el-button>
+            <el-button link class="user-btn" :icon="User" />
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item>{{ authStore.user?.username }}</el-dropdown-item>

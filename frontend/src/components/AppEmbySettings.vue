@@ -518,6 +518,16 @@
         </div>
       </el-form>
 
+      <el-alert
+        v-if="embyStatus"
+        :title="embyStatus.title"
+        :type="embyStatus.type"
+        :description="embyStatus.description"
+        :closable="false"
+        show-icon
+        class="emby-status-alert"
+      />
+
       <el-card class="sync-management-card" shadow="hover">
         <template #header>
           <div class="card-header-wrapper">
@@ -598,16 +608,6 @@
           <el-empty description="暂无同步数据，请点击上方按钮启动同步" :image-size="80" />
         </div>
       </el-card>
-
-      <el-alert
-        v-if="embyStatus"
-        :title="embyStatus.title"
-        :type="embyStatus.type"
-        :description="embyStatus.description"
-        :closable="false"
-        show-icon
-        class="emby-status-alert"
-      />
 
       <el-alert title="使用提示" type="info" :closable="false" show-icon class="tips-alert">
         <template #default>
@@ -840,7 +840,6 @@ const saveEmbyConfig = async () => {
         type: 'success',
         description: 'Emby 配置已成功保存',
       }
-      ElMessage.success('Emby 配置已成功保存')
       await loadEmbyConfig()
     } else {
       embyStatus.value = {

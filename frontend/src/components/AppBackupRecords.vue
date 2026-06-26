@@ -4,11 +4,11 @@
       <el-button
         type="primary"
         size="large"
+        :icon="Upload"
         :loading="backupStarting"
         :disabled="backupStore.isRunning"
         @click="startManualBackup"
       >
-        <el-icon><Upload /></el-icon>
         <span>手动备份</span>
       </el-button>
       <span v-if="backupStore.isRunning" style="margin-left: 12px; color: #909399">

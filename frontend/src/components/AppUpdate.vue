@@ -6,7 +6,7 @@ import { useVersion } from '@/composables/useVersion'
 import { formatFileSize } from '@/utils/fileSizeUtils'
 import MarkdownIt from 'markdown-it'
 import 'github-markdown-css/github-markdown.css'
-import { CircleCheck } from '@element-plus/icons-vue'
+import { CircleCheck, Refresh } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 
@@ -104,10 +104,10 @@ const renderMarkdown = (content: string): string => {
             <span class="section-icon">🚀</span>
             <span>可用版本</span>
           </div>
-          <div class="section-header-right" style="display: flex; align-items: center; gap: 8px">
+          <div class="section-header-right update-toolbar">
             <el-radio-group
               v-model="updateChannel"
-              size="large"
+              size="default"
               class="channel-selector"
               @change="handleChannelChange"
             >
@@ -115,7 +115,12 @@ const renderMarkdown = (content: string): string => {
               <!-- Gitee 渠道暂未启用：本仓库尚未在 Gitee 发布，后端 update.go 已注释 Gitee 分支；建立 Gitee 镜像后取消注释即可恢复 -->
               <!-- <el-radio-button value="gitee">Gitee</el-radio-button> -->
             </el-radio-group>
-            <el-button type="primary" @click="loadUpdateList(true)" :loading="updateLoading" round>
+            <el-button
+              size="default"
+              :icon="Refresh"
+              @click="loadUpdateList(true)"
+              :loading="updateLoading"
+            >
               刷新
             </el-button>
           </div>
@@ -306,8 +311,15 @@ const renderMarkdown = (content: string): string => {
   font-size: 20px;
 }
 
+.update-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .channel-selector {
-  margin-left: 12px;
+  margin-left: 0;
 }
 
 .version-info {

@@ -13,10 +13,10 @@
           <el-button type="info" @click="refreshQueue" :loading="backgroundRefreshing"
             >刷新</el-button
           >
-          <el-button type="success" @click="pauseAllTasks" :disabled="queueStatus === 0"
+          <el-button type="warning" @click="pauseAllTasks" :disabled="queueStatus === 0"
             >全部暂停</el-button
           >
-          <el-button type="primary" @click="resumeAllTasks" :disabled="queueStatus === 1"
+          <el-button type="success" @click="resumeAllTasks" :disabled="queueStatus === 1"
             >全部恢复</el-button
           >
         </div>

@@ -395,10 +395,7 @@
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="closeReScrapeDialog">取消</el-button>
-          <el-button type="primary" @click="searchTmdb" :loading="searchLoading">
-            <el-icon>
-              <Search />
-            </el-icon>
+          <el-button type="primary" :icon="Search" @click="searchTmdb" :loading="searchLoading">
             搜索
           </el-button>
         </div>

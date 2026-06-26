@@ -5,10 +5,7 @@
       <template #header>
         <div class="card-header">
           <div class="header-left">
-            <el-button type="primary" @click="goBack" size="small" link>
-              <el-icon>
-                <ArrowLeft />
-              </el-icon>
+            <el-button type="primary" :icon="ArrowLeft" @click="goBack" size="small" link>
               返回同步记录
             </el-button>
             <h2 class="card-title">同步任务详情 #{{ taskId }}</h2>

@@ -45,14 +45,14 @@
 
     <div class="action-buttons">
       <el-button
-        type="primary"
+        type="warning"
         size="large"
+        :icon="CircleCheck"
         :loading="restoreStarting"
         :disabled="!selectedFile || backupStore.isRunning"
         @click="startRestore"
       >
-        <el-icon><CircleCheck /></el-icon>
-        <span>开始恢复</span>
+        开始恢复
       </el-button>
       <el-button
         size="large"

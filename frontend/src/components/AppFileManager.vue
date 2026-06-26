@@ -89,8 +89,12 @@
                   {{ item.name }}
                 </el-breadcrumb-item>
               </el-breadcrumb>
-              <el-button type="primary" @click="openCreateDialog" :disabled="!selectedAccountId">
-                <el-icon><FolderAdd /></el-icon>
+              <el-button
+                type="primary"
+                :icon="FolderAdd"
+                @click="openCreateDialog"
+                :disabled="!selectedAccountId"
+              >
                 新建文件夹
               </el-button>
             </div>

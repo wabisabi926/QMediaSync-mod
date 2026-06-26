@@ -12,10 +12,12 @@
           <p class="page-subtitle">管理网盘账号授权与绑定</p>
         </div>
         <div class="header-actions">
-          <el-button type="primary" class="add-btn" @click="showAddAccountDialog = true">
-            <el-icon>
-              <Plus />
-            </el-icon>
+          <el-button
+            type="primary"
+            class="add-btn"
+            :icon="Plus"
+            @click="showAddAccountDialog = true"
+          >
             <span class="btn-text">添加账号</span>
           </el-button>
         </div>
@@ -162,12 +164,10 @@
                       type="primary"
                       size="small"
                       text
+                      :icon="RefreshRight"
                       :loading="account.statusLoading"
                       @click="loadAccountStatus(account)"
                     >
-                      <el-icon v-if="!account.statusLoading">
-                        <RefreshRight />
-                      </el-icon>
                       刷新
                     </el-button>
                   </div>
@@ -293,10 +293,13 @@
             </div>
 
             <div class="card-footer">
-              <el-button type="danger" size="small" plain @click="handleDelete(account)">
-                <el-icon>
-                  <Delete />
-                </el-icon>
+              <el-button
+                type="danger"
+                size="small"
+                plain
+                :icon="Delete"
+                @click="handleDelete(account)"
+              >
                 删除
               </el-button>
 
@@ -304,19 +307,20 @@
                 type="warning"
                 size="small"
                 plain
+                :icon="Key"
                 @click="handleAuthorize(account)"
                 v-if="account.source_type !== 'openlist'"
               >
-                <el-icon>
-                  <Key />
-                </el-icon>
                 授权
               </el-button>
 
-              <el-button type="primary" size="small" plain @click="handleEdit(account)">
-                <el-icon>
-                  <Edit />
-                </el-icon>
+              <el-button
+                type="primary"
+                size="small"
+                plain
+                :icon="Edit"
+                @click="handleEdit(account)"
+              >
                 编辑
               </el-button>
             </div>
@@ -337,10 +341,7 @@
         </div>
         <h3 class="empty-title">暂无网盘账号</h3>
         <p class="empty-description">点击上方按钮添加第一个网盘账号</p>
-        <el-button type="primary" @click="showAddAccountDialog = true">
-          <el-icon>
-            <Plus />
-          </el-icon>
+        <el-button type="primary" :icon="Plus" @click="showAddAccountDialog = true">
           添加账号
         </el-button>
       </div>
@@ -1981,10 +1982,6 @@ onUnmounted(() => {
     min-width: 0;
     width: 100%;
     margin: 0;
-  }
-
-  .card-footer .el-button :deep(.el-icon) {
-    margin-right: 4px;
   }
 
   .empty-state {

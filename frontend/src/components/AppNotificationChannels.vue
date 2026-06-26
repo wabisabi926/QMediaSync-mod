@@ -85,7 +85,7 @@
             <el-button
               size="small"
               text
-              type="success"
+              type="primary"
               :icon="Promotion"
               @click="testChannel(channel as ChannelWithStatus)"
               :loading="(channel as ChannelWithStatus)._testing"

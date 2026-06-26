@@ -13,10 +13,7 @@
       <el-tab-pane label="电影" name="movie">
         <div class="tab-content">
           <div class="card-actions-header">
-            <el-button type="primary" @click="handleAdd('movie')" class="add-button">
-              <el-icon>
-                <Plus />
-              </el-icon>
+            <el-button type="primary" :icon="Plus" @click="handleAdd('movie')" class="add-button">
               添加分类
             </el-button>
           </div>
@@ -66,16 +63,20 @@
                 <div class="card-actions">
                   <span v-if="row.id === 1" class="text-muted">系统预设</span>
                   <template v-else>
-                    <el-button type="primary" size="small" @click="handleEdit('movie', row)">
-                      <el-icon>
-                        <Edit />
-                      </el-icon>
+                    <el-button
+                      type="primary"
+                      size="small"
+                      :icon="Edit"
+                      @click="handleEdit('movie', row)"
+                    >
                       编辑
                     </el-button>
-                    <el-button type="danger" size="small" @click="handleDelete('movie', row.id)">
-                      <el-icon>
-                        <Delete />
-                      </el-icon>
+                    <el-button
+                      type="danger"
+                      size="small"
+                      :icon="Delete"
+                      @click="handleDelete('movie', row.id)"
+                    >
                       删除
                     </el-button>
                   </template>
@@ -101,10 +102,7 @@
       <el-tab-pane label="电视剧" name="tvshow">
         <div class="tab-content">
           <div class="card-actions-header">
-            <el-button type="primary" @click="handleAdd('tvshow')" class="add-button">
-              <el-icon>
-                <Plus />
-              </el-icon>
+            <el-button type="primary" :icon="Plus" @click="handleAdd('tvshow')" class="add-button">
               添加分类
             </el-button>
           </div>
@@ -154,16 +152,20 @@
                 <div class="card-actions">
                   <span v-if="row.id === 1" class="text-muted">系统预设</span>
                   <template v-else>
-                    <el-button type="primary" size="small" @click="handleEdit('tvshow', row)">
-                      <el-icon>
-                        <Edit />
-                      </el-icon>
+                    <el-button
+                      type="primary"
+                      size="small"
+                      :icon="Edit"
+                      @click="handleEdit('tvshow', row)"
+                    >
                       编辑
                     </el-button>
-                    <el-button type="danger" size="small" @click="handleDelete('tvshow', row.id)">
-                      <el-icon>
-                        <Delete />
-                      </el-icon>
+                    <el-button
+                      type="danger"
+                      size="small"
+                      :icon="Delete"
+                      @click="handleDelete('tvshow', row.id)"
+                    >
                       删除
                     </el-button>
                   </template>

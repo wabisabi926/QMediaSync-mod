@@ -12,6 +12,7 @@ import (
 
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
+	"qmediasync/internal/requests"
 	"qmediasync/internal/synccron"
 
 	"github.com/gin-gonic/gin"
@@ -514,11 +515,16 @@ func GetScrapePath(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func SaveScrapePath(c *gin.Context) {
-	reqData := models.ScrapePath{}
-	if err := c.ShouldBindJSON(&reqData); err != nil {
+	var req requests.SaveScrapePathRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
+	}
+	reqData := req.ToModel()
 	// 如果是 115，用 ID 查询实际目录
 	if reqData.SourceType == models.SourceType115 {
 		// 用 ID 查询实际目录

@@ -14,6 +14,7 @@ import (
 	"qmediasync/internal/github"
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
+	"qmediasync/internal/requests"
 	"qmediasync/internal/updater"
 	"qmediasync/internal/v115open"
 
@@ -95,24 +96,16 @@ func UpdateToVersion(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "正在更新中", Data: nil})
 		return
 	}
-	type UpdateVersionRequest struct {
-		Version string `json:"version"`
-		Channel string `json:"channel"`
-	}
-	var req UpdateVersionRequest
+	var req requests.UpdateVersionRequest
 	if perr := c.ShouldBindJSON(&req); perr != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "参数错误", Data: nil})
 		return
 	}
-	version := req.Version
-	channel := req.Channel
-	if version == "" {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "版本号不能为空", Data: nil})
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
-	if channel == "" {
-		channel = "github"
-	}
+	version := req.Version
 
 	var downloadURL string
 	var err error

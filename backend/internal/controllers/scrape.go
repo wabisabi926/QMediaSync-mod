@@ -639,16 +639,17 @@ func DeleteScrapePath(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func ScanScrapePath(c *gin.Context) {
-	type ScanScrapePathReq struct {
-		ID uint `json:"id" form:"id"`
+	var req requests.PositiveIDRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
 	}
-	reqData := ScanScrapePathReq{}
-	if err := c.ShouldBindJSON(&reqData); err != nil {
+	if err := req.Validate(); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 	// 查询 ScrapePath
-	scrapePath := models.GetScrapePathByID(reqData.ID)
+	scrapePath := models.GetScrapePathByID(req.ID)
 	if scrapePath == nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "刮削目录不存在", Data: nil})
 		return
@@ -857,20 +858,23 @@ func GetScrapeRecords(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func ScrapeTmpImage(c *gin.Context) {
-	imagePath := c.Query("path")
-	mediaType := models.MediaType(c.Query("type"))
-	if imagePath == "" || strings.Contains(imagePath, "..") {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "路径不能为空或不合法", Data: nil})
+	var req requests.TmpImageRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请求参数错误：" + err.Error(), Data: nil})
+		return
+	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 	imageRootPath := filepath.Join(helpers.ConfigDir, "tmp", "刮削临时文件")
-	if mediaType == models.MediaTypeTvShow {
+	if req.MediaType == models.MediaTypeTvShow {
 		imageRootPath = filepath.Join(imageRootPath, "电视剧")
 	} else {
 		imageRootPath = filepath.Join(imageRootPath, "电影或其他")
 	}
 	var err error
-	imagePath, err = helpers.SafeJoin(imageRootPath, imagePath)
+	imagePath, err := helpers.SafeJoin(imageRootPath, req.Path)
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "图片路径不合法：" + err.Error(), Data: nil})
 		return
@@ -974,15 +978,13 @@ func ExportScrapeRecords(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func ReScrape(c *gin.Context) {
-	type reScrapeReq struct {
-		ID      uint  `json:"id"`
-		TmdbId  int64 `json:"tmdb_id"`
-		Season  int   `json:"season"`
-		Episode int   `json:"episode"`
-	}
-	var req reScrapeReq
+	var req requests.RescrapeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请求参数错误：" + err.Error(), Data: nil})
+		return
+	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 	// 使用 ID 查询 ScrapeMediaFile
@@ -997,7 +999,7 @@ func ReScrape(c *gin.Context) {
 		return
 	}
 	oldStatus := scrapeMedia.Status
-	err := scrapeMedia.ReScrape("", 0, req.TmdbId, req.Season, req.Episode)
+	err := scrapeMedia.ReScrape(req.Name, req.Year, req.TmdbID, req.Season, req.Episode)
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "重新刮削失败：" + err.Error(), Data: nil})
 		return
@@ -1037,12 +1039,13 @@ func ClearFailedScrapeRecords(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func FinishScrapeMediaFile(c *gin.Context) {
-	type finishScrapeReq struct {
-		ID uint `json:"id"`
-	}
-	var req finishScrapeReq
+	var req requests.PositiveIDRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请求参数错误：" + err.Error(), Data: nil})
+		return
+	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 	// 使用 ID 查询 ScrapeMediaFile
@@ -1068,21 +1071,17 @@ func FinishScrapeMediaFile(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func DeleteScrapeMediaFile(c *gin.Context) {
-	ids := c.Query("ids")
-	if ids == "" {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请选择要删除的记录", Data: nil})
+	var req requests.IDCSVRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请求参数错误：" + err.Error(), Data: nil})
 		return
 	}
-	// ids 用逗号分隔
-	idList := strings.Split(ids, ",")
-	// 转成 uint 数组
-	idUintList := make([]uint, 0)
-	for _, id := range idList {
-		idUint, _ := strconv.ParseUint(id, 10, 32)
-		idUintList = append(idUintList, uint(idUint))
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
 	}
 	// 删除记录
-	err := models.ClearFailedScrapeRecords(idUintList)
+	err := models.ClearFailedScrapeRecords(req.NormalizedIDs())
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "删除记录失败：" + err.Error(), Data: nil})
 		return
@@ -1103,21 +1102,17 @@ func DeleteScrapeMediaFile(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func RenameFailedScrapeMediaFile(c *gin.Context) {
-	ids := c.Query("ids")
-	if ids == "" {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请选择要标记的记录", Data: nil})
+	var req requests.IDCSVRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请求参数错误：" + err.Error(), Data: nil})
 		return
 	}
-	// ids 用逗号分隔
-	idList := strings.Split(ids, ",")
-	// 转成 uint 数组
-	idUintList := make([]uint, 0)
-	for _, id := range idList {
-		idUint, _ := strconv.ParseUint(id, 10, 32)
-		idUintList = append(idUintList, uint(idUint))
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
 	}
 	// 将这些 ID 对应的记录标记为待整理
-	err := models.RenameFailedScrapeRecords(idUintList)
+	err := models.RenameFailedScrapeRecords(req.NormalizedIDs())
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "标记记录失败：" + err.Error(), Data: nil})
 		return
@@ -1138,12 +1133,13 @@ func RenameFailedScrapeMediaFile(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func ToggleScrapePathCron(c *gin.Context) {
-	type toggleScrapePathCronReq struct {
-		ID uint `json:"id"`
-	}
-	var req toggleScrapePathCronReq
+	var req requests.PositiveIDRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请求参数错误：" + err.Error(), Data: nil})
+		return
+	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 	// 使用 ID 查询 ScrapePath
@@ -1179,12 +1175,13 @@ func ToggleScrapePathCron(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func StopScrape(c *gin.Context) {
-	type ScanScrapePathReq struct {
-		ID uint `json:"id" form:"id"`
-	}
-	var req ScanScrapePathReq
+	var req requests.PositiveIDRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请求参数错误：" + err.Error(), Data: nil})
+		return
+	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 	synccron.CancelNewSyncTask(req.ID, synccron.SyncTaskTypeScrape)
@@ -1212,13 +1209,14 @@ func TruncateAllScrapeRecords(c *gin.Context) {
 }
 
 func SaveScrapeStrmPath(c *gin.Context) {
-	var req struct {
-		ScrapePathID uint   `json:"scrape_path_id" form:"scrape_path_id"` // 刮削目录 ID
-		SyncPathIDs  []uint `json:"sync_path_ids" form:"sync_path_ids"`   // 同步目录 ID 列表
-	}
+	var req requests.SaveScrapeStrmPathRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		helpers.AppLogger.Errorf("绑定 JSON 数据失败：%v", err)
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "解析请求数据失败：" + err.Error(), Data: nil})
+		return
+	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 	scrapePath := models.GetScrapePathByID(req.ScrapePathID)

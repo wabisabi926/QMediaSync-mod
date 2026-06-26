@@ -299,21 +299,17 @@ func UpdateSyncPath(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func DeleteSyncPath(c *gin.Context) {
-	type deleteSyncPathRequest struct {
-		ID uint `json:"id" binding:"required"` // 同步路径 ID
-	}
-	var req deleteSyncPathRequest
+	var req requests.PositiveIDRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误", Data: nil})
 		return
 	}
-	id := req.ID
-	if id == 0 {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "ID 参数不能为空", Data: nil})
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 	// 删除同步路径
-	success := models.DeleteSyncPathById(id)
+	success := models.DeleteSyncPathById(req.ID)
 	if !success {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "删除同步路径失败", Data: nil})
 		return
@@ -366,20 +362,16 @@ func GetSyncPathById(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func DelSyncRecords(c *gin.Context) {
-	type delSyncRecordsRequest struct {
-		IDs []uint `json:"ids" form:"ids" binding:"required"` // 同步路径 ID 列表
-	}
-	var req delSyncRecordsRequest
+	var req requests.IDListRequest
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误", Data: nil})
 		return
 	}
-	ids := req.IDs
-	if len(ids) == 0 {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "没有选择删除的记录", Data: nil})
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
-	for _, id := range ids {
+	for _, id := range req.NormalizedIDs() {
 		deleteErr := models.DeleteSyncRecordById(id)
 		if deleteErr != nil {
 			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "删除同步记录失败：" + deleteErr.Error(), Data: nil})
@@ -404,21 +396,17 @@ func DelSyncRecords(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func StartSyncByPath(c *gin.Context) {
-	type startSyncRequest struct {
-		ID uint `form:"id" json:"id" binding:"required"` // 同步路径 ID
-	}
-	var req startSyncRequest
+	var req requests.PositiveIDRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误", Data: nil})
 		return
 	}
-	if req.ID == 0 {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "ID 参数不能为空", Data: nil})
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 
-	id := req.ID
-	syncPath := models.GetSyncPathById(uint(id))
+	syncPath := models.GetSyncPathById(req.ID)
 	if syncPath == nil {
 		c.JSON(http.StatusNotFound, APIResponse[any]{Code: BadRequest, Message: "同步路径不存在", Data: nil})
 		return
@@ -456,21 +444,17 @@ func StartSyncByPath(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func StopSyncByPath(c *gin.Context) {
-	type startSyncRequest struct {
-		ID uint `form:"id" json:"id" binding:"required"` // 同步路径 ID
-	}
-	var req startSyncRequest
+	var req requests.PositiveIDRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误", Data: nil})
 		return
 	}
-	if req.ID == 0 {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "ID 参数不能为空", Data: nil})
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 
-	id := req.ID
-	syncPath := models.GetSyncPathById(uint(id))
+	syncPath := models.GetSyncPathById(req.ID)
 	if syncPath == nil {
 		c.JSON(http.StatusNotFound, APIResponse[any]{Code: BadRequest, Message: "同步路径不存在", Data: nil})
 		return
@@ -494,16 +478,13 @@ func StopSyncByPath(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func ToggleSyncByPath(c *gin.Context) {
-	type stopSyncRequest struct {
-		ID uint `form:"id" json:"id" binding:"required"` // 同步路径 ID
-	}
-	var req stopSyncRequest
+	var req requests.PositiveIDRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误", Data: nil})
 		return
 	}
-	if req.ID == 0 {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "ID 参数不能为空", Data: nil})
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 	// 切换 enable 参数
@@ -539,20 +520,16 @@ func ToggleSyncByPath(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func FullStart115Sync(c *gin.Context) {
-	type startSyncRequest struct {
-		ID uint `form:"id" json:"id" binding:"required"` // 同步路径 ID
-	}
-	var req startSyncRequest
+	var req requests.PositiveIDRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误", Data: nil})
 		return
 	}
-	if req.ID == 0 {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "ID 参数不能为空", Data: nil})
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
-	id := req.ID
-	syncPath := models.GetSyncPathById(uint(id))
+	syncPath := models.GetSyncPathById(req.ID)
 	if syncPath == nil {
 		c.JSON(http.StatusNotFound, APIResponse[any]{Code: BadRequest, Message: "同步路径不存在", Data: nil})
 		return
@@ -586,26 +563,22 @@ func FullStart115Sync(c *gin.Context) {
 }
 
 func SaveRelScrapePath(c *gin.Context) {
-	type saveScrapePathRequest struct {
-		ID           uint   `form:"id" json:"id" binding:"required"`                         // 同步路径 ID
-		ScrapePathId []uint `form:"scrape_path_id" json:"scrape_path_id" binding:"required"` // 刮削路径 ID
-	}
-	var req saveScrapePathRequest
+	var req requests.SaveRelScrapePathRequest
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误", Data: nil})
 		return
 	}
-	if req.ID == 0 {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "ID 参数不能为空", Data: nil})
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
-	syncPath := models.GetSyncPathById(req.ID)
+	syncPath := models.GetSyncPathById(req.SyncPathID)
 	if syncPath == nil {
 		c.JSON(http.StatusNotFound, APIResponse[any]{Code: BadRequest, Message: "同步路径不存在", Data: nil})
 		return
 	}
 	// 保存关联的刮削路径
-	if err := syncPath.SaveScrapePaths(req.ScrapePathId); err != nil {
+	if err := syncPath.SaveScrapePaths(req.ScrapePathIDs); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "保存关联的刮削路径失败：" + err.Error(), Data: nil})
 		return
 	}
@@ -635,23 +608,16 @@ func GetRelScrapePath(c *gin.Context) {
 
 // 从网盘文件管理器手动触发同步
 func ManualSync(c *gin.Context) {
-	type manualSyncRequest struct {
-		PathId     string `form:"path_id" json:"path_id" binding:"required"`         // 文件 ID
-		Path       string `form:"path" json:"path"`                                  // 路径
-		TargetPath string `form:"target_path" json:"target_path" binding:"required"` // 目标路径
-		IsFile     bool   `form:"is_file" json:"is_file"`                            // 是否文件
-		AccountId  uint   `form:"account_id" json:"account_id" binding:"required"`   // 账号 ID
-	}
-	var req manualSyncRequest
+	var req requests.ManualSyncRequest
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("请求参数错误：%v", err), Data: nil})
 		return
 	}
-	if req.PathId == "" {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "path_id 参数不能为空", Data: nil})
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
-	account, err := models.GetAccountById(req.AccountId)
+	account, err := models.GetAccountById(req.AccountID)
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "账号不存在", Data: nil})
 		return
@@ -662,7 +628,7 @@ func ManualSync(c *gin.Context) {
 		case models.SourceType115:
 			client := account.Get115Client()
 			// 115 网盘文件详情接口
-			fileDetail, err := client.GetFsDetailByCid(context.Background(), req.PathId)
+			fileDetail, err := client.GetFsDetailByCid(context.Background(), req.PathID)
 			if err != nil {
 				c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取文件详情失败：" + err.Error(), Data: nil})
 				return
@@ -672,7 +638,7 @@ func ManualSync(c *gin.Context) {
 		case models.SourceTypeBaiduPan:
 			client := account.GetBaiDuPanClient()
 			// 百度网盘文件详情接口
-			fileDetail, err := client.FileExists(context.Background(), req.PathId)
+			fileDetail, err := client.FileExists(context.Background(), req.PathID)
 			if err != nil {
 				c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取文件详情失败：" + err.Error(), Data: nil})
 				return
@@ -689,11 +655,11 @@ func ManualSync(c *gin.Context) {
 		ID:           0,
 		TaskType:     synccron.SyncTaskTypeStrm,
 		SourcePath:   req.Path,
-		SourcePathId: req.PathId,
+		SourcePathId: req.PathID,
 		TargetPath:   req.TargetPath,
 		IsFile:       req.IsFile,
 		SourceType:   account.SourceType,
-		AccountId:    req.AccountId,
+		AccountId:    req.AccountID,
 	}
 	if err := synccron.AddNewSyncTask(taskObj); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "添加同步任务失败：" + err.Error(), Data: nil})

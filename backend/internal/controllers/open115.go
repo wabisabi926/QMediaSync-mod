@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 	"sync"
 	"time"
 
@@ -535,15 +534,17 @@ func save115OAuthToken(c *gin.Context, account *models.Account, token v115auth.O
 
 // GetQueueStats 获取 115 开放平台请求队列的统计数据。
 func GetQueueStats(c *gin.Context) {
-	// 获取查询参数，支持查询不同时间窗口的统计
-	timeWindowStr := c.DefaultQuery("time_window", "3600") // 默认 3600 秒（1 小时）
-	timeWindow, err := strconv.ParseInt(timeWindowStr, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "time_window 参数无效", Data: nil})
+	var req requests.QueueStatsRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请求参数错误：" + err.Error(), Data: nil})
+		return
+	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 
-	duration := time.Duration(timeWindow) * time.Second
+	duration := time.Duration(req.TimeWindow) * time.Second
 
 	// 获取全局队列执行器
 	executor := v115open.GetGlobalExecutor()
@@ -565,7 +566,7 @@ func GetQueueStats(c *gin.Context) {
 		"last_throttle_time":       stats.LastThrottleTime,
 		"throttle_wait_time":       stats.ThrottledWaitTime.String(),
 		"throttle_recover_time":    stats.ThrottleRecoverTime,
-		"time_window_seconds":      timeWindow,
+		"time_window_seconds":      req.TimeWindow,
 		"is_throttled":             throttleStatus.IsThrottled,
 		"throttled_elapsed_time":   throttleStatus.ElapsedTime.String(),
 		"throttled_remaining_time": throttleStatus.RemainingTime.String(),
@@ -601,21 +602,25 @@ func SetQueueRateLimit(c *gin.Context) {
 
 // GetRequestStatsByDay 获取指定日期范围内的请求统计（按天分组）
 func GetRequestStatsByDay(c *gin.Context) {
-	// 获取查询参数
-	startDateStr := c.DefaultQuery("start_date", time.Now().AddDate(0, 0, -7).Format("2006-01-02")) // 默认最近 7 天
-	endDateStr := c.DefaultQuery("end_date", time.Now().Format("2006-01-02"))
+	var req requests.QueueStatsRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请求参数错误：" + err.Error(), Data: nil})
+		return
+	}
+	if req.StartDate == "" {
+		req.StartDate = time.Now().AddDate(0, 0, -7).Format("2006-01-02")
+	}
+	if req.EndDate == "" {
+		req.EndDate = time.Now().Format("2006-01-02")
+	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
+	}
 
 	// 解析日期
-	startDate, err := time.ParseInLocation("2006-01-02", startDateStr, time.Local)
-	if err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "start_date 参数格式错误，应为 YYYY-MM-DD", Data: nil})
-		return
-	}
-	endDate, err := time.ParseInLocation("2006-01-02", endDateStr, time.Local)
-	if err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "end_date 参数格式错误，应为 YYYY-MM-DD", Data: nil})
-		return
-	}
+	startDate, _ := time.ParseInLocation("2006-01-02", req.StartDate, time.Local)
+	endDate, _ := time.ParseInLocation("2006-01-02", req.EndDate, time.Local)
 
 	// 设置时间范围（开始时间为当天 0 点，结束时间为当天 23:59:59）
 	startTime := startDate.Unix()
@@ -633,8 +638,8 @@ func GetRequestStatsByDay(c *gin.Context) {
 	throttledCount, _ := models.GetThrottledRequestsCount(startTime, endTime)
 
 	responseData := gin.H{
-		"start_date":            startDateStr,
-		"end_date":              endDateStr,
+		"start_date":            req.StartDate,
+		"end_date":              req.EndDate,
 		"total_requests":        totalCount,
 		"total_throttled":       throttledCount,
 		"daily_stats":           dailyStats,
@@ -646,21 +651,25 @@ func GetRequestStatsByDay(c *gin.Context) {
 
 // GetRequestStatsByHour 获取指定日期范围内的请求统计（按小时分组）
 func GetRequestStatsByHour(c *gin.Context) {
-	// 获取查询参数
-	startDateStr := c.DefaultQuery("start_date", time.Now().AddDate(0, 0, -1).Format("2006-01-02")) // 默认昨天
-	endDateStr := c.DefaultQuery("end_date", time.Now().Format("2006-01-02"))                       // 默认今天
+	var req requests.QueueStatsRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请求参数错误：" + err.Error(), Data: nil})
+		return
+	}
+	if req.StartDate == "" {
+		req.StartDate = time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	}
+	if req.EndDate == "" {
+		req.EndDate = time.Now().Format("2006-01-02")
+	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
+	}
 
 	// 解析日期
-	startDate, err := time.ParseInLocation("2006-01-02", startDateStr, time.Local)
-	if err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "start_date 参数格式错误，应为 YYYY-MM-DD", Data: nil})
-		return
-	}
-	endDate, err := time.ParseInLocation("2006-01-02", endDateStr, time.Local)
-	if err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "end_date 参数格式错误，应为 YYYY-MM-DD", Data: nil})
-		return
-	}
+	startDate, _ := time.ParseInLocation("2006-01-02", req.StartDate, time.Local)
+	endDate, _ := time.ParseInLocation("2006-01-02", req.EndDate, time.Local)
 
 	// 设置时间范围
 	startTime := startDate.Unix()
@@ -678,8 +687,8 @@ func GetRequestStatsByHour(c *gin.Context) {
 	throttledCount, _ := models.GetThrottledRequestsCount(startTime, endTime)
 
 	responseData := gin.H{
-		"start_date":            startDateStr,
-		"end_date":              endDateStr,
+		"start_date":            req.StartDate,
+		"end_date":              req.EndDate,
 		"total_requests":        totalCount,
 		"total_throttled":       throttledCount,
 		"hourly_stats":          hourlyStats,

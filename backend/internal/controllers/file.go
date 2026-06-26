@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"qmediasync/internal/models"
+	"qmediasync/internal/requests"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,21 +24,14 @@ import (
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func UploadList(ctx *gin.Context) {
-	type uploadListReq struct {
-		Status   models.UploadStatus `json:"status" form:"status"`
-		Page     int                 `json:"page" form:"page"`
-		PageSize int                 `json:"page_size" form:"page_size"`
-	}
-	var req uploadListReq
+	var req requests.QueueListRequest
 	if err := ctx.ShouldBind(&req); err != nil {
 		ctx.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请求参数错误", Data: nil})
 		return
 	}
-	if req.Page == 0 {
-		req.Page = 1
-	}
-	if req.PageSize == 0 {
-		req.PageSize = 100
+	if err := req.Validate(); err != nil {
+		ctx.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
 	}
 	// 从请求中获取文件列表
 	// 从 model/upload.go 中查询上传队列列表
@@ -48,7 +42,7 @@ func UploadList(ctx *gin.Context) {
 	}
 	// 从请求中获取文件列表
 	// 从 model/upload.go 中查询上传队列列表
-	uploadList, total := models.GetUploadTaskList(req.Status, req.Page, req.PageSize)
+	uploadList, total := models.GetUploadTaskList(models.UploadStatus(req.Status), req.Page, req.PageSize)
 	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取上传队列成功", Data: uploadQueueResp{
 		Total:     int(total),
 		Uploading: int(models.GetUploadingCount()),
@@ -214,30 +208,23 @@ func UploadQueueStatus(ctx *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func DownloadList(ctx *gin.Context) {
-	type downloadListReq struct {
-		Status   models.DownloadStatus `json:"status" form:"status"`
-		Page     int                   `json:"page" form:"page"`
-		PageSize int                   `json:"page_size" form:"page_size"`
-	}
 	type downloadQueueResp struct {
 		Total       int64                    `json:"total"`
 		Downloading int64                    `json:"downloading"`
 		List        []*models.DbDownloadTask `json:"list"`
 	}
-	var req downloadListReq
+	var req requests.QueueListRequest
 	if err := ctx.ShouldBind(&req); err != nil {
 		ctx.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请求参数错误", Data: nil})
 		return
 	}
-	if req.Page == 0 {
-		req.Page = 1
-	}
-	if req.PageSize == 0 {
-		req.PageSize = 100
+	if err := req.Validate(); err != nil {
+		ctx.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
 	}
 	// 从请求中获取文件列表
 	// 从 model/download.go 中查询下载队列列表
-	downloadList, total := models.GetDownloadTaskList(req.Status, req.Page, req.PageSize)
+	downloadList, total := models.GetDownloadTaskList(models.DownloadStatus(req.Status), req.Page, req.PageSize)
 	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取下载队列成功", Data: downloadQueueResp{
 		Total:       total,
 		Downloading: models.GetDownloadingCount(),

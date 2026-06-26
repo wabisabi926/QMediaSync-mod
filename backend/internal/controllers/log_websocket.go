@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"qmediasync/internal/helpers"
+	"qmediasync/internal/requests"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/gin-gonic/gin"
@@ -68,13 +69,6 @@ func parseLogLine(line string) LogEntry {
 	return entry
 }
 
-type OldLogsRequest struct {
-	Path      string `json:"path" form:"path"`
-	Pos       int64  `json:"pos" form:"pos"`
-	Limit     int    `json:"limit" form:"limit"`
-	Direction string `json:"direction" form:"direction"` // 可选值：forward（默认）或 backward
-}
-
 type OldLogsResponse struct {
 	Entries  []LogEntry `json:"entries"`
 	Pos      int64      `json:"pos"`
@@ -83,20 +77,18 @@ type OldLogsResponse struct {
 
 // GetOldLogs 通过 HTTP 接口获取旧日志，返回 JSON 格式。
 func GetOldLogs(c *gin.Context) {
-	var req *OldLogsRequest
-	err := c.ShouldBind(&req)
-	if err != nil {
+	var req requests.OldLogsRequest
+	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的请求参数"})
+		return
+	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	pos := req.Pos
 	limit := req.Limit
-	direction := "forward"
-	logPath := req.Path
-	if req.Direction == "backward" {
-		// 从后往前读取
-		direction = "backward"
-	}
+	direction := req.Direction
 
 	if pos == 0 && direction == "forward" {
 		// 已经到了文件开头
@@ -110,7 +102,11 @@ func GetOldLogs(c *gin.Context) {
 	}
 
 	// 拼接完整日志文件路径
-	fullLogPath := filepath.Join(helpers.ConfigDir, "logs", logPath)
+	fullLogPath, err := helpers.SafeJoin(filepath.Join(helpers.ConfigDir, "logs"), req.Path)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("日志文件路径不合法：%v", err)})
+		return
+	}
 
 	// 检查文件是否存在
 	if _, serr := os.Stat(fullLogPath); os.IsNotExist(serr) {
@@ -138,15 +134,18 @@ func GetOldLogs(c *gin.Context) {
 
 // DownloadLogFile 下载日志文件
 func DownloadLogFile(c *gin.Context) {
-	// 获取日志文件路径参数
-	logPath := c.Query("path")
-	if logPath == "" || strings.Contains(logPath, "..") {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "未提供日志文件路径或路径包含不合法字符"})
+	var req requests.LogFileRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的请求参数"})
+		return
+	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	// 拼接完整日志文件路径
-	fullLogPath, err := helpers.SafeJoin(filepath.Join(helpers.ConfigDir, "logs"), logPath)
+	fullLogPath, err := helpers.SafeJoin(filepath.Join(helpers.ConfigDir, "logs"), req.Path)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("日志文件路径不合法：%v", err)})
 		return
@@ -181,12 +180,11 @@ func LogWebSocket(c *gin.Context) {
 	}
 	defer conn.Close()
 
-	// 获取日志文件路径参数
-	logPath := c.Query("path")
-	if logPath == "" {
+	req := requests.LogFileRequest{Path: c.Query("path")}
+	if err := req.Validate(); err != nil {
 		entry := LogEntry{
 			Level:     "error",
-			Message:   "错误：未提供日志文件路径",
+			Message:   "错误：" + err.Error(),
 			Timestamp: time.Now().Format("2006-01-02 15:04:05.000000"),
 		}
 		if werr := conn.WriteJSON(entry); werr != nil {
@@ -196,7 +194,18 @@ func LogWebSocket(c *gin.Context) {
 	}
 
 	// 拼接完整日志文件路径
-	fullLogPath := filepath.Join(helpers.ConfigDir, "logs", logPath)
+	fullLogPath, err := helpers.SafeJoin(filepath.Join(helpers.ConfigDir, "logs"), req.Path)
+	if err != nil {
+		entry := LogEntry{
+			Level:     "error",
+			Message:   fmt.Sprintf("错误：日志文件路径不合法：%v", err),
+			Timestamp: time.Now().Format("2006-01-02 15:04:05.000000"),
+		}
+		if werr := conn.WriteJSON(entry); werr != nil {
+			helpers.AppLogger.Errorf("发送错误消息失败：%v", werr)
+		}
+		return
+	}
 
 	// 检查文件是否存在
 	if _, serr := os.Stat(fullLogPath); os.IsNotExist(serr) {

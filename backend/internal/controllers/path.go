@@ -12,6 +12,7 @@ import (
 
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
+	"qmediasync/internal/requests"
 	"qmediasync/internal/v115open"
 
 	"github.com/gin-gonic/gin"
@@ -40,30 +41,26 @@ type DirResp struct {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func GetPathList(c *gin.Context) {
-	type dirListReq struct {
-		ParentId   string            `json:"parent_id" form:"parent_id"`
-		ParentPath string            `json:"parent_path" form:"parent_path"`
-		SourceType models.SourceType `json:"source_type" form:"source_type"`
-		AccountId  uint              `json:"account_id" form:"account_id"`
-		Page       int               `json:"page" form:"page"`
-		PageSize   int               `json:"page_size" form:"page_size"`
-	}
-	var req dirListReq
+	var req requests.PathListRequest
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "参数错误", Data: nil})
+		return
+	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 	var pathes []DirResp
 	var err error
 	switch req.SourceType {
 	case models.SourceTypeLocal:
-		pathes, err = GetLocalPath(req.ParentId)
+		pathes, err = GetLocalPath(req.ParentID)
 	case models.SourceTypeOpenList:
-		pathes, err = GetOpenListPath(req.ParentId, req.AccountId)
+		pathes, err = GetOpenListPath(req.ParentID, req.AccountID)
 	case models.SourceType115:
-		pathes, err = Get115PathList(req.ParentId, req.AccountId)
+		pathes, err = Get115PathList(req.ParentID, req.AccountID)
 	case models.SourceTypeBaiduPan:
-		pathes, err = GetBaiduPanPathList(req.ParentId, req.AccountId)
+		pathes, err = GetBaiduPanPathList(req.ParentID, req.AccountID)
 	default:
 		// 报错
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "未知的同步源类型", Data: nil})
@@ -264,24 +261,16 @@ type FileItem struct {
 
 // 返回目录和文件列表
 func GetNetFileList(c *gin.Context) {
-	type dirListReq struct {
-		ParentId  string `json:"parent_id" form:"path"`
-		AccountId uint   `json:"account_id" form:"account_id"`
-		Page      int    `json:"page" form:"page"`
-		PageSize  int    `json:"page_size" form:"page_size"`
-	}
-	var req dirListReq
+	var req requests.NetFileListRequest
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "参数错误", Data: nil})
 		return
 	}
-	if req.Page == 0 {
-		req.Page = 1
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
 	}
-	if req.PageSize == 0 {
-		req.PageSize = 1150
-	}
-	account, err := models.GetAccountById(req.AccountId)
+	account, err := models.GetAccountById(req.AccountID)
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取账号信息失败：" + err.Error(), Data: nil})
 		return
@@ -289,11 +278,11 @@ func GetNetFileList(c *gin.Context) {
 	var list []*FileItem
 	switch account.SourceType {
 	case models.SourceTypeOpenList:
-		list, err = getOpenlistDirs(req.ParentId, account, req.Page, req.PageSize)
+		list, err = getOpenlistDirs(req.ParentID, account, req.Page, req.PageSize)
 	case models.SourceType115:
-		list, err = get115Dirs(req.ParentId, account, req.Page, req.PageSize)
+		list, err = get115Dirs(req.ParentID, account, req.Page, req.PageSize)
 	case models.SourceTypeBaiduPan:
-		list, err = getBaiduPanDirs(req.ParentId, account, req.Page, req.PageSize)
+		list, err = getBaiduPanDirs(req.ParentID, account, req.Page, req.PageSize)
 	default:
 		// 报错
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "未知的网盘类型", Data: nil})
@@ -389,43 +378,26 @@ func getBaiduPanDirs(parentId string, account *models.Account, page, pageSize in
 
 // 创建文件夹
 func CreateDir(c *gin.Context) {
-	type createDirReq struct {
-		ParentId   string            `json:"parent_id" form:"parent_id"`
-		ParentPath string            `json:"parent_path" form:"parent_path"`
-		SourceType models.SourceType `json:"source_type" form:"source_type"`
-		AccountId  uint              `json:"account_id" form:"account_id"`
-		Name       string            `json:"name" form:"name"`
-	}
-	var req createDirReq
+	var req requests.CreateDirRequest
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "参数错误", Data: nil})
 		return
 	}
-	if req.Name == "" {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "文件夹名称不能为空", Data: nil})
-		return
-	}
-	// 父目录不能为空
-	// if req.ParentPath == "" || req.ParentId == "" {
-	// 	c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "父目录不能为空", Data: nil})
-	// 	return
-	// }
-	// 文件夹名称不能包含 /
-	if strings.Contains(req.Name, "/") {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "文件夹名称不能包含 /", Data: nil})
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 	var err error
 	var pathId string
 	switch req.SourceType {
 	case models.SourceTypeLocal:
-		pathId, err = makeLocalPath(req.ParentId, req.Name)
+		pathId, err = makeLocalPath(req.ParentID, req.Name)
 	case models.SourceTypeOpenList:
-		pathId, err = makeOpenListPath(req.ParentId, req.Name, req.AccountId)
+		pathId, err = makeOpenListPath(req.ParentID, req.Name, req.AccountID)
 	case models.SourceType115:
-		pathId, err = make115PathList(req.ParentId, req.ParentPath, req.Name, req.AccountId)
+		pathId, err = make115PathList(req.ParentID, req.ParentPath, req.Name, req.AccountID)
 	case models.SourceTypeBaiduPan:
-		pathId, err = makeBaiduPanPathList(req.ParentId, req.Name, req.AccountId)
+		pathId, err = makeBaiduPanPathList(req.ParentID, req.Name, req.AccountID)
 	default:
 		// 报错
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "未知的同步源类型", Data: nil})
@@ -535,12 +507,13 @@ func makeBaiduPanPathList(parentId string, folderName string, accountId uint) (s
 // 更新飞牛有权限的目录
 // 飞牛执行目录授权操作后，会触发该接口调用
 func UpdateFNPath(c *gin.Context) {
-	type updateFNPathReq struct {
-		Path string `json:"path" form:"path"`
-	}
-	var req updateFNPathReq
+	var req requests.FNPathRequest
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "参数错误", Data: nil})
+		return
+	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 	// 用冒号分隔路径
@@ -568,21 +541,16 @@ mainloop:
 }
 
 func DeleteDir(c *gin.Context) {
-	type deleteDirReq struct {
-		ParentId  string `json:"parent_id" form:"parent_id"`
-		FileId    string `json:"file_id" form:"file_id"`
-		AccountId uint   `json:"account_id" form:"account_id"`
-	}
-	var req deleteDirReq
+	var req requests.DeleteDirRequest
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "参数错误", Data: nil})
 		return
 	}
-	if req.FileId == "" || req.AccountId == 0 || req.FileId == "0" {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "参数错误", Data: nil})
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
-	account, err := models.GetAccountById(req.AccountId)
+	account, err := models.GetAccountById(req.AccountID)
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取账号失败：" + err.Error(), Data: nil})
 		return
@@ -590,10 +558,10 @@ func DeleteDir(c *gin.Context) {
 	switch account.SourceType {
 	case models.SourceType115:
 		client := account.Get115Client()
-		_, err = client.Del(context.Background(), []string{req.FileId}, req.ParentId)
+		_, err = client.Del(context.Background(), []string{req.FileID}, req.ParentID)
 	case models.SourceTypeBaiduPan:
 		client := account.GetBaiDuPanClient()
-		err = client.Del(context.Background(), []string{req.FileId})
+		err = client.Del(context.Background(), []string{req.FileID})
 	default:
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "不支持的文件系统", Data: nil})
 		return

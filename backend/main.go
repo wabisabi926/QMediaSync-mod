@@ -1197,6 +1197,11 @@ func StartConfigWebServer() {
 		if req.Engine == string(helpers.DbEnginePostgres) {
 			yamlConfig.Db.PostgresType = helpers.PostgresType(req.PostgresType)
 			if req.PostgresType == string(helpers.PostgresTypeExternal) {
+				quotedDatabase, err := database.QuotePostgresIdentifier(req.Database)
+				if err != nil {
+					c.JSON(200, gin.H{"error": "数据库名不合法：" + err.Error()})
+					return
+				}
 				if req.DropDatabase {
 					sslMode := "disable"
 					if req.SSL {
@@ -1208,7 +1213,7 @@ func StartConfigWebServer() {
 					if err == nil {
 						ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 						defer cancel()
-						sqlDB.ExecContext(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s", req.Database))
+						sqlDB.ExecContext(ctx, "DROP DATABASE IF EXISTS "+quotedDatabase)
 						sqlDB.Close()
 					}
 				}

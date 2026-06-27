@@ -466,6 +466,11 @@ func (m *EmbeddedManager) connectToDB() error {
 }
 
 func (m *EmbeddedManager) createAppDatabase() error {
+	quotedDBName, qerr := QuotePostgresIdentifier(m.config.DBName)
+	if qerr != nil {
+		return qerr
+	}
+
 	var exists bool
 	err := m.db.QueryRow(`
 		SELECT EXISTS(
@@ -478,7 +483,7 @@ func (m *EmbeddedManager) createAppDatabase() error {
 
 	if !exists {
 		helpers.AppLogger.Infof("创建数据库：%s", m.config.DBName)
-		_, err = m.db.Exec(fmt.Sprintf("CREATE DATABASE %s", m.config.DBName))
+		_, err = m.db.Exec("CREATE DATABASE " + quotedDBName)
 		if err != nil {
 			helpers.AppLogger.Errorf("创建数据库失败：%v", err)
 		}

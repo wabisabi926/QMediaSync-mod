@@ -121,6 +121,10 @@ func ConnectPostgres(dbConfig *database.Config) error {
 }
 
 func CreatePostgresDatabase(dbConfig *database.Config) error {
+	quotedDBName, err := database.QuotePostgresIdentifier(dbConfig.DBName)
+	if err != nil {
+		return err
+	}
 	var connStr string = ""
 	var sqlDB *sql.DB
 	var cerr error
@@ -143,7 +147,7 @@ func CreatePostgresDatabase(dbConfig *database.Config) error {
 
 	// 如果不存在，则创建
 	if !exists {
-		_, cerr = sqlDB.Exec(fmt.Sprintf("CREATE DATABASE %s", dbConfig.DBName))
+		_, cerr = sqlDB.Exec("CREATE DATABASE " + quotedDBName)
 		if cerr != nil {
 			return fmt.Errorf("创建数据库失败：%v", cerr)
 		}

@@ -92,7 +92,7 @@ func (r UpdateStrmConfigRequest) Validate() error {
 	if err := validation.OneOfInt("delete_dir", r.DeleteDir, []int{0, 1}); err != nil {
 		return err
 	}
-	if err := validation.OneOfInt("add_path", r.AddPath, []int{1, 2}); err != nil {
+	if err := validation.OneOfInt("add_path", r.AddPath, []int{1, 2, 3}); err != nil {
 		return err
 	}
 	return validation.OneOfInt("check_meta_mtime", r.CheckMetaMtime, []int{0, 1})

@@ -61,6 +61,10 @@ func TestUpdateStrmConfigRequestValidate(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "合法 STRM 配置通过"},
+		{name: "全局 STRM 允许完整路径", mutate: func(r *UpdateStrmConfigRequest) { r.AddPath = 1 }},
+		{name: "全局 STRM 允许只添加文件名", mutate: func(r *UpdateStrmConfigRequest) { r.AddPath = 2 }},
+		{name: "全局 STRM 允许不添加路径", mutate: func(r *UpdateStrmConfigRequest) { r.AddPath = 3 }},
+		{name: "全局 STRM 路径模式枚举错误失败", mutate: func(r *UpdateStrmConfigRequest) { r.AddPath = -1 }, wantErr: true},
 		{name: "URL 缺少协议失败", mutate: func(r *UpdateStrmConfigRequest) { r.StrmBaseURL = "127.0.0.1:8096" }, wantErr: true},
 		{name: "Cron 格式错误失败", mutate: func(r *UpdateStrmConfigRequest) { r.Cron = "bad" }, wantErr: true},
 		{name: "最小视频大小为负数失败", mutate: func(r *UpdateStrmConfigRequest) { r.MinVideoSize = -1 }, wantErr: true},

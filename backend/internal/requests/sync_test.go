@@ -41,6 +41,11 @@ func TestSyncPathRequestValidate(t *testing.T) {
 		{name: "未知来源类型失败", mutate: func(r *SyncPathRequest) { r.SourceType = models.SourceType("bad") }, wantErr: true},
 		{name: "非本地缺少账号失败", mutate: func(r *SyncPathRequest) { r.AccountID = 0 }, wantErr: true},
 		{name: "本地来源允许账号为空", mutate: func(r *SyncPathRequest) { r.SourceType = models.SourceTypeLocal; r.AccountID = 0 }},
+		{name: "自定义 STRM 允许继承路径模式", mutate: func(r *SyncPathRequest) { r.Setting.AddPath = -1 }},
+		{name: "自定义 STRM 允许完整路径", mutate: func(r *SyncPathRequest) { r.Setting.AddPath = 1 }},
+		{name: "自定义 STRM 允许只添加文件名", mutate: func(r *SyncPathRequest) { r.Setting.AddPath = 2 }},
+		{name: "自定义 STRM 允许不添加路径", mutate: func(r *SyncPathRequest) { r.Setting.AddPath = 3 }},
+		{name: "自定义 STRM 路径模式枚举错误失败", mutate: func(r *SyncPathRequest) { r.Setting.AddPath = 4 }, wantErr: true},
 		{name: "自定义配置 Cron 错误失败", mutate: func(r *SyncPathRequest) { r.Setting.Cron = "bad" }, wantErr: true},
 		{name: "自定义配置枚举错误失败", mutate: func(r *SyncPathRequest) { r.Setting.DownloadMeta = 3 }, wantErr: true},
 	}

@@ -15,6 +15,9 @@ const (
 	EventScraperItemComplete  = "scraper_item_complete"
 	EventStrmSyncTaskStart    = "strm_sync_task_start"
 	EventStrmSyncTaskComplete = "strm_sync_task_complete"
+	EventSyncTaskCreated      = "sync_task_created"
+	EventSyncTaskUpdated      = "sync_task_updated"
+	EventSyncTaskDeleted      = "sync_task_deleted"
 
 	EventUploadQueueStatusChanged   = "upload_queue_status_changed"
 	EventDownloadQueueStatusChanged = "download_queue_status_changed"

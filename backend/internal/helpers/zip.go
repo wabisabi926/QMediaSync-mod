@@ -7,11 +7,21 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
+	"strings"
 )
 
 // 解压 .tar.gz 文件
 func ExtractTarGz(src, dst string) error {
+	dstAbs, err := filepath.Abs(dst)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(dstAbs, 0755); err != nil {
+		return err
+	}
+
 	// 打开源文件
 	file, err := os.Open(src)
 	if err != nil {
@@ -39,23 +49,34 @@ func ExtractTarGz(src, dst string) error {
 			return err
 		}
 
-		// 构建目标路径
-		target := filepath.Join(dst, header.Name)
+		target, err := safeArchiveTarget(dstAbs, header.Name)
+		if err != nil {
+			return err
+		}
 
 		// 根据文件类型处理
 		switch header.Typeflag {
 		case tar.TypeDir: // 目录
-			if err := os.MkdirAll(target, os.FileMode(header.Mode)); err != nil {
+			if err := ensureNoSymlinkInPath(dstAbs, target); err != nil {
 				return err
 			}
-		case tar.TypeReg: // 普通文件
+			if err := os.MkdirAll(target, os.FileMode(header.Mode).Perm()); err != nil {
+				return err
+			}
+		case tar.TypeReg, tar.TypeRegA: // 普通文件
+			if err := ensureNoSymlinkInPath(dstAbs, target); err != nil {
+				return err
+			}
 			// 创建目录（如果不存在）
 			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
 				return err
 			}
+			if err := ensureNoSymlinkInPath(dstAbs, target); err != nil {
+				return err
+			}
 
 			// 创建文件
-			f, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
+			f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(header.Mode).Perm())
 			if err != nil {
 				return err
 			}
@@ -67,6 +88,18 @@ func ExtractTarGz(src, dst string) error {
 			}
 			f.Close()
 		case tar.TypeSymlink: // 符号链接
+			if err := safeArchiveSymlinkTarget(dstAbs, target, header.Linkname); err != nil {
+				return err
+			}
+			if err := ensureNoSymlinkInPath(dstAbs, target); err != nil {
+				return err
+			}
+			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+				return err
+			}
+			if err := ensureNoSymlinkInPath(dstAbs, target); err != nil {
+				return err
+			}
 			if err := os.Symlink(header.Linkname, target); err != nil {
 				return err
 			}
@@ -142,6 +175,11 @@ func CreateTarGz(src, dst string) error {
 
 // 解压 ZIP 文件
 func ExtractZip(src, dst string) error {
+	dstAbs, err := filepath.Abs(dst)
+	if err != nil {
+		return err
+	}
+
 	// 打开 ZIP 文件
 	r, err := zip.OpenReader(src)
 	if err != nil {
@@ -152,11 +190,9 @@ func ExtractZip(src, dst string) error {
 	// 遍历 ZIP 文件中的每个文件
 	for _, f := range r.File {
 		// 处理文件路径（防止路径遍历攻击）
-		filePath := filepath.Join(dst, f.Name)
-
-		// 检查文件路径是否在目标目录内（安全措施）
-		if !isSafePath(dst, filePath) {
-			return fmt.Errorf("不安全的文件路径：%s", f.Name)
+		filePath, err := safeArchiveTarget(dstAbs, f.Name)
+		if err != nil {
+			return err
 		}
 
 		// 打印文件信息
@@ -164,14 +200,23 @@ func ExtractZip(src, dst string) error {
 
 		// 处理目录
 		if f.FileInfo().IsDir() {
+			if err := ensureNoSymlinkInPath(dstAbs, filePath); err != nil {
+				return err
+			}
 			if err := os.MkdirAll(filePath, f.Mode()); err != nil {
 				return err
 			}
 			continue
 		}
 
+		if err := ensureNoSymlinkInPath(dstAbs, filePath); err != nil {
+			return err
+		}
 		// 创建目录（如果不存在）
 		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+			return err
+		}
+		if err := ensureNoSymlinkInPath(dstAbs, filePath); err != nil {
 			return err
 		}
 
@@ -203,13 +248,88 @@ func ExtractZip(src, dst string) error {
 	return nil
 }
 
+func safeArchiveTarget(base, name string) (string, error) {
+	if name == "" {
+		return "", fmt.Errorf("不安全的文件路径：%s", name)
+	}
+	normalized := strings.ReplaceAll(name, "\\", "/")
+	if path.IsAbs(normalized) || filepath.IsAbs(name) || filepath.VolumeName(name) != "" {
+		return "", fmt.Errorf("不安全的文件路径：%s", name)
+	}
+	cleanName := path.Clean(normalized)
+	if cleanName == "." || cleanName == ".." || strings.HasPrefix(cleanName, "../") {
+		return "", fmt.Errorf("不安全的文件路径：%s", name)
+	}
+	target := filepath.Join(base, filepath.FromSlash(cleanName))
+	if !isSafePath(base, target) {
+		return "", fmt.Errorf("不安全的文件路径：%s", name)
+	}
+	return target, nil
+}
+
+func safeArchiveSymlinkTarget(base, linkPath, linkName string) error {
+	if linkName == "" {
+		return fmt.Errorf("不安全的符号链接目标：%s", linkName)
+	}
+	normalized := strings.ReplaceAll(linkName, "\\", "/")
+	if path.IsAbs(normalized) || filepath.IsAbs(linkName) || filepath.VolumeName(linkName) != "" {
+		return fmt.Errorf("不安全的符号链接目标：%s", linkName)
+	}
+	cleanName := path.Clean(normalized)
+	resolvedTarget := filepath.Join(filepath.Dir(linkPath), filepath.FromSlash(cleanName))
+	if !isSafePath(base, resolvedTarget) {
+		return fmt.Errorf("不安全的符号链接目标：%s", linkName)
+	}
+	return nil
+}
+
+func ensureNoSymlinkInPath(base, target string) error {
+	rel, err := filepath.Rel(base, target)
+	if err != nil {
+		return err
+	}
+	if rel == "." {
+		return nil
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || filepath.IsAbs(rel) {
+		return fmt.Errorf("不安全的文件路径：%s", target)
+	}
+
+	current := base
+	for _, part := range strings.Split(rel, string(os.PathSeparator)) {
+		if part == "" || part == "." {
+			continue
+		}
+		current = filepath.Join(current, part)
+		info, err := os.Lstat(current)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("解压路径包含符号链接：%s", current)
+		}
+	}
+	return nil
+}
+
 // 安全检查：确保解压路径在目标目录内
 func isSafePath(base, path string) bool {
-	rel, err := filepath.Rel(base, path)
+	baseAbs, err := filepath.Abs(base)
 	if err != nil {
 		return false
 	}
-	return rel != ".." && !filepath.IsAbs(rel) && (len(rel) < 2 || rel[:2] != "..")
+	pathAbs, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(baseAbs, pathAbs)
+	if err != nil {
+		return false
+	}
+	return rel == "." || (!filepath.IsAbs(rel) && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator)))
 }
 
 // 将 src 目录内的所有文件打包成 ZIP 文件 dst

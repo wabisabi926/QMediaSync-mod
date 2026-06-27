@@ -54,6 +54,8 @@ GitHub Release 的正文取自上一步提交的 `.changes/v0.xx.xx.md`；releas
 
 也可以在 GitHub Actions 中手动触发 `release` workflow，并输入要发布的 Git tag（同样要求该 tag 对应的 `.changes/<tag>.md` 已提交）。
 
+后端更新流程解压 `.zip`、`.tar.gz` / `.tgz` 发布包时，会拒绝绝对路径、`..` 路径逃逸、指向解压目录外的符号链接，以及经过已有符号链接组件写入文件。发布包内文件应使用相对路径，并保持符号链接目标位于包内目录。
+
 ## 飞牛 FPK
 
 飞牛 FPK 打包依赖飞牛官方工具 `fnpack`（不公开分发）。release workflow 通过仓库 Secret `FNPACK_DOWNLOAD_URL`（指向可下载 `fnpack` 可执行文件的地址）下载安装，再用 `backend/FNOS/` 下的素材执行 `fnpack build` 生成 `*.fpk`。

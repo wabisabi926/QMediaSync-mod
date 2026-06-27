@@ -32,7 +32,7 @@ type SyncStrmConfig struct {
 	VideoExt              []string                      `json:"video_ext"`                 // 视频文件扩展名列表
 	MetaExt               []string                      `json:"meta_ext"`                  // 元数据文件扩展名列表
 	ExcludeNames          []string                      `json:"exclude_names"`             // 排除的文件名列表
-	StrmUrlNeedPath       int                           `json:"strm_url_need_path"`        // 视频文件 URL 是否需要路径，2 为不需要，1 为需要
+	StrmUrlNeedPath       int                           `json:"strm_url_need_path"`        // STRM 链接路径模式，1 为完整路径，2 为只添加文件名，3 为不添加路径
 	DelEmptyLocalDir      bool                          `json:"del_empty_local_dir"`       // 是否删除本地空目录
 	CheckMetaMtime        int                           `json:"check_meta_mtime"`          // 是否检查元数据文件修改时间，默认 0；如果为 1，网盘新则下载，本地新则上传（UploadMeta=1 时）
 }

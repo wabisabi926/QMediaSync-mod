@@ -99,17 +99,15 @@ func (s *SyncStrm) CompareStrm(st *SyncFileCache) int {
 	}
 	if st.SourceType == models.SourceType115 || st.SourceType == models.SourceTypeBaiduPan {
 		// 比较路径是否相同
-		if s.Config.StrmUrlNeedPath == 1 {
-			stPath := filepath.ToSlash(filepath.Join(st.Path, st.FileName))
-			if strmData.Path != stPath {
-				s.Sync.Logger.Warnf("文件 %s 的 STRM 内容路径与本地不一致，本地：%s，远程：%s", stPath, stPath, strmData.Path)
+		expectedPath := expectedStrmPathForSyncFile(s.Config.StrmUrlNeedPath, st)
+		if expectedPath != "" {
+			if strmData.Path != expectedPath {
+				s.Sync.Logger.Warnf("文件 %s 的 STRM 内容路径与本地不一致，本地：%s，远程：%s", filepath.Join(st.Path, st.FileName), expectedPath, strmData.Path)
 				return 0
 			}
-		} else {
-			if strmData.Path != "" {
-				s.Sync.Logger.Warnf("文件 %s 的 STRM 内容包含完整路径 %s，但设置中已关闭添加路径，将重新生成 STRM 以移除路径", filepath.Join(st.Path, st.FileName), strmData.Path)
-				return 0
-			}
+		} else if strmData.Path != "" {
+			s.Sync.Logger.Warnf("文件 %s 的 STRM 内容包含路径 %s，但设置中已关闭添加路径，将重新生成 STRM 以移除路径", filepath.Join(st.Path, st.FileName), strmData.Path)
+			return 0
 		}
 		// 比较主机名称是否相同
 		// 如果 StrmBaseUrl 以 / 结尾，则删除末尾的 /。

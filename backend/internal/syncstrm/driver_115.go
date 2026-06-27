@@ -170,8 +170,8 @@ func (d *open115Driver) MakeStrmContent(sf *SyncFileCache) string {
 	params.Add("userid", d.s.Account.UserId)
 	u.RawQuery = params.Encode()
 	urlStr := u.String()
-	if d.s.Config.StrmUrlNeedPath == 1 {
-		urlStr += fmt.Sprintf("&path=%s", d.s.GetRemoteFilePathUrlEncode(sf.GetFullRemotePath()))
+	if pathValue := strmPathQueryValue(d.s.Config.StrmUrlNeedPath, sf); pathValue != "" {
+		urlStr += fmt.Sprintf("&path=%s", d.s.GetRemoteFilePathUrlEncode(pathValue))
 	}
 	return urlStr
 }

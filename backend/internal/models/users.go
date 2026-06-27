@@ -1,6 +1,10 @@
 package models
 
 import (
+	"errors"
+	"fmt"
+	"strings"
+
 	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
 
@@ -56,6 +60,49 @@ func HashUserPassword(password string) (string, error) {
 		return "", err
 	}
 	return string(hash), nil
+}
+
+var ErrInitialAdminAlreadyExists = errors.New("初始管理员已创建")
+
+// HasAnyUser 判断用户表中是否已有用户。
+func HasAnyUser() (bool, error) {
+	var count int64
+	if err := db.Db.Model(&User{}).Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// CreateInitialAdmin 创建首个管理员用户。
+func CreateInitialAdmin(username string, password string) (*User, error) {
+	username = strings.TrimSpace(username)
+	if username == "" {
+		return nil, fmt.Errorf("管理员用户名不能为空")
+	}
+	if err := ValidateUserPassword(password); err != nil {
+		return nil, err
+	}
+
+	var created User
+	if err := db.Db.Transaction(func(tx *gorm.DB) error {
+		var count int64
+		if err := tx.Model(&User{}).Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			return ErrInitialAdminAlreadyExists
+		}
+		hash, err := HashUserPassword(password)
+		if err != nil {
+			return err
+		}
+		created = User{Username: username, Password: hash}
+		return tx.Create(&created).Error
+	}); err != nil {
+		return nil, err
+	}
+
+	return &created, nil
 }
 
 // 修改用户密码

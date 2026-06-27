@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"qmediasync/emby302/config"
+	emby302https "qmediasync/emby302/util/https"
 	"qmediasync/emby302/util/logs/colors"
 	"qmediasync/emby302/web"
 	"qmediasync/internal/backup"
@@ -394,6 +395,12 @@ func startEmby302() {
 	if models.GlobalEmbyConfig == nil || models.GlobalEmbyConfig.EmbyUrl == "" {
 		helpers.AppLogger.Warnf("Emby 302 未配置 Emby 地址，跳过启动 Emby 302 服务")
 		return
+	}
+	emby302https.ConfigureClient(emby302https.ClientOptions{
+		InsecureSkipVerify: helpers.GlobalConfig.Emby302.InsecureSkipVerify,
+	})
+	if helpers.GlobalConfig.Emby302.InsecureSkipVerify {
+		helpers.AppLogger.Warnf("Emby 302 已开启 insecure_skip_verify，出站 HTTPS 请求将跳过证书校验，存在中间人攻击风险，仅建议在受控内网自签名证书场景临时使用")
 	}
 	config.C.Emby.Host = models.GlobalEmbyConfig.EmbyUrl
 	config.C.Emby.EpisodesUnplayPrior = false // 关闭剧集排序

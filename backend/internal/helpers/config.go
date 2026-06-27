@@ -65,20 +65,26 @@ type ConfigStrm struct {
 	Cron         string   `yaml:"cron"` // 定时任务表达式
 }
 
+// ConfigEmby302 表示 Emby 302 代理配置。
+type ConfigEmby302 struct {
+	InsecureSkipVerify bool `yaml:"insecure_skip_verify"` // 是否跳过 Emby 302 出站 HTTPS 证书校验
+}
+
 type Config struct {
-	Log            ConfigLog  `yaml:"log"`
-	Db             ConfigDb   `yaml:"db"`
-	CacheSize      int        `yaml:"cacheSize"` // 数据库缓存大小，单位字节
-	JwtSecret      string     `yaml:"jwtSecret"`
-	HttpHost       string     `yaml:"httpHost"`       // HTTP 主机地址
-	HttpsHost      string     `yaml:"httpsHost"`      // HTTPS 主机地址
-	TrustedOrigins []string   `yaml:"trustedOrigins"` // 允许携带浏览器登录凭证的跨源前端来源
-	Strm           ConfigStrm `yaml:"strm"`
-	AuthServer     string     `yaml:"authServer"`
-	NewAuthServer  string     `yaml:"newAuthServer"`
-	BaiDuPanAppId  string     `yaml:"baiDuPanAppId"`
-	AdminUsername  string     `yaml:"adminUsername"`
-	AdminPassword  string     `yaml:"adminPassword"`
+	Log            ConfigLog     `yaml:"log"`
+	Db             ConfigDb      `yaml:"db"`
+	CacheSize      int           `yaml:"cacheSize"` // 数据库缓存大小，单位字节
+	JwtSecret      string        `yaml:"jwtSecret"`
+	HttpHost       string        `yaml:"httpHost"`       // HTTP 主机地址
+	HttpsHost      string        `yaml:"httpsHost"`      // HTTPS 主机地址
+	TrustedOrigins []string      `yaml:"trustedOrigins"` // 允许携带浏览器登录凭证的跨源前端来源
+	Strm           ConfigStrm    `yaml:"strm"`
+	Emby302        ConfigEmby302 `yaml:"emby302"`
+	AuthServer     string        `yaml:"authServer"`
+	NewAuthServer  string        `yaml:"newAuthServer"`
+	BaiDuPanAppId  string        `yaml:"baiDuPanAppId"`
+	AdminUsername  string        `yaml:"adminUsername"`
+	AdminPassword  string        `yaml:"adminPassword"`
 }
 
 var GlobalConfig Config
@@ -309,6 +315,9 @@ func MakeDefaultConfig() *Config {
 			MetaExt:      []string{".jpg", ".jpeg", ".png", ".webp", ".nfo", ".srt", ".ass", ".svg", ".sup", ".lrc"},
 			MinVideoSize: 100,          // 100 MB
 			Cron:         "30 * * * *", // 每小时 30 分执行
+		},
+		Emby302: ConfigEmby302{
+			InsecureSkipVerify: false,
 		},
 	}
 }

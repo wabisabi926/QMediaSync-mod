@@ -78,6 +78,29 @@ func TestSaveConfigWritesConfigYaml(t *testing.T) {
 	})
 }
 
+func TestMakeDefaultConfigDisablesEmby302InsecureSkipVerify(t *testing.T) {
+	cfg := MakeDefaultConfig()
+	if cfg.Emby302.InsecureSkipVerify {
+		t.Fatal("Emby302.InsecureSkipVerify = true, want false")
+	}
+}
+
+func TestInitConfigReadsEmby302InsecureSkipVerify(t *testing.T) {
+	withTempConfigDir(t, func(configDir string) {
+		data := []byte("jwtSecret: custom-secret\nemby302:\n  insecure_skip_verify: true\n")
+		if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), data, 0644); err != nil {
+			t.Fatalf("write test config: %v", err)
+		}
+
+		if err := InitConfig(); err != nil {
+			t.Fatalf("InitConfig() error = %v", err)
+		}
+		if !GlobalConfig.Emby302.InsecureSkipVerify {
+			t.Fatal("Emby302.InsecureSkipVerify = false, want true")
+		}
+	})
+}
+
 func TestEnsureJWTSecretReplacesEmptyAndDefault(t *testing.T) {
 	cases := []struct {
 		name      string

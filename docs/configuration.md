@@ -35,6 +35,19 @@
 
 数据库引擎、配置项、迁移和维护入口的完整说明见 [数据库](database.md)。
 
+## Emby 302 出站 HTTPS
+
+Emby 302 代理请求 Emby、OpenList、m3u8 和下载资源时，默认启用 HTTPS 证书校验。共享 HTTP client 会复用空闲连接，避免同一上游的连续请求反复建立 TCP / TLS 连接。
+
+只有在受控内网自签名证书或临时排障场景下，才建议显式跳过证书校验：
+
+```yaml
+emby302:
+  insecure_skip_verify: false
+```
+
+将 `emby302.insecure_skip_verify` 改为 `true` 后，Emby 302 出站 HTTPS 请求会接受无法验证的证书。程序启动时会写入风险提示日志；该模式存在中间人攻击风险，不建议在公网或长期生产环境开启。
+
 ## 日志行为和脱敏
 
 日志文件路径由 `config/config.yaml` 的 `log` 配置决定，默认相对于配置目录写入：

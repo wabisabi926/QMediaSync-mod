@@ -82,3 +82,41 @@ func TestTailerResyncsAndClearsOversizedPartialLine(t *testing.T) {
 		t.Fatalf("leftover length = %d，期望 0", len(tailer.leftover))
 	}
 }
+
+func TestTailerCatchUpSkipsClosedSubscriber(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sync.log")
+	content := "2025/11/29 12:33:09.000001 [INFO] old\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tailer := newTailer(path, int64(len(content)), nil)
+	sub := &subscriber{ch: make(chan Message, 1)}
+	close(sub.ch)
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("sendCatchUp 向已关闭订阅通道发送时发生 panic：%v", r)
+		}
+	}()
+
+	tailer.sendCatchUp(sub, 0)
+}
+
+func TestTailerStopsWhenBroadcastDropsLastSlowSubscriber(t *testing.T) {
+	stopped := make(chan struct{})
+	tailer := newTailer("missing.log", 0, func() {
+		close(stopped)
+	})
+	sub := &subscriber{ch: make(chan Message)}
+	tailer.subs[sub] = struct{}{}
+
+	tailer.broadcast(Message{Type: "log_append"})
+
+	select {
+	case <-stopped:
+	case <-time.After(time.Second):
+		t.Fatal("最后一个慢订阅者被移除后 tailer 未停止")
+	}
+}

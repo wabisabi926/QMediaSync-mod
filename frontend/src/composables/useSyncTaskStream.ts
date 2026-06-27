@@ -159,6 +159,10 @@ export function useSyncTaskStream(
       new_meta: payload.new_meta,
       new_upload: payload.new_upload,
       finish_at: payload.finish_at,
+      net_file_start_at: payload.net_file_start_at,
+      net_file_finish_at: payload.net_file_finish_at,
+      local_file_start_at: payload.local_file_start_at,
+      local_file_finish_at: payload.local_file_finish_at,
       updated_at: payload.updated_at || task.value.updated_at,
       fail_reason: payload.fail_reason ?? task.value.fail_reason,
     }

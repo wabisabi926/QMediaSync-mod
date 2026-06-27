@@ -181,11 +181,11 @@ func LogWebSocket(c *gin.Context) {
 		return
 	}
 
-	_, cursor, err := logstream.ReadTailEntries(fullLogPath, 0)
+	cursor, err := logstream.ReadEndCursor(fullLogPath)
 	if err != nil {
 		entry := LogEntry{
 			Level:     "error",
-			Message:   fmt.Sprintf("错误：读取日志文件失败：%v", err),
+			Message:   fmt.Sprintf("错误：读取日志位置失败：%v", err),
 			Timestamp: time.Now().Format("2006-01-02 15:04:05.000000"),
 		}
 		if werr := conn.WriteJSON(entry); werr != nil {

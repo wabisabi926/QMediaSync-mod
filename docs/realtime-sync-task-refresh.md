@@ -21,6 +21,8 @@
 | `status` / `sub_status` | 同步任务状态和子状态 |
 | `total` / `new_strm` / `new_meta` / `new_upload` | 运行统计 |
 | `finish_at` | 完成或失败时间 |
+| `net_file_start_at` / `net_file_finish_at` | 处理网盘文件阶段时间 |
+| `local_file_start_at` / `local_file_finish_at` | 处理本地文件列表阶段时间 |
 | `log_path` | 后端根据 `sync_id` 生成的日志相对路径 |
 | `sequence` | 单个 `sync_id` 内的事件序列 |
 | `event_time` | 后端事件产生时间 |
@@ -53,7 +55,7 @@
 - 同步任务详情使用 `useSyncTaskStream(syncId)`，不再拼接 `loadTaskInfo` 和通用 `AppLogViewer`。
 - 详情页首次进入可以显示 loading；收到 snapshot 后，任务状态和日志都在原位置更新，不重建日志组件。
 - `SyncTaskLogPanel` 只在用户处于“跟随最新”状态时自动滚到底部，用户查看历史日志时不会抢滚动。
-- 同步记录页按 `sync_id` 和 `sequence` patch 当前行；当前页没有对应记录时，静默后台校准。
+- 同步记录页按 `sync_id` 和 `sequence` patch 当前行；只有 `sync_task_created` 可以在第一页插入新记录，缺失当前页的 `sync_task_updated` 不插入，避免进度事件污染分页排序和总数。
 - 同步目录页按 `sync_path_id` 更新运行状态，并按 `sync_id` 去重事件；同一目录的新任务不会被上一任务的 sequence 压掉。
 
 ## 日志 tailer
@@ -63,6 +65,7 @@
 日志读取规则：
 
 - 日志文件不存在时，历史读取返回空日志和 cursor `0`。
+- 通用实时日志 WebSocket 建连时只读取文件末尾 cursor，历史内容由 `/api/logs/old` 加载，避免大日志文件建连时全量扫描。
 - tailer 发现日志文件缺失、截断或订阅者缓冲满时，会发送 `resync_required`。
 - tailer 检测文件大小小于 cursor 时重置 cursor，并要求前端重新同步。
 - 半行日志会暂存在 tailer 中，直到收到换行后再发送完整日志；半行超过 1 MiB 时会清空缓存并发送 `resync_required`。

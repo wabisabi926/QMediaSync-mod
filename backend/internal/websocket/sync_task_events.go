@@ -7,25 +7,29 @@ import (
 
 // SyncTaskEventPayload 是同步任务结构化事件数据。
 type SyncTaskEventPayload struct {
-	SyncID       uint   `json:"sync_id"`
-	SyncPathID   uint   `json:"sync_path_id"`
-	Status       int    `json:"status"`
-	SubStatus    int    `json:"sub_status"`
-	Total        int    `json:"total"`
-	NewStrm      int    `json:"new_strm"`
-	NewMeta      int    `json:"new_meta"`
-	NewUpload    int    `json:"new_upload"`
-	FinishAt     int64  `json:"finish_at"`
-	LogPath      string `json:"log_path"`
-	Sequence     uint64 `json:"sequence"`
-	EventTime    int64  `json:"event_time"`
-	CreatedAt    int64  `json:"created_at,omitempty"`
-	UpdatedAt    int64  `json:"updated_at,omitempty"`
-	LocalPath    string `json:"local_path,omitempty"`
-	RemotePath   string `json:"remote_path,omitempty"`
-	FailReason   string `json:"fail_reason,omitempty"`
-	Deleted      bool   `json:"deleted,omitempty"`
-	ResyncReason string `json:"resync_reason,omitempty"`
+	SyncID            uint   `json:"sync_id"`
+	SyncPathID        uint   `json:"sync_path_id"`
+	Status            int    `json:"status"`
+	SubStatus         int    `json:"sub_status"`
+	Total             int    `json:"total"`
+	NewStrm           int    `json:"new_strm"`
+	NewMeta           int    `json:"new_meta"`
+	NewUpload         int    `json:"new_upload"`
+	FinishAt          int64  `json:"finish_at"`
+	NetFileStartAt    int64  `json:"net_file_start_at"`
+	NetFileFinishAt   int64  `json:"net_file_finish_at"`
+	LocalFileStartAt  int64  `json:"local_file_start_at"`
+	LocalFileFinishAt int64  `json:"local_file_finish_at"`
+	LogPath           string `json:"log_path"`
+	Sequence          uint64 `json:"sequence"`
+	EventTime         int64  `json:"event_time"`
+	CreatedAt         int64  `json:"created_at,omitempty"`
+	UpdatedAt         int64  `json:"updated_at,omitempty"`
+	LocalPath         string `json:"local_path,omitempty"`
+	RemotePath        string `json:"remote_path,omitempty"`
+	FailReason        string `json:"fail_reason,omitempty"`
+	Deleted           bool   `json:"deleted,omitempty"`
+	ResyncReason      string `json:"resync_reason,omitempty"`
 }
 
 // SyncTaskHub 按 sync_id 分发同步任务事件给详情 stream。

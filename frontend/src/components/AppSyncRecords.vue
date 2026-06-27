@@ -104,6 +104,11 @@ import { useWSEvent } from '@/composables/useWebSocket'
 import { usePageStateStore } from '@/stores/pageState'
 import type { RecordAction, RecordActionPayload, RecordColumn } from '@/types/recordTable'
 import { isMobile as checkIsMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
+import {
+  applySyncRecordEventPatch,
+  type SyncRecordEventType,
+  type SyncTaskRecordEventPayload,
+} from '@/utils/syncRecordEvents'
 import { formatDateTime } from '@/utils/timeUtils'
 import type { AxiosStatic } from 'axios'
 import { Delete, View } from '@element-plus/icons-vue'
@@ -157,25 +162,6 @@ interface SyncRecordDeleteContextSnapshot {
   mode: 'single' | 'batch'
 }
 
-interface SyncTaskEventPayload {
-  sync_id: number
-  sync_path_id: number
-  status: number
-  sub_status: number
-  total: number
-  new_strm: number
-  new_meta: number
-  new_upload: number
-  finish_at: number
-  sequence: number
-  created_at?: number
-  updated_at?: number
-  local_path?: string
-  remote_path?: string
-  fail_reason?: string
-  deleted?: boolean
-}
-
 const http: AxiosStatic | undefined = inject('$http')
 const router = useRouter()
 
@@ -220,23 +206,8 @@ const syncRecordsRequestGate = createActiveRequestGate(() => isPageActive)
 let stopDeviceTypeChange: (() => void) | null = null
 const lastSyncRecordEventSequence = new Map<number, number>()
 
-const mapSyncTaskPayloadToRecord = (payload: SyncTaskEventPayload): SyncRecord => ({
-  id: payload.sync_id,
-  start_time: payload.created_at || Math.floor(Date.now() / 1000),
-  end_time: payload.finish_at || null,
-  status: payload.status as 0 | 1 | 2 | 3,
-  sub_status: payload.sub_status as 0 | 1 | 2 | 3 | 4,
-  processed_files: payload.total,
-  created_strm: payload.new_strm,
-  downloaded_meta: payload.new_meta || 0,
-  uploaded_meta: payload.new_upload || 0,
-  local_path: payload.local_path || '',
-  remote_path: payload.remote_path || '',
-  fail_reason: payload.fail_reason || '',
-})
-
-const patchSyncRecordFromEvent = (raw: Record<string, unknown>) => {
-  const payload = raw as unknown as SyncTaskEventPayload
+const patchSyncRecordFromEvent = (raw: Record<string, unknown>, eventType: SyncRecordEventType) => {
+  const payload = raw as unknown as SyncTaskRecordEventPayload
   if (!payload.sync_id) {
     return
   }
@@ -247,31 +218,17 @@ const patchSyncRecordFromEvent = (raw: Record<string, unknown>) => {
   }
   lastSyncRecordEventSequence.set(payload.sync_id, payload.sequence || lastSequence)
 
-  const index = syncRecords.value.findIndex((record) => record.id === payload.sync_id)
-  if (payload.deleted) {
-    if (index >= 0) {
-      syncRecords.value.splice(index, 1)
-    }
-    total.value = Math.max(0, total.value - 1)
-    return
-  }
-
-  if (index >= 0) {
-    Object.assign(syncRecords.value[index], mapSyncTaskPayloadToRecord(payload))
-    return
-  }
-
-  if (currentPage.value === 1 && payload.created_at) {
-    syncRecords.value = mergeStableList(
-      syncRecords.value,
-      [mapSyncTaskPayloadToRecord(payload), ...syncRecords.value].slice(0, pageSize.value),
-      (row) => row.id,
-    )
-    total.value += 1
-    return
-  }
-
-  void loadSyncRecords()
+  const result = applySyncRecordEventPatch({
+    records: syncRecords.value,
+    total: total.value,
+    currentPage: currentPage.value,
+    pageSize: pageSize.value,
+    eventType,
+    payload,
+  })
+  syncRecords.value = result.records
+  total.value = result.total
+  if (result.refreshNeeded) void loadSyncRecords()
 }
 
 const onLegacySyncEvent = () => {
@@ -279,9 +236,9 @@ const onLegacySyncEvent = () => {
 }
 
 // WebSocket 事件监听
-useWSEvent('sync_task_created', patchSyncRecordFromEvent)
-useWSEvent('sync_task_updated', patchSyncRecordFromEvent)
-useWSEvent('sync_task_deleted', patchSyncRecordFromEvent)
+useWSEvent('sync_task_created', (data) => patchSyncRecordFromEvent(data, 'sync_task_created'))
+useWSEvent('sync_task_updated', (data) => patchSyncRecordFromEvent(data, 'sync_task_updated'))
+useWSEvent('sync_task_deleted', (data) => patchSyncRecordFromEvent(data, 'sync_task_deleted'))
 useWSEvent('strm_sync_task_start', onLegacySyncEvent)
 useWSEvent('strm_sync_task_complete', onLegacySyncEvent)
 

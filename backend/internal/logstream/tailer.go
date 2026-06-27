@@ -69,6 +69,8 @@ func (m *Manager) TailerCount() int {
 type subscriber struct {
 	ch     chan Message
 	cursor int64
+	mu     sync.Mutex
+	closed bool
 }
 
 // Tailer 负责单个文件路径的读取和广播。
@@ -122,26 +124,17 @@ func (t *Tailer) subscribe(ctx context.Context, startCursor int64, buffer int) (
 func (t *Tailer) sendCatchUp(sub *subscriber, startCursor int64) {
 	entries, nextCursor, err := ReadEntriesFromCursor(t.path, startCursor, 500)
 	if err != nil {
-		select {
-		case sub.ch <- Message{Type: "resync_required", Reason: err.Error()}:
-		default:
-		}
+		sub.send(Message{Type: "resync_required", Reason: err.Error()})
 		return
 	}
 	for _, entry := range entries {
-		select {
-		case sub.ch <- Message{Type: "log_append", Entry: entry, Cursor: entry.Cursor}:
-			sub.cursor = entry.Cursor
-		default:
+		if !sub.send(Message{Type: "log_append", Entry: entry, Cursor: entry.Cursor}) {
 			t.unsubscribe(sub)
 			return
 		}
 	}
 	if nextCursor < t.cursor {
-		select {
-		case sub.ch <- Message{Type: "resync_required", Reason: "catch_up_limit_reached"}:
-		default:
-		}
+		sub.send(Message{Type: "resync_required", Reason: "catch_up_limit_reached"})
 	}
 }
 
@@ -149,7 +142,7 @@ func (t *Tailer) unsubscribe(sub *subscriber) {
 	t.mu.Lock()
 	if _, ok := t.subs[sub]; ok {
 		delete(t.subs, sub)
-		close(sub.ch)
+		sub.close()
 	}
 	empty := len(t.subs) == 0
 	t.mu.Unlock()
@@ -244,20 +237,52 @@ func (t *Tailer) readAvailable() {
 
 func (t *Tailer) broadcast(msg Message) {
 	t.mu.Lock()
-	defer t.mu.Unlock()
 	for sub := range t.subs {
-		select {
-		case sub.ch <- msg:
-			if msg.Cursor > 0 {
-				sub.cursor = msg.Cursor
-			}
-		default:
-			select {
-			case sub.ch <- Message{Type: "resync_required", Reason: "subscriber_queue_full"}:
-			default:
-			}
+		if !sub.send(msg) {
+			sub.send(Message{Type: "resync_required", Reason: "subscriber_queue_full"})
 			delete(t.subs, sub)
-			close(sub.ch)
+			sub.close()
 		}
 	}
+	empty := len(t.subs) == 0
+	t.mu.Unlock()
+	if empty {
+		t.stop()
+	}
+}
+
+func (s *subscriber) send(msg Message) (sent bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return false
+	}
+	defer func() {
+		if recover() != nil {
+			s.closed = true
+			sent = false
+		}
+	}()
+	select {
+	case s.ch <- msg:
+		if msg.Cursor > 0 {
+			s.cursor = msg.Cursor
+		}
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *subscriber) close() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return
+	}
+	s.closed = true
+	defer func() {
+		_ = recover()
+	}()
+	close(s.ch)
 }

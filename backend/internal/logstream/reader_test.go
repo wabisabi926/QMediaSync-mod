@@ -25,3 +25,20 @@ func TestReadTailEntriesReturnsCursorAtFileEnd(t *testing.T) {
 		t.Fatalf("cursor = %d，期望 %d", cursor, len(content))
 	}
 }
+
+func TestReadEndCursorReturnsFileSize(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "app.log")
+	content := "2025/11/29 12:33:09.000001 [INFO] one\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cursor, err := ReadEndCursor(path)
+	if err != nil {
+		t.Fatalf("读取 EOF cursor 失败：%v", err)
+	}
+	if cursor != int64(len(content)) {
+		t.Fatalf("cursor = %d，期望 %d", cursor, len(content))
+	}
+}

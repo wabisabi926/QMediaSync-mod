@@ -29,6 +29,10 @@ export interface SyncTaskEventPayload {
   new_meta: number
   new_upload: number
   finish_at: number
+  net_file_start_at: number
+  net_file_finish_at: number
+  local_file_start_at: number
+  local_file_finish_at: number
   log_path: string
   sequence: number
   event_time: number

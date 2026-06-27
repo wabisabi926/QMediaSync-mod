@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -54,4 +55,30 @@ func TestManagerSharesTailerForSamePath(t *testing.T) {
 	}
 	assertLine("first", first)
 	assertLine("second", second)
+}
+
+func TestTailerResyncsAndClearsOversizedPartialLine(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sync.log")
+	if err := os.WriteFile(path, []byte(strings.Repeat("x", maxScannerBytes+1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tailer := newTailer(path, 0, nil)
+	sub := &subscriber{ch: make(chan Message, 2)}
+	tailer.subs[sub] = struct{}{}
+
+	tailer.readAvailable()
+
+	select {
+	case msg := <-sub.ch:
+		if msg.Type != "resync_required" || msg.Reason != "partial_line_too_long" {
+			t.Fatalf("msg = %+v，期望 partial_line_too_long resync_required", msg)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("未收到超长半行重同步消息")
+	}
+	if len(tailer.leftover) != 0 {
+		t.Fatalf("leftover length = %d，期望 0", len(tailer.leftover))
+	}
 }

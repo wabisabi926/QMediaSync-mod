@@ -216,11 +216,20 @@ func (t *Tailer) readAvailable() {
 			if line[len(line)-1] == '\n' {
 				content := append(t.leftover, line[:len(line)-1]...)
 				t.leftover = nil
+				if len(content) > maxScannerBytes {
+					t.broadcast(Message{Type: "resync_required", Reason: "partial_line_too_long", Cursor: t.cursor})
+					continue
+				}
 				entry := ParseLine(string(content))
 				entry.Cursor = t.cursor
 				t.broadcast(Message{Type: "log_append", Entry: entry, Cursor: t.cursor})
 			} else {
 				t.leftover = append(t.leftover, line...)
+				if len(t.leftover) > maxScannerBytes {
+					t.leftover = nil
+					t.broadcast(Message{Type: "resync_required", Reason: "partial_line_too_long", Cursor: t.cursor})
+					return
+				}
 			}
 		}
 		if err == io.EOF {

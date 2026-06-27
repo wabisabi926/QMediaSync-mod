@@ -1,6 +1,8 @@
 package controllers
 
 import (
+	"os"
+	"strings"
 	"testing"
 
 	"qmediasync/internal/logstream"
@@ -31,5 +33,25 @@ func TestBuildSyncTaskSnapshotMessageIncludesCursorAndVersion(t *testing.T) {
 	}
 	if data.Task.ID != 9 {
 		t.Fatalf("task.id = %d，期望 9", data.Task.ID)
+	}
+}
+
+func TestSyncTaskStreamSubscribesBeforeSnapshotReload(t *testing.T) {
+	source, err := os.ReadFile("sync_task_stream.go")
+	if err != nil {
+		t.Fatalf("读取 sync_task_stream.go 失败：%v", err)
+	}
+
+	content := string(source)
+	subscribeIndex := strings.Index(content, "taskEvents, unsubscribeTask := ws.GlobalSyncTaskHub.Subscribe")
+	reloadIndex := strings.Index(content, "latestTask, err := models.GetSyncByID(idReq.ID)")
+	if subscribeIndex < 0 {
+		t.Fatal("未找到同步任务事件订阅代码")
+	}
+	if reloadIndex < 0 {
+		t.Fatal("未找到订阅后的任务快照重读代码")
+	}
+	if subscribeIndex > reloadIndex {
+		t.Fatal("同步任务 stream 应先订阅事件，再重读 snapshot，避免订阅前状态变化丢失")
 	}
 }

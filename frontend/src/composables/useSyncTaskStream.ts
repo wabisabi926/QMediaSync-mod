@@ -7,8 +7,16 @@ import type {
   SyncTaskStreamMessage,
 } from '@/types/syncTaskStream'
 import { buildApiWebSocketUrl } from '@/utils/wsUrl'
-import { computed, onBeforeUnmount, readonly, shallowRef, toRef, toValue, watch } from 'vue'
-import type { MaybeRefOrGetter } from 'vue'
+import {
+  computed,
+  onBeforeUnmount,
+  readonly,
+  shallowRef,
+  toRef,
+  toValue,
+  watch,
+  type MaybeRefOrGetter,
+} from 'vue'
 
 interface UseSyncTaskStreamOptions {
   immediate?: boolean

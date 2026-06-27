@@ -77,13 +77,6 @@ func SyncTaskStream(c *gin.Context) {
 		return
 	}
 
-	fullLogPath := models.SyncLogFullPath(task.ID)
-	logs, cursor, err := logstream.ReadTailEntries(fullLogPath, 1000)
-	if err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "读取同步日志失败", Data: nil})
-		return
-	}
-
 	conn, err := syncTaskStreamUpgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		return
@@ -104,6 +97,34 @@ func SyncTaskStream(c *gin.Context) {
 
 	taskEvents, unsubscribeTask := ws.GlobalSyncTaskHub.Subscribe(task.ID, 128)
 	defer unsubscribeTask()
+
+	latestTask, err := models.GetSyncByID(idReq.ID)
+	if err != nil || latestTask == nil {
+		payload := task.SyncTaskEventPayload()
+		payload.Deleted = true
+		_ = writeSyncTaskStreamMessage(conn, syncTaskStreamMessage{
+			Type:       syncTaskStreamComplete,
+			Version:    syncTaskStreamVersion,
+			SyncID:     payload.SyncID,
+			ServerTime: time.Now().Unix(),
+			Data:       payload,
+		})
+		return
+	}
+	task = latestTask
+
+	fullLogPath := models.SyncLogFullPath(task.ID)
+	logs, cursor, err := logstream.ReadTailEntries(fullLogPath, 1000)
+	if err != nil {
+		_ = writeSyncTaskStreamMessage(conn, syncTaskStreamMessage{
+			Type:       syncTaskStreamError,
+			Version:    syncTaskStreamVersion,
+			SyncID:     task.ID,
+			ServerTime: time.Now().Unix(),
+			Data:       map[string]string{"message": "读取同步日志失败"},
+		})
+		return
+	}
 
 	logEvents, unsubscribeLog, err := logstream.GlobalManager.Subscribe(ctx, fullLogPath, cursor, 512)
 	if err != nil {

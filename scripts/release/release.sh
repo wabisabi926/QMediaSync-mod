@@ -16,6 +16,10 @@ usage() {
   scripts/release/release.sh patch
   scripts/release/release.sh minor
 
+说明:
+  使用 patch/minor/major 时，脚本会先推导版本并提示确认。
+  直接回车使用推导版本，也可以输入 v<major>.<minor>.<patch> 手动覆盖。
+
 流程:
   1. 检查 tag 格式和版本递增关系
   2. 同步 main，并把 dev 快进合入 main
@@ -66,6 +70,20 @@ derive_release_tag() {
   echo "根据当前最新版本 ${current_tag} 推导发布版本: ${TAG}"
 }
 
+confirm_or_override_derived_tag() {
+  local answer
+
+  printf '发布版本 [%s]，直接回车确认，或输入版本覆盖: ' "$TAG"
+  read -r answer || answer=""
+  if [ -z "$answer" ]; then
+    validate_release_tag "$TAG"
+    return
+  fi
+
+  validate_release_tag "$answer"
+  TAG="$answer"
+}
+
 confirm_major_release() {
   local current_tag="$1"
   local target_tag="$2"
@@ -100,6 +118,7 @@ resolve_release_tag() {
   case "$value" in
     patch|minor|major)
       derive_release_tag "$value"
+      confirm_or_override_derived_tag
       ;;
     *)
       validate_release_tag "$value"
@@ -189,72 +208,73 @@ confirm_release() {
   fi
 }
 
-if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
-  usage
-  exit 0
-fi
+main() {
+  if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+    usage
+    exit 0
+  fi
 
-if [ "$#" -ne 1 ]; then
-  usage >&2
-  exit 1
-fi
+  if [ "$#" -ne 1 ]; then
+    usage >&2
+    exit 1
+  fi
 
-RELEASE_INPUT="$1"
-TAG="$RELEASE_INPUT"
-REMOTE="origin"
-MAIN_BRANCH="main"
-DEV_BRANCH="dev"
-TARGET_MAJOR=""
-TARGET_MINOR=""
-TARGET_PATCH=""
+  RELEASE_INPUT="$1"
+  TAG="$RELEASE_INPUT"
+  REMOTE="origin"
+  MAIN_BRANCH="main"
+  DEV_BRANCH="dev"
+  TARGET_MAJOR=""
+  TARGET_MINOR=""
+  TARGET_PATCH=""
 
-validate_release_input "$RELEASE_INPUT"
+  validate_release_input "$RELEASE_INPUT"
 
-require_command git
-require_command git-cliff
+  require_command git
+  require_command git-cliff
 
-cd "$ROOT"
+  cd "$ROOT"
 
-git fetch "$REMOTE" --tags
-resolve_release_tag "$RELEASE_INPUT"
-ensure_tag_newer_than_current "$TAG"
+  git fetch "$REMOTE" --tags
+  resolve_release_tag "$RELEASE_INPUT"
+  ensure_tag_newer_than_current "$TAG"
 
-ensure_clean_worktree
-ensure_branch_exists "$MAIN_BRANCH"
-ensure_branch_exists "$DEV_BRANCH"
+  ensure_clean_worktree
+  ensure_branch_exists "$MAIN_BRANCH"
+  ensure_branch_exists "$DEV_BRANCH"
 
-ensure_remote_branch_exists "$REMOTE" "$MAIN_BRANCH"
-ensure_remote_branch_exists "$REMOTE" "$DEV_BRANCH"
-ensure_branch_contains_remote "$REMOTE" "$DEV_BRANCH"
-ensure_no_remote_tag "$REMOTE" "$TAG"
+  ensure_remote_branch_exists "$REMOTE" "$MAIN_BRANCH"
+  ensure_remote_branch_exists "$REMOTE" "$DEV_BRANCH"
+  ensure_branch_contains_remote "$REMOTE" "$DEV_BRANCH"
+  ensure_no_remote_tag "$REMOTE" "$TAG"
 
-git checkout "$MAIN_BRANCH"
-git pull --ff-only "$REMOTE" "$MAIN_BRANCH"
-git merge --ff-only "$DEV_BRANCH"
+  git checkout "$MAIN_BRANCH"
+  git pull --ff-only "$REMOTE" "$MAIN_BRANCH"
+  git merge --ff-only "$DEV_BRANCH"
 
-ensure_no_remote_tag "$REMOTE" "$TAG"
+  ensure_no_remote_tag "$REMOTE" "$TAG"
 
-scripts/release/gen-changelog.sh "$TAG"
+  scripts/release/gen-changelog.sh "$TAG"
 
-echo
-echo "生成的发布说明变更:"
-git diff -- "CHANGELOG.md" ".changes/${TAG}.md"
+  echo
+  echo "生成的发布说明变更:"
+  git diff -- "CHANGELOG.md" ".changes/${TAG}.md"
 
-confirm_release "$TAG"
+  confirm_release "$TAG"
 
-git add "CHANGELOG.md" ".changes/${TAG}.md"
-git commit -m "chore: release ${TAG}"
-git tag -a "$TAG" -m "Release $TAG"
+  git add "CHANGELOG.md" ".changes/${TAG}.md"
+  git commit -m "chore: release ${TAG}"
+  git tag -a "$TAG" -m "Release $TAG"
 
-git push "$REMOTE" "$MAIN_BRANCH"
-git push "$REMOTE" "$TAG"
+  git push "$REMOTE" "$MAIN_BRANCH"
+  git push "$REMOTE" "$TAG"
 
-git checkout "$DEV_BRANCH"
-git pull --ff-only "$REMOTE" "$DEV_BRANCH"
-git merge --ff-only "$MAIN_BRANCH"
-git push "$REMOTE" "$DEV_BRANCH"
+  git checkout "$DEV_BRANCH"
+  git pull --ff-only "$REMOTE" "$DEV_BRANCH"
+  git merge --ff-only "$MAIN_BRANCH"
+  git push "$REMOTE" "$DEV_BRANCH"
 
-cat <<EOF
+  cat <<EOF
 
 发布流程已提交并触发:
   main: 已推送到 ${REMOTE}/${MAIN_BRANCH}
@@ -263,3 +283,8 @@ cat <<EOF
 
 release workflow 会由 tag 自动触发，请到 GitHub Actions 页面查看执行结果。
 EOF
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

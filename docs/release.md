@@ -23,6 +23,8 @@ scripts/release/release.sh minor
 scripts/release/release.sh major
 ```
 
+使用 `patch`、`minor`、`major` 时，脚本会先显示推导出的发布版本，并提供确认输入框。直接回车会使用推导版本；也可以输入 `v<major>.<minor>.<patch>` 手动覆盖，手动输入的版本会走同一套格式和递增关系校验。
+
 ## 发布脚本行为
 
 `scripts/release/release.sh` 和 `scripts/release/gen-changelog.sh` 共享 `scripts/release/lib.sh` 中的 tag、版本号和重复发布校验逻辑。
@@ -30,6 +32,7 @@ scripts/release/release.sh major
 该脚本会：
 
 - 校验 tag 格式必须为 `v<major>.<minor>.<patch>`，例如 `v0.15.3`。
+- 使用 `patch`、`minor`、`major` 推导版本时，提示确认推导版本；直接回车继续，也可输入合法 tag 覆盖。
 - 校验 tag 必须大于当前最新版本；如果 minor 或 major 版本增加，还会分别要求输入 `minor yes` 或 `major yes` 额外确认。
 - 同步 `main`，并把本地 `dev` 快进合入 `main`。
 - 读取上一个 `v*` 标签至今的提交，按类型分组生成 `.changes/v0.xx.xx.md`，作为 GitHub Release 正文。

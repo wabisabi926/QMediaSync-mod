@@ -10,6 +10,7 @@ import (
 	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/notificationmanager"
+	"qmediasync/internal/websocket"
 
 	"gorm.io/gorm"
 )
@@ -69,6 +70,44 @@ type Sync struct {
 	Logger            *helpers.QLogger `gorm:"-" json:"-"`                  // 日志句柄，不参与数据读写
 }
 
+// SyncLogRelativePath 返回前端日志接口使用的同步任务日志相对路径。
+func SyncLogRelativePath(syncID uint) string {
+	return filepath.ToSlash(filepath.Join("libs", fmt.Sprintf("sync_%d.log", syncID)))
+}
+
+// SyncLogFullPath 返回同步任务日志完整路径。
+func SyncLogFullPath(syncID uint) string {
+	return filepath.Join(helpers.ConfigDir, "logs", "libs", fmt.Sprintf("sync_%d.log", syncID))
+}
+
+// SyncTaskEventPayload 生成同步任务结构化事件数据。
+func (s *Sync) SyncTaskEventPayload() websocket.SyncTaskEventPayload {
+	return websocket.SyncTaskEventPayload{
+		SyncID:     s.ID,
+		SyncPathID: s.SyncPathId,
+		Status:     int(s.Status),
+		SubStatus:  int(s.SubStatus),
+		Total:      s.Total,
+		NewStrm:    s.NewStrm,
+		NewMeta:    s.NewMeta,
+		NewUpload:  s.NewUpload,
+		FinishAt:   s.FinishAt,
+		LogPath:    SyncLogRelativePath(s.ID),
+		CreatedAt:  s.CreatedAt,
+		UpdatedAt:  s.UpdatedAt,
+		LocalPath:  s.LocalPath,
+		RemotePath: s.RemotePath,
+		FailReason: s.FailReason,
+	}
+}
+
+func (s *Sync) broadcastSyncTaskEvent(eventType string) {
+	if s == nil || s.ID == 0 {
+		return
+	}
+	websocket.BroadcastSyncTaskEvent(eventType, s.SyncTaskEventPayload())
+}
+
 // 完成本地同步任务
 func (s *Sync) Complete(sourceType SourceType) bool {
 	s.Status = SyncStatusCompleted
@@ -79,6 +118,7 @@ func (s *Sync) Complete(sourceType SourceType) bool {
 		s.Logger.Errorf("完成同步失败：%v", err)
 		return false
 	}
+	s.broadcastSyncTaskEvent(websocket.EventSyncTaskUpdated)
 	// s.SyncPath.SetIsFullSync(false) // 改回默认值，下次非全量同步
 	s.Logger.Infof("同步任务已完成：%d", s.ID)
 	if s.NewUpload > 0 || s.NewMeta > 0 || s.NewStrm > 0 {
@@ -136,6 +176,7 @@ func (s *Sync) UpdateTotal() {
 		s.Logger.Errorf("更新文件总数失败：%v", err)
 		return
 	}
+	s.broadcastSyncTaskEvent(websocket.EventSyncTaskUpdated)
 	// s.Logger.Infof("更新文件总数：%d", s.Total)
 }
 
@@ -155,6 +196,7 @@ func (s *Sync) UpdateStatus(status SyncStatus) bool {
 		s.Logger.Errorf("更新同步状态失败：%v", err)
 		return false
 	}
+	s.broadcastSyncTaskEvent(websocket.EventSyncTaskUpdated)
 	s.Logger.Infof("更新任务状态：%s => %s", SyncStatusText[oldStatus], SyncStatusText[status])
 	return true
 }
@@ -186,6 +228,7 @@ func (s *Sync) UpdateSubStatus(subStatus SyncSubStatus) bool {
 		s.Logger.Errorf("更新同步子状态失败：%v", err)
 		return false
 	}
+	s.broadcastSyncTaskEvent(websocket.EventSyncTaskUpdated)
 	s.Logger.Infof("更新任务子状态：%s => %s", SyncSubStatusText[oldSubStatus], SyncSubStatusText[subStatus])
 	return true
 }
@@ -275,14 +318,23 @@ func FailAllRunningSyncTasks() {
 
 // 使用 ID 删除同步记录和相关文件
 func DeleteSyncRecordById(id uint) error {
+	existing := &Sync{BaseModel: BaseModel{ID: id}}
+	if err := db.Db.First(existing, id).Error; err != nil {
+		existing = &Sync{BaseModel: BaseModel{ID: id}}
+	}
+
 	sync := &Sync{BaseModel: BaseModel{ID: id}}
 	if err := db.Db.Delete(sync).Error; err != nil {
 		helpers.AppLogger.Errorf("删除同步记录失败：%v", err)
 		return err
 	}
-	// 删除同步结果文件
-	logFile := filepath.Join(helpers.ConfigDir, "logs", "libs", fmt.Sprintf("sync_%d.log", id))
+
+	payload := existing.SyncTaskEventPayload()
+	payload.Deleted = true
+	websocket.BroadcastSyncTaskEvent(websocket.EventSyncTaskDeleted, payload)
+
 	// 删除相关的日志和同步结果文件
+	logFile := SyncLogFullPath(id)
 	os.Remove(logFile)
 	helpers.AppLogger.Infof("删除同步记录成功：%d", id)
 	return nil
@@ -332,6 +384,7 @@ func CreateSync(syncPathId uint, sourcePath, sourcePathId, targetPath string) *S
 		helpers.AppLogger.Errorf("创建同步任务失败：%v", err)
 		return nil
 	}
+	sync.broadcastSyncTaskEvent(websocket.EventSyncTaskCreated)
 	return sync
 }
 

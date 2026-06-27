@@ -160,7 +160,7 @@ func (s *SyncStrm) handelTempFileByPathId(pathId string) error {
 	// 加锁
 	files, err := s.memSyncCache.GetByParentId(pathId)
 	if err != nil {
-		s.Sync.Logger.Errorf("查询同步缓存文件失败：parent_id=%s，%v", pathId, err.Error)
+		s.Sync.Logger.Errorf("查询同步缓存文件失败：parent_id=%s，%v", pathId, err.Error())
 		return err
 	}
 	s.Sync.Logger.Infof("开始处理路径 ID %s 下的所有文件，共 %d 个", pathId, len(files))

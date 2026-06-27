@@ -35,6 +35,26 @@
 
 数据库引擎、配置项、迁移和维护入口的完整说明见 [数据库](database.md)。
 
+## 日志行为和脱敏
+
+日志文件路径由 `config/config.yaml` 的 `log` 配置决定，默认相对于配置目录写入：
+
+| 配置项 | 默认文件 | 用途 |
+| --- | --- | --- |
+| `log.file` | `logs/app.log` | 主程序日志，包含 Web、控制器、模型、Emby 302 等通用日志。 |
+| `log.v115` | `logs/115.log` | 115 开放平台相关请求和队列日志。 |
+| `log.openList` | `logs/openList.log` | OpenList 相关日志。 |
+| `log.tmdb` | `logs/tmdb.log` | TMDB 刮削相关日志。 |
+| `log.baiduPan` | `logs/baidupan.log` | 百度网盘相关日志。 |
+| `log.web` | `logs/web.log` | 预留 Web 日志配置。 |
+| `log.syncLogDir` | `logs/sync` | 同步任务独立日志目录配置。 |
+
+当前自定义 `QLogger` 不提供运行时日志等级过滤；`Info`、`Warn`、`Error`、`Debug` 和显式敏感 `SensitiveDebug` 都会写入对应日志。日志前缀用于区分等级，但不会因为运行模式自动屏蔽 `Debug`。`gin.ReleaseMode` 只影响 Gin 自身模式，不控制 `QLogger` 的输出。
+
+运行日志默认会在写入前完全脱敏常见敏感字段，包括 `api_key`、`X-Emby-Token`、`Authorization`、`X-Emby-Authorization`、`X-API-Key`、`password`、`access_token`、`refresh_token`、`AccessKeySecret`、`SecurityToken`、`Cookie` 等。普通 `Info`、`Warn`、`Error` 和 `Debug` 日志都会执行脱敏，不保留敏感值开头或结尾字符。
+
+需要临时排查 Emby 302 等链路的完整请求信息时，可以在本地调试环境设置 `QMS_UNSAFE_SENSITIVE_LOG=1`。该开关只影响显式标记为敏感的 `SensitiveDebug` 日志；启用后这类 Debug 日志可能包含 API Key、Token、Cookie 或密码，程序启动时会写入风险提示。不应在生产环境长期打开，也不应分享对应日志文件。
+
 ## 需要自备的密钥
 
 - 115 开放平台 APPID：前端支持扫码授权和网页授权；自定义 APPID 走扫码授权 。

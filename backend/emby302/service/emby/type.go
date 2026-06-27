@@ -3,6 +3,8 @@ package emby
 import (
 	"encoding/json"
 	"fmt"
+
+	"qmediasync/internal/helpers"
 )
 
 // MsInfo MediaSourceId 解析信息
@@ -48,8 +50,25 @@ type ItemInfo struct {
 
 // String 序列化输出
 func (ii ItemInfo) String() string {
+	return ii.formatString(false)
+}
+
+// SensitiveString 序列化输出完整敏感信息，仅用于显式 unsafe Debug 日志。
+func (ii ItemInfo) SensitiveString() string {
+	return ii.formatString(true)
+}
+
+func (ii ItemInfo) formatString(includeSensitive bool) string {
+	apiKey := ii.ApiKey
+	playbackInfoURI := ii.PlaybackInfoUri
+	if !includeSensitive {
+		if apiKey != "" {
+			apiKey = "[REDACTED]"
+		}
+		playbackInfoURI = helpers.RedactSensitiveLog(playbackInfoURI)
+	}
 	return fmt.Sprintf("ItemInfo{Id: [%s], MsInfo: [%v], ApiKey: [%s], ApiKeyType: [%s], ApiKeyName: [%s], PlaybackInfoUri: [%s], RouteType: [%s]}",
-		ii.Id, ii.MsInfo, ii.ApiKey, ii.ApiKeyType, ii.ApiKeyName, ii.PlaybackInfoUri, ii.RouteType)
+		ii.Id, ii.MsInfo, apiKey, ii.ApiKeyType, ii.ApiKeyName, playbackInfoURI, ii.RouteType)
 }
 
 // ItemsHolder Emby Items 接口响应接收结构

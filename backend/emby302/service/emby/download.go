@@ -24,7 +24,7 @@ func HandleSyncDownload(c *gin.Context) {
 	if checkErr(c, err) {
 		return
 	}
-	logs.Info("解析得到的 ItemInfo 信息: %v", itemInfo)
+	logs.SensitiveDebug("解析得到的 ItemInfo 信息: %s", itemInfo.SensitiveString())
 	if itemInfo.Id == "" {
 		checkErr(c, errors.New("JobItems ID 为空"))
 		return
@@ -34,6 +34,7 @@ func HandleSyncDownload(c *gin.Context) {
 	targetUri := "/Sync/Targets?api_key=" + itemInfo.ApiKey
 	resp, _ := Fetch(targetUri, http.MethodGet, nil, nil)
 	if resp.Code != http.StatusOK {
+		logs.SensitiveDebug("请求 Emby 失败完整 URI: %s", targetUri)
 		checkErr(c, fmt.Errorf("请求 Emby 失败: %v, URI: %s", resp.Msg, targetUri))
 		return
 	}
@@ -55,6 +56,7 @@ func HandleSyncDownload(c *gin.Context) {
 		readyUri := readyUriTmpl + id
 		resp, _ := Fetch(readyUri, http.MethodGet, nil, nil)
 		if resp.Code != http.StatusOK {
+			logs.SensitiveDebug("请求 Emby 失败完整 URI: %s", readyUri)
 			checkErr(c, fmt.Errorf("请求 Emby 失败: %v, URI: %s", resp.Msg, readyUri))
 			return jsons.ErrBreakRange
 		}

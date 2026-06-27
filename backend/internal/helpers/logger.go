@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -15,6 +17,19 @@ var V115Log *QLogger
 var OpenListLog *QLogger
 var BaiduPanLog *QLogger
 var TMDBLog *QLogger
+
+const (
+	UnsafeSensitiveLogEnv = "QMS_UNSAFE_SENSITIVE_LOG"
+	redactedLogValue      = "[REDACTED]"
+)
+
+var (
+	sensitiveLogQuotedRegexp           = regexp.MustCompile(`(?i)(["']?(?:api_key|apikey|x-emby-token|authorization|x-emby-authorization|x-api-key|password|access_token|refresh_token|accesskeysecret|securitytoken|cookie|set-cookie)["']?\s*:\s*["'])([^"']*)(["'])`)
+	sensitiveLogMediaBrowserAuthRegexp = regexp.MustCompile(`(?i)(\b(?:authorization|x-emby-authorization)\b\s*[:=]\s*MediaBrowser\s+Token=")([^"]*)(")`)
+	sensitiveLogAuthRegexp             = regexp.MustCompile(`(?i)(\b(?:authorization|x-emby-authorization)\b\s*[:=]\s*)((?:Bearer|Basic|Token)\s+)?(\[[^\]]*\]|"[^"]*"|'[^']*'|[^\s&,;\]\}]+)`)
+	sensitiveLogCookieRegexp           = regexp.MustCompile(`(?i)(\b(?:cookie|set-cookie)\b\s*[:=]\s*)(\[[^\]]*\]|"[^"]*"|'[^']*'|[^,\]\}\n]+)`)
+	sensitiveLogKeyValueRegexp         = regexp.MustCompile(`(?i)(\b(?:api_key|apikey|x-emby-token|x-api-key|password|access_token|refresh_token|accesskeysecret|securitytoken)\b\s*[:=]\s*)(\[[^\]]*\]|"[^"]*"|'[^']*'|[^&\s,\]\}]+)`)
+)
 
 type QLogger struct {
 	*log.Logger
@@ -29,44 +44,94 @@ func (q *QLogger) Close() {
 	}
 }
 
+// RedactSensitiveLog 脱敏日志中的常见密钥、Token 和密码字段。
+func RedactSensitiveLog(input string) string {
+	if input == "" {
+		return input
+	}
+	output := sensitiveLogQuotedRegexp.ReplaceAllString(input, "${1}"+redactedLogValue+"${3}")
+	output = sensitiveLogMediaBrowserAuthRegexp.ReplaceAllString(output, "${1}"+redactedLogValue+"${3}")
+	output = sensitiveLogAuthRegexp.ReplaceAllString(output, "${1}${2}"+redactedLogValue)
+	output = sensitiveLogCookieRegexp.ReplaceAllString(output, "${1}"+redactedLogValue)
+	output = sensitiveLogKeyValueRegexp.ReplaceAllString(output, "${1}"+redactedLogValue)
+	return output
+}
+
+// UnsafeSensitiveLogEnabled 判断是否允许 unsafe 敏感调试日志输出完整值。
+func UnsafeSensitiveLogEnabled() bool {
+	value := strings.TrimSpace(os.Getenv(UnsafeSensitiveLogEnv))
+	return value == "1" || strings.EqualFold(value, "true") || strings.EqualFold(value, "yes")
+}
+
+// WarnUnsafeSensitiveLogIfEnabled 在启用 unsafe 敏感日志时输出显式风险提示。
+func WarnUnsafeSensitiveLogIfEnabled() {
+	if AppLogger != nil && UnsafeSensitiveLogEnabled() {
+		AppLogger.Warnf("%s 已启用，敏感 Debug 日志可能包含 API Key、Token、Cookie 或密码，请勿分享日志文件", UnsafeSensitiveLogEnv)
+	}
+}
+
+func (q *QLogger) logf(level string, format string, args ...interface{}) {
+	q.Logger.Printf("[%s] %s", level, RedactSensitiveLog(fmt.Sprintf(format, args...)))
+}
+
+func (q *QLogger) log(level string, message string) {
+	q.Logger.Println("[" + level + "] " + RedactSensitiveLog(message))
+}
+
 func (q *QLogger) Infof(format string, args ...interface{}) {
-	q.Logger.Printf("[INFO] "+format, args...)
+	q.logf("INFO", format, args...)
 }
 
 func (q *QLogger) Info(format string) {
-	q.Logger.Println("[INFO] " + format)
+	q.log("INFO", format)
 }
 
 func (q *QLogger) Debugf(format string, args ...interface{}) {
-	q.Logger.Printf("[DEBUG] "+format, args...)
+	q.logf("DEBUG", format, args...)
 }
 
 func (q *QLogger) Debug(format string) {
-	q.Logger.Println("[DEBUG] " + format)
+	q.log("DEBUG", format)
+}
+
+func (q *QLogger) SensitiveDebugf(format string, args ...interface{}) {
+	message := fmt.Sprintf(format, args...)
+	if !UnsafeSensitiveLogEnabled() {
+		message = RedactSensitiveLog(message)
+	}
+	q.Logger.Printf("[DEBUG] %s", message)
+}
+
+func (q *QLogger) SensitiveDebug(format string) {
+	message := format
+	if !UnsafeSensitiveLogEnabled() {
+		message = RedactSensitiveLog(message)
+	}
+	q.Logger.Println("[DEBUG] " + message)
 }
 
 func (q *QLogger) Errorf(format string, args ...interface{}) {
-	q.Logger.Printf("[ERROR] "+format, args...)
+	q.logf("ERROR", format, args...)
 }
 
 func (q *QLogger) Error(format string) {
-	q.Logger.Println("[ERROR] " + format)
+	q.log("ERROR", format)
 }
 
 func (q *QLogger) Fatalf(format string, args ...interface{}) {
-	q.Logger.Fatalf("[FATAL] "+format, args...)
+	q.Logger.Fatalf("[FATAL] %s", RedactSensitiveLog(fmt.Sprintf(format, args...)))
 }
 
 func (q *QLogger) Panicf(format string, args ...interface{}) {
-	q.Logger.Panicf("[PANIC] "+format, args...)
+	q.Logger.Panicf("[PANIC] %s", RedactSensitiveLog(fmt.Sprintf(format, args...)))
 }
 
 func (q *QLogger) Warnf(format string, args ...interface{}) {
-	q.Logger.Printf("[WARN] "+format, args...)
+	q.logf("WARN", format, args...)
 }
 
 func (q *QLogger) Warn(format string) {
-	q.Logger.Println("[WARN] " + format)
+	q.log("WARN", format)
 }
 
 func NewLogger(logFileName string, isConsole bool, rotate bool) *QLogger {

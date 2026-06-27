@@ -427,6 +427,7 @@ func initLogger() {
 	helpers.OpenListLog = helpers.NewLogger(helpers.GlobalConfig.Log.OpenList, false, true)
 	helpers.TMDBLog = helpers.NewLogger(helpers.GlobalConfig.Log.TMDB, false, true)
 	helpers.BaiduPanLog = helpers.NewLogger(helpers.GlobalConfig.Log.BaiduPan, false, true)
+	helpers.WarnUnsafeSensitiveLogIfEnabled()
 }
 
 func initOthers() {

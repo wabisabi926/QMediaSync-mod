@@ -31,6 +31,8 @@
 
 首次启动且不存在 `config/config.yaml` 时，后端会先启动配置向导。向导当前提供 SQLite 和外部 PostgreSQL 两种选择；保存后会生成 `config/config.yaml`，旧版 `config.yml` 仍可读取。
 
+完整配置项示例见 [config.yaml](examples/config.yaml)。示例文件只用于说明字段含义，运行时仍以 `config/config.yaml` 为准。
+
 代码默认配置是 `postgres + embedded`。Docker 镜像会安装 `postgresql15`，可以直接配合内嵌 PostgreSQL 使用；裸二进制和本地开发环境不随仓库携带 PostgreSQL 二进制，如果要使用 PostgreSQL，建议安装 PostgreSQL 15 及以上并配置为外部数据库，或自行保证内嵌模式所需的 PostgreSQL 命令可用。
 
 数据库引擎、配置项、迁移和维护入口的完整说明见 [数据库](database.md)。

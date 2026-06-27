@@ -1,0 +1,114 @@
+# QMediaSync 主配置示例。
+# 运行时配置文件通常位于 config/config.yaml；从 backend 目录本地运行时通常位于 backend/config/config.yaml。
+# 本文件仅作为示例，请不要把真实密码、Token 或生产密钥提交到仓库。
+
+log:
+  # 主程序日志，包含 Web、控制器、模型、Emby 302 等通用日志。
+  file: logs/app.log
+  # 115 开放平台相关请求和队列日志。
+  v115: logs/115.log
+  # OpenList 相关日志。
+  openList: logs/openList.log
+  # TMDB 刮削相关日志。
+  tmdb: logs/tmdb.log
+  # 百度网盘相关日志。
+  baiduPan: logs/baidupan.log
+  # 预留 Web 日志配置。
+  web: logs/web.log
+  # 同步任务独立日志目录，每个同步任务会生成一个日志文件。
+  syncLogDir: logs/sync
+
+db:
+  # 数据库引擎，可选值：sqlite、postgres。
+  engine: postgres
+  # SQLite 数据库文件名；使用 SQLite 时会放在运行时配置目录下。
+  sqliteFile: qmediasync.db
+  # PostgreSQL 类型，可选值：embedded、external。
+  # embedded 会使用程序管理的内嵌 PostgreSQL；external 连接外部 PostgreSQL。
+  postgresType: embedded
+  postgresConfig:
+    # PostgreSQL 主机；embedded 模式通常保持 localhost。
+    host: localhost
+    # PostgreSQL 端口。
+    port: 5432
+    # PostgreSQL 用户名。
+    user: qms
+    # PostgreSQL 密码；生产环境请改为强密码。
+    password: qms123456
+    # PostgreSQL 数据库名。
+    database: qms
+    # 是否启用 PostgreSQL 连接 SSL；启用后使用 sslmode=require。
+    ssl: false
+    # 数据库连接池最大打开连接数。
+    maxOpenConns: 25
+    # 数据库连接池最大空闲连接数。
+    maxIdleConns: 25
+
+# 内存缓存大小，单位：字节。默认 20 MiB。
+cacheSize: 20971520
+
+# JWT Cookie 会话签名密钥。
+# 为空、公开默认值或历史默认值时，程序启动会自动生成强随机密钥并写回配置文件。
+jwtSecret: ""
+
+# Web HTTP / HTTPS 监听地址，格式为 [host]:port。
+httpHost: :12333
+httpsHost: :12332
+
+# 允许携带浏览器登录 Cookie 的跨源前端来源。
+# 同源请求不需要配置；自定义前后端跨源部署时填写精确来源。
+trustedOrigins: []
+# 配置示例：
+# trustedOrigins:
+#   - https://qms.example.com
+#   - http://localhost:5173
+
+strm:
+  # 识别为视频的文件扩展名。留空时使用程序默认列表。
+  videoExt:
+    - .mp4
+    - .mkv
+    - .avi
+    - .mov
+    - .wmv
+    - .flv
+    - .webm
+    - .m4v
+    - .3gp
+    - .ts
+  # 视频文件最小大小，单位：MB。小于该大小的视频文件不会生成 STRM。
+  minVideoSize: 100
+  # 识别为元数据的文件扩展名。留空时使用程序默认列表。
+  metaExt:
+    - .jpg
+    - .jpeg
+    - .png
+    - .webp
+    - .nfo
+    - .srt
+    - .ass
+    - .svg
+    - .sup
+    - .lrc
+  # STRM 定时任务表达式。默认每小时第 30 分钟执行。
+  cron: "30 * * * *"
+
+emby302:
+  # 是否跳过 Emby 302 出站 HTTPS 证书校验。
+  # 默认 false，会校验证书并复用 HTTP 连接。
+  # 只有受控内网自签名证书或临时排障场景才建议显式改为 true。
+  insecure_skip_verify: false
+
+# 旧版授权服务地址；通常无需修改。
+authServer: https://api.mqfamily.top
+# 新版 OAuth 中转服务地址；通常无需修改。
+newAuthServer: https://oauth.qmediasync.cn
+# 百度网盘应用标识。
+baiDuPanAppId: QMediaSync
+
+# 首次初始化管理员账号。
+# 当前配置向导会把首个管理员用户名和初始密码写入运行时 config.yaml，
+# 数据库初始化时再读取这些字段创建首个管理员；后续登录信息以数据库中的用户记录为准。
+# 不建议在示例或生产配置中保留默认账号密码；如需手写，请改为自定义强凭据后取消注释。
+# adminUsername: admin
+# adminPassword: "<change-me>"

@@ -16,11 +16,25 @@ export interface UpdateProgress {
   progress: number
   total_size: number
   downloaded: number
-  status: string
+  status: UpdateStatus
   version?: string
+  error_message?: string
 }
 
 export type UpdateChannel = 'github' | 'gitee'
+export type UpdateStatus = 'downloading' | 'install' | 'completed' | 'failed' | 'cancelled' | ''
+
+export function isUpdateTerminalStatus(
+  status: string,
+): status is Extract<UpdateStatus, 'completed' | 'failed' | 'cancelled'> {
+  return status === 'completed' || status === 'failed' || status === 'cancelled'
+}
+
+export function isUpdateRunningStatus(
+  status: string,
+): status is Extract<UpdateStatus, 'downloading' | 'install'> {
+  return status === 'downloading' || status === 'install'
+}
 
 export function useUpdate() {
   const http = inject<AxiosStatic>('$http')
@@ -76,12 +90,7 @@ export function useUpdate() {
 
       if (response && response.data && response.data.code === 200) {
         const progressData = response.data.data
-        if (
-          progressData &&
-          (progressData.progress > 0 ||
-            progressData.status === 'downloading' ||
-            progressData.status === 'install')
-        ) {
+        if (progressData && isUpdateRunningStatus(progressData.status)) {
           isUpdating.value = true
           updatingVersion.value = progressData.version || ''
 
@@ -97,6 +106,22 @@ export function useUpdate() {
       }
     } catch (error) {
       console.error('检查更新状态错误：', error)
+    }
+  }
+
+  const resetUpdateState = () => {
+    if (countdownTimer) {
+      clearInterval(countdownTimer)
+      countdownTimer = null
+    }
+    showUpdateCompleteDialog.value = false
+    isUpdating.value = false
+    updatingVersion.value = ''
+    updateProgress.value = {
+      progress: 0,
+      total_size: 0,
+      downloaded: 0,
+      status: '',
     }
   }
 
@@ -119,26 +144,12 @@ export function useUpdate() {
       if (response && response.data && response.data.code === 200) {
         startProgressPolling()
       } else {
-        isUpdating.value = false
-        updatingVersion.value = ''
-        updateProgress.value = {
-          progress: 0,
-          total_size: 0,
-          downloaded: 0,
-          status: '',
-        }
+        resetUpdateState()
         ElMessage.error(response?.data.message || '触发版本更新失败')
       }
     } catch (error) {
       console.error('触发版本更新错误：', error)
-      isUpdating.value = false
-      updatingVersion.value = ''
-      updateProgress.value = {
-        progress: 0,
-        total_size: 0,
-        downloaded: 0,
-        status: '',
-      }
+      resetUpdateState()
       ElMessage.error('触发版本更新失败')
     }
   }
@@ -195,43 +206,47 @@ export function useUpdate() {
       const response = await http?.get(`${SERVER_URL}/update/progress`)
 
       if (response && response.data) {
-        if (response.data.data.progress !== undefined) {
-          const previousProgress = updateProgress.value.progress
-          updateProgress.value.progress = response.data.data.progress
+        if (response.data.code !== 200) {
+          stopProgressPolling()
 
-          if (previousProgress < 100 && updateProgress.value.progress >= 100) {
-            showUpdateCompleteNotification()
-          }
-        }
-        if (response.data.data.total_size !== undefined) {
-          updateProgress.value.total_size = response.data.data.total_size
-        }
-        if (response.data.data.downloaded !== undefined) {
-          updateProgress.value.downloaded = response.data.data.downloaded
+          setTimeout(() => {
+            resetUpdateState()
+            loadUpdateList()
+          }, 2000)
+          return
         }
 
-        if (response.data.data.status !== undefined) {
-          updateProgress.value.status = response.data.data.status
+        const progressData = response.data.data
+        if (!progressData) {
+          return
+        }
 
-          if (response.data.data.status === 'failed') {
+        if (progressData.progress !== undefined) {
+          updateProgress.value.progress = progressData.progress
+        }
+        if (progressData.total_size !== undefined) {
+          updateProgress.value.total_size = progressData.total_size
+        }
+        if (progressData.downloaded !== undefined) {
+          updateProgress.value.downloaded = progressData.downloaded
+        }
+
+        const status = progressData.status
+        if (status !== undefined) {
+          updateProgress.value.status = status
+
+          if (status === 'completed') {
             stopProgressPolling()
+            updateProgress.value.progress = 100
+            showUpdateCompleteNotification()
+            return
+          }
 
-            if (countdownTimer) {
-              clearInterval(countdownTimer)
-              countdownTimer = null
-            }
-
-            showUpdateCompleteDialog.value = false
-
-            isUpdating.value = false
-            updatingVersion.value = ''
-            updateProgress.value.progress = 0
-            updateProgress.value.total_size = 0
-            updateProgress.value.downloaded = 0
-            updateProgress.value.status = ''
-
+          if (status === 'failed') {
+            stopProgressPolling()
+            resetUpdateState()
             ElMessage.error({
-              message: '更新失败，请稍后重试或手动下载最新版本',
+              message: progressData.error_message || '更新失败，请稍后重试或手动下载最新版本',
               duration: 5000,
             })
 
@@ -241,16 +256,18 @@ export function useUpdate() {
 
             return
           }
-        }
 
-        if (response.data.code !== 200) {
-          stopProgressPolling()
+          if (status === 'cancelled') {
+            stopProgressPolling()
+            resetUpdateState()
+            ElMessage.info('更新已取消')
 
-          setTimeout(() => {
-            isUpdating.value = false
-            updatingVersion.value = ''
-            loadUpdateList()
-          }, 2000)
+            setTimeout(() => {
+              loadUpdateList()
+            }, 1000)
+
+            return
+          }
         }
       }
     } catch (error) {
@@ -263,22 +280,7 @@ export function useUpdate() {
       await http?.post(`${SERVER_URL}/update/cancel`)
 
       stopProgressPolling()
-
-      if (countdownTimer) {
-        clearInterval(countdownTimer)
-        countdownTimer = null
-      }
-
-      showUpdateCompleteDialog.value = false
-
-      isUpdating.value = false
-      updatingVersion.value = ''
-      updateProgress.value = {
-        progress: 0,
-        total_size: 0,
-        downloaded: 0,
-        status: '',
-      }
+      resetUpdateState()
 
       ElMessage.success('已取消更新')
 

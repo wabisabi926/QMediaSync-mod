@@ -1,130 +1,82 @@
-<template>
-  <div class="login-container">
-    <div class="login-box">
-      <div class="login-header">
-        <h1 class="login-title">QMediaSync</h1>
-        <p class="login-subtitle">系统登录</p>
-      </div>
-
-      <el-form
-        :model="loginForm"
-        :rules="loginRules"
-        ref="loginFormRef"
-        class="login-form"
-        autocomplete="on"
-        @submit.prevent="handleLogin"
-      >
-        <el-form-item prop="username">
-          <el-input
-            v-model="loginForm.username"
-            size="large"
-            name="username"
-            autocomplete="username"
-            placeholder="请输入用户名…"
-            :prefix-icon="User"
-            :disabled="loading"
-          />
-        </el-form-item>
-
-        <el-form-item prop="password">
-          <el-input
-            v-model="loginForm.password"
-            type="password"
-            size="large"
-            name="password"
-            autocomplete="current-password"
-            placeholder="请输入密码…"
-            :prefix-icon="Lock"
-            show-password
-            :disabled="loading"
-          />
-        </el-form-item>
-
-        <el-form-item prop="totpCode">
-          <el-input
-            v-model="loginForm.totpCode"
-            size="large"
-            name="one-time-code"
-            autocomplete="one-time-code"
-            placeholder="动态验证码"
-            :prefix-icon="Key"
-            :disabled="loading"
-            maxlength="6"
-            inputmode="numeric"
-          />
-        </el-form-item>
-
-        <el-form-item>
-          <el-checkbox v-model="loginForm.rememberMe" :disabled="loading">
-            保持登录状态
-          </el-checkbox>
-        </el-form-item>
-
-        <el-form-item>
-          <el-button
-            type="primary"
-            size="large"
-            class="login-button"
-            native-type="submit"
-            :loading="loading"
-          >
-            {{ loading ? '登录中…' : '登录' }}
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
-import { reactive, shallowRef, inject, onMounted, useTemplateRef } from 'vue'
+import { computed, inject, onMounted, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { User, Lock, Key } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import type { AxiosStatic } from 'axios'
 import { SERVER_URL } from '@/const'
+import LoginForm, { type LoginSubmitPayload } from '@/components/auth/LoginForm.vue'
+import InitialAdminSetupForm, {
+  type InitialAdminSubmitPayload,
+} from '@/components/auth/InitialAdminSetupForm.vue'
+import { createInitialAdmin, fetchSetupStatus } from '@/composables/useInitialAdminSetup'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const http: AxiosStatic | undefined = inject('$http')
-
-const loginFormRef = useTemplateRef<FormInstance>('loginFormRef')
 const loading = shallowRef(false)
+const setupRequired = shallowRef(false)
+const setupStatusLoaded = shallowRef(false)
 
-const loginForm = reactive({
-  username: '',
-  password: '',
-  totpCode: '',
-  rememberMe: false,
-})
+const subtitle = computed(() => (setupRequired.value ? '创建管理员' : '系统登录'))
 
-const loginRules: FormRules = {
-  username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 2, max: 20, message: '用户名长度在 2 到 20 个字符', trigger: 'blur' },
-  ],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error && error.message) {
+    return error.message
+  }
+  if (error && typeof error === 'object' && 'response' in error) {
+    const response = (error as { response?: { data?: { message?: string } } }).response
+    if (response?.data?.message) {
+      return response.data.message
+    }
+  }
+  return fallback
 }
 
-const handleLogin = async () => {
-  if (loading.value) return
-  if (!loginFormRef.value) return
+const loadSetupStatus = async () => {
+  if (!http) {
+    setupStatusLoaded.value = true
+    return
+  }
+  try {
+    const status = await fetchSetupStatus(http)
+    setupRequired.value = status.required
+  } catch (error) {
+    console.error('查询初始化状态失败：', error)
+    setupRequired.value = false
+  } finally {
+    setupStatusLoaded.value = true
+  }
+}
+
+const handleCreateInitialAdmin = async (payload: InitialAdminSubmitPayload) => {
+  if (loading.value || !http) return
+  loading.value = true
+  try {
+    await createInitialAdmin(http, payload)
+    ElMessage.success('管理员创建成功，请登录')
+    setupRequired.value = false
+  } catch (error: unknown) {
+    console.error('创建管理员失败：', error)
+    ElMessage.error(getErrorMessage(error, '创建管理员失败，请检查网络连接'))
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleLogin = async (payload: LoginSubmitPayload) => {
+  if (loading.value || !http) return
 
   try {
-    const valid = await loginFormRef.value.validate()
-    if (!valid) return
-
     loading.value = true
-
     // 使用 JSON 格式发送请求，以支持 rememberMe 参数
     const response = await http?.post(
       `${SERVER_URL}/login`,
       {
-        username: loginForm.username,
-        password: loginForm.password,
-        totp_code: loginForm.totpCode,
-        rememberMe: loginForm.rememberMe,
+        username: payload.username,
+        password: payload.password,
+        totp_code: payload.totp_code,
+        rememberMe: payload.rememberMe,
       },
       {
         headers: {
@@ -150,16 +102,7 @@ const handleLogin = async () => {
     }
   } catch (error: unknown) {
     console.error('登录错误：', error)
-    let errorMsg = '登录失败，请检查网络连接'
-
-    if (error && typeof error === 'object' && 'response' in error) {
-      const response = (error as { response?: { data?: { message?: string } } }).response
-      if (response?.data?.message) {
-        errorMsg = response.data.message
-      }
-    }
-
-    ElMessage.error(errorMsg)
+    ElMessage.error(getErrorMessage(error, '登录失败，请检查网络连接'))
   } finally {
     loading.value = false
   }
@@ -169,9 +112,29 @@ const handleLogin = async () => {
 onMounted(() => {
   if (authStore.isAuthenticated) {
     router.push('/')
+    return
   }
+  void loadSetupStatus()
 })
 </script>
+
+<template>
+  <div class="login-container">
+    <div class="login-box">
+      <div class="login-header">
+        <h1 class="login-title">QMediaSync</h1>
+        <p class="login-subtitle">{{ subtitle }}</p>
+      </div>
+
+      <InitialAdminSetupForm
+        v-if="setupStatusLoaded && setupRequired"
+        :loading="loading"
+        @submit="handleCreateInitialAdmin"
+      />
+      <LoginForm v-else-if="setupStatusLoaded" :loading="loading" @submit="handleLogin" />
+    </div>
+  </div>
+</template>
 
 <style scoped>
 .login-container {
@@ -210,21 +173,6 @@ onMounted(() => {
   margin: 0;
 }
 
-.login-form {
-  width: 100%;
-}
-
-.login-form .el-form-item {
-  margin-bottom: 24px;
-}
-
-.login-button {
-  width: 100%;
-  height: 44px;
-  font-size: 16px;
-  font-weight: 500;
-}
-
 /* 移动端适配 */
 @media (max-width: 768px) {
   .login-container {
@@ -244,15 +192,6 @@ onMounted(() => {
   .login-subtitle {
     font-size: 14px;
   }
-
-  .login-form .el-form-item {
-    margin-bottom: 20px;
-  }
-
-  .login-button {
-    height: 40px;
-    font-size: 15px;
-  }
 }
 
 @media (max-width: 480px) {
@@ -267,10 +206,6 @@ onMounted(() => {
 
   .login-title {
     font-size: 22px;
-  }
-
-  .login-button {
-    height: 42px;
   }
 }
 </style>

@@ -1,7 +1,7 @@
 export function buildApiWebSocketUrl(
   serverUrl: string,
   apiPath: string,
-  currentHref = window.location.href,
+  currentHref = typeof window === 'undefined' ? 'http://localhost/' : window.location.href,
 ) {
   const normalizedPath = apiPath.startsWith('/') ? apiPath : `/${apiPath}`
   const current = new URL(currentHref)

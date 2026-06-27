@@ -107,6 +107,7 @@ DTO 负责：
 
 - `/proxy-115` 使用 `Proxy115Request` 和 `DownloadProxyURL` 限制目标下载域名，并在重定向时重新校验 Location，避免通过跳转绕过反代白名单。
 - 日志读取相关请求接受根日志文件名或 `libs/<日志文件名>`；拒绝绝对路径、路径穿越、非白名单子目录和多级子目录。
+- 同步任务详情实时流 `/api/sync/tasks/:id/stream` 不接受客户端传入日志路径，只使用 `ParsePositiveIDRequest` 校验路径 `id`，再由后端根据 `sync_id` 派生同步任务日志路径。
 - 临时图片读取请求只接受相对路径，并拒绝绝对路径和路径穿越。
 - 创建目录请求拒绝空名称、`.`、`..`、路径分隔符和控制字符。
 - Webhook JSON 模板会先替换内置变量再做 JSON 解析；Form 模板必须符合 `key=value&key2=value2` 格式。
@@ -116,7 +117,7 @@ DTO 负责：
 以下接口或参数仍是特殊实现，不应作为新增接口的默认写法：
 
 - 用户会话撤销使用 `session_id` 路径参数，当前直接从 `c.Param("session_id")` 读取。
-- 同步记录、同步任务详情、同步路径列表查询仍在 `controllers/sync.go` 使用控制器内局部 Request 结构。
+- 同步记录、同步任务详情 HTTP 查询、同步路径列表查询仍在 `controllers/sync.go` 使用控制器内局部 Request 结构；同步任务详情实时流在 `controllers/sync_task_stream.go` 使用 `ParsePositiveIDRequest` 解析路径 `id`，不新增 DTO。
 - Cron 预览和 Cron 验证工具接口仍在 `controllers/settings.go` 使用控制器内局部 Request 结构。
 - 备份上传恢复使用 multipart 文件流，文件读取、扩展名和临时文件处理仍保留在控制器中。
 - 迁移临时服务 `internal/migrate/server.go` 使用独立的启动期接口和包内私有 DTO，不纳入常规 API DTO 目录。

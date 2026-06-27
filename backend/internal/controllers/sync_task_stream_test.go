@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -53,5 +54,23 @@ func TestSyncTaskStreamSubscribesBeforeSnapshotReload(t *testing.T) {
 	}
 	if subscribeIndex > reloadIndex {
 		t.Fatal("同步任务 stream 应先订阅事件，再重读 snapshot，避免订阅前状态变化丢失")
+	}
+}
+
+func TestSyncTaskStreamSendsDeletedCompleteForMissingTask(t *testing.T) {
+	source, err := os.ReadFile("sync_task_stream.go")
+	if err != nil {
+		t.Fatalf("读取 sync_task_stream.go 失败：%v", err)
+	}
+
+	content := string(source)
+	if strings.Contains(content, "http.StatusNotFound") {
+		t.Fatal("同步任务 stream 不应在记录不存在时返回 HTTP 404，应发送 deleted complete 消息")
+	}
+	if !strings.Contains(content, "writeMissingSyncTaskComplete(c, idReq.ID)") {
+		t.Fatal("记录不存在时未进入 deleted complete helper")
+	}
+	if !strings.Contains(content, "SyncID:    syncID") || !regexp.MustCompile(`Deleted:\s+true`).MatchString(content) {
+		t.Fatal("未找到记录不存在时发送 deleted complete 消息的代码")
 	}
 }

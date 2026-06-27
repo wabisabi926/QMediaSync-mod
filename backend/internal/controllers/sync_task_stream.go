@@ -73,7 +73,7 @@ func SyncTaskStream(c *gin.Context) {
 
 	task, err := models.GetSyncByID(idReq.ID)
 	if err != nil || task == nil {
-		c.JSON(http.StatusNotFound, APIResponse[any]{Code: BadRequest, Message: "同步任务不存在", Data: nil})
+		writeMissingSyncTaskComplete(c, idReq.ID)
 		return
 	}
 
@@ -245,4 +245,24 @@ func writeSyncTaskStreamMessage(conn *websocket.Conn, msg syncTaskStreamMessage)
 		msg.ServerTime = time.Now().Unix()
 	}
 	return conn.WriteJSON(msg)
+}
+
+func writeMissingSyncTaskComplete(c *gin.Context, syncID uint) {
+	conn, err := syncTaskStreamUpgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	_ = writeSyncTaskStreamMessage(conn, syncTaskStreamMessage{
+		Type:       syncTaskStreamComplete,
+		Version:    syncTaskStreamVersion,
+		SyncID:     syncID,
+		ServerTime: time.Now().Unix(),
+		Data: ws.SyncTaskEventPayload{
+			SyncID:    syncID,
+			Deleted:   true,
+			EventTime: time.Now().Unix(),
+		},
+	})
 }

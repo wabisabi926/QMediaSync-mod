@@ -67,6 +67,37 @@ func TestUpdateProgressReturnsBadRequestWhenNoSnapshot(t *testing.T) {
 	}
 }
 
+func TestCancelUpdateMarksSnapshotCancelled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	oldInfo := currentUpdateInfo
+	oldCancel := currentUpdateCancel
+	t.Cleanup(func() {
+		currentUpdateInfo = oldInfo
+		currentUpdateCancel = oldCancel
+	})
+
+	cancelCalled := false
+	currentUpdateMu.Lock()
+	currentUpdateInfo = &updateInfo{Version: "v0.16.0", Status: string(updateStatusDownloading)}
+	currentUpdateCancel = func() { cancelCalled = true }
+	currentUpdateMu.Unlock()
+
+	req := httptest.NewRequest(http.MethodPost, "/api/update/cancel", nil)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+
+	CancelUpdate(c)
+
+	if !cancelCalled {
+		t.Fatal("取消函数未被调用")
+	}
+	info := getCurrentUpdateInfoSnapshot()
+	if info == nil || info.Status != string(updateStatusCancelled) {
+		t.Fatalf("取消后状态 = %+v，期望 cancelled", info)
+	}
+}
+
 func containsAll(raw string, parts []string) bool {
 	for _, part := range parts {
 		if !strings.Contains(raw, part) {

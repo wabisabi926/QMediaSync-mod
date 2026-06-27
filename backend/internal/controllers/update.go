@@ -86,6 +86,12 @@ func updateCurrentUpdateInfo(mutator func(*updateInfo)) {
 	mutator(currentUpdateInfo)
 }
 
+func isUpdateTerminalStatus(status string) bool {
+	return status == string(updateStatusCompleted) ||
+		status == string(updateStatusFailed) ||
+		status == string(updateStatusCancelled)
+}
+
 // GetLastRelease 获取最新版本列表
 // @Summary 获取最新版本
 // @Description 获取 GitHub 上最新的 5 个稳定版本
@@ -128,7 +134,7 @@ func GetLastRelease(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func UpdateToVersion(c *gin.Context) {
-	if currentUpdateInfo != nil {
+	if info := getCurrentUpdateInfoSnapshot(); info != nil && !isUpdateTerminalStatus(info.Status) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "正在更新中", Data: nil})
 		return
 	}
@@ -177,6 +183,8 @@ func UpdateToVersion(c *gin.Context) {
 			httpProxy = models.SettingsGlobal.HttpProxy
 		}
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	currentUpdateMu.Lock()
 	currentUpdateInfo = &updateInfo{
 		Version:     version,
 		DownloadURL: downloadURL,
@@ -184,37 +192,45 @@ func UpdateToVersion(c *gin.Context) {
 		TotalSize:   0,
 		Downloaded:  0,
 		Status:      string(updateStatusDownloading),
-		ctx:         context.Background(),
+		ctx:         ctx,
 	}
+	currentUpdateCancel = cancel
+	currentUpdateMu.Unlock()
 	// 启动一个更新协程，然后返回
 	go func() {
-		defer func() {
-			// currentUpdateInfo.ctx.Done()
-			currentUpdateInfo = nil
-		}()
 		updateFilePath := filepath.Join(helpers.ConfigDir, "tmp")
 		if helpers.PathExists(updateFilePath) {
 			os.MkdirAll(updateFilePath, 0777)
 		}
 		// 获取 URL 中的文件名
-		filename := filepath.Base(currentUpdateInfo.DownloadURL)
+		filename := filepath.Base(downloadURL)
 		updateFilename := filepath.Join(updateFilePath, filename)
 		if helpers.PathExists(updateFilename) {
 			os.Remove(updateFilename)
 		}
 		// 下载文件
-		err := helpers.DownloadFileWithProgress(currentUpdateInfo.ctx, httpProxy, currentUpdateInfo.DownloadURL, updateFilename, v115open.DEFAULTUA, func(progress int64, total int64) {
-			currentUpdateInfo.Progress = int(float64(progress) / float64(total) * 100)
-			currentUpdateInfo.TotalSize = total
-			currentUpdateInfo.Downloaded = progress
+		err := helpers.DownloadFileWithProgress(ctx, httpProxy, downloadURL, updateFilename, v115open.DEFAULTUA, func(progress int64, total int64) {
+			updateCurrentUpdateInfo(func(info *updateInfo) {
+				if total > 0 {
+					info.Progress = int(float64(progress) / float64(total) * 100)
+				}
+				info.TotalSize = total
+				info.Downloaded = progress
+			})
 		})
 		if err != nil {
 			helpers.AppLogger.Errorf("下载文件失败：%v", err)
+			updateCurrentUpdateInfo(func(info *updateInfo) {
+				if info.Status != string(updateStatusCancelled) {
+					info.Status = string(updateStatusFailed)
+					info.ErrorMessage = err.Error()
+				}
+			})
 			return
 		}
 		// 检查上下文是否被取消
 		select {
-		case <-currentUpdateInfo.ctx.Done():
+		case <-ctx.Done():
 			// 上下文被取消，删除下载的文件
 			os.Remove(updateFilename)
 			helpers.AppLogger.Infof("更新已取消，删除下载的文件：%s", updateFilename)
@@ -223,7 +239,11 @@ func UpdateToVersion(c *gin.Context) {
 			// 上下文未被取消，继续执行安装
 		}
 		// 修改为安装中
-		currentUpdateInfo.Status = string(updateStatusInstall)
+		updateCurrentUpdateInfo(func(info *updateInfo) {
+			info.Status = string(updateStatusInstall)
+			info.Progress = 100
+			info.Downloaded = info.TotalSize
+		})
 		// Windows 平台解压到 helpers.ConfigDir/update 目录下。
 		if runtime.GOOS == "windows" {
 			updateDestpath := filepath.Join(helpers.ConfigDir, "update")
@@ -266,16 +286,27 @@ func UpdateToVersion(c *gin.Context) {
 			}
 			// 启动更新脚本
 			if helpers.IsRelease {
+				updateCurrentUpdateInfo(func(info *updateInfo) {
+					if info.Status != string(updateStatusCancelled) && info.Status != string(updateStatusFailed) {
+						info.Status = string(updateStatusCompleted)
+						info.Progress = 100
+					}
+				})
 				// 启动更新脚本
 				triggerUpdate()
 			} else {
-				// 模拟更新结束，清除更新信息
-				currentUpdateInfo = nil
+				// 模拟更新结束
+				updateCurrentUpdateInfo(func(info *updateInfo) {
+					if info.Status != string(updateStatusCancelled) && info.Status != string(updateStatusFailed) {
+						info.Status = string(updateStatusCompleted)
+						info.Progress = 100
+					}
+				})
 			}
 			return
 		}
 		if helpers.IsRunningInDocker() {
-			folerName := filepath.Base(currentUpdateInfo.DownloadURL)
+			folerName := filepath.Base(downloadURL)
 			folerName = strings.ReplaceAll(folerName, ".tar.gz", "")
 			// 重新打包，将压缩包中的文件从 qmediasync_GOOS_GOARCH 目录打包到压缩包根目录。
 			// 解压后将文件从 qmediasync_GOOS_GOARCH 目录复制到 update 目录。
@@ -364,11 +395,16 @@ func UpdateToVersion(c *gin.Context) {
 				helpers.AppLogger.Infof("压缩包已删除：%s", destFile)
 			}
 			// 等待更新器重启应用
-			currentUpdateInfo = nil
 		}
+		updateCurrentUpdateInfo(func(info *updateInfo) {
+			if info.Status != string(updateStatusCancelled) && info.Status != string(updateStatusFailed) {
+				info.Status = string(updateStatusCompleted)
+				info.Progress = 100
+			}
+		})
 	}()
 	// 返回更新信息
-	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "更新开始", Data: currentUpdateInfo})
+	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "更新开始", Data: getCurrentUpdateInfoSnapshot()})
 }
 
 // UpdateProgress 获取更新进度
@@ -403,13 +439,22 @@ func UpdateProgress(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func CancelUpdate(c *gin.Context) {
+	currentUpdateMu.Lock()
+	cancel := currentUpdateCancel
 	if currentUpdateInfo == nil {
+		currentUpdateMu.Unlock()
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "未开始更新", Data: nil})
 		return
 	}
-	// 取消更新
-	currentUpdateInfo.ctx.Done()
-	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "更新已取消", Data: nil})
+	currentUpdateInfo.Status = string(updateStatusCancelled)
+	currentUpdateInfo.ErrorMessage = "用户取消更新"
+	currentUpdateCancel = nil
+	currentUpdateMu.Unlock()
+
+	if cancel != nil {
+		cancel()
+	}
+	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "更新已取消", Data: getCurrentUpdateInfoSnapshot()})
 }
 
 // listReleases 列出最新版本

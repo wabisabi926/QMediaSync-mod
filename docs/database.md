@@ -26,34 +26,37 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 当 `migrator` 表不存在时，`InitDB()` 会直接执行：
 
 1. `BatchCreateTable()`：对 `AllTables` 逐表执行 `AutoMigrate`。
-2. `InitMigrationTable(MaxVersionCode)`：写入当前版本号，当前值是 `46`。
+2. `InitMigrationTable(MaxVersionCode)`：写入当前版本号，当前值是 `47`。
 3. `InitSettings()`：创建默认 `settings` 记录。
-4. `InitUser()`：创建默认管理员用户。
-5. `InitScrapeSetting()`：创建默认刮削配置和默认分类。
-6. `InitEmbyConfig()`：创建默认 `emby_config` 记录。
+4. `InitScrapeSetting()`：创建默认刮削配置和默认分类。
+5. `InitEmbyConfig()`：创建默认 `emby_config` 记录。
 
-这意味着空库首次启动时，不会逐个版本回放历史迁移，而是直接初始化到当前结构版本。
+这意味着空库首次启动时，不会逐个版本回放历史迁移，而是直接初始化到当前结构版本。首次启动不会创建默认管理员；管理员由启动日志中的初始化码在 Web 登录页显式创建。
 
 ### 已有数据库
 
 当 `migrator` 表已存在时，`Migrate()` 会读取 `version_code`，然后按顺序执行版本补丁。每一步更新后都会把版本号加一，因此一次启动可以连续跨过多个历史版本。
 
-### 关键版本
+### 迁移历史
 
-| 版本 | 变更 |
-| --- | --- |
-| 35 | 拆分 `emby_config`，并清理重复的 `scrape_settings` 记录。 |
-| 36 | `settings` 新增 `file_list_page_size`。 |
-| 37 | `emby_config` 新增播放剧情简介和播放进度开关。 |
-| 38 | 为已有通知渠道补齐 `playback_*` 和 `scrape_error` 规则。 |
-| 39 | `account` 新增 `app_id_name`。 |
-| 40 | `account` 新增 `auth_source_type` 和 `auth_provider`。 |
-| 41 | `users`、`db_download_tasks`、`db_upload_tasks` 补齐两步验证和队列重试字段。 |
-| 42 | 新增 `emby_library_refresh_tasks`。 |
-| 43 | 下载 / 上传任务的 `source` 从展示文案迁移为稳定存储值。 |
-| 44 | 任务来源枚举迁移后的结构版本。 |
-| 45 | 新增 `user_sessions` 表，用于浏览器登录会话撤销、CSRF 校验和登录设备管理。 |
-| 46 | 当前数据库版本；通知渠道类型索引从唯一索引改为普通索引，并为已有渠道补齐缺失通知规则。 |
+下表的“起始版本”对应迁移执行前的 `migrator.version_code`。迁移成功后，`UpdateVersionCode()` 会把版本推进到“目标版本”。
+
+| 起始版本 | 目标版本 | 变更 |
+| --- | --- | --- |
+| 35 | 36 | 拆分 `emby_config`，并清理重复的 `scrape_settings` 记录。 |
+| 36 | 37 | `settings` 新增 `file_list_page_size`。 |
+| 37 | 38 | `emby_config` 新增播放剧情简介和播放进度开关。 |
+| 38 | 39 | 为已有通知渠道补齐 `playback_*` 和 `scrape_error` 规则。 |
+| 39 | 40 | `account` 新增 `app_id_name`。 |
+| 40 | 41 | `account` 新增 `auth_source_type` 和 `auth_provider`。 |
+| 41 | 42 | `users` 补齐两步验证字段，`db_download_tasks` 和 `db_upload_tasks` 补齐队列重试字段。 |
+| 42 | 43 | 新增 `emby_library_refresh_tasks` 表。 |
+| 43 | 44 | 下载 / 上传任务的 `source` 从展示文案迁移为稳定存储值。 |
+| 44 | 45 | 新增 `user_sessions` 表，用于浏览器登录会话撤销、CSRF 校验和登录设备管理。 |
+| 45 | 46 | 通知渠道类型索引从唯一索引改为普通索引，并为已有渠道补齐缺失通知规则。 |
+| 46 | 47 | `users` 新增 `singleton_key`，用唯一约束保证系统只存在一个登录用户。 |
+
+当前数据库版本是 `47`。
 
 ## 修复与重建
 
@@ -102,12 +105,13 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 
 - `id`：固定为 `1`。
 - `created_at` / `updated_at`：创建和更新时间。
-- `version_code`：当前数据库版本号，当前值为 `46`。
+- `version_code`：当前数据库版本号，当前值为 `47`。
 
 ### `users`
 
-登录用户表。
+登录用户表。系统按单用户模式运行，通过固定的 `singleton_key` 唯一约束保证只能存在一个登录用户。
 
+- `singleton_key`：固定为 `1` 的单用户约束键，唯一。
 - `username`：登录名，唯一。
 - `password`：bcrypt 哈希后的密码。
 - `two_factor_enabled`：是否启用两步验证。

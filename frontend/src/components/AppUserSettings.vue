@@ -11,9 +11,9 @@
           v-model="formData.username"
           placeholder="请输入新的管理员用户名"
           :disabled="loading"
-          maxlength="50"
+          maxlength="20"
         />
-        <div class="form-help">用户名长度至少 3 个字符，留空则不修改</div>
+        <div class="form-help">用户名长度必须在 3 到 20 个字符之间</div>
       </el-form-item>
 
       <el-form-item label="密码" prop="password">
@@ -25,7 +25,7 @@
           show-password
           maxlength="100"
         />
-        <div class="form-help">建议使用强密码，包含大小写字母、数字和特殊字符</div>
+        <div class="form-help">密码长度至少 6 个字符</div>
       </el-form-item>
 
       <el-form-item label="确认密码" prop="confirmPassword">
@@ -86,6 +86,7 @@ import { isMobile } from '@/utils/deviceUtils'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import TwoFactorSettings from '@/components/user-settings/TwoFactorSettings.vue'
+import { validatePassword, validateUsername } from '@/utils/userCredentials'
 interface UserSettings {
   username: string
   password: string
@@ -112,23 +113,27 @@ const formData = reactive<UserSettings>({
 
 // 表单验证
 const validateForm = (): boolean => {
-  if (formData.username && formData.username.length < 3) {
-    ElMessage.error('用户名长度至少 3 个字符')
+  const usernameError = validateUsername(formData.username)
+  if (usernameError) {
+    ElMessage.error(usernameError)
     return false
   }
 
-  if (formData.password && formData.password.length < 6) {
-    ElMessage.error('密码长度至少 6 个字符')
+  if (formData.password) {
+    const passwordError = validatePassword(formData.password)
+    if (passwordError) {
+      ElMessage.error(passwordError)
+      return false
+    }
+  }
+
+  if (!formData.password && formData.confirmPassword) {
+    ElMessage.error('请输入密码')
     return false
   }
 
   if (formData.password !== formData.confirmPassword) {
     ElMessage.error('两次输入的密码不一致')
-    return false
-  }
-
-  if (!formData.username && !formData.password) {
-    ElMessage.error('请至少修改用户名或密码中的一项')
     return false
   }
 
@@ -146,7 +151,7 @@ const saveSettings = async () => {
     saveStatus.value = null
 
     const requestData: Record<string, string> = {}
-    requestData.username = formData.username
+    requestData.username = formData.username.trim()
     requestData.new_password = formData.password
 
     const response = await http?.post(`${SERVER_URL}/user/change`, requestData, {

@@ -40,7 +40,7 @@ func TestRedactSensitiveLog(t *testing.T) {
 			t.Fatalf("脱敏结果仍包含敏感值 %q: %s", secret, got)
 		}
 	}
-	if !strings.Contains(got, "[REDACTED]") {
+	if !strings.Contains(got, "******") {
 		t.Fatalf("脱敏结果缺少占位符: %s", got)
 	}
 	if !strings.Contains(got, "http://user:pass@proxy.local:8080") {
@@ -58,8 +58,21 @@ func TestQLogger默认脱敏日志(t *testing.T) {
 	if strings.Contains(got, "emby-secret") {
 		t.Fatalf("普通日志不应输出敏感值: %s", got)
 	}
-	if !strings.Contains(got, "[REDACTED]") {
+	if !strings.Contains(got, "******") {
 		t.Fatalf("普通日志应输出脱敏占位符: %s", got)
+	}
+}
+
+func TestRedactSensitiveLogPostgresPasswordWithAmpersand(t *testing.T) {
+	input := "连接数据库：host=postgres port=5432 user=postgres password=secret&a#PMTeXv#@rNg8q&d dbname=qmediasync sslmode=disable"
+
+	got := RedactSensitiveLog(input)
+
+	if strings.Contains(got, "secret") || strings.Contains(got, "a#PMTeXv") || strings.Contains(got, "@rNg8q") {
+		t.Fatalf("PostgreSQL 密码未完整脱敏: %s", got)
+	}
+	if !strings.Contains(got, "password=****** dbname=qmediasync") {
+		t.Fatalf("PostgreSQL 密码应脱敏为六个星号并保留后续字段: %s", got)
 	}
 }
 

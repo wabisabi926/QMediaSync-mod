@@ -35,7 +35,10 @@ func TestLoginRequestValidate(t *testing.T) {
 		{name: "用户名和密码通过", req: LoginRequest{Username: "admin", Password: "secret"}},
 		{name: "用户名会去除空白后校验", req: LoginRequest{Username: " admin ", Password: "secret"}},
 		{name: "用户名为空失败", req: LoginRequest{Username: " ", Password: "secret"}, wantErr: true},
+		{name: "用户名过短失败", req: LoginRequest{Username: "ab", Password: "secret"}, wantErr: true},
+		{name: "用户名过长失败", req: LoginRequest{Username: "abcdefghijklmnopqrstu", Password: "secret"}, wantErr: true},
 		{name: "密码为空失败", req: LoginRequest{Username: "admin", Password: ""}, wantErr: true},
+		{name: "密码过短失败", req: LoginRequest{Username: "admin", Password: "12345"}, wantErr: true},
 	}
 
 	for _, tt := range tests {

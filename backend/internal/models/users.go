@@ -2,7 +2,6 @@ package models
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 
 	"qmediasync/internal/db"
@@ -14,6 +13,7 @@ import (
 
 type User struct {
 	BaseModel
+	SingletonKey           uint8  `gorm:"uniqueIndex;not null;default:1" json:"-"`
 	Username               string `gorm:"unique;not null" json:"username"`
 	Password               string `gorm:"not null"`
 	TwoFactorEnabled       bool   `gorm:"default:false" json:"two_factor_enabled"` // 是否启用两步验证
@@ -24,6 +24,11 @@ type User struct {
 // 表名
 func (User) TableName() string {
 	return "users"
+}
+
+func (user *User) BeforeCreate(tx *gorm.DB) error {
+	user.SingletonKey = 1
+	return nil
 }
 
 // IsTwoFactorEnabled 判断用户是否启用两步验证
@@ -76,10 +81,7 @@ func HasAnyUser() (bool, error) {
 // CreateInitialAdmin 创建首个管理员用户。
 func CreateInitialAdmin(username string, password string) (*User, error) {
 	username = strings.TrimSpace(username)
-	if username == "" {
-		return nil, fmt.Errorf("管理员用户名不能为空")
-	}
-	if err := ValidateUserPassword(password); err != nil {
+	if err := ValidateUserCredentials(username, password); err != nil {
 		return nil, err
 	}
 
@@ -96,7 +98,7 @@ func CreateInitialAdmin(username string, password string) (*User, error) {
 		if err != nil {
 			return err
 		}
-		created = User{Username: username, Password: hash}
+		created = User{SingletonKey: 1, Username: username, Password: hash}
 		return tx.Create(&created).Error
 	}); err != nil {
 		return nil, err
@@ -108,8 +110,12 @@ func CreateInitialAdmin(username string, password string) (*User, error) {
 // 修改用户密码
 // 传入用户 ID 和新密码，更新用户的密码
 func (user *User) ChangeUsernameAndPassword(username, newPassword string) (bool, error) {
+	username = strings.TrimSpace(username)
 	if username == user.Username && newPassword == "" {
 		return false, nil
+	}
+	if err := ValidateUserUsername(username); err != nil {
+		return false, err
 	}
 	isChange := false
 	if newPassword != "" {

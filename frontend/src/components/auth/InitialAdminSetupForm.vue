@@ -2,6 +2,11 @@
 import { reactive, shallowRef, useTemplateRef } from 'vue'
 import { Key, Lock, User } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
+import {
+  createElementCredentialRule,
+  createPasswordRule,
+  createUsernameRule,
+} from '@/utils/userCredentials'
 
 export interface InitialAdminSubmitPayload {
   setup_token: string
@@ -28,14 +33,8 @@ const form = reactive({
 
 const rules: FormRules = {
   setupToken: [{ required: true, message: '请输入初始化码', trigger: 'blur' }],
-  username: [
-    { required: true, message: '请输入管理员用户名', trigger: 'blur' },
-    { min: 2, max: 20, message: '用户名长度在 2 到 20 个字符', trigger: 'blur' },
-  ],
-  password: [
-    { required: true, message: '请输入管理员密码', trigger: 'blur' },
-    { min: 6, message: '密码长度至少 6 位', trigger: 'blur' },
-  ],
+  username: [createElementCredentialRule(createUsernameRule('管理员用户名'))],
+  password: [createElementCredentialRule(createPasswordRule('管理员密码'))],
   passwordConfirm: [
     { required: true, message: '请确认管理员密码', trigger: 'blur' },
     {

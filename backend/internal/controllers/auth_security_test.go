@@ -232,16 +232,8 @@ func TestAPIKeyHeaderSkipsCSRFAndWinsOverQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 header api key 失败: %v", err)
 	}
-	otherUser := &models.User{Username: "other", Password: "hashed"}
-	if err := db.Db.Create(otherUser).Error; err != nil {
-		t.Fatalf("创建其他用户失败: %v", err)
-	}
-	_, rawQueryKey, err := models.CreateAPIKey(otherUser.ID, "query")
-	if err != nil {
-		t.Fatalf("创建 query api key 失败: %v", err)
-	}
 
-	req := httptest.NewRequest(http.MethodPost, "/protected?api_key="+rawQueryKey, nil)
+	req := httptest.NewRequest(http.MethodPost, "/protected?api_key=invalid-query-key", nil)
 	req.Header.Set(apiKeyHeaderName, rawHeaderKey)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)

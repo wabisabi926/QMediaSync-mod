@@ -18,7 +18,7 @@ type Migrator struct {
 	VersionCode int `json:"version_code"` // 版本号
 }
 
-var MaxVersionCode = 46
+var MaxVersionCode = 47
 var AllTables = []any{
 	Migrator{},
 	BackupConfig{}, BackupRecord{},
@@ -526,6 +526,14 @@ func Migrate() {
 			return
 		}
 		addMissingNotificationRulesForExistingChannels(db.Db)
+		migrator.UpdateVersionCode(db.Db)
+	}
+	if migrator.VersionCode == 46 {
+		if err := db.Db.AutoMigrate(User{}); err != nil {
+			helpers.AppLogger.Errorf("迁移用户单用户约束失败：%v", err)
+			return
+		}
+		helpers.AppLogger.Info("已添加 users.singleton_key 单用户约束")
 		migrator.UpdateVersionCode(db.Db)
 	}
 	helpers.AppLogger.Infof("当前数据库版本 %d", migrator.VersionCode)

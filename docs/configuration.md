@@ -5,13 +5,13 @@
 - Web 默认端口：HTTP `12333`，HTTPS `12332`
 - Emby 代理默认端口：HTTP `8095`，HTTPS `8094`
 
-管理员密码使用 bcrypt 哈希保存，新生成和修改后的密码使用成本参数 `12`。旧成本哈希会在用户下一次成功登录后自动升级。
+管理员用户名和密码在创建、登录和修改时使用同一套校验规则：用户名去除首尾空白后长度必须为 3 到 20 个字符，密码长度至少 6 个字符。管理员密码使用 bcrypt 哈希保存，新生成和修改后的密码使用成本参数 `12`。旧成本哈希会在用户下一次成功登录后自动升级。
 
 ## 首次管理员初始化
 
 `config.yaml` 不保存管理员用户名和密码。首次启动并完成数据库初始化后，如果 `users` 表为空，程序会生成一次性初始化码并写入启动日志。打开 Web 登录页后，系统会显示创建管理员表单；输入启动日志中的初始化码、管理员用户名和密码后，后端会使用 bcrypt 哈希密码并创建首个管理员。
 
-初始化码只在用户表为空时生成，创建管理员成功后立即失效。若尚未创建管理员就重启程序，会生成新的初始化码。首次初始化应在可信网络内完成，避免无关人员访问 Web 页面。
+初始化码只在用户表为空时生成，创建管理员成功后立即失效。`users` 表通过唯一约束保证系统只存在一个登录用户；若尚未创建管理员就重启程序，会生成新的初始化码。首次初始化应在可信网络内完成，避免无关人员访问 Web 页面。
 
 ## 浏览器登录会话
 
@@ -70,7 +70,7 @@ emby302:
 
 当前自定义 `QLogger` 不提供运行时日志等级过滤；`Info`、`Warn`、`Error`、`Debug` 和显式敏感 `SensitiveDebug` 都会写入对应日志。日志前缀用于区分等级，但不会因为运行模式自动屏蔽 `Debug`。`gin.ReleaseMode` 只影响 Gin 自身模式，不控制 `QLogger` 的输出。
 
-运行日志默认会在写入前完全脱敏常见敏感字段，包括 `api_key`、`X-Emby-Token`、`Authorization`、`X-Emby-Authorization`、`X-API-Key`、`password`、`access_token`、`refresh_token`、`AccessKeySecret`、`SecurityToken`、`Cookie` 等。普通 `Info`、`Warn`、`Error` 和 `Debug` 日志都会执行脱敏，不保留敏感值开头或结尾字符。
+运行日志默认会在写入前完全脱敏常见敏感字段，包括 `api_key`、`X-Emby-Token`、`Authorization`、`X-Emby-Authorization`、`X-API-Key`、`password`、`access_token`、`refresh_token`、`AccessKeySecret`、`SecurityToken`、`Cookie` 等。普通 `Info`、`Warn`、`Error` 和 `Debug` 日志都会执行脱敏，不保留敏感值开头或结尾字符。脱敏后的敏感值统一显示为 `******`。
 
 需要临时排查 Emby 302 等链路的完整请求信息时，可以在本地调试环境设置 `QMS_UNSAFE_SENSITIVE_LOG=1`。该开关只影响显式标记为敏感的 `SensitiveDebug` 日志；启用后这类 Debug 日志可能包含 API Key、Token、Cookie 或密码，程序启动时会写入风险提示。不应在生产环境长期打开，也不应分享对应日志文件。
 

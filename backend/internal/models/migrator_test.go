@@ -93,6 +93,16 @@ type legacyUniqueNotificationChannel struct {
 	IsEnabled   bool `gorm:"default:true"`
 }
 
+type legacyUserWithoutSingletonKey struct {
+	BaseModel
+	Username string `gorm:"unique;not null"`
+	Password string `gorm:"not null"`
+}
+
+func (legacyUserWithoutSingletonKey) TableName() string {
+	return "users"
+}
+
 func (legacyUniqueNotificationChannel) TableName() string {
 	return "notification_channels"
 }
@@ -129,8 +139,8 @@ func TestMigrateNotificationChannelAllowsDuplicateTypesAndBackfillsRules(t *test
 	if err := db.Db.First(&migrator).Error; err != nil {
 		t.Fatalf("读取迁移版本失败: %v", err)
 	}
-	if migrator.VersionCode != 46 {
-		t.Fatalf("迁移版本 = %d，期望 46", migrator.VersionCode)
+	if migrator.VersionCode != 47 {
+		t.Fatalf("迁移版本 = %d，期望 47", migrator.VersionCode)
 	}
 
 	if err := db.Db.Create(&NotificationChannel{ChannelType: "telegram", ChannelName: "Telegram B", IsEnabled: true}).Error; err != nil {
@@ -147,6 +157,44 @@ func TestMigrateNotificationChannelAllowsDuplicateTypesAndBackfillsRules(t *test
 	}
 	if total != int64(len(notification.AllNotificationTypes)) {
 		t.Fatalf("补齐规则数量 = %d，期望 %d", total, len(notification.AllNotificationTypes))
+	}
+}
+
+func TestMigrateVersion46AddsUserSingletonKey(t *testing.T) {
+	if helpers.AppLogger == nil {
+		helpers.AppLogger = &helpers.QLogger{
+			Logger: log.New(io.Discard, "", 0),
+		}
+	}
+	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	db.Db = testDb
+	if err := db.Db.AutoMigrate(&Migrator{}, &legacyUserWithoutSingletonKey{}); err != nil {
+		t.Fatalf("创建旧用户测试表失败: %v", err)
+	}
+	if err := db.Db.Create(&Migrator{VersionCode: 46}).Error; err != nil {
+		t.Fatalf("创建迁移版本记录失败: %v", err)
+	}
+	if err := db.Db.Create(&legacyUserWithoutSingletonKey{Username: "admin", Password: "hashed"}).Error; err != nil {
+		t.Fatalf("创建旧用户失败: %v", err)
+	}
+
+	Migrate()
+
+	var migrator Migrator
+	if err := db.Db.First(&migrator).Error; err != nil {
+		t.Fatalf("读取迁移版本失败: %v", err)
+	}
+	if migrator.VersionCode != 47 {
+		t.Fatalf("迁移版本 = %d，期望 47", migrator.VersionCode)
+	}
+	if !db.Db.Migrator().HasColumn(&User{}, "singleton_key") {
+		t.Fatal("迁移应添加 users.singleton_key 字段")
+	}
+	if err := db.Db.Create(&User{Username: "other", Password: "hashed"}).Error; err == nil {
+		t.Fatal("迁移后创建第二个用户 error = nil，期望被唯一约束拒绝")
 	}
 }
 
@@ -180,8 +228,8 @@ func TestMigrateTaskSourceEnumValues(t *testing.T) {
 	if err := db.Db.First(&migrator).Error; err != nil {
 		t.Fatalf("读取迁移版本失败: %v", err)
 	}
-	if migrator.VersionCode != 46 {
-		t.Fatalf("迁移版本 = %d，期望 46", migrator.VersionCode)
+	if migrator.VersionCode != 47 {
+		t.Fatalf("迁移版本 = %d，期望 47", migrator.VersionCode)
 	}
 	if !db.Db.Migrator().HasTable(UserSession{}) {
 		t.Fatal("迁移应创建 user_sessions 表")

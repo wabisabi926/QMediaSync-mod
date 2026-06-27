@@ -78,7 +78,7 @@ DTO 负责：
 | `requests/emby.go` | Emby 配置 | Emby URL、同步 Cron、布尔开关枚举、媒体库 JSON 字符串。 |
 | `requests/backup.go` | 备份创建、列表、记录 ID、恢复和配置 | 手动备份原因默认值、分页默认值、备份记录 ID、启用开关、Cron、保留天数、最大备份数、压缩开关。 |
 | `requests/notification.go` | Telegram、MeoW、Bark、ServerChan、自定义 Webhook 渠道 | 渠道名称、必填凭据、URL、Webhook 方法、格式、认证方式和模板格式。 |
-| `requests/users.go` | 登录、启用/关闭两步验证、当前用户用户名/密码修改 | 登录用户名和密码必填、两步验证码必填、用户名长度、密码最小长度。 |
+| `requests/users.go` | 登录、启用/关闭两步验证、当前用户用户名/密码修改 | 登录、创建和修改使用统一用户名 / 密码规则；用户名去除首尾空白后长度为 3 到 20 个字符，密码长度至少 6 个字符；两步验证码必填。 |
 | `requests/operations.go` | 分页、ID、路径浏览、网盘文件、目录操作、队列、同步/刮削关联、日志、临时图片、版本更新 | 分页默认值和范围、HTTP path 正 ID、ID 列表、CSV ID、来源类型、文件夹名、路径穿越防护、日志文件名限制、版本号格式、日期范围。 |
 
 迁移临时服务是启动期流程，不纳入公共 `backend/internal/requests` 目录。它在 `backend/internal/migrate` 包内使用私有 DTO 校验 PostgreSQL 测试连接和保存配置请求。
@@ -97,7 +97,7 @@ DTO 负责：
 - `QueueListRequest.Status` 当前只绑定为 `int`，不做枚举限制，继续兼容现有前端和模型状态值。
 - `AISettingsRequest.EnableAI` 允许空值，避免旧前端或局部保存请求被误拒。
 - `CreateOpenListAccountRequest` 会自动补全缺失的 `http://` 协议，并去掉末尾 `/`。
-- `LoginRequest` 只做基础必填校验；控制器仍统一返回「登录失败」，不向客户端暴露用户名、密码或验证码的具体失败原因。
+- `LoginRequest` 与首次管理员创建、当前用户凭据修改使用同一套用户名 / 密码规则；控制器仍统一返回「登录失败」，不向客户端暴露用户名、密码或验证码的具体失败原因。
 - `BackupCreateRequest` 在原因为空时默认使用「手动备份」，与旧控制器行为一致。
 - `BackupListRequest` 保留旧分页兼容策略：页码小于 1 时回退为 1，每页数量小于 1 或大于 100 时回退为 20，类型为空时回退为 `all`。
 - 备份配置中 `backup_retention` 为 0 时表示不更新或使用既有值；大于 0 时限制为 1 到 365。

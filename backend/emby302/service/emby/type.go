@@ -63,7 +63,7 @@ func (ii ItemInfo) formatString(includeSensitive bool) string {
 	playbackInfoURI := ii.PlaybackInfoUri
 	if !includeSensitive {
 		if apiKey != "" {
-			apiKey = "[REDACTED]"
+			apiKey = helpers.SensitiveLogMask
 		}
 		playbackInfoURI = helpers.RedactSensitiveLog(playbackInfoURI)
 	}

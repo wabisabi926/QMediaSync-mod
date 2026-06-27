@@ -2,6 +2,11 @@
 import { reactive, shallowRef, useTemplateRef } from 'vue'
 import { Key, Lock, User } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
+import {
+  createElementCredentialRule,
+  createPasswordRule,
+  createUsernameRule,
+} from '@/utils/userCredentials'
 
 export interface LoginSubmitPayload {
   username: string
@@ -28,11 +33,8 @@ const loginForm = reactive({
 })
 
 const loginRules: FormRules = {
-  username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 2, max: 20, message: '用户名长度在 2 到 20 个字符', trigger: 'blur' },
-  ],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+  username: [createElementCredentialRule(createUsernameRule('用户名'))],
+  password: [createElementCredentialRule(createPasswordRule('密码'))],
 }
 
 const handleSubmit = async () => {

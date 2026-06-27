@@ -21,7 +21,7 @@ func TestItemInfoStringRedactsAPIKey(t *testing.T) {
 	if strings.Contains(got, "emby-secret") {
 		t.Fatalf("ItemInfo.String() 不应输出 API Key: %s", got)
 	}
-	if !strings.Contains(got, "[REDACTED]") {
+	if !strings.Contains(got, "******") {
 		t.Fatalf("ItemInfo.String() 应包含脱敏占位符: %s", got)
 	}
 }

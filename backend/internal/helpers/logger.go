@@ -20,7 +20,9 @@ var TMDBLog *QLogger
 
 const (
 	UnsafeSensitiveLogEnv = "QMS_UNSAFE_SENSITIVE_LOG"
-	redactedLogValue      = "[REDACTED]"
+	// SensitiveLogMask 是日志敏感值的统一脱敏占位符。
+	SensitiveLogMask = "******"
+	redactedLogValue = SensitiveLogMask
 )
 
 var (
@@ -28,6 +30,7 @@ var (
 	sensitiveLogMediaBrowserAuthRegexp = regexp.MustCompile(`(?i)(\b(?:authorization|x-emby-authorization)\b\s*[:=]\s*MediaBrowser\s+Token=")([^"]*)(")`)
 	sensitiveLogAuthRegexp             = regexp.MustCompile(`(?i)(\b(?:authorization|x-emby-authorization)\b\s*[:=]\s*)((?:Bearer|Basic|Token)\s+)?(\[[^\]]*\]|"[^"]*"|'[^']*'|[^\s&,;\]\}]+)`)
 	sensitiveLogCookieRegexp           = regexp.MustCompile(`(?i)(\b(?:cookie|set-cookie)\b\s*[:=]\s*)(\[[^\]]*\]|"[^"]*"|'[^']*'|[^,\]\}\n]+)`)
+	sensitiveLogSpaceKeyValueRegexp    = regexp.MustCompile(`(?i)(^|[\s,])(\b(?:password)\b\s*[:=]\s*)(\[[^\]]*\]|"[^"]*"|'[^']*'|[^\s,\]\}]+)`)
 	sensitiveLogKeyValueRegexp         = regexp.MustCompile(`(?i)(\b(?:api_key|apikey|x-emby-token|x-api-key|password|access_token|refresh_token|accesskeysecret|securitytoken)\b\s*[:=]\s*)(\[[^\]]*\]|"[^"]*"|'[^']*'|[^&\s,\]\}]+)`)
 )
 
@@ -53,6 +56,7 @@ func RedactSensitiveLog(input string) string {
 	output = sensitiveLogMediaBrowserAuthRegexp.ReplaceAllString(output, "${1}"+redactedLogValue+"${3}")
 	output = sensitiveLogAuthRegexp.ReplaceAllString(output, "${1}${2}"+redactedLogValue)
 	output = sensitiveLogCookieRegexp.ReplaceAllString(output, "${1}"+redactedLogValue)
+	output = sensitiveLogSpaceKeyValueRegexp.ReplaceAllString(output, "${1}${2}"+redactedLogValue)
 	output = sensitiveLogKeyValueRegexp.ReplaceAllString(output, "${1}"+redactedLogValue)
 	return output
 }

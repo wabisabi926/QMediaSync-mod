@@ -103,6 +103,27 @@ func TestCreateInitialAdminCreatesHashedFirstUser(t *testing.T) {
 	}
 }
 
+func TestCreateInitialAdminRejectsInvalidCredentials(t *testing.T) {
+	setupInitialAdminTestDB(t)
+	tests := []struct {
+		name     string
+		username string
+		password string
+	}{
+		{name: "用户名过短失败", username: "ab", password: "admin123"},
+		{name: "用户名过长失败", username: "abcdefghijklmnopqrstu", password: "admin123"},
+		{name: "密码过短失败", username: "admin", password: "12345"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := CreateInitialAdmin(tt.username, tt.password); err == nil {
+				t.Fatal("CreateInitialAdmin() error = nil，期望校验失败")
+			}
+		})
+	}
+}
+
 func TestCreateInitialAdminRejectsWhenUserExists(t *testing.T) {
 	setupInitialAdminTestDB(t)
 	if _, err := CreateInitialAdmin("admin", "admin123"); err != nil {
@@ -112,5 +133,16 @@ func TestCreateInitialAdminRejectsWhenUserExists(t *testing.T) {
 	_, err := CreateInitialAdmin("other", "other123")
 	if !errors.Is(err, ErrInitialAdminAlreadyExists) {
 		t.Fatalf("第二次 CreateInitialAdmin() error = %v，期望 ErrInitialAdminAlreadyExists", err)
+	}
+}
+
+func TestUserTableAllowsOnlyOneUser(t *testing.T) {
+	setupInitialAdminTestDB(t)
+	if err := db.Db.Create(&User{Username: "admin", Password: "hashed"}).Error; err != nil {
+		t.Fatalf("创建首个用户失败: %v", err)
+	}
+
+	if err := db.Db.Create(&User{Username: "other", Password: "hashed"}).Error; err == nil {
+		t.Fatal("创建第二个用户 error = nil，期望被唯一约束拒绝")
 	}
 }

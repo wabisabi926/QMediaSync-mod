@@ -100,6 +100,7 @@ import { SERVER_URL } from '@/const'
 import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
 import { useBackgroundRefresh } from '@/composables/useBackgroundRefresh'
 import { mergeStableList, retainExistingKeys } from '@/composables/useStableList'
+import { useWSEvent } from '@/composables/useWebSocket'
 import { usePageStateStore } from '@/stores/pageState'
 import type { RecordAction, RecordActionPayload, RecordColumn } from '@/types/recordTable'
 import { isMobile as checkIsMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
@@ -156,6 +157,25 @@ interface SyncRecordDeleteContextSnapshot {
   mode: 'single' | 'batch'
 }
 
+interface SyncTaskEventPayload {
+  sync_id: number
+  sync_path_id: number
+  status: number
+  sub_status: number
+  total: number
+  new_strm: number
+  new_meta: number
+  new_upload: number
+  finish_at: number
+  sequence: number
+  created_at?: number
+  updated_at?: number
+  local_path?: string
+  remote_path?: string
+  fail_reason?: string
+  deleted?: boolean
+}
+
 const http: AxiosStatic | undefined = inject('$http')
 const router = useRouter()
 
@@ -198,19 +218,72 @@ const pendingSyncRecordsRefresh = ref(false)
 let isPageActive = false
 const syncRecordsRequestGate = createActiveRequestGate(() => isPageActive)
 let stopDeviceTypeChange: (() => void) | null = null
+const lastSyncRecordEventSequence = new Map<number, number>()
+
+const mapSyncTaskPayloadToRecord = (payload: SyncTaskEventPayload): SyncRecord => ({
+  id: payload.sync_id,
+  start_time: payload.created_at || Math.floor(Date.now() / 1000),
+  end_time: payload.finish_at || null,
+  status: payload.status as 0 | 1 | 2 | 3,
+  sub_status: payload.sub_status as 0 | 1 | 2 | 3 | 4,
+  processed_files: payload.total,
+  created_strm: payload.new_strm,
+  downloaded_meta: payload.new_meta || 0,
+  uploaded_meta: payload.new_upload || 0,
+  local_path: payload.local_path || '',
+  remote_path: payload.remote_path || '',
+  fail_reason: payload.fail_reason || '',
+})
+
+const patchSyncRecordFromEvent = (raw: Record<string, unknown>) => {
+  const payload = raw as unknown as SyncTaskEventPayload
+  if (!payload.sync_id) {
+    return
+  }
+
+  const lastSequence = lastSyncRecordEventSequence.get(payload.sync_id) || 0
+  if (payload.sequence && payload.sequence <= lastSequence) {
+    return
+  }
+  lastSyncRecordEventSequence.set(payload.sync_id, payload.sequence || lastSequence)
+
+  const index = syncRecords.value.findIndex((record) => record.id === payload.sync_id)
+  if (payload.deleted) {
+    if (index >= 0) {
+      syncRecords.value.splice(index, 1)
+    }
+    total.value = Math.max(0, total.value - 1)
+    return
+  }
+
+  if (index >= 0) {
+    Object.assign(syncRecords.value[index], mapSyncTaskPayloadToRecord(payload))
+    return
+  }
+
+  if (currentPage.value === 1 && payload.created_at) {
+    syncRecords.value = mergeStableList(
+      syncRecords.value,
+      [mapSyncTaskPayloadToRecord(payload), ...syncRecords.value].slice(0, pageSize.value),
+      (row) => row.id,
+    )
+    total.value += 1
+    return
+  }
+
+  void loadSyncRecords()
+}
+
+const onLegacySyncEvent = () => {
+  void loadSyncRecords()
+}
 
 // WebSocket 事件监听
-import { useWSEvent } from '@/composables/useWebSocket'
-
-const onSyncStart = () => {
-  loadSyncRecords()
-}
-const onSyncComplete = () => {
-  loadSyncRecords()
-}
-
-useWSEvent('strm_sync_task_start', onSyncStart)
-useWSEvent('strm_sync_task_complete', onSyncComplete)
+useWSEvent('sync_task_created', patchSyncRecordFromEvent)
+useWSEvent('sync_task_updated', patchSyncRecordFromEvent)
+useWSEvent('sync_task_deleted', patchSyncRecordFromEvent)
+useWSEvent('strm_sync_task_start', onLegacySyncEvent)
+useWSEvent('strm_sync_task_complete', onLegacySyncEvent)
 
 // 获取状态标签类型
 const getStatusType = (status: number) => {

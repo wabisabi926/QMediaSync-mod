@@ -363,35 +363,36 @@
 
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
-import type { AxiosStatic } from 'axios'
-import { inject, onMounted, onUnmounted, ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { useWSEvent } from '@/composables/useWebSocket'
 import {
-  Plus,
-  Loading,
-  Folder,
-  VideoPlay,
-  Edit,
-  Delete,
-  Warning,
-  VideoPause,
-  InfoFilled,
-  Timer,
-  FolderOpened,
-  Files,
-  Clock,
-  User,
   Calendar,
+  CircleCheck,
+  Clock,
+  Delete,
+  Edit,
+  Files,
+  Folder,
+  FolderOpened,
+  InfoFilled,
+  Link,
+  Loading,
+  Plus,
+  QuestionFilled,
   Refresh,
   RefreshRight,
-  CircleCheck,
-  QuestionFilled,
-  Link,
+  Timer,
+  User,
+  VideoPause,
+  VideoPlay,
+  Warning,
 } from '@element-plus/icons-vue'
-import { formatTime } from '@/utils/timeUtils'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import type { AxiosStatic } from 'axios'
+import { computed, inject, onMounted, onUnmounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 import { sourceTypeTagMap, sourceTypeMap } from '@/utils/sourceTypeUtils'
+import { formatTime } from '@/utils/timeUtils'
 
 interface SyncDirectory {
   id: number
@@ -412,6 +413,15 @@ interface SyncDirectory {
   stopping?: boolean
 }
 
+interface SyncTaskEventPayload {
+  sync_id: number
+  sync_path_id: number
+  status: number
+  sequence: number
+  event_time?: number
+  deleted?: boolean
+}
+
 const http: AxiosStatic | undefined = inject('$http')
 const router = useRouter()
 
@@ -429,6 +439,8 @@ const scrapePathOptions = ref<{ id: number; label: string }[]>([])
 const scrapePathsLoading = ref(false)
 const saveScrapePathLoading = ref(false)
 const currentSyncDirectory = ref<SyncDirectory | null>(null)
+const lastSyncPathEventSequence = new Map<number, number>()
+const lastSyncPathEventTime = new Map<number, number>()
 
 const runningCount = computed(() => directories.value.filter((d) => d.is_running === 2).length)
 const waitingCount = computed(() => directories.value.filter((d) => d.is_running === 1).length)
@@ -503,6 +515,46 @@ const updatePathesStatus = async () => {
         path.is_running = p.is_running
       }
     }
+  }
+}
+
+const patchSyncPathStatus = (raw: Record<string, unknown>) => {
+  const payload = raw as unknown as SyncTaskEventPayload
+  if (!payload.sync_path_id) {
+    return
+  }
+
+  const lastEventTime = lastSyncPathEventTime.get(payload.sync_path_id) || 0
+  if (payload.event_time && payload.event_time < lastEventTime) {
+    return
+  }
+  if (payload.event_time) {
+    lastSyncPathEventTime.set(payload.sync_path_id, payload.event_time)
+  }
+
+  const sequenceKey = payload.sync_id || payload.sync_path_id
+  const lastSequence = lastSyncPathEventSequence.get(sequenceKey) || 0
+  if (payload.sequence && payload.sequence <= lastSequence) {
+    return
+  }
+  lastSyncPathEventSequence.set(sequenceKey, payload.sequence || lastSequence)
+
+  const path = directories.value.find((item) => item.id === payload.sync_path_id)
+  if (!path) {
+    void updatePathesStatus()
+    return
+  }
+
+  if (payload.deleted || payload.status === 2 || payload.status === 3) {
+    path.is_running = 0
+    return
+  }
+  if (payload.status === 0) {
+    path.is_running = 1
+    return
+  }
+  if (payload.status === 1) {
+    path.is_running = 2
   }
 }
 
@@ -737,15 +789,16 @@ const saveScrapePathRelation = async () => {
   }
 }
 
-// WebSocket 事件监听
-import { useWSEvent } from '@/composables/useWebSocket'
-
-const onSyncEvent = () => {
-  updatePathesStatus()
+const onLegacySyncEvent = () => {
+  void updatePathesStatus()
 }
 
-useWSEvent('strm_sync_task_start', onSyncEvent)
-useWSEvent('strm_sync_task_complete', onSyncEvent)
+// WebSocket 事件监听
+useWSEvent('sync_task_created', patchSyncPathStatus)
+useWSEvent('sync_task_updated', patchSyncPathStatus)
+useWSEvent('sync_task_deleted', patchSyncPathStatus)
+useWSEvent('strm_sync_task_start', onLegacySyncEvent)
+useWSEvent('strm_sync_task_complete', onLegacySyncEvent)
 
 let removeDeviceTypeListener: (() => void) | null = null
 

@@ -11,6 +11,8 @@ go run .
 
 ## 前端启动
 
+前端依赖要求 Node `>=22.22.2`，pnpm 使用 11.x。
+
 ```bash
 cd frontend
 corepack enable

@@ -1,3 +1,6 @@
+overrides:
+  ini: 7.0.0
+
 allowBuilds:
   esbuild: true
   vue-demi: true

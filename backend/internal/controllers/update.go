@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 
 	"qmediasync/internal/db"
 	"qmediasync/internal/github"
@@ -30,25 +31,60 @@ type version struct {
 	Latest  bool   `json:"latest"`
 }
 
-type udpateStatus string
+type updateStatus string
 
 const (
-	updateStatusDownloading udpateStatus = "downloading" // 正在下载
-	updateStatusInstall     udpateStatus = "install"     // 安装中
+	updateStatusDownloading updateStatus = "downloading" // 正在下载
+	updateStatusInstall     updateStatus = "install"     // 安装中
+	updateStatusCompleted   updateStatus = "completed"   // 已完成
+	updateStatusFailed      updateStatus = "failed"      // 失败
+	updateStatusCancelled   updateStatus = "cancelled"   // 已取消
 )
 
 type updateInfo struct {
-	Version     string          `json:"version"`     // 要更新的版本
-	DownloadURL string          `json:"downloadURL"` // 下载链接
-	Progress    int             `json:"progress"`    // 下载进度
-	TotalSize   int64           `json:"total_size"`  // 总大小
-	Downloaded  int64           `json:"downloaded"`  // 已下载大小
-	Checksum    string          `json:"checksum"`    // 校验和
-	Status      string          `json:"status"`      // 状态
-	ctx         context.Context `json:"-"`           // 上下文
+	Version      string          `json:"version"`                 // 要更新的版本
+	DownloadURL  string          `json:"downloadURL"`             // 下载链接
+	Progress     int             `json:"progress"`                // 下载进度
+	TotalSize    int64           `json:"total_size"`              // 总大小
+	Downloaded   int64           `json:"downloaded"`              // 已下载大小
+	Checksum     string          `json:"checksum"`                // 校验和
+	Status       string          `json:"status"`                  // 状态
+	ErrorMessage string          `json:"error_message,omitempty"` // 错误信息
+	ctx          context.Context `json:"-"`                       // 上下文
 }
 
-var currentUpdateInfo *updateInfo
+var (
+	currentUpdateInfo   *updateInfo
+	currentUpdateCancel context.CancelFunc
+	currentUpdateMu     sync.RWMutex
+)
+
+func getCurrentUpdateInfoSnapshot() *updateInfo {
+	currentUpdateMu.RLock()
+	defer currentUpdateMu.RUnlock()
+	if currentUpdateInfo == nil {
+		return nil
+	}
+	info := *currentUpdateInfo
+	info.ctx = nil
+	return &info
+}
+
+func setCurrentUpdateInfoForTest(info *updateInfo) {
+	currentUpdateMu.Lock()
+	defer currentUpdateMu.Unlock()
+	currentUpdateInfo = info
+	currentUpdateCancel = nil
+}
+
+func updateCurrentUpdateInfo(mutator func(*updateInfo)) {
+	currentUpdateMu.Lock()
+	defer currentUpdateMu.Unlock()
+	if currentUpdateInfo == nil {
+		return
+	}
+	mutator(currentUpdateInfo)
+}
 
 // GetLastRelease 获取最新版本列表
 // @Summary 获取最新版本
@@ -347,11 +383,12 @@ func UpdateToVersion(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func UpdateProgress(c *gin.Context) {
-	if currentUpdateInfo == nil {
+	info := getCurrentUpdateInfoSnapshot()
+	if info == nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "未开始更新", Data: nil})
 		return
 	}
-	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "更新进度", Data: currentUpdateInfo})
+	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "更新进度", Data: info})
 }
 
 // CancelUpdate 取消更新

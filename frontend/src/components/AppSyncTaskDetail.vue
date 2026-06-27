@@ -16,7 +16,7 @@
 
       <div class="task-content">
         <!-- 任务基本信息 -->
-        <div class="task-info" v-loading="infoLoading">
+        <div class="task-info" v-loading="loading && !taskInfo">
           <h3>任务信息</h3>
           <el-descriptions :column="1" border>
             <el-descriptions-item label="任务 ID">{{ taskId }}</el-descriptions-item>
@@ -58,6 +58,15 @@
           </el-descriptions>
         </div>
 
+        <el-alert
+          v-if="errorMessage"
+          class="task-stream-alert"
+          type="warning"
+          :title="errorMessage"
+          :closable="false"
+          show-icon
+        />
+
         <!-- 执行时间线 -->
         <div class="execution-timeline" v-if="taskInfo">
           <h3>执行时间线</h3>
@@ -92,10 +101,7 @@
 
         <!-- 同步日志 -->
         <div class="task-logs">
-          <AppLogViewer
-            :log-path="`libs/sync_${taskId}.log`"
-            :is-real-time="taskInfo ? taskInfo.status === 0 || taskInfo.status === 1 : false"
-          />
+          <SyncTaskLogPanel :logs="logs" :connected="connected" />
         </div>
       </div>
     </el-card>
@@ -103,8 +109,6 @@
 </template>
 
 <script setup lang="ts">
-import { SERVER_URL } from '@/const'
-import type { AxiosStatic } from 'axios'
 import {
   ArrowLeft,
   Clock,
@@ -113,9 +117,10 @@ import {
   Download,
   SuccessFilled,
 } from '@element-plus/icons-vue'
-import { inject, onMounted, ref } from 'vue'
-import AppLogViewer from './AppLogViewer.vue'
+import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import SyncTaskLogPanel from '@/components/sync-task/SyncTaskLogPanel.vue'
+import { useSyncTaskStream } from '@/composables/useSyncTaskStream'
 import { formatDateTime } from '@/utils/timeUtils'
 
 // 任务详情数据结构
@@ -128,6 +133,7 @@ interface TaskInfo {
   processed_files: number
   created_strm: number
   downloaded_meta: number
+  uploaded_meta: number
   // 时间线相关字段
   net_file_start_at: number | null
   net_file_finish_at: number | null
@@ -135,25 +141,32 @@ interface TaskInfo {
   local_file_finish_at: number | null
 }
 
-const http: AxiosStatic | undefined = inject('$http')
 const route = useRoute()
 const router = useRouter()
 
 // 获取任务 ID
-const taskId = ref(route.params.id as string)
+const taskId = computed(() => Number(route.params.id))
 
-// 数据状态
-const taskInfo = ref<TaskInfo | null>(null)
-const infoLoading = ref(false)
+const { task, logs, loading, connected, errorMessage } = useSyncTaskStream(taskId)
 
-// WebSocket 事件监听
-import { useWSEvent } from '@/composables/useWebSocket'
-
-const onSyncComplete = () => {
-  loadTaskInfo()
-}
-
-useWSEvent('strm_sync_task_complete', onSyncComplete)
+const taskInfo = computed<TaskInfo | null>(() => {
+  if (!task.value) return null
+  return {
+    id: task.value.id,
+    start_time: task.value.created_at,
+    end_time: task.value.finish_at || null,
+    status: task.value.status,
+    sub_status: task.value.sub_status,
+    processed_files: task.value.total,
+    created_strm: task.value.new_strm,
+    downloaded_meta: task.value.new_meta || 0,
+    uploaded_meta: task.value.new_upload || 0,
+    net_file_start_at: task.value.net_file_start_at || null,
+    net_file_finish_at: task.value.net_file_finish_at || null,
+    local_file_start_at: task.value.local_file_start_at || null,
+    local_file_finish_at: task.value.local_file_finish_at || null,
+  }
+})
 
 // 返回上一页
 const goBack = () => {
@@ -326,42 +339,6 @@ const getTimelineItems = () => {
 
   return items
 }
-
-// 加载任务信息
-const loadTaskInfo = async () => {
-  try {
-    infoLoading.value = true
-    const response = await http?.get(`${SERVER_URL}/sync/task?sync_id=${taskId.value}`)
-
-    if (response?.data.code === 200) {
-      const data = response.data.data
-      taskInfo.value = {
-        id: data.id,
-        start_time: data.created_at,
-        end_time: data.finish_at,
-        status: data.status as 0 | 1 | 2 | 3,
-        sub_status: data.sub_status as 0 | 1 | 2,
-        processed_files: data.total,
-        created_strm: data.new_strm,
-        downloaded_meta: data.new_meta || 0,
-        net_file_start_at: data.net_file_start_at || null,
-        net_file_finish_at: data.net_file_finish_at || null,
-        local_file_start_at: data.local_file_start_at || null,
-        local_file_finish_at: data.local_file_finish_at || null,
-      }
-    }
-  } catch (error) {
-    console.error('加载任务信息错误：', error)
-  } finally {
-    infoLoading.value = false
-    // 不再需要定时器检查
-  }
-}
-
-// 页面挂载时加载数据
-onMounted(() => {
-  loadTaskInfo()
-})
 </script>
 
 <style scoped>
@@ -421,6 +398,10 @@ onMounted(() => {
 
 .execution-timeline {
   margin-bottom: 30px;
+}
+
+.task-stream-alert {
+  margin-bottom: 24px;
 }
 
 .execution-timeline h3 {

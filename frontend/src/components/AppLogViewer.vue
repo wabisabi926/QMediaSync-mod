@@ -72,6 +72,7 @@ import { Connection, Close, Delete, Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { SERVER_URL } from '@/const'
 import { formatDateTime } from '@/utils/timeUtils'
+import { buildApiWebSocketUrl } from '@/utils/wsUrl'
 
 // 定义组件属性
 interface Props {
@@ -110,11 +111,10 @@ let isAtTop = true
 let lastScrollTop = 0
 let isManualDisconnect = false
 let hasReachedEnd = false
+let followLatest = true
 
 // WebSocket URL 配置
-let wsUrl = SERVER_URL.replace('http', 'ws')
-wsUrl = wsUrl.replace('https', 'ws')
-const WS_URL = `${wsUrl}/logs/ws`
+const WS_URL = buildApiWebSocketUrl(SERVER_URL, '/logs/ws')
 const HTTP_URL = `${SERVER_URL}/logs/old`
 
 const readLogResponseError = async (response: Response) => {
@@ -132,12 +132,33 @@ const limitedLogLines = computed(() => {
   return logLines.value.slice(0, MAX_LOG_ENTRIES)
 })
 
-// 监听日志路径变化，自动重新连接
+const resetLogState = () => {
+  currentOffset = 0
+  hasReachedEnd = false
+  isAtTop = true
+  lastScrollTop = 0
+  followLatest = true
+  logLines.value = []
+}
+
+// 监听日志路径和实时模式变化，自动维护连接
 watch(
-  () => props.logPath,
-  (newPath) => {
-    if (newPath && isConnected.value) {
-      reconnectWebSocket()
+  () => [props.logPath, props.isRealTime] as const,
+  async ([logPath, isRealTime], oldValue) => {
+    const oldLogPath = oldValue?.[0] ?? ''
+    const normalizedLogPath = logPath.trim()
+    if (logPath !== oldLogPath) {
+      disconnect({ silent: true })
+      resetLogState()
+      if (normalizedLogPath) {
+        await loadInitialLogs()
+      }
+    }
+    if (isRealTime && normalizedLogPath && !isWebSocketConnected()) {
+      connect()
+    }
+    if (!isRealTime && ws.value) {
+      disconnect({ silent: true })
     }
   },
 )
@@ -146,10 +167,7 @@ watch(
 onMounted(async () => {
   // 如果提供了日志路径，先加载历史日志
   if (props.logPath) {
-    // 设置初始偏移量为 0
-    currentOffset = 0
-    // 清空现有日志
-    logLines.value = []
+    resetLogState()
     // 加载历史日志，设置 limit 为 1000
     await loadInitialLogs()
     // 只有在实时日志模式下才建立 WebSocket 连接
@@ -173,7 +191,7 @@ const loadInitialLogs = async () => {
   const apiUrl = `${HTTP_URL}?path=${encodeURIComponent(logPath)}&pos=-1&direction=forward&limit=1000`
 
   try {
-    const response = await fetch(apiUrl)
+    const response = await fetch(apiUrl, { credentials: 'include' })
     if (!response.ok) {
       throw new Error(await readLogResponseError(response))
     }
@@ -199,7 +217,7 @@ const loadInitialLogs = async () => {
 
 // 清理资源
 onUnmounted(() => {
-  disconnect()
+  disconnect({ silent: true })
   if (cleanupTimer) {
     clearTimeout(cleanupTimer)
   }
@@ -215,6 +233,7 @@ const handleScroll = () => {
 
   // 判断是否在顶部
   isAtTop = scrollTop === 0
+  followLatest = scrollTop <= 20
 
   // 检查是否需要重新连接 WebSocket（当回到顶部时）
   if (isAtTop && lastScrollTop > 0) {
@@ -255,6 +274,14 @@ const addLogEntry = (entry: LogEntry) => {
 
   // 防抖清理检查
   debouncedCleanupLogs()
+
+  if (followLatest) {
+    requestAnimationFrame(() => {
+      if (logsContainer.value) {
+        logsContainer.value.scrollTop = 0
+      }
+    })
+  }
 }
 
 // 添加系统日志
@@ -285,9 +312,13 @@ const connect = () => {
   }
 
   // 构建 WebSocket URL
+  if (ws.value) {
+    disconnect({ silent: true })
+  }
   const wsUrl = `${WS_URL}?path=${encodeURIComponent(logPath)}`
 
   try {
+    isManualDisconnect = false
     ws.value = new WebSocket(wsUrl)
 
     ws.value.onopen = () => {
@@ -331,12 +362,13 @@ const connect = () => {
 }
 
 // 断开 WebSocket 连接
-const disconnect = () => {
+const disconnect = (options: { silent?: boolean } = {}) => {
   if (ws.value) {
-    isManualDisconnect = true
+    isManualDisconnect = !options.silent
     ws.value.close()
     ws.value = null
   }
+  isConnected.value = false
 }
 
 // 重新连接 WebSocket
@@ -346,14 +378,7 @@ const reconnectWebSocket = () => {
     return
   }
 
-  // 断开现有连接（不显示关闭信息）
-  if (ws.value) {
-    ws.value.close()
-    ws.value = null
-  }
-
-  // 加载初始化日志
-  loadInitialLogs()
+  disconnect({ silent: true })
   if (!props.isRealTime) {
     return
   }
@@ -380,16 +405,14 @@ const loadOldLogs = () => {
 
   // 加载旧日志时断开 WebSocket 连接，避免新日志干扰
   if (isWebSocketConnected()) {
-    ws.value?.close()
-    ws.value = null
-    isConnected.value = false
+    disconnect({ silent: true })
   }
 
   // 构建 HTTP 请求 URL
   const apiUrl = `${HTTP_URL}?path=${encodeURIComponent(logPath)}&pos=${currentOffset}&direction=forward&limit=100`
 
   // 发送 HTTP 请求
-  fetch(apiUrl)
+  fetch(apiUrl, { credentials: 'include' })
     .then(async (response) => {
       if (!response.ok) {
         throw new Error(await readLogResponseError(response))

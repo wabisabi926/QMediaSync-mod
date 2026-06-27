@@ -235,6 +235,22 @@ func (app *App) StartDatabase(migrateMode bool) error {
 	return nil
 }
 
+func configureInitialAdminSetup() error {
+	hasUser, err := models.HasAnyUser()
+	if err != nil {
+		return err
+	}
+	token, err := controllers.ConfigureInitialSetup(!hasUser)
+	if err != nil {
+		return err
+	}
+	if token != "" {
+		helpers.AppLogger.Warnf("检测到系统尚未创建管理员，请使用以下初始化码完成首次管理员创建：%s", token)
+		helpers.AppLogger.Warnf("初始化码只会在本次启动日志中显示，创建管理员成功后立即失效")
+	}
+	return nil
+}
+
 func newApp() {
 	if QMSApp != nil {
 		log.Println("App 已经初始化，不能再次初始化")
@@ -543,6 +559,8 @@ func setRouter(r *gin.Engine) {
 	})
 	r.POST("/emby/webhook", controllers.Webhook)
 	r.POST("/api/login", controllers.LoginAction)
+	r.GET("/api/setup/status", controllers.SetupStatusAction)
+	r.POST("/api/setup/admin", controllers.CreateInitialAdminAction)
 	r.GET("/api/session", controllers.SessionAction)
 	r.GET("/115/url/*filename", controllers.Get115UrlByPickCode)           // 查询 115 直链，按 PickCode 查询，支持 ISO，路径最后一部分为 .扩展名格式
 	r.GET("/115/newurl", controllers.Get115UrlByPickCode)                  // 查询 115 直链，按 PickCode 查询
@@ -850,6 +868,11 @@ func initEnv() bool {
 		if needMigrate {
 			return false
 		}
+	}
+
+	if err := configureInitialAdminSetup(); err != nil {
+		helpers.AppLogger.Errorf("初始化管理员创建状态失败：%v", err)
+		return false
 	}
 
 	db.InitCache() // 初始化内存缓存

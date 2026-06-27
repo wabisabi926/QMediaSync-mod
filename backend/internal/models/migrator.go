@@ -10,7 +10,6 @@ import (
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/notification"
 
-	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -564,8 +563,6 @@ func InitDB() bool {
 	InitMigrationTable(MaxVersionCode)
 	// 初始化默认配置
 	InitSettings()
-	// 初始化用户
-	InitUser()
 	// 初始化刮削配置
 	InitScrapeSetting()
 	// 初始化 Emby 配置
@@ -615,31 +612,6 @@ func InitSettings() {
 	}
 	db.Db.Save(&defaultSettings)
 	helpers.AppLogger.Info("已默认添加配置")
-}
-
-func InitUser() {
-
-	defaultUser := User{
-		// 设置默认值
-		Username: helpers.GlobalConfig.AdminUsername,
-		Password: helpers.GlobalConfig.AdminPassword,
-	}
-	if defaultUser.Username == "" {
-		defaultUser.Username = "admin"
-	}
-	if defaultUser.Password == "" {
-		defaultUser.Password = "admin123"
-	}
-	if err := ValidateUserPassword(defaultUser.Password); err != nil {
-		panic(fmt.Sprintf("管理员初始密码无效：%v", err))
-	}
-	password, _ := bcrypt.GenerateFromPassword([]byte(defaultUser.Password), UserPasswordBcryptCost)
-	defaultUser.Password = string(password)
-	uerr := db.Db.Model(&User{}).First(&defaultUser).Error
-	if errors.Is(uerr, gorm.ErrRecordNotFound) {
-		db.Db.Save(&defaultUser)
-	}
-	helpers.AppLogger.Infof("已默认添加管理员用户：%s 密码：%s", defaultUser.Username, defaultUser.Password)
 }
 
 func InitScrapeSetting() {

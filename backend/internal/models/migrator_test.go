@@ -5,6 +5,7 @@ import (
 	"log"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 
@@ -40,6 +41,28 @@ func TestBatchCreateTableCreatesEmbyLibraryRefreshTasksTable(t *testing.T) {
 	}
 	if !db.Db.Migrator().HasTable(EmbyLibraryRefreshTask{}) {
 		t.Fatal("批量建表应创建 emby_library_refresh_tasks 表")
+	}
+}
+
+func TestInitDBDoesNotCreateDefaultAdmin(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	db.Db = testDb
+	helpers.AppLogger = &helpers.QLogger{
+		Logger: log.New(io.Discard, "", 0),
+	}
+
+	InitDB()
+
+	var count int64
+	if err := db.Db.Model(&User{}).Count(&count).Error; err != nil {
+		t.Fatalf("统计用户失败: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("新库初始化后用户数量 = %d，期望 0", count)
 	}
 }
 

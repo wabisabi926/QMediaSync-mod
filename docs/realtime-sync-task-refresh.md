@@ -65,7 +65,7 @@
 - 日志文件不存在时，历史读取返回空日志和 cursor `0`。
 - tailer 发现日志文件缺失、截断或订阅者缓冲满时，会发送 `resync_required`。
 - tailer 检测文件大小小于 cursor 时重置 cursor，并要求前端重新同步。
-- 半行日志会暂存在 tailer 中，直到收到换行后再发送完整日志。
+- 半行日志会暂存在 tailer 中，直到收到换行后再发送完整日志；半行超过 1 MiB 时会清空缓存并发送 `resync_required`。
 - 按 cursor 补读最多读取有限行数，超过补读窗口时发送 `resync_required`。
 
 ## 兼容和暂不迁移范围

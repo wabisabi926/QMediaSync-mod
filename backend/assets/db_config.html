@@ -222,33 +222,13 @@
 
         <div id="message" class="message"></div>
 
-        <div id="step-admin" class="step active">
-            <p class="subtitle">请设置管理员账号：</p>
-            <div class="form-group">
-                <label for="adminUsername">管理员用户名</label>
-                <input type="text" id="adminUsername" value="admin">
-            </div>
-            <div class="form-group">
-                <label for="adminPassword">管理员密码</label>
-                <input type="password" id="adminPassword" placeholder="输入密码" minlength="6">
-            </div>
-            <div class="form-group">
-                <label for="adminPasswordConfirm">确认密码</label>
-                <input type="password" id="adminPasswordConfirm" placeholder="再次输入密码" minlength="6">
-            </div>
-            <div class="btn-group">
-                <button class="btn" onclick="goToEngineSelect()">下一步</button>
-            </div>
-        </div>
-
-        <div id="step-engine" class="step">
+        <div id="step-engine" class="step active">
             <p class="subtitle">请选择数据库引擎：</p>
             <div class="btn-group">
                 <button class="btn" onclick="selectEngine('sqlite')">SQLite</button>
                 <p style="font-size: 16px; color: #333; text-align: center; margin-top: -8px;">最简单的方案，无需配置，Windows 或者 飞牛应用 建议选择，但是读写频繁时容易锁库，出现掉授权等现象。</p>
                 <button class="btn" onclick="selectEngine('postgres')">PostgreSQL</button>
                 <p style="font-size: 16px; color: #333; text-align: center; margin-top: -8px;">需要启动一个独立的数据库服务器，强烈建议使用该选项，不懂就按照教程安装。</p>
-                <button class="btn btn-back" onclick="goBack('admin')">返回</button>
             </div>
         </div>
 
@@ -298,32 +278,6 @@
         };
         let connectionTested = false;
         let needDropDatabase = false;
-
-        function goToEngineSelect() {
-            const adminUsername = document.getElementById('adminUsername').value.trim();
-            const adminPassword = document.getElementById('adminPassword').value;
-            const adminPasswordConfirm = document.getElementById('adminPasswordConfirm').value;
-
-            if (!adminUsername) {
-                showMessage('error', '请输入管理员用户名');
-                return;
-            }
-            if (!adminPassword) {
-                showMessage('error', '请输入管理员密码');
-                return;
-            }
-            if (adminPassword.length < 6) {
-                showMessage('error', '管理员密码长度至少6位');
-                return;
-            }
-            if (adminPassword !== adminPasswordConfirm) {
-                showMessage('error', '两次输入的密码不一致');
-                return;
-            }
-
-            document.getElementById('message').classList.remove('error', 'success');
-            showStep('step-engine');
-        }
 
         function selectEngine(engine) {
             currentConfig.engine = engine;
@@ -449,8 +403,6 @@
             const data = {
                 engine: currentConfig.engine,
                 postgresType: currentConfig.postgresType,
-                adminUsername: document.getElementById('adminUsername').value.trim(),
-                adminPassword: document.getElementById('adminPassword').value,
                 dropDatabase: needDropDatabase
             };
 

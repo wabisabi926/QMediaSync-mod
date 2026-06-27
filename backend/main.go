@@ -48,16 +48,6 @@ var Update bool = false
 var AppName string = "QMediaSync"
 var QMSApp *App
 
-func validateInitialAdminCredentials(username string, password string) error {
-	if strings.TrimSpace(username) == "" {
-		return fmt.Errorf("管理员用户名不能为空")
-	}
-	if err := models.ValidateUserPassword(password); err != nil {
-		return err
-	}
-	return nil
-}
-
 type App struct {
 	isRelease   bool
 	dbManager   *database.EmbeddedManager
@@ -1202,29 +1192,21 @@ func StartConfigWebServer() {
 
 	r.POST("/api/config/save", func(c *gin.Context) {
 		var req struct {
-			Engine        string `json:"engine"`
-			PostgresType  string `json:"postgresType"`
-			Host          string `json:"host"`
-			Port          int    `json:"port"`
-			User          string `json:"user"`
-			Password      string `json:"password"`
-			Database      string `json:"database"`
-			SSL           bool   `json:"ssl"`
-			AdminUsername string `json:"adminUsername"`
-			AdminPassword string `json:"adminPassword"`
-			DropDatabase  bool   `json:"dropDatabase"`
+			Engine       string `json:"engine"`
+			PostgresType string `json:"postgresType"`
+			Host         string `json:"host"`
+			Port         int    `json:"port"`
+			User         string `json:"user"`
+			Password     string `json:"password"`
+			Database     string `json:"database"`
+			SSL          bool   `json:"ssl"`
+			DropDatabase bool   `json:"dropDatabase"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(400, gin.H{"error": err.Error()})
 			return
 		}
-		if err := validateInitialAdminCredentials(req.AdminUsername, req.AdminPassword); err != nil {
-			c.JSON(200, gin.H{"error": err.Error()})
-			return
-		}
 		yamlConfig := helpers.MakeDefaultConfig()
-		yamlConfig.AdminUsername = req.AdminUsername
-		yamlConfig.AdminPassword = req.AdminPassword
 		if req.Engine == string(helpers.DbEnginePostgres) {
 			yamlConfig.Db.PostgresType = helpers.PostgresType(req.PostgresType)
 			if req.PostgresType == string(helpers.PostgresTypeExternal) {
@@ -1278,7 +1260,7 @@ func StartConfigWebServer() {
 			return
 		}
 
-		c.JSON(200, gin.H{"success": true, "message": "配置已保存，配置服务已退出，请重启软件或容器"})
+		c.JSON(200, gin.H{"success": true, "message": "配置已保存，配置服务已退出。重启后请查看启动日志中的初始化码，并在 Web 页面创建首个管理员。"})
 		go func() {
 			time.Sleep(1 * time.Second)
 			os.Exit(0)

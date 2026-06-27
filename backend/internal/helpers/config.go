@@ -83,8 +83,6 @@ type Config struct {
 	AuthServer     string        `yaml:"authServer"`
 	NewAuthServer  string        `yaml:"newAuthServer"`
 	BaiDuPanAppId  string        `yaml:"baiDuPanAppId"`
-	AdminUsername  string        `yaml:"adminUsername"`
-	AdminPassword  string        `yaml:"adminPassword"`
 }
 
 var GlobalConfig Config
@@ -308,8 +306,6 @@ func MakeDefaultConfig() *Config {
 		AuthServer:     "https://api.mqfamily.top",
 		NewAuthServer:  "https://oauth.qmediasync.cn",
 		BaiDuPanAppId:  "QMediaSync",
-		AdminUsername:  "admin",
-		AdminPassword:  "admin123",
 		Strm: ConfigStrm{
 			VideoExt:     []string{".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".3gp", ".ts"},
 			MetaExt:      []string{".jpg", ".jpeg", ".png", ".webp", ".nfo", ".srt", ".ass", ".svg", ".sup", ".lrc"},

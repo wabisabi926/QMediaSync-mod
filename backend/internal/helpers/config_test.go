@@ -3,7 +3,10 @@ package helpers
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v2"
 )
 
 func TestInitConfigReadsConfigYaml(t *testing.T) {
@@ -82,6 +85,18 @@ func TestMakeDefaultConfigDisablesEmby302InsecureSkipVerify(t *testing.T) {
 	cfg := MakeDefaultConfig()
 	if cfg.Emby302.InsecureSkipVerify {
 		t.Fatal("Emby302.InsecureSkipVerify = true, want false")
+	}
+}
+
+func TestMakeDefaultConfigDoesNotContainAdminCredentials(t *testing.T) {
+	cfg := MakeDefaultConfig()
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("Marshal default config: %v", err)
+	}
+	text := string(data)
+	if strings.Contains(text, "adminUsername") || strings.Contains(text, "adminPassword") {
+		t.Fatalf("默认配置不应包含管理员字段: %s", text)
 	}
 }
 

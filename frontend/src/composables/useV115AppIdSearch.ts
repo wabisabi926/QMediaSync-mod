@@ -1,6 +1,14 @@
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
-import { computed, readonly, shallowRef, toValue, unref, type MaybeRef, type MaybeRefOrGetter } from 'vue'
+import {
+  computed,
+  readonly,
+  shallowRef,
+  toValue,
+  unref,
+  type MaybeRef,
+  type MaybeRefOrGetter,
+} from 'vue'
 
 const V115_APPID_PAGE_SIZE = 50
 const V115_APPID_SEARCH_FALLBACK_SERVER_URL = '/api'

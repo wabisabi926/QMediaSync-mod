@@ -13,7 +13,11 @@ func TestUserSettingsRequestValidate(t *testing.T) {
 		{name: "用户名为空失败", req: ChangeUserCredentialRequest{Username: " "}, wantErr: true},
 		{name: "用户名过短失败", req: ChangeUserCredentialRequest{Username: "ab"}, wantErr: true},
 		{name: "用户名过长失败", req: ChangeUserCredentialRequest{Username: "abcdefghijklmnopqrstu"}, wantErr: true},
+		{name: "中文用户名失败", req: ChangeUserCredentialRequest{Username: "管理员"}, wantErr: true},
+		{name: "符号用户名失败", req: ChangeUserCredentialRequest{Username: "admin_user"}, wantErr: true},
 		{name: "密码过短失败", req: ChangeUserCredentialRequest{Username: "admin", NewPassword: "12345"}, wantErr: true},
+		{name: "纯数字密码失败", req: ChangeUserCredentialRequest{Username: "admin", NewPassword: "123456"}, wantErr: true},
+		{name: "纯字母密码失败", req: ChangeUserCredentialRequest{Username: "admin", NewPassword: "secret"}, wantErr: true},
 	}
 
 	for _, tt := range tests {
@@ -34,11 +38,13 @@ func TestLoginRequestValidate(t *testing.T) {
 	}{
 		{name: "用户名和密码通过", req: LoginRequest{Username: "admin", Password: "secret"}},
 		{name: "用户名会去除空白后校验", req: LoginRequest{Username: " admin ", Password: "secret"}},
+		{name: "兼容旧版两字符用户名", req: LoginRequest{Username: "ab", Password: "secret"}},
+		{name: "兼容旧版短密码", req: LoginRequest{Username: "admin", Password: "12345"}},
+		{name: "登录允许二十字符用户名", req: LoginRequest{Username: "abcdefghijklmnopqrst", Password: "secret"}},
+		{name: "登录保留用户名长度上限", req: LoginRequest{Username: "abcdefghijklmnopqrstu", Password: "secret"}, wantErr: true},
+		{name: "密码只校验非空", req: LoginRequest{Username: "admin", Password: " "}},
 		{name: "用户名为空失败", req: LoginRequest{Username: " ", Password: "secret"}, wantErr: true},
-		{name: "用户名过短失败", req: LoginRequest{Username: "ab", Password: "secret"}, wantErr: true},
-		{name: "用户名过长失败", req: LoginRequest{Username: "abcdefghijklmnopqrstu", Password: "secret"}, wantErr: true},
 		{name: "密码为空失败", req: LoginRequest{Username: "admin", Password: ""}, wantErr: true},
-		{name: "密码过短失败", req: LoginRequest{Username: "admin", Password: "12345"}, wantErr: true},
 	}
 
 	for _, tt := range tests {

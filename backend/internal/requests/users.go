@@ -12,7 +12,7 @@ type LoginRequest struct {
 
 // Validate 校验用户登录请求。
 func (r LoginRequest) Validate() error {
-	return validation.UserCredentials("username", r.Username, "password", r.Password)
+	return validation.LoginCredentials("username", r.Username, "password", r.Password)
 }
 
 // EnableTwoFactorRequest 启用两步验证请求。

@@ -4,8 +4,8 @@ import { Key, Lock, User } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
   createElementCredentialRule,
-  createPasswordRule,
-  createUsernameRule,
+  createLoginPasswordRule,
+  createLoginUsernameRule,
 } from '@/utils/userCredentials'
 
 export interface LoginSubmitPayload {
@@ -33,8 +33,8 @@ const loginForm = reactive({
 })
 
 const loginRules: FormRules = {
-  username: [createElementCredentialRule(createUsernameRule('用户名'))],
-  password: [createElementCredentialRule(createPasswordRule('密码'))],
+  username: [createElementCredentialRule(createLoginUsernameRule('用户名'))],
+  password: [createElementCredentialRule(createLoginPasswordRule('密码'))],
 }
 
 const handleSubmit = async () => {

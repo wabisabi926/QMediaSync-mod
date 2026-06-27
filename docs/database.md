@@ -26,7 +26,7 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 当 `migrator` 表不存在时，`InitDB()` 会直接执行：
 
 1. `BatchCreateTable()`：对 `AllTables` 逐表执行 `AutoMigrate`。
-2. `InitMigrationTable(MaxVersionCode)`：写入当前版本号，当前值是 `47`。
+2. `InitMigrationTable(MaxVersionCode)`：写入当前版本号，当前值是 `48`。
 3. `InitSettings()`：创建默认 `settings` 记录。
 4. `InitScrapeSetting()`：创建默认刮削配置和默认分类。
 5. `InitEmbyConfig()`：创建默认 `emby_config` 记录。
@@ -55,8 +55,9 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 | 44 | 45 | 新增 `user_sessions` 表，用于浏览器登录会话撤销、CSRF 校验和登录设备管理。 |
 | 45 | 46 | 通知渠道类型索引从唯一索引改为普通索引，并为已有渠道补齐缺失通知规则。 |
 | 46 | 47 | `users` 新增 `singleton_key`，用唯一约束保证系统只存在一个登录用户。 |
+| 47 | 48 | `settings` 和 `sync_paths` 的 `add_path` 旧值 `2` 迁移为新值 `3`，为“只添加文件名”路径模式让出枚举值。 |
 
-当前数据库版本是 `47`。
+当前数据库版本是 `48`。
 
 ## 修复与重建
 
@@ -105,7 +106,7 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 
 - `id`：固定为 `1`。
 - `created_at` / `updated_at`：创建和更新时间。
-- `version_code`：当前数据库版本号，当前值为 `47`。
+- `version_code`：当前数据库版本号，当前值为 `48`。
 
 ### `users`
 
@@ -188,7 +189,7 @@ STRM 相关字段：
 - `upload_meta`：是否上传元数据。
 - `download_meta`：是否下载元数据。
 - `delete_dir`：是否删除目录。
-- `add_path`：是否添加路径。
+- `add_path`：STRM 链接路径模式。全局配置使用 `1` 完整路径、`2` 文件名、`3` 不添加；同步目录自定义配置额外使用 `-1` 表示继承全局 STRM 设置。
 - `check_meta_mtime`：是否检查元数据修改时间。
 
 历史兼容字段：

@@ -18,7 +18,7 @@ type Migrator struct {
 	VersionCode int `json:"version_code"` // 版本号
 }
 
-var MaxVersionCode = 47
+var MaxVersionCode = 48
 var AllTables = []any{
 	Migrator{},
 	BackupConfig{}, BackupRecord{},
@@ -534,6 +534,18 @@ func Migrate() {
 			return
 		}
 		helpers.AppLogger.Info("已添加 users.singleton_key 单用户约束")
+		migrator.UpdateVersionCode(db.Db)
+	}
+	if migrator.VersionCode == 47 {
+		helpers.AppLogger.Info("迁移 STRM 链接路径模式：旧值 2（不添加路径）改为新值 3")
+		if err := db.Db.Model(&Settings{}).Where("add_path = ?", 2).Update("add_path", 3).Error; err != nil {
+			helpers.AppLogger.Errorf("迁移 settings.add_path 失败：%v", err)
+			return
+		}
+		if err := db.Db.Model(&SyncPath{}).Where("add_path = ?", 2).Update("add_path", 3).Error; err != nil {
+			helpers.AppLogger.Errorf("迁移 sync_paths.add_path 失败：%v", err)
+			return
+		}
 		migrator.UpdateVersionCode(db.Db)
 	}
 	helpers.AppLogger.Infof("当前数据库版本 %d", migrator.VersionCode)

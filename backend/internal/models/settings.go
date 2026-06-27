@@ -34,7 +34,7 @@ type SettingStrm struct {
 	UploadMeta     int      `form:"upload_meta" json:"upload_meta" gorm:"default:0"`           // 是否上传元数据，-1 表示使用 STRM 设置，0 表示保留，1 表示上传，2 表示删除
 	DownloadMeta   int      `form:"download_meta" json:"download_meta" gorm:"default:0"`       // 是否下载元数据，-1 表示使用 STRM 设置，0 表示不下载，1 表示下载
 	DeleteDir      int      `form:"delete_dir" json:"delete_dir" gorm:"default: 1"`            // 是否删除目录，-1 表示使用 STRM 设置，0 表示不删除，1 表示删除
-	AddPath        int      `form:"add_path" json:"add_path" gorm:"default: 2"`                // 是否添加路径，默认 -1（使用 Settings 的值），1 表示添加路径，2 表示不添加路径
+	AddPath        int      `form:"add_path" json:"add_path" gorm:"default: 3"`                // STRM 链接路径模式，-1 表示使用 STRM 设置，1 表示添加完整路径，2 表示只添加文件名，3 表示不添加路径
 	CheckMetaMtime int      `form:"check_meta_mtime" json:"check_meta_mtime" gorm:"default:0"` // 是否检查元数据文件修改时间，默认 -1（使用 Settings 的值），0 表示不检查，1 表示检查
 }
 

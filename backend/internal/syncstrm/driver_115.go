@@ -64,6 +64,7 @@ mainloop:
 					continue fileloop
 				}
 				atomic.AddInt64(&d.s.TotalFile, 1)
+				d.s.PublishProgress(false)
 				fileItem := SyncFileCache{
 					FileId:     file.FileId,
 					ParentId:   parentPathId,

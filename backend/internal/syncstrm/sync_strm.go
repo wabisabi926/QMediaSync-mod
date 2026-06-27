@@ -54,6 +54,7 @@ func (s *SyncStrm) ProcessStrmFile(sf *SyncFileCache) error {
 	}
 	s.Sync.Logger.Infof("[生成 STRM] %s => %s", strmFullPath, strmContent)
 	atomic.AddInt64(&s.NewStrm, 1)
+	s.PublishProgress(false)
 	return nil
 }
 

@@ -52,6 +52,7 @@ mainloop:
 			}
 			for _, file := range resp.Content {
 				atomic.AddInt64(&d.s.TotalFile, 1)
+				d.s.PublishProgress(false)
 				// 将 ISO 8601 格式的日期字符串转换为时间戳
 				t, err := time.Parse(time.RFC3339, file.Modified)
 				var mtime int64

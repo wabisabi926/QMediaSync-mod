@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -63,6 +64,9 @@ type SyncStrm struct {
 	NewStrm   int64
 	NewUpload int64
 	TotalFile int64
+
+	lastProgressPublishedAt time.Time
+	progressMu              sync.Mutex
 
 	// 停止状态：避免多次触发停止
 	stopped atomic.Bool
@@ -149,6 +153,41 @@ func NewSyncStrm(account *models.Account, syncPathId uint, sourcePath, sourcePat
 	s.Sync.InitLogger()
 	s.SyncDriver.SetSyncStrm(s)
 	return s
+}
+
+const syncProgressPublishInterval = time.Second
+
+func (s *SyncStrm) shouldPublishProgress(now time.Time, force bool) bool {
+	if s == nil || s.Sync == nil || s.Sync.ID == 0 {
+		return false
+	}
+	if force {
+		return true
+	}
+	s.progressMu.Lock()
+	defer s.progressMu.Unlock()
+	return s.lastProgressPublishedAt.IsZero() || now.Sub(s.lastProgressPublishedAt) >= syncProgressPublishInterval
+}
+
+func (s *SyncStrm) markProgressPublished(now time.Time) {
+	s.progressMu.Lock()
+	s.lastProgressPublishedAt = now
+	s.progressMu.Unlock()
+}
+
+// PublishProgress 按节流策略发布同步任务运行中统计。
+func (s *SyncStrm) PublishProgress(force bool) {
+	now := time.Now()
+	if !s.shouldPublishProgress(now, force) {
+		return
+	}
+	s.Sync.Total = int(atomic.LoadInt64(&s.TotalFile))
+	s.Sync.NewStrm = int(atomic.LoadInt64(&s.NewStrm))
+	s.Sync.NewMeta = int(atomic.LoadInt64(&s.NewMeta))
+	s.Sync.NewUpload = int(atomic.LoadInt64(&s.NewUpload))
+	if s.Sync.UpdateProgress(s.Sync.Total, s.Sync.NewStrm, s.Sync.NewMeta, s.Sync.NewUpload) {
+		s.markProgressPublished(now)
+	}
 }
 
 func NewSyncStrmFromSyncPath(syncPath *models.SyncPath) *SyncStrm {
@@ -305,6 +344,7 @@ func (s *SyncStrm) Start() error {
 	s.Sync.NewStrm = int(s.NewStrm)
 	s.Sync.NewUpload = int(s.NewUpload)
 	s.Sync.Total = int(s.TotalFile)
+	s.PublishProgress(true)
 	s.Sync.Complete(s.Account.SourceType)
 	// 如果有 sync_path_id，则更新最后同步时间
 	if !s.TmpSyncPath {
@@ -443,6 +483,7 @@ func (s *SyncStrm) AddDownloadTaskFromMemCache() {
 		if err == nil {
 			s.Sync.Logger.Infof("添加下载任务成功：%s => %s", file.Path+"/"+file.FileName, file.GetLocalFilePath(s.TargetPath, s.SourcePath))
 			atomic.AddInt64(&s.NewMeta, 1)
+			s.PublishProgress(false)
 		}
 	}
 	s.memSyncCache.mu.RUnlock()
@@ -609,6 +650,7 @@ func (s *SyncStrm) compareLocalFilesWithTempTable() error {
 						}
 						models.AddUploadTaskFromSyncFile(db115File)
 						atomic.AddInt64(&s.NewUpload, 1)
+						s.PublishProgress(false)
 						return nil
 					}
 					// 网盘存在且设置为上传，需要检查本地是不是比网盘新，如果是的话，需要删除网盘文件并将本地文件上传
@@ -639,6 +681,7 @@ func (s *SyncStrm) compareLocalFilesWithTempTable() error {
 							// 2. 添加上传任务
 							models.AddUploadTaskFromSyncFile(existsFile.GetSyncFile(s, s.Account.BaseUrl))
 							atomic.AddInt64(&s.NewUpload, 1)
+							s.PublishProgress(false)
 
 							// 3. 删除数据库记录（下次同步时会将新上传的文件插入数据库）
 							s.memSyncCache.DeleteByFileId(existsFile.GetFileId())

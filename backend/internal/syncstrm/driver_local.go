@@ -45,6 +45,7 @@ func (d *localDriver) GetNetFileFiles(ctx context.Context, parentPath, parentPat
 	fileloop:
 		for _, file := range fileList {
 			atomic.AddInt64(&d.s.TotalFile, 1)
+			d.s.PublishProgress(false)
 			filePath := filepath.ToSlash(filepath.Join(parentPath, file.Name()))
 			// 检查视频大小是否合规
 			stat, err := os.Stat(filePath)
@@ -53,6 +54,7 @@ func (d *localDriver) GetNetFileFiles(ctx context.Context, parentPath, parentPat
 				continue fileloop
 			}
 			atomic.AddInt64(&d.s.TotalFile, 1)
+			d.s.PublishProgress(false)
 			fileItem := SyncFileCache{
 				ParentId:   parentPathId,
 				FileName:   file.Name(),

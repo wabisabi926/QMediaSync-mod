@@ -49,6 +49,7 @@ mainloop:
 			}
 			for _, file := range resp {
 				atomic.AddInt64(&d.s.TotalFile, 1)
+				d.s.PublishProgress(false)
 				fileItem := SyncFileCache{
 					ParentId:   parentPathId,
 					FileId:     file.Path,

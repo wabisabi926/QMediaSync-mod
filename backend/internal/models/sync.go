@@ -180,6 +180,27 @@ func (s *Sync) UpdateTotal() {
 	// s.Logger.Infof("更新文件总数：%d", s.Total)
 }
 
+// UpdateProgress 更新同步任务运行中计数。
+func (s *Sync) UpdateProgress(total, newStrm, newMeta, newUpload int) bool {
+	s.Total = total
+	s.NewStrm = newStrm
+	s.NewMeta = newMeta
+	s.NewUpload = newUpload
+	ctx := context.Background()
+	_, err := gorm.G[Sync](db.Db).Where("id = ?", s.ID).Updates(ctx, Sync{
+		Total:     total,
+		NewStrm:   newStrm,
+		NewMeta:   newMeta,
+		NewUpload: newUpload,
+	})
+	if err != nil {
+		s.Logger.Errorf("更新同步进度失败：%v", err)
+		return false
+	}
+	s.broadcastSyncTaskEvent(websocket.EventSyncTaskUpdated)
+	return true
+}
+
 // 修改同步任务的状态
 func (s *Sync) UpdateStatus(status SyncStatus) bool {
 	oldStatus := s.Status

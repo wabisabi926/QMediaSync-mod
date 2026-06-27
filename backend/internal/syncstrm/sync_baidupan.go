@@ -72,6 +72,7 @@ mainloop:
 			}
 			for _, file := range fileListResp.List {
 				atomic.AddInt64(&s.TotalFile, 1)
+				s.PublishProgress(false)
 				if s.IsExcludePath(file.Path) {
 					s.Sync.Logger.Warnf("文件路径 %s 中有排除项，被排除", file.Path)
 					continue

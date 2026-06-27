@@ -270,9 +270,15 @@ func (q *NewSyncQueuePerType) executeStrmSync(task *NewSyncTask) {
 	}
 
 	// 触发 STRM 同步任务开始事件
-	ws.BroadcastEvent(ws.EventStrmSyncTaskStart, map[string]any{
+	startPayload := map[string]any{
 		"task_id": task.ID,
-	})
+	}
+	if q.strmSync != nil && q.strmSync.Sync != nil {
+		startPayload["sync_id"] = q.strmSync.Sync.ID
+		startPayload["sync_path_id"] = q.strmSync.Sync.SyncPathId
+		startPayload["log_path"] = models.SyncLogRelativePath(q.strmSync.Sync.ID)
+	}
+	ws.BroadcastEvent(ws.EventStrmSyncTaskStart, startPayload)
 
 	defer func() {
 		q.strmSync = nil
@@ -280,18 +286,30 @@ func (q *NewSyncQueuePerType) executeStrmSync(task *NewSyncTask) {
 	if startErr := q.strmSync.Start(); startErr == nil {
 		logInfo("STRM 同步任务执行成功：ID=%d", task.ID)
 		// 触发 STRM 同步任务完成事件
-		ws.BroadcastEvent(ws.EventStrmSyncTaskComplete, map[string]any{
+		completePayload := map[string]any{
 			"task_id": task.ID,
 			"success": true,
-		})
+		}
+		if q.strmSync != nil && q.strmSync.Sync != nil {
+			completePayload["sync_id"] = q.strmSync.Sync.ID
+			completePayload["sync_path_id"] = q.strmSync.Sync.SyncPathId
+			completePayload["log_path"] = models.SyncLogRelativePath(q.strmSync.Sync.ID)
+		}
+		ws.BroadcastEvent(ws.EventStrmSyncTaskComplete, completePayload)
 	} else {
 		logError("STRM 同步任务执行失败：ID=%d，错误=%v", task.ID, startErr)
 		// 触发 STRM 同步任务完成事件（失败）
-		ws.BroadcastEvent(ws.EventStrmSyncTaskComplete, map[string]any{
+		completePayload := map[string]any{
 			"task_id": task.ID,
 			"success": false,
 			"error":   startErr.Error(),
-		})
+		}
+		if q.strmSync != nil && q.strmSync.Sync != nil {
+			completePayload["sync_id"] = q.strmSync.Sync.ID
+			completePayload["sync_path_id"] = q.strmSync.Sync.SyncPathId
+			completePayload["log_path"] = models.SyncLogRelativePath(q.strmSync.Sync.ID)
+		}
+		ws.BroadcastEvent(ws.EventStrmSyncTaskComplete, completePayload)
 	}
 }
 

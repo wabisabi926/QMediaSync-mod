@@ -48,6 +48,7 @@ func (s *SyncStrm) Start115Sync() {
 	s.Sync.Total = int(total)
 	// 更新回数据库
 	s.Sync.UpdateTotal()
+	s.PublishProgress(true)
 	// 如果没有路径缓存或者全量同步，则先预取
 	if existsPathesCount == 0 || s.FullSync {
 		// 如果没有已存在路径，则预取两层目录并写入缓存

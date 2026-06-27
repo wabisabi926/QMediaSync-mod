@@ -730,7 +730,7 @@ const defaultConfig = {
   enable_refresh_library: 1,
   enable_extract_media_info: 1,
   enable_delete_netdisk: 0,
-  enable_auth: 0,
+  enable_auth: 1,
   sync_all_libraries: 1,
   selected_libraries: '[]',
 }

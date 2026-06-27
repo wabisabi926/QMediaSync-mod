@@ -23,7 +23,7 @@
 
   `trustedOrigins` 按 `scheme://host[:port]` 精确匹配，显式默认端口 `http:80`、`https:443` 会按无端口来源处理。前端和 API 使用同一个域名访问时不需要配置；旧配置缺少该字段会按空列表处理。
   通过 Nginx / Caddy 等反向代理绑定域名时，应保留原始 `Host` 并传递 `X-Forwarded-Proto`，这样同源判断可以按用户访问的域名生效。
-- API Key 调用支持 `X-API-Key` header 和 `?api_key=` 查询参数，不需要 CSRF。`/emby/webhook` 启用鉴权时同样优先读取 `X-API-Key`，并保留 `?api_key=` 兼容只能配置 URL 的 Emby Webhook 场景。
+- API Key 调用支持 `X-API-Key` header 和 `?api_key=` 查询参数，不需要 CSRF。`/emby/webhook` 配置默认启用鉴权，优先读取 `X-API-Key`，并保留 `?api_key=` 兼容只能配置 URL 的 Emby Webhook 场景。
 - 在「系统设置 - API Key」创建密钥后，后端会生成 `qms_` 前缀加 24 位随机字符的完整密钥。完整密钥只在创建响应中返回一次；数据库 `api_keys` 表保存 `user_id`、`name`、`key_hash`、前 8 位 `key_prefix`、`is_active`、时间戳和 `last_used_at`，不保存完整明文。校验时对请求中的 Key 再做同样 SHA256，用 `key_hash` + `is_active=true` 查表。
 - 本地下载反代 `/proxy-115` 仅允许访问 115 CDN 和百度网盘下载域名，用于 115 / 百度网盘播放代理和媒体信息提取；初始目标和每次重定向目标都会执行同一白名单校验，其他目标地址会被拒绝。
 

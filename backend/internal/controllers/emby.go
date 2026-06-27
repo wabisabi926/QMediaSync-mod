@@ -3,6 +3,7 @@ package controllers
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -23,6 +24,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+const embyTempImagePrefix = "qms_emby_"
 
 type EmbyEvent struct {
 	Title    string `json:"Title"`
@@ -236,6 +239,58 @@ func Webhook(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{
 		"message": "webhook",
 	})
+}
+
+func createEmbyTempImagePath(itemID string) (string, error) {
+	sum := sha256.Sum256([]byte(itemID))
+	pattern := fmt.Sprintf("%s%x_*.jpg", embyTempImagePrefix, sum)
+	file, err := os.CreateTemp(os.TempDir(), pattern)
+	if err != nil {
+		return "", err
+	}
+	path := file.Name()
+	if err := file.Close(); err != nil {
+		_ = os.Remove(path)
+		return "", err
+	}
+	return path, nil
+}
+
+func removeEmbyTempImage(imagePath string) error {
+	if strings.TrimSpace(imagePath) == "" {
+		return nil
+	}
+	tempDir, err := filepath.Abs(os.TempDir())
+	if err != nil {
+		return err
+	}
+	absPath, err := filepath.Abs(imagePath)
+	if err != nil {
+		return err
+	}
+	if filepath.Dir(absPath) != tempDir {
+		return fmt.Errorf("拒绝删除临时目录外的 Emby 图片: %s", imagePath)
+	}
+	if !isEmbyTempImageName(filepath.Base(absPath)) {
+		return fmt.Errorf("拒绝删除非受控 Emby 临时图片: %s", imagePath)
+	}
+	return os.Remove(absPath)
+}
+
+func isEmbyTempImageName(name string) bool {
+	if !strings.HasPrefix(name, embyTempImagePrefix) || !strings.HasSuffix(name, ".jpg") {
+		return false
+	}
+	body := strings.TrimSuffix(strings.TrimPrefix(name, embyTempImagePrefix), ".jpg")
+	if len(body) <= 65 || body[64] != '_' {
+		return false
+	}
+	for _, r := range body[:64] {
+		if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f')) {
+			return false
+		}
+	}
+	return len(body[65:]) > 0
 }
 
 func addItemToEpisodeBuffer(seriesId string, seasonNumber, episodeNumber int) {
@@ -506,12 +561,17 @@ func sendNewItemNotification(content string, detail *embyclientrestgo.BaseItemDt
 		}
 		if imageUrl != "" {
 			// 将图片下载到 /tmp 目录，作为通知图片。
-			posterPath := filepath.Join(os.TempDir(), fmt.Sprintf("%s.jpg", detail.Id))
-			derr := helpers.DownloadFile(imageUrl, posterPath, "QMediaSync")
-			if derr != nil {
-				helpers.AppLogger.Errorf("下载 Emby 海报失败：%v", derr)
+			posterPath, perr := createEmbyTempImagePath(detail.Id)
+			if perr != nil {
+				helpers.AppLogger.Errorf("创建 Emby 海报临时文件失败：%v", perr)
 			} else {
-				imagePath = posterPath
+				derr := helpers.DownloadFile(imageUrl, posterPath, "QMediaSync")
+				if derr != nil {
+					_ = removeEmbyTempImage(posterPath)
+					helpers.AppLogger.Errorf("下载 Emby 海报失败：%v", derr)
+				} else {
+					imagePath = posterPath
+				}
 			}
 		}
 	}
@@ -532,7 +592,9 @@ func sendNewItemNotification(content string, detail *embyclientrestgo.BaseItemDt
 	}
 	// 删除临时图片文件
 	if imagePath != "" {
-		os.Remove(imagePath)
+		if err := removeEmbyTempImage(imagePath); err != nil && !os.IsNotExist(err) {
+			helpers.AppLogger.Warnf("删除 Emby 海报临时文件失败：%v", err)
+		}
 	}
 }
 
@@ -681,7 +743,9 @@ func handlePlaybackEvent(body []byte, event EmbyEvent) {
 
 	// 删除临时图片文件
 	if imagePath != "" {
-		os.Remove(imagePath)
+		if err := removeEmbyTempImage(imagePath); err != nil && !os.IsNotExist(err) {
+			helpers.AppLogger.Warnf("删除 Emby 海报临时文件失败：%v", err)
+		}
 	}
 }
 
@@ -700,12 +764,17 @@ func createPlaybackNotification(webhook *models.EmbyPlaybackWebhook) *notificati
 				webhook.Item.ID,
 				tag,
 				models.GlobalEmbyConfig.EmbyApiKey)
-			posterPath := filepath.Join(os.TempDir(), fmt.Sprintf("%s_playback.jpg", webhook.Item.ID))
-			derr := helpers.DownloadFile(imageUrl, posterPath, "QMediaSync")
-			if derr != nil {
-				helpers.AppLogger.Errorf("下载 Emby 海报失败：%v", derr)
+			posterPath, perr := createEmbyTempImagePath(webhook.Item.ID)
+			if perr != nil {
+				helpers.AppLogger.Errorf("创建 Emby 海报临时文件失败：%v", perr)
 			} else {
-				imagePath = posterPath
+				derr := helpers.DownloadFile(imageUrl, posterPath, "QMediaSync")
+				if derr != nil {
+					_ = removeEmbyTempImage(posterPath)
+					helpers.AppLogger.Errorf("下载 Emby 海报失败：%v", derr)
+				} else {
+					imagePath = posterPath
+				}
 			}
 		}
 	}

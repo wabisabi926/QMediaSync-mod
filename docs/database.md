@@ -538,7 +538,7 @@ Emby 总配置表。
 - `enable_refresh_library`：是否刷新媒体库。
 - `enable_media_notification`：是否发送媒体通知。
 - `enable_extract_media_info`：是否提取媒体信息。
-- `enable_auth`：是否启用 Emby 认证。
+- `enable_auth`：是否启用 Emby Webhook 认证，默认启用。
 - `sync_enabled`：是否启用同步。
 - `sync_cron`：同步 Cron 表达式。
 - `last_sync_time`：上次同步时间戳。

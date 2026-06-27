@@ -796,7 +796,7 @@ func InitEmbyConfig() {
 		EnableRefreshLibrary:    0,
 		EnableMediaNotification: 0,
 		EnableExtractMediaInfo:  0,
-		EnableAuth:              0,
+		EnableAuth:              1,
 		LastSyncTime:            0,
 	}
 	db.Db.Save(embyConfig)

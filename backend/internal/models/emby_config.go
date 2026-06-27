@@ -11,7 +11,7 @@ type EmbyConfig struct {
 	EnableRefreshLibrary    int    `json:"enable_refresh_library" gorm:"default:0"`
 	EnableMediaNotification int    `json:"enable_media_notification" gorm:"default:0"`
 	EnableExtractMediaInfo  int    `json:"enable_extract_media_info" gorm:"default:0"`
-	EnableAuth              int    `json:"enable_auth" gorm:"default:0"`
+	EnableAuth              int    `json:"enable_auth" gorm:"default:1"`
 	SyncEnabled             int    `json:"sync_enabled" gorm:"default:1"`
 	SyncCron                string `json:"sync_cron" gorm:"type:varchar(100);default:'*/5 * * * *'"`
 	LastSyncTime            int64  `json:"last_sync_time" gorm:"default:0"`

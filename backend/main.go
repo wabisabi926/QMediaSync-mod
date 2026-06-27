@@ -568,6 +568,7 @@ func setRouter(r *gin.Engine) {
 		api.GET("/scrape/records/export", controllers.ExportScrapeRecords) // 导出刮削记录
 		api.GET("/logs/ws", controllers.LogWebSocket)                      // WebSocket 日志查看
 		api.GET("/events/ws", controllers.EventWebSocket)                  // WebSocket 事件推送
+		api.GET("/sync/tasks/:id/stream", controllers.SyncTaskStream)      // 同步任务详情实时流
 		api.GET("/logs/old", controllers.GetOldLogs)                       // 通过 HTTP 获取旧日志
 		api.GET("/logs/download", controllers.DownloadLogFile)             // 下载日志文件
 		api.GET("/path/is-fn-os", controllers.IsFnOS)                      // 查询是否是飞牛环境

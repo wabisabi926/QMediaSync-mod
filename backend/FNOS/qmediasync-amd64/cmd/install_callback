@@ -16,8 +16,6 @@ mkdir -p "$TRIM_PKGETC"
 rm -f "$TRIM_PKGETC/config.yaml" "$TRIM_PKGETC/config.yml"
 
 # 读取向导产生的环境变量
-ADMIN_USERNAME="${wizard_admin_username:-admin}"
-ADMIN_PASSWORD="${wizard_admin_password:-}"
 DATABASE_TYPE="${wizard_database_type:-sqlite}"
 POSTGRES_HOST="${wizard_postgres_host:-127.0.0.1}"
 POSTGRES_PORT="${wizard_postgres_port:-5432}"
@@ -82,13 +80,11 @@ strm:
   cron: ""
 authServer: https://api.mqfamily.top
 baiDuPanAppId: QMediaSync
-adminUsername: $ADMIN_USERNAME
-adminPassword: $ADMIN_PASSWORD
 EOF
 
 echo "Configuration file created at $TRIM_PKGETC/config.yaml"
 echo "Database type: $DATABASE_TYPE"
 echo "Application port: $APP_PORT"
-echo "Admin username: $ADMIN_USERNAME"
+echo "First start requires creating an administrator in the Web UI with the setup token from application logs"
 
 exit 0

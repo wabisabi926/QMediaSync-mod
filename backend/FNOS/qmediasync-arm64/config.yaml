@@ -29,5 +29,3 @@ strm:
   cron: ""
 authServer: https://api.mqfamily.top
 baiDuPanAppId: QMediaSync
-adminUsername: admin
-adminPassword: admin123

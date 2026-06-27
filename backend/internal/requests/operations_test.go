@@ -1,6 +1,7 @@
 package requests
 
 import (
+	"strconv"
 	"testing"
 
 	"qmediasync/internal/models"
@@ -115,6 +116,16 @@ func TestIDCSVRequestValidate(t *testing.T) {
 
 	t.Run("逗号 ID 列表包含 0 失败", func(t *testing.T) {
 		req := IDCSVRequest{IDs: "1,0"}
+		if err := req.Validate(); err == nil {
+			t.Fatal("Validate() error = nil, want error")
+		}
+	})
+
+	t.Run("32 位平台拒绝超过 uint 范围的 ID", func(t *testing.T) {
+		if strconv.IntSize != 32 {
+			t.Skip("仅在 32 位平台验证 uint 截断风险")
+		}
+		req := IDCSVRequest{IDs: "4294967297"}
 		if err := req.Validate(); err == nil {
 			t.Fatal("Validate() error = nil, want error")
 		}

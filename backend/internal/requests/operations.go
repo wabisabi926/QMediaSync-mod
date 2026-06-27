@@ -63,15 +63,11 @@ func ParsePositiveIDRequest(rawID string) (PositiveIDRequest, error) {
 	if rawID == "" {
 		return PositiveIDRequest{}, validation.New("id", "不能为空")
 	}
-	id, err := strconv.ParseUint(rawID, 10, strconv.IntSize)
+	id, err := parsePositiveUint("id", rawID)
 	if err != nil {
-		return PositiveIDRequest{}, validation.New("id", "格式不正确")
-	}
-	req := PositiveIDRequest{ID: uint(id)}
-	if err := req.Validate(); err != nil {
 		return PositiveIDRequest{}, err
 	}
-	return req, nil
+	return PositiveIDRequest{ID: id}, nil
 }
 
 // IDListRequest ID 列表请求。
@@ -125,11 +121,11 @@ func (r *IDCSVRequest) Validate() error {
 		if part == "" {
 			return validation.New("ids", "格式不正确")
 		}
-		id, err := strconv.ParseUint(part, 10, 64)
+		id, err := parsePositiveUint("ids", part)
 		if err != nil {
-			return validation.New("ids", "格式不正确")
+			return err
 		}
-		ids = append(ids, uint(id))
+		ids = append(ids, id)
 	}
 	req := IDListRequest{IDs: ids}
 	if err := req.Validate(); err != nil {
@@ -142,6 +138,18 @@ func (r *IDCSVRequest) Validate() error {
 // NormalizedIDs 返回去重后的 ID 列表。
 func (r IDCSVRequest) NormalizedIDs() []uint {
 	return r.parsedIDs
+}
+
+func parsePositiveUint(field string, raw string) (uint, error) {
+	id, err := strconv.ParseUint(raw, 10, strconv.IntSize)
+	if err != nil {
+		return 0, validation.New(field, "格式不正确")
+	}
+	value := uint(id)
+	if err := validation.PositiveID(field, value); err != nil {
+		return 0, err
+	}
+	return value, nil
 }
 
 func validateIDItems(field string, ids []uint) error {

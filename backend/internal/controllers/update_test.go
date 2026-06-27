@@ -3,6 +3,8 @@ package controllers
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -95,6 +97,33 @@ func TestCancelUpdateMarksSnapshotCancelled(t *testing.T) {
 	info := getCurrentUpdateInfoSnapshot()
 	if info == nil || info.Status != string(updateStatusCancelled) {
 		t.Fatalf("取消后状态 = %+v，期望 cancelled", info)
+	}
+}
+
+func TestCancelledUpdateStillOccupiesUntilDone(t *testing.T) {
+	done := make(chan struct{})
+	info := &updateInfo{Status: string(updateStatusCancelled), done: done}
+
+	if !isUpdateTaskRunning(info) {
+		t.Fatal("已取消但 goroutine 未退出的更新任务应继续占用更新槽位")
+	}
+
+	close(done)
+	if isUpdateTaskRunning(info) {
+		t.Fatal("done 关闭后更新任务不应继续占用更新槽位")
+	}
+}
+
+func TestCleanupUpdatePackageOnDownloadErrorRemovesPartialFile(t *testing.T) {
+	updateFilename := filepath.Join(t.TempDir(), "QMediaSync.tar.gz")
+	if err := os.WriteFile(updateFilename, []byte("partial"), 0o666); err != nil {
+		t.Fatalf("写入临时更新包失败：%v", err)
+	}
+
+	cleanupUpdatePackageOnDownloadError(updateFilename)
+
+	if _, err := os.Stat(updateFilename); !os.IsNotExist(err) {
+		t.Fatalf("下载失败后临时更新包仍存在，stat err = %v", err)
 	}
 }
 

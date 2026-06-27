@@ -51,6 +51,7 @@ type updateInfo struct {
 	Status       string          `json:"status"`                  // 状态
 	ErrorMessage string          `json:"error_message,omitempty"` // 错误信息
 	ctx          context.Context `json:"-"`                       // 上下文
+	done         chan struct{}   `json:"-"`                       // 更新任务退出信号
 }
 
 var (
@@ -86,10 +87,40 @@ func updateCurrentUpdateInfo(mutator func(*updateInfo)) {
 	mutator(currentUpdateInfo)
 }
 
+func isCurrentUpdateRunning() bool {
+	currentUpdateMu.RLock()
+	defer currentUpdateMu.RUnlock()
+	return isUpdateTaskRunning(currentUpdateInfo)
+}
+
+func isUpdateTaskRunning(info *updateInfo) bool {
+	if info == nil {
+		return false
+	}
+	if info.done == nil {
+		return !isUpdateTerminalStatus(info.Status)
+	}
+	select {
+	case <-info.done:
+		return false
+	default:
+		return true
+	}
+}
+
 func isUpdateTerminalStatus(status string) bool {
 	return status == string(updateStatusCompleted) ||
 		status == string(updateStatusFailed) ||
 		status == string(updateStatusCancelled)
+}
+
+func cleanupUpdatePackageOnDownloadError(updateFilename string) {
+	if updateFilename == "" {
+		return
+	}
+	if err := os.Remove(updateFilename); err != nil && !os.IsNotExist(err) {
+		helpers.AppLogger.Errorf("删除下载失败的临时更新包失败：%v", err)
+	}
 }
 
 // GetLastRelease 获取最新版本列表
@@ -134,7 +165,7 @@ func GetLastRelease(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func UpdateToVersion(c *gin.Context) {
-	if info := getCurrentUpdateInfoSnapshot(); info != nil && !isUpdateTerminalStatus(info.Status) {
+	if isCurrentUpdateRunning() {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "正在更新中", Data: nil})
 		return
 	}
@@ -183,9 +214,14 @@ func UpdateToVersion(c *gin.Context) {
 			httpProxy = models.SettingsGlobal.HttpProxy
 		}
 	}
-	ctx, cancel := context.WithCancel(context.Background())
 	currentUpdateMu.Lock()
-	currentUpdateInfo = &updateInfo{
+	if isUpdateTaskRunning(currentUpdateInfo) {
+		currentUpdateMu.Unlock()
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "正在更新中", Data: nil})
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	info := &updateInfo{
 		Version:     version,
 		DownloadURL: downloadURL,
 		Progress:    0,
@@ -193,11 +229,14 @@ func UpdateToVersion(c *gin.Context) {
 		Downloaded:  0,
 		Status:      string(updateStatusDownloading),
 		ctx:         ctx,
+		done:        make(chan struct{}),
 	}
+	currentUpdateInfo = info
 	currentUpdateCancel = cancel
 	currentUpdateMu.Unlock()
 	// 启动一个更新协程，然后返回
 	go func() {
+		defer close(info.done)
 		updateFilePath := filepath.Join(helpers.ConfigDir, "tmp")
 		if helpers.PathExists(updateFilePath) {
 			os.MkdirAll(updateFilePath, 0777)
@@ -220,6 +259,7 @@ func UpdateToVersion(c *gin.Context) {
 		})
 		if err != nil {
 			helpers.AppLogger.Errorf("下载文件失败：%v", err)
+			cleanupUpdatePackageOnDownloadError(updateFilename)
 			updateCurrentUpdateInfo(func(info *updateInfo) {
 				if info.Status != string(updateStatusCancelled) {
 					info.Status = string(updateStatusFailed)

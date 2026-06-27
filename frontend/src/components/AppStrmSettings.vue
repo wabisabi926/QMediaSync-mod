@@ -176,12 +176,13 @@
       </el-form-item>
 
       <el-form-item label="给 STRM 链接添加路径" prop="add_path">
-        <el-radio-group v-model="strmData.add_path">
-          <el-radio-button :label="1">添加</el-radio-button>
-          <el-radio-button :label="2">不添加</el-radio-button>
+        <el-radio-group v-model="strmData.add_path" @change="updateStrmExample">
+          <el-radio-button :label="1">完整路径</el-radio-button>
+          <el-radio-button :label="2">文件名</el-radio-button>
+          <el-radio-button :label="3">不添加</el-radio-button>
         </el-radio-group>
         <div class="form-help">
-          <p>开启后会在 STRM 链接中附加原始路径，便于排查问题，也可兼容部分播放器</p>
+          <p>可在 STRM 链接中附加完整原始路径或仅附加文件名，便于排查问题，也可兼容部分播放器</p>
         </div>
       </el-form-item>
 
@@ -250,7 +251,7 @@ interface StrmData {
   delete_dir: 0 | 1
   local_proxy: 0 | 1
   exclude_name_arr: string[]
-  add_path: 1 | 2
+  add_path: 1 | 2 | 3
   check_meta_mtime: 0 | 1
 }
 
@@ -286,7 +287,7 @@ const defaultStrmData: StrmData = {
   delete_dir: 0, // 默认不删除
   local_proxy: 0, // 是否启用本地代理
   exclude_name_arr: [], // 排除的名称列表，默认为空
-  add_path: 2, // 默认不添加路径
+  add_path: 3, // 默认不添加路径
   check_meta_mtime: 0, // 检查元数据的修改时间
 }
 
@@ -349,9 +350,11 @@ const updateStrmExample = () => {
   if (strmData.strm_base_url) {
     // 生成示例 STRM 文件内容
     const baseUrl = strmData.strm_base_url.replace(/\/$/, '') // 移除末尾斜杠
-    strmExample.value = `${baseUrl}/115/video.mp4?pick_code=d6tkyd62bmngxx5bg&userid=5323423`
+    strmExample.value = `${baseUrl}/115/url/video.mp4?pickcode=d6tkyd62bmngxx5bg&userid=5323423`
     if (strmData.add_path === 1) {
       strmExample.value += '&path=Media%2F电影%2F华语电影%2F让子弹飞%2F让子弹飞.mp4'
+    } else if (strmData.add_path === 2) {
+      strmExample.value += '&path=让子弹飞.mp4'
     }
   } else {
     strmExample.value = ''

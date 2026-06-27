@@ -130,7 +130,7 @@ DTO 负责：
 
 - `THREAD_LIMITS`：下载线程、文件详情线程、OpenList QPS、重试次数、重试延迟、文件列表分页大小。
 - `SCRAPE_THREAD_LIMITS`：本地刮削最大线程 20、远程刮削最大线程 5、最小线程 1。
-- `STRM_GLOBAL_OPTIONS` 和 `STRM_CUSTOM_OPTIONS`：全局配置与自定义配置的 STRM 开关枚举。
+- `STRM_GLOBAL_OPTIONS` 和 `STRM_CUSTOM_OPTIONS`：全局配置与自定义配置的 STRM 开关枚举；`add_path` 全局值为 `1` 添加完整路径、`2` 只添加文件名、`3` 不添加，同步目录自定义配置额外支持 `-1` 继承全局 STRM 设置。
 - `HTTP_URL_PATTERN`：前端 URL 输入提示使用，后端仍以 `validation.HTTPURL` 为准。
 - `CRON_DEFAULTS`：前端默认 Cron 值。
 

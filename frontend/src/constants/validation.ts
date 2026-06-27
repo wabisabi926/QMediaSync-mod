@@ -18,7 +18,7 @@ export const STRM_GLOBAL_OPTIONS = {
   uploadMeta: [0, 1, 2],
   downloadMeta: [0, 1],
   deleteDir: [0, 1],
-  addPath: [1, 2],
+  addPath: [1, 2, 3],
   checkMetaMtime: [0, 1],
 } as const
 
@@ -27,7 +27,7 @@ export const STRM_CUSTOM_OPTIONS = {
   uploadMeta: [-1, 0, 1, 2],
   downloadMeta: [-1, 0, 1],
   deleteDir: [-1, 0, 1],
-  addPath: [-1, 1, 2],
+  addPath: [-1, 1, 2, 3],
   checkMetaMtime: [-1, 0, 1],
 } as const
 

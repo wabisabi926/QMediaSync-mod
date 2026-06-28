@@ -3,34 +3,59 @@
     <div class="card-header">
       <div>
         <h2 class="hidden-md-and-down">下载队列</h2>
-        <p>
+        <p class="queue-description">
           STRM 同步会把需要的元数据加入下载队列，可在这里查看进度、重试失败任务或清理已完成记录。
         </p>
-        <p>来源为“Emby 媒体信息提取”的记录只用于触发提取流程，不会产生实际文件下载。</p>
+        <p class="queue-description">
+          来源为“Emby 媒体信息提取”的记录只用于触发提取流程，不会产生实际文件下载。
+        </p>
       </div>
       <div class="header-actions">
         <div class="queue-control-actions">
-          <el-button type="info" @click="refreshQueue" :loading="backgroundRefreshing"
+          <el-button
+            type="info"
+            :size="queueControlSize"
+            @click="refreshQueue"
+            :loading="backgroundRefreshing"
             >刷新</el-button
           >
-          <el-button type="warning" @click="pauseAllTasks" :disabled="queueStatus === 0"
+          <el-button
+            type="warning"
+            :size="queueControlSize"
+            @click="pauseAllTasks"
+            :disabled="queueStatus === 0"
             >全部暂停</el-button
           >
-          <el-button type="success" @click="resumeAllTasks" :disabled="queueStatus === 1"
+          <el-button
+            type="success"
+            :size="queueControlSize"
+            @click="resumeAllTasks"
+            :disabled="queueStatus === 1"
             >全部恢复</el-button
           >
         </div>
         <div class="queue-cleanup-actions">
-          <el-button type="warning" @click="retryFailedTasks">重试失败</el-button>
-          <el-button type="warning" @click="clearQueue">清空等待</el-button>
-          <el-button type="danger" @click="clearSuccessAndFailedTasks">清空完成/失败</el-button>
+          <el-button type="warning" :size="queueControlSize" @click="retryFailedTasks"
+            >重试失败</el-button
+          >
+          <el-button type="warning" :size="queueControlSize" @click="clearQueue"
+            >清空等待</el-button
+          >
+          <el-button type="danger" :size="queueControlSize" @click="clearSuccessAndFailedTasks"
+            >清空完成/失败</el-button
+          >
         </div>
       </div>
     </div>
 
-    <div style="display: flex; gap: 20px; align-items: center">
-      <div class="filter-container" style="width: 120px">
-        <el-select v-model="statusFilter" placeholder="请选择状态" @change="handleStatusChange">
+    <div class="queue-toolbar-row">
+      <div class="filter-container">
+        <el-select
+          v-model="statusFilter"
+          :size="queueControlSize"
+          placeholder="请选择状态"
+          @change="handleStatusChange"
+        >
           <el-option label="全部状态" :value="-1"></el-option>
           <el-option label="等待中" :value="0"></el-option>
           <el-option label="下载中" :value="1"></el-option>
@@ -59,8 +84,8 @@
       :expand-row-keys="pageState.expandedRowKeys"
       @expand-change="handleExpandChange"
       :row-class-name="tableRowClassName"
-      height="calc(100vh - 500px)"
-      class="hidden-md-and-up"
+      :height="tableHeight"
+      class="hidden-md-and-up queue-table-mobile"
     >
       <el-table-column type="expand" width="30">
         <template #default="scope">
@@ -113,7 +138,7 @@
       :expand-row-keys="pageState.expandedRowKeys"
       @expand-change="handleExpandChange"
       :row-class-name="tableRowClassName"
-      height="calc(100vh - 300px)"
+      :height="tableHeight"
       class="hidden-md-and-down"
     >
       <el-table-column prop="id" label="ID" width="64" />
@@ -182,7 +207,7 @@
       :small="isMobileView"
       :disabled="false"
       :background="true"
-      :layout="isMobileView ? 'total, prev, pager, next' : 'total, sizes, prev, pager, next, jumper'"
+      :layout="paginationLayout"
       :total="total"
       @size-change="handleSizeChange"
       @current-change="handleCurrentChange"
@@ -257,6 +282,13 @@ const total = ref(0)
 const downloading = ref(0)
 const queueStatus = ref<0 | 1>(1) // 0-停止，1-运行中
 const isMobileView = ref(checkIsMobile())
+const paginationLayout = computed(() =>
+  isMobileView.value ? 'total, sizes, prev, pager, next' : 'total, sizes, prev, pager, next, jumper',
+)
+const tableHeight = computed(() => (isMobileView.value ? undefined : 'calc(100vh - 300px)'))
+const queueControlSize = computed<'small' | 'default'>(() =>
+  isMobileView.value ? 'small' : 'default',
+)
 const currentPage = computed({
   get: () => pageState.currentPage,
   set: (value) => pageStateStore.setPagination('download-queue', value, pageState.pageSize),
@@ -830,6 +862,17 @@ onUnmounted(() => {
   margin-left: 0;
 }
 
+.queue-description {
+  margin: 0;
+  color: #606266;
+}
+
+.queue-toolbar-row {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
 .queue-stats {
   display: flex;
   gap: 16px;
@@ -838,6 +881,7 @@ onUnmounted(() => {
 }
 
 .filter-container {
+  width: 120px;
   margin: 16px 0;
 }
 
@@ -883,29 +927,39 @@ onUnmounted(() => {
     padding: 12px;
   }
 
+  .card-header p {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
   .card-header {
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
     align-items: flex-start;
   }
 
   .header-actions {
     width: 100%;
+    align-self: stretch;
     display: grid;
+    justify-content: stretch;
     align-items: stretch;
-    gap: 8px;
+    gap: 6px;
   }
 
   .queue-control-actions {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
+    width: 100%;
+    gap: 6px;
   }
 
   .queue-cleanup-actions {
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 8px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    gap: 6px;
   }
 
   .queue-control-actions :deep(.el-button),
@@ -914,8 +968,31 @@ onUnmounted(() => {
     min-width: 0;
   }
 
+  .queue-toolbar-row {
+    gap: 8px;
+    align-items: stretch;
+  }
+
+  .filter-container {
+    width: 112px !important;
+    margin: 8px 0;
+  }
+
   .queue-stats {
-    gap: 12px;
+    margin: 8px 0;
+    gap: 8px;
+  }
+
+  .queue-stats :deep(.el-statistic__head) {
+    font-size: 12px;
+  }
+
+  .queue-stats :deep(.el-statistic__content) {
+    font-size: 20px;
+  }
+
+  .queue-table-mobile {
+    margin-top: 4px;
   }
 
   .pagination-container {

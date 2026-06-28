@@ -112,6 +112,7 @@ import {
   type SyncRecordEventType,
   type SyncTaskRecordEventPayload,
 } from '@/utils/syncRecordEvents'
+import { getEmbyRefreshDecision } from '@/utils/syncRefreshDecision'
 import { formatDateTime } from '@/utils/timeUtils'
 import type { AxiosStatic } from 'axios'
 import { Delete, View } from '@element-plus/icons-vue'
@@ -350,7 +351,7 @@ const syncRecordColumns: RecordColumn<SyncRecord>[] = [
       key: 'stats',
       label: '统计',
       value: (row) =>
-        `总文件 ${row.processed_files}，STRM ${row.created_strm}，元数据：下载 ${row.downloaded_meta} / 上传 ${row.uploaded_meta}`,
+        `总文件 ${row.processed_files}，STRM ${row.created_strm}，元数据：下载 ${row.downloaded_meta} / 上传 ${row.uploaded_meta}，媒体库：${getEmbyRefreshDecision({ createdStrm: row.created_strm, downloadedMeta: row.downloaded_meta, status: row.status }).label}`,
       span: 2,
     },
   },

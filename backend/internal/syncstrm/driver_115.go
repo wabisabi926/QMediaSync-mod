@@ -169,12 +169,11 @@ func (d *open115Driver) MakeStrmContent(sf *SyncFileCache) string {
 	params := url.Values{}
 	params.Add("pickcode", sf.PickCode)
 	params.Add("userid", d.s.Account.UserId)
-	u.RawQuery = params.Encode()
-	urlStr := u.String()
 	if pathValue := strmPathQueryValue(d.s.Config.StrmUrlNeedPath, sf); pathValue != "" {
-		urlStr += fmt.Sprintf("&path=%s", d.s.GetRemoteFilePathUrlEncode(pathValue))
+		params.Add("path", pathValue)
 	}
-	return urlStr
+	u.RawQuery = params.Encode()
+	return u.String()
 }
 
 func (d *open115Driver) GetTotalFileCount(ctx context.Context) (int64, string, error) {

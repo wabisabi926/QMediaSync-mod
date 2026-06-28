@@ -355,7 +355,7 @@ func (s *SyncStrm) Start() error {
 		db.Db.Model(&models.SyncPath{}).Where("id = ?", s.SyncPathId).Update("last_sync_at", s.Sync.FinishAt)
 		// 提交 Emby 媒体库刷新任务，由协调器等待相关下载任务完成
 		go func() {
-			if s.NewMeta > 0 || s.NewStrm > 0 {
+			if shouldRequestEmbyLibraryRefresh(s.NewMeta, s.NewStrm) {
 				s.Sync.Logger.Info("有新的元数据文件或 STRM 文件，提交 Emby 媒体库刷新任务")
 				if err := models.RequestEmbyLibraryRefreshBySyncPathId(s.SyncPathId); err != nil {
 					s.Sync.Logger.Errorf("提交 Emby 媒体库刷新任务失败：%v", err)
@@ -383,6 +383,10 @@ func (s *SyncStrm) Start() error {
 		}()
 	}
 	return nil
+}
+
+func shouldRequestEmbyLibraryRefresh(newMeta, newStrm int64) bool {
+	return newMeta > 0 || newStrm > 0
 }
 
 // 处理网盘文件，生成 STRM 或添加下载任务

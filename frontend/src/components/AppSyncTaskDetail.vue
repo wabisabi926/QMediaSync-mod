@@ -55,6 +55,15 @@
             <el-descriptions-item label="上传元数据数">
               {{ taskInfo?.uploaded_meta || 0 }}
             </el-descriptions-item>
+            <el-descriptions-item label="媒体库刷新">
+              <el-tag v-if="taskInfo" :type="embyRefreshDecision.type" effect="light">
+                {{ embyRefreshDecision.label }}
+              </el-tag>
+              <span v-else>-</span>
+              <span v-if="taskInfo" class="emby-refresh-reason">
+                {{ embyRefreshDecision.reason }}
+              </span>
+            </el-descriptions-item>
             <el-descriptions-item label="执行时长">
               {{ getExecutionDuration() }}
             </el-descriptions-item>
@@ -133,6 +142,7 @@ import { useRoute, useRouter } from 'vue-router'
 import SyncTaskLogPanel from '@/components/sync-task/SyncTaskLogPanel.vue'
 import { useLogFileActions } from '@/composables/useLogFileActions'
 import { useSyncTaskStream } from '@/composables/useSyncTaskStream'
+import { getEmbyRefreshDecision } from '@/utils/syncRefreshDecision'
 import { formatDateTime } from '@/utils/timeUtils'
 
 // 任务详情数据结构
@@ -190,6 +200,14 @@ const taskInfo = computed<TaskInfo | null>(() => {
     local_file_finish_at: task.value.local_file_finish_at || null,
   }
 })
+
+const embyRefreshDecision = computed(() =>
+  getEmbyRefreshDecision({
+    createdStrm: taskInfo.value?.created_strm || 0,
+    downloadedMeta: taskInfo.value?.downloaded_meta || 0,
+    status: taskInfo.value?.status,
+  }),
+)
 
 // 返回上一页
 const goBack = () => {
@@ -425,6 +443,12 @@ const getTimelineItems = () => {
 
 .task-stream-alert {
   margin-bottom: 24px;
+}
+
+.emby-refresh-reason {
+  margin-left: 8px;
+  color: #909399;
+  font-size: 13px;
 }
 
 .execution-timeline h3 {

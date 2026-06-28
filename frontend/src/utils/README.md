@@ -80,6 +80,14 @@ OAuth 回调参数收集：
 
 当前启用的来源类型包括 `115`、`baidupan`、`openlist`、`local`。
 
+## syncRefreshDecision.ts
+
+同步任务完成后是否提交 Emby 媒体库刷新的展示决策：
+
+- `getEmbyRefreshDecision(input)`
+
+该函数根据同步结果中的新增 STRM 数、下载元数据数和任务状态派生展示状态；已完成任务二者皆为 `0` 时展示为未提交媒体库刷新，运行中任务会展示为暂无媒体库刷新变更。
+
 ## taskSourceUtils.ts
 
 任务来源、同步队列任务类型和来源类型展示映射：

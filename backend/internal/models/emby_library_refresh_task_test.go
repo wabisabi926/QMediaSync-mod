@@ -332,6 +332,68 @@ func TestRefreshTaskWaitsForRetryableFailedDownload(t *testing.T) {
 	}
 }
 
+func TestClearDownloadPendingTasksCancelsPendingEmbyRefreshTask(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	now := nowUnix()
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-movie", LibraryName: "电影", SyncPathId: 10})
+	task := newPendingEmbyLibraryRefreshTask("lib-movie", "电影", []uint{10}, now)
+	if err := db.Db.Create(task).Error; err != nil {
+		t.Fatalf("创建媒体库刷新任务失败: %v", err)
+	}
+	if err := db.Db.Create(&DbDownloadTask{
+		SyncPathId: 10,
+		Status:     DownloadStatusPending,
+		Source:     DownloadSourceStrm,
+	}).Error; err != nil {
+		t.Fatalf("创建等待下载任务失败: %v", err)
+	}
+
+	if err := ClearDownloadPendingTasks(); err != nil {
+		t.Fatalf("清空等待下载任务失败: %v", err)
+	}
+
+	var updated EmbyLibraryRefreshTask
+	if err := db.Db.Where("library_id = ?", "lib-movie").First(&updated).Error; err != nil {
+		t.Fatalf("查询媒体库刷新任务失败: %v", err)
+	}
+	if updated.Status != EmbyLibraryRefreshStatusCancelled {
+		t.Fatalf("媒体库刷新任务状态 = %s，期望 cancelled", updated.Status)
+	}
+	if !strings.Contains(updated.Error, "清空等待下载任务") {
+		t.Fatalf("媒体库刷新任务取消原因 = %s，期望包含 清空等待下载任务", updated.Error)
+	}
+}
+
+func TestRetryFailedDownloadTasksKeepsPendingEmbyRefreshTask(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	now := nowUnix()
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-movie", LibraryName: "电影", SyncPathId: 10})
+	task := newPendingEmbyLibraryRefreshTask("lib-movie", "电影", []uint{10}, now)
+	if err := db.Db.Create(task).Error; err != nil {
+		t.Fatalf("创建媒体库刷新任务失败: %v", err)
+	}
+	if err := db.Db.Create(&DbDownloadTask{
+		SyncPathId: 10,
+		Status:     DownloadStatusFailed,
+		RetryCount: 0,
+		Source:     DownloadSourceStrm,
+	}).Error; err != nil {
+		t.Fatalf("创建失败下载任务失败: %v", err)
+	}
+
+	if err := RetryFailedDownloadTasks(DefaultQueueRetryMax); err != nil {
+		t.Fatalf("重试失败下载任务失败: %v", err)
+	}
+
+	var updated EmbyLibraryRefreshTask
+	if err := db.Db.Where("library_id = ?", "lib-movie").First(&updated).Error; err != nil {
+		t.Fatalf("查询媒体库刷新任务失败: %v", err)
+	}
+	if updated.Status != EmbyLibraryRefreshStatusPending {
+		t.Fatalf("媒体库刷新任务状态 = %s，期望 pending", updated.Status)
+	}
+}
+
 func TestRefreshTaskCancelsAfterDeadline(t *testing.T) {
 	setupEmbyRefreshTestDB(t)
 	var refreshCalled atomic.Bool

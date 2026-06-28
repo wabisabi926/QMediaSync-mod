@@ -506,16 +506,61 @@ func GetDownloadTaskList(status DownloadStatus, page, pageSize int) ([]*DbDownlo
 	return tasks, total
 }
 
-func ClearDownloadPendingTasks() error {
-	err := db.Db.Model(&DbDownloadTask{}).
-		Where("status = ?", DownloadStatusPending).
-		Delete(&DbDownloadTask{}).Error
+func getPendingDownloadTaskSyncPathIdsWithDB(tx *gorm.DB) ([]uint, error) {
+	type syncPathIDRow struct {
+		SyncPathId uint
+	}
+	var rows []syncPathIDRow
+	err := tx.Model(&DbDownloadTask{}).
+		Select("DISTINCT COALESCE(NULLIF(db_download_tasks.sync_path_id, 0), sync_files.sync_path_id) AS sync_path_id").
+		Joins("LEFT JOIN sync_files ON sync_files.id = db_download_tasks.sync_file_id").
+		Where("db_download_tasks.status = ?", DownloadStatusPending).
+		Where("COALESCE(NULLIF(db_download_tasks.sync_path_id, 0), sync_files.sync_path_id) > 0").
+		Scan(&rows).Error
 	if err != nil {
-		helpers.AppLogger.Errorf("清除待下载任务失败：%v", err)
+		return nil, err
+	}
+	ids := make([]uint, 0, len(rows))
+	for _, row := range rows {
+		if row.SyncPathId > 0 {
+			ids = append(ids, row.SyncPathId)
+		}
+	}
+	return mergeSyncPathIds(ids, nil), nil
+}
+
+func getPendingDownloadTaskSyncPathIds() ([]uint, error) {
+	return getPendingDownloadTaskSyncPathIdsWithDB(db.Db)
+}
+
+func ClearDownloadPendingTasks() error {
+	err := db.Db.Transaction(func(tx *gorm.DB) error {
+		syncPathIds, err := getPendingDownloadTaskSyncPathIdsWithDB(tx)
+		if err != nil {
+			helpers.AppLogger.Errorf("查询待清空下载任务关联同步目录失败：%v", err)
+			return err
+		}
+
+		if err := tx.Model(&DbDownloadTask{}).
+			Where("status = ?", DownloadStatusPending).
+			Delete(&DbDownloadTask{}).Error; err != nil {
+			helpers.AppLogger.Errorf("清除待下载任务失败：%v", err)
+			return err
+		}
+
+		if err := cancelPendingEmbyLibraryRefreshTasksBySyncPathIdsWithDB(tx, syncPathIds, "用户清空等待下载任务，取消同步后的媒体库刷新"); err != nil {
+			helpers.AppLogger.Errorf("取消待刷新媒体库任务失败：%v", err)
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
 		return err
 	}
 	publishDownloadQueueChanged(nil, "clear_pending")
-	return err
+	TriggerEmbyLibraryRefreshCheck()
+	return nil
 }
 
 func ClearExpireDownloadTasks() error {

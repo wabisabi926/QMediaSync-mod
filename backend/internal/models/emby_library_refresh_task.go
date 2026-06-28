@@ -217,6 +217,45 @@ func upsertEmbyLibraryRefreshTaskWithDB(tx *gorm.DB, libraryId string, libraryNa
 	return tx.Save(&task).Error
 }
 
+func cancelPendingEmbyLibraryRefreshTasksBySyncPathIdsWithDB(tx *gorm.DB, syncPathIds []uint, reason string) error {
+	syncPathIds = mergeSyncPathIds(syncPathIds, nil)
+	if len(syncPathIds) == 0 {
+		return nil
+	}
+
+	var relations []EmbyLibrarySyncPath
+	if err := tx.Where("sync_path_id IN ?", syncPathIds).Find(&relations).Error; err != nil {
+		return err
+	}
+	libraryIdSet := make(map[string]struct{})
+	for _, relation := range relations {
+		if relation.LibraryId != "" {
+			libraryIdSet[relation.LibraryId] = struct{}{}
+		}
+	}
+	libraryIds := make([]string, 0, len(libraryIdSet))
+	for libraryId := range libraryIdSet {
+		libraryIds = append(libraryIds, libraryId)
+	}
+	if len(libraryIds) == 0 {
+		return nil
+	}
+
+	now := nowUnix()
+	return tx.Model(&EmbyLibraryRefreshTask{}).
+		Where("library_id IN ? AND status = ?", libraryIds, EmbyLibraryRefreshStatusPending).
+		Updates(map[string]interface{}{
+			"status":          EmbyLibraryRefreshStatusCancelled,
+			"last_checked_at": now,
+			"error":           reason,
+		}).Error
+}
+
+// CancelPendingEmbyLibraryRefreshTasksBySyncPathIds 按同步目录取消待执行的 Emby 媒体库刷新任务。
+func CancelPendingEmbyLibraryRefreshTasksBySyncPathIds(syncPathIds []uint, reason string) error {
+	return cancelPendingEmbyLibraryRefreshTasksBySyncPathIdsWithDB(db.Db, syncPathIds, reason)
+}
+
 func isUniqueConstraintError(err error) bool {
 	if err == nil {
 		return false

@@ -52,6 +52,9 @@
             <el-descriptions-item label="下载元数据数">
               {{ taskInfo?.downloaded_meta || 0 }}
             </el-descriptions-item>
+            <el-descriptions-item label="上传元数据数">
+              {{ taskInfo?.uploaded_meta || 0 }}
+            </el-descriptions-item>
             <el-descriptions-item label="执行时长">
               {{ getExecutionDuration() }}
             </el-descriptions-item>
@@ -101,7 +104,15 @@
 
         <!-- 同步日志 -->
         <div class="task-logs">
-          <SyncTaskLogPanel :logs="logs" :connected="connected" />
+          <SyncTaskLogPanel
+            :logs="logs"
+            :connected="connected"
+            :log-path="resolvedLogPath"
+            @connect="reconnect"
+            @disconnect="disconnect"
+            @clear="clearLogs"
+            @download="downloadTaskLogs"
+          />
         </div>
       </div>
     </el-card>
@@ -120,6 +131,7 @@ import {
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SyncTaskLogPanel from '@/components/sync-task/SyncTaskLogPanel.vue'
+import { useLogFileActions } from '@/composables/useLogFileActions'
 import { useSyncTaskStream } from '@/composables/useSyncTaskStream'
 import { formatDateTime } from '@/utils/timeUtils'
 
@@ -147,7 +159,18 @@ const router = useRouter()
 // 获取任务 ID
 const taskId = computed(() => Number(route.params.id))
 
-const { task, logs, loading, connected, errorMessage } = useSyncTaskStream(taskId)
+const { task, logs, loading, connected, errorMessage, logPath, reconnect, disconnect, clearLogs } =
+  useSyncTaskStream(taskId)
+const { downloadLogFile } = useLogFileActions()
+
+const resolvedLogPath = computed(() => logPath.value || `libs/sync_${taskId.value}.log`)
+
+const downloadTaskLogs = () => {
+  downloadLogFile(resolvedLogPath.value, {
+    emptyMessage: '同步任务日志路径为空',
+    errorPrefix: '下载同步任务日志失败',
+  })
+}
 
 const taskInfo = computed<TaskInfo | null>(() => {
   if (!task.value) return null

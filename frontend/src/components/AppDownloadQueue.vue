@@ -178,10 +178,11 @@
       v-model:current-page="currentPage"
       v-model:page-size="pageSize"
       :page-sizes="[10, 20, 50, 100]"
-      :small="false"
+      :pager-count="5"
+      :small="isMobileView"
       :disabled="false"
       :background="true"
-      layout="total, sizes, prev, pager, next, jumper"
+      :layout="isMobileView ? 'total, prev, pager, next' : 'total, sizes, prev, pager, next, jumper'"
       :total="total"
       @size-change="handleSizeChange"
       @current-change="handleCurrentChange"
@@ -217,6 +218,7 @@ import {
   getTaskSourceTypeTagType,
 } from '@/utils/taskSourceUtils'
 import { formatDateTime } from '@/utils/timeUtils'
+import { isMobile as checkIsMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 import 'element-plus/theme-chalk/display.css'
 
 interface DownloadTask {
@@ -254,6 +256,7 @@ const queueData = ref<DownloadTask[]>([])
 const total = ref(0)
 const downloading = ref(0)
 const queueStatus = ref<0 | 1>(1) // 0-停止，1-运行中
+const isMobileView = ref(checkIsMobile())
 const currentPage = computed({
   get: () => pageState.currentPage,
   set: (value) => pageStateStore.setPagination('download-queue', value, pageState.pageSize),
@@ -277,6 +280,7 @@ const hasActiveQueueWork = computed(
 const refreshTimer = ref<number | null>(null)
 const pendingQueueDataRefresh = ref(false)
 let isPageActive = false
+let removeDeviceTypeListener: (() => void) | null = null
 const queueDataRequestGate = createActiveRequestGate(() => isPageActive)
 const queueStatusRequestGate = createActiveRequestGate(() => isPageActive)
 const queueMutationContextVersion = ref(0)
@@ -741,7 +745,12 @@ useWSEvent('download_queue_changed', () => {
 })
 
 // 页面生命周期
-onMounted(activateQueuePage)
+onMounted(() => {
+  activateQueuePage()
+  removeDeviceTypeListener = onDeviceTypeChange((newIsMobile) => {
+    isMobileView.value = newIsMobile
+  })
+})
 
 onActivated(activateQueuePage)
 
@@ -760,6 +769,9 @@ onActivated(() => {
 onDeactivated(deactivateQueuePage)
 
 onUnmounted(() => {
+  if (removeDeviceTypeListener) {
+    removeDeviceTypeListener()
+  }
   isPageActive = false
   pendingQueueDataRefresh.value = false
   queueDataRequestGate.invalidate()
@@ -841,6 +853,15 @@ onUnmounted(() => {
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  overflow: visible;
+}
+
+.pagination-container :deep(.el-pagination__total),
+.pagination-container :deep(.el-pagination__sizes),
+.pagination-container :deep(.el-pagination__jump) {
+  margin-right: 0;
 }
 
 /* 表格行样式 */
@@ -895,6 +916,14 @@ onUnmounted(() => {
 
   .queue-stats {
     gap: 12px;
+  }
+
+  .pagination-container {
+    justify-content: center;
+  }
+
+  .pagination-container :deep(.el-pagination) {
+    justify-content: center;
   }
 
   :deep(.el-table) {

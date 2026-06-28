@@ -73,6 +73,20 @@ func TestTaskStatus(t *testing.T) {
 	}
 }
 
+func TestAddStrmTaskReportsWaitingStatus(t *testing.T) {
+	queue := NewQueuePerType(models.SourceType115)
+	task := &NewSyncTask{ID: 7, TaskType: SyncTaskTypeStrm}
+
+	if err := queue.AddTask(task); err != nil {
+		t.Fatalf("添加 STRM 任务失败: %v", err)
+	}
+
+	status := queue.CheckTaskStatus(7, SyncTaskTypeStrm)
+	if status != TaskStatusWaiting {
+		t.Fatalf("队列中的 STRM 任务状态 = %d，期望 %d", status, TaskStatusWaiting)
+	}
+}
+
 func TestCancelTask(t *testing.T) {
 	queue := NewQueuePerType(models.SourceType115)
 

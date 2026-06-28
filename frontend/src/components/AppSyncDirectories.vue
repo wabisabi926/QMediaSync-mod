@@ -414,11 +414,12 @@ interface SyncDirectory {
 }
 
 interface SyncTaskEventPayload {
-  sync_id: number
+  sync_id?: number
   sync_path_id: number
-  status: number
-  sequence: number
+  status?: number
+  sequence?: number
   event_time?: number
+  is_running?: number
   deleted?: boolean
 }
 
@@ -518,6 +519,15 @@ const updatePathesStatus = async () => {
   }
 }
 
+const applySyncPathRunningStatus = (syncPathId: number, isRunning: number) => {
+  const path = directories.value.find((item) => item.id === syncPathId)
+  if (!path) {
+    void updatePathesStatus()
+    return
+  }
+  path.is_running = isRunning
+}
+
 const patchSyncPathStatus = (raw: Record<string, unknown>) => {
   const payload = raw as unknown as SyncTaskEventPayload
   if (!payload.sync_path_id) {
@@ -538,6 +548,11 @@ const patchSyncPathStatus = (raw: Record<string, unknown>) => {
     return
   }
   lastSyncPathEventSequence.set(sequenceKey, payload.sequence || lastSequence)
+
+  if (typeof payload.is_running === 'number') {
+    applySyncPathRunningStatus(payload.sync_path_id, payload.is_running)
+    return
+  }
 
   const path = directories.value.find((item) => item.id === payload.sync_path_id)
   if (!path) {
@@ -623,6 +638,8 @@ const handleFullStart = async (row: SyncDirectory, index: number) => {
     })
 
     if (response?.data.code === 200) {
+      const nextStatus = Number(response.data.data?.is_running ?? 1)
+      applySyncPathRunningStatus(row.id, nextStatus)
       ElMessage.success(`同步目录“${row.local_path}”启动成功`)
     } else {
       ElMessage.error(response?.data.message || '启动同步目录失败')
@@ -652,6 +669,8 @@ const handleStart = async (row: SyncDirectory, index: number) => {
     })
 
     if (response?.data.code === 200) {
+      const nextStatus = Number(response.data.data?.is_running ?? 1)
+      applySyncPathRunningStatus(row.id, nextStatus)
       ElMessage.success(`同步目录“${row.local_path}”启动成功`)
     } else {
       ElMessage.error(response?.data.message || '启动同步目录失败')
@@ -797,6 +816,7 @@ const onLegacySyncEvent = () => {
 useWSEvent('sync_task_created', patchSyncPathStatus)
 useWSEvent('sync_task_updated', patchSyncPathStatus)
 useWSEvent('sync_task_deleted', patchSyncPathStatus)
+useWSEvent('strm_sync_task_queued', patchSyncPathStatus)
 useWSEvent('strm_sync_task_start', onLegacySyncEvent)
 useWSEvent('strm_sync_task_complete', onLegacySyncEvent)
 

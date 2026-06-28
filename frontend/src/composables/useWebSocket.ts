@@ -6,6 +6,7 @@ export type WSEventType =
   | 'scraper_task_complete'
   | 'scraper_item_complete'
   | 'strm_sync_task_start'
+  | 'strm_sync_task_queued'
   | 'strm_sync_task_complete'
   | 'sync_task_created'
   | 'sync_task_updated'

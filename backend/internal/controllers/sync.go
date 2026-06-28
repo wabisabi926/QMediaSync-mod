@@ -425,7 +425,15 @@ func StartSyncByPath(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "同步任务已添加到队列", Data: nil})
+	pathStatus := synccron.CheckNewTaskStatus(syncPath.ID, synccron.SyncTaskTypeStrm)
+	c.JSON(http.StatusOK, APIResponse[map[string]any]{
+		Code:    Success,
+		Message: "同步任务已添加到队列",
+		Data: map[string]any{
+			"id":         syncPath.ID,
+			"is_running": pathStatus,
+		},
+	})
 }
 
 // StopSyncByPath 停止指定路径的同步任务

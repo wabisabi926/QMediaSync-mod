@@ -14,6 +14,7 @@ const (
 	EventScraperTaskComplete  = "scraper_task_complete"
 	EventScraperItemComplete  = "scraper_item_complete"
 	EventStrmSyncTaskStart    = "strm_sync_task_start"
+	EventStrmSyncTaskQueued   = "strm_sync_task_queued"
 	EventStrmSyncTaskComplete = "strm_sync_task_complete"
 	EventSyncTaskCreated      = "sync_task_created"
 	EventSyncTaskUpdated      = "sync_task_updated"

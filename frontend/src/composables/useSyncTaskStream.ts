@@ -37,6 +37,7 @@ export function useSyncTaskStream(
   const errorMessage = shallowRef('')
   const lastSequence = shallowRef(0)
   const logCursor = shallowRef(0)
+  const logPath = shallowRef('')
   const reconnectAttempts = shallowRef(0)
   const socket = shallowRef<WebSocket | null>(null)
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -135,8 +136,9 @@ export function useSyncTaskStream(
 
   const applySnapshot = (snapshot: SyncTaskSnapshot) => {
     task.value = snapshot.task
-    logs.value = snapshot.logs.map(withLogID)
+    logs.value = normalizeSnapshotLogs(snapshot.logs)
     logCursor.value = snapshot.log_cursor
+    logPath.value = snapshot.log_path
     loading.value = false
     terminal.value = snapshot.task.status === 2 || snapshot.task.status === 3
   }
@@ -169,8 +171,15 @@ export function useSyncTaskStream(
   }
 
   const appendLog = (entry: SyncTaskLogEntry) => {
-    const next = [...logs.value, withLogID(entry)]
-    logs.value = next.length > maxLogs ? next.slice(next.length - maxLogs) : next
+    logs.value = [withLogID(entry), ...logs.value].slice(0, maxLogs)
+  }
+
+  const normalizeSnapshotLogs = (entries: SyncTaskLogEntry[]) => {
+    return entries.map(withLogID).reverse().slice(0, maxLogs)
+  }
+
+  const clearLogs = () => {
+    logs.value = []
   }
 
   const withLogID = (entry: SyncTaskLogEntry): SyncTaskLogEntry => ({
@@ -186,6 +195,7 @@ export function useSyncTaskStream(
       terminal.value = false
       lastSequence.value = 0
       logCursor.value = 0
+      logPath.value = ''
       if (immediate) connect()
     },
     { immediate },
@@ -202,6 +212,8 @@ export function useSyncTaskStream(
     errorMessage: readonly(errorMessage),
     isRunning,
     logCursor: readonly(logCursor),
+    logPath: readonly(logPath),
+    clearLogs,
     reconnect: connect,
     disconnect,
   }

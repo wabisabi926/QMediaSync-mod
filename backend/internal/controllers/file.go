@@ -36,17 +36,19 @@ func UploadList(ctx *gin.Context) {
 	// 从请求中获取文件列表
 	// 从 model/upload.go 中查询上传队列列表
 	type uploadQueueResp struct {
-		Total     int                    `json:"total"`
-		Uploading int                    `json:"uploading"`
-		List      []*models.DbUploadTask `json:"list"`
+		Total       int                        `json:"total"`
+		Uploading   int                        `json:"uploading"`
+		QueueStatus models.QueueStatusSnapshot `json:"queue_status"`
+		List        []*models.DbUploadTask     `json:"list"`
 	}
 	// 从请求中获取文件列表
 	// 从 model/upload.go 中查询上传队列列表
 	uploadList, total := models.GetUploadTaskList(models.UploadStatus(req.Status), req.Page, req.PageSize)
 	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取上传队列成功", Data: uploadQueueResp{
-		Total:     int(total),
-		Uploading: int(models.GetUploadingCount()),
-		List:      uploadList,
+		Total:       int(total),
+		Uploading:   int(models.GetUploadingCount()),
+		QueueStatus: models.GetUploadQueueStatusSnapshot(),
+		List:        uploadList,
 	}})
 }
 
@@ -186,8 +188,7 @@ func StopUploadQueue(ctx *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func UploadQueueStatus(ctx *gin.Context) {
-	// 调用全局上传队列的 GetStatus 方法
-	status := models.GlobalUploadQueue.IsRunning()
+	status := models.GetUploadQueueStatusSnapshot()
 
 	// 返回结果
 	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取上传队列状态成功", Data: status})
@@ -209,9 +210,10 @@ func UploadQueueStatus(ctx *gin.Context) {
 // @Security ApiKeyAuth
 func DownloadList(ctx *gin.Context) {
 	type downloadQueueResp struct {
-		Total       int64                    `json:"total"`
-		Downloading int64                    `json:"downloading"`
-		List        []*models.DbDownloadTask `json:"list"`
+		Total       int64                      `json:"total"`
+		Downloading int64                      `json:"downloading"`
+		QueueStatus models.QueueStatusSnapshot `json:"queue_status"`
+		List        []*models.DbDownloadTask   `json:"list"`
 	}
 	var req requests.QueueListRequest
 	if err := ctx.ShouldBind(&req); err != nil {
@@ -228,6 +230,7 @@ func DownloadList(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取下载队列成功", Data: downloadQueueResp{
 		Total:       total,
 		Downloading: models.GetDownloadingCount(),
+		QueueStatus: models.GetDownloadQueueStatusSnapshot(),
 		List:        downloadList,
 	}})
 }
@@ -305,8 +308,7 @@ func StopDownloadQueue(ctx *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func DownloadQueueStatus(ctx *gin.Context) {
-	// 调用全局下载队列的 GetStatus 方法
-	status := models.GlobalDownloadQueue.IsRunning()
+	status := models.GetDownloadQueueStatusSnapshot()
 
 	// 返回结果
 	ctx.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取下载队列状态成功", Data: status})

@@ -21,14 +21,14 @@
             type="warning"
             :size="queueControlSize"
             @click="pauseAllTasks"
-            :disabled="queueStatus === 0"
+            :disabled="!canPauseAllTasks"
             >全部暂停</el-button
           >
           <el-button
             type="success"
             :size="queueControlSize"
             @click="resumeAllTasks"
-            :disabled="queueStatus === 1"
+            :disabled="!canResumeAllTasks"
             >全部恢复</el-button
           >
         </div>
@@ -243,6 +243,13 @@ import {
 } from '@/utils/taskSourceUtils'
 import { formatDateTime } from '@/utils/timeUtils'
 import { isMobile as checkIsMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
+import {
+  canPauseQueue,
+  canResumeQueue,
+  emptyQueueStatusSnapshot,
+  normalizeQueueStatusSnapshot,
+  type QueueStatusSnapshot,
+} from '@/utils/queueStatusUtils'
 import 'element-plus/theme-chalk/display.css'
 
 interface UploadTask {
@@ -280,7 +287,10 @@ const { initialLoading, backgroundRefreshing, isRefreshing, runRefresh } = useBa
 const queueData = ref<UploadTask[]>([])
 const total = ref(0)
 const uploading = ref(0)
-const queueStatus = ref<0 | 1>(1) // 0-停止，1-运行中
+const queueStatusSnapshot = ref<QueueStatusSnapshot>(emptyQueueStatusSnapshot())
+const queueStatus = computed<0 | 1>(() => (queueStatusSnapshot.value.running ? 1 : 0))
+const canPauseAllTasks = computed(() => canPauseQueue(queueStatusSnapshot.value))
+const canResumeAllTasks = computed(() => canResumeQueue(queueStatusSnapshot.value))
 const isMobileView = ref(checkIsMobile())
 const paginationLayout = computed(() =>
   isMobileView.value ? 'total, sizes, prev, pager, next' : 'total, sizes, prev, pager, next, jumper',
@@ -449,6 +459,10 @@ const loadQueueData = async () => {
           queueData.value = mergeStableList(queueData.value, rows, (row) => row.id)
           total.value = response.data.data.total
           uploading.value = response.data.data.uploading || 0
+          queueStatusSnapshot.value = normalizeQueueStatusSnapshot(
+            response.data.data.queue_status,
+            queueStatusSnapshot.value.running,
+          )
           pageStateStore.setExpandedRowKeys(
             'upload-queue',
             retainExistingKeys(pageState.expandedRowKeys, queueData.value, (row) => row.id),
@@ -683,8 +697,10 @@ const loadQueueStatus = async () => {
     }
 
     if (response?.data.code === 200) {
-      // 0-停止，1-运行中
-      queueStatus.value = response.data.data ? 1 : 0
+      queueStatusSnapshot.value = normalizeQueueStatusSnapshot(
+        response.data.data,
+        queueStatusSnapshot.value.running,
+      )
     } else {
       console.error('获取队列状态失败：', response?.data.message)
     }
@@ -764,7 +780,10 @@ const handleStatusChange = (val: number) => {
 
 useWSEvent('upload_queue_status_changed', (data) => {
   if (typeof data.running === 'boolean') {
-    queueStatus.value = data.running ? 1 : 0
+    queueStatusSnapshot.value = {
+      ...queueStatusSnapshot.value,
+      running: data.running,
+    }
   }
   if (isPageActive) {
     loadQueueData()

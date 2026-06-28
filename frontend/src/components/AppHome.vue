@@ -101,6 +101,9 @@ const handleLogDialogClose = () => {
         ref="logViewerRef"
         log-path="app.log"
         :is-real-time="true"
+        fullscreen
+        height="calc(100dvh - 210px)"
+        mobile-height="calc(100dvh - 170px)"
       />
     </div>
   </el-dialog>

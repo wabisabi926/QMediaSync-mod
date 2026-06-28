@@ -1,5 +1,9 @@
 <template>
-  <div class="log-viewer-container">
+  <div
+    class="log-viewer-container"
+    :class="{ 'is-fullscreen': props.fullscreen }"
+    :style="logViewerStyle"
+  >
     <el-card class="log-card" shadow="hover">
       <template #header>
         <div class="card-header">
@@ -57,11 +61,22 @@ import { buildApiWebSocketUrl } from '@/utils/wsUrl'
 interface Props {
   logPath: string
   isRealTime: boolean
+  height?: string
+  mobileHeight?: string
+  fullscreen?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isRealTime: true,
+  height: '',
+  mobileHeight: '',
+  fullscreen: false,
 })
+
+const logViewerStyle = computed<Record<string, string>>(() => ({
+  '--log-viewer-height': props.height || 'calc(100vh - 320px)',
+  '--log-viewer-mobile-height': props.mobileHeight || props.height || 'calc(100dvh - 220px)',
+}))
 
 // 定义日志条目类型
 interface LogEntry {
@@ -482,7 +497,7 @@ defineExpose({
   border: 1px solid #ebeef5;
   border-radius: 4px;
   padding: 10px;
-  height: calc(100vh - 320px);
+  height: var(--log-viewer-height);
   overflow-y: auto;
   background-color: #fafafa;
   font-family: 'Courier New', Courier, monospace;
@@ -613,8 +628,14 @@ defineExpose({
   }
 
   .logs {
-    height: 300px;
+    height: var(--log-viewer-mobile-height);
+    min-height: 360px;
+    max-height: none;
     font-size: 12px;
+  }
+
+  .log-viewer-container.is-fullscreen .logs {
+    min-height: 0;
   }
 
   .log-line {

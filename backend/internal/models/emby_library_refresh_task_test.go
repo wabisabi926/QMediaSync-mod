@@ -47,6 +47,7 @@ func setupEmbyRefreshTestDB(t *testing.T) {
 	}
 	IsStrmSyncTaskActiveFunc = nil
 	embyRefreshDownloadEventBatch.mutex.Lock()
+	embyRefreshDownloadEventBatch.syncPathIds = make(map[uint]struct{})
 	embyRefreshDownloadEventBatch.syncFileIds = make(map[uint]struct{})
 	embyRefreshDownloadEventBatch.mutex.Unlock()
 }
@@ -213,6 +214,34 @@ func TestRefreshTaskWaitsForRelatedDownloadsOnly(t *testing.T) {
 	}
 }
 
+func TestRefreshTaskWaitsForDownloadTaskWithSyncPathId(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	db.Db.Create(&DbDownloadTask{SyncPathId: 10, Status: DownloadStatusPending})
+	db.Db.Create(&DbDownloadTask{SyncPathId: 20, Status: DownloadStatusPending})
+
+	count, err := CountActiveDownloadTasksBySyncPathIds([]uint{10})
+	if err != nil {
+		t.Fatalf("统计下载任务失败: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("应按 sync_path_id 统计当前同步目录下载任务，实际 %d", count)
+	}
+}
+
+func TestRefreshTaskKeepsSyncFileFallbackForOldDownloadTasks(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	db.Db.Create(&SyncFile{BaseModel: BaseModel{ID: 1}, SyncPathId: 10})
+	db.Db.Create(&DbDownloadTask{SyncFileId: 1, Status: DownloadStatusPending})
+
+	count, err := CountActiveDownloadTasksBySyncPathIds([]uint{10})
+	if err != nil {
+		t.Fatalf("统计旧下载任务失败: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("旧下载任务应继续通过 sync_file_id 兼容统计，实际 %d", count)
+	}
+}
+
 func TestRefreshTaskWaitsForActiveSyncTask(t *testing.T) {
 	setupEmbyRefreshTestDB(t)
 	IsStrmSyncTaskActiveFunc = func(syncPathId uint) bool {
@@ -320,6 +349,27 @@ func TestDownloadTaskChangedEventIsBatched(t *testing.T) {
 	db.Db.Where("library_id = ?", "lib-movie").First(&updated)
 	if updated.RefreshAfterAt <= now {
 		t.Fatalf("批量处理下载事件后应延长稳定窗口，实际 refresh_after_at=%d now=%d", updated.RefreshAfterAt, now)
+	}
+}
+
+func TestDownloadTaskChangedEventUsesSyncPathId(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	now := nowUnix()
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-movie", LibraryName: "电影", SyncPathId: 10})
+	task := newPendingEmbyLibraryRefreshTask("lib-movie", "电影", []uint{10}, now-100)
+	task.RefreshAfterAt = now - 1
+	db.Db.Create(task)
+
+	HandleDownloadTaskStatusChanged(helpers.Event{Data: DownloadTaskStatusChangedPayload{SyncPathId: 10}})
+
+	if err := flushPendingEmbyRefreshDownloadTaskChanges(); err != nil {
+		t.Fatalf("批量处理下载事件失败: %v", err)
+	}
+
+	var updated EmbyLibraryRefreshTask
+	db.Db.Where("library_id = ?", "lib-movie").First(&updated)
+	if updated.RefreshAfterAt <= now {
+		t.Fatalf("sync_path_id 下载事件应延长稳定窗口，实际 refresh_after_at=%d now=%d", updated.RefreshAfterAt, now)
 	}
 }
 

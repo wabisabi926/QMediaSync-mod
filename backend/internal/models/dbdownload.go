@@ -41,6 +41,7 @@ type DbDownloadTask struct {
 	BaseModel
 	AccountId     uint           `json:"account_id"`
 	SyncFileId    uint           `json:"sync_file_id"`                           // 115 文件 ID
+	SyncPathId    uint           `json:"sync_path_id" gorm:"index"`              // 所属同步目录 ID
 	SourceType    SourceType     `json:"source_type"`                            // 任务来源类型
 	RemoteFileId  string         `json:"remote_file_id" gorm:"index:idx_source"` // 远程文件 ID，用来提取实际下载链接，或者这本身就是下载链接
 	FileName      string         `json:"file_name"`                              // 文件名，用来显示
@@ -150,10 +151,11 @@ func publishDownloadTaskStatusChanged(task *DbDownloadTask) {
 	if task == nil {
 		return
 	}
-	enqueueEmbyRefreshDownloadTaskChanged(task.SyncFileId)
+	enqueueEmbyRefreshDownloadTaskChanged(task.SyncPathId, task.SyncFileId)
 	helpers.Publish(helpers.DownloadTaskStatusChangedEvent, DownloadTaskStatusChangedPayload{
 		TaskId:     task.ID,
 		SyncFileId: task.SyncFileId,
+		SyncPathId: task.SyncPathId,
 		Status:     task.Status,
 		Source:     task.Source,
 	})
@@ -403,6 +405,7 @@ func AddDownloadTaskFromSyncFile(file *SyncFile) error {
 	task := &DbDownloadTask{
 		AccountId:     file.AccountId,
 		SyncFileId:    file.ID,
+		SyncPathId:    file.SyncPathId,
 		RemoteFileId:  file.PickCode,
 		FileName:      file.FileName,
 		RemotePath:    file.Path,

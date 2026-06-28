@@ -18,7 +18,7 @@ type Migrator struct {
 	VersionCode int `json:"version_code"` // 版本号
 }
 
-var MaxVersionCode = 48
+var MaxVersionCode = 49
 var AllTables = []any{
 	Migrator{},
 	BackupConfig{}, BackupRecord{},
@@ -546,6 +546,14 @@ func Migrate() {
 			helpers.AppLogger.Errorf("迁移 sync_paths.add_path 失败：%v", err)
 			return
 		}
+		migrator.UpdateVersionCode(db.Db)
+	}
+	if migrator.VersionCode == 48 {
+		if err := db.Db.AutoMigrate(DbDownloadTask{}); err != nil {
+			helpers.AppLogger.Errorf("迁移下载任务同步目录字段失败：%v", err)
+			return
+		}
+		helpers.AppLogger.Info("已添加 db_download_tasks.sync_path_id 字段")
 		migrator.UpdateVersionCode(db.Db)
 	}
 	helpers.AppLogger.Infof("当前数据库版本 %d", migrator.VersionCode)

@@ -31,7 +31,10 @@ const (
 var IsStrmSyncTaskActiveFunc func(syncPathId uint) bool
 var embyRefreshCheckChan = make(chan struct{}, 1)
 var embyRefreshCoordinatorOnce sync.Once
-var embyRefreshDownloadEventBatch = &downloadEventBatch{syncFileIds: make(map[uint]struct{})}
+var embyRefreshDownloadEventBatch = &downloadEventBatch{
+	syncPathIds: make(map[uint]struct{}),
+	syncFileIds: make(map[uint]struct{}),
+}
 var embyRefreshScannerConfigState = struct {
 	sync.Mutex
 	initialized bool
@@ -40,6 +43,7 @@ var embyRefreshScannerConfigState = struct {
 
 type downloadEventBatch struct {
 	mutex       sync.Mutex
+	syncPathIds map[uint]struct{}
 	syncFileIds map[uint]struct{}
 }
 
@@ -225,6 +229,7 @@ func isUniqueConstraintError(err error) bool {
 type DownloadTaskStatusChangedPayload struct {
 	TaskId     uint           `json:"task_id"`
 	SyncFileId uint           `json:"sync_file_id"`
+	SyncPathId uint           `json:"sync_path_id"`
 	Status     DownloadStatus `json:"status"`
 	Source     DownloadSource `json:"source"`
 }
@@ -242,8 +247,12 @@ func CountActiveDownloadTasksBySyncPathIds(syncPathIds []uint) (int64, error) {
 	}
 	var count int64
 	err := db.Db.Model(&DbDownloadTask{}).
-		Joins("JOIN sync_files ON sync_files.id = db_download_tasks.sync_file_id").
-		Where("sync_files.sync_path_id IN ?", syncPathIds).
+		Joins("LEFT JOIN sync_files ON sync_files.id = db_download_tasks.sync_file_id").
+		Where(
+			"(db_download_tasks.sync_path_id IN ? OR (db_download_tasks.sync_path_id = 0 AND sync_files.sync_path_id IN ?))",
+			syncPathIds,
+			syncPathIds,
+		).
 		Where(
 			"(db_download_tasks.status IN ? OR (db_download_tasks.status = ? AND db_download_tasks.retry_count < ?))",
 			[]DownloadStatus{DownloadStatusPending, DownloadStatusDownloading},
@@ -340,6 +349,11 @@ func NotifyEmbyRefreshDownloadTasksChanged(syncFileIds []uint) error {
 		}
 	}
 	syncPathIds = mergeSyncPathIds(syncPathIds, nil)
+	return NotifyEmbyRefreshDownloadTasksChangedBySyncPathIds(syncPathIds)
+}
+
+func NotifyEmbyRefreshDownloadTasksChangedBySyncPathIds(syncPathIds []uint) error {
+	syncPathIds = mergeSyncPathIds(syncPathIds, nil)
 	if len(syncPathIds) == 0 {
 		return nil
 	}
@@ -380,38 +394,52 @@ func HandleDownloadTaskStatusChanged(event helpers.Event) {
 	if !ok {
 		return
 	}
-	enqueueEmbyRefreshDownloadTaskChanged(payload.SyncFileId)
+	enqueueEmbyRefreshDownloadTaskChanged(payload.SyncPathId, payload.SyncFileId)
 }
 
-func enqueueEmbyRefreshDownloadTaskChanged(syncFileId uint) {
+func enqueueEmbyRefreshDownloadTaskChanged(syncPathId uint, syncFileId uint) {
+	embyRefreshDownloadEventBatch.mutex.Lock()
+	defer embyRefreshDownloadEventBatch.mutex.Unlock()
+	if syncPathId > 0 {
+		embyRefreshDownloadEventBatch.syncPathIds[syncPathId] = struct{}{}
+		return
+	}
 	if syncFileId == 0 {
 		return
 	}
-	embyRefreshDownloadEventBatch.mutex.Lock()
-	defer embyRefreshDownloadEventBatch.mutex.Unlock()
 	embyRefreshDownloadEventBatch.syncFileIds[syncFileId] = struct{}{}
 }
 
-func drainPendingEmbyRefreshDownloadTaskChanges() []uint {
+func drainPendingEmbyRefreshDownloadTaskChanges() ([]uint, []uint) {
 	embyRefreshDownloadEventBatch.mutex.Lock()
 	defer embyRefreshDownloadEventBatch.mutex.Unlock()
-	if len(embyRefreshDownloadEventBatch.syncFileIds) == 0 {
-		return nil
+	if len(embyRefreshDownloadEventBatch.syncPathIds) == 0 && len(embyRefreshDownloadEventBatch.syncFileIds) == 0 {
+		return nil, nil
+	}
+	syncPathIds := make([]uint, 0, len(embyRefreshDownloadEventBatch.syncPathIds))
+	for syncPathId := range embyRefreshDownloadEventBatch.syncPathIds {
+		syncPathIds = append(syncPathIds, syncPathId)
 	}
 	syncFileIds := make([]uint, 0, len(embyRefreshDownloadEventBatch.syncFileIds))
 	for syncFileId := range embyRefreshDownloadEventBatch.syncFileIds {
 		syncFileIds = append(syncFileIds, syncFileId)
 	}
+	embyRefreshDownloadEventBatch.syncPathIds = make(map[uint]struct{})
 	embyRefreshDownloadEventBatch.syncFileIds = make(map[uint]struct{})
-	return syncFileIds
+	return syncPathIds, syncFileIds
 }
 
 func flushPendingEmbyRefreshDownloadTaskChanges() error {
-	syncFileIds := drainPendingEmbyRefreshDownloadTaskChanges()
-	if len(syncFileIds) == 0 {
-		return nil
+	syncPathIds, syncFileIds := drainPendingEmbyRefreshDownloadTaskChanges()
+	if len(syncPathIds) > 0 {
+		if err := NotifyEmbyRefreshDownloadTasksChangedBySyncPathIds(syncPathIds); err != nil {
+			return err
+		}
 	}
-	return NotifyEmbyRefreshDownloadTasksChanged(syncFileIds)
+	if len(syncFileIds) > 0 {
+		return NotifyEmbyRefreshDownloadTasksChanged(syncFileIds)
+	}
+	return nil
 }
 
 func runEmbyLibraryRefreshDownloadEventBatcher() {

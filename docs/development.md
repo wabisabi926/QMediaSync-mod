@@ -68,6 +68,12 @@ trustedOrigins:
 (cd frontend && pnpm run build)
 ```
 
+后端生产构建默认关闭 Gin 的 MsgPack 绑定和渲染支持，以缩小二进制体积：
+
+```bash
+(cd backend && CGO_ENABLED=0 go build -trimpath -tags=nomsgpack -ldflags="-s -w" -o QMediaSync .)
+```
+
 前端生产构建输出到 `frontend/dist`。发布、Docker 和离线包会把该目录作为 Web UI 静态资源输入，并在最终运行目录中放置为 `web_statics`。
 
 ## 退出

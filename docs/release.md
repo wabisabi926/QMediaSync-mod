@@ -48,6 +48,8 @@ scripts/release/release.sh major
 
 推送 `v*` 标签会触发 GitHub Actions 的 release 流程，生成 Windows / Linux 发布包、可选的飞牛 FPK，并创建 GitHub Release。
 
+后端发布二进制使用 `-trimpath -tags=nomsgpack -ldflags="-s -w"` 构建，默认关闭 Gin 的 MsgPack 绑定和渲染支持，以减少发布包体积。
+
 GitHub Release 的正文取自上一步提交的 `.changes/v0.xx.xx.md`；release workflow 会拒绝重复 GitHub Release 和缺失 `.changes/<tag>.md` 的发布。
 
 发布流程还会使用 `GITHUB_TOKEN` 推送 GHCR 镜像 `ghcr.io/<owner>/qmediasync:<tag>` 和 `ghcr.io/<owner>/qmediasync:latest`。

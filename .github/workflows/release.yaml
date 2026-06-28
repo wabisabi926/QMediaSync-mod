@@ -157,7 +157,7 @@ jobs:
 
           cd backend
           go mod download
-          go build -trimpath -ldflags "$ldflags" -o "$GITHUB_WORKSPACE/$output" .
+          go build -trimpath -tags=nomsgpack -ldflags "$ldflags" -o "$GITHUB_WORKSPACE/$output" .
           cd "$GITHUB_WORKSPACE"
 
           scripts/release/package-release-asset.sh "$TAG" "$GOOS" "$GOARCH" "$output" backend/web_statics release-assets

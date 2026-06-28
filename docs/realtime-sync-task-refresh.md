@@ -60,7 +60,7 @@
 - 详情页首次进入可以显示 loading；收到 snapshot 后，任务状态和日志都在原位置更新，不重建日志组件。
 - `SyncTaskLogPanel` 只在用户处于“跟随最新”状态时自动跟随顶部，用户查看历史日志时不会抢滚动。
 - 同步记录页按 `sync_id` 和 `sequence` patch 当前行；只有 `sync_task_created` 可以在第一页插入新记录，缺失当前页的 `sync_task_updated` 不插入，避免进度事件污染分页排序和总数。
-- 同步记录和详情页根据 `new_strm`、`new_meta` 与任务状态派生媒体库刷新提示；已完成任务二者皆为 `0` 时表示本次 STRM 同步未提交 Emby 媒体库刷新。
+- 同步记录和详情页根据 `new_strm`、`new_meta` 与任务状态派生媒体库刷新相关提示；前端只展示是否存在刷新相关变更，不声明后端已提交刷新任务。
 - 同步目录页按 `sync_path_id` 更新运行状态，并按 `sync_id` 去重事件；同一目录的新任务不会被上一任务的 sequence 压掉。
 
 ## 日志 tailer

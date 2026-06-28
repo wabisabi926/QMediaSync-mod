@@ -280,6 +280,28 @@ func TestRefreshTaskWaitsForSameLibraryQueuedSyncPath(t *testing.T) {
 	}
 }
 
+func TestRefreshTaskWaitsForSameLibraryDownloadOutsideTaskSyncPaths(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	now := nowUnix()
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-movie", LibraryName: "电影", SyncPathId: 10})
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-movie", LibraryName: "电影", SyncPathId: 11})
+	task := newPendingEmbyLibraryRefreshTask("lib-movie", "电影", []uint{10}, now-100)
+	task.RefreshAfterAt = now - 1
+	db.Db.Create(task)
+	db.Db.Create(&DbDownloadTask{SyncPathId: 11, Status: DownloadStatusPending})
+
+	ready, reason, err := IsEmbyLibraryRefreshTaskReady(task, now)
+	if err != nil {
+		t.Fatalf("判断刷新任务失败: %v", err)
+	}
+	if ready {
+		t.Fatalf("同一媒体库其他同步目录还有下载任务时不应刷新")
+	}
+	if reason != "download_running" {
+		t.Fatalf("等待原因 = %s，期望 download_running", reason)
+	}
+}
+
 func TestRefreshTaskWaitsForRetryableFailedDownload(t *testing.T) {
 	setupEmbyRefreshTestDB(t)
 	db.Db.Create(&SyncFile{BaseModel: BaseModel{ID: 1}, SyncPathId: 10})

@@ -445,6 +445,15 @@ func (s *SyncStrm) AddDownloadTaskTemp(file *SyncFileCache) {
 	s.memSyncCache.InsertDownloadIndex(file)
 }
 
+func (s *SyncStrm) addMetaDownloadTask(file *models.SyncFile) error {
+	if err := models.AddDownloadTaskFromSyncFile(file); err != nil {
+		return err
+	}
+	atomic.AddInt64(&s.NewMeta, 1)
+	s.PublishProgress(false)
+	return nil
+}
+
 // 遍历同步缓存，添加下载任务
 // 先提取下载队列中未完成的任务，再遍历内存同步缓存，把需要下载且未在队列中的文件加入下载队列
 func (s *SyncStrm) AddDownloadTaskFromMemCache() {
@@ -479,11 +488,9 @@ func (s *SyncStrm) AddDownloadTaskFromMemCache() {
 			continue
 		}
 		// 添加下载任务
-		err := models.AddDownloadTaskFromSyncFile(file.GetSyncFile(s, s.Account.BaseUrl))
+		err := s.addMetaDownloadTask(file.GetSyncFile(s, s.Account.BaseUrl))
 		if err == nil {
 			s.Sync.Logger.Infof("添加下载任务成功：%s => %s", file.Path+"/"+file.FileName, file.GetLocalFilePath(s.TargetPath, s.SourcePath))
-			atomic.AddInt64(&s.NewMeta, 1)
-			s.PublishProgress(false)
 		}
 	}
 	s.memSyncCache.mu.RUnlock()
@@ -665,7 +672,9 @@ func (s *SyncStrm) compareLocalFilesWithTempTable() error {
 							s.RemoveFileAndCheckDirEmtry(path)
 
 							// 2. 添加下载任务
-							models.AddDownloadTaskFromSyncFile(existsFile.GetSyncFile(s, s.Account.BaseUrl))
+							if err := s.addMetaDownloadTask(existsFile.GetSyncFile(s, s.Account.BaseUrl)); err != nil {
+								s.Sync.Logger.Warnf("添加元数据重新下载任务失败：%v", err)
+							}
 							return nil
 						}
 

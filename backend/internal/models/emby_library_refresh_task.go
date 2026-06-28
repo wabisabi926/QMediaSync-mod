@@ -314,7 +314,7 @@ func IsEmbyLibraryRefreshTaskReady(task *EmbyLibraryRefreshTask, now int64) (boo
 		return false, "sync_running", nil
 	}
 
-	activeDownloads, err := CountActiveDownloadTasksBySyncPathIds(syncPathIds)
+	activeDownloads, err := CountActiveDownloadTasksBySyncPathIds(waitSyncPathIds)
 	if err != nil {
 		return false, "download_query_error", err
 	}

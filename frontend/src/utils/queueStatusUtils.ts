@@ -48,3 +48,10 @@ export const canPauseQueue = (snapshot: QueueStatusSnapshot): boolean =>
 
 export const canResumeQueue = (snapshot: QueueStatusSnapshot): boolean =>
   !snapshot.running && snapshot.pending > 0
+
+export interface QueueRowWithStatus {
+  status: number
+}
+
+export const removePendingQueueRows = <T extends QueueRowWithStatus>(rows: T[]): T[] =>
+  rows.filter((row) => row.status !== 0)

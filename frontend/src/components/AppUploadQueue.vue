@@ -248,6 +248,7 @@ import {
   canResumeQueue,
   emptyQueueStatusSnapshot,
   normalizeQueueStatusSnapshot,
+  removePendingQueueRows,
   type QueueStatusSnapshot,
 } from '@/utils/queueStatusUtils'
 import 'element-plus/theme-chalk/display.css'
@@ -518,8 +519,18 @@ const clearQueue = async () => {
     }
 
     if (response?.data.code === 200) {
+      const beforeCount = queueData.value.length
+      queueData.value = removePendingQueueRows(queueData.value)
+      const removedCount = beforeCount - queueData.value.length
+      total.value = Math.max(0, total.value - removedCount)
+      queueStatusSnapshot.value = {
+        ...queueStatusSnapshot.value,
+        pending: 0,
+        total: Math.max(0, queueStatusSnapshot.value.total - removedCount),
+      }
       ElMessage.success('队列已清空')
-      loadQueueData()
+      await loadQueueData()
+      await loadQueueStatus()
     } else {
       ElMessage.error('清空队列失败')
     }

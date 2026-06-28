@@ -36,7 +36,7 @@
 
 全局事件还包含：
 
-- `strm_sync_task_queued`：STRM 同步任务加入等待队列时广播，数据包含 `sync_path_id`、`is_running=1` 和 `task_type`。同步目录页收到后立即显示“等待中”，不需要等待页面刷新。
+- `strm_sync_task_queued`：STRM 同步任务加入等待队列时尝试广播，数据包含 `sync_path_id`、`is_running=1` 和 `task_type`。该事件在任务交付给队列处理器前尝试发送，避免晚到的等待事件覆盖已经运行中的状态；当 WebSocket 广播缓冲区已满时会丢弃该即时提示，不阻塞同步队列。同步目录页收到后立即显示“等待中”，不需要等待页面刷新。
 
 ## Stream 消息
 

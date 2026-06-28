@@ -44,16 +44,18 @@ func logError(format string, args ...interface{}) {
 	}
 }
 
-func broadcastStrmTaskQueued(task *NewSyncTask) {
+func tryBroadcastStrmTaskQueued(task *NewSyncTask) {
 	if task == nil || task.TaskType != SyncTaskTypeStrm || task.ID == 0 {
 		return
 	}
-	ws.BroadcastEvent(ws.EventStrmSyncTaskQueued, map[string]any{
+	ws.TryBroadcastEvent(ws.EventStrmSyncTaskQueued, map[string]any{
 		"sync_path_id": task.ID,
 		"is_running":   TaskStatusWaiting,
 		"task_type":    string(task.TaskType),
 	})
 }
+
+var strmTaskQueuedBroadcaster = tryBroadcastStrmTaskQueued
 
 const (
 	QueueStatusRunning = "running"
@@ -86,17 +88,18 @@ func (t *NewSyncTask) Key() string {
 }
 
 type NewSyncQueuePerType struct {
-	sourceType     models.SourceType
-	taskChan       chan *NewSyncTask
-	waitingQueue   map[string]*NewSyncTask
-	currentTask    *NewSyncTask
-	status         string
-	mutex          sync.RWMutex
-	ctx            context.Context
-	cancelFunc     context.CancelFunc
-	runningFlag    int32
-	scrapeInstance *scrape.Scrape
-	strmSync       *syncstrm.SyncStrm
+	sourceType       models.SourceType
+	taskChan         chan *NewSyncTask
+	waitingQueue     map[string]*NewSyncTask
+	currentTask      *NewSyncTask
+	status           string
+	mutex            sync.RWMutex
+	processorStartMu sync.Mutex
+	ctx              context.Context
+	cancelFunc       context.CancelFunc
+	runningFlag      int32
+	scrapeInstance   *scrape.Scrape
+	strmSync         *syncstrm.SyncStrm
 }
 
 func NewQueuePerType(sourceType models.SourceType) *NewSyncQueuePerType {
@@ -128,6 +131,9 @@ func (q *NewSyncQueuePerType) isTaskExists(task *NewSyncTask) bool {
 }
 
 func (q *NewSyncQueuePerType) AddTask(task *NewSyncTask) error {
+	q.processorStartMu.Lock()
+	defer q.processorStartMu.Unlock()
+
 	q.mutex.Lock()
 
 	if q.isTaskExistsUnsafe(task) {
@@ -142,19 +148,28 @@ func (q *NewSyncQueuePerType) AddTask(task *NewSyncTask) error {
 
 	q.waitingQueue[task.Key()] = task
 	shouldBroadcastQueued := task.TaskType == SyncTaskTypeStrm && task.ID > 0
+	shouldStartProcessor := false
 
 	if q.status == QueueStatusRunning {
+		if len(q.taskChan) >= cap(q.taskChan) {
+			delete(q.waitingQueue, task.Key())
+			q.mutex.Unlock()
+			return fmt.Errorf("任务队列已满：类型=%s，ID=%d", task.TaskType.DisplayName(), task.ID)
+		}
+		if shouldBroadcastQueued {
+			strmTaskQueuedBroadcaster(task)
+		}
 		select {
 		case q.taskChan <- task:
 			if helpers.AppLogger != nil {
 				logInfo("任务已加入队列：类型=%s，ID=%d", task.TaskType.DisplayName(), task.ID)
 			}
+			shouldStartProcessor = true
 		default:
 			delete(q.waitingQueue, task.Key())
 			q.mutex.Unlock()
 			return fmt.Errorf("任务队列已满：类型=%s，ID=%d", task.TaskType.DisplayName(), task.ID)
 		}
-		q.startProcessorIfNotRunningUnsafe()
 	} else {
 		if helpers.AppLogger != nil {
 			logInfo("任务已加入暂停队列：类型=%s，ID=%d", task.TaskType.DisplayName(), task.ID)
@@ -163,8 +178,14 @@ func (q *NewSyncQueuePerType) AddTask(task *NewSyncTask) error {
 
 	q.mutex.Unlock()
 
-	if shouldBroadcastQueued {
-		broadcastStrmTaskQueued(task)
+	if shouldBroadcastQueued && !shouldStartProcessor {
+		strmTaskQueuedBroadcaster(task)
+	}
+
+	if shouldStartProcessor {
+		q.mutex.Lock()
+		q.startProcessorIfNotRunningUnsafe()
+		q.mutex.Unlock()
 	}
 
 	return nil
@@ -192,6 +213,9 @@ func (q *NewSyncQueuePerType) startProcessorIfNotRunningUnsafe() {
 }
 
 func (q *NewSyncQueuePerType) StartProcessor() {
+	q.processorStartMu.Lock()
+	defer q.processorStartMu.Unlock()
+
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 	q.startProcessorIfNotRunningUnsafe()
@@ -439,6 +463,9 @@ func (q *NewSyncQueuePerType) Pause() {
 }
 
 func (q *NewSyncQueuePerType) Resume() {
+	q.processorStartMu.Lock()
+	defer q.processorStartMu.Unlock()
+
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 

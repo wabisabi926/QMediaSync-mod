@@ -3,6 +3,7 @@ package websocket
 import (
 	"encoding/json"
 	"testing"
+	"time"
 )
 
 func readBroadcastEvent(t *testing.T, hub *EventHub) WSEvent {
@@ -64,5 +65,28 @@ func TestBroadcastQueueChanged(t *testing.T) {
 	}
 	if data["status"] != float64(1) {
 		t.Fatalf("status = %v，期望 1", data["status"])
+	}
+}
+
+func TestTryBroadcastEventDoesNotBlockWhenBroadcastChannelFull(t *testing.T) {
+	oldHub := GlobalEventHub
+	t.Cleanup(func() { GlobalEventHub = oldHub })
+	GlobalEventHub = NewEventHub()
+	for i := 0; i < cap(GlobalEventHub.broadcast); i++ {
+		GlobalEventHub.broadcast <- []byte("{}")
+	}
+
+	done := make(chan bool, 1)
+	go func() {
+		done <- TryBroadcastEvent(EventStrmSyncTaskQueued, map[string]any{"sync_path_id": 1})
+	}()
+
+	select {
+	case ok := <-done:
+		if ok {
+			t.Fatal("广播通道已满时 TryBroadcastEvent 应返回 false")
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("广播通道已满时 TryBroadcastEvent 不应阻塞")
 	}
 }

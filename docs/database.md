@@ -639,7 +639,7 @@ Emby 媒体库刷新任务表。
 
 - `account_id`：账号 ID。
 - `sync_file_id`：对应同步文件 ID。
-- `sync_path_id`：STRM 同步下载任务所属同步目录 ID，用于 Emby 刷新任务判断对应目录是否仍有未完成下载；旧数据可能为 `0`，系统会回退到 `sync_file_id` 关联 `sync_files` 判断。
+- `sync_path_id`：STRM 同步下载任务所属同步目录 ID，用于 Emby 刷新任务判断对应目录是否仍有未完成下载；旧数据可能为 `0` 或 `NULL`，系统会回退到 `sync_file_id` 关联 `sync_files` 判断。
 - `source_type`：任务来源账号类型。
 - `remote_file_id`：远程文件 ID 或下载链接。
 - `file_name`：文件名。

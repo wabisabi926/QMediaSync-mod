@@ -242,6 +242,22 @@ func TestRefreshTaskKeepsSyncFileFallbackForOldDownloadTasks(t *testing.T) {
 	}
 }
 
+func TestRefreshTaskKeepsSyncFileFallbackForNullSyncPathIDOldDownloadTasks(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	db.Db.Create(&SyncFile{BaseModel: BaseModel{ID: 1}, SyncPathId: 10})
+	if err := db.Db.Exec("INSERT INTO db_download_tasks (sync_file_id, sync_path_id, status) VALUES (?, NULL, ?)", 1, DownloadStatusPending).Error; err != nil {
+		t.Fatalf("插入 NULL sync_path_id 旧下载任务失败: %v", err)
+	}
+
+	count, err := CountActiveDownloadTasksBySyncPathIds([]uint{10})
+	if err != nil {
+		t.Fatalf("统计 NULL sync_path_id 旧下载任务失败: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("NULL sync_path_id 旧下载任务应继续通过 sync_file_id 兼容统计，实际 %d", count)
+	}
+}
+
 func TestRefreshTaskWaitsForActiveSyncTask(t *testing.T) {
 	setupEmbyRefreshTestDB(t)
 	IsStrmSyncTaskActiveFunc = func(syncPathId uint) bool {

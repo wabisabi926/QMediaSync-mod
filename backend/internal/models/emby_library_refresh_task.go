@@ -249,7 +249,7 @@ func CountActiveDownloadTasksBySyncPathIds(syncPathIds []uint) (int64, error) {
 	err := db.Db.Model(&DbDownloadTask{}).
 		Joins("LEFT JOIN sync_files ON sync_files.id = db_download_tasks.sync_file_id").
 		Where(
-			"(db_download_tasks.sync_path_id IN ? OR (db_download_tasks.sync_path_id = 0 AND sync_files.sync_path_id IN ?))",
+			"(db_download_tasks.sync_path_id IN ? OR ((db_download_tasks.sync_path_id = 0 OR db_download_tasks.sync_path_id IS NULL) AND sync_files.sync_path_id IN ?))",
 			syncPathIds,
 			syncPathIds,
 		).

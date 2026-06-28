@@ -129,6 +129,28 @@ func BroadcastEvent(eventType string, data any) {
 	GlobalEventHub.broadcast <- msg
 }
 
+// TryBroadcastEvent 尝试广播事件，广播队列已满时直接丢弃并返回 false。
+func TryBroadcastEvent(eventType string, data any) bool {
+	if GlobalEventHub == nil {
+		return false
+	}
+	event := WSEvent{
+		EventType: eventType,
+		Timestamp: time.Now(),
+		Data:      data,
+	}
+	msg, err := json.Marshal(event)
+	if err != nil {
+		return false
+	}
+	select {
+	case GlobalEventHub.broadcast <- msg:
+		return true
+	default:
+		return false
+	}
+}
+
 // BroadcastQueueStatusChanged 广播队列运行状态变更。
 func BroadcastQueueStatusChanged(eventType string, running bool) {
 	BroadcastEvent(eventType, QueueStatusPayload{Running: running})

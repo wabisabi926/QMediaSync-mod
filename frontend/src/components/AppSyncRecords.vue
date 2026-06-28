@@ -66,6 +66,9 @@
         <template #cell-start_time="{ row }">
           {{ row.start_time ? formatDateTime(row.start_time) : '-' }}
         </template>
+        <template #cell-end_time="{ row }">
+          {{ row.end_time ? formatDateTime(row.end_time) : '-' }}
+        </template>
         <template #cell-local_path="{ row }">
           <div class="sync-path-cell">
             <el-text type="primary" class="sync-path-cell__id hidden-md-and-up"
@@ -291,7 +294,7 @@ const getSubStatusText = (subStatus: number) => {
 const syncRecordColumns: RecordColumn<SyncRecord>[] = [
   { key: 'id', label: '任务 ID', priority: 'primary', width: 88, align: 'center' },
   { key: 'status', label: '状态', priority: 'primary', width: 96, align: 'center' },
-  { key: 'sub_status', label: '子状态', priority: 'secondary', minWidth: 132 },
+  { key: 'sub_status', label: '子状态', priority: 'secondary', minWidth: 112 },
   {
     key: 'start_time',
     label: '开始时间',
@@ -301,6 +304,17 @@ const syncRecordColumns: RecordColumn<SyncRecord>[] = [
       key: 'start_time',
       label: '开始时间',
       value: (row) => (row.start_time ? formatDateTime(row.start_time) : '-'),
+    },
+  },
+  {
+    key: 'end_time',
+    label: '结束时间',
+    priority: 'secondary',
+    minWidth: 168,
+    detailField: {
+      key: 'end_time',
+      label: '结束时间',
+      value: (row) => (row.end_time ? formatDateTime(row.end_time) : '-'),
     },
   },
   {
@@ -329,16 +343,6 @@ const syncRecordColumns: RecordColumn<SyncRecord>[] = [
     },
   },
   {
-    key: 'end_time',
-    label: '结束时间',
-    priority: 'detail',
-    detailField: {
-      key: 'end_time',
-      label: '结束时间',
-      value: (row) => (row.end_time ? formatDateTime(row.end_time) : '-'),
-    },
-  },
-  {
     key: 'stats',
     label: '统计',
     priority: 'detail',
@@ -346,7 +350,7 @@ const syncRecordColumns: RecordColumn<SyncRecord>[] = [
       key: 'stats',
       label: '统计',
       value: (row) =>
-        `总文件 ${row.processed_files}，STRM ${row.created_strm}，元数据 ${row.downloaded_meta}，上传 ${row.uploaded_meta}`,
+        `总文件 ${row.processed_files}，STRM ${row.created_strm}，元数据：下载 ${row.downloaded_meta} / 上传 ${row.uploaded_meta}`,
       span: 2,
     },
   },

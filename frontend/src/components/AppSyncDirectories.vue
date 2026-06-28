@@ -155,74 +155,90 @@
             </div>
 
             <div class="card-footer">
-              <el-tooltip
-                content="删除所有缓存数据后执行同步，可处理所有网盘文件变更"
-                placement="top"
-              >
+              <div class="card-footer__primary">
+                <el-tooltip
+                  content="删除所有缓存数据后执行同步，可处理所有网盘文件变更"
+                  placement="top"
+                >
+                  <el-button
+                    type="warning"
+                    size="small"
+                    plain
+                    :icon="RefreshRight"
+                    @click="handleFullStart(row, index)"
+                    :loading="row.starting"
+                    v-if="
+                      (row.source_type === '115' || row.source_type === 'baidupan') &&
+                      row.is_running === 0
+                    "
+                  >
+                    全量同步
+                  </el-button>
+                </el-tooltip>
+
                 <el-button
-                  type="warning"
+                  type="success"
                   size="small"
                   plain
-                  :icon="RefreshRight"
-                  @click="handleFullStart(row, index)"
+                  :icon="VideoPlay"
+                  @click="handleStart(row, index)"
                   :loading="row.starting"
-                  v-if="
-                    (row.source_type === '115' || row.source_type === 'baidupan') &&
-                    row.is_running === 0
-                  "
+                  v-if="row.is_running === 0"
                 >
-                  全量同步
+                  {{ getStartButtonText(row) }}
                 </el-button>
-              </el-tooltip>
 
-              <el-button
-                type="success"
-                size="small"
-                plain
-                :icon="VideoPlay"
-                @click="handleStart(row, index)"
-                :loading="row.starting"
-                v-if="row.is_running === 0"
-              >
-                {{ row.source_type === '115' || row.source_type === 'baidupan' ? '增量' : '' }}同步
-              </el-button>
+                <el-button
+                  type="info"
+                  size="small"
+                  plain
+                  :icon="VideoPause"
+                  @click="handleStop(row, index)"
+                  :loading="row.stopping"
+                  v-if="row.is_running !== 0"
+                >
+                  停止
+                </el-button>
+              </div>
 
-              <el-button
-                type="info"
-                size="small"
-                plain
-                :icon="VideoPause"
-                @click="handleStop(row, index)"
-                :loading="row.stopping"
-                v-if="row.is_running !== 0"
-              >
-                停止
-              </el-button>
+              <div class="card-footer__secondary">
+                <el-tooltip content="编辑同步目录" placement="top">
+                  <el-button
+                    type="primary"
+                    size="small"
+                    plain
+                    circle
+                    :icon="Edit"
+                    aria-label="编辑同步目录"
+                    @click="handleEdit(row)"
+                  />
+                </el-tooltip>
 
-              <el-button type="primary" size="small" plain :icon="Edit" @click="handleEdit(row)">
-                编辑
-              </el-button>
+                <el-tooltip content="删除同步目录" placement="top">
+                  <el-button
+                    type="danger"
+                    size="small"
+                    plain
+                    circle
+                    :icon="Delete"
+                    aria-label="删除同步目录"
+                    @click="handleDelete(row, index)"
+                    :loading="row.deleting"
+                  />
+                </el-tooltip>
 
-              <el-button
-                type="danger"
-                size="small"
-                plain
-                :icon="Delete"
-                @click="handleDelete(row, index)"
-                :loading="row.deleting"
-              >
-                删除
-              </el-button>
-
-              <el-button
-                type="warning"
-                size="small"
-                plain
-                :icon="Link"
-                @click="openScrapePathDialog(row)"
-              >
-                关联
-              </el-button>
+                <el-tooltip content="关联刮削目录" placement="top">
+                  <el-button
+                    type="warning"
+                    size="small"
+                    plain
+                    circle
+                    :icon="Link"
+                    aria-label="关联刮削目录"
+                    @click="openScrapePathDialog(row)"
+                  />
+                </el-tooltip>
+              </div>
             </div>
           </div>
         </div>
@@ -457,6 +473,10 @@ const getStatusText = (row: SyncDirectory) => {
   if (row.is_running === 2) return '运行中'
   if (row.is_running === 1) return '等待中'
   return '空闲'
+}
+
+const getStartButtonText = (row: SyncDirectory) => {
+  return `${row.source_type === '115' || row.source_type === 'baidupan' ? '增量' : ''}同步`
 }
 
 const checkMobile = () => {
@@ -1188,17 +1208,35 @@ onUnmounted(() => {
 }
 
 .card-footer {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   gap: 8px;
   padding-top: 16px;
   margin-top: 12px;
   border-top: 1px solid #f0f2f5;
 }
 
-.card-footer .el-button {
-  flex: 1;
-  min-width: 70px;
+.card-footer__primary,
+.card-footer__secondary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.card-footer__primary {
+  flex-wrap: wrap;
+}
+
+.card-footer__secondary {
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  width: max-content;
+}
+
+.card-footer :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 
 .empty-state {
@@ -1493,18 +1531,22 @@ onUnmounted(() => {
   }
 
   .card-footer {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
-    padding-top: 12px;
-    margin-top: 10px;
+    grid-template-columns: 1fr;
   }
 
-  .card-footer .el-button {
-    flex: none;
-    min-width: 0;
+  .card-footer__primary,
+  .card-footer__secondary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     width: 100%;
-    margin: 0;
+  }
+
+  .card-footer__primary :deep(.el-button) {
+    width: 100%;
+  }
+
+  .card-footer__secondary :deep(.el-button.is-circle) {
+    justify-self: center;
   }
 
   .empty-state {
@@ -1586,10 +1628,6 @@ onUnmounted(() => {
     width: 100%;
   }
 
-  .card-footer {
-    grid-template-columns: 1fr;
-    gap: 6px;
-  }
 }
 
 .scrape-path-dialog-content {

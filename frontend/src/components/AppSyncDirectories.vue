@@ -157,85 +157,42 @@
             <div class="card-footer">
               <div class="card-footer__primary">
                 <el-tooltip
-                  content="删除所有缓存数据后执行同步，可处理所有网盘文件变更"
+                  v-for="action in getPrimaryActions(row, index)"
+                  :key="action.key"
+                  :content="action.ariaLabel"
                   placement="top"
                 >
                   <el-button
-                    type="warning"
+                    :type="action.type"
                     size="small"
-                    plain
-                    :icon="RefreshRight"
-                    @click="handleFullStart(row, index)"
-                    :loading="row.starting"
-                    v-if="
-                      (row.source_type === '115' || row.source_type === 'baidupan') &&
-                      row.is_running === 0
-                    "
+                    :plain="action.plain"
+                    :circle="action.circle"
+                    :icon="action.icon"
+                    :loading="action.loading"
+                    :aria-label="action.ariaLabel"
+                    @click="action.onClick"
                   >
-                    全量同步
+                    {{ action.label }}
                   </el-button>
                 </el-tooltip>
-
-                <el-button
-                  type="success"
-                  size="small"
-                  plain
-                  :icon="VideoPlay"
-                  @click="handleStart(row, index)"
-                  :loading="row.starting"
-                  v-if="row.is_running === 0"
-                >
-                  {{ getStartButtonText(row) }}
-                </el-button>
-
-                <el-button
-                  type="info"
-                  size="small"
-                  plain
-                  :icon="VideoPause"
-                  @click="handleStop(row, index)"
-                  :loading="row.stopping"
-                  v-if="row.is_running !== 0"
-                >
-                  停止
-                </el-button>
               </div>
 
               <div class="card-footer__secondary">
-                <el-tooltip content="编辑同步目录" placement="top">
+                <el-tooltip
+                  v-for="action in getSecondaryActions(row, index)"
+                  :key="action.key"
+                  :content="action.ariaLabel"
+                  placement="top"
+                >
                   <el-button
-                    type="primary"
+                    :type="action.type"
                     size="small"
-                    plain
-                    circle
-                    :icon="Edit"
-                    aria-label="编辑同步目录"
-                    @click="handleEdit(row)"
-                  />
-                </el-tooltip>
-
-                <el-tooltip content="删除同步目录" placement="top">
-                  <el-button
-                    type="danger"
-                    size="small"
-                    plain
-                    circle
-                    :icon="Delete"
-                    aria-label="删除同步目录"
-                    @click="handleDelete(row, index)"
-                    :loading="row.deleting"
-                  />
-                </el-tooltip>
-
-                <el-tooltip content="关联刮削目录" placement="top">
-                  <el-button
-                    type="warning"
-                    size="small"
-                    plain
-                    circle
-                    :icon="Link"
-                    aria-label="关联刮削目录"
-                    @click="openScrapePathDialog(row)"
+                    :plain="action.plain"
+                    :circle="action.circle"
+                    :icon="action.icon"
+                    :loading="action.loading"
+                    :aria-label="action.ariaLabel"
+                    @click="action.onClick"
                   />
                 </el-tooltip>
               </div>
@@ -404,7 +361,7 @@ import {
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { AxiosStatic } from 'axios'
-import { computed, inject, onMounted, onUnmounted, ref } from 'vue'
+import { computed, inject, onMounted, onUnmounted, ref, type Component } from 'vue'
 import { useRouter } from 'vue-router'
 import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 import { sourceTypeTagMap, sourceTypeMap } from '@/utils/sourceTypeUtils'
@@ -427,6 +384,18 @@ interface SyncDirectory {
   enable_cron: boolean
   is_running: number
   stopping?: boolean
+}
+
+interface SyncDirectoryAction {
+  key: string
+  label: string
+  type: 'primary' | 'success' | 'warning' | 'danger' | 'info'
+  icon: Component
+  plain: boolean
+  circle: boolean
+  loading?: boolean
+  ariaLabel: string
+  onClick: () => void
 }
 
 interface SyncTaskEventPayload {
@@ -478,6 +447,86 @@ const getStatusText = (row: SyncDirectory) => {
 const getStartButtonText = (row: SyncDirectory) => {
   return `${row.source_type === '115' || row.source_type === 'baidupan' ? '增量' : ''}同步`
 }
+
+const getPrimaryActions = (row: SyncDirectory, index: number): SyncDirectoryAction[] => {
+  const actions: SyncDirectoryAction[] = []
+
+  if ((row.source_type === '115' || row.source_type === 'baidupan') && row.is_running === 0) {
+    actions.push({
+      key: 'full-sync',
+      label: '全量同步',
+      type: 'warning',
+      icon: RefreshRight,
+      plain: true,
+      circle: false,
+      loading: row.starting,
+      ariaLabel: '全量同步',
+      onClick: () => handleFullStart(row, index),
+    })
+  }
+
+  if (row.is_running === 0) {
+    actions.push({
+      key: 'start-sync',
+      label: getStartButtonText(row),
+      type: 'success',
+      icon: VideoPlay,
+      plain: true,
+      circle: false,
+      loading: row.starting,
+      ariaLabel: getStartButtonText(row),
+      onClick: () => handleStart(row, index),
+    })
+  } else {
+    actions.push({
+      key: 'stop-sync',
+      label: '停止',
+      type: 'info',
+      icon: VideoPause,
+      plain: true,
+      circle: false,
+      loading: row.stopping,
+      ariaLabel: '停止同步',
+      onClick: () => handleStop(row, index),
+    })
+  }
+
+  return actions
+}
+
+const getSecondaryActions = (row: SyncDirectory, index: number): SyncDirectoryAction[] => [
+  {
+    key: 'edit',
+    label: '',
+    type: 'primary',
+    icon: Edit,
+    plain: true,
+    circle: true,
+    ariaLabel: '编辑同步目录',
+    onClick: () => handleEdit(row),
+  },
+  {
+    key: 'delete',
+    label: '',
+    type: 'danger',
+    icon: Delete,
+    plain: true,
+    circle: true,
+    loading: row.deleting,
+    ariaLabel: '删除同步目录',
+    onClick: () => handleDelete(row, index),
+  },
+  {
+    key: 'scrape-relation',
+    label: '',
+    type: 'warning',
+    icon: Link,
+    plain: true,
+    circle: true,
+    ariaLabel: '关联刮削目录',
+    onClick: () => openScrapePathDialog(row),
+  },
+]
 
 const checkMobile = () => {
   checkIsMobile.value = isMobile()
@@ -1532,12 +1581,18 @@ onUnmounted(() => {
 
   .card-footer {
     grid-template-columns: 1fr;
+    gap: 10px;
   }
 
-  .card-footer__primary,
-  .card-footer__secondary {
+  .card-footer__primary {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+    width: 100%;
+  }
+
+  .card-footer__secondary {
+    display: flex;
+    justify-content: flex-end;
     width: 100%;
   }
 
@@ -1546,7 +1601,7 @@ onUnmounted(() => {
   }
 
   .card-footer__secondary :deep(.el-button.is-circle) {
-    justify-self: center;
+    flex: 0 0 auto;
   }
 
   .empty-state {

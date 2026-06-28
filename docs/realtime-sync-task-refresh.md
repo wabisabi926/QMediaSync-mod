@@ -34,6 +34,10 @@
 
 旧事件 `strm_sync_task_start` 和 `strm_sync_task_complete` 保留。迁移后的页面优先消费新结构化事件，旧事件只作为后台校准兜底。
 
+全局事件还包含：
+
+- `strm_sync_task_queued`：STRM 同步任务加入等待队列时广播，数据包含 `sync_path_id`、`is_running=1` 和 `task_type`。同步目录页收到后立即显示“等待中”，不需要等待页面刷新。
+
 ## Stream 消息
 
 详情 stream 位于鉴权路由组内，路径为 `GET /api/sync/tasks/:id/stream`。WebSocket 消息包含 `type`、`version`、`sync_id`、`server_time`，状态类消息还会带 `sequence`。
@@ -54,7 +58,7 @@
 
 - 同步任务详情使用 `useSyncTaskStream(syncId)`，不再拼接 `loadTaskInfo` 和通用 `AppLogViewer`。
 - 详情页首次进入可以显示 loading；收到 snapshot 后，任务状态和日志都在原位置更新，不重建日志组件。
-- `SyncTaskLogPanel` 只在用户处于“跟随最新”状态时自动滚到底部，用户查看历史日志时不会抢滚动。
+- `SyncTaskLogPanel` 只在用户处于“跟随最新”状态时自动跟随顶部，用户查看历史日志时不会抢滚动。
 - 同步记录页按 `sync_id` 和 `sequence` patch 当前行；只有 `sync_task_created` 可以在第一页插入新记录，缺失当前页的 `sync_task_updated` 不插入，避免进度事件污染分页排序和总数。
 - 同步目录页按 `sync_path_id` 更新运行状态，并按 `sync_id` 去重事件；同一目录的新任务不会被上一任务的 sequence 压掉。
 
@@ -65,6 +69,7 @@
 日志读取规则：
 
 - 日志文件不存在时，历史读取返回空日志和 cursor `0`。
+- 同步任务详情日志按“最新在上”展示；实时增量插入顶部，快照日志会按时间倒序显示。工具栏提供连接、断开、清空和下载日志，下载仍复用 `/api/logs/download`。
 - 通用实时日志 WebSocket 建连时只读取文件末尾 cursor，历史内容由 `/api/logs/old` 加载，避免大日志文件建连时全量扫描。
 - tailer 发现日志文件缺失、截断或订阅者缓冲满时，会发送 `resync_required`。
 - tailer 检测文件大小小于 cursor 时重置 cursor，并要求前端重新同步。

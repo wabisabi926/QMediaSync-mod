@@ -26,7 +26,7 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 当 `migrator` 表不存在时，`InitDB()` 会直接执行：
 
 1. `BatchCreateTable()`：对 `AllTables` 逐表执行 `AutoMigrate`。
-2. `InitMigrationTable(MaxVersionCode)`：写入当前版本号，当前值是 `48`。
+2. `InitMigrationTable(MaxVersionCode)`：写入当前版本号，当前值是 `49`。
 3. `InitSettings()`：创建默认 `settings` 记录。
 4. `InitScrapeSetting()`：创建默认刮削配置和默认分类。
 5. `InitEmbyConfig()`：创建默认 `emby_config` 记录。
@@ -56,8 +56,9 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 | 45 | 46 | 通知渠道类型索引从唯一索引改为普通索引，并为已有渠道补齐缺失通知规则。 |
 | 46 | 47 | `users` 新增 `singleton_key`，用唯一约束保证系统只存在一个登录用户。 |
 | 47 | 48 | `settings` 和 `sync_paths` 的 `add_path` 旧值 `2` 迁移为新值 `3`，为“只添加文件名”路径模式让出枚举值。 |
+| 48 | 49 | `db_download_tasks` 新增 `sync_path_id`，用于 Emby 刷新任务直接判断对应同步目录是否还有未完成下载。 |
 
-当前数据库版本是 `48`。
+当前数据库版本是 `49`。
 
 ## 修复与重建
 
@@ -638,6 +639,7 @@ Emby 媒体库刷新任务表。
 
 - `account_id`：账号 ID。
 - `sync_file_id`：对应同步文件 ID。
+- `sync_path_id`：STRM 同步下载任务所属同步目录 ID，用于 Emby 刷新任务判断对应目录是否仍有未完成下载；旧数据可能为 `0`，系统会回退到 `sync_file_id` 关联 `sync_files` 判断。
 - `source_type`：任务来源账号类型。
 - `remote_file_id`：远程文件 ID 或下载链接。
 - `file_name`：文件名。

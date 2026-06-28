@@ -6,6 +6,8 @@
 
 下载任务状态事件中的 `DownloadTaskStatusChangedPayload.Source` 也使用同一套机器值。事件消费者如果需要展示来源，必须先映射为展示文案。
 
+`DownloadTaskStatusChangedPayload.sync_path_id` 表示 STRM 下载任务所属同步目录 ID。Emby 刷新协调器优先使用该字段判断媒体库关联目录的下载队列是否完成；字段为 `0` 时兼容使用 `sync_file_id` 查询。
+
 ## 下载任务
 
 | 字段 | 存储值 | 展示文案 | 用途 |

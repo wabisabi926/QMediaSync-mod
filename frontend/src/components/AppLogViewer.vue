@@ -4,36 +4,15 @@
       <template #header>
         <div class="card-header">
           <h2 class="card-title">日志查看器</h2>
-          <div class="header-actions">
-            <!-- 只有实时日志模式才显示连接、断开、清空按钮 -->
-            <template v-if="isRealTime">
-              <el-button
-                type="primary"
-                :icon="Connection"
-                @click="connect"
-                size="small"
-                :disabled="isConnected"
-              >
-                连接
-              </el-button>
-              <el-button
-                type="danger"
-                :icon="Close"
-                @click="disconnect"
-                size="small"
-                :disabled="!isConnected"
-              >
-                断开
-              </el-button>
-              <el-button type="info" :icon="Delete" @click="clearLogs" size="small">
-                清空
-              </el-button>
-            </template>
-            <!-- 下载按钮始终显示 -->
-            <el-button type="success" :icon="Download" @click="downloadLogs" size="small">
-              下载日志
-            </el-button>
-          </div>
+          <LogActionToolbar
+            :connected="isConnected"
+            :show-realtime-controls="isRealTime"
+            :download-disabled="!props.logPath.trim()"
+            @connect="connect"
+            @disconnect="disconnect"
+            @clear="clearLogs"
+            @download="downloadLogs"
+          />
         </div>
       </template>
 
@@ -68,8 +47,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, useTemplateRef } from 'vue'
-import { Connection, Close, Delete, Download } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import LogActionToolbar from '@/components/log/LogActionToolbar.vue'
+import { useLogFileActions } from '@/composables/useLogFileActions'
 import { SERVER_URL } from '@/const'
 import { formatDateTime } from '@/utils/timeUtils'
 import { buildApiWebSocketUrl } from '@/utils/wsUrl'
@@ -98,6 +77,7 @@ const logLines = ref<LogEntry[]>([])
 const isConnected = ref(false)
 const loading = ref(false)
 const logsContainer = useTemplateRef<HTMLElement>('logsContainer')
+const { downloadLogFile } = useLogFileActions()
 
 // 日志数量限制配置
 const MAX_LOG_ENTRIES = 2000
@@ -451,36 +431,10 @@ const clearLogs = () => {
 
 // 下载日志文件
 const downloadLogs = () => {
-  const logPath = props.logPath.trim()
-  if (!logPath) {
-    ElMessage.error('请输入日志文件路径')
-    return
-  }
-
-  try {
-    // 构建下载链接
-    const downloadUrl = `${SERVER_URL}/logs/download?path=${encodeURIComponent(logPath)}`
-
-    // 创建一个临时的 a 标签来触发下载
-    const link = document.createElement('a')
-    link.href = downloadUrl
-    link.download = logPath.split('/').pop() || 'logfile.log' // 使用文件名作为下载文件名
-    link.target = '_blank'
-
-    // 触发下载
-    document.body.appendChild(link)
-    link.click()
-
-    // 清理
-    setTimeout(() => {
-      document.body.removeChild(link)
-    }, 100)
-
-    ElMessage.success('开始下载日志文件')
-  } catch (error) {
-    console.error('下载日志失败：', error)
-    ElMessage.error(`下载日志失败：${error instanceof Error ? error.message : '未知错误'}`)
-  }
+  downloadLogFile(props.logPath, {
+    emptyMessage: '请输入日志文件路径',
+    errorPrefix: '下载日志失败',
+  })
 }
 
 // 暴露方法给父组件
@@ -518,11 +472,6 @@ defineExpose({
   font-size: 20px;
   font-weight: 600;
   color: #303133;
-}
-
-.header-actions {
-  display: flex;
-  gap: 8px;
 }
 
 .log-content {

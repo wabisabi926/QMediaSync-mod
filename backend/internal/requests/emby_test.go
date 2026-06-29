@@ -28,6 +28,10 @@ func TestEmbyConfigRequestValidate(t *testing.T) {
 		{name: "URL 缺少协议失败", mutate: func(r *UpdateEmbyConfigRequest) { r.EmbyURL = "127.0.0.1:8096" }, wantErr: true},
 		{name: "同步 Cron 错误失败", mutate: func(r *UpdateEmbyConfigRequest) { r.SyncCron = "bad" }, wantErr: true},
 		{name: "开关枚举错误失败", mutate: func(r *UpdateEmbyConfigRequest) { r.EnableAuth = 2 }, wantErr: true},
+		{name: "每日首次全量同步开关枚举错误失败", mutate: func(r *UpdateEmbyConfigRequest) {
+			value := 2
+			r.EnableDailyFirstFullSync = &value
+		}, wantErr: true},
 		{name: "媒体库 JSON 错误失败", mutate: func(r *UpdateEmbyConfigRequest) { r.SelectedLibraries = "[" }, wantErr: true},
 	}
 

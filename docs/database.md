@@ -42,7 +42,7 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 当 `migrator` 表不存在时，`InitDB()` 会直接执行：
 
 1. `BatchCreateTable()`：对 `AllTables` 逐表执行 `AutoMigrate`。
-2. `InitMigrationTable(MaxVersionCode)`：写入当前版本号，当前值是 `50`。
+2. `InitMigrationTable(MaxVersionCode)`：写入当前版本号，当前值是 `51`。
 3. `InitSettings()`：创建默认 `settings` 记录。
 4. `InitScrapeSetting()`：创建默认刮削配置和默认分类。
 5. `InitEmbyConfig()`：创建默认 `emby_config` 记录。
@@ -74,8 +74,9 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 | 47 | 48 | `settings` 和 `sync_paths` 的 `add_path` 旧值 `2` 迁移为新值 `3`，为“只添加文件名”路径模式让出枚举值。 |
 | 48 | 49 | `db_download_tasks` 新增 `sync_path_id`，用于 Emby 刷新任务直接判断对应同步目录是否还有未完成下载。 |
 | 49 | 50 | `emby_config` 新增 Emby 条目同步状态字段，`emby_media_items` 新增全量同步批次标记字段。 |
+| 50 | 51 | `emby_config` 新增每日首次全量同步开关和最近成功同步模式字段。 |
 
-当前数据库版本是 `50`。
+当前数据库版本是 `51`。
 
 ## 修复与重建
 
@@ -124,7 +125,7 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 
 - `id`：固定为 `1`。
 - `created_at` / `updated_at`：创建和更新时间。
-- `version_code`：当前数据库版本号，当前值为 `48`。
+- `version_code`：当前数据库版本号，当前值为 `51`。
 
 ### `users`
 
@@ -571,12 +572,14 @@ Emby 总配置表。
 - `last_incremental_sync_at`：最近一次成功增量同步时间戳。
 - `last_saved_cursor_at`：增量同步使用的 `DateLastSaved` 游标时间戳。
 - `last_processed_count`：最近一次 Emby 条目同步处理数量。
+- `last_success_sync_mode`：最近一次成功同步模式，取值包括 `full`、`incremental`、`webhook`。
 - `last_error`：最近一次 Emby 条目同步失败原因。
 - `is_running`：是否有 Emby 条目同步任务正在运行。
 - `sync_mode`：当前或最近一次同步模式，取值包括 `idle`、`full`、`incremental`、`webhook`、`refresh_library`。
 - `started_at`：当前同步任务开始时间戳。
 - `selected_libraries`：选中的媒体库 ID 列表，JSON 字符串。
 - `sync_all_libraries`：是否同步所有媒体库。
+- `enable_daily_first_full_sync`：是否启用每日首次定时全量同步，默认启用。
 - `enable_playback_overview`：播放通知是否显示剧情简介。
 - `enable_playback_progress`：播放通知是否显示播放进度。
 

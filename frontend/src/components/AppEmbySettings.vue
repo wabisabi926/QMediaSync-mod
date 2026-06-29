@@ -284,8 +284,8 @@
             </el-form-item>
             <div class="feature-description">
               <p class="feature-note">
-                启用后会把 Emby 条目同步到
-                QMediaSync 本地数据库，并与网盘文件建立关联，用于刷新媒体库和联动删除网盘文件。
+                启用后会把 Emby 条目同步到 QMediaSync
+                本地数据库，并与网盘文件建立关联，用于刷新媒体库和联动删除网盘文件。
               </p>
             </div>
           </div>
@@ -372,6 +372,28 @@
                 <li v-for="(time, index) in cronNextTimes" :key="index">{{ time }}</li>
               </ul>
             </div>
+            <el-form-item label="每日首次全量同步" prop="enable_daily_first_full_sync">
+              <div class="switch-wrapper">
+                <el-switch
+                  v-model="embyData.enable_daily_first_full_sync"
+                  :active-value="1"
+                  :inactive-value="0"
+                  :disabled="embyLoading || !embyData.sync_enabled"
+                  active-color="#67c23a"
+                  inactive-color="#dcdfe6"
+                />
+                <span
+                  class="switch-label"
+                  :class="{ 'is-active': embyData.enable_daily_first_full_sync }"
+                >
+                  {{ embyData.enable_daily_first_full_sync ? '启用' : '禁用' }}
+                </span>
+              </div>
+              <div class="form-help">
+                <el-icon><InfoFilled /></el-icon>
+                <span>启用后，每天第一次定时同步执行全量同步，之后当天定时同步执行增量同步</span>
+              </div>
+            </el-form-item>
           </div>
 
           <el-divider class="feature-divider" />
@@ -598,7 +620,7 @@
               <el-icon :size="28"><FolderOpened /></el-icon>
             </div>
             <div class="stat-content">
-              <div class="stat-label">关联 Item 数</div>
+              <div class="stat-label">已同步 Item 数</div>
               <div class="stat-value highlight">{{ syncInfo.total_items || 0 }}</div>
             </div>
           </div>
@@ -608,9 +630,9 @@
               <el-icon :size="28"><Calendar /></el-icon>
             </div>
             <div class="stat-content">
-              <div class="stat-label">最近同步</div>
+              <div class="stat-label">最近成功同步</div>
               <div class="stat-value">{{ formatSyncRelativeTime(syncInfo.last_sync_time) }}</div>
-              <div class="stat-helper">{{ formatSyncAbsoluteTime(syncInfo.last_sync_time) }}</div>
+              <div class="stat-helper">{{ lastSuccessSyncHelper }}</div>
             </div>
           </div>
 
@@ -636,21 +658,8 @@
             <div class="stat-content">
               <div class="stat-label">最近全量同步</div>
               <div class="stat-value">{{ formatSyncRelativeTime(syncInfo.last_full_sync_at) }}</div>
-              <div class="stat-helper">{{ formatSyncAbsoluteTime(syncInfo.last_full_sync_at) }}</div>
-            </div>
-          </div>
-
-          <div class="sync-stat-card">
-            <div class="stat-icon cycle-icon">
-              <el-icon :size="28"><Clock /></el-icon>
-            </div>
-            <div class="stat-content">
-              <div class="stat-label">增量游标</div>
-              <div class="stat-value">
-                {{ formatSyncRelativeTime(syncInfo.last_saved_cursor_at) }}
-              </div>
               <div class="stat-helper">
-                {{ formatSyncAbsoluteTime(syncInfo.last_saved_cursor_at) }}
+                {{ formatSyncAbsoluteTime(syncInfo.last_full_sync_at) }}
               </div>
             </div>
           </div>
@@ -747,6 +756,7 @@ interface EmbySyncInfo {
   last_incremental_sync_at?: number | null
   last_saved_cursor_at?: number | null
   last_processed_count?: number | null
+  last_success_sync_mode?: EmbySyncMode
   last_error?: string
   is_running?: boolean
   sync_mode?: EmbySyncMode
@@ -774,6 +784,23 @@ const currentSyncModeLabel = computed(() => {
   return isSyncRunning.value ? '同步 Emby 条目' : syncModeLabels.idle
 })
 
+const lastSuccessSyncModeLabel = computed(() => {
+  const mode = syncInfo.value?.last_success_sync_mode
+  if (!mode || mode === 'idle' || !(mode in syncModeLabels)) {
+    return ''
+  }
+  return syncModeLabels[mode as Exclude<EmbySyncMode, ''>]
+})
+
+const lastSuccessSyncHelper = computed(() => {
+  if (!syncInfo.value?.last_sync_time) {
+    return ''
+  }
+  return [formatSyncAbsoluteTime(syncInfo.value.last_sync_time), lastSuccessSyncModeLabel.value]
+    .filter(Boolean)
+    .join(' · ')
+})
+
 const isStartSyncDisabled = computed(
   () => !embyData.emby_url || !embyData.sync_enabled || isSyncRunning.value,
 )
@@ -791,6 +818,7 @@ const embyData = reactive({
   enable_auth: 1,
   sync_all_libraries: 1,
   selected_libraries: '[]',
+  enable_daily_first_full_sync: 1,
   enable_playback_overview: 0,
   enable_playback_progress: 0,
 })
@@ -848,6 +876,7 @@ const defaultConfig = {
   enable_auth: 1,
   sync_all_libraries: 1,
   selected_libraries: '[]',
+  enable_daily_first_full_sync: 1,
 }
 
 const loadEmbyConfig = async () => {
@@ -868,6 +897,7 @@ const loadEmbyConfig = async () => {
         embyData.enable_auth = config.enable_auth ?? 1
         embyData.sync_all_libraries = config.sync_all_libraries ?? 1
         embyData.selected_libraries = config.selected_libraries || '[]'
+        embyData.enable_daily_first_full_sync = config.enable_daily_first_full_sync ?? 1
         embyData.enable_playback_overview = config.enable_playback_overview ?? 0
         embyData.enable_playback_progress = config.enable_playback_progress ?? 0
 
@@ -939,6 +969,7 @@ const saveEmbyConfig = async () => {
         enable_auth: embyData.enable_auth,
         sync_all_libraries: embyData.sync_all_libraries,
         selected_libraries: JSON.stringify(selectedLibraryIds.value),
+        enable_daily_first_full_sync: embyData.enable_daily_first_full_sync,
         enable_playback_overview: embyData.enable_playback_overview,
         enable_playback_progress: embyData.enable_playback_progress,
       },

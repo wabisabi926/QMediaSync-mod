@@ -96,9 +96,17 @@ POST /emby/Items/{libraryId}/Refresh
 
 全量同步不再维护巨大的有效 item ID 列表，也不再对每个 item 固定 sleep。
 
-### 定时增量同步
+### 定时同步
 
-Cron 默认执行增量同步，默认表达式为 `0 * * * *`，含义是每小时整点执行一次。
+Cron 默认表达式为 `0 * * * *`，含义是每小时整点执行一次。
+
+当 `enable_daily_first_full_sync=1` 时，每天第一次定时同步会执行全量同步；判断依据是 `last_full_sync_at` 是否属于服务器本地时区的当天。全量同步成功后会更新 `last_full_sync_at`，当天后续定时同步执行增量同步。如果当天首次全量失败，`last_full_sync_at` 不会推进，下一次定时同步仍会继续尝试全量。
+
+当 `enable_daily_first_full_sync=0` 时，Cron 每次都执行增量同步。
+
+保存 Emby 配置时，如果兼容客户端没有提交 `enable_daily_first_full_sync` 字段，后端会保留当前已有配置；只有显式提交 `0` 或 `1` 时才会修改该开关。
+
+### 定时增量同步
 
 请求使用 Emby `/Items` 的 `MinDateLastSaved` 参数。OpenAPI 中该参数类型为 `string`、格式为 `date-time`，分页参数为 `StartIndex` 和 `Limit`：
 
@@ -222,12 +230,13 @@ Webhook 删除事件只删除本地索引和关联：
 | `sync_mode` | 当前或最近一次模式 |
 | `started_at` | 当前任务开始时间 |
 | `last_sync_time` | 最近一次成功同步时间 |
+| `last_success_sync_mode` | 最近一次成功同步模式 |
 | `last_full_sync_at` | 最近一次成功全量同步时间 |
 | `last_incremental_sync_at` | 最近一次成功增量同步时间 |
 | `last_saved_cursor_at` | 增量同步游标 |
 | `last_processed_count` | 最近一次处理数量 |
 | `last_error` | 最近一次失败原因 |
-| `total_items` | 本地已关联 Emby item 数 |
+| `total_items` | 本地已同步 Emby item 数 |
 
 如果已有任务运行，定时任务直接跳过，不排队堆积。手动全量同步遇到运行中的任务时，前端应提示稍后再试。
 
@@ -243,14 +252,16 @@ Webhook 删除事件只删除本地索引和关联：
 - `emby_config.last_incremental_sync_at`
 - `emby_config.last_saved_cursor_at`
 - `emby_config.last_processed_count`
+- `emby_config.last_success_sync_mode`
 - `emby_config.last_error`
 - `emby_config.is_running`
 - `emby_config.sync_mode`
 - `emby_config.started_at`
+- `emby_config.enable_daily_first_full_sync`
 - `emby_media_items.last_seen_sync_run`
 - `emby_media_items.last_seen_at`
 
-升级后如果 `last_saved_cursor_at=0`，建议先手动执行一次全量同步，用于建立本地索引和全量批次标记。之后 Cron 会按增量同步兜底变更。
+升级后如果 `last_saved_cursor_at=0`，建议先手动执行一次全量同步，用于建立本地索引和全量批次标记。默认启用每日首次定时全量同步，之后 Cron 会在每天首次成功全量后按增量同步兜底变更。
 
 ## 验证命令
 

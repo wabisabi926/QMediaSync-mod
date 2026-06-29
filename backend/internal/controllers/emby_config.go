@@ -59,6 +59,7 @@ func GetEmbyConfig(c *gin.Context) {
 // @Param enable_auth body integer false "是否启用 Webhook 鉴权"
 // @Param sync_enabled body integer false "是否启用同步"
 // @Param sync_cron body string false "同步 Cron 表达式"
+// @Param enable_daily_first_full_sync body integer false "是否启用每日首次全量同步"
 // @Success 200 {object} object
 // @Failure 200 {object} object
 // @Router /emby/config [put]
@@ -104,6 +105,11 @@ func UpdateEmbyConfig(c *gin.Context) {
 	config.SyncCron = req.SyncCron
 	config.SelectedLibraries = req.SelectedLibraries
 	config.SyncAllLibraries = req.SyncAllLibraries
+	if req.EnableDailyFirstFullSync != nil {
+		config.EnableDailyFirstFullSync = *req.EnableDailyFirstFullSync
+	} else if isNew {
+		config.EnableDailyFirstFullSync = 1
+	}
 	config.EnablePlaybackOverview = req.EnablePlaybackOverview
 	config.EnablePlaybackProgress = req.EnablePlaybackProgress
 	// if req.DeleteNetdiskLibrary != nil {

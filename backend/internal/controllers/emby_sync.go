@@ -70,6 +70,7 @@ func GetEmbySyncStatus(c *gin.Context) {
 			"last_incremental_sync_at": config.LastIncrementalSyncAt,
 			"last_saved_cursor_at":     config.LastSavedCursorAt,
 			"last_processed_count":     config.LastProcessedCount,
+			"last_success_sync_mode":   config.LastSuccessSyncMode,
 			"last_error":               config.LastError,
 			"sync_mode":                config.SyncMode,
 			"started_at":               config.StartedAt,

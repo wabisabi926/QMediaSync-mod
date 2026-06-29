@@ -8,19 +8,20 @@ import (
 
 // UpdateEmbyConfigRequest 更新 Emby 配置请求。
 type UpdateEmbyConfigRequest struct {
-	EmbyURL                 string `json:"emby_url"`
-	EmbyAPIKey              string `json:"emby_api_key"`
-	EnableDeleteNetdisk     int    `json:"enable_delete_netdisk"`
-	EnableRefreshLibrary    int    `json:"enable_refresh_library"`
-	EnableMediaNotification int    `json:"enable_media_notification"`
-	EnableExtractMediaInfo  int    `json:"enable_extract_media_info"`
-	EnableAuth              int    `json:"enable_auth"`
-	SyncEnabled             int    `json:"sync_enabled"`
-	SyncCron                string `json:"sync_cron"`
-	SelectedLibraries       string `json:"selected_libraries"`
-	SyncAllLibraries        int    `json:"sync_all_libraries"`
-	EnablePlaybackOverview  int    `json:"enable_playback_overview"`
-	EnablePlaybackProgress  int    `json:"enable_playback_progress"`
+	EmbyURL                  string `json:"emby_url"`
+	EmbyAPIKey               string `json:"emby_api_key"`
+	EnableDeleteNetdisk      int    `json:"enable_delete_netdisk"`
+	EnableRefreshLibrary     int    `json:"enable_refresh_library"`
+	EnableMediaNotification  int    `json:"enable_media_notification"`
+	EnableExtractMediaInfo   int    `json:"enable_extract_media_info"`
+	EnableAuth               int    `json:"enable_auth"`
+	SyncEnabled              int    `json:"sync_enabled"`
+	SyncCron                 string `json:"sync_cron"`
+	SelectedLibraries        string `json:"selected_libraries"`
+	SyncAllLibraries         int    `json:"sync_all_libraries"`
+	EnableDailyFirstFullSync *int   `json:"enable_daily_first_full_sync"`
+	EnablePlaybackOverview   int    `json:"enable_playback_overview"`
+	EnablePlaybackProgress   int    `json:"enable_playback_progress"`
 }
 
 // Validate 校验 Emby 配置请求。
@@ -43,6 +44,11 @@ func (r UpdateEmbyConfigRequest) Validate() error {
 		"enable_playback_progress":  r.EnablePlaybackProgress,
 	} {
 		if err := validation.OneOfInt(field, value, []int{0, 1}); err != nil {
+			return err
+		}
+	}
+	if r.EnableDailyFirstFullSync != nil {
+		if err := validation.OneOfInt("enable_daily_first_full_sync", *r.EnableDailyFirstFullSync, []int{0, 1}); err != nil {
 			return err
 		}
 	}

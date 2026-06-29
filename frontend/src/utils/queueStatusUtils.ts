@@ -43,11 +43,9 @@ export const normalizeQueueStatusSnapshot = (
   }
 }
 
-export const canPauseQueue = (snapshot: QueueStatusSnapshot): boolean =>
-  snapshot.running
+export const canPauseQueue = (snapshot: QueueStatusSnapshot): boolean => snapshot.running
 
-export const canResumeQueue = (snapshot: QueueStatusSnapshot): boolean =>
-  !snapshot.running
+export const canResumeQueue = (snapshot: QueueStatusSnapshot): boolean => !snapshot.running
 
 export interface QueueRowWithStatus {
   status: number

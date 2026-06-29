@@ -76,7 +76,8 @@ export function applySyncRecordEventPatch(
   const index = records.findIndex((record) => record.id === payload.sync_id)
 
   if (payload.deleted || eventType === 'sync_task_deleted') {
-    const nextRecords = index >= 0 ? records.filter((record) => record.id !== payload.sync_id) : records
+    const nextRecords =
+      index >= 0 ? records.filter((record) => record.id !== payload.sync_id) : records
     return {
       records: nextRecords,
       total: Math.max(0, total - 1),

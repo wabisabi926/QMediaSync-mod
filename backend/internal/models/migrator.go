@@ -18,7 +18,7 @@ type Migrator struct {
 	VersionCode int `json:"version_code"` // 版本号
 }
 
-var MaxVersionCode = 50
+var MaxVersionCode = 51
 var AllTables = []any{
 	Migrator{},
 	BackupConfig{}, BackupRecord{},
@@ -564,6 +564,29 @@ func Migrate() {
 		helpers.AppLogger.Info("已添加 Emby 同步状态和全量同步批次字段")
 		migrator.UpdateVersionCode(db.Db)
 	}
+	if migrator.VersionCode == 50 {
+		lastSuccessSyncMode, err := inferExistingEmbyLastSuccessSyncMode(db.Db)
+		if err != nil {
+			helpers.AppLogger.Errorf("读取 Emby 最近成功同步模式失败：%v", err)
+			return
+		}
+		if err := db.Db.AutoMigrate(EmbyConfig{}); err != nil {
+			helpers.AppLogger.Errorf("迁移 Emby 每日首次全量同步字段失败：%v", err)
+			return
+		}
+		if err := db.Db.Model(&EmbyConfig{}).
+			Where("enable_daily_first_full_sync = ?", 0).
+			Update("enable_daily_first_full_sync", 1).Error; err != nil {
+			helpers.AppLogger.Errorf("初始化 Emby 每日首次全量同步开关失败：%v", err)
+			return
+		}
+		if err := backfillEmbyLastSuccessSyncMode(db.Db, lastSuccessSyncMode); err != nil {
+			helpers.AppLogger.Errorf("回填 Emby 最近成功同步模式失败：%v", err)
+			return
+		}
+		helpers.AppLogger.Info("已添加 Emby 每日首次全量同步和最近成功模式字段")
+		migrator.UpdateVersionCode(db.Db)
+	}
 	helpers.AppLogger.Infof("当前数据库版本 %d", migrator.VersionCode)
 }
 
@@ -611,6 +634,57 @@ func (m *Migrator) UpdateVersionCode(txOrDb *gorm.DB) {
 	m.VersionCode++
 	txOrDb.Updates(&m)
 	helpers.AppLogger.Infof("同步库结构更新完毕，当前数据库版本：%d", m.VersionCode)
+}
+
+func inferExistingEmbyLastSuccessSyncMode(dbConn *gorm.DB) (string, error) {
+	type embySyncTimes struct {
+		LastFullSyncAt        int64 `gorm:"column:last_full_sync_at"`
+		LastIncrementalSyncAt int64 `gorm:"column:last_incremental_sync_at"`
+	}
+	var times embySyncTimes
+	if err := dbConn.Table("emby_config").
+		Select("last_full_sync_at, last_incremental_sync_at").
+		Limit(1).
+		Scan(&times).Error; err != nil {
+		return "", err
+	}
+	switch {
+	case times.LastFullSyncAt >= times.LastIncrementalSyncAt && times.LastFullSyncAt > 0:
+		return EmbySyncModeFull, nil
+	case times.LastIncrementalSyncAt > 0:
+		return EmbySyncModeIncremental, nil
+	default:
+		return "", nil
+	}
+}
+
+func backfillEmbyLastSuccessSyncMode(dbConn *gorm.DB, fallbackMode string) error {
+	var configs []EmbyConfig
+	if err := dbConn.Find(&configs).Error; err != nil {
+		return err
+	}
+	for _, config := range configs {
+		if config.LastSuccessSyncMode != "" {
+			continue
+		}
+		mode := ""
+		switch {
+		case config.LastFullSyncAt >= config.LastIncrementalSyncAt && config.LastFullSyncAt > 0:
+			mode = EmbySyncModeFull
+		case config.LastIncrementalSyncAt > 0:
+			mode = EmbySyncModeIncremental
+		}
+		if mode == "" {
+			mode = fallbackMode
+		}
+		if mode == "" {
+			continue
+		}
+		if err := dbConn.Model(&EmbyConfig{}).Where("id = ?", config.ID).Update("last_success_sync_mode", mode).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func InitSettings() {
@@ -796,17 +870,18 @@ func InitScrapeSetting() {
 
 func InitEmbyConfig() {
 	embyConfig := &EmbyConfig{
-		EmbyUrl:                 "",
-		EmbyApiKey:              "",
-		SyncEnabled:             0,
-		SyncCron:                "0 * * * *",
-		EnableDeleteNetdisk:     0,
-		EnableRefreshLibrary:    0,
-		EnableMediaNotification: 0,
-		EnableExtractMediaInfo:  0,
-		EnableAuth:              1,
-		LastSyncTime:            0,
-		SyncMode:                EmbySyncModeIdle,
+		EmbyUrl:                  "",
+		EmbyApiKey:               "",
+		SyncEnabled:              0,
+		SyncCron:                 "0 * * * *",
+		EnableDeleteNetdisk:      0,
+		EnableRefreshLibrary:     0,
+		EnableMediaNotification:  0,
+		EnableExtractMediaInfo:   0,
+		EnableAuth:               1,
+		EnableDailyFirstFullSync: 1,
+		LastSyncTime:             0,
+		SyncMode:                 EmbySyncModeIdle,
 	}
 	db.Db.Save(embyConfig)
 	helpers.AppLogger.Info("已默认添加 Emby 配置")
@@ -826,10 +901,11 @@ func migrateEmbyConfig(dbConn *gorm.DB) {
 		return
 	}
 	config := &EmbyConfig{
-		EmbyUrl:    settings.EmbyUrl,
-		EmbyApiKey: settings.EmbyApiKey,
-		SyncCron:   settings.Cron,
-		SyncMode:   EmbySyncModeIdle,
+		EmbyUrl:                  settings.EmbyUrl,
+		EmbyApiKey:               settings.EmbyApiKey,
+		SyncCron:                 settings.Cron,
+		SyncMode:                 EmbySyncModeIdle,
+		EnableDailyFirstFullSync: 1,
 	}
 	dbConn.Create(config)
 }

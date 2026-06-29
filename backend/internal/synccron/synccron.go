@@ -25,6 +25,25 @@ var TokenCron *cron.Cron
 
 var tokenRefreshRunning int32 = 0
 
+func selectScheduledEmbySyncMode(config *models.EmbyConfig, now time.Time) string {
+	if config == nil || config.EnableDailyFirstFullSync != 1 {
+		return models.EmbySyncModeIncremental
+	}
+	if config.LastFullSyncAt <= 0 {
+		return models.EmbySyncModeFull
+	}
+
+	loc := now.Location()
+	lastFullSyncAt := time.Unix(config.LastFullSyncAt, 0).In(loc)
+	now = now.In(loc)
+	nowYear, nowMonth, nowDay := now.Date()
+	lastYear, lastMonth, lastDay := lastFullSyncAt.Date()
+	if nowYear == lastYear && nowMonth == lastMonth && nowDay == lastDay {
+		return models.EmbySyncModeIncremental
+	}
+	return models.EmbySyncModeFull
+}
+
 func StartSyncCron() {
 	// 查询所有同步目录
 	syncPaths, _ := models.GetSyncPathList(1, 10000000, true, "")
@@ -284,8 +303,20 @@ func InitCron() {
 	if config, err := models.GetEmbyConfig(); err == nil {
 		if config.EmbyApiKey != "" && config.EmbyUrl != "" && config.SyncEnabled == 1 {
 			GlobalCron.AddFunc(config.SyncCron, func() {
-				if _, err := emby.PerformEmbyIncrementalSync(); err != nil {
-					helpers.AppLogger.Errorf("增量同步 Emby 条目到本地失败：%v", err)
+				config, err := models.GetEmbyConfigFromDB()
+				if err != nil {
+					helpers.AppLogger.Errorf("获取 Emby 配置失败：%v", err)
+					return
+				}
+				switch selectScheduledEmbySyncMode(config, time.Now()) {
+				case models.EmbySyncModeFull:
+					if _, err := emby.PerformEmbySync(); err != nil {
+						helpers.AppLogger.Errorf("每日首次全量同步 Emby 条目到本地失败：%v", err)
+					}
+				default:
+					if _, err := emby.PerformEmbyIncrementalSync(); err != nil {
+						helpers.AppLogger.Errorf("增量同步 Emby 条目到本地失败：%v", err)
+					}
 				}
 			})
 		}

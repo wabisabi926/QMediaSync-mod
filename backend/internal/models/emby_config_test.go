@@ -139,7 +139,7 @@ func TestEmbySyncRunStateLifecycle(t *testing.T) {
 	if fresh.IsRunning || fresh.SyncMode != EmbySyncModeIdle || fresh.StartedAt != 0 {
 		t.Fatalf("完成后运行状态异常: %+v", fresh)
 	}
-	if fresh.LastSyncTime != 200 || fresh.LastFullSyncAt != 200 || fresh.LastProcessedCount != 42 || fresh.LastError != "" {
+	if fresh.LastSyncTime != 200 || fresh.LastFullSyncAt != 200 || fresh.LastProcessedCount != 42 || fresh.LastError != "" || fresh.LastSuccessSyncMode != EmbySyncModeFull {
 		t.Fatalf("完成后结果状态异常: %+v", fresh)
 	}
 }
@@ -258,7 +258,7 @@ func TestFinishEmbyIncrementalSyncRun推进游标(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetEmbyConfigFromDB() error = %v", err)
 	}
-	if fresh.LastSyncTime != 600 || fresh.LastIncrementalSyncAt != 600 {
+	if fresh.LastSyncTime != 600 || fresh.LastIncrementalSyncAt != 600 || fresh.LastSuccessSyncMode != EmbySyncModeIncremental {
 		t.Fatalf("增量同步时间异常: %+v", fresh)
 	}
 	if fresh.LastSavedCursorAt != 550 {

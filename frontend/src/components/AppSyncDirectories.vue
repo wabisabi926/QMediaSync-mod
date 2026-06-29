@@ -1682,7 +1682,6 @@ onUnmounted(() => {
     align-items: center;
     width: 100%;
   }
-
 }
 
 .scrape-path-dialog-content {

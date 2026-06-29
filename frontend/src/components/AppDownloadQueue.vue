@@ -294,7 +294,9 @@ const canPauseAllTasks = computed(() => canPauseQueue(queueStatusSnapshot.value)
 const canResumeAllTasks = computed(() => canResumeQueue(queueStatusSnapshot.value))
 const isMobileView = ref(checkIsMobile())
 const paginationLayout = computed(() =>
-  isMobileView.value ? 'total, sizes, prev, pager, next' : 'total, sizes, prev, pager, next, jumper',
+  isMobileView.value
+    ? 'total, sizes, prev, pager, next'
+    : 'total, sizes, prev, pager, next, jumper',
 )
 const tableHeight = computed(() => (isMobileView.value ? undefined : 'calc(100vh - 300px)'))
 const queueControlSize = computed<'small' | 'default'>(() =>

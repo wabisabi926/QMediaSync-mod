@@ -148,6 +148,21 @@ func FinishEmbySyncRun(mode string, processedCount int64, finishedAt int64, runE
 	return err
 }
 
+// FinishEmbyIncrementalSyncRun 标记增量同步结束，成功时推进 DateLastSaved 游标。
+func FinishEmbyIncrementalSyncRun(processedCount int64, finishedAt int64, cursorAt int64, runErr error) error {
+	if err := FinishEmbySyncRun(EmbySyncModeIncremental, processedCount, finishedAt, runErr); err != nil {
+		return err
+	}
+	if runErr != nil || cursorAt <= 0 {
+		return nil
+	}
+	if err := db.Db.Model(&EmbyConfig{}).Where("id > 0").Update("last_saved_cursor_at", cursorAt).Error; err != nil {
+		return err
+	}
+	_, err := GetEmbyConfigFromDB()
+	return err
+}
+
 // IsEmbySyncRunningInDB 查询数据库中的 Emby 条目同步运行状态。
 func IsEmbySyncRunningInDB() bool {
 	if db.Db == nil {

@@ -182,6 +182,76 @@ func TestEmbySyncRunFailureState(t *testing.T) {
 	}
 }
 
+func TestFinishEmbyIncrementalSyncRun推进游标(t *testing.T) {
+	helpers.AppLogger = &helpers.QLogger{Logger: log.New(io.Discard, "", 0)}
+	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	db.Db = testDb
+	GlobalEmbyConfig = nil
+
+	if err := db.Db.AutoMigrate(&EmbyConfig{}); err != nil {
+		t.Fatalf("迁移 EmbyConfig 失败: %v", err)
+	}
+	if err := db.Db.Create(&EmbyConfig{SyncEnabled: 1, SyncCron: "0 * * * *"}).Error; err != nil {
+		t.Fatalf("创建 EmbyConfig 失败: %v", err)
+	}
+	if started, err := StartEmbySyncRun(EmbySyncModeIncremental, 500); err != nil || !started {
+		t.Fatalf("StartEmbySyncRun() = %v, %v, want true, nil", started, err)
+	}
+
+	if err := FinishEmbyIncrementalSyncRun(9, 600, 550, nil); err != nil {
+		t.Fatalf("FinishEmbyIncrementalSyncRun() error = %v", err)
+	}
+
+	fresh, err := GetEmbyConfigFromDB()
+	if err != nil {
+		t.Fatalf("GetEmbyConfigFromDB() error = %v", err)
+	}
+	if fresh.LastSyncTime != 600 || fresh.LastIncrementalSyncAt != 600 {
+		t.Fatalf("增量同步时间异常: %+v", fresh)
+	}
+	if fresh.LastSavedCursorAt != 550 {
+		t.Fatalf("LastSavedCursorAt = %d, want 550", fresh.LastSavedCursorAt)
+	}
+}
+
+func TestFinishEmbyIncrementalSyncRun失败不推进游标(t *testing.T) {
+	helpers.AppLogger = &helpers.QLogger{Logger: log.New(io.Discard, "", 0)}
+	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	db.Db = testDb
+	GlobalEmbyConfig = nil
+
+	if err := db.Db.AutoMigrate(&EmbyConfig{}); err != nil {
+		t.Fatalf("迁移 EmbyConfig 失败: %v", err)
+	}
+	if err := db.Db.Create(&EmbyConfig{SyncEnabled: 1, SyncCron: "0 * * * *", LastSavedCursorAt: 123}).Error; err != nil {
+		t.Fatalf("创建 EmbyConfig 失败: %v", err)
+	}
+	if started, err := StartEmbySyncRun(EmbySyncModeIncremental, 500); err != nil || !started {
+		t.Fatalf("StartEmbySyncRun() = %v, %v, want true, nil", started, err)
+	}
+
+	if err := FinishEmbyIncrementalSyncRun(3, 600, 550, errTestEmbySyncFailure{}); err != nil {
+		t.Fatalf("FinishEmbyIncrementalSyncRun() error = %v", err)
+	}
+
+	fresh, err := GetEmbyConfigFromDB()
+	if err != nil {
+		t.Fatalf("GetEmbyConfigFromDB() error = %v", err)
+	}
+	if fresh.LastSavedCursorAt != 123 {
+		t.Fatalf("LastSavedCursorAt = %d, want 123", fresh.LastSavedCursorAt)
+	}
+	if fresh.LastIncrementalSyncAt != 0 || fresh.LastSyncTime != 0 {
+		t.Fatalf("失败后不应推进同步时间: %+v", fresh)
+	}
+}
+
 type errTestEmbySyncFailure struct{}
 
 func (errTestEmbySyncFailure) Error() string {

@@ -647,6 +647,7 @@ import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { inject, onMounted, ref, reactive, onBeforeUnmount, useTemplateRef } from 'vue'
 import ResponsiveActionBar from '@/components/common/ResponsiveActionBar.vue'
 import { useDeviceType } from '@/composables/useDeviceType'
+import { formatRelativeTime } from '@/utils/timeUtils'
 
 const http: AxiosStatic | undefined = inject('$http')
 
@@ -1019,31 +1020,8 @@ const stopSyncPolling = () => {
 }
 
 const formatLastSyncTime = (timestamp: number | null | undefined) => {
-  if (!timestamp) return '未同步'
-
-  try {
-    const timestampMs = timestamp < 10000000000 ? timestamp * 1000 : timestamp
-
-    const date = new Date(timestampMs)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-
-    if (diffMs < 0) return date.toLocaleString('zh-CN')
-
-    const diffSecs = Math.floor(diffMs / 1000)
-    const diffMins = Math.floor(diffSecs / 60)
-    const diffHours = Math.floor(diffSecs / 3600)
-    const diffDays = Math.floor(diffSecs / 86400)
-
-    if (diffSecs < 60) return '刚刚'
-    if (diffMins < 60) return `${diffMins} 分钟前`
-    if (diffHours < 24) return `${diffHours} 小时前`
-    if (diffDays < 30) return `${diffDays} 天前`
-
-    return date.toLocaleString('zh-CN')
-  } catch {
-    return String(timestamp)
-  }
+  const formatted = formatRelativeTime(timestamp)
+  return formatted === '-' ? '未同步' : formatted
 }
 
 onMounted(() => {

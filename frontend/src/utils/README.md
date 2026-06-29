@@ -100,8 +100,12 @@ OAuth 回调参数收集：
 
 ## timeUtils.ts
 
-时间、存储空间和状态样式辅助：
+时间、存储空间和状态样式辅助。业务时间统一使用后端返回的 Unix 秒，并在前端按浏览器本地环境格式化；日志字符串保持原始日志格式，不强制转换。新接口如需毫秒时间或耗时，字段名必须使用 `_ms` 后缀，例如 `duration_ms`、`event_time_ms`。
 
+- `formatUnixDateTime(timestamp)`
+- `formatMaybeUnixDateTime(value)`
+- `formatUnixDate(timestamp)`
+- `formatRelativeTime(value)`
 - `formatTimestamp(timestamp)`
 - `formatDateTime(timestamp)`
 - `formatTime(timestamp)`
@@ -112,6 +116,13 @@ OAuth 回调参数收集：
 - `formatExpireTime(expireTime)`
 - `getExpireClass(expireTime)`
 - `formatDuration(seconds)`
+
+兼容规则：
+
+- Unix 秒数字按秒处理，展示为本地日期时间。
+- RFC3339 UTC 字符串按浏览器本地时区展示。
+- 旧无时区 `date` 字符串只作为兼容回退；新接口不要继续新增这种字段。
+- 空值、`0` 和非法值返回 `-`，业务组件可按场景转换为“未同步”等文案。
 
 ## mockAPI.ts
 

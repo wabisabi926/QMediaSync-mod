@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { useVersion } from '@/composables/useVersion'
+import { formatMaybeUnixDateTime } from '@/utils/timeUtils'
 
 const { versionInfo, versionLoading } = useVersion()
+
+const formatBuildTime = () => {
+  if (!versionInfo.value) {
+    return '-'
+  }
+
+  return formatMaybeUnixDateTime(versionInfo.value.build_time || versionInfo.value.date)
+}
 </script>
 
 <template>
@@ -17,7 +26,7 @@ const { versionInfo, versionLoading } = useVersion()
       </div>
       <div class="info-row">
         <span class="info-label">编译时间</span>
-        <span class="info-value">{{ versionInfo.date }}</span>
+        <span class="info-value">{{ formatBuildTime() }}</span>
       </div>
     </div>
     <div v-else class="empty-state-small">

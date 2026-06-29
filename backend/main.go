@@ -53,8 +53,11 @@ func parseBuildUnixTime(value string) int64 {
 		return 0
 	}
 
+	if timestamp, err := helpers.ParseRFC3339Unix(value); err == nil {
+		return timestamp
+	}
+
 	layouts := []string{
-		time.RFC3339,
 		"2006-01-02 15:04:05",
 		"2006-01-02",
 	}

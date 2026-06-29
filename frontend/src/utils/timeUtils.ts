@@ -1,6 +1,7 @@
 // 时间格式化工具函数
 
 export type MaybeUnixDateTime = number | string | null | undefined
+export type MaybeTimeValue = MaybeUnixDateTime
 
 const DATE_TIME_PLACEHOLDER = '-'
 
@@ -23,6 +24,40 @@ const formatDateObject = (date: Date): string => {
   }
 
   return date.toLocaleString('zh-CN', dateTimeFormatterOptions).replace(/\//g, '-')
+}
+
+const parseMaybeTimeValue = (value: MaybeTimeValue): Date | null => {
+  if (value === null || value === undefined || value === '') {
+    return null
+  }
+
+  if (typeof value === 'number') {
+    if (!value) {
+      return null
+    }
+    return new Date(value * 1000)
+  }
+
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return null
+  }
+
+  if (/^\d+$/.test(trimmed)) {
+    const timestamp = Number(trimmed)
+    return timestamp ? new Date(timestamp * 1000) : null
+  }
+
+  if (trimmed.includes('T') || /(?:Z|[+-]\d{2}:\d{2})$/.test(trimmed)) {
+    return new Date(trimmed)
+  }
+
+  const normalized = normalizeLegacyDateTime(trimmed)
+  if (normalized === DATE_TIME_PLACEHOLDER) {
+    return null
+  }
+
+  return new Date(normalized.replace(' ', 'T'))
 }
 
 export const normalizeLegacyDateTime = (value: string): string => {
@@ -67,6 +102,56 @@ export const formatMaybeUnixDateTime = (value: MaybeUnixDateTime): string => {
   return normalizeLegacyDateTime(trimmed)
 }
 
+export const formatUnixDate = (timestamp: number | null | undefined): string => {
+  const date = parseMaybeTimeValue(timestamp)
+  if (!date || Number.isNaN(date.getTime())) {
+    return DATE_TIME_PLACEHOLDER
+  }
+
+  return date
+    .toLocaleDateString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    })
+    .replace(/\//g, '-')
+}
+
+export const formatRelativeTime = (
+  value: MaybeTimeValue,
+  nowSeconds = Math.floor(Date.now() / 1000),
+): string => {
+  const date = parseMaybeTimeValue(value)
+  if (!date || Number.isNaN(date.getTime())) {
+    return DATE_TIME_PLACEHOLDER
+  }
+
+  const diffSeconds = nowSeconds - Math.floor(date.getTime() / 1000)
+  if (diffSeconds < 0) {
+    return formatDateObject(date)
+  }
+  if (diffSeconds < 60) {
+    return '刚刚'
+  }
+
+  const diffMinutes = Math.floor(diffSeconds / 60)
+  if (diffMinutes < 60) {
+    return `${diffMinutes} 分钟前`
+  }
+
+  const diffHours = Math.floor(diffSeconds / 3600)
+  if (diffHours < 24) {
+    return `${diffHours} 小时前`
+  }
+
+  const diffDays = Math.floor(diffSeconds / 86400)
+  if (diffDays < 30) {
+    return `${diffDays} 天前`
+  }
+
+  return formatDateObject(date)
+}
+
 /**
  * 格式化时间戳为日期时间字符串 (YYYY-MM-DD HH:MM:SS)
  * @param timestamp 时间戳 (秒)
@@ -82,17 +167,7 @@ export const formatTimestamp = (timestamp: number): string => {
  * @returns 格式化后的日期时间字符串
  */
 export const formatDateTime = (timestamp: number): string => {
-  if (!timestamp) return '-'
-  const date = new Date(timestamp * 1000)
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  })
+  return formatUnixDateTime(timestamp)
 }
 
 /**
@@ -101,17 +176,7 @@ export const formatDateTime = (timestamp: number): string => {
  * @returns 格式化后的时间字符串
  */
 export const formatTime = (timestamp: number): string => {
-  if (!timestamp) return '-'
-  const date = new Date(timestamp * 1000)
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  })
+  return formatUnixDateTime(timestamp)
 }
 
 /**

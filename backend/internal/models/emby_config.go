@@ -13,7 +13,7 @@ type EmbyConfig struct {
 	EnableExtractMediaInfo  int    `json:"enable_extract_media_info" gorm:"default:0"`
 	EnableAuth              int    `json:"enable_auth" gorm:"default:1"`
 	SyncEnabled             int    `json:"sync_enabled" gorm:"default:1"`
-	SyncCron                string `json:"sync_cron" gorm:"type:varchar(100);default:'*/5 * * * *'"`
+	SyncCron                string `json:"sync_cron" gorm:"type:varchar(100);default:'0 * * * *'"`
 	LastSyncTime            int64  `json:"last_sync_time" gorm:"default:0"`
 	SelectedLibraries       string `json:"selected_libraries" gorm:"type:text;default:'[]'"` // 选中的媒体库 ID 列表（JSON 格式）
 	SyncAllLibraries        int    `json:"sync_all_libraries" gorm:"default:1"`              // 是否同步所有媒体库（1=全部，0=部分）

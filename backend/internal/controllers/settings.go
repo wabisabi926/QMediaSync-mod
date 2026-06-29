@@ -387,7 +387,7 @@ func GetCronNextTime(c *gin.Context) {
 	}
 	times := helpers.GetNextTimeByCronStr(req.Cron, 5)
 	if times == nil {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "Cron 表达式格式不正确", Data: nil})
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "仅支持 5 位 cron 表达式或 robfig 描述符", Data: nil})
 		return
 	}
 	var timeStrs []string

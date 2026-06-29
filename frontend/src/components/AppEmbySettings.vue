@@ -356,10 +356,10 @@
               <div class="form-help">
                 <el-icon><InfoFilled /></el-icon>
                 <span
-                  >Cron 表达式，格式：秒 分 时 日 月 周（如：{{
+                  >Cron 表达式，格式：分 时 日 月 周（如：{{
                     CRON_DEFAULTS.embySync
                   }}
-                  表示每天凌晨 2 点执行）</span
+                  表示每小时整点执行）</span
                 >
               </div>
             </el-form-item>
@@ -647,7 +647,7 @@ import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { inject, onMounted, ref, reactive, onBeforeUnmount, useTemplateRef } from 'vue'
 import ResponsiveActionBar from '@/components/common/ResponsiveActionBar.vue'
 import { useDeviceType } from '@/composables/useDeviceType'
-import { formatRelativeTime } from '@/utils/timeUtils'
+import { formatMaybeUnixDateTime, formatRelativeTime } from '@/utils/timeUtils'
 
 const http: AxiosStatic | undefined = inject('$http')
 
@@ -938,7 +938,9 @@ const fetchCronNextTimes = async () => {
     })
 
     if (response?.data.code === 200 && response.data.data) {
-      cronNextTimes.value = response.data.data
+      cronNextTimes.value = response.data.data.map((value: string | number) =>
+        formatMaybeUnixDateTime(value),
+      )
     } else {
       cronNextTimes.value = []
       if (response?.data.message) {

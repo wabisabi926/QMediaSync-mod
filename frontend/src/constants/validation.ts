@@ -34,5 +34,5 @@ export const STRM_CUSTOM_OPTIONS = {
 export const HTTP_URL_PATTERN = /^(http|https):\/\/[^\s/$.?#].[^\s]*$/
 
 export const CRON_DEFAULTS = {
-  embySync: '0 2 * * *',
+  embySync: '0 * * * *',
 } as const

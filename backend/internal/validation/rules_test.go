@@ -60,14 +60,40 @@ func TestHTTPURL(t *testing.T) {
 }
 
 func TestCron(t *testing.T) {
-	if err := Cron("cron", "0 2 * * *", false); err != nil {
-		t.Fatalf("Cron() error = %v", err)
+	tests := []struct {
+		name    string
+		expr    string
+		wantErr bool
+	}{
+		{name: "每小时整点", expr: "0 * * * *"},
+		{name: "每天凌晨两点", expr: "0 2 * * *"},
+		{name: "每十分钟", expr: "*/10 * * * *"},
+		{name: "描述符 hourly", expr: "@hourly"},
+		{name: "描述符 every", expr: "@every 1h30m"},
+		{name: "六位秒级不支持", expr: "0 0 2 * * *", wantErr: true},
+		{name: "Quartz 问号不支持", expr: "0 0 2 ? * *", wantErr: true},
+		{name: "Quartz L 不支持", expr: "0 0 2 L * *", wantErr: true},
+		{name: "Quartz W 不支持", expr: "0 0 2 1W * *", wantErr: true},
+		{name: "Quartz # 不支持", expr: "0 0 2 ? * 1#1", wantErr: true},
 	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := Cron("cron", tt.expr, false)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("Cron(%q) error = %v, wantErr %v", tt.expr, err, tt.wantErr)
+			}
+			if tt.wantErr && err.Error() != "cron：仅支持 5 位 cron 表达式或 robfig 描述符" {
+				t.Fatalf("Cron(%q) error = %q, want explicit format message", tt.expr, err.Error())
+			}
+		})
+	}
+
 	if err := Cron("cron", "", true); err != nil {
 		t.Fatalf("Cron() allow empty error = %v", err)
 	}
-	if err := Cron("cron", "invalid", false); err == nil {
-		t.Fatal("Cron() expected error")
+	if err := Cron("cron", "", false); err == nil {
+		t.Fatal("Cron() required empty expected error")
 	}
 }
 

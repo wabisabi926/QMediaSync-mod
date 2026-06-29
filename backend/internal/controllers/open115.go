@@ -544,13 +544,15 @@ func GetQueueStats(c *gin.Context) {
 		return
 	}
 
-	duration := time.Duration(req.TimeWindow) * time.Second
+	now := time.Now().Unix()
+	stats, err := models.GetRequestStatsWindow(now, int(req.TimeWindow))
+	if err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "查询队列统计数据失败：" + err.Error(), Data: nil})
+		return
+	}
 
 	// 获取全局队列执行器
 	executor := v115open.GetGlobalExecutor()
-
-	// 获取统计数据
-	stats := executor.GetStats(duration)
 
 	// 获取限流状态
 	throttleStatus := executor.GetThrottleStatus()
@@ -562,10 +564,10 @@ func GetQueueStats(c *gin.Context) {
 		"qpm_count":                stats.QPMCount,
 		"qph_count":                stats.QPHCount,
 		"throttled_count":          stats.ThrottledCount,
-		"avg_response_time_ms":     stats.AvgResponseTime,
-		"last_throttle_time":       stats.LastThrottleTime,
-		"throttle_wait_time":       stats.ThrottledWaitTime.String(),
-		"throttle_recover_time":    stats.ThrottleRecoverTime,
+		"avg_response_time_ms":     stats.AvgResponseTimeMS,
+		"last_throttle_time":       nil,
+		"throttle_wait_time":       "",
+		"throttle_recover_time":    nil,
 		"time_window_seconds":      req.TimeWindow,
 		"is_throttled":             throttleStatus.IsThrottled,
 		"throttled_elapsed_time":   throttleStatus.ElapsedTime.String(),

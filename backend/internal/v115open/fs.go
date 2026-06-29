@@ -242,7 +242,7 @@ func (c *OpenClient) ReName(ctx context.Context, fileId string, newName string) 
 	data := make(map[string]string)
 	data["file_id"] = fileId
 	data["file_name"] = newName
-	url := fmt.Sprintf("%s/open/open/ufile/update", OPEN_BASE_URL)
+	url := fmt.Sprintf("%s/open/ufile/update", OPEN_BASE_URL)
 	req := c.client.R().SetFormData(data).SetMethod("POST")
 	respData := RespBaseBool[interface{}]{}
 	_, respBytes, err := c.doAuthRequest(ctx, url, req, MakeRequestConfig(0, 0, 0), nil)
@@ -266,7 +266,7 @@ func (c *OpenClient) Move(ctx context.Context, fileIds []string, toFileId string
 	data := make(map[string]string)
 	data["file_ids"] = strings.Join(fileIds, ",")
 	data["to_cid"] = toFileId
-	url := fmt.Sprintf("%s/open/open/ufile/move", OPEN_BASE_URL)
+	url := fmt.Sprintf("%s/open/ufile/move", OPEN_BASE_URL)
 	req := c.client.R().SetFormData(data).SetMethod("POST")
 	respData := RespBaseBool[interface{}]{}
 	_, respBytes, err := c.doAuthRequest(ctx, url, req, MakeRequestConfig(0, 0, 0), nil)
@@ -294,7 +294,7 @@ func (c *OpenClient) Copy(ctx context.Context, fileIds []string, toFileId string
 	} else {
 		data["nodupli"] = "1"
 	}
-	url := fmt.Sprintf("%s/open/open/ufile/copy", OPEN_BASE_URL)
+	url := fmt.Sprintf("%s/open/ufile/copy", OPEN_BASE_URL)
 	req := c.client.R().SetFormData(data).SetMethod("POST")
 	respData := RespBaseBool[interface{}]{}
 	_, respBytes, err := c.doAuthRequest(ctx, url, req, MakeRequestConfig(0, 0, 0), nil)
@@ -319,7 +319,7 @@ func (c *OpenClient) Del(ctx context.Context, fileIds []string, parentFileId str
 	if parentFileId != "" {
 		data["parent_id"] = parentFileId
 	}
-	url := fmt.Sprintf("%s/open/open/ufile/delete", OPEN_BASE_URL)
+	url := fmt.Sprintf("%s/open/ufile/delete", OPEN_BASE_URL)
 	req := c.client.R().SetFormData(data).SetMethod("POST")
 	respData := RespBaseBool[interface{}]{}
 	_, respBytes, err := c.doAuthRequest(ctx, url, req, MakeRequestConfig(0, 0, 0), nil)
@@ -341,7 +341,7 @@ func (c *OpenClient) MkDir(ctx context.Context, parentFileId string, fileName st
 	data := make(map[string]string)
 	data["file_name"] = fileName
 	data["pid"] = parentFileId
-	url := fmt.Sprintf("%s/open/open/folder/add", OPEN_BASE_URL)
+	url := fmt.Sprintf("%s/open/folder/add", OPEN_BASE_URL)
 	req := c.client.R().SetFormData(data).SetMethod("POST")
 	respData := &MkDirData{}
 	_, respBytes, err := c.doAuthRequest(ctx, url, req, MakeRequestConfig(0, 0, 0), respData)

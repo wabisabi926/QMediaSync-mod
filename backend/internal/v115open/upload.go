@@ -171,7 +171,7 @@ func (c *OpenClient) Upload(ctx context.Context, filePath string, parentFileId s
 		helpers.V115Log.Errorf("计算文件 SHA1 失败：%v", err)
 		return "", err
 	}
-	preSha1, err := helpers.FileSHA1Partial(filePath, 0, 128)
+	preSha1, err := helpers.FileSHA1Partial(filePath, 0, 128*1024-1)
 	if err != nil {
 		helpers.V115Log.Errorf("计算文件前 128 位 SHA1 失败：%v", err)
 		return "", err
@@ -181,7 +181,7 @@ func (c *OpenClient) Upload(ctx context.Context, filePath string, parentFileId s
 		"file_size": fmt.Sprintf("%d", fileSize),
 		"target":    fmt.Sprintf("U_1_%s", parentFileId),
 		"fileid":    fileSha1,
-		"pre_id":    preSha1,
+		"preid":     preSha1,
 		"topupload": "0",
 	}
 	helpers.V115Log.Infof("准备上传文件：%s，大小：%d，SHA1：%s，前 128 位 SHA1：%s，Parent ID：%s，sign_key：%s，sign_val：%s\n", fileName, fileSize, fileSha1, preSha1, parentFileId, signKey, signVal)

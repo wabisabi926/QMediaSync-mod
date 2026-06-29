@@ -1,6 +1,7 @@
 package emby
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/url"
@@ -202,7 +203,6 @@ func PerformEmbySync() (result int, err error) {
 					models.CreateOrUpdateEmbyLibrarySyncPath(task.LibraryId, sf.SyncPathId, task.LibraryName)
 				}
 			}
-			time.Sleep(100 * time.Millisecond) // 休息 100 毫秒，避免对 Emby API 的过度请求，也让其他协程有机会写入数据库
 		}
 	}
 
@@ -212,13 +212,17 @@ func PerformEmbySync() (result int, err error) {
 	}
 
 	for _, lib := range libs {
-		items, gerr := client.GetMediaItemsByLibraryID(lib.ID, 0)
+		gerr := client.FetchMediaItemsByLibraryID(
+			context.Background(),
+			embyclientrestgo.EmbyItemsQuery{LibraryID: lib.ID},
+			func(item embyclientrestgo.BaseItemDtoV2) error {
+				jobs <- embySyncTask{LibraryId: lib.ID, LibraryName: lib.Name, Item: item}
+				return nil
+			},
+		)
 		if gerr != nil {
 			helpers.AppLogger.Warnf("获取媒体库 %s 失败：%v", lib.Name, gerr)
 			continue
-		}
-		for _, item := range items {
-			jobs <- embySyncTask{LibraryId: lib.ID, LibraryName: lib.Name, Item: item}
 		}
 	}
 	close(jobs)
@@ -296,70 +300,76 @@ func IncrementalSyncEmbyMediaItems(itemId string) (err error) {
 			helpers.AppLogger.Warnf("获取媒体库 %s 最后一次同步时间失败，可能是因为没有同步过任何媒体项", lib.ID)
 			continue
 		}
-		items, gerr := client.GetMediaItemsByLibraryID(lib.ID, lastDateCreatedTime)
+		gerr := client.FetchMediaItemsByLibraryID(
+			context.Background(),
+			embyclientrestgo.EmbyItemsQuery{
+				LibraryID:         lib.ID,
+				LastDateCreatedAt: lastDateCreatedTime,
+			},
+			func(item embyclientrestgo.BaseItemDtoV2) error {
+				pickCode, mediaPath, err := extractPickCode(item.MediaSources)
+				// pickCode, mediaPath := "", ""
+				if err != nil {
+					return nil
+				}
+				pathStr := mediaPath
+				if pathStr == "" {
+					pathStr = item.Path
+				}
+				mediaItem := &models.EmbyMediaItem{
+					ItemId:            item.Id,
+					ItemIdInt:         helpers.StringToInt64(item.Id),
+					ServerId:          "",
+					Name:              item.Name,
+					Type:              item.Type,
+					ParentId:          item.ParentId,
+					SeriesId:          item.SeriesId,
+					SeasonId:          item.SeasonId,
+					SeasonName:        item.SeasonName,
+					SeriesName:        item.SeriesName,
+					LibraryId:         lib.ID,
+					Path:              pathStr,
+					PickCode:          pickCode,
+					MediaSourcePath:   mediaPath,
+					IndexNumber:       item.IndexNumber,
+					ParentIndexNumber: item.ParentIndexNumber,
+					ProductionYear:    item.ProductionYear,
+					PremiereDate:      item.PremiereDate,
+					DateCreated:       item.DateCreated,  // 2026-01-21T16:00:00.0000000Z
+					DateModified:      item.DateModified, // 2026-01-21T16:00:00.0000000Z
+					IsFolder:          item.IsFolder,
+				}
+				// 将 DateCreated 转成时间戳赋值给 DateCreatedTime
+				if item.DateCreated != "" {
+					if t, err := time.Parse(time.RFC3339, item.DateCreated); err == nil {
+						mediaItem.DateCreatedTime = t.Unix()
+					}
+				}
+				// 将 DateModified 转成时间戳赋值给 DateModifiedTime
+				if item.DateModified != "" {
+					if t, err := time.Parse(time.RFC3339, item.DateModified); err == nil {
+						mediaItem.DateModifiedTime = t.Unix()
+					}
+				}
+				if err := models.CreateOrUpdateEmbyMediaItem(mediaItem); err != nil {
+					helpers.AppLogger.Errorf("保存 Emby 媒体项失败，ID=%s，名称=%s，错误=%v", item.Id, item.Name, err)
+					return nil
+				}
+				processed++
+				if pickCode != "" {
+					if sf := models.GetFileByPickCode(pickCode); sf != nil {
+						if err := models.CreateEmbyMediaSyncFile(item.Id, sf.ID, pickCode, sf.SyncPathId); err != nil {
+							helpers.AppLogger.Warnf("关联 SyncFile 失败，Item ID=%s，PickCode=%s，错误=%v", item.Id, pickCode, err)
+						}
+						models.CreateOrUpdateEmbyLibrarySyncPath(lib.ID, sf.SyncPathId, lib.Name)
+					}
+				}
+				return nil
+			},
+		)
 		if gerr != nil {
 			helpers.AppLogger.Warnf("获取媒体库 %s 失败：%v", lib.ID, gerr)
 			continue
-		}
-		for _, item := range items {
-			pickCode, mediaPath, err := extractPickCode(item.MediaSources)
-			// pickCode, mediaPath := "", ""
-			if err != nil {
-				continue
-			}
-			pathStr := mediaPath
-			if pathStr == "" {
-				pathStr = item.Path
-			}
-			mediaItem := &models.EmbyMediaItem{
-				ItemId:            item.Id,
-				ItemIdInt:         helpers.StringToInt64(item.Id),
-				ServerId:          "",
-				Name:              item.Name,
-				Type:              item.Type,
-				ParentId:          item.ParentId,
-				SeriesId:          item.SeriesId,
-				SeasonId:          item.SeasonId,
-				SeasonName:        item.SeasonName,
-				SeriesName:        item.SeriesName,
-				LibraryId:         lib.ID,
-				Path:              pathStr,
-				PickCode:          pickCode,
-				MediaSourcePath:   mediaPath,
-				IndexNumber:       item.IndexNumber,
-				ParentIndexNumber: item.ParentIndexNumber,
-				ProductionYear:    item.ProductionYear,
-				PremiereDate:      item.PremiereDate,
-				DateCreated:       item.DateCreated,  // 2026-01-21T16:00:00.0000000Z
-				DateModified:      item.DateModified, // 2026-01-21T16:00:00.0000000Z
-				IsFolder:          item.IsFolder,
-			}
-			// 将 DateCreated 转成时间戳赋值给 DateCreatedTime
-			if item.DateCreated != "" {
-				if t, err := time.Parse(time.RFC3339, item.DateCreated); err == nil {
-					mediaItem.DateCreatedTime = t.Unix()
-				}
-			}
-			// 将 DateModified 转成时间戳赋值给 DateModifiedTime
-			if item.DateModified != "" {
-				if t, err := time.Parse(time.RFC3339, item.DateModified); err == nil {
-					mediaItem.DateModifiedTime = t.Unix()
-				}
-			}
-			if err := models.CreateOrUpdateEmbyMediaItem(mediaItem); err != nil {
-				helpers.AppLogger.Errorf("保存 Emby 媒体项失败，ID=%s，名称=%s，错误=%v", item.Id, item.Name, err)
-				continue
-			}
-			processed++
-			if pickCode != "" {
-				if sf := models.GetFileByPickCode(pickCode); sf != nil {
-					if err := models.CreateEmbyMediaSyncFile(item.Id, sf.ID, pickCode, sf.SyncPathId); err != nil {
-						helpers.AppLogger.Warnf("关联 SyncFile 失败，Item ID=%s，PickCode=%s，错误=%v", item.Id, pickCode, err)
-					}
-					models.CreateOrUpdateEmbyLibrarySyncPath(lib.ID, sf.SyncPathId, lib.Name)
-				}
-			}
-			time.Sleep(100 * time.Millisecond) // 休息 100 毫秒，避免对 Emby API 的过度请求，也让其他协程有机会写入数据库
 		}
 	}
 

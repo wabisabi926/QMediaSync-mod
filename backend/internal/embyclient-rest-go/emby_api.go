@@ -2,7 +2,9 @@ package embyclientrestgo
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -105,6 +107,21 @@ type QueryResultBaseItemDto struct {
 	TotalRecordCount int32           `json:"TotalRecordCount,omitempty"`
 }
 
+// EmbyItemsQuery 表示查询 Emby 媒体条目的分页参数。
+type EmbyItemsQuery struct {
+	LibraryID         string
+	UserID            string
+	StartIndex        int
+	Limit             int
+	MinDateLastSaved  string
+	SortBy            string
+	SortOrder         string
+	IncludeItemTypes  string
+	Fields            string
+	IDs               string
+	LastDateCreatedAt int64
+}
+
 type AncestorDto struct {
 	ID       string `json:"Id,omitempty"`
 	Name     string `json:"Name,omitempty"`
@@ -173,98 +190,149 @@ func (c *Client) GetAllMediaLibraries() ([]EmbyLibrary, error) {
 }
 
 // GetMediaItemsByLibraryID 从指定的媒体库中检索所有媒体项目。
-// 它会自动处理分页并为每个项目请求详细字段。
+// 兼容旧调用方：内部使用流式分页接口，再聚合为切片返回。
 func (c *Client) GetMediaItemsByLibraryID(libraryID string, lastDateCreatedTime int64) ([]BaseItemDtoV2, error) {
-	const (
-		limit  = 100 // 每次请求获取的项目数
-		fields = "DateCreated,DateModified,ParentId,PremiereDate,MediaStreams"
-	)
-
 	var allItems []BaseItemDtoV2
-	startIndex := 0
-	firstRequest := true
+	err := c.FetchMediaItemsByLibraryID(
+		context.Background(),
+		EmbyItemsQuery{
+			LibraryID:         libraryID,
+			LastDateCreatedAt: lastDateCreatedTime,
+		},
+		func(item BaseItemDtoV2) error {
+			allItems = append(allItems, item)
+			return nil
+		},
+	)
+	return allItems, err
+}
 
-	// 构建基础 URL
-	baseURL, err := url.Parse(fmt.Sprintf("%s/emby/Items", c.embyURL))
-	if err != nil {
-		return nil, fmt.Errorf("解析基础 URL 时出错：%w", err)
+// FetchMediaItemsByLibraryID 从指定媒体库分页拉取媒体条目，并逐条回调处理。
+func (c *Client) FetchMediaItemsByLibraryID(
+	ctx context.Context,
+	query EmbyItemsQuery,
+	handle func(item BaseItemDtoV2) error,
+) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if handle == nil {
+		return errors.New("handle 不能为空")
 	}
 
-mainloop:
+	startIndex := query.StartIndex
+	limit := query.Limit
+	if limit <= 0 {
+		limit = 100
+	}
+
 	for {
-		// 设置查询参数
-		params := url.Values{}
-		params.Add("ParentId", libraryID)
-		params.Add("api_key", c.apiKey)
-		params.Add("StartIndex", fmt.Sprintf("%d", startIndex))
-		params.Add("Limit", fmt.Sprintf("%d", limit))
-		params.Add("Recursive", "true")
-		params.Add("IncludeItemTypes", "Movie,Video,Episode")
-		params.Add("Fields", fields)
-		params.Add("SortBy", "DateCreated")   // 入库时间
-		params.Add("SortOrder", "Descending") // 倒叙排列
-		baseURL.RawQuery = params.Encode()
-
-		req, err := http.NewRequest("GET", baseURL.String(), nil)
+		response, err := c.fetchMediaItemsPage(ctx, query, startIndex, limit)
 		if err != nil {
-			return nil, fmt.Errorf("创建请求时出错：%w", err)
-		}
-		req.Header.Set("Accept", "application/json")
-		// helpers.AppLogger.Debugf("GET %s", baseURL.String())
-		resp, err := c.httpClient.Do(req)
-		if err != nil {
-			return nil, fmt.Errorf("发送请求时出错：%w", err)
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("收到非 200 状态码：%d", resp.StatusCode)
-		}
-
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, fmt.Errorf("读取响应体时出错：%w", err)
-		}
-
-		var response QueryResultBaseItemDto
-		if err := json.Unmarshal(body, &response); err != nil {
-			return nil, fmt.Errorf("解析 JSON 时出错：%w", err)
-		}
-
-		if firstRequest {
-			if response.TotalRecordCount > 0 {
-				allItems = make([]BaseItemDtoV2, 0, response.TotalRecordCount)
-			}
-			firstRequest = false
+			return err
 		}
 		for _, item := range response.Items {
-			// helpers.AppLogger.Debugf("处理项目 %+v", item)
-			var dateCreatedTime int64 = 0
-			if item.DateCreated != "" {
-				if t, err := time.Parse(time.RFC3339, item.DateCreated); err == nil {
-					dateCreatedTime = t.Unix()
+			if query.LastDateCreatedAt > 0 && item.DateCreated != "" {
+				if t, err := time.Parse(time.RFC3339, item.DateCreated); err == nil && t.Unix() == query.LastDateCreatedAt {
+					return nil
 				}
 			}
-			if dateCreatedTime == lastDateCreatedTime {
-				helpers.AppLogger.Infof("找到最后一个项目 %s =>%d", item.Id, lastDateCreatedTime)
-				break mainloop
-			} else {
-				allItems = append(allItems, item)
+			if err := handle(item); err != nil {
+				return err
 			}
 		}
 
-		// allItems = append(allItems, response.Items...)
-
-		// 检查是否已获取所有项目
-		if len(response.Items) == 0 || len(allItems) >= int(response.TotalRecordCount) {
-			break
+		if len(response.Items) == 0 {
+			return nil
 		}
+		nextStartIndex := startIndex + len(response.Items)
+		if response.TotalRecordCount > 0 && nextStartIndex >= int(response.TotalRecordCount) {
+			return nil
+		}
+		startIndex = nextStartIndex
+	}
+}
 
-		// 准备下一页
-		startIndex += len(response.Items)
+func (c *Client) fetchMediaItemsPage(
+	ctx context.Context,
+	query EmbyItemsQuery,
+	startIndex int,
+	limit int,
+) (QueryResultBaseItemDto, error) {
+	basePath := fmt.Sprintf("%s/emby/Items", c.embyURL)
+	if query.UserID != "" {
+		basePath = fmt.Sprintf("%s/emby/Users/%s/Items", c.embyURL, url.PathEscape(query.UserID))
+	}
+	baseURL, err := url.Parse(basePath)
+	if err != nil {
+		return QueryResultBaseItemDto{}, fmt.Errorf("解析基础 URL 时出错：%w", err)
 	}
 
-	return allItems, nil
+	params := url.Values{}
+	params.Add("api_key", c.apiKey)
+	params.Add("StartIndex", fmt.Sprintf("%d", startIndex))
+	params.Add("Limit", fmt.Sprintf("%d", limit))
+	params.Add("Recursive", "true")
+	if query.LibraryID != "" {
+		params.Add("ParentId", query.LibraryID)
+	}
+	if query.IncludeItemTypes != "" {
+		params.Add("IncludeItemTypes", query.IncludeItemTypes)
+	} else {
+		params.Add("IncludeItemTypes", "Movie,Video,Episode")
+	}
+	if query.Fields != "" {
+		params.Add("Fields", query.Fields)
+	} else {
+		params.Add("Fields", "DateCreated,DateModified,ParentId,PremiereDate,MediaStreams")
+	}
+	if query.SortBy != "" {
+		params.Add("SortBy", query.SortBy)
+	} else {
+		params.Add("SortBy", "DateCreated")
+	}
+	if query.SortOrder != "" {
+		params.Add("SortOrder", query.SortOrder)
+	} else {
+		params.Add("SortOrder", "Descending")
+	}
+	if query.MinDateLastSaved != "" {
+		params.Add("MinDateLastSaved", query.MinDateLastSaved)
+	}
+	if query.IDs != "" {
+		params.Add("Ids", query.IDs)
+	}
+	baseURL.RawQuery = params.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL.String(), nil)
+	if err != nil {
+		return QueryResultBaseItemDto{}, fmt.Errorf("创建请求时出错：%w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return QueryResultBaseItemDto{}, fmt.Errorf("发送请求时出错：%w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return QueryResultBaseItemDto{}, fmt.Errorf("收到非 200 状态码：%d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return QueryResultBaseItemDto{}, fmt.Errorf("读取响应体时出错：%w", err)
+	}
+
+	var response QueryResultBaseItemDto
+	if err := json.Unmarshal(body, &response); err != nil {
+		return QueryResultBaseItemDto{}, fmt.Errorf("解析 JSON 时出错：%w", err)
+	}
+	return response, nil
 }
 
 // CheckPlaybackInfo 请求媒体项目的播放信息，并检查请求是否成功。

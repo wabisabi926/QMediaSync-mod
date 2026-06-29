@@ -117,3 +117,104 @@ func TestCreateOrUpdateEmbyMediaItem写入LastSeen字段且不触发清理(t *te
 		t.Fatalf("total items = %d, want 2", total)
 	}
 }
+
+func TestDeleteLocalEmbyItemByID删除Item和关联(t *testing.T) {
+	setupEmbyMediaTestDB(t)
+
+	if err := db.Db.Create(&EmbyMediaItem{ItemId: "101", ItemIdInt: 101, LibraryId: "lib-a"}).Error; err != nil {
+		t.Fatalf("创建 EmbyMediaItem 失败: %v", err)
+	}
+	if err := db.Db.Create(&EmbyMediaSyncFile{EmbyItemId: 101, SyncFileId: 1}).Error; err != nil {
+		t.Fatalf("创建 EmbyMediaSyncFile 失败: %v", err)
+	}
+
+	if err := DeleteLocalEmbyItemByID("101"); err != nil {
+		t.Fatalf("DeleteLocalEmbyItemByID() error = %v", err)
+	}
+
+	var itemCount int64
+	if err := db.Db.Model(&EmbyMediaItem{}).Count(&itemCount).Error; err != nil {
+		t.Fatalf("统计 EmbyMediaItem 失败: %v", err)
+	}
+	var relationCount int64
+	if err := db.Db.Model(&EmbyMediaSyncFile{}).Count(&relationCount).Error; err != nil {
+		t.Fatalf("统计 EmbyMediaSyncFile 失败: %v", err)
+	}
+	if itemCount != 0 || relationCount != 0 {
+		t.Fatalf("itemCount=%d relationCount=%d, want 0/0", itemCount, relationCount)
+	}
+}
+
+func TestDeleteLocalEmbyItemsBySeasonID删除季内条目和关联(t *testing.T) {
+	setupEmbyMediaTestDB(t)
+
+	items := []EmbyMediaItem{
+		{ItemId: "101", ItemIdInt: 101, SeasonId: "season-a", SeriesId: "series-a"},
+		{ItemId: "102", ItemIdInt: 102, SeasonId: "season-a", SeriesId: "series-a"},
+		{ItemId: "201", ItemIdInt: 201, SeasonId: "season-b", SeriesId: "series-a"},
+	}
+	for i := range items {
+		if err := db.Db.Create(&items[i]).Error; err != nil {
+			t.Fatalf("创建 EmbyMediaItem 失败: %v", err)
+		}
+	}
+	if err := db.Db.Create(&[]EmbyMediaSyncFile{{EmbyItemId: 101}, {EmbyItemId: 102}, {EmbyItemId: 201}}).Error; err != nil {
+		t.Fatalf("创建 EmbyMediaSyncFile 失败: %v", err)
+	}
+
+	if err := DeleteLocalEmbyItemsBySeasonID("season-a"); err != nil {
+		t.Fatalf("DeleteLocalEmbyItemsBySeasonID() error = %v", err)
+	}
+
+	var remainingItems []EmbyMediaItem
+	if err := db.Db.Find(&remainingItems).Error; err != nil {
+		t.Fatalf("查询剩余 EmbyMediaItem 失败: %v", err)
+	}
+	if len(remainingItems) != 1 || remainingItems[0].ItemId != "201" {
+		t.Fatalf("remainingItems = %+v, want only 201", remainingItems)
+	}
+	var remainingRelations []EmbyMediaSyncFile
+	if err := db.Db.Find(&remainingRelations).Error; err != nil {
+		t.Fatalf("查询剩余 EmbyMediaSyncFile 失败: %v", err)
+	}
+	if len(remainingRelations) != 1 || remainingRelations[0].EmbyItemId != 201 {
+		t.Fatalf("remainingRelations = %+v, want only 201", remainingRelations)
+	}
+}
+
+func TestDeleteLocalEmbyItemsBySeriesID删除剧内条目和关联(t *testing.T) {
+	setupEmbyMediaTestDB(t)
+
+	items := []EmbyMediaItem{
+		{ItemId: "101", ItemIdInt: 101, SeasonId: "season-a", SeriesId: "series-a"},
+		{ItemId: "102", ItemIdInt: 102, SeasonId: "season-b", SeriesId: "series-a"},
+		{ItemId: "201", ItemIdInt: 201, SeasonId: "season-c", SeriesId: "series-b"},
+	}
+	for i := range items {
+		if err := db.Db.Create(&items[i]).Error; err != nil {
+			t.Fatalf("创建 EmbyMediaItem 失败: %v", err)
+		}
+	}
+	if err := db.Db.Create(&[]EmbyMediaSyncFile{{EmbyItemId: 101}, {EmbyItemId: 102}, {EmbyItemId: 201}}).Error; err != nil {
+		t.Fatalf("创建 EmbyMediaSyncFile 失败: %v", err)
+	}
+
+	if err := DeleteLocalEmbyItemsBySeriesID("series-a"); err != nil {
+		t.Fatalf("DeleteLocalEmbyItemsBySeriesID() error = %v", err)
+	}
+
+	var remainingItems []EmbyMediaItem
+	if err := db.Db.Find(&remainingItems).Error; err != nil {
+		t.Fatalf("查询剩余 EmbyMediaItem 失败: %v", err)
+	}
+	if len(remainingItems) != 1 || remainingItems[0].ItemId != "201" {
+		t.Fatalf("remainingItems = %+v, want only 201", remainingItems)
+	}
+	var remainingRelations []EmbyMediaSyncFile
+	if err := db.Db.Find(&remainingRelations).Error; err != nil {
+		t.Fatalf("查询剩余 EmbyMediaSyncFile 失败: %v", err)
+	}
+	if len(remainingRelations) != 1 || remainingRelations[0].EmbyItemId != 201 {
+		t.Fatalf("remainingRelations = %+v, want only 201", remainingRelations)
+	}
+}

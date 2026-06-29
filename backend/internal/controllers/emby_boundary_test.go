@@ -30,6 +30,24 @@ func TestEmby两条链路不互相调用(t *testing.T) {
 	}
 }
 
+func TestEmbyWebhook使用单条同步和本地删除(t *testing.T) {
+	source := readSourceForBoundaryTest(t, "emby.go")
+	if strings.Contains(source, "IncrementalSyncEmbyMediaItems") {
+		t.Fatal("Webhook 不应调用按库扫描的旧增量同步，应按 item ID 单条同步")
+	}
+	if strings.Contains(source, "time.Sleep(1 * time.Minute)") {
+		t.Fatal("Webhook 不应延迟 1 分钟后再按库扫描")
+	}
+	if !strings.Contains(source, "SyncEmbyItemByID") {
+		t.Fatal("Webhook 新增或修改事件应调用 SyncEmbyItemByID")
+	}
+	if !strings.Contains(source, "DeleteLocalEmbyItemByID") ||
+		!strings.Contains(source, "DeleteLocalEmbyItemsBySeasonID") ||
+		!strings.Contains(source, "DeleteLocalEmbyItemsBySeriesID") {
+		t.Fatal("Webhook 删除事件应清理本地 Emby 条目索引和关联")
+	}
+}
+
 func readSourceForBoundaryTest(t *testing.T, path string) string {
 	t.Helper()
 

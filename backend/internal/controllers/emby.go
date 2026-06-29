@@ -57,9 +57,6 @@ type EmbyEvent struct {
 	} `json:"Item"`
 }
 
-var refreshLibraryLock bool = false
-var refreshLibraryLockMu = sync.Mutex{}
-
 type newSeries struct {
 	ID          string        // 剧的 ID
 	Name        string        // 剧的名称
@@ -167,22 +164,15 @@ func Webhook(ctx *gin.Context) {
 				helpers.AppLogger.Infof("Emby 媒体信息提取功能未启用，跳过媒体信息提取")
 			}
 		}
-		// 1 分钟后同步 Emby 条目到本地，用于更新 QMediaSync 本地索引。
+	}
+	if event.Event == "library.new" || event.Event == "library.modified" {
+		// 同步 Emby 条目到本地，用于更新 QMediaSync 本地索引。
 		go func() {
-			refreshLibraryLockMu.Lock()
-			if refreshLibraryLock {
-				refreshLibraryLockMu.Unlock()
-				return
+			if changed, err := emby.SyncEmbyItemByID(event.Item.ID); err != nil {
+				helpers.AppLogger.Warnf("Webhook 单条同步 Emby 条目失败，Item ID=%s，错误=%v", event.Item.ID, err)
+			} else if changed {
+				helpers.AppLogger.Infof("Webhook 单条同步 Emby 条目完成，Item ID=%s", event.Item.ID)
 			}
-			refreshLibraryLock = true
-			refreshLibraryLockMu.Unlock()
-			defer func() {
-				refreshLibraryLockMu.Lock()
-				refreshLibraryLock = false
-				refreshLibraryLockMu.Unlock()
-			}()
-			time.Sleep(1 * time.Minute)
-			emby.IncrementalSyncEmbyMediaItems(event.Item.ID)
 		}()
 	}
 	if event.Event == "library.deleted" {
@@ -229,6 +219,9 @@ func Webhook(ctx *gin.Context) {
 				default:
 				}
 			}
+			if err := deleteLocalEmbyItemForWebhook(event.Item.Type, event.Item.ID); err != nil {
+				helpers.AppLogger.Warnf("Webhook 删除本地 Emby 条目索引失败，Item ID=%s，类型=%s，错误=%v", event.Item.ID, event.Item.Type, err)
+			}
 		}
 	}
 	// 处理播放事件（playback.start、playback.pause、playback.stop）
@@ -239,6 +232,19 @@ func Webhook(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{
 		"message": "webhook",
 	})
+}
+
+func deleteLocalEmbyItemForWebhook(itemType string, itemID string) error {
+	switch itemType {
+	case "Movie", "Video", "Episode":
+		return models.DeleteLocalEmbyItemByID(itemID)
+	case "Season":
+		return models.DeleteLocalEmbyItemsBySeasonID(itemID)
+	case "Series":
+		return models.DeleteLocalEmbyItemsBySeriesID(itemID)
+	default:
+		return nil
+	}
 }
 
 func createEmbyTempImagePath(itemID string) (string, error) {

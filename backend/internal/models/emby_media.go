@@ -235,6 +235,68 @@ func CleanupStaleEmbyMediaItemsByLibrarySyncRun(libraryID string, syncRunID stri
 	return tx.Commit().Error
 }
 
+// DeleteLocalEmbyItemByID 删除本地单个 Emby 条目索引及关联。
+func DeleteLocalEmbyItemByID(itemID string) error {
+	if itemID == "" {
+		return nil
+	}
+	itemIDInt := helpers.StringToInt64(itemID)
+	tx := db.Db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+	if err := tx.Where("emby_item_id = ?", itemIDInt).Delete(&EmbyMediaSyncFile{}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := tx.Where("item_id = ?", itemID).Delete(&EmbyMediaItem{}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	return tx.Commit().Error
+}
+
+// DeleteLocalEmbyItemsBySeasonID 删除本地指定季下的 Emby 条目索引及关联。
+func DeleteLocalEmbyItemsBySeasonID(seasonID string) error {
+	return deleteLocalEmbyItemsByField("season_id", seasonID)
+}
+
+// DeleteLocalEmbyItemsBySeriesID 删除本地指定剧下的 Emby 条目索引及关联。
+func DeleteLocalEmbyItemsBySeriesID(seriesID string) error {
+	return deleteLocalEmbyItemsByField("series_id", seriesID)
+}
+
+func deleteLocalEmbyItemsByField(field string, value string) error {
+	if value == "" {
+		return nil
+	}
+	tx := db.Db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	var itemIDs []int64
+	if err := tx.Model(&EmbyMediaItem{}).Where(field+" = ?", value).Pluck("item_id_int", &itemIDs).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	if len(itemIDs) > 0 {
+		if err := tx.Where("emby_item_id IN ?", itemIDs).Delete(&EmbyMediaSyncFile{}).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+	if err := tx.Where(field+" = ?", value).Delete(&EmbyMediaItem{}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	return tx.Commit().Error
+}
+
 // CreateEmbyMediaSyncFile 创建关联（存在则跳过）
 func CreateEmbyMediaSyncFile(embyItemId string, syncFileId uint, pickCode string, syncPathId uint) error {
 	var count int64

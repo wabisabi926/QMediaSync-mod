@@ -1112,8 +1112,47 @@ const resetForm = () => {
   }
 }
 
+const getAddAccountValidationMessage = (): string | null => {
+  const form = newAccountForm.value
+  const sourceType = form.type.trim()
+  if (!sourceType) {
+    return '请先选择网盘类型'
+  }
+
+  if (sourceType === 'openlist') {
+    if (!form.base_url.trim()) {
+      return '请先填写 OpenList 访问地址'
+    }
+    if (form.auth_type === 'token') {
+      return form.token.trim() ? null : '请先填写 OpenList 令牌'
+    }
+    if (!form.username.trim()) {
+      return '请先填写 OpenList 用户名'
+    }
+    if (!form.password.trim()) {
+      return '请先填写 OpenList 密码'
+    }
+    return null
+  }
+
+  const accountName = form.name.trim()
+  if (!accountName) {
+    return '请先填写账号备注'
+  }
+  if (Array.from(accountName).length > 64) {
+    return '账号备注不能超过 64 个字符'
+  }
+  return null
+}
+
 const handleAddAccount = async () => {
   try {
+    const validationMessage = getAddAccountValidationMessage()
+    if (validationMessage) {
+      ElMessage.warning(validationMessage)
+      return
+    }
+
     const data: Record<string, string | number> = {
       source_type: newAccountForm.value.type,
       name: newAccountForm.value.name,
@@ -1157,7 +1196,11 @@ const handleAddAccount = async () => {
     console.error('添加账号失败：', error)
     const err: AxiosError = error as AxiosError
     const errData = err.response?.data as { message?: string }
-    ElMessage.error(`添加账号失败：HTTP ${err.status}，${errData.message || err.message}`)
+    const status = err.response?.status || err.status
+    const message = status
+      ? `HTTP ${status}，${errData.message || err.message}`
+      : errData.message || err.message
+    ElMessage.error(`添加账号失败：${message}`)
   }
 }
 

@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -9,9 +10,102 @@ import (
 	"qmediasync/internal/models"
 	"qmediasync/internal/requests"
 	"qmediasync/internal/v115auth"
+	"qmediasync/internal/validation"
 
 	"github.com/gin-gonic/gin"
 )
+
+func friendlyAccountValidationMessage(err error) string {
+	var validationErr validation.Error
+	if !errors.As(err, &validationErr) {
+		return err.Error()
+	}
+
+	switch validationErr.Field {
+	case "id":
+		return "请选择要操作的账号"
+	case "source_type":
+		return "请选择支持的网盘类型"
+	case "name":
+		if validationErr.Message == "不能为空" {
+			return "请填写账号备注"
+		}
+		if validationErr.Message == "长度超出允许范围" {
+			return "账号备注不能超过 64 个字符"
+		}
+	case "custom_app_name", "app_id_name":
+		if validationErr.Message == "长度超出允许范围" {
+			return "自定义应用名不能超过 64 个字符"
+		}
+	case "base_url":
+		switch validationErr.Message {
+		case "不能为空":
+			return "请填写 OpenList 访问地址"
+		case "必须是有效的 HTTP URL":
+			return "OpenList 访问地址不太对，请填写类似 http://ip:5244 的地址"
+		case "只支持 http 或 https":
+			return "OpenList 访问地址只支持 http 或 https"
+		}
+	case "auth_type":
+		return "请选择 OpenList 认证方式"
+	case "username":
+		return "请填写 OpenList 用户名"
+	case "password":
+		return "请填写 OpenList 密码"
+	case "token":
+		return "请填写 OpenList 令牌"
+	}
+
+	label := accountValidationFieldLabel(validationErr.Field)
+	if label == "" {
+		return "请求参数不正确，请检查后再试"
+	}
+	switch validationErr.Message {
+	case "不能为空":
+		return fmt.Sprintf("请填写%s", label)
+	case "长度超出允许范围":
+		return fmt.Sprintf("%s长度不符合要求", label)
+	case "不能包含控制字符":
+		return fmt.Sprintf("%s不能包含特殊控制字符", label)
+	case "不是允许的取值":
+		return fmt.Sprintf("%s不正确，请重新选择", label)
+	}
+	return fmt.Sprintf("%s%s", label, validationErr.Message)
+}
+
+func accountValidationFieldLabel(field string) string {
+	switch field {
+	case "source_type":
+		return "网盘类型"
+	case "name":
+		return "账号备注"
+	case "custom_app_name", "app_id_name":
+		return "自定义应用名"
+	case "base_url":
+		return "OpenList 访问地址"
+	case "auth_type":
+		return "OpenList 认证方式"
+	case "username":
+		return "OpenList 用户名"
+	case "password":
+		return "OpenList 密码"
+	case "token":
+		return "OpenList 令牌"
+	default:
+		return ""
+	}
+}
+
+func writeAccountValidationError(c *gin.Context, status int, err error) {
+	if helpers.AppLogger != nil {
+		helpers.AppLogger.Debugf("账号请求参数校验失败: %v", err)
+	}
+	c.JSON(status, APIResponse[any]{
+		Code:    BadRequest,
+		Message: friendlyAccountValidationMessage(err),
+		Data:    nil,
+	})
+}
 
 // GetAccountList 获取所有开放平台账号列表
 // @Summary 获取账号列表
@@ -116,7 +210,7 @@ func CreateTmpAccount(c *gin.Context) {
 		return
 	}
 	if err := tmpAccount.Validate(); err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		writeAccountValidationError(c, http.StatusOK, err)
 		return
 	}
 	// 创建临时账号
@@ -182,7 +276,7 @@ func UpdateAccountInfo(c *gin.Context) {
 		return
 	}
 	if err := req.Validate(); err != nil {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		writeAccountValidationError(c, http.StatusBadRequest, err)
 		return
 	}
 	account, err := models.GetAccountById(req.ID)
@@ -216,7 +310,7 @@ func DeleteAccount(c *gin.Context) {
 		return
 	}
 	if err := req.Validate(); err != nil {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		writeAccountValidationError(c, http.StatusBadRequest, err)
 		return
 	}
 	account, err := models.GetAccountById(req.ID)
@@ -255,7 +349,7 @@ func CreateOpenListAccount(c *gin.Context) {
 		return
 	}
 	if err := req.Validate(); err != nil {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		writeAccountValidationError(c, http.StatusBadRequest, err)
 		return
 	}
 	if req.ID != 0 {

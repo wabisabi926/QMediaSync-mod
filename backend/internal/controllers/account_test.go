@@ -14,7 +14,13 @@ import (
 
 	"qmediasync/internal/db"
 	"qmediasync/internal/models"
+	"qmediasync/internal/validation"
 )
+
+type apiMessageResponse struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
 
 func setupAccountControllerTest(t *testing.T) {
 	t.Helper()
@@ -26,6 +32,56 @@ func setupAccountControllerTest(t *testing.T) {
 	db.Db = testDb
 	if err := db.Db.AutoMigrate(&models.Account{}); err != nil {
 		t.Fatalf("迁移账号表失败: %v", err)
+	}
+}
+
+func decodeAPIMessage(t *testing.T, body *bytes.Buffer) apiMessageResponse {
+	t.Helper()
+	var resp apiMessageResponse
+	if err := json.Unmarshal(body.Bytes(), &resp); err != nil {
+		t.Fatalf("解析响应失败: %v，响应: %s", err, body.String())
+	}
+	return resp
+}
+
+func TestFriendlyAccountValidationMessage(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{
+			name: "账号 ID 错误",
+			err:  validation.New("id", "必须大于 0"),
+			want: "请选择要操作的账号",
+		},
+		{
+			name: "账号备注包含控制字符",
+			err:  validation.New("name", "不能包含控制字符"),
+			want: "账号备注不能包含特殊控制字符",
+		},
+		{
+			name: "自定义应用名包含控制字符",
+			err:  validation.New("custom_app_name", "不能包含控制字符"),
+			want: "自定义应用名不能包含特殊控制字符",
+		},
+		{
+			name: "未知字段不暴露字段名",
+			err:  validation.New("unknown", "不能为空"),
+			want: "请求参数不正确，请检查后再试",
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			got := friendlyAccountValidationMessage(tt.err)
+			if got != tt.want {
+				t.Fatalf("friendlyAccountValidationMessage() = %q，期望 %q", got, tt.want)
+			}
+			if strings.Contains(got, "：") {
+				t.Fatalf("响应不应暴露字段级错误: %s", got)
+			}
+		})
 	}
 }
 
@@ -236,6 +292,109 @@ func TestCreateTmpAccountV115AuthSource(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), `"code":500`) {
 		t.Fatalf("不支持的授权来源未返回 BadRequest: %s", w.Body.String())
+	}
+}
+
+func TestCreateTmpAccountReturnsFriendlyValidationMessage(t *testing.T) {
+	setupAccountControllerTest(t)
+	body, err := json.Marshal(map[string]any{
+		"source_type": "115",
+		"name":        " ",
+	})
+	if err != nil {
+		t.Fatalf("构造请求失败: %v", err)
+	}
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/account/add", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	CreateTmpAccount(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("HTTP 状态码 = %d，期望 %d", w.Code, http.StatusOK)
+	}
+	resp := decodeAPIMessage(t, w.Body)
+	if resp.Message != "请填写账号备注" {
+		t.Fatalf("Message = %q，期望 请填写账号备注", resp.Message)
+	}
+	if strings.Contains(resp.Message, "name：") {
+		t.Fatalf("响应不应暴露字段级错误: %s", w.Body.String())
+	}
+}
+
+func TestCreateOpenListAccountReturnsFriendlyValidationMessage(t *testing.T) {
+	setupAccountControllerTest(t)
+	cases := []struct {
+		name        string
+		payload     map[string]any
+		wantMessage string
+	}{
+		{
+			name: "缺少访问地址",
+			payload: map[string]any{
+				"auth_type": "password",
+				"username":  "admin",
+				"password":  "pass",
+			},
+			wantMessage: "请填写 OpenList 访问地址",
+		},
+		{
+			name: "用户名密码方式缺少用户名",
+			payload: map[string]any{
+				"base_url":  "http://openlist.example.com",
+				"auth_type": "password",
+				"password":  "pass",
+			},
+			wantMessage: "请填写 OpenList 用户名",
+		},
+		{
+			name: "用户名密码方式缺少密码",
+			payload: map[string]any{
+				"base_url":  "http://openlist.example.com",
+				"auth_type": "password",
+				"username":  "admin",
+			},
+			wantMessage: "请填写 OpenList 密码",
+		},
+		{
+			name: "Token 方式缺少令牌",
+			payload: map[string]any{
+				"base_url":  "http://openlist.example.com",
+				"auth_type": "token",
+			},
+			wantMessage: "请填写 OpenList 令牌",
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			body, err := json.Marshal(tt.payload)
+			if err != nil {
+				t.Fatalf("构造请求失败: %v", err)
+			}
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(
+				http.MethodPost,
+				"/account/openlist",
+				bytes.NewReader(body),
+			)
+			c.Request.Header.Set("Content-Type", "application/json")
+
+			CreateOpenListAccount(c)
+
+			if w.Code != http.StatusBadRequest {
+				t.Fatalf("HTTP 状态码 = %d，期望 %d", w.Code, http.StatusBadRequest)
+			}
+			resp := decodeAPIMessage(t, w.Body)
+			if resp.Message != tt.wantMessage {
+				t.Fatalf("Message = %q，期望 %q", resp.Message, tt.wantMessage)
+			}
+			if strings.Contains(resp.Message, "：") {
+				t.Fatalf("响应不应暴露字段级错误: %s", w.Body.String())
+			}
+		})
 	}
 }
 

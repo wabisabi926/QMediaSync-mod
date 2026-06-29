@@ -27,6 +27,9 @@ func (r CreateAccountRequest) Validate() error {
 	}); err != nil {
 		return err
 	}
+	if err := validation.NonBlank("name", r.Name); err != nil {
+		return err
+	}
 	if err := validation.Length("name", r.Name, 1, 64); err != nil {
 		return err
 	}
@@ -55,6 +58,9 @@ func (r UpdateAccountInfoRequest) Validate() error {
 	if err := validation.PositiveID("id", r.ID); err != nil {
 		return err
 	}
+	if err := validation.NonBlank("name", r.Name); err != nil {
+		return err
+	}
 	if err := validation.Length("name", r.Name, 1, 64); err != nil {
 		return err
 	}
@@ -78,6 +84,7 @@ func (r DeleteAccountRequest) Validate() error {
 type CreateOpenListAccountRequest struct {
 	ID       uint   `json:"id" form:"id"`
 	BaseURL  string `json:"base_url" form:"base_url"`
+	AuthType string `json:"auth_type" form:"auth_type"`
 	Username string `json:"username" form:"username"`
 	Password string `json:"password" form:"password"`
 	Token    string `json:"token" form:"token"`
@@ -96,6 +103,23 @@ func (r *CreateOpenListAccountRequest) Validate() error {
 	if err := validation.HTTPURL("base_url", r.BaseURL, false); err != nil {
 		return err
 	}
+
+	r.AuthType = strings.TrimSpace(r.AuthType)
+	switch r.AuthType {
+	case "":
+		if strings.TrimSpace(r.Token) != "" {
+			return nil
+		}
+	case "password":
+		if strings.TrimSpace(r.Token) != "" {
+			return nil
+		}
+	case "token":
+		return validation.NonBlank("token", r.Token)
+	default:
+		return validation.New("auth_type", "不是允许的取值")
+	}
+
 	if strings.TrimSpace(r.Token) == "" {
 		if err := validation.NonBlank("username", r.Username); err != nil {
 			return err

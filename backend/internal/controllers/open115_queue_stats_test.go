@@ -80,3 +80,36 @@ func TestGetQueueStats重启后从数据库返回请求统计(t *testing.T) {
 		t.Fatalf("throttled_count = %d，期望 1", got)
 	}
 }
+
+func TestGetQueueStats限流中返回总等待时长(t *testing.T) {
+	r := setupQueueStatsControllerTest(t)
+	v115open.GetGlobalExecutor().SetThrottledForTesting(true)
+	t.Cleanup(func() {
+		v115open.GetGlobalExecutor().SetThrottledForTesting(false)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/115/queue/stats?time_window=3600", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("HTTP status = %d，期望 200，body=%s", w.Code, w.Body.String())
+	}
+
+	var resp APIResponse[map[string]any]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("解析响应失败: %v", err)
+	}
+	if resp.Code != Success {
+		t.Fatalf("Code = %d，期望 %d，message=%s", resp.Code, Success, resp.Message)
+	}
+	if got := resp.Data["is_throttled"].(bool); !got {
+		t.Fatal("is_throttled = false，期望 true")
+	}
+	if got := resp.Data["throttle_wait_time"].(string); got != "1m0s" {
+		t.Fatalf("throttle_wait_time = %q，期望 1m0s", got)
+	}
+	if got := resp.Data["throttled_remaining_time"].(string); got == "" {
+		t.Fatal("throttled_remaining_time 为空，期望返回剩余限流时间")
+	}
+}

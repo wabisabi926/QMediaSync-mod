@@ -557,6 +557,11 @@ func GetQueueStats(c *gin.Context) {
 	// 获取限流状态
 	throttleStatus := executor.GetThrottleStatus()
 
+	throttleWaitTime := ""
+	if throttleStatus.IsThrottled {
+		throttleWaitTime = throttleStatus.WaitTime.String()
+	}
+
 	// 构建响应数据
 	responseData := gin.H{
 		"total_requests":           stats.TotalRequests,
@@ -566,7 +571,7 @@ func GetQueueStats(c *gin.Context) {
 		"throttled_count":          stats.ThrottledCount,
 		"avg_response_time_ms":     stats.AvgResponseTimeMS,
 		"last_throttle_time":       nil,
-		"throttle_wait_time":       "",
+		"throttle_wait_time":       throttleWaitTime,
 		"throttle_recover_time":    nil,
 		"time_window_seconds":      req.TimeWindow,
 		"is_throttled":             throttleStatus.IsThrottled,

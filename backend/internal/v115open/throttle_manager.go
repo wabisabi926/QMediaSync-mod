@@ -124,6 +124,7 @@ func (tm *ThrottleManager) GetThrottleStatus() ThrottleStatus {
 
 	if tm.isThrottled {
 		elapsed := time.Since(tm.throttleStartTime)
+		status.WaitTime = tm.throttleDuration
 		status.ElapsedTime = elapsed
 		status.RemainingTime = tm.throttleDuration - elapsed
 		if status.RemainingTime < 0 {
@@ -144,6 +145,7 @@ func (tm *ThrottleManager) ClearThrottled() {
 // ThrottleStatus 限流状态详情
 type ThrottleStatus struct {
 	IsThrottled   bool          // 是否处于限流状态
+	WaitTime      time.Duration // 本次限流总等待时长
 	ElapsedTime   time.Duration // 已经限流的时长
 	RemainingTime time.Duration // 剩余限流时长
 }

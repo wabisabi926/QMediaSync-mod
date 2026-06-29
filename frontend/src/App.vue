@@ -43,14 +43,14 @@
             <el-sub-menu v-if="menu.children && menu.children.length > 0" :index="menu.path">
               <template #title>
                 <el-icon>
-                  <component :is="getMenuIcon(menu.meta.icon)" />
+                  <component :is="menu.iconComponent" :key="menu.meta.icon" />
                 </el-icon>
                 <span>{{ menu.meta.title }}</span>
               </template>
               <!-- 遍历子菜单 -->
               <el-menu-item v-for="child in menu.children" :key="child.path" :index="child.path">
                 <el-icon>
-                  <component :is="getMenuIcon(child.meta.icon)" />
+                  <component :is="child.iconComponent" :key="child.meta.icon" />
                 </el-icon>
                 <span>{{ child.meta.title }}</span>
               </el-menu-item>
@@ -58,7 +58,7 @@
             <!-- 如果是普通菜单 -->
             <el-menu-item v-else :index="menu.path">
               <el-icon>
-                <component :is="getMenuIcon(menu.meta.icon)" />
+                <component :is="menu.iconComponent" :key="menu.meta.icon" />
               </el-icon>
               <span>{{ menu.meta.title }}</span>
             </el-menu-item>
@@ -191,7 +191,7 @@ import {
   View,
 } from '@element-plus/icons-vue'
 import axios from 'axios'
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, markRaw, type Component as VueComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useBackupStore } from '@/stores/backup'
@@ -231,27 +231,27 @@ const getRouteViewKey = (routeName: unknown, fullPath: string) => {
 }
 
 const menuIconMap = {
-  DataAnalysis,
-  DataLine,
-  DocumentCopy,
-  Download,
-  Film,
-  Folder,
-  FolderOpened,
-  House,
-  Key,
-  Link,
-  List,
-  Monitor,
-  Operation,
-  Promotion,
-  RefreshLeft,
-  Setting,
-  Upload,
-  User,
-  UserFilled,
-  VideoPlay,
-  View,
+  DataAnalysis: markRaw(DataAnalysis),
+  DataLine: markRaw(DataLine),
+  DocumentCopy: markRaw(DocumentCopy),
+  Download: markRaw(Download),
+  Film: markRaw(Film),
+  Folder: markRaw(Folder),
+  FolderOpened: markRaw(FolderOpened),
+  House: markRaw(House),
+  Key: markRaw(Key),
+  Link: markRaw(Link),
+  List: markRaw(List),
+  Monitor: markRaw(Monitor),
+  Operation: markRaw(Operation),
+  Promotion: markRaw(Promotion),
+  RefreshLeft: markRaw(RefreshLeft),
+  Setting: markRaw(Setting),
+  Upload: markRaw(Upload),
+  User: markRaw(User),
+  UserFilled: markRaw(UserFilled),
+  VideoPlay: markRaw(VideoPlay),
+  View: markRaw(View),
 } as const
 
 const getMenuIcon = (icon?: string) => {
@@ -268,6 +268,7 @@ interface MenuItem {
     showInMenu: boolean
     parent?: string
   }
+  iconComponent: VueComponent
   children?: MenuItem[]
 }
 
@@ -312,6 +313,7 @@ const menuItems = computed(() => {
               showInMenu: parentRoute.meta.showInMenu || false,
               parent: parentRoute.meta.parent,
             },
+            iconComponent: getMenuIcon(parentRoute.meta.icon),
             children: [],
           }
           menuMap.set(route.meta.parent, parentMenuItem)
@@ -329,6 +331,7 @@ const menuItems = computed(() => {
             showInMenu: route.meta.showInMenu || false,
             parent: route.meta.parent,
           },
+          iconComponent: getMenuIcon(route.meta.icon),
         }
         menuMap.get(route.meta.parent)?.children?.push(childMenuItem)
       }
@@ -345,6 +348,7 @@ const menuItems = computed(() => {
             showInMenu: route.meta.showInMenu || false,
             parent: route.meta.parent,
           },
+          iconComponent: getMenuIcon(route.meta.icon),
           children: [],
         }
         menuMap.set(routeNameKey, menuItem)

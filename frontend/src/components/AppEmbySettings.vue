@@ -546,16 +546,31 @@
                 @click="startSync"
                 :loading="syncStartLoading"
                 :icon="Refresh"
-                :disabled="!embyData.emby_url || !embyData.sync_enabled || syncPolling"
+                :disabled="isStartSyncDisabled"
                 size="default"
               >
-                {{ syncPolling ? '同步进行中…' : '启动同步' }}
+                {{ isSyncRunning ? '同步进行中…' : '启动全量同步' }}
               </el-button>
             </div>
           </div>
         </template>
 
         <div v-if="syncInfo" class="sync-info-grid">
+          <div class="sync-stat-card">
+            <div class="stat-icon status-icon">
+              <el-icon :size="28"><Refresh /></el-icon>
+            </div>
+            <div class="stat-content">
+              <div class="stat-label">当前状态</div>
+              <div class="stat-value" :class="{ 'is-enabled': isSyncRunning }">
+                {{ currentSyncModeLabel }}
+              </div>
+              <div v-if="syncInfo.started_at" class="stat-helper">
+                开始：{{ formatSyncAbsoluteTime(syncInfo.started_at) }}
+              </div>
+            </div>
+          </div>
+
           <div class="sync-stat-card">
             <div class="stat-icon auto-sync-icon">
               <el-icon :size="28"><Timer /></el-icon>
@@ -593,16 +608,78 @@
               <el-icon :size="28"><Calendar /></el-icon>
             </div>
             <div class="stat-content">
-              <div class="stat-label">最后同步时间</div>
-              <div class="stat-value">{{ formatLastSyncTime(syncInfo.last_sync_time) }}</div>
+              <div class="stat-label">最近同步</div>
+              <div class="stat-value">{{ formatSyncRelativeTime(syncInfo.last_sync_time) }}</div>
+              <div class="stat-helper">{{ formatSyncAbsoluteTime(syncInfo.last_sync_time) }}</div>
+            </div>
+          </div>
+
+          <div class="sync-stat-card">
+            <div class="stat-icon time-icon">
+              <el-icon :size="28"><Calendar /></el-icon>
+            </div>
+            <div class="stat-content">
+              <div class="stat-label">最近增量同步</div>
+              <div class="stat-value">
+                {{ formatSyncRelativeTime(syncInfo.last_incremental_sync_at) }}
+              </div>
+              <div class="stat-helper">
+                {{ formatSyncAbsoluteTime(syncInfo.last_incremental_sync_at) }}
+              </div>
+            </div>
+          </div>
+
+          <div class="sync-stat-card">
+            <div class="stat-icon time-icon">
+              <el-icon :size="28"><Calendar /></el-icon>
+            </div>
+            <div class="stat-content">
+              <div class="stat-label">最近全量同步</div>
+              <div class="stat-value">{{ formatSyncRelativeTime(syncInfo.last_full_sync_at) }}</div>
+              <div class="stat-helper">{{ formatSyncAbsoluteTime(syncInfo.last_full_sync_at) }}</div>
+            </div>
+          </div>
+
+          <div class="sync-stat-card">
+            <div class="stat-icon cycle-icon">
+              <el-icon :size="28"><Clock /></el-icon>
+            </div>
+            <div class="stat-content">
+              <div class="stat-label">增量游标</div>
+              <div class="stat-value">
+                {{ formatSyncRelativeTime(syncInfo.last_saved_cursor_at) }}
+              </div>
+              <div class="stat-helper">
+                {{ formatSyncAbsoluteTime(syncInfo.last_saved_cursor_at) }}
+              </div>
+            </div>
+          </div>
+
+          <div class="sync-stat-card">
+            <div class="stat-icon items-icon">
+              <el-icon :size="28"><FolderOpened /></el-icon>
+            </div>
+            <div class="stat-content">
+              <div class="stat-label">最近处理数量</div>
+              <div class="stat-value highlight">{{ syncInfo.last_processed_count || 0 }}</div>
+            </div>
+          </div>
+
+          <div v-if="syncInfo.last_error" class="sync-stat-card error-card">
+            <div class="stat-icon error-icon">
+              <el-icon :size="28"><WarningFilled /></el-icon>
+            </div>
+            <div class="stat-content">
+              <div class="stat-label">最近错误</div>
+              <div class="stat-value error-text">{{ syncInfo.last_error }}</div>
             </div>
           </div>
         </div>
 
-        <div v-if="syncPolling" class="sync-progress">
+        <div v-if="isSyncRunning" class="sync-progress">
           <div class="progress-indicator">
             <el-icon class="is-loading" :size="20"><Loading /></el-icon>
-            <span>同步进行中，请稍候…</span>
+            <span>{{ currentSyncModeLabel }}进行中，请稍候…</span>
           </div>
         </div>
 
@@ -644,7 +721,7 @@ import {
   Calendar,
 } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { inject, onMounted, ref, reactive, onBeforeUnmount, useTemplateRef } from 'vue'
+import { computed, inject, onMounted, ref, reactive, onBeforeUnmount, useTemplateRef } from 'vue'
 import ResponsiveActionBar from '@/components/common/ResponsiveActionBar.vue'
 import { useDeviceType } from '@/composables/useDeviceType'
 import { formatMaybeUnixDateTime, formatRelativeTime } from '@/utils/timeUtils'
@@ -659,13 +736,47 @@ const embyLoading = ref(false)
 
 const syncStartLoading = ref(false)
 const syncPolling = ref(false)
-const syncInfo = ref<{
+type EmbySyncMode = 'idle' | 'full' | 'incremental' | 'webhook' | 'refresh_library' | ''
+
+interface EmbySyncInfo {
   sync_enabled: boolean
   sync_cron: string
   total_items: number
   last_sync_time: number | null
-} | null>(null)
+  last_full_sync_at?: number | null
+  last_incremental_sync_at?: number | null
+  last_saved_cursor_at?: number | null
+  last_processed_count?: number | null
+  last_error?: string
+  is_running?: boolean
+  sync_mode?: EmbySyncMode
+  started_at?: number | null
+}
+
+const syncInfo = ref<EmbySyncInfo | null>(null)
 let syncPollTimer: number | null = null
+
+const syncModeLabels: Record<Exclude<EmbySyncMode, ''>, string> = {
+  idle: '空闲',
+  full: '全量同步 Emby 条目',
+  incremental: '增量同步 Emby 条目',
+  webhook: 'Webhook 单条同步 Emby 条目',
+  refresh_library: '刷新 Emby 媒体库',
+}
+
+const isSyncRunning = computed(() => Boolean(syncInfo.value?.is_running || syncPolling.value))
+
+const currentSyncModeLabel = computed(() => {
+  const mode = syncInfo.value?.sync_mode || 'idle'
+  if (mode in syncModeLabels) {
+    return syncModeLabels[mode as Exclude<EmbySyncMode, ''>]
+  }
+  return isSyncRunning.value ? '同步 Emby 条目' : syncModeLabels.idle
+})
+
+const isStartSyncDisabled = computed(
+  () => !embyData.emby_url || !embyData.sync_enabled || isSyncRunning.value,
+)
 
 const cronNextTimes = ref<string[]>([])
 
@@ -1021,9 +1132,14 @@ const stopSyncPolling = () => {
   }
 }
 
-const formatLastSyncTime = (timestamp: number | null | undefined) => {
+const formatSyncRelativeTime = (timestamp: number | null | undefined) => {
   const formatted = formatRelativeTime(timestamp)
   return formatted === '-' ? '未同步' : formatted
+}
+
+const formatSyncAbsoluteTime = (timestamp: number | null | undefined) => {
+  const formatted = formatMaybeUnixDateTime(timestamp)
+  return formatted === '-' ? '' : formatted
 }
 
 onMounted(() => {
@@ -1395,8 +1511,17 @@ onBeforeUnmount(() => {
   background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
 }
 
+.status-icon {
+  background: linear-gradient(135deg, #22c55e 0%, #14b8a6 100%);
+}
+
+.error-icon {
+  background: linear-gradient(135deg, #ef4444 0%, #f97316 100%);
+}
+
 .stat-content {
   flex: 1;
+  min-width: 0;
 }
 
 .stat-label {
@@ -1409,6 +1534,7 @@ onBeforeUnmount(() => {
   font-size: 18px;
   font-weight: 600;
   color: #303133;
+  overflow-wrap: anywhere;
 }
 
 .stat-value.is-enabled {
@@ -1417,6 +1543,24 @@ onBeforeUnmount(() => {
 
 .stat-value.highlight {
   color: #409eff;
+}
+
+.stat-helper {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.error-card {
+  border-color: #fde2e2;
+  background: linear-gradient(135deg, #fff5f5 0%, #ffffff 100%);
+}
+
+.error-text {
+  color: #f56c6c;
+  font-size: 14px;
 }
 
 .sync-progress {

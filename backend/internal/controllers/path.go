@@ -261,6 +261,37 @@ type FileItem struct {
 	ModifiedAt  int64  `json:"modified_time"`
 }
 
+type netFileListPage struct {
+	list  []*FileItem
+	total int64
+}
+
+type netFileListResponse struct {
+	List     []*FileItem `json:"list"`
+	Total    int64       `json:"total"`
+	Page     int         `json:"page"`
+	PageSize int         `json:"page_size"`
+}
+
+func buildNetFileListResponse(list []*FileItem, total int64, page, pageSize int) netFileListResponse {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = len(list)
+	}
+	loadedTotal := int64((page-1)*pageSize + len(list))
+	if total < loadedTotal {
+		total = loadedTotal
+	}
+	return netFileListResponse{
+		List:     list,
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+	}
+}
+
 // 返回目录和文件列表
 func GetNetFileList(c *gin.Context) {
 	var req requests.NetFileListRequest
@@ -277,14 +308,14 @@ func GetNetFileList(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取账号信息失败：" + err.Error(), Data: nil})
 		return
 	}
-	var list []*FileItem
+	var page netFileListPage
 	switch account.SourceType {
 	case models.SourceTypeOpenList:
-		list, err = getOpenlistDirs(req.ParentID, account, req.Page, req.PageSize)
+		page, err = getOpenlistDirs(req.ParentID, account, req.Page, req.PageSize)
 	case models.SourceType115:
-		list, err = get115Dirs(req.ParentID, account, req.Page, req.PageSize)
+		page, err = get115Dirs(req.ParentID, account, req.Page, req.PageSize)
 	case models.SourceTypeBaiduPan:
-		list, err = getBaiduPanDirs(req.ParentID, account, req.Page, req.PageSize)
+		page, err = getBaiduPanDirs(req.ParentID, account, req.Page, req.PageSize)
 	default:
 		// 报错
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "未知的网盘类型", Data: nil})
@@ -294,10 +325,14 @@ func GetNetFileList(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取目录列表失败：" + err.Error(), Data: nil})
 		return
 	}
-	c.JSON(http.StatusOK, APIResponse[[]*FileItem]{Code: Success, Message: "", Data: list})
+	c.JSON(http.StatusOK, APIResponse[netFileListResponse]{
+		Code:    Success,
+		Message: "",
+		Data:    buildNetFileListResponse(page.list, page.total, req.Page, req.PageSize),
+	})
 }
 
-func getOpenlistDirs(parentPath string, account *models.Account, page, pageSize int) ([]*FileItem, error) {
+func getOpenlistDirs(parentPath string, account *models.Account, page, pageSize int) (netFileListPage, error) {
 	// 去掉 parentPath 末尾的 /
 	parentPath = strings.TrimSuffix(parentPath, "/")
 	parentPath = strings.TrimSuffix(parentPath, "\\")
@@ -305,7 +340,7 @@ func getOpenlistDirs(parentPath string, account *models.Account, page, pageSize 
 	client := account.GetOpenListClient()
 	resp, err := client.FileList(context.Background(), parentPath, page, pageSize)
 	if err != nil {
-		return nil, err
+		return netFileListPage{}, err
 	}
 	// 只返回文件夹列表
 	items := make([]*FileItem, 0)
@@ -325,10 +360,10 @@ func getOpenlistDirs(parentPath string, account *models.Account, page, pageSize 
 			ModifiedAt:  mtime,
 		})
 	}
-	return items, nil
+	return netFileListPage{list: items, total: resp.Total}, nil
 }
 
-func get115Dirs(parentId string, account *models.Account, page, pageSize int) ([]*FileItem, error) {
+func get115Dirs(parentId string, account *models.Account, page, pageSize int) (netFileListPage, error) {
 	client := account.Get115Client()
 	ctx := context.Background()
 	if parentId == "" {
@@ -337,7 +372,7 @@ func get115Dirs(parentId string, account *models.Account, page, pageSize int) ([
 	resp, err := client.GetFsList(ctx, parentId, true, false, true, (page-1)*pageSize, pageSize)
 	if err != nil {
 		helpers.AppLogger.Warnf("获取 115 目录列表失败：父目录=%s，错误=%v", parentId, err)
-		return nil, err
+		return netFileListPage{}, err
 	}
 	helpers.AppLogger.Infof("成功获取 115 文件列表，父目录 ID：%s，文件数量：%d", parentId, len(resp.Data))
 	items := make([]*FileItem, 0)
@@ -351,17 +386,17 @@ func get115Dirs(parentId string, account *models.Account, page, pageSize int) ([
 			ModifiedAt:  item.Ptime,
 		})
 	}
-	return items, nil
+	return netFileListPage{list: items, total: int64(resp.Count)}, nil
 
 }
 
-func getBaiduPanDirs(parentId string, account *models.Account, page, pageSize int) ([]*FileItem, error) {
+func getBaiduPanDirs(parentId string, account *models.Account, page, pageSize int) (netFileListPage, error) {
 	client := account.GetBaiDuPanClient()
 	ctx := context.Background()
 	fileList, fileErr := client.GetFileList(ctx, parentId, 0, 1, int32((page-1)*pageSize), int32(pageSize))
 	if fileErr != nil {
 		helpers.AppLogger.Warnf("获取百度网盘目录列表失败：父目录：%s，错误：%v", parentId, fileErr)
-		return nil, fileErr
+		return netFileListPage{}, fileErr
 	}
 	// helpers.AppLogger.Infof("成功获取百度网盘文件列表，父目录 ID：%s，文件数量：%d", parentId, len(resp.Data))
 	items := make([]*FileItem, 0)
@@ -375,7 +410,7 @@ func getBaiduPanDirs(parentId string, account *models.Account, page, pageSize in
 			ModifiedAt:  int64(item.ServerMtime),
 		})
 	}
-	return items, nil
+	return netFileListPage{list: items}, nil
 }
 
 // 创建文件夹

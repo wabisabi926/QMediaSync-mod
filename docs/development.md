@@ -33,6 +33,7 @@ trustedOrigins:
 ### 前端状态刷新和 WebSocket 事件
 
 - 分页列表接口保留 HTTP 快照语义，例如上传 / 下载队列列表仍通过 `/api/upload/queue` 和 `/api/download/queue` 拉取当前页。
+- 网盘文件浏览器使用 `/api/path/files` 拉取当前页，响应 `data` 为 `{ list, total, page, page_size }`；可获取目录总数的网盘应把服务端总数写入 `total`，前端分页页码不能用当前页 `list.length` 推断。
 - 上传 / 下载队列列表响应包含 `queue_status` 快照，前端批量按钮状态以该快照为准；暂停 / 恢复只依据队列运行态，清理 / 重试类操作再依据任务数量；WebSocket 状态事件只更新运行标记，最终仍以 HTTP 快照校准。
 - WebSocket 事件只用于通知状态或列表可能发生变化，前端收到事件后按当前页、筛选条件重新拉取快照，不在客户端维护分页列表增量状态。
 - 长任务进度优先使用事件推送；保留 HTTP 状态接口作为首次加载、刷新恢复和 WebSocket 断线兜底。

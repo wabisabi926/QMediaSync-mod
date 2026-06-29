@@ -331,6 +331,36 @@ interface NetdiskAccount {
   token_failed_reason?: string
 }
 
+interface NetFileListPayload {
+  list: FileSystemItem[]
+  total: number
+}
+
+function normalizeNetFileListPayload(data: unknown): NetFileListPayload {
+  if (Array.isArray(data)) {
+    return {
+      list: data as FileSystemItem[],
+      total: data.length,
+    }
+  }
+
+  if (typeof data !== 'object' || data === null) {
+    return {
+      list: [],
+      total: 0,
+    }
+  }
+
+  const payload = data as Record<string, unknown>
+  const list = Array.isArray(payload.list) ? (payload.list as FileSystemItem[]) : []
+  const total = typeof payload.total === 'number' ? payload.total : list.length
+
+  return {
+    list,
+    total: Math.max(total, list.length),
+  }
+}
+
 // 响应式数据
 const pageStateStore = usePageStateStore()
 const pageState = pageStateStore.getPageState('file-manager', {
@@ -679,7 +709,9 @@ async function loadFileList() {
       }
 
       if (response?.data.code === 200) {
-        const items = response.data.data || []
+        const { list: items, total: responseTotal } = normalizeNetFileListPayload(
+          response.data.data,
+        )
 
         const rows = items.map((item: FileSystemItem) => ({
           id: item.id,
@@ -700,7 +732,7 @@ async function loadFileList() {
             (row) => row.id || row.path,
           ),
         )
-        total.value = items.length
+        total.value = responseTotal
       } else {
         console.error('加载文件列表失败：', response?.data.message || '未知错误')
         fileList.value = []

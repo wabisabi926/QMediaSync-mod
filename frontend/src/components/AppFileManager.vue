@@ -560,6 +560,12 @@ function clearFileListForContextSwitch() {
   pageStateStore.setExpandedRowKeys('file-manager', [])
 }
 
+function clearFileListForPageChange() {
+  fileListRequestGate.invalidate()
+  fileList.value = []
+  pageStateStore.setExpandedRowKeys('file-manager', [])
+}
+
 // 计算属性
 const strmStorePath = computed(() => {
   if (!strmTargetDir.value || !strmSourceItem.value) return ''
@@ -757,6 +763,11 @@ function loadFileListForContextSwitch() {
   loadFileList()
 }
 
+function loadFileListForPageChange() {
+  clearFileListForPageChange()
+  loadFileList()
+}
+
 // 导航到指定路径
 function navigateToPath(index: number) {
   setPathItems(pathItems.value.slice(0, index + 1))
@@ -783,13 +794,13 @@ const handleExpandChange = (row: FileSystemItem, expandedRows: FileSystemItem[])
 // 处理分页大小变化
 function handlePageSizeChange(newSize: number) {
   pageStateStore.setPagination('file-manager', 1, newSize)
-  loadFileListForContextSwitch()
+  loadFileListForPageChange()
 }
 
 // 处理页码变化
 function handlePageChange(newPage: number) {
   pageStateStore.setPagination('file-manager', newPage, pageState.pageSize)
-  loadFileListForContextSwitch()
+  loadFileListForPageChange()
 }
 
 // 处理单个操作

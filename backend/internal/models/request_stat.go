@@ -1,6 +1,7 @@
 package models
 
 import (
+	"database/sql"
 	"time"
 
 	"qmediasync/internal/db"
@@ -51,6 +52,65 @@ func GetThrottledRequestsCount(startTime, endTime int64) (int64, error) {
 		Where("request_time >= ? AND request_time <= ? AND is_throttled = ?", startTime, endTime, true).
 		Count(&count).Error
 	return count, err
+}
+
+// RequestStatsWindow 115 请求窗口统计
+type RequestStatsWindow struct {
+	TotalRequests     int64 `json:"total_requests"`
+	QPSCount          int64 `json:"qps_count"`
+	QPMCount          int64 `json:"qpm_count"`
+	QPHCount          int64 `json:"qph_count"`
+	ThrottledCount    int64 `json:"throttled_count"`
+	AvgResponseTimeMS int64 `json:"avg_response_time_ms"`
+}
+
+// GetRequestStatsWindow 获取指定时刻之前的请求窗口统计。
+func GetRequestStatsWindow(now int64, timeWindowSeconds int) (RequestStatsWindow, error) {
+	if timeWindowSeconds <= 0 {
+		timeWindowSeconds = 3600
+	}
+
+	windowStart := now - int64(timeWindowSeconds)
+	stats := RequestStatsWindow{}
+
+	countBetween := func(startTime, endTime int64, count *int64) error {
+		return db.Db.Model(&RequestStat{}).
+			Where("request_time >= ? AND request_time <= ?", startTime, endTime).
+			Count(count).Error
+	}
+
+	if err := countBetween(windowStart, now, &stats.TotalRequests); err != nil {
+		return stats, err
+	}
+	if err := countBetween(now-1, now, &stats.QPSCount); err != nil {
+		return stats, err
+	}
+	if err := countBetween(now-60, now, &stats.QPMCount); err != nil {
+		return stats, err
+	}
+	if err := countBetween(now-3600, now, &stats.QPHCount); err != nil {
+		return stats, err
+	}
+	if err := db.Db.Model(&RequestStat{}).
+		Where("request_time >= ? AND request_time <= ? AND is_throttled = ?", windowStart, now, true).
+		Count(&stats.ThrottledCount).Error; err != nil {
+		return stats, err
+	}
+
+	var avgResult struct {
+		AvgDuration sql.NullFloat64 `gorm:"column:avg_duration"`
+	}
+	if err := db.Db.Model(&RequestStat{}).
+		Select("AVG(duration) AS avg_duration").
+		Where("request_time >= ? AND request_time <= ?", windowStart, now).
+		Scan(&avgResult).Error; err != nil {
+		return stats, err
+	}
+	if avgResult.AvgDuration.Valid {
+		stats.AvgResponseTimeMS = int64(avgResult.AvgDuration.Float64)
+	}
+
+	return stats, nil
 }
 
 // GetHourlyRequestStats 获取按小时分组的请求统计

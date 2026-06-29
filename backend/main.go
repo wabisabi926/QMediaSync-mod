@@ -48,6 +48,26 @@ var Update bool = false
 var AppName string = "QMediaSync"
 var QMSApp *App
 
+func parseBuildUnixTime(value string) int64 {
+	if value == "" {
+		return 0
+	}
+
+	layouts := []string{
+		time.RFC3339,
+		"2006-01-02 15:04:05",
+		"2006-01-02",
+	}
+	for _, layout := range layouts {
+		parsed, err := time.Parse(layout, value)
+		if err == nil {
+			return parsed.Unix()
+		}
+	}
+
+	return 0
+}
+
 type App struct {
 	isRelease   bool
 	dbManager   *database.EmbeddedManager
@@ -575,10 +595,11 @@ func setRouter(r *gin.Engine) {
 
 		api.GET("/version", func(c *gin.Context) {
 			c.JSON(http.StatusOK, map[string]interface{}{
-				"version":   Version,
-				"date":      PublishDate,
-				"isWindows": runtime.GOOS == "windows",
-				"isRelease": helpers.IsRelease,
+				"version":    Version,
+				"build_time": parseBuildUnixTime(PublishDate),
+				"date":       PublishDate,
+				"isWindows":  runtime.GOOS == "windows",
+				"isRelease":  helpers.IsRelease,
 			})
 		})
 		api.POST("/database/delete-all-table", controllers.DeleteAllTabble) // 删除所有表

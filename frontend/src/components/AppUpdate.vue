@@ -4,6 +4,7 @@ import { ref, onMounted, inject, watch } from 'vue'
 import { useUpdate } from '@/composables/useUpdate'
 import { useVersion } from '@/composables/useVersion'
 import { formatFileSize } from '@/utils/fileSizeUtils'
+import { formatMaybeUnixDateTime } from '@/utils/timeUtils'
 import MarkdownIt from 'markdown-it'
 import 'github-markdown-css/github-markdown.css'
 import { CircleCheck, Refresh } from '@element-plus/icons-vue'
@@ -77,6 +78,18 @@ const md = new MarkdownIt({
 const renderMarkdown = (content: string): string => {
   return DOMPurify.sanitize(md.render(content || ''))
 }
+
+const formatVersionBuildTime = (): string => {
+  if (!versionInfo.value) {
+    return '-'
+  }
+
+  return formatMaybeUnixDateTime(versionInfo.value.build_time || versionInfo.value.date)
+}
+
+const formatUpdatePublishedAt = (update: { published_at?: number; date?: string }): string => {
+  return formatMaybeUnixDateTime(update.published_at || update.date)
+}
 </script>
 
 <template>
@@ -89,7 +102,7 @@ const renderMarkdown = (content: string): string => {
         </div>
         <div v-if="versionInfo" class="version-info">
           <div class="version-number">{{ versionInfo.version }}</div>
-          <div class="version-date">编译时间：{{ versionInfo.date }}</div>
+          <div class="version-date">编译时间：{{ formatVersionBuildTime() }}</div>
         </div>
         <div v-else class="empty-state">
           <el-empty description="无法获取版本信息" :image-size="40" />
@@ -137,7 +150,7 @@ const renderMarkdown = (content: string): string => {
                 <div class="update-title-row">
                   <div class="update-version">
                     <span class="version-number">{{ update.version }}</span>
-                    <span class="version-date">{{ update.date }}</span>
+                    <span class="version-date">{{ formatUpdatePublishedAt(update) }}</span>
                   </div>
                   <div class="update-tags">
                     <el-tag v-if="update.latest" type="success" size="small" effect="dark"

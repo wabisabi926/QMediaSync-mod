@@ -4,6 +4,7 @@ import type { AxiosStatic } from 'axios'
 
 export interface VersionInfo {
   version: string
+  build_time?: number
   date: string
 }
 

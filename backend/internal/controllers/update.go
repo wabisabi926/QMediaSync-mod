@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"qmediasync/internal/db"
 	"qmediasync/internal/github"
@@ -23,12 +24,13 @@ import (
 )
 
 type version struct {
-	Version string `json:"version"`
-	Date    string `json:"date"`
-	Note    string `json:"note"`
-	Url     string `json:"url"`
-	Current bool   `json:"current"`
-	Latest  bool   `json:"latest"`
+	Version     string `json:"version"`
+	PublishedAt int64  `json:"published_at"`
+	Date        string `json:"date"`
+	Note        string `json:"note"`
+	Url         string `json:"url"`
+	Current     bool   `json:"current"`
+	Latest      bool   `json:"latest"`
 }
 
 type updateStatus string
@@ -511,6 +513,7 @@ func listReleases(passCache bool, channel string) []version {
 			var versionList []version
 			err := json.Unmarshal(cached, &versionList)
 			if err == nil {
+				fillCachedPublishedAt(versionList)
 				return versionList
 			} else {
 				helpers.AppLogger.Infof("解析缓存的最新版本列表失败：%v", err)
@@ -550,12 +553,13 @@ func listReleases(passCache bool, channel string) []version {
 	versionList := make([]version, 0)
 	for i, release := range releases {
 		versionList = append(versionList, version{
-			Version: release.Version,
-			Date:    release.PublishedAt.Format("2006-01-02 15:04:05"),
-			Note:    release.ReleaseNotes,
-			Url:     release.PageURL,
-			Current: release.Version == helpers.Version,
-			Latest:  i == 0,
+			Version:     release.Version,
+			PublishedAt: release.PublishedAt.Unix(),
+			Date:        release.PublishedAt.Format("2006-01-02 15:04:05"),
+			Note:        release.ReleaseNotes,
+			Url:         release.PageURL,
+			Current:     release.Version == helpers.Version,
+			Latest:      i == 0,
 		})
 	}
 	// 缓存 1 小时
@@ -564,6 +568,22 @@ func listReleases(passCache bool, channel string) []version {
 		db.Cache.Set(cacheKey, versionListStr, 3600)
 	}
 	return versionList
+}
+
+func fillCachedPublishedAt(versionList []version) {
+	for i := range versionList {
+		if versionList[i].PublishedAt != 0 {
+			continue
+		}
+		if versionList[i].Date == "" {
+			continue
+		}
+		publishedAt, err := time.Parse("2006-01-02 15:04:05", versionList[i].Date)
+		if err != nil {
+			continue
+		}
+		versionList[i].PublishedAt = publishedAt.Unix()
+	}
 }
 
 func triggerUpdate() {

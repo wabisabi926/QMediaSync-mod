@@ -1,23 +1,79 @@
 // 时间格式化工具函数
 
+export type MaybeUnixDateTime = number | string | null | undefined
+
+const DATE_TIME_PLACEHOLDER = '-'
+
+const dateTimeFormatterOptions: Intl.DateTimeFormatOptions = {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false,
+}
+
+const normalizeDateTimeParts = (value: string): string =>
+  value.trim().replace(/\//g, '-').replace('T', ' ').replace(/Z$/, '')
+
+const formatDateObject = (date: Date): string => {
+  if (Number.isNaN(date.getTime())) {
+    return DATE_TIME_PLACEHOLDER
+  }
+
+  return date.toLocaleString('zh-CN', dateTimeFormatterOptions).replace(/\//g, '-')
+}
+
+export const normalizeLegacyDateTime = (value: string): string => {
+  const normalized = normalizeDateTimeParts(value)
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(normalized)) {
+    return normalized
+  }
+
+  return DATE_TIME_PLACEHOLDER
+}
+
+export const formatUnixDateTime = (timestamp: number | null | undefined): string => {
+  if (!timestamp) {
+    return DATE_TIME_PLACEHOLDER
+  }
+
+  return formatDateObject(new Date(timestamp * 1000))
+}
+
+export const formatMaybeUnixDateTime = (value: MaybeUnixDateTime): string => {
+  if (value === null || value === undefined || value === '') {
+    return DATE_TIME_PLACEHOLDER
+  }
+
+  if (typeof value === 'number') {
+    return formatUnixDateTime(value)
+  }
+
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return DATE_TIME_PLACEHOLDER
+  }
+
+  if (/^\d+$/.test(trimmed)) {
+    return formatUnixDateTime(Number(trimmed))
+  }
+
+  if (trimmed.includes('T') || /(?:Z|[+-]\d{2}:\d{2})$/.test(trimmed)) {
+    return formatDateObject(new Date(trimmed))
+  }
+
+  return normalizeLegacyDateTime(trimmed)
+}
+
 /**
  * 格式化时间戳为日期时间字符串 (YYYY-MM-DD HH:MM:SS)
  * @param timestamp 时间戳 (秒)
  * @returns 格式化后的日期时间字符串
  */
 export const formatTimestamp = (timestamp: number): string => {
-  const date = new Date(timestamp * 1000)
-  return date
-    .toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    })
-    .replace(/\//g, '-')
+  return formatUnixDateTime(timestamp)
 }
 
 /**

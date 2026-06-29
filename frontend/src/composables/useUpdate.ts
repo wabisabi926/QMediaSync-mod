@@ -5,6 +5,7 @@ import { ElMessage } from 'element-plus'
 
 export interface UpdateInfo {
   version: string
+  published_at?: number
   date: string
   note: string
   url: string

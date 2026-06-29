@@ -65,6 +65,23 @@ DTO 负责：
 
 通用错误使用 `validation.Error`，错误文本格式为 `字段：原因`。新增规则时应同时补充 `backend/internal/validation` 的 table-driven 测试。
 
+### Cron 表达式边界
+
+项目使用 `github.com/robfig/cron/v3`，后端通过 `cron.ParseStandard` 校验表达式。
+
+当前支持：
+
+- 标准 5 位 Cron：`分 时 日 月 周`。
+- 常用示例：`0 * * * *`、`0 2 * * *`、`*/10 * * * *`。
+- robfig 描述符：`@hourly`、`@daily`、`@midnight`、`@weekly`、`@monthly`、`@yearly`、`@annually`、`@every 1h30m`。
+
+当前不支持：
+
+- 6 位秒级 Cron，例如 `0 0 2 * * *`。
+- Quartz 表达式，例如 `?`、`L`、`W`、`#`。
+
+Emby 条目同步默认 Cron 为 `0 * * * *`，含义是每小时整点执行一次。调整默认值时必须同时检查后端默认配置、前端 `CRON_DEFAULTS`、表单文案和校验测试。
+
 ## 当前 DTO 覆盖范围
 
 | 文件 | 覆盖接口类型 | 主要校验 |

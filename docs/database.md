@@ -19,6 +19,22 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 - 带 `gorm:"-"` 的字段不入库，只用于运行时组装、前端回传或关联对象。
 - PostgreSQL 数据库名会在首次配置、外部库自动创建和内嵌库初始化时统一校验并作为 identifier 引用；名称不能为空，不能超过 63 字节，不能包含空白或控制字符。
 
+## 时间字段策略
+
+业务时间字段统一遵循以下规则：
+
+- 数据库存储使用 Unix 秒 `int64`。
+- API 业务时间字段返回 Unix 秒，例如 `created_at`、`updated_at`、`started_at`、`ended_at`、`expired_at`、`last_sync_time`。
+- 前端展示统一通过 `frontend/src/utils/timeUtils.ts` 格式化，并按浏览器本地时区显示。
+- 日志时间保持日志原始格式，不纳入业务时间字段改造。日志可以继续保留毫秒或微秒精度，例如 `2026/06/29 10:44:49.138474 INFO ...`。
+- 新增毫秒时间或耗时字段必须使用 `_ms` 后缀，例如 `event_time_ms`、`duration_ms`。
+
+兼容规则：
+
+- 版本信息接口保留旧 `date` 字符串一段时间。
+- 新代码优先读取 Unix 秒字段，例如 `build_time`、`published_at`。
+- 旧无时区字符串只作为兼容回退，不作为新接口标准。
+
 ## 迁移与初始化
 
 ### 首次启动
@@ -549,6 +565,14 @@ Emby 总配置表。
 - `sync_enabled`：是否启用同步。
 - `sync_cron`：同步 Cron 表达式。
 - `last_sync_time`：上次同步时间戳。
+- `last_full_sync_at`：最近一次成功全量同步时间戳。
+- `last_incremental_sync_at`：最近一次成功增量同步时间戳。
+- `last_saved_cursor_at`：增量同步使用的 `DateLastSaved` 游标时间戳。
+- `last_processed_count`：最近一次 Emby 条目同步处理数量。
+- `last_error`：最近一次 Emby 条目同步失败原因。
+- `is_running`：是否有 Emby 条目同步任务正在运行。
+- `sync_mode`：当前或最近一次同步模式，取值包括 `idle`、`full`、`incremental`、`webhook`、`refresh_library`。
+- `started_at`：当前同步任务开始时间戳。
 - `selected_libraries`：选中的媒体库 ID 列表，JSON 字符串。
 - `sync_all_libraries`：是否同步所有媒体库。
 - `enable_playback_overview`：播放通知是否显示剧情简介。
@@ -581,6 +605,8 @@ Emby 总配置表。
 - `date_created`、`date_modified`：时间字符串。
 - `date_created_time`、`date_modified_time`：对应时间戳。
 - `is_folder`：是否文件夹。
+- `last_seen_sync_run`：全量同步批次标记，用于按媒体库清理旧条目。
+- `last_seen_at`：最近一次被全量、增量或 Webhook 同步看到的时间戳。
 
 ### `emby_media_sync_files`
 

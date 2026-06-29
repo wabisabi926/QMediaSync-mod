@@ -60,6 +60,8 @@ trustedOrigins:
 
 ## 常用验证
 
+时间字段策略见 [数据库 - 时间字段策略](database.md#时间字段策略)，Cron 边界见 [请求校验约定 - Cron 表达式边界](validation.md#cron-表达式边界)，Emby 同步架构见 [Emby 同步维护说明](emby-sync.md)。
+
 ```bash
 (cd backend && go test ./...)
 (cd frontend && pnpm lint)

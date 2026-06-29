@@ -102,6 +102,8 @@ OAuth 回调参数收集：
 
 时间、存储空间和状态样式辅助。业务时间统一使用后端返回的 Unix 秒，并在前端按浏览器本地环境格式化；日志字符串保持原始日志格式，不强制转换。新接口如需毫秒时间或耗时，字段名必须使用 `_ms` 后缀，例如 `duration_ms`、`event_time_ms`。
 
+完整时间字段策略见 [`docs/database.md`](../../../docs/database.md#时间字段策略)，Emby 同步状态字段说明见 [`docs/emby-sync.md`](../../../docs/emby-sync.md)。
+
 - `formatUnixDateTime(timestamp)`
 - `formatMaybeUnixDateTime(value)`
 - `formatUnixDate(timestamp)`

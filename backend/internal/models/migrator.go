@@ -798,6 +798,7 @@ func InitEmbyConfig() {
 		EnableExtractMediaInfo:  0,
 		EnableAuth:              1,
 		LastSyncTime:            0,
+		SyncMode:                EmbySyncModeIdle,
 	}
 	db.Db.Save(embyConfig)
 	helpers.AppLogger.Info("已默认添加 Emby 配置")
@@ -820,6 +821,7 @@ func migrateEmbyConfig(dbConn *gorm.DB) {
 		EmbyUrl:    settings.EmbyUrl,
 		EmbyApiKey: settings.EmbyApiKey,
 		SyncCron:   settings.Cron,
+		SyncMode:   EmbySyncModeIdle,
 	}
 	dbConn.Create(config)
 }

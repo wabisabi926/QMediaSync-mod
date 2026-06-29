@@ -4,7 +4,6 @@ import (
 	"context"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"qmediasync/internal/baidupan"
 	"qmediasync/internal/db"
@@ -251,7 +250,11 @@ func UpdateLastSyncTime() error {
 	if err := db.Db.First(config).Error; err != nil {
 		return err
 	}
-	return db.Db.Model(config).Update("last_sync_time", time.Now().Unix()).Error
+	if err := db.Db.Model(config).Update("last_sync_time", helpers.NowUnix()).Error; err != nil {
+		return err
+	}
+	_, err := GetEmbyConfigFromDB()
+	return err
 }
 
 // 使用 SyncPath 查询关联的 Emby LibraryId -> LibraryName 列表

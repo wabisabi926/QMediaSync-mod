@@ -119,6 +119,10 @@ func UpdateEmbyConfig(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "保存 Emby 配置失败：" + err.Error()})
 		return
 	}
+	if _, err := models.GetEmbyConfigFromDB(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "刷新 Emby 配置缓存失败：" + err.Error()})
+		return
+	}
 
 	if oldSyncEnabled != config.SyncEnabled || oldSyncCron != config.SyncCron {
 		// 同步状态改变，需要重新加载 Cron

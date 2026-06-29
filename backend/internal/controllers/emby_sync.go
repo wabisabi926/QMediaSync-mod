@@ -50,7 +50,7 @@ func StartEmbySync(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func GetEmbySyncStatus(c *gin.Context) {
-	config, err := models.GetEmbyConfig()
+	config, err := models.GetEmbyConfigFromDB()
 	if err == gorm.ErrRecordNotFound {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "尚未配置 Emby", Data: gin.H{"exists": false}})
 		return
@@ -64,7 +64,20 @@ func GetEmbySyncStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{
 		Code:    Success,
 		Message: "获取同步状态成功",
-		Data:    gin.H{"last_sync_time": config.LastSyncTime, "sync_cron": config.SyncCron, "total_items": total, "sync_enabled": config.SyncEnabled, "is_running": emby.IsEmbySyncRunning()},
+		Data: gin.H{
+			"last_sync_time":           config.LastSyncTime,
+			"last_full_sync_at":        config.LastFullSyncAt,
+			"last_incremental_sync_at": config.LastIncrementalSyncAt,
+			"last_saved_cursor_at":     config.LastSavedCursorAt,
+			"last_processed_count":     config.LastProcessedCount,
+			"last_error":               config.LastError,
+			"sync_mode":                config.SyncMode,
+			"started_at":               config.StartedAt,
+			"sync_cron":                config.SyncCron,
+			"total_items":              total,
+			"sync_enabled":             config.SyncEnabled,
+			"is_running":               config.IsRunning || emby.IsEmbySyncRunning(),
+		},
 	})
 }
 

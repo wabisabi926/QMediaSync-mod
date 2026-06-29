@@ -18,7 +18,7 @@ var embySyncRunning int32
 
 // IsEmbySyncRunning 检查是否有 Emby 同步任务正在运行
 func IsEmbySyncRunning() bool {
-	return atomic.LoadInt32(&embySyncRunning) == 1
+	return atomic.LoadInt32(&embySyncRunning) == 1 || models.IsEmbySyncRunningInDB()
 }
 
 func SetEmbySyncRunning(running bool) {
@@ -36,23 +36,45 @@ type embySyncTask struct {
 }
 
 // 同步 Emby 媒体库到本地数据库
-func PerformEmbySync() (int, error) {
+func PerformEmbySync() (result int, err error) {
 	// 检查是否已有任务在运行，避免并发执行
 	if IsEmbySyncRunning() {
-		helpers.AppLogger.Warnf("Emby 同步任务已在运行，跳过本次定时执行")
+		helpers.AppLogger.Warnf("已有 Emby 同步任务正在运行，跳过本次执行")
 		return 0, nil
 	}
-	config, cerr := models.GetEmbyConfig()
+	config, cerr := models.GetEmbyConfigFromDB()
+	if cerr != nil {
+		return 0, cerr
+	}
 	if config.EmbyUrl == "" || config.EmbyApiKey == "" {
 		return 0, errors.New("Emby URL 或 API Key 为空")
 	}
-	if cerr != nil || config.SyncEnabled != 1 {
+	if config.SyncEnabled != 1 {
 		return 0, errors.New("Emby 同步未启用")
 	}
 	if !atomic.CompareAndSwapInt32(&embySyncRunning, 0, 1) {
 		return 0, errors.New("Emby 同步任务已在运行")
 	}
-	defer atomic.StoreInt32(&embySyncRunning, 0)
+	started, serr := models.StartEmbySyncRun(models.EmbySyncModeFull, helpers.NowUnix())
+	if serr != nil {
+		atomic.StoreInt32(&embySyncRunning, 0)
+		return 0, serr
+	}
+	if !started {
+		atomic.StoreInt32(&embySyncRunning, 0)
+		helpers.AppLogger.Warnf("已有 Emby 同步任务正在运行，跳过本次执行")
+		return 0, nil
+	}
+	var processed int64
+	defer func() {
+		atomic.StoreInt32(&embySyncRunning, 0)
+		if ferr := models.FinishEmbySyncRun(models.EmbySyncModeFull, processed, helpers.NowUnix(), err); ferr != nil {
+			helpers.AppLogger.Warnf("更新 Emby 同步状态失败：%v", ferr)
+			if err == nil {
+				err = ferr
+			}
+		}
+	}()
 
 	client := embyclientrestgo.NewClient(config.EmbyUrl, config.EmbyApiKey)
 	users, err := client.GetUsersWithAllLibrariesAccess()
@@ -113,7 +135,6 @@ func PerformEmbySync() (int, error) {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	validItemIds := make([]string, 0, 256)
-	var processed int64
 	// clientHttp := &http.Client{Timeout: 30 * time.Second}
 
 	worker := func() {
@@ -208,31 +229,50 @@ func PerformEmbySync() (int, error) {
 			helpers.AppLogger.Warnf("清理过期 Emby 媒体项失败：%v", err)
 		}
 	}
-	if err := models.UpdateLastSyncTime(); err != nil {
-		helpers.AppLogger.Warnf("更新 Emby 最后同步时间失败：%v", err)
-	}
 	helpers.AppLogger.Infof("Emby 同步完成，处理 %d 个项目", processed)
 	return int(processed), nil
 }
 
 // 增量同步 item ID 所属的媒体库
-func IncrementalSyncEmbyMediaItems(itemId string) error {
+func IncrementalSyncEmbyMediaItems(itemId string) (err error) {
 	// 检查是否已有任务在运行，避免并发执行
 	if IsEmbySyncRunning() {
-		helpers.AppLogger.Warnf("Emby 同步任务已在运行，跳过本次定时执行")
+		helpers.AppLogger.Warnf("已有 Emby 同步任务正在运行，跳过本次执行")
 		return nil
 	}
-	config, cerr := models.GetEmbyConfig()
+	config, cerr := models.GetEmbyConfigFromDB()
+	if cerr != nil {
+		return cerr
+	}
 	if config.EmbyUrl == "" || config.EmbyApiKey == "" {
 		return errors.New("Emby URL 或 API Key 为空")
 	}
-	if cerr != nil || config.SyncEnabled != 1 {
+	if config.SyncEnabled != 1 {
 		return errors.New("Emby 同步未启用")
 	}
 	if !atomic.CompareAndSwapInt32(&embySyncRunning, 0, 1) {
 		return errors.New("Emby 同步任务已在运行")
 	}
-	defer atomic.StoreInt32(&embySyncRunning, 0)
+	started, serr := models.StartEmbySyncRun(models.EmbySyncModeWebhook, helpers.NowUnix())
+	if serr != nil {
+		atomic.StoreInt32(&embySyncRunning, 0)
+		return serr
+	}
+	if !started {
+		atomic.StoreInt32(&embySyncRunning, 0)
+		helpers.AppLogger.Warnf("已有 Emby 同步任务正在运行，跳过本次执行")
+		return nil
+	}
+	var processed int64
+	defer func() {
+		atomic.StoreInt32(&embySyncRunning, 0)
+		if ferr := models.FinishEmbySyncRun(models.EmbySyncModeWebhook, processed, helpers.NowUnix(), err); ferr != nil {
+			helpers.AppLogger.Warnf("更新 Emby 同步状态失败：%v", ferr)
+			if err == nil {
+				err = ferr
+			}
+		}
+	}()
 
 	client := embyclientrestgo.NewClient(config.EmbyUrl, config.EmbyApiKey)
 	users, err := client.GetUsersWithAllLibrariesAccess()
@@ -310,6 +350,7 @@ func IncrementalSyncEmbyMediaItems(itemId string) error {
 				helpers.AppLogger.Errorf("保存 Emby 媒体项失败，ID=%s，名称=%s，错误=%v", item.Id, item.Name, err)
 				continue
 			}
+			processed++
 			if pickCode != "" {
 				if sf := models.GetFileByPickCode(pickCode); sf != nil {
 					if err := models.CreateEmbyMediaSyncFile(item.Id, sf.ID, pickCode, sf.SyncPathId); err != nil {

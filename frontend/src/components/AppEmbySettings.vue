@@ -483,29 +483,31 @@
           </div>
         </el-card>
 
-        <div class="form-actions-wrapper">
-          <el-button
-            type="success"
-            @click="saveEmbyConfig"
-            :loading="embyLoading"
-            :icon="Check"
-            size="large"
-            class="save-btn"
-          >
-            保存设置
-          </el-button>
-          <el-button
-            type="primary"
-            @click="praseEmby"
-            :loading="embyLoading"
-            :icon="Refresh"
-            :disabled="!embyData.emby_url || !embyData.emby_api_key"
-            size="large"
-            class="extract-btn"
-          >
-            提取媒体信息
-          </el-button>
-          <div class="extract-help">
+        <ResponsiveActionBar :is-mobile="isMobile">
+          <template #actions>
+            <el-button
+              type="success"
+              @click="saveEmbyConfig"
+              :loading="embyLoading"
+              :icon="Check"
+              size="large"
+              class="save-btn"
+            >
+              保存设置
+            </el-button>
+            <el-button
+              type="primary"
+              @click="praseEmby"
+              :loading="embyLoading"
+              :icon="Refresh"
+              :disabled="!embyData.emby_url || !embyData.emby_api_key"
+              size="large"
+              class="extract-btn"
+            >
+              提取媒体信息
+            </el-button>
+          </template>
+          <template #help>
             <p>
               该功能会为 Emby 中尚未提取媒体信息的项目触发提取。如果刚重建媒体库或刚接入新的
               Emby，可以手动执行一次。进度和详情可在<router-link
@@ -514,8 +516,8 @@
                 >下载队列页</router-link
               >查看
             </p>
-          </div>
-        </div>
+          </template>
+        </ResponsiveActionBar>
       </el-form>
 
       <el-alert
@@ -643,13 +645,14 @@ import {
 } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { inject, onMounted, ref, reactive, onBeforeUnmount, useTemplateRef } from 'vue'
-import { isMobile as checkIsMobile } from '@/utils/deviceUtils'
+import ResponsiveActionBar from '@/components/common/ResponsiveActionBar.vue'
+import { useDeviceType } from '@/composables/useDeviceType'
 
 const http: AxiosStatic | undefined = inject('$http')
 
 const formRef = useTemplateRef<FormInstance>('formRef')
 
-const isMobile = ref(checkIsMobile())
+const { isMobile } = useDeviceType()
 
 const embyLoading = ref(false)
 
@@ -1116,6 +1119,10 @@ onBeforeUnmount(() => {
   background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
 }
 
+.library-icon {
+  background: linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%);
+}
+
 .card-header-content {
   flex: 1;
 }
@@ -1345,32 +1352,9 @@ onBeforeUnmount(() => {
   line-height: 1.6;
 }
 
-.form-actions-wrapper {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  padding: 20px;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-  align-items: center;
-}
-
 .save-btn,
 .extract-btn {
   min-width: 140px;
-}
-
-.extract-help {
-  flex: 1;
-  min-width: 200px;
-}
-
-.extract-help p {
-  margin: 0;
-  font-size: 12px;
-  color: #909399;
-  line-height: 1.6;
 }
 
 .sync-management-card {
@@ -1581,23 +1565,6 @@ onBeforeUnmount(() => {
   .action-link {
     margin-left: 0;
     margin-top: 4px;
-  }
-
-  .form-actions-wrapper {
-    flex-direction: column;
-    align-items: stretch;
-    padding: 16px;
-    gap: 12px;
-  }
-
-  .save-btn,
-  .extract-btn {
-    width: 100%;
-    min-width: auto;
-  }
-
-  .extract-help {
-    min-width: auto;
   }
 
   .sync-management-card {

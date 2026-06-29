@@ -13,12 +13,20 @@
         </div>
       </div>
       <div class="header-actions">
-        <el-button type="primary" :icon="Plus" @click="showCreateDialog">
-          <span class="btn-text">添加渠道</span>
-        </el-button>
-        <el-button :icon="Refresh" @click="loadChannels" :loading="loading">
-          <span class="btn-text">刷新</span>
-        </el-button>
+        <ResponsiveIconButton
+          type="primary"
+          :icon="Plus"
+          label="添加渠道"
+          :is-mobile="checkIsMobile"
+          @click="showCreateDialog"
+        />
+        <ResponsiveIconButton
+          :icon="Refresh"
+          label="刷新"
+          :is-mobile="checkIsMobile"
+          :loading="loading"
+          @click="loadChannels"
+        />
       </div>
     </div>
 
@@ -513,7 +521,8 @@ import {
 } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
-import { isMobile } from '@/utils/deviceUtils'
+import ResponsiveIconButton from '@/components/common/ResponsiveIconButton.vue'
+import { useDeviceType } from '@/composables/useDeviceType'
 import { formatDateTime } from '@/utils/timeUtils'
 import {
   getChannelTypeName,
@@ -565,7 +574,7 @@ interface RuleWithStatus extends NotificationRule {
   _updating: boolean
 }
 
-const checkIsMobile = ref(isMobile())
+const { isMobile: checkIsMobile } = useDeviceType()
 const http: AxiosStatic | undefined = inject('$http')
 
 const loading = ref(false)
@@ -1393,15 +1402,11 @@ onMounted(() => {
   .header-actions {
     display: flex;
     justify-content: center;
-    gap: 12px;
+    gap: 8px;
   }
 
-  .header-actions .el-button {
-    padding: 8px 12px;
-  }
-
-  .header-actions .btn-text {
-    display: none;
+  .header-actions :deep(.el-button + .el-button) {
+    margin-left: 0;
   }
 
   .notification-channels-container {
@@ -1433,10 +1438,6 @@ onMounted(() => {
 
   .header-actions {
     gap: 8px;
-  }
-
-  .header-actions .el-button {
-    padding: 8px;
   }
 
   .channel-type-badge {

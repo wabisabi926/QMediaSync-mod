@@ -167,7 +167,7 @@ func Webhook(ctx *gin.Context) {
 				helpers.AppLogger.Infof("Emby 媒体信息提取功能未启用，跳过媒体信息提取")
 			}
 		}
-		// 1 分钟后同步一次 Emby 媒体库。
+		// 1 分钟后同步 Emby 条目到本地，用于更新 QMediaSync 本地索引。
 		go func() {
 			refreshLibraryLockMu.Lock()
 			if refreshLibraryLock {

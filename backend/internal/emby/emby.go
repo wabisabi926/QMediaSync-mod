@@ -16,7 +16,7 @@ import (
 
 var embySyncRunning int32
 
-// IsEmbySyncRunning 检查是否有 Emby 同步任务正在运行
+// IsEmbySyncRunning 检查是否有 Emby 条目同步任务正在运行。
 func IsEmbySyncRunning() bool {
 	return atomic.LoadInt32(&embySyncRunning) == 1 || models.IsEmbySyncRunningInDB()
 }
@@ -35,11 +35,11 @@ type embySyncTask struct {
 	Item        embyclientrestgo.BaseItemDtoV2
 }
 
-// 同步 Emby 媒体库到本地数据库
+// PerformEmbySync 全量同步 Emby 条目到本地数据库。
 func PerformEmbySync() (result int, err error) {
 	// 检查是否已有任务在运行，避免并发执行
 	if IsEmbySyncRunning() {
-		helpers.AppLogger.Warnf("已有 Emby 同步任务正在运行，跳过本次执行")
+		helpers.AppLogger.Warnf("已有 Emby 条目同步任务正在运行，跳过本次执行")
 		return 0, nil
 	}
 	config, cerr := models.GetEmbyConfigFromDB()
@@ -50,10 +50,10 @@ func PerformEmbySync() (result int, err error) {
 		return 0, errors.New("Emby URL 或 API Key 为空")
 	}
 	if config.SyncEnabled != 1 {
-		return 0, errors.New("Emby 同步未启用")
+		return 0, errors.New("Emby 条目同步未启用")
 	}
 	if !atomic.CompareAndSwapInt32(&embySyncRunning, 0, 1) {
-		return 0, errors.New("Emby 同步任务已在运行")
+		return 0, errors.New("Emby 条目同步任务已在运行")
 	}
 	started, serr := models.StartEmbySyncRun(models.EmbySyncModeFull, helpers.NowUnix())
 	if serr != nil {
@@ -62,7 +62,7 @@ func PerformEmbySync() (result int, err error) {
 	}
 	if !started {
 		atomic.StoreInt32(&embySyncRunning, 0)
-		helpers.AppLogger.Warnf("已有 Emby 同步任务正在运行，跳过本次执行")
+		helpers.AppLogger.Warnf("已有 Emby 条目同步任务正在运行，跳过本次执行")
 		return 0, nil
 	}
 	var processed int64
@@ -229,15 +229,15 @@ func PerformEmbySync() (result int, err error) {
 			helpers.AppLogger.Warnf("清理过期 Emby 媒体项失败：%v", err)
 		}
 	}
-	helpers.AppLogger.Infof("Emby 同步完成，处理 %d 个项目", processed)
+	helpers.AppLogger.Infof("全量同步 Emby 条目到本地完成，处理 %d 个项目", processed)
 	return int(processed), nil
 }
 
-// 增量同步 item ID 所属的媒体库
+// IncrementalSyncEmbyMediaItems 按 item ID 同步 Emby 条目到本地。
 func IncrementalSyncEmbyMediaItems(itemId string) (err error) {
 	// 检查是否已有任务在运行，避免并发执行
 	if IsEmbySyncRunning() {
-		helpers.AppLogger.Warnf("已有 Emby 同步任务正在运行，跳过本次执行")
+		helpers.AppLogger.Warnf("已有 Emby 条目同步任务正在运行，跳过本次执行")
 		return nil
 	}
 	config, cerr := models.GetEmbyConfigFromDB()
@@ -248,10 +248,10 @@ func IncrementalSyncEmbyMediaItems(itemId string) (err error) {
 		return errors.New("Emby URL 或 API Key 为空")
 	}
 	if config.SyncEnabled != 1 {
-		return errors.New("Emby 同步未启用")
+		return errors.New("Emby 条目同步未启用")
 	}
 	if !atomic.CompareAndSwapInt32(&embySyncRunning, 0, 1) {
-		return errors.New("Emby 同步任务已在运行")
+		return errors.New("Emby 条目同步任务已在运行")
 	}
 	started, serr := models.StartEmbySyncRun(models.EmbySyncModeWebhook, helpers.NowUnix())
 	if serr != nil {
@@ -260,7 +260,7 @@ func IncrementalSyncEmbyMediaItems(itemId string) (err error) {
 	}
 	if !started {
 		atomic.StoreInt32(&embySyncRunning, 0)
-		helpers.AppLogger.Warnf("已有 Emby 同步任务正在运行，跳过本次执行")
+		helpers.AppLogger.Warnf("已有 Emby 条目同步任务正在运行，跳过本次执行")
 		return nil
 	}
 	var processed int64
@@ -410,11 +410,11 @@ var EmbyMediaInfoStart bool = false
 
 func StartParseEmbyMediaInfo() {
 	if EmbyMediaInfoStart {
-		helpers.AppLogger.Info("Emby 库同步任务已在运行")
+		helpers.AppLogger.Info("Emby 媒体信息提取任务已在运行")
 		return
 	}
 	if models.GlobalEmbyConfig.EmbyUrl == "" || models.GlobalEmbyConfig.EmbyApiKey == "" {
-		helpers.AppLogger.Info("Emby URL 或 API Key 为空，无法同步 Emby 库来提取视频信息")
+		helpers.AppLogger.Info("Emby URL 或 API Key 为空，无法提取 Emby 媒体信息")
 		return
 	}
 	EmbyMediaInfoStart = true

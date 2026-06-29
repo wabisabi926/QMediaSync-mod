@@ -284,13 +284,13 @@
             </el-form-item>
             <div class="feature-description">
               <p class="feature-note">
-                启用后会把 Emby 媒体库项目同步到
-                QMediaSync，并与网盘文件建立关联，用于同步后刷新媒体库和联动删除网盘文件。
+                启用后会把 Emby 条目同步到
+                QMediaSync 本地数据库，并与网盘文件建立关联，用于刷新媒体库和联动删除网盘文件。
               </p>
             </div>
           </div>
 
-          <!-- 媒体库同步选择卡片 - 只有启用同步时才显示 -->
+          <!-- Emby 条目同步范围选择卡片 - 只有启用同步时才显示 -->
           <el-card
             v-if="embyData.sync_enabled === 1"
             class="settings-card library-selection-card"
@@ -302,8 +302,8 @@
                   <el-icon :size="24"><FolderOpened /></el-icon>
                 </div>
                 <div class="card-header-content">
-                  <h3 class="card-title">媒体库同步选择</h3>
-                  <p class="card-subtitle">选择需要同步的 Emby 媒体库</p>
+                  <h3 class="card-title">条目同步范围</h3>
+                  <p class="card-subtitle">选择需要同步条目的 Emby 媒体库</p>
                 </div>
               </div>
             </template>
@@ -316,7 +316,7 @@
               <div class="form-help">
                 <el-icon><InfoFilled /></el-icon>
                 <span
-                  >选择“全部媒体库”会同步所有媒体库（包括未来新增的媒体库）；选择“指定媒体库”可手动选择需要同步的媒体库</span
+                  >选择“全部媒体库”会同步所有媒体库中的条目（包括未来新增的媒体库）；选择“指定媒体库”可手动选择需要同步条目的媒体库</span
                 >
               </div>
             </el-form-item>
@@ -397,8 +397,8 @@
             </el-form-item>
             <div class="feature-description">
               <p>
-                该功能需要先完成一次 Emby 媒体库同步。如果下方同步管理卡片中的总项目数为
-                0，请点击“启动同步”先同步一次。
+                该功能需要先完成一次 Emby 条目同步。如果下方同步管理卡片中的总项目数为
+                0，请点击“启动同步”先同步一次条目。
               </p>
               <p>
                 STRM 同步完成后不会立即刷新。系统会按 Emby
@@ -538,7 +538,7 @@
             </div>
             <div class="card-header-content">
               <h3 class="card-title">同步管理</h3>
-              <p class="card-subtitle">管理 Emby 媒体库同步状态</p>
+              <p class="card-subtitle">管理 Emby 条目同步到本地状态</p>
             </div>
             <div class="card-header-action">
               <el-button

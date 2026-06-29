@@ -285,7 +285,7 @@ func InitCron() {
 		if config.EmbyApiKey != "" && config.EmbyUrl != "" && config.SyncEnabled == 1 {
 			GlobalCron.AddFunc(config.SyncCron, func() {
 				if _, err := emby.PerformEmbySync(); err != nil {
-					helpers.AppLogger.Errorf("Emby 同步失败：%v", err)
+					helpers.AppLogger.Errorf("同步 Emby 条目到本地失败：%v", err)
 				}
 			})
 		}

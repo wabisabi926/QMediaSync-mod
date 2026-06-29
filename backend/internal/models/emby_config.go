@@ -75,7 +75,7 @@ func (c *EmbyConfig) Update(updates map[string]interface{}) error {
 	return err
 }
 
-// StartEmbySyncRun 标记 Emby 同步任务开始。返回 false 表示已有任务运行。
+// StartEmbySyncRun 标记 Emby 条目同步任务开始。返回 false 表示已有任务运行。
 func StartEmbySyncRun(mode string, startedAt int64) (bool, error) {
 	if startedAt <= 0 {
 		startedAt = helpers.NowUnix()
@@ -111,7 +111,7 @@ func StartEmbySyncRun(mode string, startedAt int64) (bool, error) {
 	return err == nil, err
 }
 
-// FinishEmbySyncRun 标记 Emby 同步任务结束，并记录成功或失败状态。
+// FinishEmbySyncRun 标记 Emby 条目同步任务结束，并记录成功或失败状态。
 func FinishEmbySyncRun(mode string, processedCount int64, finishedAt int64, runErr error) error {
 	if finishedAt <= 0 {
 		finishedAt = helpers.NowUnix()
@@ -148,7 +148,7 @@ func FinishEmbySyncRun(mode string, processedCount int64, finishedAt int64, runE
 	return err
 }
 
-// IsEmbySyncRunningInDB 查询数据库中的 Emby 同步运行状态。
+// IsEmbySyncRunningInDB 查询数据库中的 Emby 条目同步运行状态。
 func IsEmbySyncRunningInDB() bool {
 	if db.Db == nil {
 		return false

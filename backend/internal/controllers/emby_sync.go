@@ -12,9 +12,9 @@ import (
 	"gorm.io/gorm"
 )
 
-// StartEmbySync 手动触发 Emby 同步。
-// @Summary 启动 Emby 同步
-// @Description 手动触发 Emby 媒体库同步任务
+// StartEmbySync 手动触发 Emby 条目同步。
+// @Summary 启动 Emby 条目同步
+// @Description 手动触发同步 Emby 条目到本地任务
 // @Tags Emby 管理
 // @Accept json
 // @Produce json
@@ -26,21 +26,21 @@ import (
 func StartEmbySync(c *gin.Context) {
 	// 检查是否已有任务在运行
 	if emby.IsEmbySyncRunning() {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "已有 Emby 同步任务正在运行，请稍后再试"})
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "已有 Emby 条目同步任务正在运行，请稍后再试"})
 		return
 	}
 
 	go func() {
 		if _, err := emby.PerformEmbySync(); err != nil {
-			helpers.AppLogger.Warnf("Emby 同步失败：%v", err)
+			helpers.AppLogger.Warnf("同步 Emby 条目到本地失败：%v", err)
 		}
 	}()
-	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "Emby 同步任务已启动"})
+	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "Emby 条目同步任务已启动"})
 }
 
 // GetEmbySyncStatus 同步状态
-// @Summary 获取 Emby 同步状态
-// @Description 获取 Emby 媒体库同步的当前状态和信息
+// @Summary 获取 Emby 条目同步状态
+// @Description 获取 Emby 条目同步到本地的当前状态和信息
 // @Tags Emby 管理
 // @Accept json
 // @Produce json

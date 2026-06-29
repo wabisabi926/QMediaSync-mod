@@ -64,3 +64,30 @@ func TestNowUnix(t *testing.T) {
 		t.Fatalf("NowUnix() = %d, want between %d and %d", got, before, after)
 	}
 }
+
+func TestFormatUnixLogTime(t *testing.T) {
+	tests := []struct {
+		name  string
+		value int64
+		want  string
+	}{
+		{
+			name:  "有效时间戳",
+			value: time.Date(2026, 6, 28, 13, 31, 43, 0, time.Local).Unix(),
+			want:  "2026-06-28 13:31:43",
+		},
+		{
+			name:  "零值时间戳",
+			value: 0,
+			want:  "未设置",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := FormatUnixLogTime(tt.value); got != tt.want {
+				t.Fatalf("FormatUnixLogTime(%d) = %q, want %q", tt.value, got, tt.want)
+			}
+		})
+	}
+}

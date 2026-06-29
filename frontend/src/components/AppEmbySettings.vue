@@ -302,7 +302,7 @@
                   <el-icon :size="24"><FolderOpened /></el-icon>
                 </div>
                 <div class="card-header-content">
-                  <h3 class="card-title">条目同步范围</h3>
+                  <h3 class="card-title">媒体库条目同步选择</h3>
                   <p class="card-subtitle">选择需要同步条目的 Emby 媒体库</p>
                 </div>
               </div>
@@ -678,7 +678,7 @@
 
         <div v-if="isSyncRunning" class="sync-progress">
           <div class="progress-indicator">
-            <el-icon class="is-loading" :size="20"><Loading /></el-icon>
+            <el-icon class="sync-progress-loading-icon" :size="20"><Loading /></el-icon>
             <span>{{ currentSyncModeLabel }}进行中，请稍候…</span>
           </div>
         </div>
@@ -1579,7 +1579,7 @@ onBeforeUnmount(() => {
   font-weight: 500;
 }
 
-.is-loading {
+.sync-progress-loading-icon {
   animation: rotating 2s linear infinite;
 }
 

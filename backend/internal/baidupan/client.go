@@ -195,7 +195,7 @@ func (c *Client) GetFileList(ctx context.Context, parentPath string, onlyDir int
 
 // 调用递归接口获取所有文件，必须传入文件修改时间（上一次同步时间）
 func (c *Client) GetAllFiles(ctx context.Context, parentPath string, start int, limit int, mtime int64) (*FileListAllResponse, error) {
-	helpers.AppLogger.Infof("递归获取百度网盘文件列表：父目录：%s，开始：%d，限制：%d，修改时间：%d", parentPath, start, limit, mtime)
+	helpers.AppLogger.Infof("递归获取百度网盘文件列表：父目录：%s，开始：%d，限制：%d，修改时间：%s", parentPath, start, limit, helpers.FormatUnixLogTime(mtime))
 	if parentPath == "" {
 		parentPath = "/"
 	}

@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
 	"qmediasync/internal/v115open"
 )
@@ -24,7 +25,7 @@ func (s *SyncStrm) StartBaiduPanSync() {
 			s.FullSync = true
 		}
 	}
-	s.Sync.Logger.Infof("最后同步时间：%d", s.LastSyncAt)
+	s.Sync.Logger.Infof("最后同步时间：%s", helpers.FormatUnixLogTime(s.LastSyncAt))
 	if s.FullSync || s.LastSyncAt == 0 {
 		s.Sync.Logger.Infof("执行百度网盘全量同步")
 		s.StartOther()
@@ -32,10 +33,10 @@ func (s *SyncStrm) StartBaiduPanSync() {
 	}
 	// 使用增量同步
 	if s.LastSyncAt != 0 {
-		s.Sync.Logger.Infof("从修改时间 %d 开始增量同步", s.LastSyncAt)
+		s.Sync.Logger.Infof("从修改时间 %s 开始增量同步", helpers.FormatUnixLogTime(s.LastSyncAt))
 		err := s.StartBaiduPanSyncByMtime(s.LastSyncAt)
 		if err != nil {
-			s.Sync.Logger.Errorf("从修改时间 %d 开始同步失败：%v", s.LastSyncAt, err)
+			s.Sync.Logger.Errorf("从修改时间 %s 开始同步失败：%v", helpers.FormatUnixLogTime(s.LastSyncAt), err)
 			s.PathErrChan <- err
 			return
 		}
@@ -66,7 +67,7 @@ mainloop:
 			fileListResp, err := s.SyncDriver.GetFilesByPathMtime(s.Context, s.SourcePath, offset, 1000, lastSyncAt)
 			reqCount++
 			if err != nil {
-				s.Sync.Logger.Errorf("同步修改时间 %d 之后的文件失败，offset=%d，错误：%v", lastSyncAt, offset, err)
+				s.Sync.Logger.Errorf("同步修改时间 %s 之后的文件失败，offset=%d，错误：%v", helpers.FormatUnixLogTime(lastSyncAt), offset, err)
 				s.PathErrChan <- err
 				return err
 			}

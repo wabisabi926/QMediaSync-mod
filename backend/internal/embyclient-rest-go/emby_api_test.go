@@ -178,11 +178,11 @@ func TestFetchMediaItemsByLibraryIDHTTP错误(t *testing.T) {
 	}
 }
 
-func TestGetItemLibraryIdAncestors不足时返回错误(t *testing.T) {
+func TestGetItemLibraryIdAncestors为空时返回错误(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/emby/Items/episode-1/Ancestors":
-			fmt.Fprint(w, `[{"Id":"episode-1","Path":"/media/tv/episode.mkv"}]`)
+			fmt.Fprint(w, `[]`)
 		default:
 			http.NotFound(w, r)
 		}
@@ -196,5 +196,28 @@ func TestGetItemLibraryIdAncestors不足时返回错误(t *testing.T) {
 	}
 	if len(libs) != 0 {
 		t.Fatalf("libs = %+v, want empty", libs)
+	}
+}
+
+func TestGetItemLibraryId单个Ancestor命中媒体库(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/emby/Items/movie-1/Ancestors":
+			fmt.Fprint(w, `[{"Id":"movie-library-folder","Path":"/media/movie"}]`)
+		case "/emby/Library/VirtualFolders":
+			fmt.Fprint(w, `[{"Id":"lib-movie","Name":"电影","Locations":["/media/movie"]}]`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test-key")
+	libs, err := client.GetItemLibraryId("movie-1")
+	if err != nil {
+		t.Fatalf("GetItemLibraryId() error = %v", err)
+	}
+	if len(libs) != 1 || libs[0].ID != "lib-movie" || libs[0].Name != "电影" {
+		t.Fatalf("libs = %+v, want lib-movie", libs)
 	}
 }

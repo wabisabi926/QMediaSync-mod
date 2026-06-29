@@ -478,16 +478,15 @@ func (c *Client) GetItemDetailByUser(itemId string, userID string) (*BaseItemDto
 	return &response, nil
 }
 
-// 通过 item ID 查询所属的媒体库 ID，返回数组
-// 先查询 item 的 Ancestors 获取 item 所属的文件夹 ID，取倒数第二个文件夹路径作为顶层文件夹路径
-// 再查询 /Library/VirtualFolders 获取顶层文件夹路径对应的媒体库 ID
+// 通过 item ID 查询所属的媒体库 ID，返回数组。
+// 先查询 item 的 Ancestors，再用 ancestor 路径精确匹配 /Library/VirtualFolders 的 Locations。
 func (c *Client) GetItemLibraryId(itemId string) ([]VirtualFolderDto, error) {
 	ancestors, err := c.GetItemAncestors(itemId)
 	if err != nil {
 		return nil, err
 	}
-	if len(ancestors) < 2 {
-		return nil, fmt.Errorf("Emby 条目 %s ancestors 数量不足，无法解析所属媒体库", itemId)
+	if len(ancestors) == 0 {
+		return nil, fmt.Errorf("Emby 条目 %s ancestors 为空，无法解析所属媒体库", itemId)
 	}
 	// 查询顶层文件夹路径对应的媒体库 ID
 	virtualFolders, err := c.GetLibraryVirtualFolders()

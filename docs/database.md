@@ -179,7 +179,8 @@ API Key 认证表。
 - `token_id`：JWT `jti`，用于审计和排查。
 - `user_id` / `username`：关联用户和登录用户名快照。
 - `csrf_token_hash`：CSRF Token 的 SHA256 哈希，原始值只保存在前端可读 `csrf_token` Cookie 和内存状态中。
-- `user_agent` / `ip_address`：登录设备信息。
+- `user_agent`：登录设备标识。
+- `ip_address`：登录 IP。
 - `expires_at`：会话过期时间戳。
 - `last_seen_at`：最后活跃时间戳。
 - `revoked_at` / `revoke_reason`：撤销时间和原因。

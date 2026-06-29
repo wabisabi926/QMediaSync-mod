@@ -235,6 +235,7 @@ const formatUpdatePublishedAt = (update: { published_at?: number; date?: string 
     v-model="showUpdateCompleteDialog"
     title="正在安装更新"
     class="update-complete-dialog"
+    width="min(500px, calc(100vw - 32px))"
     :close-on-click-modal="false"
     :close-on-press-escape="false"
     show-close="false"
@@ -459,9 +460,8 @@ const formatUpdatePublishedAt = (update: { published_at?: number; date?: string 
   text-align: center;
 }
 
-.update-complete-dialog :deep(.el-dialog) {
-  width: 500px;
-  max-width: 90vw;
+:deep(.update-complete-dialog.el-dialog),
+:deep(.update-complete-dialog .el-dialog) {
   border-radius: 16px;
 }
 
@@ -506,6 +506,16 @@ const formatUpdatePublishedAt = (update: { published_at?: number; date?: string 
   justify-content: center;
   padding: 16px;
   border-top: 1px solid #ebeef5;
+}
+
+@media (max-width: 768px) {
+  .dialog-content {
+    padding: 24px 12px;
+  }
+
+  .dialog-footer {
+    padding: 12px;
+  }
 }
 
 .update-note :deep(.markdown-body) {

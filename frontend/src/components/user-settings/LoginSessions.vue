@@ -89,7 +89,7 @@ onMounted(() => {
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="ip_address" label="IP" width="150" />
+      <el-table-column prop="ip_address" label="登录 IP" width="150" />
       <el-table-column prop="user_agent" label="设备" min-width="260" show-overflow-tooltip />
       <el-table-column label="最后活跃" width="180">
         <template #default="{ row }">{{ formatDateTime(row.last_seen_at) }}</template>

@@ -18,7 +18,7 @@ type Migrator struct {
 	VersionCode int `json:"version_code"` // 版本号
 }
 
-var MaxVersionCode = 49
+var MaxVersionCode = 50
 var AllTables = []any{
 	Migrator{},
 	BackupConfig{}, BackupRecord{},
@@ -554,6 +554,14 @@ func Migrate() {
 			return
 		}
 		helpers.AppLogger.Info("已添加 db_download_tasks.sync_path_id 字段")
+		migrator.UpdateVersionCode(db.Db)
+	}
+	if migrator.VersionCode == 49 {
+		if err := db.Db.AutoMigrate(EmbyConfig{}, EmbyMediaItem{}); err != nil {
+			helpers.AppLogger.Errorf("迁移 Emby 同步状态和全量批次字段失败：%v", err)
+			return
+		}
+		helpers.AppLogger.Info("已添加 Emby 同步状态和全量同步批次字段")
 		migrator.UpdateVersionCode(db.Db)
 	}
 	helpers.AppLogger.Infof("当前数据库版本 %d", migrator.VersionCode)

@@ -139,8 +139,8 @@ func TestMigrateNotificationChannelAllowsDuplicateTypesAndBackfillsRules(t *test
 	if err := db.Db.First(&migrator).Error; err != nil {
 		t.Fatalf("读取迁移版本失败: %v", err)
 	}
-	if migrator.VersionCode != 49 {
-		t.Fatalf("迁移版本 = %d，期望 49", migrator.VersionCode)
+	if migrator.VersionCode != 50 {
+		t.Fatalf("迁移版本 = %d，期望 50", migrator.VersionCode)
 	}
 
 	if err := db.Db.Create(&NotificationChannel{ChannelType: "telegram", ChannelName: "Telegram B", IsEnabled: true}).Error; err != nil {
@@ -187,8 +187,8 @@ func TestMigrateVersion46AddsUserSingletonKey(t *testing.T) {
 	if err := db.Db.First(&migrator).Error; err != nil {
 		t.Fatalf("读取迁移版本失败: %v", err)
 	}
-	if migrator.VersionCode != 49 {
-		t.Fatalf("迁移版本 = %d，期望 49", migrator.VersionCode)
+	if migrator.VersionCode != 50 {
+		t.Fatalf("迁移版本 = %d，期望 50", migrator.VersionCode)
 	}
 	if !db.Db.Migrator().HasColumn(&User{}, "singleton_key") {
 		t.Fatal("迁移应添加 users.singleton_key 字段")
@@ -228,8 +228,8 @@ func TestMigrateTaskSourceEnumValues(t *testing.T) {
 	if err := db.Db.First(&migrator).Error; err != nil {
 		t.Fatalf("读取迁移版本失败: %v", err)
 	}
-	if migrator.VersionCode != 49 {
-		t.Fatalf("迁移版本 = %d，期望 49", migrator.VersionCode)
+	if migrator.VersionCode != 50 {
+		t.Fatalf("迁移版本 = %d，期望 50", migrator.VersionCode)
 	}
 	if !db.Db.Migrator().HasTable(UserSession{}) {
 		t.Fatal("迁移应创建 user_sessions 表")
@@ -244,6 +244,93 @@ func TestMigrateTaskSourceEnumValues(t *testing.T) {
 	assertUploadTaskSource(t, "upload-scrape", "scrape_organize")
 	assertUploadTaskSource(t, "upload-already-new", "strm_sync")
 	assertUploadTaskSource(t, "upload-unknown", "custom_source")
+}
+
+func TestMigrateVersion49AddsEmbySyncStateAndBatchFields(t *testing.T) {
+	if helpers.AppLogger == nil {
+		helpers.AppLogger = &helpers.QLogger{
+			Logger: log.New(io.Discard, "", 0),
+		}
+	}
+	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	db.Db = testDb
+	GlobalEmbyConfig = nil
+
+	if err := db.Db.AutoMigrate(&Migrator{}); err != nil {
+		t.Fatalf("创建迁移表失败: %v", err)
+	}
+	if err := db.Db.Create(&Migrator{VersionCode: 49}).Error; err != nil {
+		t.Fatalf("创建迁移版本记录失败: %v", err)
+	}
+	if err := db.Db.Exec(`
+		CREATE TABLE emby_config (
+			id integer primary key autoincrement,
+			created_at integer,
+			updated_at integer,
+			emby_url text,
+			emby_api_key text,
+			sync_enabled integer,
+			sync_cron text,
+			last_sync_time integer,
+			selected_libraries text,
+			sync_all_libraries integer
+		)
+	`).Error; err != nil {
+		t.Fatalf("创建旧 emby_config 表失败: %v", err)
+	}
+	if err := db.Db.Exec(`
+		INSERT INTO emby_config (created_at, updated_at, emby_url, emby_api_key, sync_enabled, sync_cron, last_sync_time, selected_libraries, sync_all_libraries)
+		VALUES (1, 1, 'http://emby.local', 'key', 1, '0 * * * *', 123, '[]', 1)
+	`).Error; err != nil {
+		t.Fatalf("插入旧 EmbyConfig 失败: %v", err)
+	}
+	if err := db.Db.Exec(`
+		CREATE TABLE emby_media_items (
+			id integer primary key autoincrement,
+			created_at integer,
+			updated_at integer,
+			item_id text,
+			item_id_int integer,
+			name text,
+			type text,
+			parent_id text,
+			library_id text
+		)
+	`).Error; err != nil {
+		t.Fatalf("创建旧 emby_media_items 表失败: %v", err)
+	}
+
+	Migrate()
+
+	var migrator Migrator
+	if err := db.Db.First(&migrator).Error; err != nil {
+		t.Fatalf("读取迁移版本失败: %v", err)
+	}
+	if migrator.VersionCode != 50 {
+		t.Fatalf("迁移版本 = %d，期望 50", migrator.VersionCode)
+	}
+	for _, column := range []string{
+		"last_full_sync_at",
+		"last_incremental_sync_at",
+		"last_saved_cursor_at",
+		"last_processed_count",
+		"last_error",
+		"is_running",
+		"sync_mode",
+		"started_at",
+	} {
+		if !db.Db.Migrator().HasColumn(&EmbyConfig{}, column) {
+			t.Fatalf("迁移应添加 emby_config.%s 字段", column)
+		}
+	}
+	for _, column := range []string{"last_seen_sync_run", "last_seen_at"} {
+		if !db.Db.Migrator().HasColumn(&EmbyMediaItem{}, column) {
+			t.Fatalf("迁移应添加 emby_media_items.%s 字段", column)
+		}
+	}
 }
 
 func assertDownloadTaskSource(t *testing.T, remoteFileId string, wantSource string, wantSourceType string) {

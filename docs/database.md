@@ -42,7 +42,7 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 当 `migrator` 表不存在时，`InitDB()` 会直接执行：
 
 1. `BatchCreateTable()`：对 `AllTables` 逐表执行 `AutoMigrate`。
-2. `InitMigrationTable(MaxVersionCode)`：写入当前版本号，当前值是 `49`。
+2. `InitMigrationTable(MaxVersionCode)`：写入当前版本号，当前值是 `50`。
 3. `InitSettings()`：创建默认 `settings` 记录。
 4. `InitScrapeSetting()`：创建默认刮削配置和默认分类。
 5. `InitEmbyConfig()`：创建默认 `emby_config` 记录。
@@ -73,8 +73,9 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 | 46 | 47 | `users` 新增 `singleton_key`，用唯一约束保证系统只存在一个登录用户。 |
 | 47 | 48 | `settings` 和 `sync_paths` 的 `add_path` 旧值 `2` 迁移为新值 `3`，为“只添加文件名”路径模式让出枚举值。 |
 | 48 | 49 | `db_download_tasks` 新增 `sync_path_id`，用于 Emby 刷新任务直接判断对应同步目录是否还有未完成下载。 |
+| 49 | 50 | `emby_config` 新增 Emby 条目同步状态字段，`emby_media_items` 新增全量同步批次标记字段。 |
 
-当前数据库版本是 `49`。
+当前数据库版本是 `50`。
 
 ## 修复与重建
 

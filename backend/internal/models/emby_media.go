@@ -41,6 +41,8 @@ type EmbyMediaItem struct {
 	DateModified      string `json:"date_modified"`
 	DateModifiedTime  int64  `json:"date_modified_time"`
 	IsFolder          bool   `json:"is_folder"`
+	LastSeenSyncRun   string `json:"last_seen_sync_run" gorm:"index;type:varchar(64)"`
+	LastSeenAt        int64  `json:"last_seen_at" gorm:"index"`
 }
 
 func (*EmbyMediaItem) TableName() string {
@@ -193,6 +195,44 @@ func CleanupOrphanedEmbyMediaItems(validItemIds []string) error {
 	}
 
 	return nil
+}
+
+// CleanupStaleEmbyMediaItemsByLibrarySyncRun 按全量同步批次清理指定媒体库内未出现的旧条目。
+func CleanupStaleEmbyMediaItemsByLibrarySyncRun(libraryID string, syncRunID string) error {
+	if libraryID == "" || syncRunID == "" {
+		return nil
+	}
+
+	tx := db.Db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	var staleItemIDs []int64
+	if err := tx.Model(&EmbyMediaItem{}).
+		Where("library_id = ? AND (last_seen_sync_run IS NULL OR last_seen_sync_run != ?)", libraryID, syncRunID).
+		Pluck("item_id_int", &staleItemIDs).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	if len(staleItemIDs) == 0 {
+		tx.Rollback()
+		return nil
+	}
+
+	if err := tx.Where("emby_item_id IN ?", staleItemIDs).Delete(&EmbyMediaSyncFile{}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := tx.Where("library_id = ? AND (last_seen_sync_run IS NULL OR last_seen_sync_run != ?)", libraryID, syncRunID).
+		Delete(&EmbyMediaItem{}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
 }
 
 // CreateEmbyMediaSyncFile 创建关联（存在则跳过）

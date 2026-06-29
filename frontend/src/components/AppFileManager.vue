@@ -14,17 +14,6 @@
               浏览和管理媒体文件，支持 STRM 生成、刮削整理和 ED2K 生成操作
             </p>
           </div>
-          <div class="header-right">
-            <el-select
-              v-model="pageSize"
-              style="width: 100px; margin-right: 10px"
-              @change="handlePageSizeChange"
-            >
-              <el-option label="100" :value="100" />
-              <el-option label="200" :value="200" />
-              <el-option label="500" :value="500" />
-            </el-select>
-          </div>
         </div>
       </template>
 
@@ -233,17 +222,15 @@
             <el-empty v-if="!initialLoading && fileList.length === 0" description="当前目录为空" />
 
             <!-- 分页器 -->
-            <div class="pagination-container" style="margin-top: 20px; text-align: center">
-              <el-pagination
-                v-model:current-page="currentPage"
-                v-model:page-size="pageSize"
-                :page-sizes="[100, 200, 500]"
-                :total="total"
-                layout="total, sizes, prev, pager, next, jumper"
-                @size-change="handlePageSizeChange"
-                @current-change="handlePageChange"
-              />
-            </div>
+            <ResponsivePagination
+              v-model:current-page="currentPage"
+              v-model:page-size="pageSize"
+              :page-sizes="[100, 200, 500]"
+              :total="total"
+              :is-mobile="isMobile"
+              @size-change="handlePageSizeChange"
+              @current-change="handlePageChange"
+            />
           </template>
         </div>
       </div>
@@ -318,6 +305,7 @@ import { ArrowDown, Files, FolderAdd } from '@element-plus/icons-vue'
 import type { FileSystemItem, FileOperationType, DirInfo } from '@/typing'
 import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
 import { useBackgroundRefresh } from '@/composables/useBackgroundRefresh'
+import { useDeviceType } from '@/composables/useDeviceType'
 import { mergeStableList, retainExistingKeys } from '@/composables/useStableList'
 import { usePageStateStore } from '@/stores/pageState'
 import { getFileType, getFileIconByName } from '@/utils/fileIconUtils'
@@ -325,6 +313,7 @@ import { formatFileSize } from '@/utils/fileSizeUtils'
 import { formatDateTime } from '@/utils/timeUtils'
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
+import ResponsivePagination from '@/components/common/ResponsivePagination.vue'
 import DirectorySelector from './DirectorySelector.vue'
 
 interface NetdiskAccount {
@@ -371,6 +360,7 @@ const pageSize = computed({
 })
 const total = ref(0)
 const fileList = ref<FileSystemItem[]>([])
+const { isMobile } = useDeviceType()
 
 const http: AxiosStatic | undefined = inject('$http')
 const accountList = ref<NetdiskAccount[]>([])
@@ -1151,39 +1141,41 @@ onUnmounted(() => {
   line-height: 1.4;
 }
 
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.pagination-container {
-  display: flex;
-  justify-content: center;
-  margin-top: 20px;
-}
-
 @media (max-width: 768px) {
   .file-manager-layout {
     flex-direction: column;
+    gap: 10px;
   }
 
   .account-sidebar {
     width: 100%;
-    max-height: 300px;
+    max-height: 160px;
   }
 
   .file-manager-container {
-    padding: 10px;
+    padding: 8px;
   }
 
   .card-header {
-    flex-direction: column;
-    align-items: stretch;
+    gap: 8px;
   }
 
-  .header-right {
-    justify-content: space-between;
+  .header-left .card-subtitle {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .account-list {
+    max-height: 112px;
+  }
+
+  .account-item {
+    padding: 10px 12px;
+  }
+
+  .file-content {
+    padding: 12px;
+    min-height: 55vh;
   }
 }
 

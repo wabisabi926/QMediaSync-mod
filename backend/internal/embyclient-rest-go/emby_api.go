@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"slices"
 	"time"
 
 	"qmediasync/internal/helpers"
@@ -487,20 +486,28 @@ func (c *Client) GetItemLibraryId(itemId string) ([]VirtualFolderDto, error) {
 	if err != nil {
 		return nil, err
 	}
-	// 提取倒数第二个文件夹路径做顶层文件夹路径
-	libraryFolderDto := ancestors[len(ancestors)-2]
-	libraryPath := libraryFolderDto.Path
+	if len(ancestors) < 2 {
+		return nil, fmt.Errorf("Emby 条目 %s ancestors 数量不足，无法解析所属媒体库", itemId)
+	}
 	// 查询顶层文件夹路径对应的媒体库 ID
 	virtualFolders, err := c.GetLibraryVirtualFolders()
 	if err != nil {
 		return nil, err
 	}
-	// 提取所有媒体库 ID
+	ancestorPaths := make(map[string]struct{}, len(ancestors))
+	for _, ancestor := range ancestors {
+		if ancestor.Path != "" {
+			ancestorPaths[ancestor.Path] = struct{}{}
+		}
+	}
+	// 提取所有命中 ancestor 路径的媒体库 ID
 	var librarys []VirtualFolderDto
 	for _, virtualFolder := range virtualFolders {
-		if slices.Contains(virtualFolder.Locations, libraryPath) {
-			librarys = append(librarys, virtualFolder)
-			continue
+		for _, location := range virtualFolder.Locations {
+			if _, ok := ancestorPaths[location]; ok {
+				librarys = append(librarys, virtualFolder)
+				break
+			}
 		}
 	}
 	return librarys, nil

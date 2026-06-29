@@ -177,3 +177,24 @@ func TestFetchMediaItemsByLibraryIDHTTP错误(t *testing.T) {
 		t.Fatal("FetchMediaItemsByLibraryID() error = nil, want error")
 	}
 }
+
+func TestGetItemLibraryIdAncestors不足时返回错误(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/emby/Items/episode-1/Ancestors":
+			fmt.Fprint(w, `[{"Id":"episode-1","Path":"/media/tv/episode.mkv"}]`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test-key")
+	libs, err := client.GetItemLibraryId("episode-1")
+	if err == nil {
+		t.Fatal("GetItemLibraryId() error = nil, want error")
+	}
+	if len(libs) != 0 {
+		t.Fatalf("libs = %+v, want empty", libs)
+	}
+}

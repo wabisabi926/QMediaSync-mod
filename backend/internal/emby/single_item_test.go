@@ -35,12 +35,17 @@ func TestSyncEmbyItemByID使用ItemsIds单条Upsert且关联幂等(t *testing.T)
 
 	requestedIDs := []string{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/emby/Items" {
+		switch r.URL.Path {
+		case "/emby/Items":
+			requestedIDs = append(requestedIDs, r.URL.Query().Get("Ids"))
+			fmt.Fprint(w, `{"TotalRecordCount":1,"Items":[{"Id":"122145","Name":"阿雅与魔女","Type":"Movie","ParentId":"lib-a","DateCreated":"2026-06-29T00:00:00Z","DateModified":"2026-06-29T00:10:00Z","MediaSources":[{"Path":"http://qms.local/stream?pickcode=pc-1"}]}]}`)
+		case "/emby/Items/122145/Ancestors":
+			fmt.Fprint(w, `[{"Id":"root","Path":"/media"},{"Id":"lib-a-folder","Path":"/media/movie"},{"Id":"122145","Path":"/media/movie/阿雅与魔女.mkv"}]`)
+		case "/emby/Library/VirtualFolders":
+			fmt.Fprint(w, `[{"Id":"lib-a","Name":"电影","Locations":["/media/movie"]}]`)
+		default:
 			http.NotFound(w, r)
-			return
 		}
-		requestedIDs = append(requestedIDs, r.URL.Query().Get("Ids"))
-		fmt.Fprint(w, `{"TotalRecordCount":1,"Items":[{"Id":"122145","Name":"阿雅与魔女","Type":"Movie","ParentId":"lib-a","DateCreated":"2026-06-29T00:00:00Z","DateModified":"2026-06-29T00:10:00Z","MediaSources":[{"Path":"http://qms.local/stream?pickcode=pc-1"}]}]}`)
 	}))
 	defer server.Close()
 
@@ -74,6 +79,138 @@ func TestSyncEmbyItemByID使用ItemsIds单条Upsert且关联幂等(t *testing.T)
 	}
 	if relationCount != 1 {
 		t.Fatalf("relationCount = %d, want 1", relationCount)
+	}
+}
+
+func TestSyncEmbyItemByID使用Ancestors解析Episode真实媒体库ID(t *testing.T) {
+	helpers.AppLogger = &helpers.QLogger{Logger: log.New(io.Discard, "", 0)}
+	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	db.Db = testDb
+	models.GlobalEmbyConfig = nil
+	SetEmbySyncRunning(false)
+
+	if err := db.Db.AutoMigrate(&models.EmbyConfig{}, &models.EmbyMediaItem{}, &models.EmbyMediaSyncFile{}, &models.EmbyLibrarySyncPath{}, &models.SyncFile{}); err != nil {
+		t.Fatalf("迁移测试表失败: %v", err)
+	}
+	if err := db.Db.Create(&models.SyncFile{PickCode: "pc-episode", SyncPathId: 21}).Error; err != nil {
+		t.Fatalf("创建 SyncFile 失败: %v", err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/emby/Items":
+			fmt.Fprint(w, `{"TotalRecordCount":1,"Items":[{"Id":"20001","Name":"第 1 集","Type":"Episode","ParentId":"season-1","SeriesId":"series-1","SeasonId":"season-1","DateCreated":"2026-06-29T00:00:00Z","DateModified":"2026-06-29T00:10:00Z","MediaSources":[{"Path":"http://qms.local/stream?pickcode=pc-episode"}]}]}`)
+		case "/emby/Items/20001/Ancestors":
+			fmt.Fprint(w, `[{"Id":"root","Path":"/media"},{"Id":"lib-tv-folder","Path":"/media/tv"},{"Id":"series-1","Path":"/media/tv/剧集"},{"Id":"season-1","Path":"/media/tv/剧集/Season 1"}]`)
+		case "/emby/Library/VirtualFolders":
+			fmt.Fprint(w, `[{"Id":"lib-tv","Name":"电视剧","Locations":["/media/tv"]}]`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	if err := db.Db.Create(&models.EmbyConfig{EmbyUrl: server.URL, EmbyApiKey: "test-key", SyncEnabled: 1, SyncCron: "0 * * * *"}).Error; err != nil {
+		t.Fatalf("创建 EmbyConfig 失败: %v", err)
+	}
+
+	changed, err := SyncEmbyItemByID("20001")
+	if err != nil {
+		t.Fatalf("SyncEmbyItemByID() error = %v", err)
+	}
+	if !changed {
+		t.Fatal("SyncEmbyItemByID() changed = false, want true")
+	}
+
+	var item models.EmbyMediaItem
+	if err := db.Db.Where("item_id = ?", "20001").First(&item).Error; err != nil {
+		t.Fatalf("查询 EmbyMediaItem 失败: %v", err)
+	}
+	if item.ParentId != "season-1" {
+		t.Fatalf("ParentId = %q, want season-1", item.ParentId)
+	}
+	if item.LibraryId != "lib-tv" {
+		t.Fatalf("LibraryId = %q, want lib-tv", item.LibraryId)
+	}
+
+	var relation models.EmbyLibrarySyncPath
+	if err := db.Db.First(&relation).Error; err != nil {
+		t.Fatalf("查询 EmbyLibrarySyncPath 失败: %v", err)
+	}
+	if relation.LibraryId != "lib-tv" || relation.LibraryName != "电视剧" || relation.SyncPathId != 21 {
+		t.Fatalf("relation = %+v, want lib-tv/电视剧/21", relation)
+	}
+
+	var wrongRelationCount int64
+	if err := db.Db.Model(&models.EmbyLibrarySyncPath{}).Where("library_id = ?", "season-1").Count(&wrongRelationCount).Error; err != nil {
+		t.Fatalf("统计错误媒体库关联失败: %v", err)
+	}
+	if wrongRelationCount != 0 {
+		t.Fatalf("不应写入 season-1 媒体库关联，实际 %d", wrongRelationCount)
+	}
+}
+
+func TestSyncEmbyItemByID跳过未选择媒体库(t *testing.T) {
+	helpers.AppLogger = &helpers.QLogger{Logger: log.New(io.Discard, "", 0)}
+	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	db.Db = testDb
+	models.GlobalEmbyConfig = nil
+	SetEmbySyncRunning(false)
+
+	if err := db.Db.AutoMigrate(&models.EmbyConfig{}, &models.EmbyMediaItem{}, &models.EmbyMediaSyncFile{}, &models.EmbyLibrarySyncPath{}, &models.SyncFile{}); err != nil {
+		t.Fatalf("迁移测试表失败: %v", err)
+	}
+	if err := db.Db.Create(&models.SyncFile{PickCode: "pc-skip", SyncPathId: 22}).Error; err != nil {
+		t.Fatalf("创建 SyncFile 失败: %v", err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/emby/Items":
+			fmt.Fprint(w, `{"TotalRecordCount":1,"Items":[{"Id":"30001","Name":"未选中电影","Type":"Movie","ParentId":"lib-other","MediaSources":[{"Path":"http://qms.local/stream?pickcode=pc-skip"}]}]}`)
+		case "/emby/Items/30001/Ancestors":
+			fmt.Fprint(w, `[{"Id":"root","Path":"/media"},{"Id":"lib-other-folder","Path":"/media/other"},{"Id":"30001","Path":"/media/other/movie.mkv"}]`)
+		case "/emby/Library/VirtualFolders":
+			fmt.Fprint(w, `[{"Id":"lib-other","Name":"其他","Locations":["/media/other"]}]`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	if err := db.Db.Create(&models.EmbyConfig{
+		EmbyUrl:           server.URL,
+		EmbyApiKey:        "test-key",
+		SyncEnabled:       1,
+		SyncCron:          "0 * * * *",
+		SelectedLibraries: `["lib-selected"]`,
+	}).Error; err != nil {
+		t.Fatalf("创建 EmbyConfig 失败: %v", err)
+	}
+	if err := db.Db.Model(&models.EmbyConfig{}).Where("id > 0").Update("sync_all_libraries", 0).Error; err != nil {
+		t.Fatalf("更新 SyncAllLibraries 失败: %v", err)
+	}
+
+	changed, err := SyncEmbyItemByID("30001")
+	if err != nil {
+		t.Fatalf("SyncEmbyItemByID() error = %v", err)
+	}
+	if changed {
+		t.Fatal("SyncEmbyItemByID() changed = true, want false")
+	}
+
+	var itemCount int64
+	if err := db.Db.Model(&models.EmbyMediaItem{}).Count(&itemCount).Error; err != nil {
+		t.Fatalf("统计 EmbyMediaItem 失败: %v", err)
+	}
+	if itemCount != 0 {
+		t.Fatalf("itemCount = %d, want 0", itemCount)
 	}
 }
 

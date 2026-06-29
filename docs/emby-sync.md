@@ -198,6 +198,8 @@ GET /emby/Users/{UserId}/Items/{itemId}?Fields=DateCreated,DateModified,Path,Med
 规则：
 
 - 返回单条 Movie、Video 或 Episode 时写入本地 `emby_media_items`。
+- 写入前会通过 `/Items/{itemId}/Ancestors` 和 `/Library/VirtualFolders` 解析真实所属媒体库，不能把 Episode 的 `ParentId` 当作媒体库 ID。
+- 当 `sync_all_libraries=0` 时，解析出的媒体库 ID 不在 `selected_libraries` 中会跳过本次单条同步。
 - 解析到 PickCode 时建立 `emby_media_sync_files` 关联。
 - 空结果或不支持的类型只记录日志，不触发全量同步。
 - Webhook 单条同步不推进 `last_saved_cursor_at`。
@@ -228,6 +230,8 @@ Webhook 删除事件只删除本地索引和关联：
 | `total_items` | 本地已关联 Emby item 数 |
 
 如果已有任务运行，定时任务直接跳过，不排队堆积。手动全量同步遇到运行中的任务时，前端应提示稍后再试。
+
+程序启动并完成数据库迁移后，会清理上次进程异常退出遗留的 `is_running=true` 状态，避免全量、增量和 Webhook 单条同步长期被旧运行标记阻塞。该清理只复位 `is_running`、`sync_mode` 和 `started_at`，并写入 `last_error` 说明原因；不会推进或清空 `last_sync_time`、`last_full_sync_at`、`last_incremental_sync_at` 和 `last_saved_cursor_at`。
 
 ## 升级和迁移说明
 

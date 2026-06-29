@@ -478,6 +478,14 @@ func SyncEmbyItemByID(itemID string) (changed bool, err error) {
 		helpers.AppLogger.Warnf("Webhook 单条同步跳过不支持的 Emby 条目类型：%s %s", itemID, found.Type)
 		return false, nil
 	}
+	libraryID, libraryName, err := resolveEmbyItemLibrary(client, found.Id)
+	if err != nil {
+		return false, err
+	}
+	if !isEmbyLibrarySelected(config, libraryID) {
+		helpers.AppLogger.Infof("Webhook 单条同步跳过未选择的 Emby 媒体库：Item ID=%s，Library ID=%s", itemID, libraryID)
+		return false, nil
+	}
 
 	pickCode, mediaPath, err := extractPickCode(found.MediaSources)
 	if err != nil {
@@ -499,7 +507,7 @@ func SyncEmbyItemByID(itemID string) (changed bool, err error) {
 		SeasonId:          found.SeasonId,
 		SeasonName:        found.SeasonName,
 		SeriesName:        found.SeriesName,
-		LibraryId:         found.ParentId,
+		LibraryId:         libraryID,
 		Path:              pathStr,
 		PickCode:          pickCode,
 		MediaSourcePath:   mediaPath,
@@ -531,10 +539,46 @@ func SyncEmbyItemByID(itemID string) (changed bool, err error) {
 			helpers.AppLogger.Warnf("关联 SyncFile 失败，Item ID=%s，PickCode=%s，错误=%v", found.Id, pickCode, err)
 		}
 		if mediaItem.LibraryId != "" {
-			models.CreateOrUpdateEmbyLibrarySyncPath(mediaItem.LibraryId, sf.SyncPathId, "")
+			if err := models.CreateOrUpdateEmbyLibrarySyncPath(mediaItem.LibraryId, sf.SyncPathId, libraryName); err != nil {
+				helpers.AppLogger.Warnf("关联 Emby 媒体库与同步目录失败，Library ID=%s，SyncPath ID=%d，错误=%v", mediaItem.LibraryId, sf.SyncPathId, err)
+			}
 		}
 	}
 	return true, nil
+}
+
+func resolveEmbyItemLibrary(client *embyclientrestgo.Client, itemID string) (libraryID string, libraryName string, err error) {
+	libraries, err := client.GetItemLibraryId(itemID)
+	if err != nil {
+		return "", "", err
+	}
+	for _, library := range libraries {
+		id := library.ID
+		if id == "" {
+			id = library.ItemId
+		}
+		if id != "" {
+			return id, library.Name, nil
+		}
+	}
+	return "", "", fmt.Errorf("未找到 Emby 条目 %s 所属的媒体库", itemID)
+}
+
+func isEmbyLibrarySelected(config *models.EmbyConfig, libraryID string) bool {
+	if config == nil || config.SyncAllLibraries != 0 {
+		return true
+	}
+	var selectedLibraryIDs []string
+	if err := json.Unmarshal([]byte(config.SelectedLibraries), &selectedLibraryIDs); err != nil {
+		helpers.AppLogger.Warnf("解析已选择 Emby 媒体库失败，跳过 Webhook 单条同步：%v", err)
+		return false
+	}
+	for _, selectedID := range selectedLibraryIDs {
+		if selectedID == libraryID {
+			return true
+		}
+	}
+	return false
 }
 
 // IncrementalSyncEmbyMediaItems 按 item ID 同步 Emby 条目到本地。

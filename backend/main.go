@@ -196,6 +196,9 @@ func (app *App) StartDatabase(migrateMode bool) error {
 		helpers.AppLogger.Infof("SQLite 数据库文件路径：%s", sqliteFile)
 		db.Db = db.InitSqlite3(sqliteFile)
 		models.Migrate()
+		if err := models.ResetStaleEmbySyncRunOnStartup(); err != nil {
+			return err
+		}
 		return nil
 	}
 
@@ -245,6 +248,9 @@ func (app *App) StartDatabase(migrateMode bool) error {
 		}
 	}
 	models.Migrate()
+	if err := models.ResetStaleEmbySyncRunOnStartup(); err != nil {
+		return err
+	}
 	return nil
 }
 

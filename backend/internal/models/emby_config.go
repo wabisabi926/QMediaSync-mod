@@ -1,8 +1,12 @@
 package models
 
 import (
+	"errors"
+
 	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
+
+	"gorm.io/gorm"
 )
 
 const (
@@ -161,6 +165,31 @@ func FinishEmbyIncrementalSyncRun(processedCount int64, finishedAt int64, cursor
 	}
 	_, err := GetEmbyConfigFromDB()
 	return err
+}
+
+// ResetStaleEmbySyncRunOnStartup 清理进程异常退出遗留的 Emby 条目同步运行标记。
+func ResetStaleEmbySyncRunOnStartup() error {
+	if db.Db == nil {
+		return nil
+	}
+	result := db.Db.Model(&EmbyConfig{}).
+		Where("is_running = ?", true).
+		Updates(map[string]any{
+			"is_running": false,
+			"sync_mode":  EmbySyncModeIdle,
+			"started_at": 0,
+			"last_error": "程序启动时清理上次未完成的 Emby 同步运行状态",
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected > 0 {
+		helpers.AppLogger.Warnf("已清理 %d 条上次未完成的 Emby 同步运行状态", result.RowsAffected)
+	}
+	if _, err := GetEmbyConfigFromDB(); err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	return nil
 }
 
 // IsEmbySyncRunningInDB 查询数据库中的 Emby 条目同步运行状态。

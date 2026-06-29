@@ -182,6 +182,55 @@ func TestEmbySyncRunFailureState(t *testing.T) {
 	}
 }
 
+func TestResetStaleEmbySyncRunOnStartup清理遗留运行标记且不推进游标(t *testing.T) {
+	helpers.AppLogger = &helpers.QLogger{Logger: log.New(io.Discard, "", 0)}
+	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	db.Db = testDb
+	GlobalEmbyConfig = nil
+
+	if err := db.Db.AutoMigrate(&EmbyConfig{}); err != nil {
+		t.Fatalf("迁移 EmbyConfig 失败: %v", err)
+	}
+	if err := db.Db.Create(&EmbyConfig{
+		SyncEnabled:           1,
+		SyncCron:              "0 * * * *",
+		LastSyncTime:          1000,
+		LastFullSyncAt:        900,
+		LastIncrementalSyncAt: 800,
+		LastSavedCursorAt:     700,
+		LastProcessedCount:    6,
+		IsRunning:             true,
+		SyncMode:              EmbySyncModeIncremental,
+		StartedAt:             600,
+	}).Error; err != nil {
+		t.Fatalf("创建 EmbyConfig 失败: %v", err)
+	}
+
+	if err := ResetStaleEmbySyncRunOnStartup(); err != nil {
+		t.Fatalf("ResetStaleEmbySyncRunOnStartup() error = %v", err)
+	}
+
+	fresh, err := GetEmbyConfigFromDB()
+	if err != nil {
+		t.Fatalf("GetEmbyConfigFromDB() error = %v", err)
+	}
+	if fresh.IsRunning || fresh.SyncMode != EmbySyncModeIdle || fresh.StartedAt != 0 {
+		t.Fatalf("启动清理后运行状态异常: %+v", fresh)
+	}
+	if fresh.LastSyncTime != 1000 || fresh.LastFullSyncAt != 900 || fresh.LastIncrementalSyncAt != 800 || fresh.LastSavedCursorAt != 700 {
+		t.Fatalf("启动清理不应推进或清空同步时间和游标: %+v", fresh)
+	}
+	if fresh.LastProcessedCount != 6 {
+		t.Fatalf("LastProcessedCount = %d, want 6", fresh.LastProcessedCount)
+	}
+	if fresh.LastError == "" {
+		t.Fatal("启动清理应记录 last_error")
+	}
+}
+
 func TestFinishEmbyIncrementalSyncRun推进游标(t *testing.T) {
 	helpers.AppLogger = &helpers.QLogger{Logger: log.New(io.Discard, "", 0)}
 	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})

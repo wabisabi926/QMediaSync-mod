@@ -18,6 +18,15 @@ type netFileBatchCacheKey struct {
 	BatchSize  int
 }
 
+type netFileBatchCacheViewKey struct {
+	SourceType string
+	AccountID  uint
+	Path       string
+	SortBy     string
+	SortOrder  string
+	Filter     string
+}
+
 type netFileBatch struct {
 	Items      []*FileItem
 	Total      int64
@@ -32,6 +41,7 @@ type netFileBatchCache struct {
 	maxItems int
 	ttl      time.Duration
 	items    map[netFileBatchCacheKey]netFileBatch
+	views    map[netFileBatchCacheViewKey]uint64
 	order    []netFileBatchCacheKey
 }
 
@@ -46,6 +56,7 @@ func newNetFileBatchCache(maxItems int, ttl time.Duration) *netFileBatchCache {
 		maxItems: maxItems,
 		ttl:      ttl,
 		items:    make(map[netFileBatchCacheKey]netFileBatch),
+		views:    make(map[netFileBatchCacheViewKey]uint64),
 		order:    make([]netFileBatchCacheKey, 0, maxItems),
 	}
 }
@@ -69,6 +80,28 @@ func (c *netFileBatchCache) Set(key netFileBatchCacheKey, batch netFileBatch, no
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	c.setLocked(key, batch, now)
+}
+
+func (c *netFileBatchCache) SetIfGeneration(key netFileBatchCacheKey, batch netFileBatch, now time.Time, generation uint64) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.generationLocked(key.viewKey()) != generation {
+		return false
+	}
+	c.setLocked(key, batch, now)
+	return true
+}
+
+func (c *netFileBatchCache) Generation(key netFileBatchCacheKey) uint64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.generationLocked(key.viewKey())
+}
+
+func (c *netFileBatchCache) setLocked(key netFileBatchCacheKey, batch netFileBatch, now time.Time) {
 	if _, exists := c.items[key]; !exists {
 		c.order = append(c.order, key)
 	}
@@ -84,6 +117,15 @@ func (c *netFileBatchCache) InvalidateView(sourceType string, accountID uint, pa
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	viewKey := netFileBatchCacheViewKey{
+		SourceType: sourceType,
+		AccountID:  accountID,
+		Path:       path,
+		SortBy:     sortBy,
+		SortOrder:  sortOrder,
+		Filter:     filter,
+	}
+	c.views[viewKey]++
 	for key := range c.items {
 		if key.SourceType == sourceType &&
 			key.AccountID == accountID &&
@@ -121,5 +163,20 @@ func (c *netFileBatchCache) deleteLocked(key netFileBatchCacheKey) {
 			c.order = append(c.order[:i], c.order[i+1:]...)
 			return
 		}
+	}
+}
+
+func (c *netFileBatchCache) generationLocked(key netFileBatchCacheViewKey) uint64 {
+	return c.views[key]
+}
+
+func (k netFileBatchCacheKey) viewKey() netFileBatchCacheViewKey {
+	return netFileBatchCacheViewKey{
+		SourceType: k.SourceType,
+		AccountID:  k.AccountID,
+		Path:       k.Path,
+		SortBy:     k.SortBy,
+		SortOrder:  k.SortOrder,
+		Filter:     k.Filter,
 	}
 }

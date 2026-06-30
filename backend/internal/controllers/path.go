@@ -358,21 +358,32 @@ func getNetFileListPage(ctx context.Context, query netFileListQuery) (netFileLis
 			hitCount++
 		} else {
 			missCount++
-			result, err, _ := netFileSingleflight.Do(netFileSingleflightKey(key), func() (any, error) {
-				fetched, fetchErr := fetchNetFileBatch(ctx, query.Account, query.ParentID, batchRange.Start, batchRange.Size, sortBy, sortOrder, query.Refresh)
+			if query.Refresh {
+				generation := netFileCache.Generation(key)
+				fetched, fetchErr := fetchNetFileBatch(ctx, query.Account, query.ParentID, batchRange.Start, batchRange.Size, sortBy, sortOrder, true)
 				if fetchErr != nil {
-					return netFileBatch{}, fetchErr
+					return netFileListResponse{}, fetchErr
 				}
-				netFileCache.Set(key, fetched, time.Now())
-				return fetched, nil
-			})
-			if err != nil {
-				return netFileListResponse{}, err
-			}
-			var typeOK bool
-			batch, typeOK = result.(netFileBatch)
-			if !typeOK {
-				return netFileListResponse{}, fmt.Errorf("网盘文件缓存结果类型错误")
+				netFileCache.SetIfGeneration(key, fetched, time.Now(), generation)
+				batch = fetched
+			} else {
+				result, err, _ := netFileSingleflight.Do(netFileSingleflightKey(key), func() (any, error) {
+					generation := netFileCache.Generation(key)
+					fetched, fetchErr := fetchNetFileBatch(ctx, query.Account, query.ParentID, batchRange.Start, batchRange.Size, sortBy, sortOrder, false)
+					if fetchErr != nil {
+						return netFileBatch{}, fetchErr
+					}
+					netFileCache.SetIfGeneration(key, fetched, time.Now(), generation)
+					return fetched, nil
+				})
+				if err != nil {
+					return netFileListResponse{}, err
+				}
+				var typeOK bool
+				batch, typeOK = result.(netFileBatch)
+				if !typeOK {
+					return netFileListResponse{}, fmt.Errorf("网盘文件缓存结果类型错误")
+				}
 			}
 		}
 		if firstBatch.CachedAt == 0 {

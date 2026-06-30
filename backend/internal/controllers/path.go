@@ -851,6 +851,6 @@ func DeleteDir(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "删除目录失败：" + err.Error(), Data: nil})
 		return
 	}
-	invalidateNetFileCacheForPath(account.SourceType, req.AccountID, invalidateParentID)
+	invalidateNetFileCacheForDeletedPath(account.SourceType, req.AccountID, invalidateParentID, req.FileID)
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "删除目录成功", Data: nil})
 }

@@ -3,6 +3,7 @@ package controllers
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"qmediasync/internal/models"
 )
@@ -164,5 +165,38 @@ func TestNormalizeNetFileCachePathUsesSingleRootKey(t *testing.T) {
 				t.Fatalf("normalizeNetFileCachePath(%s, %q) = %q，期望 %q", tt.sourceType, tt.path, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestInvalidateNetFileCacheForDeletedPath(t *testing.T) {
+	originalCache := netFileCache
+	netFileCache = newNetFileBatchCache(10, time.Minute)
+	t.Cleanup(func() {
+		netFileCache = originalCache
+	})
+
+	now := time.Now()
+	parent := netFileBatchCacheKey{SourceType: string(models.SourceTypeOpenList), AccountID: 1, Path: "/", SortBy: "default", SortOrder: "asc", Filter: "none", BatchStart: 0, BatchSize: 500}
+	target := netFileBatchCacheKey{SourceType: string(models.SourceTypeOpenList), AccountID: 1, Path: "/Movies", SortBy: "default", SortOrder: "asc", Filter: "none", BatchStart: 0, BatchSize: 500}
+	child := netFileBatchCacheKey{SourceType: string(models.SourceTypeOpenList), AccountID: 1, Path: "/Movies/Season 1", SortBy: "default", SortOrder: "asc", Filter: "none", BatchStart: 0, BatchSize: 500}
+	sibling := netFileBatchCacheKey{SourceType: string(models.SourceTypeOpenList), AccountID: 1, Path: "/Movies2", SortBy: "default", SortOrder: "asc", Filter: "none", BatchStart: 0, BatchSize: 500}
+
+	netFileCache.Set(parent, netFileBatch{}, now)
+	netFileCache.Set(target, netFileBatch{}, now)
+	netFileCache.Set(child, netFileBatch{}, now)
+	netFileCache.Set(sibling, netFileBatch{}, now)
+
+	invalidateNetFileCacheForDeletedPath(models.SourceTypeOpenList, 1, "/", "/Movies")
+	if _, ok := netFileCache.Get(parent, now); ok {
+		t.Fatal("删除目录后父目录缓存应失效")
+	}
+	if _, ok := netFileCache.Get(target, now); ok {
+		t.Fatal("删除目录后被删目录缓存应失效")
+	}
+	if _, ok := netFileCache.Get(child, now); ok {
+		t.Fatal("删除目录后被删目录子路径缓存应失效")
+	}
+	if _, ok := netFileCache.Get(sibling, now); !ok {
+		t.Fatal("删除目录不应清理相似前缀兄弟目录")
 	}
 }

@@ -216,6 +216,15 @@ func invalidateNetFileCacheForPath(sourceType models.SourceType, accountID uint,
 	netFileCache.InvalidatePath(string(sourceType), accountID, normalizeNetFileCachePath(sourceType, parentID))
 }
 
+func invalidateNetFileCacheForDeletedPath(sourceType models.SourceType, accountID uint, parentID string, fileID string) {
+	if accountID == 0 {
+		return
+	}
+	sourceTypeText := string(sourceType)
+	netFileCache.InvalidatePath(sourceTypeText, accountID, normalizeNetFileCachePath(sourceType, parentID))
+	netFileCache.InvalidatePathTree(sourceTypeText, accountID, normalizeNetFileCachePath(sourceType, fileID))
+}
+
 func buildBaiduSyntheticTotal(batchStart int, itemCount int, batchSize int) (int64, bool) {
 	if itemCount >= batchSize {
 		return int64(batchStart + itemCount + 1), true

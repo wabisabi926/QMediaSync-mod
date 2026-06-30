@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"testing"
 
 	"qmediasync/internal/models"
@@ -51,5 +52,70 @@ func TestBuildBaiduSyntheticTotal(t *testing.T) {
 	total, hasMore = buildBaiduSyntheticTotal(1000, 30, 1000)
 	if total != 1030 || hasMore {
 		t.Fatalf("partial batch total=%d hasMore=%v, want 1030 false", total, hasMore)
+	}
+}
+
+func TestSliceNetFileBatches(t *testing.T) {
+	items := make([]*FileItem, 0, 1000)
+	for i := 1000; i < 2000; i++ {
+		items = append(items, &FileItem{Id: fmt.Sprintf("%d", i), Name: fmt.Sprintf("item-%d", i)})
+	}
+	got := sliceNetFileItems(items, 1000, 7, 200)
+	if len(got) != 200 {
+		t.Fatalf("len = %d, want 200", len(got))
+	}
+	if got[0].Id != "1200" || got[199].Id != "1399" {
+		t.Fatalf("range = %s..%s, want 1200..1399", got[0].Id, got[199].Id)
+	}
+}
+
+func TestBuildNetFileListResponseMeta(t *testing.T) {
+	resp := buildNetFileListResponse(netFileListResponseOptions{
+		List:       []*FileItem{{Id: "1"}},
+		Total:      1001,
+		TotalExact: false,
+		HasMore:    true,
+		Page:       1,
+		PageSize:   50,
+		SortBy:     "name",
+		SortOrder:  "asc",
+		Cache:      netFileCacheMeta{Status: netFileCacheMiss, BatchStart: 0, BatchSize: 1000},
+	})
+	if resp.TotalExact || !resp.HasMore || resp.Cache.Status != netFileCacheMiss {
+		t.Fatalf("response meta = %+v", resp)
+	}
+}
+
+func TestBuildOpenListRemoveTarget(t *testing.T) {
+	tests := []struct {
+		name      string
+		parentID  string
+		fileID    string
+		wantDir   string
+		wantNames []string
+		wantErr   bool
+	}{
+		{name: "使用当前目录和完整文件路径", parentID: "/Movies", fileID: "/Movies/A.mkv", wantDir: "/Movies", wantNames: []string{"A.mkv"}},
+		{name: "根目录删除", parentID: "/", fileID: "/A.mkv", wantDir: "/", wantNames: []string{"A.mkv"}},
+		{name: "父目录为空时从文件路径推导", parentID: "", fileID: "/Movies/A.mkv", wantDir: "/Movies", wantNames: []string{"A.mkv"}},
+		{name: "拒绝根路径删除", parentID: "/", fileID: "/", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir, names, err := buildOpenListRemoveTarget(tt.parentID, tt.fileID)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("buildOpenListRemoveTarget() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr {
+				return
+			}
+			if dir != tt.wantDir {
+				t.Fatalf("dir = %s, want %s", dir, tt.wantDir)
+			}
+			if len(names) != len(tt.wantNames) || names[0] != tt.wantNames[0] {
+				t.Fatalf("names = %+v, want %+v", names, tt.wantNames)
+			}
+		})
 	}
 }

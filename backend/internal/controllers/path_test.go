@@ -42,7 +42,12 @@ func TestBuildNetFileListResponse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			response := buildNetFileListResponse(tt.items, tt.total, tt.page, tt.pageSize)
+			response := buildNetFileListResponse(netFileListResponseOptions{
+				List:     tt.items,
+				Total:    tt.total,
+				Page:     tt.page,
+				PageSize: tt.pageSize,
+			})
 
 			if len(response.List) != len(tt.items) {
 				t.Fatalf("list 数量 = %d，期望 %d", len(response.List), len(tt.items))

@@ -2,6 +2,8 @@ package controllers
 
 import (
 	"fmt"
+	pathpkg "path"
+	"strings"
 
 	"qmediasync/internal/models"
 )
@@ -124,6 +126,9 @@ func mapBaiduSort(sortBy string, sortOrder string) (string, int32, error) {
 }
 
 func computeNetFileBatchRanges(page int, pageSize int, batchSize int) []netFileBatchRange {
+	if page < 1 || pageSize < 1 || batchSize < 1 {
+		return nil
+	}
 	uiStart := (page - 1) * pageSize
 	uiEnd := uiStart + pageSize
 	firstBatchStart := (uiStart / batchSize) * batchSize
@@ -134,6 +139,71 @@ func computeNetFileBatchRanges(page int, pageSize int, batchSize int) []netFileB
 	return ranges
 }
 
+func normalizeNetFileSort(sourceType models.SourceType, sortBy string) string {
+	if sortBy != "" {
+		return sortBy
+	}
+	switch sourceType {
+	case models.SourceTypeOpenList:
+		return "default"
+	default:
+		return "name"
+	}
+}
+
+func normalizeNetFileCachePath(sourceType models.SourceType, value string) string {
+	switch sourceType {
+	case models.SourceType115:
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return "0"
+		}
+		return value
+	case models.SourceTypeBaiduPan, models.SourceTypeOpenList:
+		return normalizeOpenListPath(value)
+	default:
+		return strings.TrimSpace(value)
+	}
+}
+
+func normalizeOpenListPath(value string) string {
+	value = strings.ReplaceAll(strings.TrimSpace(value), "\\", "/")
+	if value == "" {
+		return ""
+	}
+	if !strings.HasPrefix(value, "/") {
+		value = "/" + value
+	}
+	if value != "/" {
+		value = strings.TrimRight(value, "/")
+	}
+	return value
+}
+
+func buildOpenListRemoveTarget(parentID string, fileID string) (string, []string, error) {
+	parentID = normalizeOpenListPath(parentID)
+	fileID = normalizeOpenListPath(fileID)
+	name := pathpkg.Base(fileID)
+	if name == "" || name == "." || name == "/" {
+		return "", nil, fmt.Errorf("OpenList 删除目标名称无效")
+	}
+	dir := parentID
+	if dir == "" || dir == "." {
+		dir = pathpkg.Dir(fileID)
+	}
+	if dir == "." || dir == "" {
+		dir = "/"
+	}
+	return dir, []string{name}, nil
+}
+
+func invalidateNetFileCacheForPath(sourceType models.SourceType, accountID uint, parentID string) {
+	if accountID == 0 {
+		return
+	}
+	netFileCache.InvalidatePath(string(sourceType), accountID, normalizeNetFileCachePath(sourceType, parentID))
+}
+
 func buildBaiduSyntheticTotal(batchStart int, itemCount int, batchSize int) (int64, bool) {
 	if itemCount >= batchSize {
 		return int64(batchStart + itemCount + 1), true
@@ -141,22 +211,57 @@ func buildBaiduSyntheticTotal(batchStart int, itemCount int, batchSize int) (int
 	return int64(batchStart + itemCount), false
 }
 
-func buildNetFileListResponse(list []*FileItem, total int64, page, pageSize int) netFileListResponse {
-	if page < 1 {
-		page = 1
+type netFileListResponseOptions struct {
+	List       []*FileItem
+	Total      int64
+	TotalExact bool
+	HasMore    bool
+	Page       int
+	PageSize   int
+	SortBy     string
+	SortOrder  string
+	Cache      netFileCacheMeta
+}
+
+func sliceNetFileItems(items []*FileItem, baseStart int, page int, pageSize int) []*FileItem {
+	if page < 1 || pageSize < 1 {
+		return []*FileItem{}
 	}
-	if pageSize < 1 {
-		pageSize = len(list)
+	start := (page-1)*pageSize - baseStart
+	if start < 0 {
+		start = 0
 	}
-	loadedTotal := int64((page-1)*pageSize + len(list))
+	if start >= len(items) {
+		return []*FileItem{}
+	}
+	end := start + pageSize
+	if end > len(items) {
+		end = len(items)
+	}
+	return items[start:end]
+}
+
+func buildNetFileListResponse(options netFileListResponseOptions) netFileListResponse {
+	if options.Page < 1 {
+		options.Page = 1
+	}
+	if options.PageSize < 1 {
+		options.PageSize = len(options.List)
+	}
+	loadedTotal := int64((options.Page-1)*options.PageSize + len(options.List))
+	total := options.Total
 	if total < loadedTotal {
 		total = loadedTotal
 	}
 	return netFileListResponse{
-		List:      list,
-		Total:     total,
-		Page:      page,
-		PageSize:  pageSize,
-		SortOrder: "asc",
+		List:       options.List,
+		Total:      total,
+		TotalExact: options.TotalExact,
+		HasMore:    options.HasMore,
+		Page:       options.Page,
+		PageSize:   options.PageSize,
+		SortBy:     options.SortBy,
+		SortOrder:  options.SortOrder,
+		Cache:      options.Cache,
 	}
 }

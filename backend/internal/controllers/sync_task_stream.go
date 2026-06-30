@@ -41,7 +41,7 @@ type syncTaskSnapshot struct {
 	LogPath   string            `json:"log_path"`
 }
 
-func buildSyncTaskSnapshotMessage(task *models.Sync, logs []logstream.Entry, logCursor int64, sequence uint64) syncTaskStreamMessage {
+func buildSyncTaskSnapshotMessage(task *models.Sync, logs []logstream.Entry, logCursor int64, sequence uint64, logPath string) syncTaskStreamMessage {
 	return syncTaskStreamMessage{
 		Type:       syncTaskStreamSnapshot,
 		Version:    syncTaskStreamVersion,
@@ -52,7 +52,7 @@ func buildSyncTaskSnapshotMessage(task *models.Sync, logs []logstream.Entry, log
 			Task:      task,
 			Logs:      logs,
 			LogCursor: logCursor,
-			LogPath:   models.SyncLogRelativePath(task.ID),
+			LogPath:   logPath,
 		},
 	}
 }
@@ -113,7 +113,7 @@ func SyncTaskStream(c *gin.Context) {
 	}
 	task = latestTask
 
-	fullLogPath := models.ExistingSyncLogFullPath(task.ID)
+	fullLogPath, logPath := models.ExistingSyncLogPath(task.ID)
 	logs, cursor, err := logstream.ReadTailEntries(fullLogPath, 1000)
 	if err != nil {
 		_ = writeSyncTaskStreamMessage(conn, syncTaskStreamMessage{
@@ -139,7 +139,7 @@ func SyncTaskStream(c *gin.Context) {
 	}
 	defer unsubscribeLog()
 
-	if err := writeSyncTaskStreamMessage(conn, buildSyncTaskSnapshotMessage(task, logs, cursor, 0)); err != nil {
+	if err := writeSyncTaskStreamMessage(conn, buildSyncTaskSnapshotMessage(task, logs, cursor, 0, logPath)); err != nil {
 		return
 	}
 

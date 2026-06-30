@@ -17,7 +17,7 @@ func TestBuildSyncTaskSnapshotMessageIncludesCursorAndVersion(t *testing.T) {
 		Status:     models.SyncStatusInProgress,
 		SubStatus:  models.SyncSubStatusProcessNetFileList,
 	}
-	msg := buildSyncTaskSnapshotMessage(task, []logstream.Entry{{Message: "hello"}}, 88, 3)
+	msg := buildSyncTaskSnapshotMessage(task, []logstream.Entry{{Message: "hello"}}, 88, 3, "sync/sync_9.log")
 
 	if msg.Type != syncTaskStreamSnapshot {
 		t.Fatalf("type = %s，期望 %s", msg.Type, syncTaskStreamSnapshot)
@@ -34,6 +34,18 @@ func TestBuildSyncTaskSnapshotMessageIncludesCursorAndVersion(t *testing.T) {
 	}
 	if data.Task.ID != 9 {
 		t.Fatalf("task.id = %d，期望 9", data.Task.ID)
+	}
+}
+
+func TestBuildSyncTaskSnapshotMessageUsesSelectedLogPath(t *testing.T) {
+	task := &models.Sync{BaseModel: models.BaseModel{ID: 9}}
+	msg := buildSyncTaskSnapshotMessage(task, nil, 0, 0, "libs/sync_9.log")
+	data, ok := msg.Data.(syncTaskSnapshot)
+	if !ok {
+		t.Fatalf("data 类型 = %T，期望 syncTaskSnapshot", msg.Data)
+	}
+	if data.LogPath != "libs/sync_9.log" {
+		t.Fatalf("log_path = %s，期望 libs/sync_9.log", data.LogPath)
 	}
 }
 

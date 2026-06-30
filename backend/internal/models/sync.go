@@ -85,17 +85,34 @@ func LegacySyncLogFullPath(syncID uint) string {
 	return filepath.Join(helpers.ConfigDir, "logs", helpers.LegacySyncLogRelativeDir(), helpers.SyncLogFileName(syncID))
 }
 
-// ExistingSyncLogFullPath 返回当前日志路径；当前路径不存在时兼容读取历史 logs/libs 路径。
-func ExistingSyncLogFullPath(syncID uint) string {
+// LegacySyncLogRelativePath 返回历史同步任务日志相对路径。
+func LegacySyncLogRelativePath(syncID uint) string {
+	return filepath.ToSlash(filepath.Join(helpers.LegacySyncLogRelativeDir(), helpers.SyncLogFileName(syncID)))
+}
+
+// ExistingSyncLogPath 返回当前日志路径；当前路径不存在时兼容读取历史 logs/libs 路径。
+func ExistingSyncLogPath(syncID uint) (string, string) {
 	logFile := SyncLogFullPath(syncID)
 	if _, err := os.Stat(logFile); err == nil {
-		return logFile
+		return logFile, SyncLogRelativePath(syncID)
 	}
 	legacyLogFile := LegacySyncLogFullPath(syncID)
 	if _, err := os.Stat(legacyLogFile); err == nil {
-		return legacyLogFile
+		return legacyLogFile, LegacySyncLogRelativePath(syncID)
 	}
-	return logFile
+	return logFile, SyncLogRelativePath(syncID)
+}
+
+// ExistingSyncLogFullPath 返回实际存在的同步任务日志完整路径。
+func ExistingSyncLogFullPath(syncID uint) string {
+	fullPath, _ := ExistingSyncLogPath(syncID)
+	return fullPath
+}
+
+// ExistingSyncLogRelativePath 返回实际存在的同步任务日志相对路径。
+func ExistingSyncLogRelativePath(syncID uint) string {
+	_, relativePath := ExistingSyncLogPath(syncID)
+	return relativePath
 }
 
 // SyncTaskEventPayload 生成同步任务结构化事件数据。

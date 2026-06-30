@@ -1,6 +1,7 @@
 package models
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -36,6 +37,25 @@ func TestLegacySyncLogFullPath(t *testing.T) {
 	want := filepath.Join(configDir, "logs", "libs", "sync_42.log")
 	if got != want {
 		t.Fatalf("LegacySyncLogFullPath = %s，期望 %s", got, want)
+	}
+}
+
+func TestExistingSyncLogRelativePathUsesLegacyWhenOnlyLegacyExists(t *testing.T) {
+	configDir := t.TempDir()
+	helpers.ConfigDir = configDir
+	helpers.GlobalConfig.Log.SyncLogDir = "logs/sync"
+
+	legacyLogFile := LegacySyncLogFullPath(42)
+	if err := os.MkdirAll(filepath.Dir(legacyLogFile), 0755); err != nil {
+		t.Fatalf("创建 legacy 日志目录失败：%v", err)
+	}
+	if err := os.WriteFile(legacyLogFile, []byte("legacy log"), 0644); err != nil {
+		t.Fatalf("写入 legacy 日志失败：%v", err)
+	}
+
+	got := ExistingSyncLogRelativePath(42)
+	if got != "libs/sync_42.log" {
+		t.Fatalf("ExistingSyncLogRelativePath = %s，期望 libs/sync_42.log", got)
 	}
 }
 

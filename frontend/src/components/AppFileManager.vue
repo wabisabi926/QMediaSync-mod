@@ -22,7 +22,27 @@
         <!-- 左侧：网盘账号列表 -->
         <div class="account-sidebar">
           <div class="sidebar-header">
-            <h3>网盘账号</h3>
+            <div class="sidebar-title-row">
+              <h3>网盘账号</h3>
+              <el-popover
+                trigger="click"
+                placement="bottom-start"
+                :width="240"
+                popper-class="file-manager-summary-popover"
+              >
+                <p class="file-manager-summary-popover-text">
+                  浏览和管理媒体文件，支持 STRM 生成、刮削整理和 ED2K 生成操作
+                </p>
+                <template #reference>
+                  <el-button
+                    class="mobile-file-manager-info hidden-md-and-up"
+                    link
+                    :icon="InfoFilled"
+                    aria-label="页面说明"
+                  />
+                </template>
+              </el-popover>
+            </div>
           </div>
           <div class="account-list">
             <div
@@ -76,7 +96,7 @@
                   <el-select
                     v-model="sortBy"
                     class="file-manager-sort-field"
-                    size="default"
+                    size="small"
                     @change="handleSortChange"
                   >
                     <el-option
@@ -89,7 +109,7 @@
                   <el-select
                     v-model="sortOrder"
                     class="file-manager-sort-order"
-                    size="default"
+                    size="small"
                     @change="handleSortChange"
                   >
                     <el-option label="升序" value="asc" />
@@ -98,6 +118,7 @@
                 </template>
                 <el-button
                   :icon="Refresh"
+                  size="small"
                   :loading="isRefreshing"
                   :disabled="!selectedAccountId"
                   @click="handleRefreshFileList"
@@ -107,6 +128,7 @@
                 <el-button
                   type="primary"
                   :icon="FolderAdd"
+                  size="small"
                   @click="openCreateDialog"
                   :disabled="!selectedAccountId"
                 >
@@ -328,7 +350,7 @@ import {
   useTemplateRef,
 } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { ArrowDown, Files, FolderAdd, Refresh } from '@element-plus/icons-vue'
+import { ArrowDown, Files, FolderAdd, InfoFilled, Refresh } from '@element-plus/icons-vue'
 import type { FileSystemItem, FileOperationType, DirInfo } from '@/typing'
 import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
 import { useBackgroundRefresh } from '@/composables/useBackgroundRefresh'
@@ -1299,15 +1321,15 @@ onUnmounted(() => {
   align-items: center;
   justify-content: flex-end;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .file-manager-sort-field {
-  width: 96px;
+  width: 82px;
 }
 
 .file-manager-sort-order {
-  width: 88px;
+  width: 76px;
 }
 
 .sidebar-header {
@@ -1316,11 +1338,36 @@ onUnmounted(() => {
   border-bottom: 1px solid #e4e7ed;
 }
 
+.sidebar-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .sidebar-header h3 {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
   color: #303133;
+}
+
+.mobile-file-manager-info {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: #909399;
+}
+
+:global(.file-manager-summary-popover) {
+  max-width: calc(100vw - 32px);
+}
+
+:global(.file-manager-summary-popover-text) {
+  margin: 0;
+  color: #606266;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .account-list {
@@ -1402,16 +1449,30 @@ onUnmounted(() => {
 @media (max-width: 768px) {
   .file-manager-layout {
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
   }
 
   .account-sidebar {
     width: 100%;
-    max-height: 160px;
+    max-height: 128px;
   }
 
   .file-manager-container {
-    padding: 8px;
+    padding: 6px;
+  }
+
+  .file-manager-container.full-width-container {
+    margin-top: -20px !important;
+    padding-top: 12px !important;
+    padding-bottom: 12px !important;
+  }
+
+  .file-manager-container :deep(.el-card__header) {
+    display: none;
+  }
+
+  .file-manager-container :deep(.el-card__body) {
+    padding: 0 10px 10px;
   }
 
   .card-header {
@@ -1423,27 +1484,57 @@ onUnmounted(() => {
     line-height: 1.4;
   }
 
+  .sidebar-header {
+    padding: 4px 10px 8px;
+  }
+
+  .sidebar-header h3 {
+    font-size: 14px;
+  }
+
   .account-list {
-    max-height: 112px;
+    max-height: 82px;
   }
 
   .account-item {
-    padding: 10px 12px;
+    padding: 7px 10px;
+  }
+
+  .account-info {
+    gap: 8px;
+  }
+
+  .account-icon {
+    font-size: 18px;
+  }
+
+  .account-name {
+    margin-bottom: 2px;
   }
 
   .file-content {
-    padding: 12px;
+    padding: 8px;
     min-height: 55vh;
   }
 
   .file-manager-toolbar {
     align-items: flex-start;
     flex-direction: column;
+    gap: 8px;
+    margin-bottom: 10px;
   }
 
   .file-manager-toolbar-actions {
     justify-content: flex-start;
     width: 100%;
+  }
+
+  .file-manager-sort-field {
+    width: 76px;
+  }
+
+  .file-manager-sort-order {
+    width: 70px;
   }
 }
 

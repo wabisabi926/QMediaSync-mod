@@ -584,7 +584,7 @@ onUnmounted(() => {
     justify-content: space-between;
     background-color: #fff;
     padding: 10px 15px;
-    margin: -10px -10px 20px -10px;
+    margin: -10px -10px 8px -10px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     border-radius: 0 0 8px 8px;
   }
@@ -663,7 +663,7 @@ onUnmounted(() => {
 
   .mobile-header {
     padding: 8px 12px;
-    margin: -8px -8px 15px -8px;
+    margin: -8px -8px 8px -8px;
   }
 
   .page-title {

@@ -92,7 +92,7 @@
                 </el-breadcrumb-item>
               </el-breadcrumb>
               <div class="file-manager-toolbar-actions">
-                <template v-if="supportedSortFields.length > 1">
+                <template v-if="isFileManagerSortControlVisible && supportedSortFields.length > 1">
                   <el-select
                     v-model="sortBy"
                     class="file-manager-sort-field"
@@ -410,6 +410,9 @@ interface LoadFileListOptions {
 const netFileSortFields = ['default', 'name', 'time', 'size', 'type'] as const
 const netFileSortOrders = ['asc', 'desc'] as const
 const fileManagerPageSizes = [50, 100, 200, 500] as const
+// 115 Open API 当前返回顺序与排序参数不一致，OpenList 也只使用默认顺序；
+// 排序控件先整体隐藏，待后端全量排序视图缓存完成后再恢复。
+const isFileManagerSortControlVisible = false
 
 function isNetFileSortBy(value: unknown): value is NetFileSortBy {
   return typeof value === 'string' && netFileSortFields.includes(value as NetFileSortBy)
@@ -883,16 +886,20 @@ async function loadFileList(options: LoadFileListOptions = {}) {
       const currentItemId =
         pathItems.value.length > 0 ? pathItems.value[pathItems.value.length - 1].id : ''
 
+      const requestParams: Record<string, string | number> = {
+        account_id: accountId,
+        path: currentItemId,
+        page: currentPage.value,
+        page_size: pageSize.value,
+        refresh: options.refresh ? 1 : 0,
+      }
+      if (isFileManagerSortControlVisible) {
+        requestParams.sort_by = sortBy.value
+        requestParams.sort_order = sortOrder.value
+      }
+
       const response = await http.get(`${SERVER_URL}/path/files`, {
-        params: {
-          account_id: accountId,
-          path: currentItemId,
-          page: currentPage.value,
-          page_size: pageSize.value,
-          refresh: options.refresh ? 1 : 0,
-          sort_by: sortBy.value,
-          sort_order: sortOrder.value,
-        },
+        params: requestParams,
         timeout: 60000,
       })
 

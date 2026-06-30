@@ -113,7 +113,7 @@ func SyncTaskStream(c *gin.Context) {
 	}
 	task = latestTask
 
-	fullLogPath := models.SyncLogFullPath(task.ID)
+	fullLogPath := models.ExistingSyncLogFullPath(task.ID)
 	logs, cursor, err := logstream.ReadTailEntries(fullLogPath, 1000)
 	if err != nil {
 		_ = writeSyncTaskStreamMessage(conn, syncTaskStreamMessage{

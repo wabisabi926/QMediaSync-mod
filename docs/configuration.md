@@ -74,6 +74,8 @@ emby302:
 | `log.web` | `logs/web.log` | 预留 Web 日志配置。 |
 | `log.syncLogDir` | `logs/sync` | 同步任务独立日志目录配置。 |
 
+同步任务日志文件名为 `sync_<任务 ID>.log`，默认写入 `logs/sync`。旧版本写入的 `logs/libs/sync_<任务 ID>.log` 仍可在任务详情和日志接口中读取；新启动不再主动创建空的 `logs/libs` 目录。
+
 当前自定义 `QLogger` 不提供运行时日志等级过滤；`Info`、`Warn`、`Error`、`Debug` 和显式敏感 `SensitiveDebug` 都会写入对应日志。日志前缀用于区分等级，但不会因为运行模式自动屏蔽 `Debug`。`gin.ReleaseMode` 只影响 Gin 自身模式，不控制 `QLogger` 的输出。
 
 运行日志默认会在写入前完全脱敏常见敏感字段，包括 `api_key`、`X-Emby-Token`、`Authorization`、`X-Emby-Authorization`、`X-API-Key`、`password`、`access_token`、`refresh_token`、`AccessKeySecret`、`SecurityToken`、`Cookie` 等。普通 `Info`、`Warn`、`Error` 和 `Debug` 日志都会执行脱敏，不保留敏感值开头或结尾字符。脱敏后的敏感值统一显示为 `******`。

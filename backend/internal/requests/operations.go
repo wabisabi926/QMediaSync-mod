@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
 	"qmediasync/internal/validation"
 )
@@ -518,7 +519,7 @@ func validateLogPath(path string) error {
 	}
 	rawPath := strings.TrimSpace(path)
 	if strings.Contains(rawPath, `\`) {
-		return validation.New("path", "只能是日志文件名或 libs 下的日志文件")
+		return validation.New("path", "只能是日志文件名或同步任务日志目录下的日志文件")
 	}
 	for _, part := range strings.Split(rawPath, "/") {
 		if part == "." || part == ".." {
@@ -531,10 +532,27 @@ func validateLogPath(path string) error {
 	if len(parts) == 1 {
 		return validateLogFileName(parts[0])
 	}
-	if len(parts) == 2 && parts[0] == "libs" {
-		return validateLogFileName(parts[1])
+	if isLogPathInDir(parts, helpers.SyncLogRelativeDir()) || isLogPathInDir(parts, helpers.LegacySyncLogRelativeDir()) {
+		return validateLogFileName(parts[len(parts)-1])
 	}
-	return validation.New("path", "只能是日志文件名或 libs 下的日志文件")
+	return validation.New("path", "只能是日志文件名或同步任务日志目录下的日志文件")
+}
+
+func isLogPathInDir(parts []string, dir string) bool {
+	dir = strings.Trim(strings.TrimSpace(filepath.ToSlash(filepath.Clean(dir))), "/")
+	if dir == "" || dir == "." {
+		return len(parts) == 1
+	}
+	dirParts := strings.Split(dir, "/")
+	if len(parts) != len(dirParts)+1 {
+		return false
+	}
+	for i, part := range dirParts {
+		if parts[i] != part {
+			return false
+		}
+	}
+	return true
 }
 
 func validateLogFileName(name string) error {

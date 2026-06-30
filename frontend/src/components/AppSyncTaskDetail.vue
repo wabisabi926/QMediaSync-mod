@@ -173,7 +173,7 @@ const { task, logs, loading, connected, errorMessage, logPath, reconnect, discon
   useSyncTaskStream(taskId)
 const { downloadLogFile } = useLogFileActions()
 
-const resolvedLogPath = computed(() => logPath.value || `libs/sync_${taskId.value}.log`)
+const resolvedLogPath = computed(() => logPath.value || `sync/sync_${taskId.value}.log`)
 
 const downloadTaskLogs = () => {
   downloadLogFile(resolvedLogPath.value, {

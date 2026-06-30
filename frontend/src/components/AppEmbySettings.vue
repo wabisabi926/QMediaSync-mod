@@ -733,6 +733,7 @@ import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { computed, inject, onMounted, ref, reactive, onBeforeUnmount, useTemplateRef } from 'vue'
 import ResponsiveActionBar from '@/components/common/ResponsiveActionBar.vue'
 import { useDeviceType } from '@/composables/useDeviceType'
+import { copyText } from '@/utils/clipboard'
 import { formatMaybeUnixDateTime, formatRelativeTime } from '@/utils/timeUtils'
 
 const http: AxiosStatic | undefined = inject('$http')
@@ -1059,13 +1060,11 @@ const praseEmby = async () => {
 const updateEmbyExample = () => {}
 
 const copyWebhookUrl = async () => {
-  try {
-    await navigator.clipboard.writeText(webhookUrl.value)
+  if (await copyText(webhookUrl.value)) {
     ElMessage.success('Webhook 链接已复制到剪贴板')
-  } catch (error) {
-    console.error('复制失败：', error)
-    ElMessage.error('复制失败，请手动复制')
+    return
   }
+  ElMessage.error('复制失败，请手动复制')
 }
 
 const fetchCronNextTimes = async () => {

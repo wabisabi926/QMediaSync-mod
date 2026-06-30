@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
 	"qmediasync/internal/requests"
 
@@ -66,6 +67,7 @@ func CreateAPIKey(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("创建 API Key 失败：%v", err), Data: nil})
 		return
 	}
+	helpers.AppLogger.Infof("用户 %s（ID：%d）创建了 API Key：%s（ID：%d）", currentUser.Username, currentUser.ID, apiKey.Name, apiKey.ID)
 
 	// 返回包含完整密钥的响应（仅此一次）
 	resp := CreateAPIKeyResponse{
@@ -155,12 +157,19 @@ func DeleteAPIKey(c *gin.Context) {
 		return
 	}
 
+	apiKey, err := models.GetAPIKeyByIDAndUserID(idReq.ID, currentUser.ID)
+	if err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "API Key 不存在或无权限删除", Data: nil})
+		return
+	}
+
 	// 删除 API Key（确保只能删除自己的）
 	err = models.DeleteAPIKey(idReq.ID, currentUser.ID)
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("删除 API Key 失败：%v", err), Data: nil})
 		return
 	}
+	helpers.AppLogger.Infof("用户 %s（ID：%d）删除了 API Key：%s（ID：%d）", currentUser.Username, currentUser.ID, apiKey.Name, apiKey.ID)
 
 	c.JSON(http.StatusOK, APIResponse[any]{
 		Code:    Success,
@@ -207,6 +216,12 @@ func UpdateAPIKeyStatus(c *gin.Context) {
 		return
 	}
 
+	apiKey, err := models.GetAPIKeyByIDAndUserID(idReq.ID, currentUser.ID)
+	if err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "API Key 不存在或无权限更新", Data: nil})
+		return
+	}
+
 	// 更新 API Key 状态（确保只能更新自己的）
 	err = models.UpdateAPIKeyStatus(idReq.ID, currentUser.ID, *req.IsActive)
 	if err != nil {
@@ -218,6 +233,7 @@ func UpdateAPIKeyStatus(c *gin.Context) {
 	if *req.IsActive {
 		statusText = "启用"
 	}
+	helpers.AppLogger.Infof("用户 %s（ID：%d）已%s API Key：%s（ID：%d）", currentUser.Username, currentUser.ID, statusText, apiKey.Name, apiKey.ID)
 
 	c.JSON(http.StatusOK, APIResponse[any]{
 		Code:    Success,

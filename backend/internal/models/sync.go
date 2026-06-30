@@ -72,12 +72,30 @@ type Sync struct {
 
 // SyncLogRelativePath 返回前端日志接口使用的同步任务日志相对路径。
 func SyncLogRelativePath(syncID uint) string {
-	return filepath.ToSlash(filepath.Join("libs", fmt.Sprintf("sync_%d.log", syncID)))
+	return filepath.ToSlash(filepath.Join(helpers.SyncLogRelativeDir(), helpers.SyncLogFileName(syncID)))
 }
 
 // SyncLogFullPath 返回同步任务日志完整路径。
 func SyncLogFullPath(syncID uint) string {
-	return filepath.Join(helpers.ConfigDir, "logs", "libs", fmt.Sprintf("sync_%d.log", syncID))
+	return filepath.Join(helpers.ConfigDir, helpers.SyncLogDir(), helpers.SyncLogFileName(syncID))
+}
+
+// LegacySyncLogFullPath 返回历史同步任务日志完整路径。
+func LegacySyncLogFullPath(syncID uint) string {
+	return filepath.Join(helpers.ConfigDir, "logs", helpers.LegacySyncLogRelativeDir(), helpers.SyncLogFileName(syncID))
+}
+
+// ExistingSyncLogFullPath 返回当前日志路径；当前路径不存在时兼容读取历史 logs/libs 路径。
+func ExistingSyncLogFullPath(syncID uint) string {
+	logFile := SyncLogFullPath(syncID)
+	if _, err := os.Stat(logFile); err == nil {
+		return logFile
+	}
+	legacyLogFile := LegacySyncLogFullPath(syncID)
+	if _, err := os.Stat(legacyLogFile); err == nil {
+		return legacyLogFile
+	}
+	return logFile
 }
 
 // SyncTaskEventPayload 生成同步任务结构化事件数据。
@@ -259,9 +277,9 @@ func (s *Sync) UpdateSubStatus(subStatus SyncSubStatus) bool {
 }
 
 func (s *Sync) InitLogger() {
-	logDir := filepath.Join(helpers.ConfigDir, "logs", "libs")
+	logDir := filepath.Join(helpers.ConfigDir, helpers.SyncLogDir())
 	os.MkdirAll(logDir, 0755)
-	logFileName := filepath.Join("logs", "libs", fmt.Sprintf("sync_%d.log", s.ID))
+	logFileName := filepath.Join(helpers.SyncLogDir(), helpers.SyncLogFileName(s.ID))
 	s.Logger = helpers.NewLogger(logFileName, true, false)
 	s.Logger.Infof("创建同步日志文件：%s", logFileName)
 }
@@ -361,6 +379,7 @@ func DeleteSyncRecordById(id uint) error {
 	// 删除相关的日志和同步结果文件
 	logFile := SyncLogFullPath(id)
 	os.Remove(logFile)
+	os.Remove(LegacySyncLogFullPath(id))
 	helpers.AppLogger.Infof("删除同步记录成功：%d", id)
 	return nil
 

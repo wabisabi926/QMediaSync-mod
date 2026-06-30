@@ -127,6 +127,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, Delete, CopyDocument } from '@element-plus/icons-vue'
 import type { AxiosStatic } from 'axios'
 import { SERVER_URL } from '@/const'
+import { copyText } from '@/utils/clipboard'
 import { formatDateTime } from '@/utils/timeUtils'
 import { isMobile } from '@/utils/deviceUtils'
 
@@ -268,13 +269,11 @@ const confirmDelete = async (row: ApiKey) => {
 
 const copyContent = async (content?: string) => {
   if (!content) return
-  try {
-    await navigator.clipboard.writeText(content)
+  if (await copyText(content)) {
     ElMessage.success('已复制到剪贴板')
-  } catch (error) {
-    console.error('复制失败：', error)
-    ElMessage.error('复制失败，请手动复制')
+    return
   }
+  ElMessage.error('复制失败，请手动复制')
 }
 
 onMounted(() => {

@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"testing"
 
+	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
 )
 
@@ -200,6 +201,8 @@ func TestQueueRequestValidate(t *testing.T) {
 }
 
 func TestLogRequestValidate(t *testing.T) {
+	helpers.GlobalConfig.Log.SyncLogDir = "logs/sync"
+
 	t.Run("旧日志请求通过", func(t *testing.T) {
 		req := OldLogsRequest{Path: "app.log", Limit: 100, Direction: "forward"}
 		if err := req.Validate(); err != nil {
@@ -215,6 +218,13 @@ func TestLogRequestValidate(t *testing.T) {
 	})
 
 	t.Run("同步任务日志子目录通过", func(t *testing.T) {
+		req := OldLogsRequest{Path: "sync/sync_5.log", Limit: 100, Direction: "forward"}
+		if err := req.Validate(); err != nil {
+			t.Fatalf("Validate() error = %v", err)
+		}
+	})
+
+	t.Run("旧同步任务日志子目录兼容通过", func(t *testing.T) {
 		req := OldLogsRequest{Path: "libs/sync_5.log", Limit: 100, Direction: "forward"}
 		if err := req.Validate(); err != nil {
 			t.Fatalf("Validate() error = %v", err)
@@ -222,7 +232,7 @@ func TestLogRequestValidate(t *testing.T) {
 	})
 
 	t.Run("日志多级子目录失败", func(t *testing.T) {
-		req := OldLogsRequest{Path: "libs/nested/sync_5.log", Limit: 100, Direction: "forward"}
+		req := OldLogsRequest{Path: "sync/nested/sync_5.log", Limit: 100, Direction: "forward"}
 		if err := req.Validate(); err == nil {
 			t.Fatal("Validate() error = nil, want error")
 		}

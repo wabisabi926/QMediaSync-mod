@@ -462,8 +462,8 @@ func startEmby302() {
 func initLogger() {
 	logPath := filepath.Join(helpers.ConfigDir, "logs")
 	os.MkdirAll(logPath, 0755) // 如果没有 logs 目录则创建
-	libLogPath := filepath.Join(logPath, "libs")
-	os.MkdirAll(libLogPath, 0755) // 如果没有 logs/libs 目录则创建
+	syncLogPath := filepath.Join(helpers.ConfigDir, helpers.SyncLogDir())
+	os.MkdirAll(syncLogPath, 0755) // 如果没有同步任务日志目录则创建
 	helpers.AppLogger = helpers.NewLogger(helpers.GlobalConfig.Log.File, true, true)
 	helpers.V115Log = helpers.NewLogger(helpers.GlobalConfig.Log.V115, false, true)
 	helpers.OpenListLog = helpers.NewLogger(helpers.GlobalConfig.Log.OpenList, false, true)

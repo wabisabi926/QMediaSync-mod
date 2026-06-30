@@ -86,8 +86,6 @@ func CreateAPIKey(userID uint, name string) (*ApiKey, string, error) {
 		return nil, "", err
 	}
 
-	helpers.AppLogger.Infof("用户 %d 创建了 API Key：%s（ID：%d）", userID, name, apiKey.ID)
-
 	// 返回完整的原始密钥（仅此一次）
 	return apiKey, rawKey, nil
 }
@@ -136,6 +134,16 @@ func GetAPIKeyByID(id uint) (*ApiKey, error) {
 	return &apiKey, nil
 }
 
+// GetAPIKeyByIDAndUserID 根据 ID 和用户 ID 获取 API Key。
+func GetAPIKeyByIDAndUserID(id uint, userID uint) (*ApiKey, error) {
+	var apiKey ApiKey
+	result := db.Db.Where("id = ? AND user_id = ?", id, userID).First(&apiKey)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &apiKey, nil
+}
+
 // DeleteAPIKey 删除 API Key
 func DeleteAPIKey(id uint, userID uint) error {
 	// 确保只能删除自己的 API Key
@@ -147,7 +155,6 @@ func DeleteAPIKey(id uint, userID uint) error {
 	if result.RowsAffected == 0 {
 		return fmt.Errorf("API Key 不存在或无权限删除")
 	}
-	helpers.AppLogger.Infof("用户 %d 删除了 API Key ID：%d", userID, id)
 	return nil
 }
 
@@ -162,10 +169,5 @@ func UpdateAPIKeyStatus(id uint, userID uint, isActive bool) error {
 	if result.RowsAffected == 0 {
 		return fmt.Errorf("API Key 不存在或无权限更新")
 	}
-	statusText := "禁用"
-	if isActive {
-		statusText = "启用"
-	}
-	helpers.AppLogger.Infof("用户 %d 已%s API Key ID：%d", userID, statusText, id)
 	return nil
 }

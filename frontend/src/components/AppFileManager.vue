@@ -57,14 +57,7 @@
           <!-- 文件列表内容 -->
           <template v-else>
             <!-- 面包屑导航 -->
-            <div
-              style="
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 16px;
-              "
-            >
+            <div class="file-manager-toolbar">
               <el-breadcrumb separator="/">
                 <el-breadcrumb-item @click="navigateToPath(-1)" style="cursor: pointer"
                   >根目录</el-breadcrumb-item
@@ -78,14 +71,48 @@
                   {{ item.name }}
                 </el-breadcrumb-item>
               </el-breadcrumb>
-              <el-button
-                type="primary"
-                :icon="FolderAdd"
-                @click="openCreateDialog"
-                :disabled="!selectedAccountId"
-              >
-                新建文件夹
-              </el-button>
+              <div class="file-manager-toolbar-actions">
+                <template v-if="supportedSortFields.length > 1">
+                  <el-select
+                    v-model="sortBy"
+                    class="file-manager-sort-field"
+                    size="default"
+                    @change="handleSortChange"
+                  >
+                    <el-option
+                      v-for="field in supportedSortFields"
+                      :key="field"
+                      :label="getSortFieldLabel(field)"
+                      :value="field"
+                    />
+                  </el-select>
+                  <el-select
+                    v-model="sortOrder"
+                    class="file-manager-sort-order"
+                    size="default"
+                    @change="handleSortChange"
+                  >
+                    <el-option label="升序" value="asc" />
+                    <el-option label="降序" value="desc" />
+                  </el-select>
+                </template>
+                <el-button
+                  :icon="Refresh"
+                  :loading="isRefreshing"
+                  :disabled="!selectedAccountId"
+                  @click="handleRefreshFileList"
+                >
+                  刷新
+                </el-button>
+                <el-button
+                  type="primary"
+                  :icon="FolderAdd"
+                  @click="openCreateDialog"
+                  :disabled="!selectedAccountId"
+                >
+                  新建文件夹
+                </el-button>
+              </div>
             </div>
 
             <!-- 桌面端表格 -->
@@ -225,7 +252,7 @@
             <ResponsivePagination
               v-model:current-page="currentPage"
               v-model:page-size="pageSize"
-              :page-sizes="[100, 200, 500]"
+              :page-sizes="[50, 100, 200, 500]"
               :total="total"
               :is-mobile="isMobile"
               @size-change="handlePageSizeChange"
@@ -301,7 +328,7 @@ import {
   useTemplateRef,
 } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { ArrowDown, Files, FolderAdd } from '@element-plus/icons-vue'
+import { ArrowDown, Files, FolderAdd, Refresh } from '@element-plus/icons-vue'
 import type { FileSystemItem, FileOperationType, DirInfo } from '@/typing'
 import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
 import { useBackgroundRefresh } from '@/composables/useBackgroundRefresh'
@@ -331,16 +358,78 @@ interface NetdiskAccount {
   token_failed_reason?: string
 }
 
+type NetFileSortBy = 'default' | 'name' | 'time' | 'size' | 'type'
+type NetFileSortOrder = 'asc' | 'desc'
+
+interface NetFileListCacheMeta {
+  status: 'hit' | 'miss' | 'partial_hit' | 'refresh'
+  batch_start: number
+  batch_size: number
+  cached_at: number
+  expires_at: number
+}
+
 interface NetFileListPayload {
   list: FileSystemItem[]
   total: number
+  total_exact: boolean
+  has_more: boolean
+  page: number
+  page_size: number
+  sort_by: NetFileSortBy
+  sort_order: NetFileSortOrder
+  cache?: NetFileListCacheMeta
 }
 
-function normalizeNetFileListPayload(data: unknown): NetFileListPayload {
+interface LoadFileListOptions {
+  refresh?: boolean
+}
+
+const netFileSortFields = ['default', 'name', 'time', 'size', 'type'] as const
+const netFileSortOrders = ['asc', 'desc'] as const
+const fileManagerPageSizes = [50, 100, 200, 500] as const
+
+function isNetFileSortBy(value: unknown): value is NetFileSortBy {
+  return typeof value === 'string' && netFileSortFields.includes(value as NetFileSortBy)
+}
+
+function isNetFileSortOrder(value: unknown): value is NetFileSortOrder {
+  return typeof value === 'string' && netFileSortOrders.includes(value as NetFileSortOrder)
+}
+
+function isNetFileListCacheMeta(value: unknown): value is NetFileListCacheMeta {
+  if (typeof value !== 'object' || value === null) {
+    return false
+  }
+  const meta = value as Record<string, unknown>
+  return (
+    ['hit', 'miss', 'partial_hit', 'refresh'].includes(String(meta.status)) &&
+    typeof meta.batch_start === 'number' &&
+    typeof meta.batch_size === 'number' &&
+    typeof meta.cached_at === 'number' &&
+    typeof meta.expires_at === 'number'
+  )
+}
+
+function normalizeNetFileListPayload(
+  data: unknown,
+  fallback: {
+    page: number
+    pageSize: number
+    sortBy: NetFileSortBy
+    sortOrder: NetFileSortOrder
+  },
+): NetFileListPayload {
   if (Array.isArray(data)) {
     return {
       list: data as FileSystemItem[],
       total: data.length,
+      total_exact: true,
+      has_more: false,
+      page: fallback.page,
+      page_size: fallback.pageSize,
+      sort_by: fallback.sortBy,
+      sort_order: fallback.sortOrder,
     }
   }
 
@@ -348,6 +437,12 @@ function normalizeNetFileListPayload(data: unknown): NetFileListPayload {
     return {
       list: [],
       total: 0,
+      total_exact: true,
+      has_more: false,
+      page: fallback.page,
+      page_size: fallback.pageSize,
+      sort_by: fallback.sortBy,
+      sort_order: fallback.sortOrder,
     }
   }
 
@@ -358,6 +453,13 @@ function normalizeNetFileListPayload(data: unknown): NetFileListPayload {
   return {
     list,
     total: Math.max(total, list.length),
+    total_exact: typeof payload.total_exact === 'boolean' ? payload.total_exact : true,
+    has_more: typeof payload.has_more === 'boolean' ? payload.has_more : total > list.length,
+    page: typeof payload.page === 'number' ? payload.page : fallback.page,
+    page_size: typeof payload.page_size === 'number' ? payload.page_size : fallback.pageSize,
+    sort_by: isNetFileSortBy(payload.sort_by) ? payload.sort_by : fallback.sortBy,
+    sort_order: isNetFileSortOrder(payload.sort_order) ? payload.sort_order : fallback.sortOrder,
+    cache: isNetFileListCacheMeta(payload.cache) ? payload.cache : undefined,
   }
 }
 
@@ -365,13 +467,18 @@ function normalizeNetFileListPayload(data: unknown): NetFileListPayload {
 const pageStateStore = usePageStateStore()
 const pageState = pageStateStore.getPageState('file-manager', {
   currentPage: 1,
-  pageSize: 100,
+  pageSize: 50,
   filters: {
     currentPath: '',
     pathItems: '[]',
     selectedAccountId: null,
+    sortBy: 'name',
+    sortOrder: 'asc',
   },
 })
+if (!fileManagerPageSizes.includes(pageState.pageSize as (typeof fileManagerPageSizes)[number])) {
+  pageStateStore.setPagination('file-manager', pageState.currentPage, 50)
+}
 const { initialLoading, isRefreshing, runRefresh } = useBackgroundRefresh()
 const pageContainerRef = useTemplateRef<HTMLElement>('pageContainerRef')
 const getPageScrollContainer = () =>
@@ -401,7 +508,31 @@ const selectedAccountId = computed<number | null>({
   },
   set: (value) => pageStateStore.setFilter('file-manager', 'selectedAccountId', value),
 })
-const pendingFileListRefresh = ref(false)
+const selectedAccount = computed(() =>
+  accountList.value.find((account) => account.id === selectedAccountId.value),
+)
+const supportedSortFields = computed(() =>
+  getSupportedSortFields(selectedAccount.value?.source_type),
+)
+const defaultSortByForSelectedAccount = computed<NetFileSortBy>(() => {
+  const fields = supportedSortFields.value
+  return fields[0] ?? 'name'
+})
+const sortBy = computed<NetFileSortBy>({
+  get: () => {
+    const stored = pageState.filters.sortBy
+    if (isNetFileSortBy(stored) && supportedSortFields.value.includes(stored)) {
+      return stored
+    }
+    return defaultSortByForSelectedAccount.value
+  },
+  set: (value) => pageStateStore.setFilter('file-manager', 'sortBy', value),
+})
+const sortOrder = computed<NetFileSortOrder>({
+  get: () => (isNetFileSortOrder(pageState.filters.sortOrder) ? pageState.filters.sortOrder : 'asc'),
+  set: (value) => pageStateStore.setFilter('file-manager', 'sortOrder', value),
+})
+const pendingFileListRefresh = ref<LoadFileListOptions | null>(null)
 let isPageActive = false
 const accountListRequestGate = createActiveRequestGate(() => isPageActive)
 const fileListRequestGate = createActiveRequestGate(() => isPageActive)
@@ -479,9 +610,7 @@ function getCurrentParentPath() {
 }
 
 function getSelectedAccount() {
-  return selectedAccountId.value
-    ? accountList.value.find((account) => account.id === selectedAccountId.value)
-    : undefined
+  return selectedAccount.value
 }
 
 function createFileOperationContextSnapshot(): FileOperationContextSnapshot {
@@ -665,8 +794,38 @@ function getAccountTypeName(sourceType: string): string {
   }
 }
 
+function getSupportedSortFields(sourceType?: NetdiskAccount['source_type']): NetFileSortBy[] {
+  switch (sourceType) {
+    case '115':
+      return ['name', 'size', 'time', 'type']
+    case 'baidupan':
+      return ['name', 'size', 'time']
+    case 'openlist':
+      return ['default']
+    default:
+      return ['name']
+  }
+}
+
+function getSortFieldLabel(field: NetFileSortBy): string {
+  switch (field) {
+    case 'default':
+      return '默认'
+    case 'name':
+      return '名称'
+    case 'time':
+      return '时间'
+    case 'size':
+      return '大小'
+    case 'type':
+      return '类型'
+    default:
+      return field
+  }
+}
+
 // 加载文件列表
-async function loadFileList() {
+async function loadFileList(options: LoadFileListOptions = {}) {
   if (!isPageActive) {
     return
   }
@@ -674,7 +833,9 @@ async function loadFileList() {
   const requestId = fileListRequestGate.next()
 
   if (isRefreshing.value) {
-    pendingFileListRefresh.value = true
+    pendingFileListRefresh.value = {
+      refresh: pendingFileListRefresh.value?.refresh === true || options.refresh === true,
+    }
     return
   }
 
@@ -706,6 +867,9 @@ async function loadFileList() {
           path: currentItemId,
           page: currentPage.value,
           page_size: pageSize.value,
+          refresh: options.refresh ? 1 : 0,
+          sort_by: sortBy.value,
+          sort_order: sortOrder.value,
         },
         timeout: 60000,
       })
@@ -715,9 +879,24 @@ async function loadFileList() {
       }
 
       if (response?.data.code === 200) {
-        const { list: items, total: responseTotal } = normalizeNetFileListPayload(
-          response.data.data,
-        )
+        const {
+          list: items,
+          total: responseTotal,
+          sort_by: responseSortBy,
+          sort_order: responseSortOrder,
+        } = normalizeNetFileListPayload(response.data.data, {
+          page: currentPage.value,
+          pageSize: pageSize.value,
+          sortBy: sortBy.value,
+          sortOrder: sortOrder.value,
+        })
+
+        const pageStart = (currentPage.value - 1) * pageSize.value
+        if (responseTotal > 0 && pageStart >= responseTotal) {
+          pageStateStore.setPagination('file-manager', 1, pageSize.value)
+          await loadFileList({ refresh: options.refresh })
+          return
+        }
 
         const rows = items.map((item: FileSystemItem) => ({
           id: item.id,
@@ -739,6 +918,8 @@ async function loadFileList() {
           ),
         )
         total.value = responseTotal
+        sortBy.value = responseSortBy
+        sortOrder.value = responseSortOrder
       } else {
         console.error('加载文件列表失败：', response?.data.message || '未知错误')
         fileList.value = []
@@ -752,8 +933,9 @@ async function loadFileList() {
     ElMessage.error('加载文件列表失败')
   } finally {
     if (pendingFileListRefresh.value && isPageActive) {
-      pendingFileListRefresh.value = false
-      await loadFileList()
+      const pendingOptions = pendingFileListRefresh.value
+      pendingFileListRefresh.value = null
+      await loadFileList(pendingOptions)
     }
   }
 }
@@ -766,6 +948,15 @@ function loadFileListForContextSwitch() {
 function loadFileListForPageChange() {
   clearFileListForPageChange()
   loadFileList()
+}
+
+async function handleRefreshFileList() {
+  await loadFileList({ refresh: true })
+}
+
+function handleSortChange() {
+  pageStateStore.setPagination('file-manager', 1, pageState.pageSize)
+  loadFileListForContextSwitch()
 }
 
 // 导航到指定路径
@@ -882,7 +1073,7 @@ async function handleDeleteItem(item: FileSystemItem) {
 
     if (response?.data.code === 200) {
       ElMessage.success('删除成功')
-      loadFileList()
+      await loadFileList({ refresh: true })
     } else {
       ElMessage.error(response?.data.message || '删除失败')
     }
@@ -949,7 +1140,7 @@ async function handleCreateDirectory() {
     if (response?.data.code === 200) {
       ElMessage.success('创建文件夹成功')
       resetCreateDirectoryDialog()
-      loadFileList()
+      await loadFileList({ refresh: true })
     } else {
       ElMessage.error(response?.data.message || '创建文件夹失败')
     }
@@ -1033,7 +1224,7 @@ async function activateFileManagerPage() {
 
 function deactivateFileManagerPage() {
   isPageActive = false
-  pendingFileListRefresh.value = false
+  pendingFileListRefresh.value = null
   accountListRequestGate.invalidate()
   fileListRequestGate.invalidate()
   invalidateFileOperationContext()
@@ -1093,6 +1284,30 @@ onUnmounted(() => {
   background: #fff;
   border-radius: 4px;
   padding: 20px;
+}
+
+.file-manager-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.file-manager-toolbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.file-manager-sort-field {
+  width: 96px;
+}
+
+.file-manager-sort-order {
+  width: 88px;
 }
 
 .sidebar-header {
@@ -1219,6 +1434,16 @@ onUnmounted(() => {
   .file-content {
     padding: 12px;
     min-height: 55vh;
+  }
+
+  .file-manager-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .file-manager-toolbar-actions {
+    justify-content: flex-start;
+    width: 100%;
   }
 }
 

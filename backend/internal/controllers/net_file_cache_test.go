@@ -49,11 +49,60 @@ func TestNetFileBatchCacheInvalidateView(t *testing.T) {
 func TestNetFileBatchCacheInvalidatePath(t *testing.T) {
 	cache := newNetFileBatchCache(10, time.Minute)
 	now := time.Now()
-	cache.Set(netFileBatchCacheKey{SourceType: "115", AccountID: 1, Path: "0", SortBy: "name", SortOrder: "asc", BatchStart: 0, BatchSize: 1000}, netFileBatch{}, now)
-	cache.Set(netFileBatchCacheKey{SourceType: "115", AccountID: 1, Path: "0", SortBy: "time", SortOrder: "desc", BatchStart: 0, BatchSize: 1000}, netFileBatch{}, now)
+	nameAsc := netFileBatchCacheKey{SourceType: "115", AccountID: 1, Path: "0", SortBy: "name", SortOrder: "asc", BatchStart: 0, BatchSize: 1000}
+	timeDesc := netFileBatchCacheKey{SourceType: "115", AccountID: 1, Path: "0", SortBy: "time", SortOrder: "desc", BatchStart: 0, BatchSize: 1000}
+	nameGeneration := cache.Generation(nameAsc)
+	timeGeneration := cache.Generation(timeDesc)
+	cache.Set(nameAsc, netFileBatch{}, now)
+	cache.Set(timeDesc, netFileBatch{}, now)
 	cache.InvalidatePath("115", 1, "0")
 	if cache.Len() != 0 {
 		t.Fatalf("Len = %d, want 0", cache.Len())
+	}
+	if cache.Generation(nameAsc) <= nameGeneration {
+		t.Fatal("name asc view generation 未随路径失效推进")
+	}
+	if cache.Generation(timeDesc) <= timeGeneration {
+		t.Fatal("time desc view generation 未随路径失效推进")
+	}
+	if ok := cache.SetIfGeneration(nameAsc, netFileBatch{Items: []*FileItem{{Id: "old"}}}, now, nameGeneration); ok {
+		t.Fatal("路径失效前开始的旧请求不应重新写入缓存")
+	}
+}
+
+func TestNetFileBatchCacheInvalidatePathTree(t *testing.T) {
+	cache := newNetFileBatchCache(10, time.Minute)
+	now := time.Now()
+	parent := netFileBatchCacheKey{SourceType: "openlist", AccountID: 1, Path: "/", SortBy: "default", SortOrder: "asc", Filter: "none", BatchStart: 0, BatchSize: 500}
+	target := netFileBatchCacheKey{SourceType: "openlist", AccountID: 1, Path: "/Movies", SortBy: "default", SortOrder: "asc", Filter: "none", BatchStart: 0, BatchSize: 500}
+	child := netFileBatchCacheKey{SourceType: "openlist", AccountID: 1, Path: "/Movies/Season 1", SortBy: "default", SortOrder: "asc", Filter: "none", BatchStart: 0, BatchSize: 500}
+	sibling := netFileBatchCacheKey{SourceType: "openlist", AccountID: 1, Path: "/Movies2", SortBy: "default", SortOrder: "asc", Filter: "none", BatchStart: 0, BatchSize: 500}
+	targetGeneration := cache.Generation(target)
+	childGeneration := cache.Generation(child)
+
+	cache.Set(parent, netFileBatch{}, now)
+	cache.Set(target, netFileBatch{}, now)
+	cache.Set(child, netFileBatch{}, now)
+	cache.Set(sibling, netFileBatch{}, now)
+
+	cache.InvalidatePathTree("openlist", 1, "/Movies")
+	if _, ok := cache.Get(target, now); ok {
+		t.Fatal("被删目录缓存仍存在")
+	}
+	if _, ok := cache.Get(child, now); ok {
+		t.Fatal("被删目录子路径缓存仍存在")
+	}
+	if _, ok := cache.Get(parent, now); !ok {
+		t.Fatal("父目录缓存不应由路径树失效清理")
+	}
+	if _, ok := cache.Get(sibling, now); !ok {
+		t.Fatal("相似前缀兄弟目录缓存不应被清理")
+	}
+	if cache.Generation(target) <= targetGeneration {
+		t.Fatal("被删目录 generation 未推进")
+	}
+	if cache.Generation(child) <= childGeneration {
+		t.Fatal("子路径 generation 未推进")
 	}
 }
 

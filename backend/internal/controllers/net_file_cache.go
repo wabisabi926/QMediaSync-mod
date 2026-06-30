@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -27,6 +28,12 @@ type netFileBatchCacheViewKey struct {
 	Filter     string
 }
 
+type netFileBatchCachePathKey struct {
+	SourceType string
+	AccountID  uint
+	Path       string
+}
+
 type netFileBatch struct {
 	Items      []*FileItem
 	Total      int64
@@ -42,6 +49,8 @@ type netFileBatchCache struct {
 	ttl      time.Duration
 	items    map[netFileBatchCacheKey]netFileBatch
 	views    map[netFileBatchCacheViewKey]uint64
+	paths    map[netFileBatchCachePathKey]uint64
+	trees    map[netFileBatchCachePathKey]uint64
 	order    []netFileBatchCacheKey
 }
 
@@ -57,6 +66,8 @@ func newNetFileBatchCache(maxItems int, ttl time.Duration) *netFileBatchCache {
 		ttl:      ttl,
 		items:    make(map[netFileBatchCacheKey]netFileBatch),
 		views:    make(map[netFileBatchCacheViewKey]uint64),
+		paths:    make(map[netFileBatchCachePathKey]uint64),
+		trees:    make(map[netFileBatchCachePathKey]uint64),
 		order:    make([]netFileBatchCacheKey, 0, maxItems),
 	}
 }
@@ -87,7 +98,7 @@ func (c *netFileBatchCache) SetIfGeneration(key netFileBatchCacheKey, batch netF
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.generationLocked(key.viewKey()) != generation {
+	if c.generationLocked(key) != generation {
 		return false
 	}
 	c.setLocked(key, batch, now)
@@ -98,7 +109,7 @@ func (c *netFileBatchCache) Generation(key netFileBatchCacheKey) uint64 {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	return c.generationLocked(key.viewKey())
+	return c.generationLocked(key)
 }
 
 func (c *netFileBatchCache) setLocked(key netFileBatchCacheKey, batch netFileBatch, now time.Time) {
@@ -142,8 +153,31 @@ func (c *netFileBatchCache) InvalidatePath(sourceType string, accountID uint, pa
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	c.paths[netFileBatchCachePathKey{
+		SourceType: sourceType,
+		AccountID:  accountID,
+		Path:       path,
+	}]++
 	for key := range c.items {
 		if key.SourceType == sourceType && key.AccountID == accountID && key.Path == path {
+			c.deleteLocked(key)
+		}
+	}
+}
+
+func (c *netFileBatchCache) InvalidatePathTree(sourceType string, accountID uint, path string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.trees[netFileBatchCachePathKey{
+		SourceType: sourceType,
+		AccountID:  accountID,
+		Path:       path,
+	}]++
+	for key := range c.items {
+		if key.SourceType == sourceType &&
+			key.AccountID == accountID &&
+			netFileCachePathInTree(key.Path, path) {
 			c.deleteLocked(key)
 		}
 	}
@@ -166,8 +200,16 @@ func (c *netFileBatchCache) deleteLocked(key netFileBatchCacheKey) {
 	}
 }
 
-func (c *netFileBatchCache) generationLocked(key netFileBatchCacheViewKey) uint64 {
-	return c.views[key]
+func (c *netFileBatchCache) generationLocked(key netFileBatchCacheKey) uint64 {
+	generation := c.views[key.viewKey()] + c.paths[key.pathKey()]
+	for treeKey, treeGeneration := range c.trees {
+		if treeKey.SourceType == key.SourceType &&
+			treeKey.AccountID == key.AccountID &&
+			netFileCachePathInTree(key.Path, treeKey.Path) {
+			generation += treeGeneration
+		}
+	}
+	return generation
 }
 
 func (k netFileBatchCacheKey) viewKey() netFileBatchCacheViewKey {
@@ -179,4 +221,19 @@ func (k netFileBatchCacheKey) viewKey() netFileBatchCacheViewKey {
 		SortOrder:  k.SortOrder,
 		Filter:     k.Filter,
 	}
+}
+
+func (k netFileBatchCacheKey) pathKey() netFileBatchCachePathKey {
+	return netFileBatchCachePathKey{
+		SourceType: k.SourceType,
+		AccountID:  k.AccountID,
+		Path:       k.Path,
+	}
+}
+
+func netFileCachePathInTree(path string, root string) bool {
+	if root == "/" {
+		return path == "/" || strings.HasPrefix(path, "/")
+	}
+	return path == root || strings.HasPrefix(path, root+"/")
 }

@@ -266,32 +266,6 @@ type netFileListPage struct {
 	total int64
 }
 
-type netFileListResponse struct {
-	List     []*FileItem `json:"list"`
-	Total    int64       `json:"total"`
-	Page     int         `json:"page"`
-	PageSize int         `json:"page_size"`
-}
-
-func buildNetFileListResponse(list []*FileItem, total int64, page, pageSize int) netFileListResponse {
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = len(list)
-	}
-	loadedTotal := int64((page-1)*pageSize + len(list))
-	if total < loadedTotal {
-		total = loadedTotal
-	}
-	return netFileListResponse{
-		List:     list,
-		Total:    total,
-		Page:     page,
-		PageSize: pageSize,
-	}
-}
-
 // 返回目录和文件列表
 func GetNetFileList(c *gin.Context) {
 	var req requests.NetFileListRequest

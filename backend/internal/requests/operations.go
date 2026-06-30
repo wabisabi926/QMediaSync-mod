@@ -47,6 +47,25 @@ func (r *PaginationRequest) NormalizeFileList() error {
 	return validation.RangeInt("page_size", r.PageSize, 100, 1150)
 }
 
+// NormalizeNetFileUI 规范化网盘文件浏览器 UI 分页请求。
+func (r *PaginationRequest) NormalizeNetFileUI() error {
+	if r.Page == 0 {
+		r.Page = 1
+	}
+	if r.PageSize == 0 {
+		r.PageSize = 50
+	}
+	if err := validation.RangeInt("page", r.Page, 1, 1<<30); err != nil {
+		return err
+	}
+	switch r.PageSize {
+	case 50, 100, 200, 500:
+		return nil
+	default:
+		return validation.New("page_size", "必须是 50、100、200 或 500")
+	}
+}
+
 // PositiveIDRequest 正 ID 请求。
 type PositiveIDRequest struct {
 	ID uint `json:"id" form:"id"`
@@ -187,6 +206,9 @@ func (r *PathListRequest) Validate() error {
 type NetFileListRequest struct {
 	ParentID  string `json:"parent_id" form:"path"`
 	AccountID uint   `json:"account_id" form:"account_id"`
+	Refresh   bool   `json:"refresh" form:"refresh"`
+	SortBy    string `json:"sort_by" form:"sort_by"`
+	SortOrder string `json:"sort_order" form:"sort_order"`
 	PaginationRequest
 }
 
@@ -195,7 +217,23 @@ func (r *NetFileListRequest) Validate() error {
 	if err := validation.PositiveID("account_id", r.AccountID); err != nil {
 		return err
 	}
-	return r.PaginationRequest.NormalizeFileList()
+	if err := r.PaginationRequest.NormalizeNetFileUI(); err != nil {
+		return err
+	}
+	if r.SortOrder == "" {
+		r.SortOrder = "asc"
+	}
+	switch r.SortBy {
+	case "", "default", "name", "time", "size", "type":
+	default:
+		return validation.New("sort_by", "不支持的排序字段")
+	}
+	switch r.SortOrder {
+	case "asc", "desc":
+	default:
+		return validation.New("sort_order", "不支持的排序方向")
+	}
+	return nil
 }
 
 // CreateDirRequest 创建目录请求。

@@ -27,6 +27,43 @@ func TestPaginationRequestValidate(t *testing.T) {
 	}
 }
 
+func TestNetFileListRequestValidate(t *testing.T) {
+	tests := []struct {
+		name      string
+		req       NetFileListRequest
+		wantPage  int
+		wantSize  int
+		wantSort  string
+		wantOrder string
+		wantErr   bool
+	}{
+		{name: "默认分页和排序方向", req: NetFileListRequest{AccountID: 1}, wantPage: 1, wantSize: 50, wantSort: "", wantOrder: "asc"},
+		{name: "允许 500 每页", req: NetFileListRequest{AccountID: 1, PaginationRequest: PaginationRequest{Page: 2, PageSize: 500}}, wantPage: 2, wantSize: 500, wantSort: "", wantOrder: "asc"},
+		{name: "拒绝旧的 1150 每页", req: NetFileListRequest{AccountID: 1, PaginationRequest: PaginationRequest{Page: 1, PageSize: 1150}}, wantErr: true},
+		{name: "允许刷新", req: NetFileListRequest{AccountID: 1, Refresh: true}, wantPage: 1, wantSize: 50, wantSort: "", wantOrder: "asc"},
+		{name: "拒绝非法排序字段", req: NetFileListRequest{AccountID: 1, SortBy: "bad"}, wantErr: true},
+		{name: "拒绝非法排序方向", req: NetFileListRequest{AccountID: 1, SortOrder: "up"}, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.req.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr {
+				return
+			}
+			if tt.req.Page != tt.wantPage || tt.req.PageSize != tt.wantSize {
+				t.Fatalf("pagination = (%d,%d), want (%d,%d)", tt.req.Page, tt.req.PageSize, tt.wantPage, tt.wantSize)
+			}
+			if tt.req.SortBy != tt.wantSort || tt.req.SortOrder != tt.wantOrder {
+				t.Fatalf("sort = (%s,%s), want (%s,%s)", tt.req.SortBy, tt.req.SortOrder, tt.wantSort, tt.wantOrder)
+			}
+		})
+	}
+}
+
 func TestOperationRequestValidate(t *testing.T) {
 	t.Run("正 ID 通过", func(t *testing.T) {
 		req := PositiveIDRequest{ID: 1}

@@ -21,6 +21,11 @@ type Client struct {
 	accessToken string
 }
 
+type FileListOptions struct {
+	Order string
+	Desc  *int32
+}
+
 // 解析响应
 type RefreshResponse struct {
 	AccessToken  string `json:"access_token"`
@@ -166,6 +171,10 @@ func (c *Client) GetQuota(ctx context.Context) (*openapiclient.Quotaresponse, er
 }
 
 func (c *Client) GetFileList(ctx context.Context, parentPath string, onlyDir int, showEmby int32, start int32, limit int32) ([]*FileInfo, error) {
+	return c.GetFileListWithOptions(ctx, parentPath, onlyDir, showEmby, start, limit, FileListOptions{})
+}
+
+func (c *Client) GetFileListWithOptions(ctx context.Context, parentPath string, onlyDir int, showEmby int32, start int32, limit int32, options FileListOptions) ([]*FileInfo, error) {
 	startStr := fmt.Sprintf("%d", start)
 	onlyDirStr := fmt.Sprintf("%d", onlyDir)
 	if parentPath == "" {
@@ -177,7 +186,21 @@ func (c *Client) GetFileList(ctx context.Context, parentPath string, onlyDir int
 	}
 	// 将所有\转为/
 	parentPath = filepath.ToSlash(parentPath)
-	resp, r, err := c.client.FileinfoApi.Xpanfilelist(ctx).AccessToken(c.accessToken).Web("1").Dir(parentPath).Folder(onlyDirStr).Showempty(showEmby).Start(startStr).Limit(limit).Execute()
+	req := c.client.FileinfoApi.Xpanfilelist(ctx).
+		AccessToken(c.accessToken).
+		Web("1").
+		Dir(parentPath).
+		Folder(onlyDirStr).
+		Showempty(showEmby).
+		Start(startStr).
+		Limit(limit)
+	if options.Order != "" {
+		req = req.Order(options.Order)
+	}
+	if options.Desc != nil {
+		req = req.Desc(*options.Desc)
+	}
+	resp, r, err := req.Execute()
 	// 统一处理错误
 	if herr := c.handleError(err, r, resp); herr != nil {
 		helpers.AppLogger.Warnf("获取百度网盘目录列表失败，目录：%s，错误：%v", parentPath, herr)

@@ -123,6 +123,10 @@ func (c *Client) DirList(path string, forceRoot bool) ([]DirRep, error) {
 
 // 文件列表
 func (c *Client) FileList(ctx context.Context, path string, page int, perPage int) (*FileListResp, error) {
+	return c.FileListWithRefresh(ctx, path, page, perPage, false)
+}
+
+func (c *Client) FileListWithRefresh(ctx context.Context, path string, page int, perPage int, refresh bool) (*FileListResp, error) {
 	path = strings.ReplaceAll(path, "\\", "/")
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
@@ -138,7 +142,7 @@ func (c *Client) FileList(ctx context.Context, path string, page int, perPage in
 		Path:     path,
 		Page:     page,
 		PerPage:  perPage,
-		Refresh:  true,
+		Refresh:  refresh,
 		Password: "",
 	}
 	result := &Resp[FileListResp]{}

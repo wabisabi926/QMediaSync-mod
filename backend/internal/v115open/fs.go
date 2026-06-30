@@ -81,6 +81,11 @@ type MkDirData struct {
 	FileId   string `json:"file_id"`
 }
 
+type FileListOptions struct {
+	Order string
+	Asc   string
+}
+
 func (d *FileDetail) GetFullPath() string {
 	// 生成完整路径
 	baseDir := make([]string, 0, len(d.Paths))
@@ -99,6 +104,10 @@ func (d *FileDetail) GetFullPath() string {
 // showCur bool true-只显示当前目录下的列表，false-查询当前目录以及子目录内的所有列表
 // offset 和 limit 搭配实现分页，limit 最大 1150
 func (c *OpenClient) GetFsList(ctx context.Context, fileId string, showCur bool, onlyDir bool, showDir bool, offset int, limit int) (*FileListResp, error) {
+	return c.GetFsListWithOptions(ctx, fileId, showCur, onlyDir, showDir, offset, limit, FileListOptions{})
+}
+
+func (c *OpenClient) GetFsListWithOptions(ctx context.Context, fileId string, showCur bool, onlyDir bool, showDir bool, offset int, limit int, options FileListOptions) (*FileListResp, error) {
 	data := make(map[string]string)
 	data["cid"] = fileId
 	if limit != 0 {
@@ -118,6 +127,12 @@ func (c *OpenClient) GetFsList(ctx context.Context, fileId string, showCur bool,
 	// 是否只显示文件夹
 	if showDir {
 		data["show_dir"] = "1"
+	}
+	if options.Order != "" {
+		data["o"] = options.Order
+	}
+	if options.Asc != "" {
+		data["asc"] = options.Asc
 	}
 	url := fmt.Sprintf("%s/open/ufile/files", OPEN_BASE_URL)
 	req := c.client.R().SetQueryParams(data).SetMethod("GET")

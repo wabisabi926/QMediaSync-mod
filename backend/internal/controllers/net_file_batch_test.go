@@ -119,3 +119,26 @@ func TestBuildOpenListRemoveTarget(t *testing.T) {
 		})
 	}
 }
+
+func TestJoinOpenListPath(t *testing.T) {
+	tests := []struct {
+		name   string
+		parent string
+		child  string
+		want   string
+	}{
+		{name: "根目录子项不生成双斜杠", parent: "/", child: "Movies", want: "/Movies"},
+		{name: "空父路径按根目录处理", parent: "", child: "Movies", want: "/Movies"},
+		{name: "子目录拼接", parent: "/Media", child: "Movies", want: "/Media/Movies"},
+		{name: "清理父路径末尾斜杠", parent: "/Media/", child: "Movies", want: "/Media/Movies"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := joinOpenListPath(tt.parent, tt.child)
+			if got != tt.want {
+				t.Fatalf("joinOpenListPath(%q, %q) = %q，期望 %q", tt.parent, tt.child, got, tt.want)
+			}
+		})
+	}
+}

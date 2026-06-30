@@ -533,7 +533,7 @@ func fetchOpenListNetFileBatch(ctx context.Context, account *models.Account, par
 				modifiedAt = parsedAt.Unix()
 			}
 			items = append(items, &FileItem{
-				Id:          parentPath + "/" + item.Name,
+				Id:          joinOpenListPath(parentPath, item.Name),
 				IsDirectory: item.IsDir,
 				Name:        item.Name,
 				Size:        item.Size,

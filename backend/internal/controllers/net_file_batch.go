@@ -180,6 +180,14 @@ func normalizeOpenListPath(value string) string {
 	return value
 }
 
+func joinOpenListPath(parentPath string, name string) string {
+	parentPath = normalizeOpenListPath(parentPath)
+	if parentPath == "" {
+		parentPath = "/"
+	}
+	return pathpkg.Join(parentPath, name)
+}
+
 func buildOpenListRemoveTarget(parentID string, fileID string) (string, []string, error) {
 	parentID = normalizeOpenListPath(parentID)
 	fileID = normalizeOpenListPath(fileID)

@@ -160,7 +160,11 @@ func normalizeNetFileCachePath(sourceType models.SourceType, value string) strin
 		}
 		return value
 	case models.SourceTypeBaiduPan, models.SourceTypeOpenList:
-		return normalizeOpenListPath(value)
+		value = normalizeOpenListPath(value)
+		if value == "" {
+			return "/"
+		}
+		return value
 	default:
 		return strings.TrimSpace(value)
 	}

@@ -142,3 +142,27 @@ func TestJoinOpenListPath(t *testing.T) {
 		})
 	}
 }
+
+func TestNormalizeNetFileCachePathUsesSingleRootKey(t *testing.T) {
+	tests := []struct {
+		name       string
+		sourceType models.SourceType
+		path       string
+		want       string
+	}{
+		{name: "OpenList 空路径按根目录缓存", sourceType: models.SourceTypeOpenList, path: "", want: "/"},
+		{name: "OpenList 根路径保持根目录缓存", sourceType: models.SourceTypeOpenList, path: "/", want: "/"},
+		{name: "百度空路径按根目录缓存", sourceType: models.SourceTypeBaiduPan, path: "", want: "/"},
+		{name: "百度根路径保持根目录缓存", sourceType: models.SourceTypeBaiduPan, path: "/", want: "/"},
+		{name: "115 空路径仍按根 CID 缓存", sourceType: models.SourceType115, path: "", want: "0"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := normalizeNetFileCachePath(tt.sourceType, tt.path)
+			if got != tt.want {
+				t.Fatalf("normalizeNetFileCachePath(%s, %q) = %q，期望 %q", tt.sourceType, tt.path, got, tt.want)
+			}
+		})
+	}
+}

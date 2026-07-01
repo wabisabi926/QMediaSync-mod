@@ -207,12 +207,15 @@ func NewSyncStrmFromSyncPath(syncPath *models.SyncPath) *SyncStrm {
 		helpers.AppLogger.Errorf("115 或百度网盘同步路径 %s 未配置 STRM 直连地址", syncPath.RemotePath)
 		return nil
 	}
+	videoExt := syncPath.GetVideoExt()
+	metaExt := syncPath.GetMetaExt()
+	excludeNames := syncPath.GetExcludeNameArr()
 	config := SyncStrmConfig{
 		EnableDownloadMeta:    int64(syncPath.GetDownloadMeta()),
 		MinVideoSize:          syncPath.GetMinVideoSize(),
-		VideoExt:              syncPath.GetVideoExt(),
-		MetaExt:               syncPath.GetMetaExt(),
-		ExcludeNames:          syncPath.GetExcludeNameArr(),
+		VideoExt:              videoExt,
+		MetaExt:               metaExt,
+		ExcludeNames:          excludeNames,
 		NetNotFoundFileAction: models.SyncTreeItemMetaAction(syncPath.GetUploadMeta()),
 		StrmUrlNeedPath:       syncPath.GetAddPath(),
 		DelEmptyLocalDir:      syncPath.GetDeleteDir() == 1,
@@ -223,7 +226,22 @@ func NewSyncStrmFromSyncPath(syncPath *models.SyncPath) *SyncStrm {
 		// OpenList 只使用自定义的 STRM 直连地址
 		config.StrmBaseUrl = syncPath.SettingStrm.StrmBaseUrl
 	}
+	helpers.AppLogger.Infof(
+		"同步目录 %d 生效 STRM 配置：视频扩展名=%v，元数据扩展名=%v，排除名称=%v，配置来源=%s",
+		syncPath.ID,
+		videoExt,
+		metaExt,
+		excludeNames,
+		strmConfigSource(syncPath.CustomConfig),
+	)
 	return NewSyncStrm(account, syncPath.ID, syncPath.RemotePath, syncPath.BaseCid, syncPath.LocalPath, config, syncPath.IsFullSync, syncPath.LastSyncAt, false)
+}
+
+func strmConfigSource(customConfig bool) string {
+	if customConfig {
+		return "同步目录自定义设置"
+	}
+	return "全局 STRM 设置"
 }
 
 // 直接同步某个路径（可以是目录，也可以是文件）

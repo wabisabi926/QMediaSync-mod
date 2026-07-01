@@ -146,7 +146,6 @@ func (sp *SyncPath) GetMinVideoSize() int64 {
 }
 
 func (sp *SyncPath) GetVideoExt() []string {
-	helpers.AppLogger.Infof("同步目录 %d 视频扩展名：%s", sp.ID, sp.VideoExtArr)
 	if len(sp.VideoExtArr) == 0 {
 		return SettingsGlobal.VideoExtArr
 	}

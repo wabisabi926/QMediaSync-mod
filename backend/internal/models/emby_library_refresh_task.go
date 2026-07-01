@@ -40,6 +40,12 @@ var embyRefreshScannerConfigState = struct {
 	initialized bool
 	enabled     bool
 }{}
+var embyRefreshTimerState = struct {
+	sync.Mutex
+	timer       *time.Timer
+	nextCheckAt int64
+	generation  uint64
+}{}
 
 type downloadEventBatch struct {
 	mutex       sync.Mutex
@@ -148,6 +154,18 @@ func resetEmbyRefreshScannerConfigStateForTest() {
 	embyRefreshScannerConfigState.enabled = false
 }
 
+func resetEmbyRefreshTimerStateForTest() {
+	embyRefreshTimerState.Lock()
+	defer embyRefreshTimerState.Unlock()
+
+	if embyRefreshTimerState.timer != nil {
+		embyRefreshTimerState.timer.Stop()
+	}
+	embyRefreshTimerState.timer = nil
+	embyRefreshTimerState.nextCheckAt = 0
+	embyRefreshTimerState.generation++
+}
+
 func saveEmbyLibraryRefreshTask(task *EmbyLibraryRefreshTask) error {
 	return db.Db.Save(task).Error
 }
@@ -174,6 +192,7 @@ func RequestEmbyLibraryRefreshBySyncPathId(syncPathId uint) error {
 			return err
 		}
 	}
+	ScheduleNextEmbyLibraryRefreshCheck()
 	TriggerEmbyLibraryRefreshCheck()
 	return nil
 }
@@ -278,6 +297,80 @@ func TriggerEmbyLibraryRefreshCheck() {
 	case embyRefreshCheckChan <- struct{}{}:
 	default:
 	}
+}
+
+func nextPendingEmbyLibraryRefreshCheckAt(now int64) (int64, bool, error) {
+	var task EmbyLibraryRefreshTask
+	err := db.Db.Select("refresh_after_at").
+		Where("status = ?", EmbyLibraryRefreshStatusPending).
+		Where("refresh_after_at > ?", now).
+		Order("refresh_after_at ASC").
+		First(&task).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	return task.RefreshAfterAt, true, nil
+}
+
+func setNextEmbyLibraryRefreshCheckTimer(nextCheckAt int64, hasNext bool) {
+	embyRefreshTimerState.Lock()
+	defer embyRefreshTimerState.Unlock()
+
+	if !hasNext {
+		if embyRefreshTimerState.timer != nil {
+			embyRefreshTimerState.timer.Stop()
+		}
+		embyRefreshTimerState.timer = nil
+		embyRefreshTimerState.nextCheckAt = 0
+		embyRefreshTimerState.generation++
+		return
+	}
+
+	if embyRefreshTimerState.timer != nil && embyRefreshTimerState.nextCheckAt == nextCheckAt {
+		return
+	}
+	if embyRefreshTimerState.timer != nil {
+		embyRefreshTimerState.timer.Stop()
+	}
+
+	delay := time.Until(time.Unix(nextCheckAt, 0))
+	if delay < 0 {
+		delay = 0
+	}
+	scheduledAt := nextCheckAt
+	embyRefreshTimerState.generation++
+	generation := embyRefreshTimerState.generation
+	embyRefreshTimerState.timer = time.AfterFunc(delay, func() {
+		shouldTrigger := false
+		embyRefreshTimerState.Lock()
+		if embyRefreshTimerState.nextCheckAt == scheduledAt && embyRefreshTimerState.generation == generation {
+			embyRefreshTimerState.timer = nil
+			embyRefreshTimerState.nextCheckAt = 0
+			embyRefreshTimerState.generation++
+			shouldTrigger = true
+		}
+		embyRefreshTimerState.Unlock()
+		if shouldTrigger {
+			TriggerEmbyLibraryRefreshCheck()
+		}
+	})
+	embyRefreshTimerState.nextCheckAt = nextCheckAt
+}
+
+// ScheduleNextEmbyLibraryRefreshCheck 调度最近一个未来的 Emby 媒体库刷新检查。
+func ScheduleNextEmbyLibraryRefreshCheck() {
+	if db.Db == nil {
+		return
+	}
+	nextCheckAt, hasNext, err := nextPendingEmbyLibraryRefreshCheckAt(nowUnix())
+	if err != nil {
+		helpers.AppLogger.Errorf("调度下一次 Emby 媒体库刷新检查失败：%v", err)
+		return
+	}
+	setNextEmbyLibraryRefreshCheckTimer(nextCheckAt, hasNext)
 }
 
 func CountActiveDownloadTasksBySyncPathIds(syncPathIds []uint) (int64, error) {
@@ -424,6 +517,7 @@ func NotifyEmbyRefreshDownloadTasksChangedBySyncPathIds(syncPathIds []uint) erro
 		}).Error; err != nil {
 		return err
 	}
+	ScheduleNextEmbyLibraryRefreshCheck()
 	TriggerEmbyLibraryRefreshCheck()
 	return nil
 }
@@ -497,6 +591,7 @@ func InitEmbyLibraryRefreshCoordinator() {
 		helpers.Subscribe(helpers.DownloadTaskStatusChangedEvent, HandleDownloadTaskStatusChanged)
 		go runEmbyLibraryRefreshDownloadEventBatcher()
 		go runEmbyLibraryRefreshScanner()
+		ScheduleNextEmbyLibraryRefreshCheck()
 	})
 }
 
@@ -535,6 +630,7 @@ func CheckPendingEmbyLibraryRefreshTasks() {
 		return
 	}
 	markEmbyRefreshScannerConfigState(true)
+	defer ScheduleNextEmbyLibraryRefreshCheck()
 	if err := flushPendingEmbyRefreshDownloadTaskChanges(); err != nil {
 		helpers.AppLogger.Errorf("扫描 Emby 媒体库刷新任务前批量处理下载事件失败：%v", err)
 	}

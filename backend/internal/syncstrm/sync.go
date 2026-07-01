@@ -227,18 +227,20 @@ func NewSyncStrmFromSyncPath(syncPath *models.SyncPath) *SyncStrm {
 		config.StrmBaseUrl = syncPath.SettingStrm.StrmBaseUrl
 	}
 	helpers.AppLogger.Infof(
-		"同步目录 %d 生效 STRM 配置：视频扩展名=%v，元数据扩展名=%v，排除名称=%v，配置来源=%s",
+		"同步目录 %d 生效 STRM 配置：视频扩展名=%v（来源=%s），元数据扩展名=%v（来源=%s），排除名称=%v（来源=%s）",
 		syncPath.ID,
 		videoExt,
+		strmArrayConfigSource(syncPath.CustomConfig, syncPath.VideoExtArr),
 		metaExt,
+		strmArrayConfigSource(syncPath.CustomConfig, syncPath.MetaExtArr),
 		excludeNames,
-		strmConfigSource(syncPath.CustomConfig),
+		strmArrayConfigSource(syncPath.CustomConfig, syncPath.ExcludeNameArr),
 	)
 	return NewSyncStrm(account, syncPath.ID, syncPath.RemotePath, syncPath.BaseCid, syncPath.LocalPath, config, syncPath.IsFullSync, syncPath.LastSyncAt, false)
 }
 
-func strmConfigSource(customConfig bool) string {
-	if customConfig {
+func strmArrayConfigSource(customConfig bool, localValue []string) string {
+	if customConfig && len(localValue) > 0 {
 		return "同步目录自定义设置"
 	}
 	return "全局 STRM 设置"

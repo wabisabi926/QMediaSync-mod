@@ -23,6 +23,8 @@ Emby 相关任务分为两条独立链路，不能混用。
 - STRM 同步完成后调用 `models.RequestEmbyLibraryRefreshBySyncPathId(...)`。
 - 创建或合并 `EmbyLibraryRefreshTask`。
 - 刷新任务创建、更新或下载事件批量落库后，会把全局最近到期 timer 调度到最早的 `pending.refresh_after_at`。
+- 并发调度时，如果一个较旧的查询结果晚于较新的更早 timer 返回，旧结果不能取消或覆盖已有更早 timer；最多提前唤醒检查一次。
+- 如果调度时发现已有到期且未按当前 `refresh_after_at` 检查过的 pending 任务，会立即触发一次检查。
 - timer 到期后通过原有检查通道唤醒协调器；60 秒 ticker 仍保留为兜底。
 - 协调器等待相关下载任务和 STRM 同步任务结束；如果到期时仍有下载任务，会继续等待后续下载事件或 60 秒 ticker 兜底检查。
 - 最后调用 `client.RefreshLibrary(libraryID, libraryName)`。

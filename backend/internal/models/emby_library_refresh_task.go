@@ -315,9 +315,27 @@ func nextPendingEmbyLibraryRefreshCheckAt(now int64) (int64, bool, error) {
 	return task.RefreshAfterAt, true, nil
 }
 
+func hasDueUncheckedEmbyLibraryRefreshTask(now int64) (bool, error) {
+	var count int64
+	err := db.Db.Model(&EmbyLibraryRefreshTask{}).
+		Where("status = ?", EmbyLibraryRefreshStatusPending).
+		Where("refresh_after_at <= ?", now).
+		Where("(last_checked_at = 0 OR last_checked_at < refresh_after_at)").
+		Count(&count).Error
+	return count > 0, err
+}
+
 func setNextEmbyLibraryRefreshCheckTimer(nextCheckAt int64, hasNext bool) {
 	embyRefreshTimerState.Lock()
 	defer embyRefreshTimerState.Unlock()
+
+	// 并发调度时，较旧的 DB 查询结果可能晚于较新的更早结果返回。
+	// 保留已有更早 timer，最多提前检查一次。
+	if embyRefreshTimerState.timer != nil && embyRefreshTimerState.nextCheckAt > 0 {
+		if !hasNext || embyRefreshTimerState.nextCheckAt <= nextCheckAt {
+			return
+		}
+	}
 
 	if !hasNext {
 		if embyRefreshTimerState.timer != nil {
@@ -365,12 +383,21 @@ func ScheduleNextEmbyLibraryRefreshCheck() {
 	if db.Db == nil {
 		return
 	}
-	nextCheckAt, hasNext, err := nextPendingEmbyLibraryRefreshCheckAt(nowUnix())
+	now := nowUnix()
+	dueUnchecked, err := hasDueUncheckedEmbyLibraryRefreshTask(now)
+	if err != nil {
+		helpers.AppLogger.Errorf("查询已到期 Emby 媒体库刷新任务失败：%v", err)
+		return
+	}
+	nextCheckAt, hasNext, err := nextPendingEmbyLibraryRefreshCheckAt(now)
 	if err != nil {
 		helpers.AppLogger.Errorf("调度下一次 Emby 媒体库刷新检查失败：%v", err)
 		return
 	}
 	setNextEmbyLibraryRefreshCheckTimer(nextCheckAt, hasNext)
+	if dueUnchecked {
+		TriggerEmbyLibraryRefreshCheck()
+	}
 }
 
 func CountActiveDownloadTasksBySyncPathIds(syncPathIds []uint) (int64, error) {

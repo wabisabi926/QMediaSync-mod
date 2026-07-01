@@ -22,7 +22,9 @@ import (
 func setupEmbyRefreshTestDB(t *testing.T) {
 	t.Helper()
 	resetEmbyRefreshTimerStateForTest()
+	drainEmbyRefreshCheckChan()
 	t.Cleanup(resetEmbyRefreshTimerStateForTest)
+	t.Cleanup(drainEmbyRefreshCheckChan)
 	if helpers.AppLogger == nil {
 		helpers.AppLogger = &helpers.QLogger{
 			Logger: log.New(io.Discard, "", 0),
@@ -401,11 +403,55 @@ func TestScheduleNextEmbyLibraryRefreshCheckUsesEarliestFuturePendingTask(t *tes
 	assertScheduledEmbyRefreshCheckAt(t, firstFutureTask.RefreshAfterAt)
 }
 
-func TestScheduleNextEmbyLibraryRefreshCheckIgnoresAlreadyDuePendingTasks(t *testing.T) {
+func TestScheduleNextEmbyLibraryRefreshCheckDoesNotTriggerFuturePendingTask(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	drainEmbyRefreshCheckChan()
+	now := nowUnix()
+	task := newPendingEmbyLibraryRefreshTask("lib-future", "未来任务", []uint{10}, now)
+	task.RefreshAfterAt = now + 10
+	task.LastCheckedAt = 0
+	if err := db.Db.Create(task).Error; err != nil {
+		t.Fatalf("创建测试刷新任务失败: %v", err)
+	}
+
+	ScheduleNextEmbyLibraryRefreshCheck()
+
+	select {
+	case <-embyRefreshCheckChan:
+		t.Fatal("未到 refresh_after_at 的 pending 任务不应立即触发检查")
+	default:
+	}
+	assertScheduledEmbyRefreshCheckAt(t, task.RefreshAfterAt)
+}
+
+func TestSetNextEmbyLibraryRefreshCheckTimerKeepsEarlierScheduleWhenLaterResultArrives(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	now := nowUnix()
+	earlierCheckAt := now + 10
+
+	setNextEmbyLibraryRefreshCheckTimer(earlierCheckAt, true)
+	setNextEmbyLibraryRefreshCheckTimer(now+30, true)
+
+	assertScheduledEmbyRefreshCheckAt(t, earlierCheckAt)
+}
+
+func TestSetNextEmbyLibraryRefreshCheckTimerKeepsEarlierScheduleWhenNoTaskResultArrives(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	now := nowUnix()
+	earlierCheckAt := now + 10
+
+	setNextEmbyLibraryRefreshCheckTimer(earlierCheckAt, true)
+	setNextEmbyLibraryRefreshCheckTimer(0, false)
+
+	assertScheduledEmbyRefreshCheckAt(t, earlierCheckAt)
+}
+
+func TestScheduleNextEmbyLibraryRefreshCheckIgnoresAlreadyCheckedDuePendingTasks(t *testing.T) {
 	setupEmbyRefreshTestDB(t)
 	now := nowUnix()
 	task := newPendingEmbyLibraryRefreshTask("lib-due", "已到期", []uint{10}, now)
 	task.RefreshAfterAt = now - 1
+	task.LastCheckedAt = now
 	if err := db.Db.Create(task).Error; err != nil {
 		t.Fatalf("创建测试刷新任务失败: %v", err)
 	}
@@ -413,6 +459,29 @@ func TestScheduleNextEmbyLibraryRefreshCheckIgnoresAlreadyDuePendingTasks(t *tes
 	ScheduleNextEmbyLibraryRefreshCheck()
 
 	assertNoScheduledEmbyRefreshCheck(t)
+}
+
+func TestScheduleNextEmbyLibraryRefreshCheckTriggersDueUncheckedTaskAndKeepsFutureTimer(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	drainEmbyRefreshCheckChan()
+	now := nowUnix()
+	dueTask := newPendingEmbyLibraryRefreshTask("lib-due", "已到期未检查", []uint{10}, now)
+	dueTask.RefreshAfterAt = now - 1
+	dueTask.LastCheckedAt = 0
+	futureTask := newPendingEmbyLibraryRefreshTask("lib-future", "未来任务", []uint{11}, now)
+	futureTask.RefreshAfterAt = now + 10
+	if err := db.Db.Create([]*EmbyLibraryRefreshTask{dueTask, futureTask}).Error; err != nil {
+		t.Fatalf("创建测试刷新任务失败: %v", err)
+	}
+
+	ScheduleNextEmbyLibraryRefreshCheck()
+
+	select {
+	case <-embyRefreshCheckChan:
+	default:
+		t.Fatal("已到期且未按 refresh_after_at 检查过的 pending 任务应立即触发检查")
+	}
+	assertScheduledEmbyRefreshCheckAt(t, futureTask.RefreshAfterAt)
 }
 
 func TestDownloadTaskChangedSchedulesNextEmbyRefreshCheck(t *testing.T) {

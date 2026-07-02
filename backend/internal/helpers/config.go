@@ -32,8 +32,12 @@ const (
 )
 
 type ConfigLog struct {
-	File       string `yaml:"file"`
+	File       string `yaml:"file,omitempty"` // 兼容旧 log.file，保存新配置时不再推荐使用
 	Level      string `yaml:"level"`
+	MaxSizeMB  int    `yaml:"maxSizeMB"`
+	MaxBackups int    `yaml:"maxBackups"`
+	MaxAgeDays int    `yaml:"maxAgeDays"`
+	App        string `yaml:"app"`
 	V115       string `yaml:"v115"`
 	OpenList   string `yaml:"openList"`
 	TMDB       string `yaml:"tmdb"`
@@ -111,6 +115,9 @@ const (
 	legacyConfigFileName   = "config.yml"
 	DefaultJWTSecret       = "QMediaSync-JWT-TOKEN-250706"
 	legacyDefaultJWTSecret = "Q115-STRM-JWT-TOKEN-250706"
+	defaultLogMaxSizeMB    = 10
+	defaultLogMaxBackups   = 3
+	defaultLogMaxAgeDays   = 7
 )
 
 func ConfigFilePath() string {
@@ -158,7 +165,7 @@ func InitConfig() error {
 	if GlobalConfig.NewAuthServer == "" {
 		GlobalConfig.NewAuthServer = "https://oauth.qmediasync.cn"
 	}
-	GlobalConfig.Log.Level = NormalizeLogLevel(GlobalConfig.Log.Level)
+	normalizeLogConfig(&GlobalConfig.Log)
 	logLevel, _ := ParseLogLevel(GlobalConfig.Log.Level)
 	SetGlobalLogLevel(logLevel)
 	if err := EnsureJWTSecret(); err != nil {
@@ -279,26 +286,92 @@ func SaveConfig(config *Config) error {
 	return nil
 }
 
-// SaveLogLevel 保存日志等级配置并更新运行时日志等级。
-func SaveLogLevel(level LogLevel) error {
+// LogSetting 表示可运行时更新的日志设置。
+type LogSetting struct {
+	Level      LogLevel
+	MaxSizeMB  int
+	MaxBackups int
+	MaxAgeDays int
+}
+
+func normalizeLogConfig(logConfig *ConfigLog) {
+	defaultLog := MakeDefaultConfig().Log
+	logConfig.Level = NormalizeLogLevel(logConfig.Level)
+	if logConfig.App == "" {
+		if logConfig.File != "" {
+			logConfig.App = logConfig.File
+		} else {
+			logConfig.App = defaultLog.App
+		}
+	}
+	logConfig.File = ""
+	if logConfig.V115 == "" {
+		logConfig.V115 = defaultLog.V115
+	}
+	if logConfig.OpenList == "" {
+		logConfig.OpenList = defaultLog.OpenList
+	}
+	if logConfig.TMDB == "" {
+		logConfig.TMDB = defaultLog.TMDB
+	}
+	if logConfig.BaiduPan == "" {
+		logConfig.BaiduPan = defaultLog.BaiduPan
+	}
+	if logConfig.Web == "" {
+		logConfig.Web = defaultLog.Web
+	}
+	if logConfig.SyncLogDir == "" {
+		logConfig.SyncLogDir = defaultLog.SyncLogDir
+	}
+	if logConfig.MaxSizeMB < 1 || logConfig.MaxSizeMB > 1024 {
+		logConfig.MaxSizeMB = defaultLogMaxSizeMB
+	}
+	if logConfig.MaxBackups < 1 || logConfig.MaxBackups > 100 {
+		logConfig.MaxBackups = defaultLogMaxBackups
+	}
+	if logConfig.MaxAgeDays < 1 || logConfig.MaxAgeDays > 365 {
+		logConfig.MaxAgeDays = defaultLogMaxAgeDays
+	}
+}
+
+// SaveLogSetting 保存日志设置并更新运行时日志器。
+func SaveLogSetting(setting LogSetting) error {
 	logConfigMu.Lock()
 	defer logConfigMu.Unlock()
 
 	nextConfig := GlobalConfig
-	nextConfig.Log.Level = level.String()
+	nextConfig.Log.File = ""
+	nextConfig.Log.Level = setting.Level.String()
+	nextConfig.Log.MaxSizeMB = setting.MaxSizeMB
+	nextConfig.Log.MaxBackups = setting.MaxBackups
+	nextConfig.Log.MaxAgeDays = setting.MaxAgeDays
+	normalizeLogConfig(&nextConfig.Log)
 	if err := SaveConfig(&nextConfig); err != nil {
 		return err
 	}
-	GlobalConfig.Log.Level = level.String()
-	SetGlobalLogLevel(level)
+	GlobalConfig.Log = nextConfig.Log
+	SetGlobalLogLevel(setting.Level)
 	return nil
+}
+
+// SaveLogLevel 保存日志等级配置并更新运行时日志等级。
+func SaveLogLevel(level LogLevel) error {
+	return SaveLogSetting(LogSetting{
+		Level:      level,
+		MaxSizeMB:  GlobalConfig.Log.MaxSizeMB,
+		MaxBackups: GlobalConfig.Log.MaxBackups,
+		MaxAgeDays: GlobalConfig.Log.MaxAgeDays,
+	})
 }
 
 func MakeDefaultConfig() *Config {
 	return &Config{
 		Log: ConfigLog{
-			File:       "logs/app.log",
 			Level:      LogLevelInfo.String(),
+			MaxSizeMB:  defaultLogMaxSizeMB,
+			MaxBackups: defaultLogMaxBackups,
+			MaxAgeDays: defaultLogMaxAgeDays,
+			App:        "logs/app.log",
 			V115:       "logs/115.log",
 			OpenList:   "logs/openList.log",
 			TMDB:       "logs/tmdb.log",

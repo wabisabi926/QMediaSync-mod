@@ -95,6 +95,22 @@ func TestMakeDefaultConfigLogLevelDefaultsInfo(t *testing.T) {
 	}
 }
 
+func TestMakeDefaultConfigLogRotationDefaults(t *testing.T) {
+	cfg := MakeDefaultConfig()
+	if cfg.Log.App != "logs/app.log" {
+		t.Fatalf("Log.App = %q, want logs/app.log", cfg.Log.App)
+	}
+	if cfg.Log.MaxSizeMB != 10 {
+		t.Fatalf("Log.MaxSizeMB = %d, want 10", cfg.Log.MaxSizeMB)
+	}
+	if cfg.Log.MaxBackups != 3 {
+		t.Fatalf("Log.MaxBackups = %d, want 3", cfg.Log.MaxBackups)
+	}
+	if cfg.Log.MaxAgeDays != 7 {
+		t.Fatalf("Log.MaxAgeDays = %d, want 7", cfg.Log.MaxAgeDays)
+	}
+}
+
 func TestMakeDefaultConfigDoesNotContainAdminCredentials(t *testing.T) {
 	cfg := MakeDefaultConfig()
 	data, err := yaml.Marshal(cfg)
@@ -155,7 +171,42 @@ func TestInitConfigNormalizesInvalidLogLevelToInfo(t *testing.T) {
 	})
 }
 
-func TestSaveLogLevel保存配置并更新运行时等级(t *testing.T) {
+func TestInitConfigMigratesLegacyLogFileToApp(t *testing.T) {
+	withTempConfigDir(t, func(configDir string) {
+		data := []byte("jwtSecret: custom-secret\nlog:\n  file: logs/custom-app.log\n  level: warn\n")
+		if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), data, 0644); err != nil {
+			t.Fatalf("write test config: %v", err)
+		}
+
+		if err := InitConfig(); err != nil {
+			t.Fatalf("InitConfig() error = %v", err)
+		}
+		if GlobalConfig.Log.App != "logs/custom-app.log" {
+			t.Fatalf("Log.App = %q, want logs/custom-app.log", GlobalConfig.Log.App)
+		}
+		if GlobalConfig.Log.Level != "warn" {
+			t.Fatalf("Log.Level = %q, want warn", GlobalConfig.Log.Level)
+		}
+	})
+}
+
+func TestInitConfigNormalizesInvalidLogRotationToDefaults(t *testing.T) {
+	withTempConfigDir(t, func(configDir string) {
+		data := []byte("jwtSecret: custom-secret\nlog:\n  app: logs/app.log\n  maxSizeMB: 0\n  maxBackups: 101\n  maxAgeDays: 366\n")
+		if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), data, 0644); err != nil {
+			t.Fatalf("write test config: %v", err)
+		}
+
+		if err := InitConfig(); err != nil {
+			t.Fatalf("InitConfig() error = %v", err)
+		}
+		if GlobalConfig.Log.MaxSizeMB != 10 || GlobalConfig.Log.MaxBackups != 3 || GlobalConfig.Log.MaxAgeDays != 7 {
+			t.Fatalf("日志轮转参数未恢复默认值: %+v", GlobalConfig.Log)
+		}
+	})
+}
+
+func TestSaveLogSetting保存配置并更新运行时设置(t *testing.T) {
 	withTempConfigDir(t, func(configDir string) {
 		GlobalConfig = *MakeDefaultConfig()
 		SetGlobalLogLevel(LogLevelInfo)
@@ -163,22 +214,34 @@ func TestSaveLogLevel保存配置并更新运行时等级(t *testing.T) {
 			t.Fatalf("保存初始配置失败: %v", err)
 		}
 
-		if err := SaveLogLevel(LogLevelWarn); err != nil {
-			t.Fatalf("SaveLogLevel() error = %v", err)
+		next := LogSetting{
+			Level:      LogLevelWarn,
+			MaxSizeMB:  20,
+			MaxBackups: 5,
+			MaxAgeDays: 14,
+		}
+		if err := SaveLogSetting(next); err != nil {
+			t.Fatalf("SaveLogSetting() error = %v", err)
 		}
 
 		if ConfiguredLogLevel() != LogLevelWarn {
 			t.Fatalf("ConfiguredLogLevel() = %s, want warn", ConfiguredLogLevel().String())
 		}
-		if GlobalConfig.Log.Level != "warn" {
-			t.Fatalf("GlobalConfig.Log.Level = %q, want warn", GlobalConfig.Log.Level)
+		if GlobalConfig.Log.Level != "warn" || GlobalConfig.Log.MaxSizeMB != 20 || GlobalConfig.Log.MaxBackups != 5 || GlobalConfig.Log.MaxAgeDays != 14 {
+			t.Fatalf("GlobalConfig.Log 未更新: %+v", GlobalConfig.Log)
 		}
 		saved, err := os.ReadFile(filepath.Join(configDir, "config.yaml"))
 		if err != nil {
 			t.Fatalf("读取保存后的配置失败: %v", err)
 		}
-		if !strings.Contains(string(saved), "level: warn") {
-			t.Fatalf("配置文件未保存日志等级: %s", string(saved))
+		text := string(saved)
+		for _, want := range []string{"level: warn", "maxSizeMB: 20", "maxBackups: 5", "maxAgeDays: 14", "app: logs/app.log"} {
+			if !strings.Contains(text, want) {
+				t.Fatalf("配置文件缺少 %q: %s", want, text)
+			}
+		}
+		if strings.Contains(text, "\n  file:") {
+			t.Fatalf("保存后的推荐配置不应继续写入 log.file: %s", text)
 		}
 	})
 }

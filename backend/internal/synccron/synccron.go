@@ -18,6 +18,8 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
+const syncRecordRetentionDays = 7
+
 var GlobalCron *cron.Cron
 var SyncCron *cron.Cron
 var ScrapeCron *cron.Cron
@@ -293,7 +295,7 @@ func InitCron() {
 	GlobalCron.AddFunc("0 0 * * *", func() {
 		// 每天 0 点清理过期的同步记录
 		// helpers.AppLogger.Info("清理过期的同步记录")
-		models.ClearExpiredSyncRecords(1) // 保留 3 天内的记录
+		models.ClearExpiredSyncRecords(syncRecordRetentionDays) // 保留最近 7 天的同步记录和对应日志
 	})
 
 	GlobalCron.AddFunc("*/13 * * * *", func() {

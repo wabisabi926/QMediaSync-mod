@@ -66,8 +66,11 @@ emby302:
 
 | 配置项 | 默认文件 | 用途 |
 | --- | --- | --- |
-| `log.file` | `logs/app.log` | 主程序日志，包含 Web、控制器、模型、Emby 302 等通用日志。 |
 | `log.level` | `info` | 日志等级，可选值：`debug`、`info`、`warn`、`error`。 |
+| `log.maxSizeMB` | `10` | 单个轮转日志文件最大大小，单位 MB，范围 `1-1024`。 |
+| `log.maxBackups` | `3` | 每个日志文件最多保留的轮转备份数，范围 `1-100`。 |
+| `log.maxAgeDays` | `7` | 轮转备份最长保留天数，范围 `1-365`。 |
+| `log.app` | `logs/app.log` | 主程序日志，包含 Web、控制器、模型、Emby 302 等通用日志。 |
 | `log.v115` | `logs/115.log` | 115 开放平台相关请求和队列日志。 |
 | `log.openList` | `logs/openList.log` | OpenList 相关日志。 |
 | `log.tmdb` | `logs/tmdb.log` | TMDB 刮削相关日志。 |
@@ -75,11 +78,17 @@ emby302:
 | `log.web` | `logs/web.log` | 预留 Web 日志配置。 |
 | `log.syncLogDir` | `logs/sync` | 同步任务独立日志目录配置。 |
 
+历史配置项 `log.file` 仍可读取；当 `log.app` 为空且 `log.file` 有值时，程序会把 `log.file` 作为主程序日志路径使用。新保存的配置统一写入 `log.app`。
+
 同步任务日志文件名为 `sync_<任务 ID>.log`，默认写入 `logs/sync`。旧版本写入的 `logs/libs/sync_<任务 ID>.log` 仍可在任务详情和日志接口中读取；新启动不再主动创建空的 `logs/libs` 目录。
+
+全局日志默认参与轮转，包括主程序日志、115 日志、OpenList 日志、TMDB 日志和百度网盘日志。轮转由写入触发：当当前日志文件达到 `log.maxSizeMB` 后，`lumberjack` 会把旧文件改名为备份文件，并继续写入新的当前日志文件。旧日志固定启用压缩。`log.maxBackups` 表示每个日志最多保留多少个轮转备份，`log.maxAgeDays` 表示备份文件最长保留多少天，两者任一条件达到后旧备份都可能被清理。
+
+同步任务日志不参与轮转。每个同步任务写入独立的 `sync_<任务 ID>.log`，并随着同步记录清理一起删除。定时任务每天清理创建时间早于 7 天的同步记录和对应同步日志。
 
 当前自定义 `QLogger` 支持运行时日志等级过滤，日志格式保持为 `YYYY/MM/DD HH:MM:SS.micro [LEVEL] message`。默认 `info` 会写入 `Info`、`Warn`、`Error`，不写入 `Debug`；`debug` 会写入全部等级；`warn` 只写入 `Warn` 和 `Error`；`error` 只写入 `Error`。`Fatalf`、`Panicf` 和运行必需的启动警告始终输出；首次管理员初始化码属于运行必需的启动警告。`gin.ReleaseMode` 只影响 Gin 自身模式，不控制 `QLogger` 的输出。
 
-可以在 Web 页面「系统设置 - 日志设置」调整日志等级，后端会保存到 `config/config.yaml` 并立即更新运行中的全局日志器，无需重启。日志查看页和同步任务详情页的日志等级筛选只影响当前页面显示，不影响日志文件写入。
+可以在 Web 页面「系统设置 - 日志设置」调整日志等级和全局日志轮转参数，后端会保存到 `config/config.yaml` 并立即更新运行中的全局日志器，无需重启。日志查看页和同步任务详情页的日志等级筛选只影响当前页面显示，不影响日志文件写入。
 
 运行日志默认会在写入前完全脱敏常见敏感字段，包括 `api_key`、`X-Emby-Token`、`Authorization`、`X-Emby-Authorization`、`X-API-Key`、`password`、`access_token`、`refresh_token`、`AccessKeySecret`、`SecurityToken`、`Cookie` 等。普通 `Info`、`Warn`、`Error` 和 `Debug` 日志都会执行脱敏，不保留敏感值开头或结尾字符。脱敏后的敏感值统一显示为 `******`。
 

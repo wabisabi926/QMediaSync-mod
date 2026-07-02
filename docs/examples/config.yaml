@@ -3,10 +3,16 @@
 # 本文件仅作为示例，请不要把真实密码、Token 或生产密钥提交到仓库。
 
 log:
-  # 主程序日志，包含 Web、控制器、模型、Emby 302 等通用日志。
-  file: logs/app.log
   # 日志等级，可选值：debug、info、warn、error；首次管理员初始化码等运行必需启动警告仍会写入。
   level: info
+  # 单个轮转日志文件最大大小，单位 MB。
+  maxSizeMB: 10
+  # 每个日志文件最多保留的轮转备份数。
+  maxBackups: 3
+  # 轮转备份最长保留天数。
+  maxAgeDays: 7
+  # 主程序日志，包含 Web、控制器、模型、Emby 302 等通用日志。
+  app: logs/app.log
   # 115 开放平台相关请求和队列日志。
   v115: logs/115.log
   # OpenList 相关日志。

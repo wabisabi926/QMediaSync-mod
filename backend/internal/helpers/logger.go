@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -48,11 +49,78 @@ type QLogger struct {
 	rotate    bool
 	console   bool
 	lumLogger *lumberjack.Logger
+	rotation  *rotationWriter
+}
+
+type rotationWriter struct {
+	mu     sync.Mutex
+	logger *lumberjack.Logger
+}
+
+func newRotationWriter(logger *lumberjack.Logger) *rotationWriter {
+	return &rotationWriter{logger: logger}
+}
+
+func (w *rotationWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.logger == nil {
+		return 0, os.ErrInvalid
+	}
+	return w.logger.Write(p)
+}
+
+func (w *rotationWriter) updateConfig(maxSize int, maxBackups int, maxAge int) *lumberjack.Logger {
+	w.mu.Lock()
+	oldLogger := w.logger
+	var nextLogger *lumberjack.Logger
+	if oldLogger != nil {
+		nextLogger = &lumberjack.Logger{
+			Filename:   oldLogger.Filename,
+			MaxSize:    maxSize,
+			MaxBackups: maxBackups,
+			MaxAge:     maxAge,
+			LocalTime:  oldLogger.LocalTime,
+			Compress:   true,
+		}
+		w.logger = nextLogger
+	}
+	w.mu.Unlock()
+
+	if oldLogger != nil {
+		_ = oldLogger.Close()
+	}
+	return nextLogger
+}
+
+func (w *rotationWriter) rotate() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.logger == nil {
+		return nil
+	}
+	return w.logger.Rotate()
+}
+
+func (w *rotationWriter) close() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.logger == nil {
+		return nil
+	}
+	return w.logger.Close()
 }
 
 func (q *QLogger) Close() {
+	if q == nil {
+		return
+	}
+	if q.rotation != nil {
+		_ = q.rotation.close()
+		return
+	}
 	if q.lumLogger != nil {
-		q.lumLogger.Close()
+		_ = q.lumLogger.Close()
 	}
 }
 
@@ -267,14 +335,11 @@ func configuredLogRotation() (maxSize int, maxBackups int, maxAge int) {
 }
 
 func applyLogRotationConfig(logger *QLogger) {
-	if logger == nil || !logger.rotate || logger.lumLogger == nil {
+	if logger == nil || !logger.rotate || logger.rotation == nil {
 		return
 	}
 	maxSize, maxBackups, maxAge := configuredLogRotation()
-	logger.lumLogger.MaxSize = maxSize
-	logger.lumLogger.MaxBackups = maxBackups
-	logger.lumLogger.MaxAge = maxAge
-	logger.lumLogger.Compress = true
+	logger.lumLogger = logger.rotation.updateConfig(maxSize, maxBackups, maxAge)
 }
 
 // ApplyGlobalLogRotationConfig 更新已创建的全局日志器轮转参数。
@@ -293,6 +358,7 @@ func NewLogger(logFileName string, isConsole bool, rotate bool) *QLogger {
 	}
 	logFile := filepath.Join(ConfigDir, logFileName)
 	var lumLogger *lumberjack.Logger
+	var rotation *rotationWriter
 	// 创建多写入器
 	var writers []io.Writer
 
@@ -306,12 +372,13 @@ func NewLogger(logFileName string, isConsole bool, rotate bool) *QLogger {
 			MaxAge:     maxAge,
 			Compress:   true,
 		}
+		rotation = newRotationWriter(lumLogger)
 		if isConsole {
 			// 同时写入文件和控制台
-			writers = append(writers, lumLogger, os.Stdout)
+			writers = append(writers, rotation, os.Stdout)
 		} else {
 			// 只写入文件
-			writers = append(writers, lumLogger)
+			writers = append(writers, rotation)
 		}
 	} else {
 		fd, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
@@ -339,44 +406,45 @@ func NewLogger(logFileName string, isConsole bool, rotate bool) *QLogger {
 		rotate:    rotate,
 		console:   isConsole,
 		lumLogger: lumLogger,
+		rotation:  rotation,
 	}
 	return qLogger
 }
 
 func CloseLogger() {
-	if AppLogger != nil && AppLogger.lumLogger != nil {
-		AppLogger.lumLogger.Close()
+	if AppLogger != nil {
+		AppLogger.Close()
 	}
-	if V115Log != nil && V115Log.lumLogger != nil {
-		V115Log.lumLogger.Close()
+	if V115Log != nil {
+		V115Log.Close()
 	}
-	if OpenListLog != nil && OpenListLog.lumLogger != nil {
-		OpenListLog.lumLogger.Close()
+	if OpenListLog != nil {
+		OpenListLog.Close()
 	}
-	if TMDBLog != nil && TMDBLog.lumLogger != nil {
-		TMDBLog.lumLogger.Close()
+	if TMDBLog != nil {
+		TMDBLog.Close()
 	}
-	if BaiduPanLog != nil && BaiduPanLog.lumLogger != nil {
-		BaiduPanLog.lumLogger.Close()
+	if BaiduPanLog != nil {
+		BaiduPanLog.Close()
 	}
 	fmt.Println("已关闭所有日志记录器")
 }
 
 func RotateLog() {
-	if AppLogger != nil && AppLogger.rotate {
-		AppLogger.lumLogger.Rotate()
+	if AppLogger != nil && AppLogger.rotate && AppLogger.rotation != nil {
+		_ = AppLogger.rotation.rotate()
 	}
-	if V115Log != nil && V115Log.rotate {
-		V115Log.lumLogger.Rotate()
+	if V115Log != nil && V115Log.rotate && V115Log.rotation != nil {
+		_ = V115Log.rotation.rotate()
 	}
-	if OpenListLog != nil && OpenListLog.rotate {
-		OpenListLog.lumLogger.Rotate()
+	if OpenListLog != nil && OpenListLog.rotate && OpenListLog.rotation != nil {
+		_ = OpenListLog.rotation.rotate()
 	}
-	if TMDBLog != nil && TMDBLog.rotate {
-		TMDBLog.lumLogger.Rotate()
+	if TMDBLog != nil && TMDBLog.rotate && TMDBLog.rotation != nil {
+		_ = TMDBLog.rotation.rotate()
 	}
-	if BaiduPanLog != nil && BaiduPanLog.rotate {
-		BaiduPanLog.lumLogger.Rotate()
+	if BaiduPanLog != nil && BaiduPanLog.rotate && BaiduPanLog.rotation != nil {
+		_ = BaiduPanLog.rotation.rotate()
 	}
 	fmt.Println("已轮转所有日志文件")
 }

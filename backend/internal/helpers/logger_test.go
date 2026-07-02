@@ -6,9 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
-
-	"gopkg.in/natefinch/lumberjack.v2"
+	"time"
 )
 
 func useTestLogLevel(t *testing.T, level LogLevel) {
@@ -287,26 +287,26 @@ func TestNewLoggerUsesConfiguredRotation(t *testing.T) {
 }
 
 func TestApplyGlobalLogRotationConfigUpdatesBaiduPanLog(t *testing.T) {
+	oldConfigDir := ConfigDir
 	oldGlobalConfig := GlobalConfig
 	oldBaiduPanLog := BaiduPanLog
 	t.Cleanup(func() {
+		ConfigDir = oldConfigDir
 		GlobalConfig = oldGlobalConfig
 		BaiduPanLog = oldBaiduPanLog
 	})
 
+	ConfigDir = t.TempDir()
 	GlobalConfig = *MakeDefaultConfig()
+	if err := os.MkdirAll(filepath.Join(ConfigDir, "logs"), 0755); err != nil {
+		t.Fatalf("创建日志目录失败: %v", err)
+	}
+	BaiduPanLog = NewLogger("logs/baidu.log", false, true)
+	t.Cleanup(BaiduPanLog.Close)
+
 	GlobalConfig.Log.MaxSizeMB = 30
 	GlobalConfig.Log.MaxBackups = 6
 	GlobalConfig.Log.MaxAgeDays = 21
-	BaiduPanLog = &QLogger{
-		rotate: true,
-		lumLogger: &lumberjack.Logger{
-			MaxSize:    10,
-			MaxBackups: 3,
-			MaxAge:     7,
-			Compress:   true,
-		},
-	}
 
 	ApplyGlobalLogRotationConfig()
 
@@ -335,7 +335,11 @@ func TestRotateLogIncludesBaiduPanLog(t *testing.T) {
 		BaiduPanLog = oldBaiduPanLog
 	})
 
-	ConfigDir = t.TempDir()
+	configDir, err := os.MkdirTemp("", "qms-baidupan-rotate-*")
+	if err != nil {
+		t.Fatalf("创建临时配置目录失败: %v", err)
+	}
+	ConfigDir = configDir
 	GlobalConfig = *MakeDefaultConfig()
 	SetGlobalLogLevel(LogLevelInfo)
 	AppLogger = nil
@@ -346,7 +350,18 @@ func TestRotateLogIncludesBaiduPanLog(t *testing.T) {
 		t.Fatalf("创建日志目录失败: %v", err)
 	}
 	BaiduPanLog = NewLogger("logs/baidu.log", false, true)
-	t.Cleanup(BaiduPanLog.Close)
+	t.Cleanup(func() {
+		BaiduPanLog.Close()
+		for i := range 5 {
+			if err := os.RemoveAll(configDir); err == nil {
+				return
+			}
+			if i == 4 {
+				t.Fatalf("清理临时配置目录失败: %v", err)
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+	})
 
 	BaiduPanLog.Info("before rotate")
 	RotateLog()
@@ -390,4 +405,48 @@ func TestCloseLoggerIncludesBaiduPanLog(t *testing.T) {
 	BaiduPanLog = NewLogger("logs/baidu.log", false, true)
 
 	CloseLogger()
+}
+
+func TestApplyGlobalLogRotationConfigConcurrentWritesRaceFree(t *testing.T) {
+	oldConfigDir := ConfigDir
+	oldGlobalConfig := GlobalConfig
+	oldLogLevel := ConfiguredLogLevel()
+	oldAppLogger := AppLogger
+	t.Cleanup(func() {
+		ConfigDir = oldConfigDir
+		GlobalConfig = oldGlobalConfig
+		SetGlobalLogLevel(oldLogLevel)
+		AppLogger = oldAppLogger
+	})
+
+	ConfigDir = t.TempDir()
+	GlobalConfig = *MakeDefaultConfig()
+	SetGlobalLogLevel(LogLevelInfo)
+	if err := os.MkdirAll(filepath.Join(ConfigDir, "logs"), 0755); err != nil {
+		t.Fatalf("创建日志目录失败: %v", err)
+	}
+	AppLogger = NewLogger("logs/race.log", false, true)
+	t.Cleanup(AppLogger.Close)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		for i := range 1000 {
+			AppLogger.Infof("concurrent log write %d", i)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for i := range 1000 {
+			GlobalConfig.Log.MaxSizeMB = 10 + i%3
+			GlobalConfig.Log.MaxBackups = 3 + i%3
+			GlobalConfig.Log.MaxAgeDays = 7 + i%3
+			ApplyGlobalLogRotationConfig()
+		}
+	}()
+
+	wg.Wait()
 }

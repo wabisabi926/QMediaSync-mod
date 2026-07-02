@@ -2,6 +2,67 @@ package requests
 
 import "testing"
 
+func TestUpdateLogSettingRequestValidate(t *testing.T) {
+	valid := UpdateLogSettingRequest{
+		Level:      "info",
+		MaxSizeMB:  10,
+		MaxBackups: 3,
+		MaxAgeDays: 7,
+	}
+
+	tests := []struct {
+		name    string
+		mutate  func(*UpdateLogSettingRequest)
+		wantErr bool
+	}{
+		{name: "合法日志设置通过"},
+		{name: "日志等级错误失败", mutate: func(r *UpdateLogSettingRequest) { r.Level = "verbose" }, wantErr: true},
+		{name: "单文件最大大小小于 1 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxSizeMB = 0 }, wantErr: true},
+		{name: "单文件最大大小大于 1024 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxSizeMB = 1025 }, wantErr: true},
+		{name: "备份数小于 1 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxBackups = 0 }, wantErr: true},
+		{name: "备份数大于 100 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxBackups = 101 }, wantErr: true},
+		{name: "保留天数小于 1 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxAgeDays = 0 }, wantErr: true},
+		{name: "保留天数大于 365 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxAgeDays = 366 }, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := valid
+			if tt.mutate != nil {
+				tt.mutate(&req)
+			}
+			err := req.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestCronRequestValidate(t *testing.T) {
+	tests := []struct {
+		name    string
+		req     interface{ Validate() error }
+		wantErr bool
+	}{
+		{name: "下次执行时间 Cron 合法", req: GetCronNextTimeRequest{Cron: "0 2 * * *"}},
+		{name: "下次执行时间 Cron 为空失败", req: GetCronNextTimeRequest{Cron: ""}, wantErr: true},
+		{name: "下次执行时间 Cron 非法失败", req: GetCronNextTimeRequest{Cron: "bad"}, wantErr: true},
+		{name: "Cron 描述校验合法", req: ValidateCronRequest{CronExpression: "0 2 * * *"}},
+		{name: "Cron 描述校验为空失败", req: ValidateCronRequest{CronExpression: ""}, wantErr: true},
+		{name: "Cron 描述校验非法失败", req: ValidateCronRequest{CronExpression: "bad"}, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.req.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestUpdateThreadsRequestValidate(t *testing.T) {
 	valid := UpdateThreadsRequest{
 		DownloadThreads:    1,

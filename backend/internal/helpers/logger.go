@@ -250,6 +250,42 @@ func (q *QLogger) RequiredWarnf(format string, args ...interface{}) {
 	q.logfUnfiltered(LogLevelWarn, format, args...)
 }
 
+func configuredLogRotation() (maxSize int, maxBackups int, maxAge int) {
+	maxSize = GlobalConfig.Log.MaxSizeMB
+	if maxSize < 1 || maxSize > 1024 {
+		maxSize = defaultLogMaxSizeMB
+	}
+	maxBackups = GlobalConfig.Log.MaxBackups
+	if maxBackups < 1 || maxBackups > 100 {
+		maxBackups = defaultLogMaxBackups
+	}
+	maxAge = GlobalConfig.Log.MaxAgeDays
+	if maxAge < 1 || maxAge > 365 {
+		maxAge = defaultLogMaxAgeDays
+	}
+	return maxSize, maxBackups, maxAge
+}
+
+func applyLogRotationConfig(logger *QLogger) {
+	if logger == nil || !logger.rotate || logger.lumLogger == nil {
+		return
+	}
+	maxSize, maxBackups, maxAge := configuredLogRotation()
+	logger.lumLogger.MaxSize = maxSize
+	logger.lumLogger.MaxBackups = maxBackups
+	logger.lumLogger.MaxAge = maxAge
+	logger.lumLogger.Compress = true
+}
+
+// ApplyGlobalLogRotationConfig 更新已创建的全局日志器轮转参数。
+func ApplyGlobalLogRotationConfig() {
+	applyLogRotationConfig(AppLogger)
+	applyLogRotationConfig(V115Log)
+	applyLogRotationConfig(OpenListLog)
+	applyLogRotationConfig(TMDBLog)
+	applyLogRotationConfig(BaiduPanLog)
+}
+
 func NewLogger(logFileName string, isConsole bool, rotate bool) *QLogger {
 	if IsFnOS {
 		// 飞牛环境下不往控制台输出日志
@@ -262,12 +298,13 @@ func NewLogger(logFileName string, isConsole bool, rotate bool) *QLogger {
 
 	// 文件写入器
 	if rotate {
+		maxSize, maxBackups, maxAge := configuredLogRotation()
 		lumLogger = &lumberjack.Logger{
 			Filename:   logFile,
-			MaxSize:    10,   // 最大 10 MB
-			MaxBackups: 3,    // 3 个备份
-			MaxAge:     7,    // 天
-			Compress:   true, // 默认关闭
+			MaxSize:    maxSize,
+			MaxBackups: maxBackups,
+			MaxAge:     maxAge,
+			Compress:   true,
 		}
 		if isConsole {
 			// 同时写入文件和控制台
@@ -319,6 +356,9 @@ func CloseLogger() {
 	if TMDBLog != nil && TMDBLog.lumLogger != nil {
 		TMDBLog.lumLogger.Close()
 	}
+	if BaiduPanLog != nil && BaiduPanLog.lumLogger != nil {
+		BaiduPanLog.lumLogger.Close()
+	}
 	fmt.Println("已关闭所有日志记录器")
 }
 
@@ -334,6 +374,9 @@ func RotateLog() {
 	}
 	if TMDBLog != nil && TMDBLog.rotate {
 		TMDBLog.lumLogger.Rotate()
+	}
+	if BaiduPanLog != nil && BaiduPanLog.rotate {
+		BaiduPanLog.lumLogger.Rotate()
 	}
 	fmt.Println("已轮转所有日志文件")
 }

@@ -351,6 +351,7 @@ func SaveLogSetting(setting LogSetting) error {
 	}
 	GlobalConfig.Log = nextConfig.Log
 	SetGlobalLogLevel(setting.Level)
+	ApplyGlobalLogRotationConfig()
 	return nil
 }
 

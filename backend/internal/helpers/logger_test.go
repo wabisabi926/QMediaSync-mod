@@ -3,8 +3,12 @@ package helpers
 import (
 	"bytes"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 func useTestLogLevel(t *testing.T, level LogLevel) {
@@ -252,4 +256,138 @@ func TestQLoggerPanicf始终输出(t *testing.T) {
 	if got := buf.String(); !strings.Contains(got, "[PANIC] panic message") {
 		t.Fatalf("Panicf 应忽略日志等级并输出: %s", got)
 	}
+}
+
+func TestNewLoggerUsesConfiguredRotation(t *testing.T) {
+	oldConfigDir := ConfigDir
+	oldGlobalConfig := GlobalConfig
+	t.Cleanup(func() {
+		ConfigDir = oldConfigDir
+		GlobalConfig = oldGlobalConfig
+	})
+
+	ConfigDir = t.TempDir()
+	GlobalConfig = *MakeDefaultConfig()
+	GlobalConfig.Log.MaxSizeMB = 20
+	GlobalConfig.Log.MaxBackups = 5
+	GlobalConfig.Log.MaxAgeDays = 14
+
+	logger := NewLogger("logs/test.log", false, true)
+	t.Cleanup(logger.Close)
+
+	if logger.lumLogger == nil {
+		t.Fatal("lumLogger = nil, want lumberjack logger")
+	}
+	if logger.lumLogger.MaxSize != 20 || logger.lumLogger.MaxBackups != 5 || logger.lumLogger.MaxAge != 14 {
+		t.Fatalf("轮转参数未应用: %+v", logger.lumLogger)
+	}
+	if !logger.lumLogger.Compress {
+		t.Fatal("Compress = false, want true")
+	}
+}
+
+func TestApplyGlobalLogRotationConfigUpdatesBaiduPanLog(t *testing.T) {
+	oldGlobalConfig := GlobalConfig
+	oldBaiduPanLog := BaiduPanLog
+	t.Cleanup(func() {
+		GlobalConfig = oldGlobalConfig
+		BaiduPanLog = oldBaiduPanLog
+	})
+
+	GlobalConfig = *MakeDefaultConfig()
+	GlobalConfig.Log.MaxSizeMB = 30
+	GlobalConfig.Log.MaxBackups = 6
+	GlobalConfig.Log.MaxAgeDays = 21
+	BaiduPanLog = &QLogger{
+		rotate: true,
+		lumLogger: &lumberjack.Logger{
+			MaxSize:    10,
+			MaxBackups: 3,
+			MaxAge:     7,
+			Compress:   true,
+		},
+	}
+
+	ApplyGlobalLogRotationConfig()
+
+	if BaiduPanLog.lumLogger.MaxSize != 30 || BaiduPanLog.lumLogger.MaxBackups != 6 || BaiduPanLog.lumLogger.MaxAge != 21 {
+		t.Fatalf("BaiduPanLog 轮转参数未更新: %+v", BaiduPanLog.lumLogger)
+	}
+}
+
+func TestRotateLogIncludesBaiduPanLog(t *testing.T) {
+	oldConfigDir := ConfigDir
+	oldGlobalConfig := GlobalConfig
+	oldLogLevel := ConfiguredLogLevel()
+	oldAppLogger := AppLogger
+	oldV115Log := V115Log
+	oldOpenListLog := OpenListLog
+	oldTMDBLog := TMDBLog
+	oldBaiduPanLog := BaiduPanLog
+	t.Cleanup(func() {
+		ConfigDir = oldConfigDir
+		GlobalConfig = oldGlobalConfig
+		SetGlobalLogLevel(oldLogLevel)
+		AppLogger = oldAppLogger
+		V115Log = oldV115Log
+		OpenListLog = oldOpenListLog
+		TMDBLog = oldTMDBLog
+		BaiduPanLog = oldBaiduPanLog
+	})
+
+	ConfigDir = t.TempDir()
+	GlobalConfig = *MakeDefaultConfig()
+	SetGlobalLogLevel(LogLevelInfo)
+	AppLogger = nil
+	V115Log = nil
+	OpenListLog = nil
+	TMDBLog = nil
+	if err := os.MkdirAll(filepath.Join(ConfigDir, "logs"), 0755); err != nil {
+		t.Fatalf("创建日志目录失败: %v", err)
+	}
+	BaiduPanLog = NewLogger("logs/baidu.log", false, true)
+	t.Cleanup(BaiduPanLog.Close)
+
+	BaiduPanLog.Info("before rotate")
+	RotateLog()
+
+	matches, err := filepath.Glob(filepath.Join(ConfigDir, "logs", "baidu-*.log*"))
+	if err != nil {
+		t.Fatalf("匹配轮转备份失败: %v", err)
+	}
+	if len(matches) == 0 {
+		t.Fatalf("RotateLog 未轮转 BaiduPanLog，备份文件为空")
+	}
+}
+
+func TestCloseLoggerIncludesBaiduPanLog(t *testing.T) {
+	oldConfigDir := ConfigDir
+	oldGlobalConfig := GlobalConfig
+	oldAppLogger := AppLogger
+	oldV115Log := V115Log
+	oldOpenListLog := OpenListLog
+	oldTMDBLog := TMDBLog
+	oldBaiduPanLog := BaiduPanLog
+	t.Cleanup(func() {
+		ConfigDir = oldConfigDir
+		GlobalConfig = oldGlobalConfig
+		AppLogger = oldAppLogger
+		V115Log = oldV115Log
+		OpenListLog = oldOpenListLog
+		TMDBLog = oldTMDBLog
+		BaiduPanLog = oldBaiduPanLog
+	})
+
+	ConfigDir = t.TempDir()
+	GlobalConfig = *MakeDefaultConfig()
+	AppLogger = nil
+	V115Log = nil
+	OpenListLog = nil
+	TMDBLog = nil
+	if err := os.MkdirAll(filepath.Join(ConfigDir, "logs"), 0755); err != nil {
+		t.Fatalf("创建日志目录失败: %v", err)
+	}
+	BaiduPanLog = NewLogger("logs/baidu.log", false, true)
+
+	CloseLogger()
 }

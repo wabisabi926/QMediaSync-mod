@@ -70,12 +70,11 @@ func (w *rotationWriter) Write(p []byte) (int, error) {
 	return w.logger.Write(p)
 }
 
-func (w *rotationWriter) updateConfig(maxSize int, maxBackups int, maxAge int) *lumberjack.Logger {
+func (w *rotationWriter) updateConfig(maxSize int, maxBackups int, maxAge int) {
 	w.mu.Lock()
 	oldLogger := w.logger
-	var nextLogger *lumberjack.Logger
 	if oldLogger != nil {
-		nextLogger = &lumberjack.Logger{
+		w.logger = &lumberjack.Logger{
 			Filename:   oldLogger.Filename,
 			MaxSize:    maxSize,
 			MaxBackups: maxBackups,
@@ -83,14 +82,21 @@ func (w *rotationWriter) updateConfig(maxSize int, maxBackups int, maxAge int) *
 			LocalTime:  oldLogger.LocalTime,
 			Compress:   true,
 		}
-		w.logger = nextLogger
 	}
 	w.mu.Unlock()
 
 	if oldLogger != nil {
 		_ = oldLogger.Close()
 	}
-	return nextLogger
+}
+
+func (w *rotationWriter) configSnapshot() (maxSize int, maxBackups int, maxAge int, compress bool) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.logger == nil {
+		return 0, 0, 0, false
+	}
+	return w.logger.MaxSize, w.logger.MaxBackups, w.logger.MaxAge, w.logger.Compress
 }
 
 func (w *rotationWriter) rotate() error {
@@ -340,7 +346,7 @@ func applyLogRotationConfig(logger *QLogger) {
 		return
 	}
 	maxSize, maxBackups, maxAge := configuredLogRotation()
-	logger.lumLogger = logger.rotation.updateConfig(maxSize, maxBackups, maxAge)
+	logger.rotation.updateConfig(maxSize, maxBackups, maxAge)
 }
 
 // ApplyGlobalLogRotationConfig 更新已创建的全局日志器轮转参数。

@@ -330,8 +330,12 @@ func TestApplyGlobalLogRotationConfigUpdatesBaiduPanLog(t *testing.T) {
 
 	ApplyGlobalLogRotationConfig()
 
-	if BaiduPanLog.lumLogger.MaxSize != 30 || BaiduPanLog.lumLogger.MaxBackups != 6 || BaiduPanLog.lumLogger.MaxAge != 21 {
-		t.Fatalf("BaiduPanLog 轮转参数未更新: %+v", BaiduPanLog.lumLogger)
+	maxSize, maxBackups, maxAge, compress := BaiduPanLog.rotation.configSnapshot()
+	if maxSize != 30 || maxBackups != 6 || maxAge != 21 {
+		t.Fatalf("BaiduPanLog 轮转参数未更新: maxSize=%d maxBackups=%d maxAge=%d", maxSize, maxBackups, maxAge)
+	}
+	if !compress {
+		t.Fatal("BaiduPanLog Compress = false, want true")
 	}
 }
 
@@ -472,6 +476,52 @@ func TestApplyGlobalLogRotationConfigConcurrentWritesRaceFree(t *testing.T) {
 			}
 		}
 	}()
+
+	wg.Wait()
+}
+
+func TestSaveLogSettingConcurrentRotationUpdatesRaceFree(t *testing.T) {
+	oldConfigDir := ConfigDir
+	oldGlobalConfig := GlobalConfig
+	oldLogLevel := ConfiguredLogLevel()
+	oldAppLogger := AppLogger
+	t.Cleanup(func() {
+		ConfigDir = oldConfigDir
+		GlobalConfig = oldGlobalConfig
+		SetGlobalLogLevel(oldLogLevel)
+		AppLogger = oldAppLogger
+	})
+
+	ConfigDir = t.TempDir()
+	GlobalConfig = *MakeDefaultConfig()
+	SetGlobalLogLevel(LogLevelInfo)
+	if err := os.MkdirAll(filepath.Join(ConfigDir, "logs"), 0755); err != nil {
+		t.Fatalf("创建日志目录失败: %v", err)
+	}
+	if err := SaveConfig(&GlobalConfig); err != nil {
+		t.Fatalf("保存测试配置失败: %v", err)
+	}
+	AppLogger = NewLogger("logs/race-save.log", false, true)
+	t.Cleanup(AppLogger.Close)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	for worker := range 2 {
+		go func(worker int) {
+			defer wg.Done()
+			for i := range 100 {
+				if err := SaveLogSetting(LogSetting{
+					Level:      LogLevelInfo,
+					MaxSizeMB:  10 + (worker+i)%3,
+					MaxBackups: 3 + (worker+i)%3,
+					MaxAgeDays: 7 + (worker+i)%3,
+				}); err != nil {
+					t.Errorf("SaveLogSetting() error = %v", err)
+					return
+				}
+			}
+		}(worker)
+	}
 
 	wg.Wait()
 }

@@ -467,11 +467,12 @@ func initLogger() {
 	os.MkdirAll(logPath, 0755) // 如果没有 logs 目录则创建
 	syncLogPath := filepath.Join(helpers.ConfigDir, helpers.SyncLogDir())
 	os.MkdirAll(syncLogPath, 0755) // 如果没有同步任务日志目录则创建
-	helpers.AppLogger = helpers.NewLogger(helpers.GlobalConfig.Log.App, true, true)
-	helpers.V115Log = helpers.NewLogger(helpers.GlobalConfig.Log.V115, false, true)
-	helpers.OpenListLog = helpers.NewLogger(helpers.GlobalConfig.Log.OpenList, false, true)
-	helpers.TMDBLog = helpers.NewLogger(helpers.GlobalConfig.Log.TMDB, false, true)
-	helpers.BaiduPanLog = helpers.NewLogger(helpers.GlobalConfig.Log.BaiduPan, false, true)
+	logConfig := helpers.LogConfigSnapshot()
+	helpers.AppLogger = helpers.NewLogger(logConfig.App, true, true)
+	helpers.V115Log = helpers.NewLogger(logConfig.V115, false, true)
+	helpers.OpenListLog = helpers.NewLogger(logConfig.OpenList, false, true)
+	helpers.TMDBLog = helpers.NewLogger(logConfig.TMDB, false, true)
+	helpers.BaiduPanLog = helpers.NewLogger(logConfig.BaiduPan, false, true)
 	helpers.WarnUnsafeSensitiveLogIfEnabled()
 }
 

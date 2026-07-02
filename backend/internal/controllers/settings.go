@@ -23,12 +23,13 @@ type LogSettingResponse struct {
 }
 
 func currentLogSettingResponse() LogSettingResponse {
+	logConfig := helpers.LogConfigSnapshot()
 	return LogSettingResponse{
 		Level:      helpers.ConfiguredLogLevel().String(),
 		Levels:     helpers.LogLevelNames(),
-		MaxSizeMB:  helpers.GlobalConfig.Log.MaxSizeMB,
-		MaxBackups: helpers.GlobalConfig.Log.MaxBackups,
-		MaxAgeDays: helpers.GlobalConfig.Log.MaxAgeDays,
+		MaxSizeMB:  logConfig.MaxSizeMB,
+		MaxBackups: logConfig.MaxBackups,
+		MaxAgeDays: logConfig.MaxAgeDays,
 	}
 }
 

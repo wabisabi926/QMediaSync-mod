@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"gopkg.in/yaml.v2"
@@ -243,6 +244,48 @@ func TestSaveLogSetting保存配置并更新运行时设置(t *testing.T) {
 		if strings.Contains(text, "\n  file:") {
 			t.Fatalf("保存后的推荐配置不应继续写入 log.file: %s", text)
 		}
+	})
+}
+
+func TestSaveLogSettingConcurrentReadsRaceFree(t *testing.T) {
+	withTempConfigDir(t, func(configDir string) {
+		GlobalConfig = *MakeDefaultConfig()
+		SetGlobalLogLevel(LogLevelInfo)
+		if err := SaveConfig(&GlobalConfig); err != nil {
+			t.Fatalf("保存初始配置失败: %v", err)
+		}
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		go func() {
+			defer wg.Done()
+			for i := range 100 {
+				level := LogLevelInfo
+				if i%2 == 0 {
+					level = LogLevelWarn
+				}
+				if err := SaveLogSetting(LogSetting{
+					Level:      level,
+					MaxSizeMB:  10 + i%3,
+					MaxBackups: 3 + i%3,
+					MaxAgeDays: 7 + i%3,
+				}); err != nil {
+					t.Errorf("SaveLogSetting() error = %v", err)
+					return
+				}
+			}
+		}()
+
+		go func() {
+			defer wg.Done()
+			for range 1000 {
+				_, _, _ = configuredLogRotation()
+				_ = SyncLogDir()
+			}
+		}()
+
+		wg.Wait()
 	})
 }
 

@@ -13,7 +13,8 @@ const (
 
 // SyncLogDir 返回同步任务日志目录，目录始终限制在 logs 下。
 func SyncLogDir() string {
-	dir := strings.TrimSpace(GlobalConfig.Log.SyncLogDir)
+	logConfig := LogConfigSnapshot()
+	dir := strings.TrimSpace(logConfig.SyncLogDir)
 	if dir == "" {
 		dir = defaultSyncLogDir
 	}

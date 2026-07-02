@@ -92,7 +92,7 @@ type Config struct {
 }
 
 var GlobalConfig Config
-var logConfigMu sync.Mutex
+var logConfigMu sync.RWMutex
 var RootDir string
 var ConfigDir string
 
@@ -294,6 +294,13 @@ type LogSetting struct {
 	MaxAgeDays int
 }
 
+// LogConfigSnapshot 返回当前日志配置的并发安全快照。
+func LogConfigSnapshot() ConfigLog {
+	logConfigMu.RLock()
+	defer logConfigMu.RUnlock()
+	return GlobalConfig.Log
+}
+
 func normalizeLogConfig(logConfig *ConfigLog) {
 	defaultLog := MakeDefaultConfig().Log
 	logConfig.Level = NormalizeLogLevel(logConfig.Level)
@@ -337,8 +344,6 @@ func normalizeLogConfig(logConfig *ConfigLog) {
 // SaveLogSetting 保存日志设置并更新运行时日志器。
 func SaveLogSetting(setting LogSetting) error {
 	logConfigMu.Lock()
-	defer logConfigMu.Unlock()
-
 	nextConfig := GlobalConfig
 	nextConfig.Log.File = ""
 	nextConfig.Log.Level = setting.Level.String()
@@ -347,21 +352,25 @@ func SaveLogSetting(setting LogSetting) error {
 	nextConfig.Log.MaxAgeDays = setting.MaxAgeDays
 	normalizeLogConfig(&nextConfig.Log)
 	if err := SaveConfig(&nextConfig); err != nil {
+		logConfigMu.Unlock()
 		return err
 	}
 	GlobalConfig.Log = nextConfig.Log
 	SetGlobalLogLevel(setting.Level)
+	logConfigMu.Unlock()
+
 	ApplyGlobalLogRotationConfig()
 	return nil
 }
 
 // SaveLogLevel 保存日志等级配置并更新运行时日志等级。
 func SaveLogLevel(level LogLevel) error {
+	logConfig := LogConfigSnapshot()
 	return SaveLogSetting(LogSetting{
 		Level:      level,
-		MaxSizeMB:  GlobalConfig.Log.MaxSizeMB,
-		MaxBackups: GlobalConfig.Log.MaxBackups,
-		MaxAgeDays: GlobalConfig.Log.MaxAgeDays,
+		MaxSizeMB:  logConfig.MaxSizeMB,
+		MaxBackups: logConfig.MaxBackups,
+		MaxAgeDays: logConfig.MaxAgeDays,
 	})
 }
 

@@ -441,10 +441,15 @@ func TestApplyGlobalLogRotationConfigConcurrentWritesRaceFree(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := range 1000 {
-			GlobalConfig.Log.MaxSizeMB = 10 + i%3
-			GlobalConfig.Log.MaxBackups = 3 + i%3
-			GlobalConfig.Log.MaxAgeDays = 7 + i%3
-			ApplyGlobalLogRotationConfig()
+			if err := SaveLogSetting(LogSetting{
+				Level:      LogLevelInfo,
+				MaxSizeMB:  10 + i%3,
+				MaxBackups: 3 + i%3,
+				MaxAgeDays: 7 + i%3,
+			}); err != nil {
+				t.Errorf("SaveLogSetting() error = %v", err)
+				return
+			}
 		}
 	}()
 

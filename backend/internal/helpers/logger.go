@@ -319,15 +319,16 @@ func (q *QLogger) RequiredWarnf(format string, args ...interface{}) {
 }
 
 func configuredLogRotation() (maxSize int, maxBackups int, maxAge int) {
-	maxSize = GlobalConfig.Log.MaxSizeMB
+	logConfig := LogConfigSnapshot()
+	maxSize = logConfig.MaxSizeMB
 	if maxSize < 1 || maxSize > 1024 {
 		maxSize = defaultLogMaxSizeMB
 	}
-	maxBackups = GlobalConfig.Log.MaxBackups
+	maxBackups = logConfig.MaxBackups
 	if maxBackups < 1 || maxBackups > 100 {
 		maxBackups = defaultLogMaxBackups
 	}
-	maxAge = GlobalConfig.Log.MaxAgeDays
+	maxAge = logConfig.MaxAgeDays
 	if maxAge < 1 || maxAge > 365 {
 		maxAge = defaultLogMaxAgeDays
 	}

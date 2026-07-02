@@ -19,16 +19,18 @@ type RequestStatSaver func(requestTime int64, url, method string, duration int64
 // QueueExecutor 请求队列执行器，负责管理所有 API 请求的队列和执行
 type QueueExecutor struct {
 	sync.RWMutex
+	// 生命周期锁只串行化 Start/Stop，避免复用 WaitGroup 时与新一代 worker 交叉。
+	lifecycleMu sync.Mutex
 	// 请求队列通道，缓冲 100
 	requestQueue chan *QueuedRequest
 	// Worker 数量
 	workerCount int
 	// 是否正在运行
 	running bool
-	// 停止通道
-	stopChan chan struct{}
-	// Worker 停止信号
-	workerStopChans []chan struct{}
+	// Worker 等待组
+	workerWG sync.WaitGroup
+	// 入队等待组，跟踪已取得队列快照但可能阻塞在发送上的请求。
+	enqueueWG sync.WaitGroup
 	// 速率限制器（支持 QPS/QPM/QPH）
 	qpsLimiter *rate.Limiter // 每秒请求数限制
 	qpmLimiter *rate.Limiter // 每分钟请求数限制
@@ -83,8 +85,6 @@ func NewQueueExecutor(qps, qpm, qph int) *QueueExecutor {
 	executor := &QueueExecutor{
 		requestQueue:    make(chan *QueuedRequest, 100), // 缓冲 100
 		workerCount:     workerCount,
-		stopChan:        make(chan struct{}),
-		workerStopChans: make([]chan struct{}, 0, workerCount),
 		throttleManager: NewThrottleManager(),
 		stats:           NewRequestStats(10000),
 		qpsConfig:       qps,
@@ -131,11 +131,13 @@ func (qe *QueueExecutor) SetRateLimitConfig(qps, qpm, qph int) {
 	if needRestart {
 		// 如果 Worker 数量改变且正在运行，需要重启
 		helpers.V115Log.Warnf("速率限制配置已更改，将重启执行器以应用新的 Worker 数量：%d -> %d", oldWorkerCount, newWorkerCount)
-		qe.Stop()
+		qe.lifecycleMu.Lock()
+		qe.stopLocked()
 		qe.Lock()
 		qe.workerCount = newWorkerCount
 		qe.Unlock()
-		qe.Start()
+		qe.startLocked()
+		qe.lifecycleMu.Unlock()
 	}
 }
 
@@ -148,6 +150,12 @@ func (qe *QueueExecutor) SetStatSaver(saver RequestStatSaver) {
 
 // Start 启动队列执行器
 func (qe *QueueExecutor) Start() {
+	qe.lifecycleMu.Lock()
+	defer qe.lifecycleMu.Unlock()
+	qe.startLocked()
+}
+
+func (qe *QueueExecutor) startLocked() {
 	qe.Lock()
 	if qe.running {
 		qe.Unlock()
@@ -158,61 +166,59 @@ func (qe *QueueExecutor) Start() {
 	if qe.requestQueue == nil {
 		qe.requestQueue = make(chan *QueuedRequest, 100)
 	}
-	qe.Unlock()
+	queue := qe.requestQueue
+	workerCount := qe.workerCount
+	qpsConfig := qe.qpsConfig
+	qpmConfig := qe.qpmConfig
+	qphConfig := qe.qphConfig
 
 	helpers.V115Log.Infof("启动 115 开放平台队列执行器，Worker 数量：%d，QPS：%d，QPM：%d，QPH：%d",
-		qe.workerCount, qe.qpsConfig, qe.qpmConfig, qe.qphConfig)
+		workerCount, qpsConfig, qpmConfig, qphConfig)
 
 	// 启动 Worker
-	for i := 0; i < qe.workerCount; i++ {
-		stopChan := make(chan struct{})
-		qe.workerStopChans = append(qe.workerStopChans, stopChan)
-		go qe.worker(i, stopChan)
+	for i := 0; i < workerCount; i++ {
+		qe.workerWG.Add(1)
+		go qe.worker(i, queue)
 	}
+	qe.Unlock()
 }
 
 // Stop 停止队列执行器
 func (qe *QueueExecutor) Stop() {
+	qe.lifecycleMu.Lock()
+	defer qe.lifecycleMu.Unlock()
+	qe.stopLocked()
+}
+
+func (qe *QueueExecutor) stopLocked() {
 	qe.Lock()
 	if !qe.running {
 		qe.Unlock()
 		return
 	}
 	qe.running = false
-	qe.Unlock()
+	requestQueue := qe.requestQueue
+	qe.requestQueue = nil
 
 	helpers.V115Log.Infof("停止 115 开放平台队列执行器")
+	qe.Unlock()
 
-	// 停止所有 Worker
-	for _, stopChan := range qe.workerStopChans {
-		select {
-		case stopChan <- struct{}{}:
-		default:
-		}
+	// 关闭队列通道，worker 会处理完已入队的缓冲请求后退出。
+	if requestQueue != nil {
+		qe.enqueueWG.Wait()
+		close(requestQueue)
 	}
-
-	// 关闭队列通道
-	close(qe.requestQueue)
-	qe.requestQueue = nil
+	qe.workerWG.Wait()
 }
 
 // worker Worker 协程，处理队列中的请求
-func (qe *QueueExecutor) worker(id int, stopChan chan struct{}) {
-	for {
-		select {
-		case <-stopChan:
-			helpers.V115Log.Debugf("Worker %d 已停止", id)
-			return
-		case req, ok := <-qe.requestQueue:
-			if !ok {
-				// 通道已关闭
-				return
-			}
-
-			// 处理请求
-			qe.handleRequest(req)
-		}
+func (qe *QueueExecutor) worker(id int, requestQueue <-chan *QueuedRequest) {
+	defer qe.workerWG.Done()
+	for req := range requestQueue {
+		// 处理请求
+		qe.handleRequest(req)
 	}
+	helpers.V115Log.Debugf("Worker %d 已停止", id)
 }
 
 // handleRequest 处理单个请求
@@ -378,16 +384,28 @@ func (qe *QueueExecutor) executeRequest(req *QueuedRequest) (*resty.Response, *R
 
 // EnqueueRequest 将请求加入队列
 func (qe *QueueExecutor) EnqueueRequest(req *QueuedRequest) {
-	qe.RLock()
-	if !qe.running {
-		qe.RUnlock()
+	qe.Lock()
+	if !qe.running || qe.requestQueue == nil {
+		qe.Unlock()
 		helpers.V115Log.Error("队列执行器未启动")
+		if req != nil && req.ResponseChan != nil {
+			select {
+			case req.ResponseChan <- &RequestResponse{Error: fmt.Errorf("队列执行器未启动")}:
+			default:
+				helpers.V115Log.Warnf("响应通道已关闭或已满，丢弃响应：%s %s", req.Method, req.URL)
+			}
+			close(req.ResponseChan)
+		}
 		return
 	}
-	qe.RUnlock()
+
+	requestQueue := qe.requestQueue
+	qe.enqueueWG.Add(1)
+	qe.Unlock()
+	defer qe.enqueueWG.Done()
 
 	// 发送到队列（如果缓冲满则阻塞）
-	qe.requestQueue <- req
+	requestQueue <- req
 }
 
 // GetStats 获取统计数据

@@ -226,19 +226,17 @@ onMounted(() => {
         <span class="field-unit">天</span>
       </el-form-item>
 
-      <el-form-item>
-        <div class="form-actions">
-          <el-button
-            type="success"
-            size="large"
-            :icon="Check"
-            :loading="loading"
-            @click="saveLogSetting"
-          >
-            保存设置
-          </el-button>
-        </div>
-      </el-form-item>
+      <div class="form-actions">
+        <el-button
+          type="success"
+          size="large"
+          :icon="Check"
+          :loading="loading"
+          @click="saveLogSetting"
+        >
+          保存设置
+        </el-button>
+      </div>
     </el-form>
 
     <el-alert
@@ -264,7 +262,8 @@ onMounted(() => {
 }
 
 .form-actions {
-  margin-top: 20px;
+  margin-top: 30px;
+  text-align: center;
 }
 
 .field-unit {

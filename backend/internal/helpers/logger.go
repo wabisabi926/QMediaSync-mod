@@ -147,7 +147,7 @@ func UnsafeSensitiveLogEnabled() bool {
 // WarnUnsafeSensitiveLogIfEnabled 在启用 unsafe 敏感日志时输出显式风险提示。
 func WarnUnsafeSensitiveLogIfEnabled() {
 	if AppLogger != nil && UnsafeSensitiveLogEnabled() {
-		AppLogger.Warnf("%s 已启用，敏感 Debug 日志可能包含 API Key、Token、Cookie 或密码，请勿分享日志文件", UnsafeSensitiveLogEnv)
+		AppLogger.RequiredWarnf("%s 已启用，敏感 Debug 日志可能包含 API Key、Token、Cookie 或密码，请勿分享日志文件", UnsafeSensitiveLogEnv)
 	}
 }
 

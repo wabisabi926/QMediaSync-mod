@@ -119,6 +119,26 @@ func TestQLoggerSensitiveDebugf需要显式开关(t *testing.T) {
 	}
 }
 
+func TestWarnUnsafeSensitiveLogIfEnabledIgnoresLogLevelFilter(t *testing.T) {
+	t.Setenv(UnsafeSensitiveLogEnv, "1")
+	useTestLogLevel(t, LogLevelError)
+
+	oldAppLogger := AppLogger
+	t.Cleanup(func() {
+		AppLogger = oldAppLogger
+	})
+
+	var buf bytes.Buffer
+	AppLogger = &QLogger{Logger: log.New(&buf, "", 0)}
+
+	WarnUnsafeSensitiveLogIfEnabled()
+
+	got := buf.String()
+	if !strings.Contains(got, UnsafeSensitiveLogEnv) {
+		t.Fatalf("安全风险提示应忽略 Error 等级过滤并输出，got %q", got)
+	}
+}
+
 func TestQLogger按日志等级过滤(t *testing.T) {
 	tests := []struct {
 		name      string

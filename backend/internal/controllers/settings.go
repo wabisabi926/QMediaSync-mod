@@ -15,18 +15,20 @@ import (
 
 // LogSettingResponse 日志设置响应。
 type LogSettingResponse struct {
-	Level  string   `json:"level"`
-	Levels []string `json:"levels"`
-}
-
-type updateLogSettingRequest struct {
-	Level string `form:"level" json:"level" binding:"required"`
+	Level      string   `json:"level"`
+	Levels     []string `json:"levels"`
+	MaxSizeMB  int      `json:"maxSizeMB"`
+	MaxBackups int      `json:"maxBackups"`
+	MaxAgeDays int      `json:"maxAgeDays"`
 }
 
 func currentLogSettingResponse() LogSettingResponse {
 	return LogSettingResponse{
-		Level:  helpers.ConfiguredLogLevel().String(),
-		Levels: helpers.LogLevelNames(),
+		Level:      helpers.ConfiguredLogLevel().String(),
+		Levels:     helpers.LogLevelNames(),
+		MaxSizeMB:  helpers.GlobalConfig.Log.MaxSizeMB,
+		MaxBackups: helpers.GlobalConfig.Log.MaxBackups,
+		MaxAgeDays: helpers.GlobalConfig.Log.MaxAgeDays,
 	}
 }
 
@@ -91,18 +93,23 @@ func GetLogSetting(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func UpdateLogSetting(c *gin.Context) {
-	var req updateLogSettingRequest
+	var req requests.UpdateLogSettingRequest
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请求参数错误：" + err.Error(), Data: nil})
 		return
 	}
-	level, ok := helpers.ParseLogLevel(req.Level)
-	if !ok {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "日志等级必须是 debug、info、warn 或 error", Data: nil})
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
+	level, _ := helpers.ParseLogLevel(req.Level)
 
-	if err := helpers.SaveLogLevel(level); err != nil {
+	if err := helpers.SaveLogSetting(helpers.LogSetting{
+		Level:      level,
+		MaxSizeMB:  req.MaxSizeMB,
+		MaxBackups: req.MaxBackups,
+		MaxAgeDays: req.MaxAgeDays,
+	}); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "保存日志设置失败：" + err.Error(), Data: nil})
 		return
 	}
@@ -449,12 +456,13 @@ func UpdateStrmConfig(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func GetCronNextTime(c *gin.Context) {
-	type getCronNextTimeRequest struct {
-		Cron string `form:"cron" json:"cron" binding:"required"` // Cron 表达式
-	}
-	var req getCronNextTimeRequest
+	var req requests.GetCronNextTimeRequest
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误：" + err.Error(), Data: nil})
+		return
+	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 	times := helpers.GetNextTimeByCronStr(req.Cron, 5)
@@ -482,23 +490,18 @@ func GetCronNextTime(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func ValidateCron(c *gin.Context) {
-	type validateCronRequest struct {
-		CronExpression string `json:"cron_expression" binding:"required"`
-	}
-	var req validateCronRequest
+	var req requests.ValidateCronRequest
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请求参数错误：" + err.Error(), Data: nil})
 		return
 	}
-
-	// 验证 Cron 表达式
-	scrapePath := &models.ScrapePath{}
-	if !scrapePath.ValidateCronExpression(req.CronExpression) {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "Cron 表达式无效", Data: nil})
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
 
 	// 解析 Cron 表达式为可读描述
+	scrapePath := &models.ScrapePath{}
 	description := scrapePath.ParseCronDescription(req.CronExpression)
 
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "Cron 表达式有效", Data: map[string]string{

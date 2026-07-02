@@ -13,6 +13,23 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// LogSettingResponse 日志设置响应。
+type LogSettingResponse struct {
+	Level  string   `json:"level"`
+	Levels []string `json:"levels"`
+}
+
+type updateLogSettingRequest struct {
+	Level string `form:"level" json:"level" binding:"required"`
+}
+
+func currentLogSettingResponse() LogSettingResponse {
+	return LogSettingResponse{
+		Level:  helpers.ConfiguredLogLevel().String(),
+		Levels: helpers.LogLevelNames(),
+	}
+}
+
 // func UpdateEmby(c *gin.Context) {
 // 	type updateEmbyRequest struct {
 // 		EmbyUrl    string `form:"emby_url" json:"emby_url"`         // Emby URL
@@ -41,6 +58,61 @@ import (
 // 	emby["emby_api_key"] = models.GlobalEmbyConfig.EmbyApiKey
 // 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取 Emby 设置成功", Data: emby})
 // }
+
+// GetLogSetting 获取日志设置。
+// @Summary 获取日志设置
+// @Description 获取当前运行日志等级
+// @Tags 系统设置
+// @Accept json
+// @Produce json
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/log [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
+func GetLogSetting(c *gin.Context) {
+	c.JSON(http.StatusOK, APIResponse[LogSettingResponse]{
+		Code:    Success,
+		Message: "获取日志设置成功",
+		Data:    currentLogSettingResponse(),
+	})
+}
+
+// UpdateLogSetting 更新日志设置。
+// @Summary 更新日志设置
+// @Description 更新运行日志等级，保存后立即生效
+// @Tags 系统设置
+// @Accept json
+// @Produce json
+// @Param level body string true "日志等级：debug/info/warn/error"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/log [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
+func UpdateLogSetting(c *gin.Context) {
+	var req updateLogSettingRequest
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请求参数错误：" + err.Error(), Data: nil})
+		return
+	}
+	level, ok := helpers.ParseLogLevel(req.Level)
+	if !ok {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "日志等级必须是 debug、info、warn 或 error", Data: nil})
+		return
+	}
+
+	if err := helpers.SaveLogLevel(level); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "保存日志设置失败：" + err.Error(), Data: nil})
+		return
+	}
+
+	c.JSON(http.StatusOK, APIResponse[LogSettingResponse]{
+		Code:    Success,
+		Message: "日志设置已更新",
+		Data:    currentLogSettingResponse(),
+	})
+}
 
 // ParseEmby 手动解析 Emby 媒体信息。
 // @Summary 解析 Emby 媒体信息

@@ -111,15 +111,15 @@ func GetLocalPath(parentPath string) ([]DirResp, error) {
 				// if helpers.SharePathes == "" {
 				helpers.SharePathes = os.Getenv("TRIM_DATA_SHARE_PATHS")
 				// }
-				helpers.AppLogger.Infof("AccessiblePathes：%s", helpers.AccessiblePathes)
-				helpers.AppLogger.Infof("SharePathes：%s", helpers.SharePathes)
+				helpers.AppLogger.Debugf("AccessiblePathes：%s", helpers.AccessiblePathes)
+				helpers.AppLogger.Debugf("SharePathes：%s", helpers.SharePathes)
 				if helpers.AccessiblePathes != "" || helpers.SharePathes != "" {
 					accessiblePaths := helpers.AccessiblePathes
 					sharePaths := helpers.SharePathes
 					if sharePaths != "" {
 						accessiblePaths += ":" + sharePaths
 					}
-					helpers.AppLogger.Infof("合并后有权限访问的目录为：%s", accessiblePaths)
+					helpers.AppLogger.Debugf("合并后有权限访问的目录为：%s", accessiblePaths)
 					// 用冒号分割
 					paths := strings.Split(accessiblePaths, ":")
 					for _, path := range paths {
@@ -172,7 +172,7 @@ func GetOpenListPath(parentPath string, accountId uint) ([]DirResp, error) {
 	parentPath = strings.TrimSuffix(parentPath, "/")
 	parentPath = strings.TrimSuffix(parentPath, "\\")
 
-	helpers.AppLogger.Infof("开始获取 OpenList 目录列表，父目录路径：%s", parentPath)
+	helpers.AppLogger.Debugf("开始获取 OpenList 目录列表，父目录路径：%s", parentPath)
 	client := account.GetOpenListClient()
 	resp, err := client.FileList(context.Background(), parentPath, 1, 100)
 	if err != nil {
@@ -199,14 +199,14 @@ func Get115PathList(parentId string, accountId uint) ([]DirResp, error) {
 		return nil, err
 	}
 	client := account.Get115Client()
-	helpers.AppLogger.Infof("开始获取 115 目录列表，父目录 ID：%s", parentId)
+	helpers.AppLogger.Debugf("开始获取 115 目录列表，父目录 ID：%s", parentId)
 	ctx := context.Background()
 	resp, err := client.GetFsList(ctx, parentId, true, true, true, 0, 200)
 	if err != nil {
 		helpers.AppLogger.Warnf("获取 115 目录列表失败：父目录=%s，错误=%v", parentId, err)
 		return nil, err
 	}
-	helpers.AppLogger.Infof("成功获取 115 目录列表，父目录 ID：%s，文件数量：%d", parentId, len(resp.Data))
+	helpers.AppLogger.Debugf("成功获取 115 目录列表，父目录 ID：%s，文件数量：%d", parentId, len(resp.Data))
 	folders := make([]DirResp, 0)
 	// 构建路径
 	for _, item := range resp.Data {
@@ -214,7 +214,7 @@ func Get115PathList(parentId string, accountId uint) ([]DirResp, error) {
 		if parentPath == "" {
 			parentPath = ""
 		}
-		helpers.AppLogger.Infof("遍历 %s 的 115 目录列表，路径：%s", parentPath, item.FileName)
+		helpers.AppLogger.Debugf("遍历 %s 的 115 目录列表，路径：%s", parentPath, item.FileName)
 		if item.FileCategory == v115open.TypeDir {
 			folders = append(folders, DirResp{
 				Id:   item.FileId,

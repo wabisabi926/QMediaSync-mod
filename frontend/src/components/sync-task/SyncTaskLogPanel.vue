@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import LogLevelFilter from '@/components/log/LogLevelFilter.vue'
 import LogActionToolbar from '@/components/log/LogActionToolbar.vue'
 import type { SyncTaskLogEntry } from '@/types/syncTaskStream'
-import { computed, nextTick, shallowRef, useTemplateRef, watch } from 'vue'
+import type { LogLevel } from '@/types/log'
+import { DEFAULT_VISIBLE_LOG_LEVELS, filterLogEntriesByLevels } from '@/utils/logLevel'
+import { computed, nextTick, ref, shallowRef, useTemplateRef, watch } from 'vue'
 
 const props = defineProps<{
   logs: readonly SyncTaskLogEntry[]
@@ -18,7 +21,8 @@ const emit = defineEmits<{
 
 const logsContainer = useTemplateRef<HTMLElement>('logsContainer')
 const followLatest = shallowRef(true)
-const visibleLogs = computed(() => props.logs)
+const selectedLogLevels = ref<LogLevel[]>([...DEFAULT_VISIBLE_LOG_LEVELS])
+const visibleLogs = computed(() => filterLogEntriesByLevels(props.logs, selectedLogLevels.value))
 
 const handleScroll = () => {
   if (!logsContainer.value) return
@@ -40,16 +44,21 @@ watch(
 <template>
   <div class="sync-task-log-panel">
     <div class="log-panel-header">
-      <h3 class="log-panel-title">同步日志</h3>
-      <LogActionToolbar
-        compact
-        :connected="connected"
-        :download-disabled="!logPath"
-        @connect="emit('connect')"
-        @disconnect="emit('disconnect')"
-        @clear="emit('clear')"
-        @download="emit('download')"
-      />
+      <div class="log-panel-title-group">
+        <h3 class="log-panel-title">同步日志</h3>
+        <LogLevelFilter v-model="selectedLogLevels" />
+      </div>
+      <div class="log-panel-actions">
+        <LogActionToolbar
+          compact
+          :connected="connected"
+          :download-disabled="!logPath"
+          @connect="emit('connect')"
+          @disconnect="emit('disconnect')"
+          @clear="emit('clear')"
+          @download="emit('download')"
+        />
+      </div>
     </div>
     <div ref="logsContainer" class="logs" @scroll="handleScroll">
       <div
@@ -66,7 +75,7 @@ watch(
     </div>
     <div class="log-info">
       <el-text size="small">
-        当前显示 {{ visibleLogs.length }} 行日志
+        当前显示 {{ visibleLogs.length }} / 已加载 {{ logs.length }} 行日志
         <span v-if="connected" class="status-indicator connected">● 已连接</span>
         <span v-else class="status-indicator disconnected">● 已断开</span>
       </el-text>
@@ -85,6 +94,22 @@ watch(
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 10px;
+}
+
+.log-panel-title-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+}
+
+.log-panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .log-panel-title {
@@ -173,6 +198,18 @@ watch(
 
 @media (max-width: 768px) {
   .log-panel-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .log-panel-title-group {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .log-panel-actions {
     align-items: stretch;
     flex-direction: column;
   }

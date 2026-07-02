@@ -554,7 +554,8 @@ const sortBy = computed<NetFileSortBy>({
   set: (value) => pageStateStore.setFilter('file-manager', 'sortBy', value),
 })
 const sortOrder = computed<NetFileSortOrder>({
-  get: () => (isNetFileSortOrder(pageState.filters.sortOrder) ? pageState.filters.sortOrder : 'asc'),
+  get: () =>
+    isNetFileSortOrder(pageState.filters.sortOrder) ? pageState.filters.sortOrder : 'asc',
   set: (value) => pageStateStore.setFilter('file-manager', 'sortOrder', value),
 })
 const pendingFileListRefresh = ref<LoadFileListOptions | null>(null)

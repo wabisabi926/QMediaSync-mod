@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync/atomic"
 
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -17,12 +18,20 @@ var V115Log *QLogger
 var OpenListLog *QLogger
 var BaiduPanLog *QLogger
 var TMDBLog *QLogger
+var runtimeLogLevel atomic.Int32
+
+type LogLevel int32
 
 const (
 	UnsafeSensitiveLogEnv = "QMS_UNSAFE_SENSITIVE_LOG"
 	// SensitiveLogMask 是日志敏感值的统一脱敏占位符。
 	SensitiveLogMask = "******"
 	redactedLogValue = SensitiveLogMask
+
+	LogLevelDebug LogLevel = -1
+	LogLevelInfo  LogLevel = 0
+	LogLevelWarn  LogLevel = 1
+	LogLevelError LogLevel = 2
 )
 
 var (
@@ -74,31 +83,120 @@ func WarnUnsafeSensitiveLogIfEnabled() {
 	}
 }
 
-func (q *QLogger) logf(level string, format string, args ...interface{}) {
-	q.Logger.Printf("[%s] %s", level, RedactSensitiveLog(fmt.Sprintf(format, args...)))
+func (l LogLevel) String() string {
+	switch l {
+	case LogLevelDebug:
+		return "debug"
+	case LogLevelWarn:
+		return "warn"
+	case LogLevelError:
+		return "error"
+	default:
+		return "info"
+	}
 }
 
-func (q *QLogger) log(level string, message string) {
-	q.Logger.Println("[" + level + "] " + RedactSensitiveLog(message))
+func (l LogLevel) Label() string {
+	return strings.ToUpper(l.String())
+}
+
+// ParseLogLevel 将配置或接口中的日志等级转换为内部枚举。
+func ParseLogLevel(value string) (LogLevel, bool) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "debug":
+		return LogLevelDebug, true
+	case "info":
+		return LogLevelInfo, true
+	case "warn", "warning":
+		return LogLevelWarn, true
+	case "error", "err":
+		return LogLevelError, true
+	default:
+		return LogLevelInfo, false
+	}
+}
+
+// NormalizeLogLevel 返回可写入配置文件的规范日志等级。
+func NormalizeLogLevel(value string) string {
+	level, ok := ParseLogLevel(value)
+	if !ok {
+		return LogLevelInfo.String()
+	}
+	return level.String()
+}
+
+// LogLevelNames 返回前后端共用的日志等级顺序。
+func LogLevelNames() []string {
+	return []string{
+		LogLevelDebug.String(),
+		LogLevelInfo.String(),
+		LogLevelWarn.String(),
+		LogLevelError.String(),
+	}
+}
+
+func ConfiguredLogLevel() LogLevel {
+	return LogLevel(runtimeLogLevel.Load())
+}
+
+// SetGlobalLogLevel 更新运行时日志等级，所有 QLogger 实例立即共享该等级。
+func SetGlobalLogLevel(level LogLevel) {
+	runtimeLogLevel.Store(int32(level))
+}
+
+func (q *QLogger) SetLevel(level LogLevel) {
+	SetGlobalLogLevel(level)
+}
+
+func (q *QLogger) Level() LogLevel {
+	return ConfiguredLogLevel()
+}
+
+func (q *QLogger) shouldLog(level LogLevel) bool {
+	return level >= q.Level()
+}
+
+func (q *QLogger) logf(level LogLevel, format string, args ...interface{}) {
+	if q == nil || q.Logger == nil || !q.shouldLog(level) {
+		return
+	}
+	q.Logger.Printf("[%s] %s", level.Label(), RedactSensitiveLog(fmt.Sprintf(format, args...)))
+}
+
+func (q *QLogger) logfUnfiltered(level LogLevel, format string, args ...interface{}) {
+	if q == nil || q.Logger == nil {
+		return
+	}
+	q.Logger.Printf("[%s] %s", level.Label(), RedactSensitiveLog(fmt.Sprintf(format, args...)))
+}
+
+func (q *QLogger) log(level LogLevel, message string) {
+	if q == nil || q.Logger == nil || !q.shouldLog(level) {
+		return
+	}
+	q.Logger.Println("[" + level.Label() + "] " + RedactSensitiveLog(message))
 }
 
 func (q *QLogger) Infof(format string, args ...interface{}) {
-	q.logf("INFO", format, args...)
+	q.logf(LogLevelInfo, format, args...)
 }
 
 func (q *QLogger) Info(format string) {
-	q.log("INFO", format)
+	q.log(LogLevelInfo, format)
 }
 
 func (q *QLogger) Debugf(format string, args ...interface{}) {
-	q.logf("DEBUG", format, args...)
+	q.logf(LogLevelDebug, format, args...)
 }
 
 func (q *QLogger) Debug(format string) {
-	q.log("DEBUG", format)
+	q.log(LogLevelDebug, format)
 }
 
 func (q *QLogger) SensitiveDebugf(format string, args ...interface{}) {
+	if q == nil || q.Logger == nil || !q.shouldLog(LogLevelDebug) {
+		return
+	}
 	message := fmt.Sprintf(format, args...)
 	if !UnsafeSensitiveLogEnabled() {
 		message = RedactSensitiveLog(message)
@@ -107,6 +205,9 @@ func (q *QLogger) SensitiveDebugf(format string, args ...interface{}) {
 }
 
 func (q *QLogger) SensitiveDebug(format string) {
+	if q == nil || q.Logger == nil || !q.shouldLog(LogLevelDebug) {
+		return
+	}
 	message := format
 	if !UnsafeSensitiveLogEnabled() {
 		message = RedactSensitiveLog(message)
@@ -115,27 +216,38 @@ func (q *QLogger) SensitiveDebug(format string) {
 }
 
 func (q *QLogger) Errorf(format string, args ...interface{}) {
-	q.logf("ERROR", format, args...)
+	q.logf(LogLevelError, format, args...)
 }
 
 func (q *QLogger) Error(format string) {
-	q.log("ERROR", format)
+	q.log(LogLevelError, format)
 }
 
 func (q *QLogger) Fatalf(format string, args ...interface{}) {
+	if q == nil || q.Logger == nil {
+		log.Fatalf("[FATAL] %s", RedactSensitiveLog(fmt.Sprintf(format, args...)))
+	}
 	q.Logger.Fatalf("[FATAL] %s", RedactSensitiveLog(fmt.Sprintf(format, args...)))
 }
 
 func (q *QLogger) Panicf(format string, args ...interface{}) {
+	if q == nil || q.Logger == nil {
+		log.Panicf("[PANIC] %s", RedactSensitiveLog(fmt.Sprintf(format, args...)))
+	}
 	q.Logger.Panicf("[PANIC] %s", RedactSensitiveLog(fmt.Sprintf(format, args...)))
 }
 
 func (q *QLogger) Warnf(format string, args ...interface{}) {
-	q.logf("WARN", format, args...)
+	q.logf(LogLevelWarn, format, args...)
 }
 
 func (q *QLogger) Warn(format string) {
-	q.log("WARN", format)
+	q.log(LogLevelWarn, format)
+}
+
+// RequiredWarnf 输出运行必要的 Warn 日志，忽略当前日志等级过滤。
+func (q *QLogger) RequiredWarnf(format string, args ...interface{}) {
+	q.logfUnfiltered(LogLevelWarn, format, args...)
 }
 
 func NewLogger(logFileName string, isConsole bool, rotate bool) *QLogger {
@@ -185,12 +297,13 @@ func NewLogger(logFileName string, isConsole bool, rotate bool) *QLogger {
 	// 创建一个新的日志记录器，包含日期、时间和微秒
 	logger := log.New(multiWriter, "", log.Ldate|log.Ltime|log.Lmicroseconds)
 
-	return &QLogger{
+	qLogger := &QLogger{
 		Logger:    logger,
 		rotate:    rotate,
 		console:   isConsole,
 		lumLogger: lumLogger,
 	}
+	return qLogger
 }
 
 func CloseLogger() {

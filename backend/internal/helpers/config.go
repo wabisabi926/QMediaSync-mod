@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"gopkg.in/yaml.v2"
 )
@@ -32,6 +33,7 @@ const (
 
 type ConfigLog struct {
 	File       string `yaml:"file"`
+	Level      string `yaml:"level"`
 	V115       string `yaml:"v115"`
 	OpenList   string `yaml:"openList"`
 	TMDB       string `yaml:"tmdb"`
@@ -86,6 +88,7 @@ type Config struct {
 }
 
 var GlobalConfig Config
+var logConfigMu sync.Mutex
 var RootDir string
 var ConfigDir string
 
@@ -155,6 +158,9 @@ func InitConfig() error {
 	if GlobalConfig.NewAuthServer == "" {
 		GlobalConfig.NewAuthServer = "https://oauth.qmediasync.cn"
 	}
+	GlobalConfig.Log.Level = NormalizeLogLevel(GlobalConfig.Log.Level)
+	logLevel, _ := ParseLogLevel(GlobalConfig.Log.Level)
+	SetGlobalLogLevel(logLevel)
 	if err := EnsureJWTSecret(); err != nil {
 		return err
 	}
@@ -273,10 +279,26 @@ func SaveConfig(config *Config) error {
 	return nil
 }
 
+// SaveLogLevel 保存日志等级配置并更新运行时日志等级。
+func SaveLogLevel(level LogLevel) error {
+	logConfigMu.Lock()
+	defer logConfigMu.Unlock()
+
+	nextConfig := GlobalConfig
+	nextConfig.Log.Level = level.String()
+	if err := SaveConfig(&nextConfig); err != nil {
+		return err
+	}
+	GlobalConfig.Log.Level = level.String()
+	SetGlobalLogLevel(level)
+	return nil
+}
+
 func MakeDefaultConfig() *Config {
 	return &Config{
 		Log: ConfigLog{
 			File:       "logs/app.log",
+			Level:      LogLevelInfo.String(),
 			V115:       "logs/115.log",
 			OpenList:   "logs/openList.log",
 			TMDB:       "logs/tmdb.log",

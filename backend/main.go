@@ -264,8 +264,11 @@ func configureInitialAdminSetup() error {
 		return err
 	}
 	if token != "" {
-		helpers.AppLogger.Warnf("检测到系统尚未创建管理员，请使用以下初始化码完成首次管理员创建：%s", token)
-		helpers.AppLogger.Warnf("初始化码只会在本次启动日志中显示，创建管理员成功后立即失效")
+		helpers.AppLogger.RequiredWarnf(
+			"检测到系统尚未创建管理员，请使用以下初始化码完成首次管理员创建：%s",
+			token,
+		)
+		helpers.AppLogger.RequiredWarnf("初始化码只会在本次启动日志中显示，创建管理员成功后立即失效")
 	}
 	return nil
 }
@@ -654,6 +657,8 @@ func setRouter(r *gin.Engine) {
 		api.POST("/setting/http-proxy", controllers.UpdateHttpProxy)    // 更改 HTTP 代理
 		api.GET("/setting/http-proxy", controllers.GetHttpProxy)        // 获取 HTTP 代理
 		api.POST("/setting/test-http-proxy", controllers.TestHttpProxy) // 测试 HTTP 代理
+		api.GET("/setting/log", controllers.GetLogSetting)              // 获取日志设置
+		api.POST("/setting/log", controllers.UpdateLogSetting)          // 更新日志设置
 		// api.GET("/setting/telegram", controllers.GetTelegram)                                      // 获取 Telegram 消息通知配置
 		// api.POST("/setting/telegram", controllers.UpdateTelegram)                                  // 更改 Telegram 消息通知配置
 		// api.POST("/telegram/test", controllers.TestTelegram)                                       // 测试 Telegram 连通性

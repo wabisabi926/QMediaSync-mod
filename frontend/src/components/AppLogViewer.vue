@@ -7,16 +7,21 @@
     <el-card class="log-card" shadow="hover">
       <template #header>
         <div class="card-header">
-          <h2 class="card-title">日志查看器</h2>
-          <LogActionToolbar
-            :connected="isConnected"
-            :show-realtime-controls="isRealTime"
-            :download-disabled="!props.logPath.trim()"
-            @connect="connect"
-            @disconnect="disconnect"
-            @clear="clearLogs"
-            @download="downloadLogs"
-          />
+          <div class="header-title-group">
+            <h2 class="card-title">日志查看器</h2>
+            <LogLevelFilter v-model="selectedLogLevels" />
+          </div>
+          <div class="header-actions">
+            <LogActionToolbar
+              :connected="isConnected"
+              :show-realtime-controls="isRealTime"
+              :download-disabled="!props.logPath.trim()"
+              @connect="connect"
+              @disconnect="disconnect"
+              @clear="clearLogs"
+              @download="downloadLogs"
+            />
+          </div>
         </div>
       </template>
 
@@ -33,13 +38,13 @@
             <span class="log-level">{{ log.level.toUpperCase() }}</span>
             <span class="log-message">{{ log.message }}</span>
           </div>
-          <div v-if="logLines.length === 0" class="empty-logs">暂无日志内容</div>
+          <div v-if="limitedLogLines.length === 0" class="empty-logs">暂无日志内容</div>
         </div>
 
         <!-- 日志信息 -->
         <div class="log-info">
           <el-text size="small">
-            当前显示 {{ limitedLogLines.length }} 行日志
+            当前显示 {{ limitedLogLines.length }} / 已加载 {{ logLines.length }} 行日志
             <span v-if="isConnected" class="status-indicator connected">● 已连接</span>
             <span v-else class="status-indicator disconnected">● 已断开</span>
           </el-text>
@@ -52,8 +57,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, useTemplateRef } from 'vue'
 import LogActionToolbar from '@/components/log/LogActionToolbar.vue'
+import LogLevelFilter from '@/components/log/LogLevelFilter.vue'
 import { useLogFileActions } from '@/composables/useLogFileActions'
 import { SERVER_URL } from '@/const'
+import type { LogEntry, LogLevel } from '@/types/log'
+import { DEFAULT_VISIBLE_LOG_LEVELS, filterLogEntriesByLevels } from '@/utils/logLevel'
 import { formatDateTime } from '@/utils/timeUtils'
 import { buildApiWebSocketUrl } from '@/utils/wsUrl'
 
@@ -78,17 +86,10 @@ const logViewerStyle = computed<Record<string, string>>(() => ({
   '--log-viewer-mobile-height': props.mobileHeight || props.height || 'calc(100dvh - 220px)',
 }))
 
-// 定义日志条目类型
-interface LogEntry {
-  level: 'info' | 'warn' | 'error' | 'debug'
-  message: string
-  timestamp: string
-  id?: string
-}
-
 // 组件状态
 const ws = ref<WebSocket | null>(null)
 const logLines = ref<LogEntry[]>([])
+const selectedLogLevels = ref<LogLevel[]>([...DEFAULT_VISIBLE_LOG_LEVELS])
 const isConnected = ref(false)
 const loading = ref(false)
 const logsContainer = useTemplateRef<HTMLElement>('logsContainer')
@@ -124,7 +125,7 @@ const readLogResponseError = async (response: Response) => {
 
 // 限制显示的日志条目
 const limitedLogLines = computed(() => {
-  return logLines.value.slice(0, MAX_LOG_ENTRIES)
+  return filterLogEntriesByLevels(logLines.value, selectedLogLevels.value).slice(0, MAX_LOG_ENTRIES)
 })
 
 const resetLogState = () => {
@@ -479,7 +480,23 @@ defineExpose({
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 20px;
+  gap: 12px 20px;
+}
+
+.header-title-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .card-title {
@@ -623,8 +640,25 @@ defineExpose({
 
 /* 移动端适配 */
 @media (max-width: 768px) {
+  .card-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .header-title-group {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 2px;
+  }
+
   .card-title {
     font-size: 18px;
+  }
+
+  .header-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .logs {

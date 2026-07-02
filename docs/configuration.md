@@ -11,7 +11,7 @@
 
 `config.yaml` 不保存管理员用户名和密码。首次启动并完成数据库初始化后，如果 `users` 表为空，程序会生成一次性初始化码并写入启动日志。打开 Web 登录页后，系统会显示创建管理员表单；输入启动日志中的初始化码、管理员用户名和密码后，后端会使用 bcrypt 哈希密码并创建首个管理员。
 
-初始化码只在用户表为空时生成，创建管理员成功后立即失效。`users` 表通过唯一约束保证系统只存在一个登录用户；若尚未创建管理员就重启程序，会生成新的初始化码。首次初始化应在可信网络内完成，避免无关人员访问 Web 页面。
+初始化码只在用户表为空时生成，创建管理员成功后立即失效。该启动日志属于首次设置必需提示，即使 `log.level` 配置为 `error` 也会写入。`users` 表通过唯一约束保证系统只存在一个登录用户；若尚未创建管理员就重启程序，会生成新的初始化码。首次初始化应在可信网络内完成，避免无关人员访问 Web 页面。
 
 ## 浏览器登录会话
 
@@ -67,6 +67,7 @@ emby302:
 | 配置项 | 默认文件 | 用途 |
 | --- | --- | --- |
 | `log.file` | `logs/app.log` | 主程序日志，包含 Web、控制器、模型、Emby 302 等通用日志。 |
+| `log.level` | `info` | 日志等级，可选值：`debug`、`info`、`warn`、`error`。 |
 | `log.v115` | `logs/115.log` | 115 开放平台相关请求和队列日志。 |
 | `log.openList` | `logs/openList.log` | OpenList 相关日志。 |
 | `log.tmdb` | `logs/tmdb.log` | TMDB 刮削相关日志。 |
@@ -76,7 +77,9 @@ emby302:
 
 同步任务日志文件名为 `sync_<任务 ID>.log`，默认写入 `logs/sync`。旧版本写入的 `logs/libs/sync_<任务 ID>.log` 仍可在任务详情和日志接口中读取；新启动不再主动创建空的 `logs/libs` 目录。
 
-当前自定义 `QLogger` 不提供运行时日志等级过滤；`Info`、`Warn`、`Error`、`Debug` 和显式敏感 `SensitiveDebug` 都会写入对应日志。日志前缀用于区分等级，但不会因为运行模式自动屏蔽 `Debug`。`gin.ReleaseMode` 只影响 Gin 自身模式，不控制 `QLogger` 的输出。
+当前自定义 `QLogger` 支持运行时日志等级过滤，日志格式保持为 `YYYY/MM/DD HH:MM:SS.micro [LEVEL] message`。默认 `info` 会写入 `Info`、`Warn`、`Error`，不写入 `Debug`；`debug` 会写入全部等级；`warn` 只写入 `Warn` 和 `Error`；`error` 只写入 `Error`。`Fatalf`、`Panicf` 和运行必需的启动警告始终输出；首次管理员初始化码属于运行必需的启动警告。`gin.ReleaseMode` 只影响 Gin 自身模式，不控制 `QLogger` 的输出。
+
+可以在 Web 页面「系统设置 - 日志设置」调整日志等级，后端会保存到 `config/config.yaml` 并立即更新运行中的全局日志器，无需重启。日志查看页和同步任务详情页的日志等级筛选只影响当前页面显示，不影响日志文件写入。
 
 运行日志默认会在写入前完全脱敏常见敏感字段，包括 `api_key`、`X-Emby-Token`、`Authorization`、`X-Emby-Authorization`、`X-API-Key`、`password`、`access_token`、`refresh_token`、`AccessKeySecret`、`SecurityToken`、`Cookie` 等。普通 `Info`、`Warn`、`Error` 和 `Debug` 日志都会执行脱敏，不保留敏感值开头或结尾字符。脱敏后的敏感值统一显示为 `******`。
 

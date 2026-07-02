@@ -88,6 +88,13 @@ func TestMakeDefaultConfigDisablesEmby302InsecureSkipVerify(t *testing.T) {
 	}
 }
 
+func TestMakeDefaultConfigLogLevelDefaultsInfo(t *testing.T) {
+	cfg := MakeDefaultConfig()
+	if cfg.Log.Level != "info" {
+		t.Fatalf("Log.Level = %q, want info", cfg.Log.Level)
+	}
+}
+
 func TestMakeDefaultConfigDoesNotContainAdminCredentials(t *testing.T) {
 	cfg := MakeDefaultConfig()
 	data, err := yaml.Marshal(cfg)
@@ -112,6 +119,66 @@ func TestInitConfigReadsEmby302InsecureSkipVerify(t *testing.T) {
 		}
 		if !GlobalConfig.Emby302.InsecureSkipVerify {
 			t.Fatal("Emby302.InsecureSkipVerify = false, want true")
+		}
+	})
+}
+
+func TestInitConfigDefaultsMissingLogLevelToInfo(t *testing.T) {
+	withTempConfigDir(t, func(configDir string) {
+		data := []byte("jwtSecret: custom-secret\nlog:\n  file: logs/app.log\n")
+		if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), data, 0644); err != nil {
+			t.Fatalf("write test config: %v", err)
+		}
+
+		if err := InitConfig(); err != nil {
+			t.Fatalf("InitConfig() error = %v", err)
+		}
+		if GlobalConfig.Log.Level != "info" {
+			t.Fatalf("Log.Level = %q, want info", GlobalConfig.Log.Level)
+		}
+	})
+}
+
+func TestInitConfigNormalizesInvalidLogLevelToInfo(t *testing.T) {
+	withTempConfigDir(t, func(configDir string) {
+		data := []byte("jwtSecret: custom-secret\nlog:\n  level: verbose\n")
+		if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), data, 0644); err != nil {
+			t.Fatalf("write test config: %v", err)
+		}
+
+		if err := InitConfig(); err != nil {
+			t.Fatalf("InitConfig() error = %v", err)
+		}
+		if GlobalConfig.Log.Level != "info" {
+			t.Fatalf("Log.Level = %q, want info", GlobalConfig.Log.Level)
+		}
+	})
+}
+
+func TestSaveLogLevel保存配置并更新运行时等级(t *testing.T) {
+	withTempConfigDir(t, func(configDir string) {
+		GlobalConfig = *MakeDefaultConfig()
+		SetGlobalLogLevel(LogLevelInfo)
+		if err := SaveConfig(&GlobalConfig); err != nil {
+			t.Fatalf("保存初始配置失败: %v", err)
+		}
+
+		if err := SaveLogLevel(LogLevelWarn); err != nil {
+			t.Fatalf("SaveLogLevel() error = %v", err)
+		}
+
+		if ConfiguredLogLevel() != LogLevelWarn {
+			t.Fatalf("ConfiguredLogLevel() = %s, want warn", ConfiguredLogLevel().String())
+		}
+		if GlobalConfig.Log.Level != "warn" {
+			t.Fatalf("GlobalConfig.Log.Level = %q, want warn", GlobalConfig.Log.Level)
+		}
+		saved, err := os.ReadFile(filepath.Join(configDir, "config.yaml"))
+		if err != nil {
+			t.Fatalf("读取保存后的配置失败: %v", err)
+		}
+		if !strings.Contains(string(saved), "level: warn") {
+			t.Fatalf("配置文件未保存日志等级: %s", string(saved))
 		}
 	})
 }
@@ -156,9 +223,11 @@ func withTempConfigDir(t *testing.T, run func(configDir string)) {
 
 	oldConfigDir := ConfigDir
 	oldGlobalConfig := GlobalConfig
+	oldLogLevel := ConfiguredLogLevel()
 	t.Cleanup(func() {
 		ConfigDir = oldConfigDir
 		GlobalConfig = oldGlobalConfig
+		SetGlobalLogLevel(oldLogLevel)
 	})
 
 	ConfigDir = t.TempDir()

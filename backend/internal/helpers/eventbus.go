@@ -86,7 +86,7 @@ func Publish(eventType EventType, data interface{}) {
 	globalEventBus.mutex.RUnlock()
 
 	if len(handlers) == 0 {
-		AppLogger.Infof("没有订阅者监听事件：%s", eventType)
+		AppLogger.Debugf("没有订阅者监听事件：%s", eventType)
 		return
 	}
 
@@ -95,7 +95,7 @@ func Publish(eventType EventType, data interface{}) {
 		Data: data,
 	}
 
-	AppLogger.Infof("发布事件：%s，订阅者数量：%d", eventType, len(handlers))
+	AppLogger.Debugf("发布事件：%s，订阅者数量：%d", eventType, len(handlers))
 
 	// 异步处理事件，避免阻塞
 	go func() {
@@ -138,7 +138,7 @@ func PublishSync(eventType EventType, data any) []EventResult {
 	globalEventBus.mutex.RUnlock()
 
 	if len(handlers) == 0 {
-		AppLogger.Infof("没有订阅者监听同步事件：%s", eventType)
+		AppLogger.Debugf("没有订阅者监听同步事件：%s", eventType)
 		return nil
 	}
 
@@ -147,7 +147,7 @@ func PublishSync(eventType EventType, data any) []EventResult {
 		Data: data,
 	}
 
-	AppLogger.Infof("发布同步事件：%s，订阅者数量：%d", eventType, len(handlers))
+	AppLogger.Debugf("发布同步事件：%s，订阅者数量：%d", eventType, len(handlers))
 
 	results := make([]EventResult, len(handlers))
 	var wg sync.WaitGroup
@@ -172,7 +172,7 @@ func PublishSync(eventType EventType, data any) []EventResult {
 	}
 
 	wg.Wait() // 等待所有处理器完成
-	AppLogger.Infof("同步事件处理完成：%s", eventType)
+	AppLogger.Debugf("同步事件处理完成：%s", eventType)
 
 	return results
 }

@@ -14,6 +14,7 @@ const AppSyncDirectories = () => import('@/components/AppSyncDirectories.vue')
 const AppSyncDirectoryForm = () => import('@/components/AppSyncDirectoryForm.vue')
 const AppCloudAccounts = () => import('@/components/AppCloudAccounts.vue')
 const AppThreadSettings = () => import('@/components/AppThreadSettings.vue')
+const AppLogSettings = () => import('@/components/AppLogSettings.vue')
 const AppTmdbSettings = () => import('@/components/AppTmdbSettings.vue')
 const AppAiSettings = () => import('@/components/AppAiSettings.vue')
 const AppCategoryStrategy = () => import('@/components/AppCategoryStrategy.vue')
@@ -417,6 +418,18 @@ const routes = [
       requiresAuth: true,
       parent: 'settings',
       icon: 'Operation',
+      showInMenu: true,
+    },
+  },
+  {
+    path: '/settings/log',
+    name: 'settings-log',
+    component: AppLogSettings,
+    meta: {
+      title: '日志设置',
+      requiresAuth: true,
+      parent: 'settings',
+      icon: 'List',
       showInMenu: true,
     },
   },

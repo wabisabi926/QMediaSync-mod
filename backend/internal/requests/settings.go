@@ -9,9 +9,9 @@ import (
 // UpdateLogSettingRequest 更新日志设置请求。
 type UpdateLogSettingRequest struct {
 	Level      string `form:"level" json:"level" binding:"required"`
-	MaxSizeMB  int    `form:"maxSizeMB" json:"maxSizeMB" binding:"required"`
-	MaxBackups int    `form:"maxBackups" json:"maxBackups" binding:"required"`
-	MaxAgeDays int    `form:"maxAgeDays" json:"maxAgeDays" binding:"required"`
+	MaxSizeMB  *int   `form:"maxSizeMB" json:"maxSizeMB"`
+	MaxBackups *int   `form:"maxBackups" json:"maxBackups"`
+	MaxAgeDays *int   `form:"maxAgeDays" json:"maxAgeDays"`
 }
 
 // Validate 校验日志设置请求。
@@ -19,13 +19,23 @@ func (r UpdateLogSettingRequest) Validate() error {
 	if _, ok := helpers.ParseLogLevel(r.Level); !ok {
 		return validation.New("level", "必须是 debug、info、warn 或 error")
 	}
-	if err := validation.RangeInt("maxSizeMB", r.MaxSizeMB, 1, 1024); err != nil {
+	if r.MaxSizeMB != nil {
+		if err := validation.RangeInt("maxSizeMB", *r.MaxSizeMB, 1, 1024); err != nil {
+			return err
+		}
+	}
+	if r.MaxBackups != nil {
+		if err := validation.RangeInt("maxBackups", *r.MaxBackups, 1, 100); err != nil {
+			return err
+		}
+	}
+	if r.MaxAgeDays == nil {
+		return nil
+	}
+	if err := validation.RangeInt("maxAgeDays", *r.MaxAgeDays, 1, 365); err != nil {
 		return err
 	}
-	if err := validation.RangeInt("maxBackups", r.MaxBackups, 1, 100); err != nil {
-		return err
-	}
-	return validation.RangeInt("maxAgeDays", r.MaxAgeDays, 1, 365)
+	return nil
 }
 
 // GetCronNextTimeRequest 获取 Cron 下次执行时间请求。

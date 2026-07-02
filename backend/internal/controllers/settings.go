@@ -88,6 +88,9 @@ func GetLogSetting(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param level body string true "日志等级：debug/info/warn/error"
+// @Param maxSizeMB body int false "单文件最大大小 MB，缺省时沿用当前配置"
+// @Param maxBackups body int false "保留备份数，缺省时沿用当前配置"
+// @Param maxAgeDays body int false "保留天数，缺省时沿用当前配置"
 // @Success 200 {object} object
 // @Failure 200 {object} object
 // @Router /setting/log [post]
@@ -104,12 +107,25 @@ func UpdateLogSetting(c *gin.Context) {
 		return
 	}
 	level, _ := helpers.ParseLogLevel(req.Level)
+	logConfig := helpers.LogConfigSnapshot()
+	maxSizeMB := logConfig.MaxSizeMB
+	if req.MaxSizeMB != nil {
+		maxSizeMB = *req.MaxSizeMB
+	}
+	maxBackups := logConfig.MaxBackups
+	if req.MaxBackups != nil {
+		maxBackups = *req.MaxBackups
+	}
+	maxAgeDays := logConfig.MaxAgeDays
+	if req.MaxAgeDays != nil {
+		maxAgeDays = *req.MaxAgeDays
+	}
 
 	if err := helpers.SaveLogSetting(helpers.LogSetting{
 		Level:      level,
-		MaxSizeMB:  req.MaxSizeMB,
-		MaxBackups: req.MaxBackups,
-		MaxAgeDays: req.MaxAgeDays,
+		MaxSizeMB:  maxSizeMB,
+		MaxBackups: maxBackups,
+		MaxAgeDays: maxAgeDays,
 	}); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "保存日志设置失败：" + err.Error(), Data: nil})
 		return

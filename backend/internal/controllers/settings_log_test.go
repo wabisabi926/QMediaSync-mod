@@ -135,6 +135,39 @@ func TestUpdateLogSetting保存后立即生效(t *testing.T) {
 	}
 }
 
+func TestUpdateLogSetting兼容仅提交日志等级(t *testing.T) {
+	r, _ := setupLogSettingControllerTest(t)
+	helpers.GlobalConfig.Log.MaxSizeMB = 20
+	helpers.GlobalConfig.Log.MaxBackups = 5
+	helpers.GlobalConfig.Log.MaxAgeDays = 14
+	if err := helpers.SaveConfig(&helpers.GlobalConfig); err != nil {
+		t.Fatalf("保存测试配置失败: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/setting/log", strings.NewReader(`{"level":"debug"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("HTTP = %d, body=%s", w.Code, w.Body.String())
+	}
+	var resp APIResponse[LogSettingResponse]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("解析响应失败: %v", err)
+	}
+	if resp.Code != Success {
+		t.Fatalf("Code = %d, message=%s", resp.Code, resp.Message)
+	}
+	if helpers.GlobalConfig.Log.Level != "debug" {
+		t.Fatalf("GlobalConfig.Log.Level = %q, want debug", helpers.GlobalConfig.Log.Level)
+	}
+	if helpers.GlobalConfig.Log.MaxSizeMB != 20 || helpers.GlobalConfig.Log.MaxBackups != 5 || helpers.GlobalConfig.Log.MaxAgeDays != 14 {
+		t.Fatalf("缺省轮转参数应沿用当前配置: %+v", helpers.GlobalConfig.Log)
+	}
+}
+
 func TestUpdateLogSetting拒绝非法日志等级(t *testing.T) {
 	cases := []struct {
 		name string

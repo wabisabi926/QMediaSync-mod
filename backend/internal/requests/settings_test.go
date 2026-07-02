@@ -2,12 +2,16 @@ package requests
 
 import "testing"
 
+func intPtr(value int) *int {
+	return &value
+}
+
 func TestUpdateLogSettingRequestValidate(t *testing.T) {
 	valid := UpdateLogSettingRequest{
 		Level:      "info",
-		MaxSizeMB:  10,
-		MaxBackups: 3,
-		MaxAgeDays: 7,
+		MaxSizeMB:  intPtr(10),
+		MaxBackups: intPtr(3),
+		MaxAgeDays: intPtr(7),
 	}
 
 	tests := []struct {
@@ -16,13 +20,18 @@ func TestUpdateLogSettingRequestValidate(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "合法日志设置通过"},
+		{name: "兼容仅更新日志等级", mutate: func(r *UpdateLogSettingRequest) {
+			r.MaxSizeMB = nil
+			r.MaxBackups = nil
+			r.MaxAgeDays = nil
+		}},
 		{name: "日志等级错误失败", mutate: func(r *UpdateLogSettingRequest) { r.Level = "verbose" }, wantErr: true},
-		{name: "单文件最大大小小于 1 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxSizeMB = 0 }, wantErr: true},
-		{name: "单文件最大大小大于 1024 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxSizeMB = 1025 }, wantErr: true},
-		{name: "备份数小于 1 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxBackups = 0 }, wantErr: true},
-		{name: "备份数大于 100 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxBackups = 101 }, wantErr: true},
-		{name: "保留天数小于 1 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxAgeDays = 0 }, wantErr: true},
-		{name: "保留天数大于 365 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxAgeDays = 366 }, wantErr: true},
+		{name: "单文件最大大小小于 1 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxSizeMB = intPtr(0) }, wantErr: true},
+		{name: "单文件最大大小大于 1024 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxSizeMB = intPtr(1025) }, wantErr: true},
+		{name: "备份数小于 1 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxBackups = intPtr(0) }, wantErr: true},
+		{name: "备份数大于 100 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxBackups = intPtr(101) }, wantErr: true},
+		{name: "保留天数小于 1 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxAgeDays = intPtr(0) }, wantErr: true},
+		{name: "保留天数大于 365 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxAgeDays = intPtr(366) }, wantErr: true},
 	}
 
 	for _, tt := range tests {

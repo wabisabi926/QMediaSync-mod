@@ -1,6 +1,8 @@
 package requests
 
 import (
+	"strings"
+
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
 	"qmediasync/internal/validation"
@@ -48,6 +50,11 @@ func (r GetCronNextTimeRequest) Validate() error {
 	return validation.Cron("cron", r.Cron, false)
 }
 
+// NormalizedCron 返回规范化后的 Cron 表达式。
+func (r GetCronNextTimeRequest) NormalizedCron() string {
+	return strings.TrimSpace(r.Cron)
+}
+
 // ValidateCronRequest 验证 Cron 表达式请求。
 type ValidateCronRequest struct {
 	CronExpression string `json:"cron_expression" binding:"required"`
@@ -56,6 +63,11 @@ type ValidateCronRequest struct {
 // Validate 校验 Cron 表达式请求。
 func (r ValidateCronRequest) Validate() error {
 	return validation.Cron("cron_expression", r.CronExpression, false)
+}
+
+// NormalizedCronExpression 返回规范化后的 Cron 表达式。
+func (r ValidateCronRequest) NormalizedCronExpression() string {
+	return strings.TrimSpace(r.CronExpression)
 }
 
 // UpdateThreadsRequest 更新线程配置请求。

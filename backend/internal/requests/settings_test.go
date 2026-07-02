@@ -72,6 +72,18 @@ func TestCronRequestValidate(t *testing.T) {
 	}
 }
 
+func TestCronRequestNormalized(t *testing.T) {
+	nextReq := GetCronNextTimeRequest{Cron: " 0 2 * * * "}
+	if got := nextReq.NormalizedCron(); got != "0 2 * * *" {
+		t.Fatalf("NormalizedCron() = %q, want %q", got, "0 2 * * *")
+	}
+
+	validateReq := ValidateCronRequest{CronExpression: " 0 2 * * * "}
+	if got := validateReq.NormalizedCronExpression(); got != "0 2 * * *" {
+		t.Fatalf("NormalizedCronExpression() = %q, want %q", got, "0 2 * * *")
+	}
+}
+
 func TestUpdateThreadsRequestValidate(t *testing.T) {
 	valid := UpdateThreadsRequest{
 		DownloadThreads:    1,

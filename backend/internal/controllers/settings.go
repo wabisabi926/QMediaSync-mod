@@ -482,7 +482,7 @@ func GetCronNextTime(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
-	times := helpers.GetNextTimeByCronStr(req.Cron, 5)
+	times := helpers.GetNextTimeByCronStr(req.NormalizedCron(), 5)
 	if times == nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "仅支持 5 位 cron 表达式或 robfig 描述符", Data: nil})
 		return
@@ -519,7 +519,7 @@ func ValidateCron(c *gin.Context) {
 
 	// 解析 Cron 表达式为可读描述
 	scrapePath := &models.ScrapePath{}
-	description := scrapePath.ParseCronDescription(req.CronExpression)
+	description := scrapePath.ParseCronDescription(req.NormalizedCronExpression())
 
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "Cron 表达式有效", Data: map[string]string{
 		"description": description,

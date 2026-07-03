@@ -310,8 +310,8 @@
 
             <el-form-item label="同步模式">
               <el-radio-group v-model="embyData.sync_all_libraries" @change="handleSyncModeChange">
-                <el-radio :label="1">全部媒体库</el-radio>
-                <el-radio :label="0">指定媒体库</el-radio>
+                <el-radio :value="1">全部媒体库</el-radio>
+                <el-radio :value="0">指定媒体库</el-radio>
               </el-radio-group>
               <div class="form-help">
                 <el-icon><InfoFilled /></el-icon>

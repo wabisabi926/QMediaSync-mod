@@ -113,8 +113,8 @@
 
       <el-form-item label="下载元数据" prop="download_meta">
         <el-radio-group v-model="strmData.download_meta" @change="changeDownloadMeta">
-          <el-radio-button :label="1">是</el-radio-button>
-          <el-radio-button :label="0">否</el-radio-button>
+          <el-radio-button :value="1">是</el-radio-button>
+          <el-radio-button :value="0">否</el-radio-button>
         </el-radio-group>
         <div class="form-help">
           <p>选择“是”时，同步会下载本地缺失的元数据文件</p>
@@ -129,13 +129,13 @@
       <!-- 同步完是否上传网盘不存在的元数据 -->
       <el-form-item label="网盘不存在的元数据" prop="upload_meta">
         <el-radio-group v-model="strmData.upload_meta">
-          <el-radio-button :label="2" :disabled="strmData.download_meta === 0"
+          <el-radio-button :value="2" :disabled="strmData.download_meta === 0"
             >删除</el-radio-button
           >
-          <el-radio-button :label="1" :disabled="strmData.download_meta === 0"
+          <el-radio-button :value="1" :disabled="strmData.download_meta === 0"
             >上传</el-radio-button
           >
-          <el-radio-button :label="0">保留</el-radio-button>
+          <el-radio-button :value="0">保留</el-radio-button>
         </el-radio-group>
         <div class="form-help">
           <p>删除：本地存在但网盘不存在时，删除本地文件</p>
@@ -153,8 +153,8 @@
       </el-form-item>
       <el-form-item label="检查元数据修改时间" prop="check_meta_mtime">
         <el-radio-group v-model="strmData.check_meta_mtime">
-          <el-radio-button :label="1">是</el-radio-button>
-          <el-radio-button :label="0">否</el-radio-button>
+          <el-radio-button :value="1">是</el-radio-button>
+          <el-radio-button :value="0">否</el-radio-button>
         </el-radio-group>
         <div class="form-help">
           <p>
@@ -167,8 +167,8 @@
       <!-- 同步完是否删除网盘不存在的空目录 -->
       <el-form-item label="网盘不存在的空目录" prop="delete_dir">
         <el-radio-group v-model="strmData.delete_dir">
-          <el-radio-button :label="1">删除</el-radio-button>
-          <el-radio-button :label="0">不删除</el-radio-button>
+          <el-radio-button :value="1">删除</el-radio-button>
+          <el-radio-button :value="0">不删除</el-radio-button>
         </el-radio-group>
         <div class="form-help">
           <p>同步完成后，删除本地存在但网盘不存在的空目录</p>
@@ -177,9 +177,9 @@
 
       <el-form-item label="给 STRM 链接添加路径" prop="add_path">
         <el-radio-group v-model="strmData.add_path" @change="updateStrmExample">
-          <el-radio-button :label="1">完整路径</el-radio-button>
-          <el-radio-button :label="2">文件名</el-radio-button>
-          <el-radio-button :label="3">不添加</el-radio-button>
+          <el-radio-button :value="1">完整路径</el-radio-button>
+          <el-radio-button :value="2">文件名</el-radio-button>
+          <el-radio-button :value="3">不添加</el-radio-button>
         </el-radio-group>
         <div class="form-help">
           <p>可在 STRM 链接中附加完整原始路径或仅附加文件名，便于排查问题，也可兼容部分播放器</p>
@@ -188,8 +188,8 @@
 
       <el-form-item label="启用本地代理播放" prop="local_proxy">
         <el-radio-group v-model="strmData.local_proxy">
-          <el-radio-button :label="1">启用</el-radio-button>
-          <el-radio-button :label="0">关闭</el-radio-button>
+          <el-radio-button :value="1">启用</el-radio-button>
+          <el-radio-button :value="0">关闭</el-radio-button>
         </el-radio-group>
         <div class="form-help">
           <p>

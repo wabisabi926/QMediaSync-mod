@@ -248,11 +248,11 @@
           </el-form-item>
           <el-form-item label="下载元数据" prop="download_meta">
             <el-radio-group v-model="form.download_meta">
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.downloadMeta[0]"
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.downloadMeta[0]"
                 >使用 STRM 设置</el-radio-button
               >
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.downloadMeta[2]">是</el-radio-button>
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.downloadMeta[1]">否</el-radio-button>
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.downloadMeta[2]">是</el-radio-button>
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.downloadMeta[1]">否</el-radio-button>
             </el-radio-group>
             <div class="form-help">
               <p>选择“是”时，同步会下载本地缺失的元数据文件</p>
@@ -265,20 +265,20 @@
           </el-form-item>
           <el-form-item label="网盘不存在的元数据" prop="upload_meta">
             <el-radio-group v-model="form.upload_meta">
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.uploadMeta[0]"
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.uploadMeta[0]"
                 >使用 STRM 设置</el-radio-button
               >
               <el-radio-button
-                :label="STRM_CUSTOM_OPTIONS.uploadMeta[3]"
+                :value="STRM_CUSTOM_OPTIONS.uploadMeta[3]"
                 :disabled="form.download_meta === STRM_CUSTOM_OPTIONS.downloadMeta[1]"
                 >删除</el-radio-button
               >
               <el-radio-button
-                :label="STRM_CUSTOM_OPTIONS.uploadMeta[2]"
+                :value="STRM_CUSTOM_OPTIONS.uploadMeta[2]"
                 :disabled="form.download_meta === STRM_CUSTOM_OPTIONS.downloadMeta[1]"
                 >上传</el-radio-button
               >
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.uploadMeta[1]">保留</el-radio-button>
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.uploadMeta[1]">保留</el-radio-button>
             </el-radio-group>
             <div class="form-help">
               <p>删除：本地存在但网盘不存在时，删除本地文件</p>
@@ -297,11 +297,11 @@
           </el-form-item>
           <el-form-item label="检查元数据修改时间" prop="check_meta_mtime">
             <el-radio-group v-model="form.check_meta_mtime">
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.checkMetaMtime[0]"
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.checkMetaMtime[0]"
                 >使用 STRM 设置</el-radio-button
               >
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.checkMetaMtime[2]">是</el-radio-button>
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.checkMetaMtime[1]">否</el-radio-button>
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.checkMetaMtime[2]">是</el-radio-button>
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.checkMetaMtime[1]">否</el-radio-button>
             </el-radio-group>
             <div class="form-help">
               <p>
@@ -314,11 +314,11 @@
           </el-form-item>
           <el-form-item label="网盘不存在的空目录" prop="delete_dir">
             <el-radio-group v-model="form.delete_dir">
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.deleteDir[0]"
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.deleteDir[0]"
                 >使用 STRM 设置</el-radio-button
               >
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.deleteDir[2]">删除</el-radio-button>
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.deleteDir[1]">不删除</el-radio-button>
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.deleteDir[2]">删除</el-radio-button>
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.deleteDir[1]">不删除</el-radio-button>
             </el-radio-group>
             <div class="form-help">
               <p>同步完成后，删除本地存在但网盘不存在的空目录</p>
@@ -326,12 +326,12 @@
           </el-form-item>
           <el-form-item label="给 STRM 链接添加路径" prop="add_path">
             <el-radio-group v-model="form.add_path" @change="updateStrmExample">
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.addPath[0]"
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.addPath[0]"
                 >使用 STRM 设置</el-radio-button
               >
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.addPath[1]">完整路径</el-radio-button>
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.addPath[2]">文件名</el-radio-button>
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.addPath[3]">不添加</el-radio-button>
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.addPath[1]">完整路径</el-radio-button>
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.addPath[2]">文件名</el-radio-button>
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.addPath[3]">不添加</el-radio-button>
             </el-radio-group>
             <div class="form-help">
               <p>
@@ -596,11 +596,11 @@
           </el-form-item>
           <el-form-item label="下载元数据" prop="download_meta">
             <el-radio-group v-model="form.download_meta">
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.downloadMeta[0]"
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.downloadMeta[0]"
                 >使用 STRM 设置</el-radio-button
               >
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.downloadMeta[2]">是</el-radio-button>
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.downloadMeta[1]">否</el-radio-button>
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.downloadMeta[2]">是</el-radio-button>
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.downloadMeta[1]">否</el-radio-button>
             </el-radio-group>
             <div class="form-help">
               <p>选择“是”时，同步会下载本地缺失的元数据文件</p>
@@ -613,20 +613,20 @@
           </el-form-item>
           <el-form-item label="网盘不存在的元数据" prop="upload_meta">
             <el-radio-group v-model="form.upload_meta">
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.uploadMeta[0]"
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.uploadMeta[0]"
                 >使用 STRM 设置</el-radio-button
               >
               <el-radio-button
-                :label="STRM_CUSTOM_OPTIONS.uploadMeta[3]"
+                :value="STRM_CUSTOM_OPTIONS.uploadMeta[3]"
                 :disabled="form.download_meta === STRM_CUSTOM_OPTIONS.downloadMeta[1]"
                 >删除</el-radio-button
               >
               <el-radio-button
-                :label="STRM_CUSTOM_OPTIONS.uploadMeta[2]"
+                :value="STRM_CUSTOM_OPTIONS.uploadMeta[2]"
                 :disabled="form.download_meta === STRM_CUSTOM_OPTIONS.downloadMeta[1]"
                 >上传</el-radio-button
               >
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.uploadMeta[1]">保留</el-radio-button>
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.uploadMeta[1]">保留</el-radio-button>
             </el-radio-group>
             <div class="form-help">
               <p>删除：本地存在但网盘不存在时，删除本地文件</p>
@@ -645,11 +645,11 @@
           </el-form-item>
           <el-form-item label="检查元数据修改时间" prop="check_meta_mtime">
             <el-radio-group v-model="form.check_meta_mtime">
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.checkMetaMtime[0]"
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.checkMetaMtime[0]"
                 >使用 STRM 设置</el-radio-button
               >
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.checkMetaMtime[2]">是</el-radio-button>
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.checkMetaMtime[1]">否</el-radio-button>
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.checkMetaMtime[2]">是</el-radio-button>
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.checkMetaMtime[1]">否</el-radio-button>
             </el-radio-group>
             <div class="form-help">
               <p>
@@ -662,11 +662,11 @@
           </el-form-item>
           <el-form-item label="网盘不存在的空目录" prop="delete_dir">
             <el-radio-group v-model="form.delete_dir">
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.deleteDir[0]"
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.deleteDir[0]"
                 >使用 STRM 设置</el-radio-button
               >
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.deleteDir[2]">删除</el-radio-button>
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.deleteDir[1]">不删除</el-radio-button>
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.deleteDir[2]">删除</el-radio-button>
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.deleteDir[1]">不删除</el-radio-button>
             </el-radio-group>
             <div class="form-help">
               <p>同步完成后，删除本地存在但网盘不存在的空目录</p>
@@ -674,12 +674,12 @@
           </el-form-item>
           <el-form-item label="给 STRM 链接添加路径" prop="add_path">
             <el-radio-group v-model="form.add_path" @change="updateStrmExample">
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.addPath[0]"
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.addPath[0]"
                 >使用 STRM 设置</el-radio-button
               >
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.addPath[1]">完整路径</el-radio-button>
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.addPath[2]">文件名</el-radio-button>
-              <el-radio-button :label="STRM_CUSTOM_OPTIONS.addPath[3]">不添加</el-radio-button>
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.addPath[1]">完整路径</el-radio-button>
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.addPath[2]">文件名</el-radio-button>
+              <el-radio-button :value="STRM_CUSTOM_OPTIONS.addPath[3]">不添加</el-radio-button>
             </el-radio-group>
             <div class="form-help">
               <p>

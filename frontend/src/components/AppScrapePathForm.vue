@@ -282,9 +282,9 @@
             :disabled="loading"
             size="large"
           >
-            <el-radio-button label="off">禁用</el-radio-button>
-            <el-radio-button label="assist">辅助识别</el-radio-button>
-            <el-radio-button label="enforce">强制使用</el-radio-button>
+            <el-radio-button value="off">禁用</el-radio-button>
+            <el-radio-button value="assist">辅助识别</el-radio-button>
+            <el-radio-button value="enforce">强制使用</el-radio-button>
           </el-radio-group>
           <div class="form-help">
             辅助识别：仅在其他方式无法识别时使用 AI。默认额度每天限 1000 次，长期使用建议配置自己的
@@ -660,9 +660,9 @@
             :disabled="loading"
             size="large"
           >
-            <el-radio-button label="off">禁用</el-radio-button>
-            <el-radio-button label="assist">辅助识别</el-radio-button>
-            <el-radio-button label="enforce">强制使用</el-radio-button>
+            <el-radio-button value="off">禁用</el-radio-button>
+            <el-radio-button value="assist">辅助识别</el-radio-button>
+            <el-radio-button value="enforce">强制使用</el-radio-button>
           </el-radio-group>
           <div class="form-help">
             辅助识别：仅在其他方式无法识别时使用 AI。默认额度每天限 1000 次，长期使用建议配置自己的

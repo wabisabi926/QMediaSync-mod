@@ -62,15 +62,15 @@
 
       <el-form-item label="首选元数据语言" prop="tmdbLanguage">
         <el-radio-group v-model="formData.tmdbLanguage" :disabled="loading" size="large">
-          <el-radio-button label="zh-CN">中文</el-radio-button>
-          <el-radio-button label="en-US">英文</el-radio-button>
+          <el-radio-button value="zh-CN">中文</el-radio-button>
+          <el-radio-button value="en-US">英文</el-radio-button>
         </el-radio-group>
         <div class="form-help">如果首选语言没有数据，则获取英文数据</div>
       </el-form-item>
       <el-form-item label="首选图片语言" prop="tmdbImageLanguage">
         <el-radio-group v-model="formData.tmdbImageLanguage" :disabled="loading" size="large">
-          <el-radio-button label="zh-CN">中文</el-radio-button>
-          <el-radio-button label="en-US">英文</el-radio-button>
+          <el-radio-button value="zh-CN">中文</el-radio-button>
+          <el-radio-button value="en-US">英文</el-radio-button>
         </el-radio-group>
         <div class="form-help">如果首选语言没有数据，则获取英文图片</div>
       </el-form-item>

@@ -4,7 +4,7 @@
     <div class="sync-records-card">
       <div class="header-left">
         <h2 class="card-title hidden-md-and-down">同步记录</h2>
-        <p class="card-subtitle">只会保留 3 天的记录，每天 0 点会删除 3 天前的所有记录</p>
+        <p class="card-subtitle">只会保留 7 天的记录，每天 0 点会删除 7 天前的所有记录</p>
       </div>
       <div class="header-right">
         <!-- <el-button
@@ -619,8 +619,7 @@ onUnmounted(() => {
 })
 
 // 判断记录是否可删除（完成或失败）
-const isDeletableRecord = (row: SyncRecord) =>
-  row.status === 2 || row.status === 3 || row.status === 0
+const isDeletableRecord = (row: SyncRecord) => row.status === 2 || row.status === 3
 
 const syncRecordActions: RecordAction<SyncRecord>[] = [
   { key: 'detail', label: '详情', type: 'primary', icon: View },

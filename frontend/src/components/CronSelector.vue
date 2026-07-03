@@ -28,52 +28,38 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { shallowRef, watch } from 'vue'
 
-const props = defineProps<{
-  modelValue: string
-}>()
+const cronValue = defineModel<string>({ required: true })
+const customCron = defineModel<string>('customValue', { default: '' })
 
-const emit = defineEmits<{
-  (e: 'update:modelValue', value: string): void
-}>()
+const selectedPreset = shallowRef<string>('0 2 * * *')
 
-const selectedPreset = ref<string>('0 2 * * *')
-const customCron = ref('')
-
-const presetValues = ['0 2 * * *', '0 3 * * *', '0 */4 * * *', '0 */12 * * *', '0 0 * * 0']
+const defaultCustomCron = '0 2 * * *'
+const presetValues = new Set(['0 2 * * *', '0 3 * * *', '0 */4 * * *', '0 */12 * * *', '0 0 * * 0'])
 
 const handlePresetChange = (value: string) => {
   if (value === 'custom') {
-    customCron.value = props.modelValue || '0 2 * * *'
-    emit('update:modelValue', customCron.value)
+    const nextCron = customCron.value || cronValue.value || defaultCustomCron
+    customCron.value = nextCron
+    cronValue.value = nextCron
   } else {
-    emit('update:modelValue', value)
+    cronValue.value = value
   }
 }
 
-const handleCustomCronChange = () => {
-  emit('update:modelValue', customCron.value)
+const handleCustomCronChange = (value: string) => {
+  customCron.value = value
+  cronValue.value = value
 }
-
-onMounted(() => {
-  if (props.modelValue) {
-    if (presetValues.includes(props.modelValue)) {
-      selectedPreset.value = props.modelValue
-    } else {
-      selectedPreset.value = 'custom'
-      customCron.value = props.modelValue
-    }
-  }
-})
 
 watch(
-  () => props.modelValue,
+  cronValue,
   (newValue) => {
     if (!newValue) return
 
-    if (presetValues.includes(newValue)) {
-      if (selectedPreset.value !== newValue) {
+    if (presetValues.has(newValue)) {
+      if (selectedPreset.value !== 'custom') {
         selectedPreset.value = newValue
       }
     } else {
@@ -83,6 +69,7 @@ watch(
       }
     }
   },
+  { immediate: true },
 )
 </script>
 

@@ -13,7 +13,7 @@
       </el-form-item>
 
       <el-form-item label="定时策略" required>
-        <cron-selector v-model="configForm.backup_cron" />
+        <cron-selector v-model="configForm.backup_cron" v-model:custom-value="backupCustomCron" />
         <div v-if="cronTimes.length > 0" class="cron-next-times">
           <p><strong>下 5 次执行时间：</strong></p>
           <div v-loading="cronTimesLoading" class="cron-times-list">
@@ -60,7 +60,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, inject, watch } from 'vue'
+import { ref, reactive, onMounted, inject, watch, shallowRef } from 'vue'
 import { Check, Setting } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { AxiosStatic } from 'axios'
@@ -84,6 +84,7 @@ const configForm = reactive({
 const configSaving = ref(false)
 const cronTimes = ref<string[]>([])
 const cronTimesLoading = ref(false)
+const backupCustomCron = shallowRef('')
 
 const loadBackupConfig = async () => {
   if (!http) return
@@ -102,6 +103,7 @@ const loadBackupConfig = async () => {
         backup_max_count: config.backup_max_count,
         backup_compress: config.backup_compress,
       })
+      backupCustomCron.value = cronExpression
       await loadCronTimes()
     }
   } catch (error: unknown) {

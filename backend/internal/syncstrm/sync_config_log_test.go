@@ -90,9 +90,9 @@ func TestNewSyncStrmFromSyncPathLogsEffectiveStrmConfig(t *testing.T) {
 	logOutput := logBuf.String()
 	wantParts := []string{
 		"同步目录 1 生效 STRM 配置",
-		"视频扩展名=[.mp4 .mkv]（来源=全局 STRM 设置）",
-		"元数据扩展名=[.nfo .jpg]（来源=全局 STRM 设置）",
-		"排除名称=[sample]（来源=全局 STRM 设置）",
+		`视频扩展名=[".mp4", ".mkv"]（来源=全局 STRM 设置）`,
+		`元数据扩展名=[".nfo", ".jpg"]（来源=全局 STRM 设置）`,
+		`排除名称=["sample"]（来源=全局 STRM 设置）`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(logOutput, want) {
@@ -181,9 +181,9 @@ func TestNewSyncStrmFromSyncPathLogsMixedEffectiveStrmConfigSources(t *testing.T
 	logOutput := logBuf.String()
 	wantParts := []string{
 		"同步目录 5 生效 STRM 配置",
-		"视频扩展名=[.mp4 .mkv]（来源=全局 STRM 设置）",
-		"元数据扩展名=[.ass .srt]（来源=同步目录自定义设置）",
-		"排除名称=[global-sample]（来源=全局 STRM 设置）",
+		`视频扩展名=[".mp4", ".mkv"]（来源=全局 STRM 设置）`,
+		`元数据扩展名=[".ass", ".srt"]（来源=同步目录自定义设置）`,
+		`排除名称=["global-sample"]（来源=全局 STRM 设置）`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(logOutput, want) {
@@ -211,6 +211,27 @@ func TestStrmArrayConfigSource(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := strmArrayConfigSource(tt.customConfig, tt.localValue); got != tt.want {
 				t.Fatalf("strmArrayConfigSource(%v, %v) = %q，期望 %q", tt.customConfig, tt.localValue, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormatStrmConfigArray(t *testing.T) {
+	tests := []struct {
+		name   string
+		values []string
+		want   string
+	}{
+		{name: "空数组", values: nil, want: "[]"},
+		{name: "普通扩展名", values: []string{".mp4", ".mkv"}, want: `[".mp4", ".mkv"]`},
+		{name: "带空格的排除名称", values: []string{"extras", "extras 0"}, want: `["extras", "extras 0"]`},
+		{name: "需要转义的名称", values: []string{`a"b`}, want: `["a\"b"]`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := formatStrmConfigArray(tt.values); got != tt.want {
+				t.Fatalf("formatStrmConfigArray(%v) = %q，期望 %q", tt.values, got, tt.want)
 			}
 		})
 	}

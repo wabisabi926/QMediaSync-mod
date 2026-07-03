@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -227,13 +228,13 @@ func NewSyncStrmFromSyncPath(syncPath *models.SyncPath) *SyncStrm {
 		config.StrmBaseUrl = syncPath.SettingStrm.StrmBaseUrl
 	}
 	helpers.AppLogger.Infof(
-		"同步目录 %d 生效 STRM 配置：视频扩展名=%v（来源=%s），元数据扩展名=%v（来源=%s），排除名称=%v（来源=%s）",
+		"同步目录 %d 生效 STRM 配置：视频扩展名=%s（来源=%s），元数据扩展名=%s（来源=%s），排除名称=%s（来源=%s）",
 		syncPath.ID,
-		videoExt,
+		formatStrmConfigArray(videoExt),
 		strmArrayConfigSource(syncPath.CustomConfig, syncPath.VideoExtArr),
-		metaExt,
+		formatStrmConfigArray(metaExt),
 		strmArrayConfigSource(syncPath.CustomConfig, syncPath.MetaExtArr),
-		excludeNames,
+		formatStrmConfigArray(excludeNames),
 		strmArrayConfigSource(syncPath.CustomConfig, syncPath.ExcludeNameArr),
 	)
 	return NewSyncStrm(account, syncPath.ID, syncPath.RemotePath, syncPath.BaseCid, syncPath.LocalPath, config, syncPath.IsFullSync, syncPath.LastSyncAt, false)
@@ -244,6 +245,17 @@ func strmArrayConfigSource(customConfig bool, localValue []string) string {
 		return "同步目录自定义设置"
 	}
 	return "全局 STRM 设置"
+}
+
+func formatStrmConfigArray(values []string) string {
+	if len(values) == 0 {
+		return "[]"
+	}
+	quotedValues := make([]string, 0, len(values))
+	for _, value := range values {
+		quotedValues = append(quotedValues, strconv.Quote(value))
+	}
+	return "[" + strings.Join(quotedValues, ", ") + "]"
 }
 
 // 直接同步某个路径（可以是目录，也可以是文件）

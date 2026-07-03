@@ -573,11 +573,13 @@ import { getV115AppInfoRows, isCustomV115App } from '@/utils/cloudAccountUtils'
 import { collectOAuthCallbackParams } from '@/utils/oauthCallback'
 import {
   buildV115CreatePayload,
+  defaultWebAuthProviderValue,
   getV115AuthAction,
   type V115AuthMode,
   type V115AuthProvider,
   type V115AuthSourceType,
   type V115SelectedQrApp,
+  type V115WebAuthProviderValue,
 } from '@/components/cloud-auth/v115AuthSources'
 
 const isMobile = ref(checkIsMobile())
@@ -637,7 +639,7 @@ const newAccountForm = ref({
   auth_type: 'password',
   auth_mode: 'qr' as V115AuthMode,
   selected_qr_app: { appId: '100197849', appName: 'QMediaSync' } as V115SelectedQrApp,
-  selected_web_provider: 'qmediasync' as V115AuthProvider,
+  selected_web_provider: defaultWebAuthProviderValue as V115WebAuthProviderValue,
   custom_v115_app_id: '',
   custom_v115_app_name: '',
 })
@@ -1106,7 +1108,7 @@ const resetForm = () => {
     auth_type: 'password',
     auth_mode: 'qr',
     selected_qr_app: { appId: '100197849', appName: 'QMediaSync' },
-    selected_web_provider: 'qmediasync',
+    selected_web_provider: defaultWebAuthProviderValue,
     custom_v115_app_id: '',
     custom_v115_app_name: '',
   }

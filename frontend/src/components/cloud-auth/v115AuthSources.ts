@@ -13,6 +13,13 @@ export type V115AuthProvider =
   | 'moviepilot'
   | 'clouddrive'
 
+type V115WebRelayProvider = Extract<V115AuthProvider, 'mqfamily' | 'qmediasync'>
+type V115WebThirdPartyProvider = Extract<V115AuthProvider, 'moviepilot' | 'clouddrive'>
+
+export type V115WebAuthProviderValue =
+  | `built_in_relay:${V115WebRelayProvider}:${string}`
+  | `third_party_service:${V115WebThirdPartyProvider}:${string}`
+
 export interface V115SelectedQrApp {
   appId: string
   appName: string
@@ -21,7 +28,7 @@ export interface V115SelectedQrApp {
 export interface V115CreateSelection {
   authMode: V115AuthMode
   selectedQrApp: V115SelectedQrApp
-  selectedWebProvider: V115AuthProvider
+  selectedWebProvider: V115WebAuthProviderValue
   customAppId: string
   customAppName: string
 }
@@ -45,6 +52,7 @@ export interface V115AccountAuthInfo {
 export type V115AuthAction = 'pkce' | 'oauth' | 'unsupported'
 
 export interface V115WebAuthProviderOption {
+  value: V115WebAuthProviderValue
   label: string
   sourceType: V115AuthSourceType
   provider: V115AuthProvider
@@ -68,24 +76,28 @@ export const featuredBuiltInAppIDs = [
 
 export const webAuthProviders: V115WebAuthProviderOption[] = [
   {
+    value: 'built_in_relay:qmediasync:QMediaSync',
     label: 'QMediaSync',
     sourceType: 'built_in_relay',
     provider: 'qmediasync',
     appName: 'QMediaSync',
   },
   {
+    value: 'built_in_relay:mqfamily:Q115-STRM',
     label: 'Q115-STRM',
     sourceType: 'built_in_relay',
     provider: 'mqfamily',
     appName: 'Q115-STRM',
   },
   {
+    value: 'built_in_relay:mqfamily:MQ的媒体库',
     label: 'MQ的媒体库',
     sourceType: 'built_in_relay',
     provider: 'mqfamily',
     appName: 'MQ的媒体库',
   },
   {
+    value: 'third_party_service:moviepilot:MoviePilot-115',
     label: 'MoviePilot',
     sourceType: 'third_party_service',
     provider: 'moviepilot',
@@ -93,6 +105,7 @@ export const webAuthProviders: V115WebAuthProviderOption[] = [
     appName: 'MoviePilot-115',
   },
   {
+    value: 'third_party_service:clouddrive:CloudDrive',
     label: 'CloudDrive',
     sourceType: 'third_party_service',
     provider: 'clouddrive',
@@ -101,11 +114,11 @@ export const webAuthProviders: V115WebAuthProviderOption[] = [
   },
 ]
 
+export const defaultWebAuthProviderValue = webAuthProviders[0].value
+
 export const buildV115CreatePayload = (selection: V115CreateSelection): V115CreatePayload => {
   if (selection.authMode === 'oauth') {
-    const provider = webAuthProviders.find(
-      (item) => item.provider === selection.selectedWebProvider,
-    )
+    const provider = webAuthProviders.find((item) => item.value === selection.selectedWebProvider)
     return {
       auth_source_type: provider?.sourceType ?? 'built_in_relay',
       auth_provider: provider?.provider ?? 'qmediasync',

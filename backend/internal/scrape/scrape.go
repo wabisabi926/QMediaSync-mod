@@ -12,6 +12,7 @@ import (
 	"qmediasync/internal/models"
 	"qmediasync/internal/openlist"
 	"qmediasync/internal/scrape/scan"
+	"qmediasync/internal/syncstrm"
 	"qmediasync/internal/tmdb"
 	"qmediasync/internal/v115open"
 )
@@ -222,4 +223,13 @@ func (s *Scrape) Rollback(mediaFile *models.ScrapeMediaFile) (err error) {
 		return errors.New("刮削文件为空")
 	}
 	return s.scrapeImpl.Rollback(mediaFile)
+}
+
+func cleanupTemporarySyncRecord(syncStrm *syncstrm.SyncStrm) {
+	if syncStrm == nil || syncStrm.Sync == nil || syncStrm.Sync.ID == 0 {
+		return
+	}
+	if err := models.DeleteTemporarySyncRecordById(syncStrm.Sync.ID); err != nil {
+		helpers.AppLogger.Warnf("删除临时 STRM 同步记录失败：%v", err)
+	}
 }

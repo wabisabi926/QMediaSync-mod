@@ -332,6 +332,7 @@ func (m *movieScrapeImpl) SyncFilesToSTRMPath(mediaFile *models.ScrapeMediaFile,
 	// 先生成 STRM 文件
 	// 1. 构造 STRM 文件路径
 	syncStrm := syncstrm.NewSyncStrmFromSyncPath(syncPath)
+	defer cleanupTemporarySyncRecord(syncStrm)
 	strmErr := syncStrm.ProcessStrmFile(&syncstrm.SyncFileCache{
 		Path:          mediaFile.Media.Path,
 		ParentId:      mediaFile.Media.PathId,
@@ -349,9 +350,6 @@ func (m *movieScrapeImpl) SyncFilesToSTRMPath(mediaFile *models.ScrapeMediaFile,
 	if strmErr != nil {
 		helpers.AppLogger.Errorf("生成 STRM 文件失败，失败原因：%v", strmErr)
 		return
-	}
-	if err := models.DeleteTemporarySyncRecordById(syncStrm.Sync.ID); err != nil {
-		helpers.AppLogger.Warnf("删除临时 STRM 同步记录失败：%v", err)
 	}
 	if files == nil {
 		return

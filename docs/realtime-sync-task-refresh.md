@@ -90,5 +90,6 @@
 - 断线、服务重启或 `resync_required` 后，前端重新建立 stream 并获取 snapshot，不假设事件连续。
 - WebSocket 鉴权依赖当前站点凭据；原生 WebSocket 不走 axios 拦截器。
 - 运行中任务完成后可能还有最后几行日志，stream 使用 final flush 窗口降低丢日志概率。
-- 删除同步记录会发布 `sync_task_deleted`；刷新后打开已删除记录时，stream 返回 `complete` + `deleted`，详情页展示删除状态并停止重连。
+- 只有已完成或失败的同步记录允许手动删除；删除同步记录会发布 `sync_task_deleted`。刷新后打开已删除记录时，stream 返回 `complete` + `deleted`，详情页展示删除状态并停止重连。
+- 删除同步目录不会级联删除同步历史；同步记录详情在关联同步目录不存在时仍以历史记录和日志为准。
 - 如果状态事件和日志写入顺序不完全一致，以 snapshot 和数据库状态作为恢复后的事实来源。

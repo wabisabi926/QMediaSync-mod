@@ -91,14 +91,12 @@
             </el-table-column>
           </el-table>
 
-          <el-pagination
+          <ResponsivePagination
             v-model:current-page="currentPage"
             v-model:page-size="pageSize"
             :total="totalRecords"
-            :layout="isMobile ? 'prev, pager, next' : 'total, prev, pager, next, jumper'"
-            :size="isMobile ? 'small' : 'default'"
             :page-sizes="[10, 20, 50, 100]"
-            style="margin-top: 16px; justify-content: center"
+            :is-mobile="isMobile"
             @current-change="loadBackupRecords"
             @size-change="handlePageSizeChange"
           />
@@ -110,6 +108,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted, inject } from 'vue'
+import ResponsivePagination from '@/components/common/ResponsivePagination.vue'
+import { useDeviceType } from '@/composables/useDeviceType'
 import { Upload } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { AxiosStatic } from 'axios'
@@ -118,11 +118,10 @@ import { useBackupStore } from '@/stores/backup'
 import type { BackupRecordListItem, BackupRecordsResponse, BackupStatus } from '@/typing'
 import { formatFileSize } from '@/utils/fileSizeUtils'
 import { formatTimestamp, formatDuration } from '@/utils/timeUtils'
-import { isMobile as checkIsMobile } from '@/utils/deviceUtils'
 
 const http = inject<AxiosStatic>('$http')
 const backupStore = useBackupStore()
-const isMobile = checkIsMobile()
+const { isMobile } = useDeviceType()
 const API_SUCCESS_CODE = 200
 
 const activeTab = ref('records')

@@ -82,14 +82,13 @@
       </ResponsiveRecordTable>
 
       <!-- 分页器 -->
-      <el-pagination
+      <ResponsivePagination
         v-if="total > 0"
         v-model:current-page="currentPage"
         v-model:page-size="pageSize"
         :total="total"
         :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next, jumper"
-        class="sync-pagination"
+        :is-mobile="isMobileView"
         @size-change="handleSizeChange"
         @current-change="handleCurrentChange"
       />
@@ -98,6 +97,7 @@
 </template>
 
 <script setup lang="ts">
+import ResponsivePagination from '@/components/common/ResponsivePagination.vue'
 import ResponsiveRecordTable from '@/components/records/ResponsiveRecordTable.vue'
 import { SERVER_URL } from '@/const'
 import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
@@ -822,47 +822,6 @@ watch(batchMode, (val) => {
   margin-bottom: 20px;
 }
 
-.sync-pagination {
-  display: flex;
-  justify-content: center;
-  margin-top: 20px;
-}
-
-/* 自定义分页器中文文本 */
-.sync-pagination :deep(.el-pagination__total) {
-  position: relative;
-}
-
-.sync-pagination :deep(.el-pagination__total)::before {
-  content: '总数 ' attr(data-total) ' 条';
-  position: absolute;
-  left: 0;
-  top: 0;
-  background: white;
-  width: 100%;
-  height: 100%;
-  line-height: inherit;
-}
-
-.sync-pagination :deep(.el-pagination__jump) {
-  position: relative;
-}
-
-.sync-pagination :deep(.el-pagination__jump)::before {
-  content: '跳转到';
-  margin-right: 8px;
-}
-
-/* 修改页数显示文本 */
-.sync-pagination :deep(.el-pagination__sizes .el-select .el-input__inner) {
-  font-size: 14px;
-}
-
-.sync-pagination :deep(.el-pagination__sizes::after) {
-  content: '条/页';
-  margin-left: 8px;
-}
-
 .sync-path-cell {
   display: flex;
   align-items: center;
@@ -909,11 +868,6 @@ watch(batchMode, (val) => {
 
   .sync-table {
     font-size: 12px;
-  }
-
-  .sync-pagination {
-    flex-wrap: wrap;
-    gap: 8px;
   }
 }
 

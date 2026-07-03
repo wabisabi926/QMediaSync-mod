@@ -199,19 +199,14 @@
       </el-table-column>
     </el-table>
 
-    <el-pagination
+    <ResponsivePagination
       v-model:current-page="currentPage"
       v-model:page-size="pageSize"
       :page-sizes="[10, 20, 50, 100]"
-      :pager-count="5"
-      :small="isMobileView"
-      :disabled="false"
-      :background="true"
-      :layout="paginationLayout"
       :total="total"
+      :is-mobile="isMobileView"
       @size-change="handleSizeChange"
       @current-change="handleCurrentChange"
-      class="pagination-container"
     />
   </div>
 </template>
@@ -227,6 +222,7 @@ import {
   onUnmounted,
   ref,
 } from 'vue'
+import ResponsivePagination from '@/components/common/ResponsivePagination.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { WarningFilled } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
@@ -293,11 +289,6 @@ const queueStatus = computed<0 | 1>(() => (queueStatusSnapshot.value.running ? 1
 const canPauseAllTasks = computed(() => canPauseQueue(queueStatusSnapshot.value))
 const canResumeAllTasks = computed(() => canResumeQueue(queueStatusSnapshot.value))
 const isMobileView = ref(checkIsMobile())
-const paginationLayout = computed(() =>
-  isMobileView.value
-    ? 'total, sizes, prev, pager, next'
-    : 'total, sizes, prev, pager, next, jumper',
-)
 const tableHeight = computed(() => (isMobileView.value ? undefined : 'calc(100vh - 300px)'))
 const queueControlSize = computed<'small' | 'default'>(() =>
   isMobileView.value ? 'small' : 'default',
@@ -925,21 +916,6 @@ onUnmounted(() => {
   overflow-wrap: anywhere;
 }
 
-.pagination-container {
-  margin-top: 20px;
-  display: flex;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-  overflow: visible;
-}
-
-.pagination-container :deep(.el-pagination__total),
-.pagination-container :deep(.el-pagination__sizes),
-.pagination-container :deep(.el-pagination__jump) {
-  margin-right: 0;
-}
-
 /* 表格行样式 */
 :deep(.success-row) {
   background-color: #f0f9ff;
@@ -1025,14 +1001,6 @@ onUnmounted(() => {
 
   .queue-table-mobile {
     margin-top: 4px;
-  }
-
-  .pagination-container {
-    justify-content: center;
-  }
-
-  .pagination-container :deep(.el-pagination) {
-    justify-content: center;
   }
 
   :deep(.el-table) {

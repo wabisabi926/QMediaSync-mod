@@ -143,27 +143,15 @@
           </template>
         </ResponsiveRecordTable>
 
-        <div class="pagination-container mobile-pagination">
-          <el-pagination
-            v-model:current-page="pagination.currentPage"
-            v-model:page-size="pagination.pageSize"
-            :page-sizes="100"
-            layout="total, prev, pager, next"
-            :total="total"
-            @current-change="handleCurrentChange"
-          />
-        </div>
-        <div class="pagination-container desktop-pagination">
-          <el-pagination
-            v-model:current-page="pagination.currentPage"
-            v-model:page-size="pagination.pageSize"
-            :page-sizes="[100, 200, 500]"
-            layout="total, sizes, prev, pager, next, jumper"
-            :total="total"
-            @size-change="handleSizeChange"
-            @current-change="handleCurrentChange"
-          />
-        </div>
+        <ResponsivePagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :page-sizes="[20, 100, 200, 500]"
+          :total="total"
+          :is-mobile="isMobileView"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
       </div>
     </div>
 
@@ -436,6 +424,7 @@
 </template>
 
 <script setup lang="ts">
+import ResponsivePagination from '@/components/common/ResponsivePagination.vue'
 import ResponsiveRecordTable from '@/components/records/ResponsiveRecordTable.vue'
 import { SERVER_URL } from '@/const'
 import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
@@ -594,20 +583,6 @@ const pageSize = computed({
   get: () => pageState.pageSize,
   set: (value) => pageStateStore.setPagination('scrape-records', pageState.currentPage, value),
 })
-const pagination = {
-  get currentPage() {
-    return currentPage.value
-  },
-  set currentPage(value: number) {
-    currentPage.value = value
-  },
-  get pageSize() {
-    return pageSize.value
-  },
-  set pageSize(value: number) {
-    pageSize.value = value
-  },
-}
 const total = ref(0)
 
 function createDefaultReScrapeForm(): ReScrapeFormState {
@@ -1839,25 +1814,6 @@ onUnmounted(() => {
   display: block;
 }
 
-.mobile-pagination {
-  display: none;
-}
-
-.desktop-pagination {
-  display: flex;
-}
-
-.pagination-container {
-  padding: 16px;
-  display: flex;
-  justify-content: flex-end;
-  background: #fff;
-  border-top: 1px solid #ebeef5;
-  margin-top: -1px;
-  border-radius: 0 0 4px 4px;
-  flex-shrink: 0;
-}
-
 .bottom-tips {
   margin-top: 20px;
 }
@@ -2066,16 +2022,6 @@ onUnmounted(() => {
   padding: 20px 0;
 }
 
-@media (min-width: 769px) {
-  .mobile-pagination {
-    display: none;
-  }
-
-  .desktop-pagination {
-    display: flex;
-  }
-}
-
 @media (max-width: 768px) {
   .scrape-records-container {
     padding: 12px;
@@ -2128,14 +2074,6 @@ onUnmounted(() => {
 
   .header-section {
     margin-bottom: 0;
-  }
-
-  .mobile-pagination {
-    display: flex;
-  }
-
-  .desktop-pagination {
-    display: none;
   }
 }
 

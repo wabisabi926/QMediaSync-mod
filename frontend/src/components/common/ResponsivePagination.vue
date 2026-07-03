@@ -16,7 +16,7 @@ const props = withDefaults(
   {
     pageSizes: () => [10, 20, 50, 100],
     isMobile: false,
-    mobileLayout: 'total, prev, pager, next',
+    mobileLayout: 'total, sizes, prev, pager, next',
     desktopLayout: 'total, sizes, prev, pager, next, jumper',
     background: true,
   },
@@ -51,11 +51,15 @@ const pagerCount = computed(() => (props.isMobile ? 5 : 7))
 <style scoped>
 .responsive-pagination {
   display: flex;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 8px 12px;
+  justify-content: center;
   margin-top: 20px;
   overflow: visible;
+}
+
+.responsive-pagination :deep(.el-pagination) {
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
 }
 
 .responsive-pagination :deep(.el-pagination__total),
@@ -66,12 +70,7 @@ const pagerCount = computed(() => (props.isMobile ? 5 : 7))
 
 @media (max-width: 768px) {
   .responsive-pagination {
-    justify-content: center;
     margin-top: 12px;
-  }
-
-  .responsive-pagination :deep(.el-pagination) {
-    justify-content: center;
   }
 }
 </style>

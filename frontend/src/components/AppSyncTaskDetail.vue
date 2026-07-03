@@ -646,46 +646,6 @@ const getTimelineItems = () => {
   line-height: 1.4;
 }
 
-.compare-pagination {
-  display: flex;
-  justify-content: center;
-  margin-top: 20px;
-}
-
-/* 自定义分页器中文文本 */
-.compare-pagination :deep(.el-pagination__total) {
-  position: relative;
-}
-
-.compare-pagination :deep(.el-pagination__total)::before {
-  content: '总数 ' attr(data-total) ' 条';
-  position: absolute;
-  left: 0;
-  top: 0;
-  background: white;
-  width: 100%;
-  height: 100%;
-  line-height: inherit;
-}
-
-.compare-pagination :deep(.el-pagination__jump) {
-  position: relative;
-}
-
-.compare-pagination :deep(.el-pagination__jump)::before {
-  content: '跳转到';
-  margin-right: 8px;
-}
-
-.compare-pagination :deep(.el-pagination__sizes .el-select .el-input__inner) {
-  font-size: 14px;
-}
-
-.compare-pagination :deep(.el-pagination__sizes::after) {
-  content: '条/页';
-  margin-left: 8px;
-}
-
 /* 移动端适配 */
 @media (max-width: 768px) {
   .card-header {
@@ -709,11 +669,6 @@ const getTimelineItems = () => {
 
   .logs-table {
     font-size: 12px;
-  }
-
-  .logs-pagination {
-    flex-wrap: wrap;
-    gap: 8px;
   }
 
   .horizontal-timeline {

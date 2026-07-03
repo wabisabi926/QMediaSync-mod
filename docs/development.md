@@ -59,6 +59,7 @@ trustedOrigins:
 - 普通动作按钮的图标使用 Element Plus 的 `:icon="IconName"` 属性，不在按钮内容里手写 `<el-icon>`；混用两种写法会导致图标和文字之间的内边距不一致。
 - 下拉菜单按钮的右侧箭头、后缀状态图标等不属于主动作图标的 suffix affordance 可以保留手写 `<el-icon class="el-icon--right">`。
 - 图标按钮应保持“图标 + 文字”作为整体居中，按钮内图标间距交给 Element Plus 处理，不在组件样式里为按钮内 `.el-icon` 额外设置 `margin-left` 或 `margin-right`。
+- 分页列表统一使用 `frontend/src/components/common/ResponsivePagination.vue`；页面保留页码、每页数量和数据加载逻辑，分页组件只负责响应式布局和事件透传。移动端默认保留每页数量选择。
 - 保存页如果已经使用页面内状态提示（例如底部 `el-alert`）展示保存成功，不再额外弹出成功 toast，避免同一结果重复提示。
 - 错误、校验失败、复制、测试连接、启动任务等需要即时注意或短生命周期反馈的动作，可以继续使用 `ElMessage`。
 

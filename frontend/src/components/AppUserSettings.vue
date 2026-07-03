@@ -173,7 +173,7 @@ const saveSettings = async () => {
         // 如果为 true 则需要重新登录
         authStore.logout()
         ElMessage.success('已退出登录')
-        router.push('/login')
+        router.replace('/login')
       }
     } else {
       ElMessage.error(response?.data.message || '保存设置失败，请重试')

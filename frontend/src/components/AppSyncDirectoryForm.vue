@@ -730,6 +730,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
+import { navigateBackOrReplace } from '@/utils/navigation'
 import { sourceTypeOptions } from '@/utils/sourceTypeUtils'
 import MetadataExtInput from './MetadataExtInput.vue'
 import DirectorySelector from './DirectorySelector.vue'
@@ -886,7 +887,11 @@ const updateStrmExample = () => {
 }
 
 const goBack = () => {
-  router.push({ name: 'sync-directories' })
+  void navigateBackOrReplace(router, { name: 'sync-directories' })
+}
+
+const returnToDirectoryList = () => {
+  void router.replace({ name: 'sync-directories' })
 }
 
 const handleSourceTypeChange = () => {
@@ -1071,7 +1076,7 @@ const handleSubmit = async () => {
 
       if (response?.data.code === 200) {
         ElMessage.success('编辑同步目录成功')
-        goBack()
+        returnToDirectoryList()
       } else {
         ElMessage.error(response?.data.message || '编辑同步目录失败')
       }
@@ -1106,7 +1111,7 @@ const handleSubmit = async () => {
 
       if (response?.data.code === 200) {
         ElMessage.success('添加同步目录成功')
-        goBack()
+        returnToDirectoryList()
       } else {
         ElMessage.error(response?.data.message || '添加同步目录失败')
       }

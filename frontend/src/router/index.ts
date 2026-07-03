@@ -488,18 +488,21 @@ router.beforeEach(async (to) => {
     return {
       name: 'login',
       query: { redirect: to.fullPath },
+      replace: true,
     }
   }
 
   if (to.name === 'login' && authStore.isAuthenticated) {
-    return { name: 'home' }
-  }
-
-  if (to.meta.title) {
-    document.title = `${to.meta.title} - QMediaSync`
+    return { name: 'home', replace: true }
   }
 
   return true
+})
+
+router.afterEach((to, _from, failure) => {
+  if (!failure && to.meta.title) {
+    document.title = `${to.meta.title} - QMediaSync`
+  }
 })
 
 export default router

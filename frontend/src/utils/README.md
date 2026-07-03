@@ -62,6 +62,15 @@ const icon = getFileIconByName('movie.mp4')
 - `getEventTypeName(type)`
 - `getEventTypeDescription(type)`
 
+## navigation.ts
+
+应用内路由历史辅助：
+
+- `hasAppBackHistory(historyState)`
+- `navigateBackOrReplace(router, fallback)`
+
+`navigateBackOrReplace` 用于详情页和表单页的返回 / 取消操作。它优先使用 Vue Router 写入的 `history.state.back` 判断是否存在应用内上一页；没有上一页时使用 `router.replace(fallback)` 回到兜底列表页，避免直接打开深链后回退到应用外页面。
+
 ## oauthCallback.ts
 
 OAuth 回调参数收集：

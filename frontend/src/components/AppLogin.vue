@@ -96,7 +96,7 @@ const handleLogin = async (payload: LoginSubmitPayload) => {
 
       // 跳转到首页或原本要访问的页面
       const redirect = router.currentRoute.value.query.redirect as string
-      router.push(redirect || '/')
+      router.replace(redirect || '/')
     } else {
       ElMessage.error(response?.data.message || '登录失败')
     }
@@ -111,7 +111,7 @@ const handleLogin = async (payload: LoginSubmitPayload) => {
 // 检查是否已经登录
 onMounted(() => {
   if (authStore.isAuthenticated) {
-    router.push('/')
+    router.replace('/')
     return
   }
   void loadSetupStatus()

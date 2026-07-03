@@ -142,6 +142,7 @@ import { useRoute, useRouter } from 'vue-router'
 import SyncTaskLogPanel from '@/components/sync-task/SyncTaskLogPanel.vue'
 import { useLogFileActions } from '@/composables/useLogFileActions'
 import { useSyncTaskStream } from '@/composables/useSyncTaskStream'
+import { navigateBackOrReplace } from '@/utils/navigation'
 import { getEmbyRefreshDecision } from '@/utils/syncRefreshDecision'
 import { formatDateTime } from '@/utils/timeUtils'
 
@@ -211,7 +212,7 @@ const embyRefreshDecision = computed(() =>
 
 // 返回上一页
 const goBack = () => {
-  router.push({ name: 'sync-records' })
+  void navigateBackOrReplace(router, { name: 'sync-records' })
 }
 
 // 获取状态标签类型

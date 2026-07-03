@@ -391,7 +391,7 @@ const handleLogout = async () => {
 
     await authStore.logoutWithServer(axios)
     ElMessage.success('已退出登录')
-    router.push('/login')
+    router.replace('/login')
   } catch {
     // 用户取消
   }

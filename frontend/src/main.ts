@@ -49,7 +49,7 @@ axios.interceptors.response.use(
       if (!authStore.isLoggingOut) {
         ElMessage.error('登录已失效，请重新登录')
         void authStore.logoutWithServer(axios)
-        void router.push('/login')
+        void router.replace('/login')
       }
       return Promise.reject(new Error('登录已失效，请重新登录'))
     }
@@ -62,7 +62,7 @@ axios.interceptors.response.use(
       if (!authStore.isLoggingOut) {
         ElMessage.error('登录已失效，请重新登录')
         void authStore.logoutWithServer(axios)
-        void router.push('/login')
+        void router.replace('/login')
       }
     }
     // 检查响应数据中的 code 字段
@@ -70,7 +70,7 @@ axios.interceptors.response.use(
       if (!authStore.isLoggingOut) {
         ElMessage.error('登录已失效，请重新登录')
         void authStore.logoutWithServer(axios)
-        void router.push('/login')
+        void router.replace('/login')
       }
     }
     return Promise.reject(error)

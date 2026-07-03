@@ -172,7 +172,7 @@ func (d *open115Driver) MakeStrmContent(sf *SyncFileCache) string {
 	if pathValue := strmPathQueryValue(d.s.Config.StrmUrlNeedPath, sf); pathValue != "" {
 		params.Add("path", pathValue)
 	}
-	u.RawQuery = params.Encode()
+	u.RawQuery = encodeStrmQuery(params)
 	return u.String()
 }
 

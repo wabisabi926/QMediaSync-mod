@@ -11,7 +11,7 @@ import (
 func TestMakeStrmContentEncodesPathQuery(t *testing.T) {
 	file := &SyncFileCache{
 		Path:       "/media/我的朋友很少 (2011)/Season 1",
-		FileName:   "我的朋友很少 - S01E03 - 市民泳池没有攻略关键(;’ Д`) - BDRip.mkv",
+		FileName:   "我的朋友很少 - S01E03 - 市民泳池没有攻略关键(;’ Д`) + BDRip.mkv",
 		PickCode:   "pick-115",
 		SourceType: models.SourceType115,
 	}
@@ -41,12 +41,18 @@ func TestMakeStrmContentEncodesPathQuery(t *testing.T) {
 	if strings.Contains(parsed.RawQuery, ";") {
 		t.Fatalf("RawQuery 不应包含未编码分号：%s", parsed.RawQuery)
 	}
+	if strings.Contains(parsed.RawQuery, "+") {
+		t.Fatalf("RawQuery 中的空格应编码为 %%20，不应包含 +：%s", parsed.RawQuery)
+	}
+	if !strings.Contains(parsed.RawQuery, "%20") {
+		t.Fatalf("RawQuery 中的空格应编码为 %%20：%s", parsed.RawQuery)
+	}
 }
 
 func TestBaiduMakeStrmContentEncodesPathQuery(t *testing.T) {
 	file := &SyncFileCache{
 		Path:       "/media/我的朋友很少 (2011)/Season 1",
-		FileName:   "我的朋友很少 - S01E03 - 市民泳池没有攻略关键(;’ Д`) - BDRip.mkv",
+		FileName:   "我的朋友很少 - S01E03 - 市民泳池没有攻略关键(;’ Д`) + BDRip.mkv",
 		PickCode:   "pick-baidu",
 		SourceType: models.SourceTypeBaiduPan,
 	}
@@ -75,5 +81,11 @@ func TestBaiduMakeStrmContentEncodesPathQuery(t *testing.T) {
 	}
 	if strings.Contains(parsed.RawQuery, ";") {
 		t.Fatalf("RawQuery 不应包含未编码分号：%s", parsed.RawQuery)
+	}
+	if strings.Contains(parsed.RawQuery, "+") {
+		t.Fatalf("RawQuery 中的空格应编码为 %%20，不应包含 +：%s", parsed.RawQuery)
+	}
+	if !strings.Contains(parsed.RawQuery, "%20") {
+		t.Fatalf("RawQuery 中的空格应编码为 %%20：%s", parsed.RawQuery)
 	}
 }

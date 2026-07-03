@@ -621,7 +621,7 @@ func setRouter(r *gin.Engine) {
 		api.POST("/auth/115-qrcode-open", controllers.GetLoginQrCodeOpen)   // 获取 115 开放平台登录二维码
 		api.POST("/auth/115-qrcode-status", controllers.GetQrCodeStatus)    // 查询 115 二维码扫码状态
 		api.GET("/115/status", controllers.Get115Status)                    // 查询 115 状态
-		api.GET("/115/appids", controllers.GetV115AppIDSources)             // 查询 115 开放平台 App ID 目录
+		api.GET("/115/appids", controllers.GetV115AppIDSources)             // 查询 115 开放平台 APP ID 目录
 		api.GET("/115/oauth-url", controllers.GetOAuthUrl)                  // 获取 115 OAuth 登录地址
 		api.POST("115/oauth-confirm", controllers.ConfirmOAuthCode)         // 确认 115 OAuth 登录
 		api.GET("/115/oauth-status", controllers.GetOAuthStatus)            // 查询 115 OAuth 授权状态

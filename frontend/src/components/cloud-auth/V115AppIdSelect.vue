@@ -13,21 +13,31 @@ const selectedQrApp = defineModel<V115SelectedQrApp>('selectedQrApp', { required
 const customAppId = defineModel<string>('customAppId', { required: true })
 const customAppName = defineModel<string>('customAppName', { required: true })
 
+interface V115AppSelectOption {
+  label: string
+  value: string
+  appName: string
+}
+
 const http = inject<AxiosStatic | undefined>('$http')
 const { keyword, items, total, loading, hasMore, search, loadMore, reset } = useV115AppIdSearch({
   http,
 })
 const dropdownVisible = shallowRef(false)
 const showDefaultRemoteOptions = shallowRef(false)
-const remoteSearchHint = '输入应用名或 App ID 搜索更多内置应用'
+const remoteSearchHint = '输入应用名或 APP ID 搜索更多内置应用'
+const customOption: V115AppSelectOption = {
+  label: '自定义 APP ID',
+  value: 'custom',
+  appName: '自定义 APP ID',
+}
 
-const defaultOptions = computed(() => [
+const defaultOptions = computed<V115AppSelectOption[]>(() => [
   ...pinnedBuiltInAppIDs,
   ...featuredBuiltInAppIDs,
-  { label: '自定义 App ID', value: 'custom', appName: '自定义 App ID' },
 ])
 const defaultOptionValues = computed(() => new Set(defaultOptions.value.map((item) => item.value)))
-const remoteOptions = computed(() =>
+const remoteOptions = computed<V115AppSelectOption[]>(() =>
   items.value.map((item) => ({
     label: item.display_name || item.app_name,
     value: item.app_id,
@@ -39,12 +49,12 @@ const defaultRemoteOptions = computed(() =>
 )
 const selectOptions = computed(() => {
   if (keyword.value.trim()) {
-    return remoteOptions.value
+    return [...remoteOptions.value, customOption]
   }
   if (showDefaultRemoteOptions.value) {
-    return [...defaultOptions.value, ...defaultRemoteOptions.value]
+    return [...defaultOptions.value, ...defaultRemoteOptions.value, customOption]
   }
-  return defaultOptions.value
+  return [...defaultOptions.value, customOption]
 })
 const visibleRemoteCount = computed(() => {
   if (keyword.value.trim() || showDefaultRemoteOptions.value) {
@@ -65,7 +75,7 @@ const showDropdownFooter = computed(() => Boolean(showLoadMoreButton.value || re
 const selectedValue = computed({
   get: () => selectedQrApp.value.appId,
   set: (value) => {
-    const option = [...defaultOptions.value, ...remoteOptions.value].find(
+    const option = [...defaultOptions.value, ...remoteOptions.value, customOption].find(
       (item) => item.value === value,
     )
     selectedQrApp.value = {
@@ -131,7 +141,7 @@ watch(showCustomFields, (visible) => {
 </script>
 
 <template>
-  <el-form-item label="App ID">
+  <el-form-item label="APP ID">
     <el-select
       v-model="selectedValue"
       class="v115-app-select"
@@ -140,7 +150,7 @@ watch(showCustomFields, (visible) => {
       clearable
       reserve-keyword
       remote-show-suffix
-      placeholder="选择或搜索 115 开放平台 App ID"
+      placeholder="选择或搜索 115 开放平台 APP ID"
       :remote-method="handleSearch"
       :loading="loading"
       @visible-change="handleVisibleChange"
@@ -181,12 +191,12 @@ watch(showCustomFields, (visible) => {
         clearable
       />
     </el-form-item>
-    <el-form-item label="App ID">
+    <el-form-item label="APP ID">
       <el-input
         v-model="customAppId"
         name="v115-app-id"
         autocomplete="off"
-        placeholder="请输入 115 开放平台 App ID"
+        placeholder="请输入 115 开放平台 APP ID"
         clearable
       />
     </el-form-item>

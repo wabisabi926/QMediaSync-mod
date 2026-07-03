@@ -144,7 +144,7 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 
 - `name`：账号备注，便于人工识别。
 - `source_type`：账号来源类型，见上面的 `source_type` 枚举。
-- `app_id`：115 开放平台应用 ID。
+- `app_id`：115 开放平台 APP ID。
 - `app_id_name`：自定义应用显示名。
 - `auth_source_type`：115 授权来源类型。
 - `auth_provider`：115 授权 Provider。

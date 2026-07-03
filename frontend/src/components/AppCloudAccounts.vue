@@ -490,7 +490,7 @@
             clearable
           />
         </el-form-item>
-        <el-form-item label="App ID">
+        <el-form-item label="APP ID">
           <el-input v-model="editAccountForm.app_id" disabled />
         </el-form-item>
       </template>

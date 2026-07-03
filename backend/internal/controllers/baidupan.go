@@ -113,7 +113,7 @@ func GetBaiDuPanOAuthUrl(c *gin.Context) {
 
 	clientId := account.AppId
 	if clientId == "" {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "账号缺少 App ID 配置", Data: nil})
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "账号缺少 APP ID 配置", Data: nil})
 		return
 	}
 

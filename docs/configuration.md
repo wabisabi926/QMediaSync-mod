@@ -96,7 +96,7 @@ emby302:
 
 ## 需要自备的密钥
 
-- 115 开放平台 APPID：前端支持扫码授权和网页授权；自定义 APPID 走扫码授权 。
+- 115 开放平台 APP ID：前端支持扫码授权和网页授权；自定义 APP ID 走扫码授权。
 - TMDB API Key / Access Token：可在 Web 页面「刮削设置」填写；留空时使用默认值。
 - OpenAI 兼容 API Key：默认对接硅基流动（SiliconFlow），可在 Web 页面「刮削设置」填写。
 - fanart.tv API Key：可在 Web 页面「刮削设置」填写。

@@ -29,7 +29,7 @@ const (
 	BuiltInRelayQMediaSync     = "QMediaSync"
 	BuiltInRelayQ115STRM       = "Q115-STRM"
 	BuiltInRelayMQMediaLibrary = "MQ的媒体库"
-	CustomAppName              = "自定义 APPID"
+	CustomAppName              = "自定义 APP ID"
 )
 
 type Source struct {
@@ -1272,7 +1272,7 @@ func SourceFromCreateRequest(sourceType AuthSourceType, provider AuthProvider, a
 	case SourceTypeBuiltInAppID:
 		source, ok := FindSource(SourceTypeBuiltInAppID, ProviderOfficialPKCE, strings.TrimSpace(appID))
 		if !ok {
-			return Source{}, fmt.Errorf("不支持的内置 115 App ID")
+			return Source{}, fmt.Errorf("不支持的内置 115 APP ID")
 		}
 		return source, nil
 	case SourceTypeBuiltInRelay:
@@ -1286,7 +1286,7 @@ func SourceFromCreateRequest(sourceType AuthSourceType, provider AuthProvider, a
 	case SourceTypeCustomAppID:
 		appID = strings.TrimSpace(appID)
 		if appID == "" {
-			return Source{}, fmt.Errorf("自定义应用 ID 不能为空")
+			return Source{}, fmt.Errorf("自定义 APP ID 不能为空")
 		}
 		name := strings.TrimSpace(customAppName)
 		if name == "" {
@@ -1363,10 +1363,10 @@ func sourceFromLegacyCreateRequest(appID string, selectedApp string, customAppNa
 		return relaySourceFromProvider(ProviderQMediaSync, selectedApp)
 	case BuiltInRelayQ115STRM, BuiltInRelayMQMediaLibrary:
 		return relaySourceFromProvider(ProviderMQFamily, selectedApp)
-	case "自定义", "自定义 App ID", CustomAppName:
+	case "自定义", "自定义 App ID", "自定义 APPID", CustomAppName:
 		appID = strings.TrimSpace(appID)
 		if appID == "" {
-			return Source{}, fmt.Errorf("自定义应用 ID 不能为空")
+			return Source{}, fmt.Errorf("自定义 APP ID 不能为空")
 		}
 		name := strings.TrimSpace(customAppName)
 		if name == "" {

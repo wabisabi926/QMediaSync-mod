@@ -30,6 +30,6 @@ export const getV115AppInfoRows = (
   }
   return [
     { label: '应用名', value: account.app_id_name || '自定义' },
-    { label: 'APPID', value: account.app_id || '-' },
+    { label: 'APP ID', value: account.app_id || '-' },
   ]
 }

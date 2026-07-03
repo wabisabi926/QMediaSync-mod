@@ -8,7 +8,7 @@ import (
 )
 
 func TestAccountRequestValidate(t *testing.T) {
-	t.Run("115 自定义 App ID 账号通过", func(t *testing.T) {
+	t.Run("115 自定义 APP ID 账号通过", func(t *testing.T) {
 		req := CreateAccountRequest{
 			SourceType:     models.SourceType115,
 			Name:           "main",

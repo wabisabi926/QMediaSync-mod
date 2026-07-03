@@ -111,7 +111,7 @@ func TestGetAccountList_ReturnsCustom115AppNameAndAppId(t *testing.T) {
 		t.Fatalf("自定义应用名未返回: %s", body)
 	}
 	if !strings.Contains(body, `"app_id":"custom-app-id"`) {
-		t.Fatalf("自定义 APPID 未返回: %s", body)
+		t.Fatalf("自定义 APP ID 未返回: %s", body)
 	}
 }
 
@@ -180,7 +180,7 @@ func TestCreateTmpAccountV115AuthSource(t *testing.T) {
 		wantProvider  string
 	}{
 		{
-			name: "内置 APPID 保存数字 APPID",
+			name: "内置 APP ID 保存数字 APP ID",
 			payload: map[string]any{
 				"source_type":      "115",
 				"name":             "qms",
@@ -207,7 +207,7 @@ func TestCreateTmpAccountV115AuthSource(t *testing.T) {
 			wantProvider:  "qmediasync",
 		},
 		{
-			name: "自定义 APPID 保存用户输入",
+			name: "自定义 APP ID 保存用户输入",
 			payload: map[string]any{
 				"source_type":      "115",
 				"name":             "custom",

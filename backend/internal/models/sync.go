@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,6 +31,11 @@ var SyncStatusText map[SyncStatus]string = map[SyncStatus]string{
 	SyncStatusCompleted:  "已完成",
 	SyncStatusFailed:     "失败",
 }
+
+var (
+	errSyncRecordNotFound     = errors.New("同步记录不存在")
+	errSyncRecordNotDeletable = errors.New("同步记录未完成，不能删除")
+)
 
 type SyncSubStatus int
 
@@ -321,9 +327,15 @@ func GetSyncByID(id uint) (*Sync, error) {
 	if err := db.Db.First(sync, id).Error; err != nil {
 		return nil, err
 	}
+	if sync.SyncPathId == 0 {
+		return sync, nil
+	}
 	// 根据 sync.SyncPathId 查询 SyncPath
 	var syncPath SyncPath
 	if err := db.Db.First(&syncPath, sync.SyncPathId).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return sync, nil
+		}
 		return nil, err
 	}
 	sync.SyncPath = &syncPath
@@ -376,17 +388,29 @@ func FailAllRunningSyncTasks() {
 	helpers.AppLogger.Infof("成功将 %d 个运行中的同步任务设置为失败状态", len(runningSyncs))
 }
 
-// 使用 ID 删除同步记录和相关文件
+// 删除已完成或失败的同步记录和相关文件
 func DeleteSyncRecordById(id uint) error {
-	existing := &Sync{BaseModel: BaseModel{ID: id}}
-	if err := db.Db.First(existing, id).Error; err != nil {
-		existing = &Sync{BaseModel: BaseModel{ID: id}}
-	}
+	return deleteSyncRecordById(id, true)
+}
 
-	sync := &Sync{BaseModel: BaseModel{ID: id}}
-	if err := db.Db.Delete(sync).Error; err != nil {
-		helpers.AppLogger.Errorf("删除同步记录失败：%v", err)
-		return err
+// 删除临时同步记录和相关文件
+func DeleteTemporarySyncRecordById(id uint) error {
+	return deleteSyncRecordById(id, false)
+}
+
+func deleteSyncRecordById(id uint, requireFinished bool) error {
+	existing := &Sync{}
+	if err := db.Db.First(existing, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("%w：%d", errSyncRecordNotFound, id)
+		}
+		return fmt.Errorf("查询同步记录失败：%w", err)
+	}
+	if requireFinished && !canDeleteSyncRecord(existing.Status) {
+		return fmt.Errorf("%w：%s", errSyncRecordNotDeletable, syncStatusText(existing.Status))
+	}
+	if err := db.Db.Delete(&Sync{}, id).Error; err != nil {
+		return fmt.Errorf("删除同步记录失败：%w", err)
 	}
 
 	payload := existing.SyncTaskEventPayload()
@@ -394,12 +418,28 @@ func DeleteSyncRecordById(id uint) error {
 	websocket.BroadcastSyncTaskEvent(websocket.EventSyncTaskDeleted, payload)
 
 	// 删除相关的日志和同步结果文件
-	logFile := SyncLogFullPath(id)
-	os.Remove(logFile)
-	os.Remove(LegacySyncLogFullPath(id))
+	removeSyncLogFile(SyncLogFullPath(id))
+	removeSyncLogFile(LegacySyncLogFullPath(id))
 	helpers.AppLogger.Infof("删除同步记录成功：%d", id)
 	return nil
 
+}
+
+func canDeleteSyncRecord(status SyncStatus) bool {
+	return status == SyncStatusCompleted || status == SyncStatusFailed
+}
+
+func syncStatusText(status SyncStatus) string {
+	if text, ok := SyncStatusText[status]; ok {
+		return text
+	}
+	return fmt.Sprintf("未知状态(%d)", status)
+}
+
+func removeSyncLogFile(path string) {
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		helpers.AppLogger.Warnf("删除同步日志文件失败：%s，%v", path, err)
+	}
 }
 
 // 清除过期的同步记录和相关文件，默认保留最近 7 天的记录
@@ -415,7 +455,7 @@ func ClearExpiredSyncRecords(days int) {
 		return
 	}
 	for _, sync := range expiredSyncs {
-		if err := DeleteSyncRecordById(sync.ID); err != nil {
+		if err := deleteSyncRecordById(sync.ID, false); err != nil {
 			helpers.AppLogger.Errorf("删除过期的同步记录失败：%v", err)
 		} else {
 			helpers.AppLogger.Infof("删除过期的同步记录成功：%d", sync.ID)

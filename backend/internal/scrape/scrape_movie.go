@@ -350,7 +350,9 @@ func (m *movieScrapeImpl) SyncFilesToSTRMPath(mediaFile *models.ScrapeMediaFile,
 		helpers.AppLogger.Errorf("生成 STRM 文件失败，失败原因：%v", strmErr)
 		return
 	}
-	models.DeleteSyncRecordById(syncStrm.Sync.ID)
+	if err := models.DeleteTemporarySyncRecordById(syncStrm.Sync.ID); err != nil {
+		helpers.AppLogger.Warnf("删除临时 STRM 同步记录失败：%v", err)
+	}
 	if files == nil {
 		return
 	}

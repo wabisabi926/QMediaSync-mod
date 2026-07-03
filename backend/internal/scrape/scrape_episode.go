@@ -386,10 +386,12 @@ func (t *tvShowScrapeImpl) SyncFilesToSTRMPath(mediaFile *models.ScrapeMediaFile
 		IsMeta:        false,
 		LocalFilePath: filepath.Join(syncPath.LocalPath, path, mediaFile.NewVideoBaseName+".strm"),
 	})
-	models.DeleteSyncRecordById(syncStrm.Sync.ID)
 	if strmErr != nil {
 		helpers.AppLogger.Errorf("生成 STRM 文件失败，失败原因：%v", strmErr)
 		return
+	}
+	if err := models.DeleteTemporarySyncRecordById(syncStrm.Sync.ID); err != nil {
+		helpers.AppLogger.Warnf("删除临时 STRM 同步记录失败：%v", err)
 	}
 
 	// 将其他文件放入 STRM 同步目录内

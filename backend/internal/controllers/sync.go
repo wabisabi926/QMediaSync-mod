@@ -368,16 +368,52 @@ func DelSyncRecords(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
-	for _, id := range req.NormalizedIDs() {
-		deleteErr := models.DeleteSyncRecordById(id)
-		if deleteErr != nil {
-			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "删除同步记录失败：" + deleteErr.Error(), Data: nil})
+	result := deleteSyncRecordsByIDs(req.NormalizedIDs())
+	if len(result.DeletedIDs) > 0 {
+		synccron.InitSyncCron()
+		synccron.InitCron()
+	}
+	if len(result.Failures) > 0 {
+		message := "部分同步记录删除失败"
+		if len(result.DeletedIDs) == 0 {
+			message = "删除同步记录失败"
+		}
+		c.JSON(http.StatusOK, APIResponse[any]{
+			Code:    BadRequest,
+			Message: message,
+			Data:    result,
+		})
+		return
+	}
+	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "删除同步记录成功", Data: result})
+}
+
+type deleteSyncRecordFailure struct {
+	ID     uint   `json:"id"`
+	Reason string `json:"reason"`
+}
+
+type deleteSyncRecordsResult struct {
+	DeletedIDs []uint                    `json:"deleted_ids"`
+	Failures   []deleteSyncRecordFailure `json:"failures"`
+}
+
+func deleteSyncRecordsByIDs(ids []uint) deleteSyncRecordsResult {
+	result := deleteSyncRecordsResult{
+		DeletedIDs: make([]uint, 0, len(ids)),
+		Failures:   make([]deleteSyncRecordFailure, 0),
+	}
+	for _, id := range ids {
+		if err := models.DeleteSyncRecordById(id); err != nil {
+			result.Failures = append(result.Failures, deleteSyncRecordFailure{
+				ID:     id,
+				Reason: err.Error(),
+			})
 			continue
 		}
+		result.DeletedIDs = append(result.DeletedIDs, id)
 	}
-	synccron.InitSyncCron()
-	synccron.InitCron()
-	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "删除同步记录成功", Data: nil})
+	return result
 }
 
 // StartSyncByPath 启动指定路径的同步任务

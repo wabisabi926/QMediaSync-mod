@@ -16,8 +16,10 @@ import (
 )
 
 type strmWebhookFileDetailResolver func(context.Context, *models.Account, string) (*v115open.FileDetail, error)
+type strmWebhookFileDetailByIDResolver func(context.Context, *models.Account, string) (*v115open.FileDetail, error)
 
 var resolveStrmWebhookFileDetail strmWebhookFileDetailResolver = defaultStrmWebhookFileDetailResolver
+var resolveStrmWebhookFileDetailByID strmWebhookFileDetailByIDResolver = defaultStrmWebhookFileDetailByIDResolver
 
 const (
 	strmWebhookActionFile          = "file"
@@ -209,32 +211,68 @@ func defaultStrmWebhookFileDetailResolver(ctx context.Context, account *models.A
 	return client.GetFsDetailByPath(ctx, fullPath)
 }
 
+func defaultStrmWebhookFileDetailByIDResolver(ctx context.Context, account *models.Account, fileID string) (*v115open.FileDetail, error) {
+	if account == nil {
+		return nil, errors.New("账号为空")
+	}
+	client := account.Get115Client()
+	if client == nil {
+		return nil, errors.New("115 客户端为空")
+	}
+	return client.GetFsDetailByCid(ctx, fileID)
+}
+
 func resolveStrmWebhookFileItem(ctx context.Context, syncPath *models.SyncPath, item *strmWebhookFileItem) error {
-	if item == nil || item.FileID != "" || item.PickCode != "" {
+	if item == nil {
 		return nil
 	}
 	account, err := models.GetAccountById(syncPath.AccountId)
 	if err != nil {
 		return fmt.Errorf("查询同步账号失败: %w", err)
 	}
-	fullPath := pathpkg.Join(item.Path, item.FileName)
-	detail, err := resolveStrmWebhookFileDetail(ctx, account, fullPath)
-	if err != nil {
-		return fmt.Errorf("解析远端文件详情失败: %w", err)
+	var detail *v115open.FileDetail
+	var requestedFullPath string
+	if item.FileID != "" {
+		detail, err = resolveStrmWebhookFileDetailByID(ctx, account, item.FileID)
+		if err != nil {
+			return fmt.Errorf("解析远端文件详情失败: %w", err)
+		}
+	} else {
+		requestedFullPath = pathpkg.Join(item.Path, item.FileName)
+		detail, err = resolveStrmWebhookFileDetail(ctx, account, requestedFullPath)
+		if err != nil {
+			return fmt.Errorf("解析远端文件详情失败: %w", err)
+		}
 	}
 	if detail == nil || strings.TrimSpace(detail.FileId) == "" {
 		return errors.New("解析远端文件详情失败：返回空文件 ID")
 	}
+	applyStrmWebhookFileDetail(item, detail)
+	if requestedFullPath != "" {
+		if item.FileName == "" {
+			item.FileName = pathpkg.Base(requestedFullPath)
+		}
+		if item.Path == "" {
+			item.Path = normalizeRemotePath(pathpkg.Dir(requestedFullPath))
+		}
+	}
+	if item.FileName == "" {
+		return errors.New("解析远端文件详情失败：缺少文件名")
+	}
+	if item.Path == "" {
+		return errors.New("解析远端文件详情失败：缺少远端路径")
+	}
+	if !remotePathWithin(item.Path, syncPath.RemotePath) {
+		return fmt.Errorf("远端路径 %s 不在同步远端目录 %s 下", item.Path, normalizeRemotePath(syncPath.RemotePath))
+	}
+	return nil
+}
+
+func applyStrmWebhookFileDetail(item *strmWebhookFileItem, detail *v115open.FileDetail) {
 	item.FileID = strings.TrimSpace(detail.FileId)
 	item.PickCode = strings.TrimSpace(detail.PickCode)
 	item.FileName = strings.TrimSpace(detail.FileName)
-	if item.FileName == "" {
-		item.FileName = pathpkg.Base(fullPath)
-	}
 	item.Path = normalizeRemotePath(detail.Path)
-	if item.Path == "" {
-		item.Path = normalizeRemotePath(pathpkg.Dir(fullPath))
-	}
 	item.ParentID = strmWebhookDetailParentID(detail)
 	if detail.FileSizeByte > 0 {
 		item.FileSize = detail.FileSizeByte
@@ -246,7 +284,6 @@ func resolveStrmWebhookFileItem(ctx context.Context, syncPath *models.SyncPath, 
 	if item.Mtime == 0 {
 		item.Mtime = helpers.StringToInt64(detail.Ptime)
 	}
-	return nil
 }
 
 func strmWebhookDetailParentID(detail *v115open.FileDetail) string {

@@ -75,8 +75,27 @@ func setStrmWebhookFileDetailResolverForTesting(t *testing.T, resolver strmWebho
 	})
 }
 
+func setStrmWebhookFileIDDetailResolverForTesting(t *testing.T, resolver strmWebhookFileDetailByIDResolver) {
+	t.Helper()
+	oldResolver := resolveStrmWebhookFileDetailByID
+	resolveStrmWebhookFileDetailByID = resolver
+	t.Cleanup(func() {
+		resolveStrmWebhookFileDetailByID = oldResolver
+	})
+}
+
 func TestStrmWebhookAuthSupportsHeaderAndQueryAPIKey(t *testing.T) {
 	router, rawKey, syncPath := setupStrmWebhookControllerTest(t)
+	setStrmWebhookFileIDDetailResolverForTesting(t, func(_ context.Context, _ *models.Account, fileID string) (*v115open.FileDetail, error) {
+		return &v115open.FileDetail{
+			FileId:       fileID,
+			PickCode:     "pick-" + fileID,
+			FileName:     fileID + ".mkv",
+			Path:         "/remote",
+			FileSizeByte: 1024,
+			Utime:        "123",
+		}, nil
+	})
 	payload := map[string]any{
 		"sync_path_id": syncPath.ID,
 		"file_id":      "file-1",
@@ -149,6 +168,18 @@ func TestStrmWebhookValidatesFileLocator(t *testing.T) {
 
 func TestStrmWebhookEnqueuesFileTaskIdempotently(t *testing.T) {
 	router, rawKey, syncPath := setupStrmWebhookControllerTest(t)
+	setStrmWebhookFileIDDetailResolverForTesting(t, func(_ context.Context, _ *models.Account, fileID string) (*v115open.FileDetail, error) {
+		return &v115open.FileDetail{
+			FileId:       fileID,
+			PickCode:     "pick-1",
+			FileName:     "movie.mkv",
+			Path:         "/remote",
+			FileSizeByte: 1024,
+			Sha1:         "sha1",
+			Utime:        "123",
+			Paths:        []v115open.FileDetailPath{{FileId: "parent-1", Name: "remote"}},
+		}, nil
+	})
 	payload := map[string]any{
 		"sync_path_id": syncPath.ID,
 		"file_id":      "file-1",
@@ -233,8 +264,38 @@ func TestStrmWebhookResolvesPathAndFileNameBeforeEnqueue(t *testing.T) {
 	}
 }
 
+func TestStrmWebhookRejectsFileIDOutsideSyncPath(t *testing.T) {
+	router, rawKey, syncPath := setupStrmWebhookControllerTest(t)
+	setStrmWebhookFileIDDetailResolverForTesting(t, func(_ context.Context, _ *models.Account, fileID string) (*v115open.FileDetail, error) {
+		return &v115open.FileDetail{
+			FileId:       fileID,
+			PickCode:     "pick-outside",
+			FileName:     "outside.mkv",
+			Path:         "/outside",
+			FileSizeByte: 1024,
+		}, nil
+	})
+	w := performStrmWebhookRequest(t, router, rawKey, "", map[string]any{
+		"sync_path_id": syncPath.ID,
+		"file_id":      "file-outside",
+	})
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "不在同步远端目录") {
+		t.Fatalf("同步目录外 file_id 应被拒绝: code=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
 func TestStrmWebhookBatchFilesReturnsItemResults(t *testing.T) {
 	router, rawKey, syncPath := setupStrmWebhookControllerTest(t)
+	setStrmWebhookFileIDDetailResolverForTesting(t, func(_ context.Context, _ *models.Account, fileID string) (*v115open.FileDetail, error) {
+		return &v115open.FileDetail{
+			FileId:       fileID,
+			PickCode:     "pick-1",
+			FileName:     "movie.mkv",
+			Path:         "/remote",
+			FileSizeByte: 1024,
+			Utime:        "123",
+		}, nil
+	})
 	payload := map[string]any{
 		"sync_path_id": syncPath.ID,
 		"action":       "batch_files",

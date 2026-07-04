@@ -19,8 +19,9 @@ import (
 )
 
 type fakeRemoteClient struct {
-	parentID string
-	files    map[string]*RemoteFile
+	parentID       string
+	files          map[string]*RemoteFile
+	deletedFileIDs []string
 }
 
 func (c *fakeRemoteClient) EnsureDir(context.Context, *models.DirectoryUploadRule, string) (RemoteDirectory, error) {
@@ -32,6 +33,11 @@ func (c *fakeRemoteClient) FindFile(_ context.Context, _ string, fileName string
 		return nil, nil
 	}
 	return c.files[fileName], nil
+}
+
+func (c *fakeRemoteClient) DeleteFile(_ context.Context, _ string, fileID string) error {
+	c.deletedFileIDs = append(c.deletedFileIDs, fileID)
+	return nil
 }
 
 func setupDirectoryUploadServiceTestDB(t *testing.T) {
@@ -132,19 +138,18 @@ func TestScanRuleAddsRecursiveVideoFilesToStabilityQueue(t *testing.T) {
 
 func TestScanRuleStableFilesCreateUploadTasks(t *testing.T) {
 	setupDirectoryUploadServiceTestDB(t)
+	clock := &fakeClock{now: time.Unix(150, 0)}
 	monitorPath := t.TempDir()
 	nested := filepath.Join(monitorPath, "show", "Season 01")
 	if err := os.MkdirAll(nested, 0o755); err != nil {
 		t.Fatalf("创建测试目录失败: %v", err)
 	}
-	writeFileWithMtime(t, filepath.Join(monitorPath, "movie.mkv"), []byte("movie"), time.Now())
-	writeFileWithMtime(t, filepath.Join(nested, "episode.mp4"), []byte("episode"), time.Now())
-	writeFileWithMtime(t, filepath.Join(nested, "ignore.tmp"), []byte("tmp"), time.Now())
+	writeFileWithMtime(t, filepath.Join(monitorPath, "movie.mkv"), []byte("movie"), clock.Now())
+	writeFileWithMtime(t, filepath.Join(nested, "episode.mp4"), []byte("episode"), clock.Now())
+	writeFileWithMtime(t, filepath.Join(nested, "ignore.tmp"), []byte("tmp"), clock.Now())
 
 	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
-	rule.StabilitySeconds = 0
-	rule.StabilityRequiredCount = 1
-	service := NewService(ServiceOptions{})
+	service := NewService(ServiceOptions{Now: clock.Now})
 	service.SetRemoteClient(&fakeRemoteClient{parentID: "remote-root"})
 	if accepted, err := service.ScanRule(context.Background(), rule); err != nil || accepted != 2 {
 		t.Fatalf("扫描目录 accepted=%d err=%v，期望 2 个候选视频", accepted, err)
@@ -152,9 +157,19 @@ func TestScanRuleStableFilesCreateUploadTasks(t *testing.T) {
 	if ready, err := service.CheckStableFiles(rule); err != nil || len(ready) != 0 {
 		t.Fatalf("首次稳定性检查 ready=%v err=%v，期望未就绪", ready, err)
 	}
+	clock.Add(15 * time.Second)
+	for i := 1; i < 3; i++ {
+		ready, err := service.CheckStableFiles(rule)
+		if err != nil {
+			t.Fatalf("第 %d 次稳定性检查失败: %v", i, err)
+		}
+		if len(ready) != 0 {
+			t.Fatalf("第 %d 次稳定性检查 ready=%v，期望未就绪", i, ready)
+		}
+	}
 	ready, err := service.CheckStableFiles(rule)
 	if err != nil {
-		t.Fatalf("第二次稳定性检查失败: %v", err)
+		t.Fatalf("第三次稳定性检查失败: %v", err)
 	}
 	if len(ready) != 2 {
 		t.Fatalf("稳定文件数量 = %d，期望 2: %+v", len(ready), ready)
@@ -256,5 +271,101 @@ func TestServiceSkipsUploadWhenRemoteFileAlreadyExists(t *testing.T) {
 	}
 	if strmTask.UploadTaskId != task.ID || strmTask.Source != models.StrmGenerationSourceRemoteExists {
 		t.Fatalf("STRM 任务 = %+v，期望关联远端已存在上传任务", strmTask)
+	}
+}
+
+func TestServiceSkipsRemoteConflictWithoutUpload(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), time.Unix(450, 0))
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.OverwriteMode = models.DirectoryUploadOverwriteSkipSame
+
+	remoteClient := &fakeRemoteClient{
+		parentID: "remote-root",
+		files: map[string]*RemoteFile{
+			"movie.mkv": {ID: "remote-file", PickCode: "pick-code", SHA1: "different", Size: int64(len("movie"))},
+		},
+	}
+	service := NewService(ServiceOptions{})
+	service.SetRemoteClient(remoteClient)
+
+	if err := service.HandleStableFile(context.Background(), rule, filePath); err != nil {
+		t.Fatalf("跳过远端同名不同文件失败: %v", err)
+	}
+	var total int64
+	db.Db.Model(&models.DbUploadTask{}).Count(&total)
+	if total != 0 {
+		t.Fatalf("上传任务数量 = %d，期望 0", total)
+	}
+	if len(remoteClient.deletedFileIDs) != 0 {
+		t.Fatalf("删除远端文件 = %v，期望不删除", remoteClient.deletedFileIDs)
+	}
+	if err := service.HandleStableFile(context.Background(), rule, filePath); err != nil {
+		t.Fatalf("已跳过文件在缓存期内重复处理失败: %v", err)
+	}
+	db.Db.Model(&models.DbUploadTask{}).Count(&total)
+	if total != 0 {
+		t.Fatalf("重复处理后的上传任务数量 = %d，期望 0", total)
+	}
+}
+
+func TestServiceStopsWhenRemoteConflictExists(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), time.Unix(500, 0))
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.OverwriteMode = models.DirectoryUploadOverwriteFailConflict
+
+	service := NewService(ServiceOptions{})
+	service.SetRemoteClient(&fakeRemoteClient{
+		parentID: "remote-root",
+		files: map[string]*RemoteFile{
+			"movie.mkv": {ID: "remote-file", PickCode: "pick-code", SHA1: "different", Size: 999},
+		},
+	})
+
+	err := service.HandleStableFile(context.Background(), rule, filePath)
+	if err == nil {
+		t.Fatal("远端同名不同文件时应停止创建上传任务")
+	}
+	var total int64
+	db.Db.Model(&models.DbUploadTask{}).Count(&total)
+	if total != 0 {
+		t.Fatalf("上传任务数量 = %d，期望 0", total)
+	}
+}
+
+func TestServiceReplacesRemoteConflictBeforeUpload(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), time.Unix(600, 0))
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.OverwriteMode = models.DirectoryUploadOverwriteReplaceConflict
+
+	remoteClient := &fakeRemoteClient{
+		parentID: "remote-root",
+		files: map[string]*RemoteFile{
+			"movie.mkv": {ID: "remote-file", PickCode: "pick-code", SHA1: "different", Size: 999},
+		},
+	}
+	service := NewService(ServiceOptions{})
+	service.SetRemoteClient(remoteClient)
+
+	if err := service.HandleStableFile(context.Background(), rule, filePath); err != nil {
+		t.Fatalf("覆盖远端同名文件后创建上传任务失败: %v", err)
+	}
+	if !reflect.DeepEqual(remoteClient.deletedFileIDs, []string{"remote-file"}) {
+		t.Fatalf("删除远端文件 = %v，期望 [remote-file]", remoteClient.deletedFileIDs)
+	}
+	var task models.DbUploadTask
+	if err := db.Db.First(&task).Error; err != nil {
+		t.Fatalf("读取上传任务失败: %v", err)
+	}
+	if task.Status != models.UploadStatusPending || task.UploadResult != models.UploadResultUnknown {
+		t.Fatalf("上传任务 = %+v，期望覆盖后创建 pending 任务", task)
 	}
 }

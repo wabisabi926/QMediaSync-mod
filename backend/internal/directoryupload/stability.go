@@ -104,11 +104,8 @@ func (q *StabilityQueue) Check(rule *models.DirectoryUploadRule) ([]StableFile, 
 	}
 
 	now := q.now()
-	requiredCount := rule.StabilityRequiredCount
-	if requiredCount <= 0 {
-		requiredCount = 1
-	}
-	requiredDuration := time.Duration(rule.StabilitySeconds) * time.Second
+	requiredCount := models.DirectoryUploadDefaultStabilityRequiredCount
+	requiredDuration := time.Duration(models.DirectoryUploadDefaultStabilitySeconds) * time.Second
 	minStableCount := requiredCount
 	if requiredDuration <= 0 && minStableCount > 1 {
 		minStableCount--

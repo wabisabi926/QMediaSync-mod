@@ -183,8 +183,8 @@ interface FileListResponse {
   current_path: string
 }
 
-type DirectoryUploadWatchMode = 'auto' | 'watcher' | 'polling'
-type DirectoryUploadOverwriteMode = 'skip_same' | 'always'
+type DirectoryUploadWatchMode = 'auto' | 'fsnotify' | 'polling'
+type DirectoryUploadOverwriteMode = 'skip_same' | 'fail_conflict' | 'replace_conflict'
 
 interface DirectoryUploadRule {
   id: number
@@ -196,10 +196,6 @@ interface DirectoryUploadRule {
   remote_root_id: string
   recursive: boolean
   watch_mode: DirectoryUploadWatchMode
-  stability_seconds: number
-  stability_check_interval_seconds: number
-  stability_required_count: number
-  rescan_interval_seconds: number
   startup_scan_enabled: boolean
   processed_cache_ttl_seconds: number
   delete_source_after_success: boolean

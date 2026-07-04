@@ -80,6 +80,72 @@ func TestStartRuleAutoFallsBackToPollingWhenWatcherFails(t *testing.T) {
 	waitForPendingPath(t, service, rule.ID, filePath)
 }
 
+func TestStartRuleFSNotifyFailsWhenWatcherFails(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.WatchMode = models.DirectoryUploadWatchModeFSNotify
+	rule.StartupScanEnabled = false
+
+	service := NewService(ServiceOptions{
+		WatcherFactory: func(*Service, *models.DirectoryUploadRule) (RuleWatcher, error) {
+			return nil, errors.New("watcher unavailable")
+		},
+	})
+	if _, err := service.StartRule(context.Background(), rule); err == nil {
+		t.Fatal("fsnotify 模式下 watcher 初始化失败应直接报错")
+	}
+}
+
+func TestStartRuleRejectsLegacyWatcherMode(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.WatchMode = models.DirectoryUploadWatchMode("watcher")
+	rule.StartupScanEnabled = false
+
+	service := NewService(ServiceOptions{})
+	if _, err := service.StartRule(context.Background(), rule); err == nil {
+		t.Fatal("旧 watcher 监控模式不应继续兼容")
+	}
+}
+
+func TestPollingIntervalUsesBuiltInDefault(t *testing.T) {
+	rule := &models.DirectoryUploadRule{RescanIntervalSeconds: 999}
+	service := NewService(ServiceOptions{})
+
+	if got := service.pollingInterval(rule); got != 30*time.Second {
+		t.Fatalf("polling interval = %s，期望使用内置 30s", got)
+	}
+}
+
+func TestPollingIntervalAllowsTestOverride(t *testing.T) {
+	rule := &models.DirectoryUploadRule{RescanIntervalSeconds: 999}
+	service := NewService(ServiceOptions{PollInterval: 10 * time.Millisecond})
+
+	if got := service.pollingInterval(rule); got != 10*time.Millisecond {
+		t.Fatalf("polling interval = %s，期望测试注入优先", got)
+	}
+}
+
+func TestStabilityIntervalUsesBuiltInDefault(t *testing.T) {
+	rule := &models.DirectoryUploadRule{StabilityCheckIntervalSeconds: 999}
+	service := NewService(ServiceOptions{})
+
+	if got := service.stabilityInterval(rule); got != 2*time.Second {
+		t.Fatalf("stability interval = %s，期望使用内置 2s", got)
+	}
+}
+
+func TestStabilityIntervalAllowsTestOverride(t *testing.T) {
+	rule := &models.DirectoryUploadRule{StabilityCheckIntervalSeconds: 999}
+	service := NewService(ServiceOptions{StabilityCheckInterval: 10 * time.Millisecond})
+
+	if got := service.stabilityInterval(rule); got != 10*time.Millisecond {
+		t.Fatalf("stability interval = %s，期望测试注入优先", got)
+	}
+}
+
 func waitForPendingPath(t *testing.T, service *Service, ruleID uint, filePath string) {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)

@@ -14,7 +14,7 @@ OSS `CompleteMultipartUpload` 完成后，必须带回 115 init 返回的 `callb
 
 ## 目录监控上传
 
-目录监控上传规则绑定一个同步目录，只支持 115 Open API 上传目标。程序启动后会加载启用的规则；规则停用或程序退出时，后台 watcher / polling 会停止。
+目录监控上传规则绑定一个同步目录，只支持 115 Open API 上传目标。程序启动后会加载启用的规则；规则停用或程序退出时，后台 fsnotify / polling 会停止。
 
 规则接口：
 
@@ -27,15 +27,15 @@ OSS `CompleteMultipartUpload` 完成后，必须带回 115 init 返回的 `callb
 
 监控模式：
 
-- `auto`：优先使用 `fsnotify` watcher；初始化失败时自动回退到 polling。
-- `watcher`：强制使用 `fsnotify` watcher，初始化失败则规则启动失败。
-- `polling`：按 `rescan_interval_seconds` 周期递归扫描。
+- `auto`：自动（推荐），优先使用 fsnotify 实时发现；初始化失败时自动回退到 polling 查漏。
+- `fsnotify`：性能模式，强制使用 fsnotify，初始化失败则规则启动失败。
+- `polling`：兼容模式，按内置 30 秒周期递归扫描。
 
-启动补偿扫描由 `startup_scan_enabled` 控制。补偿扫描只把候选视频文件加入稳定性队列，不直接创建上传任务。
+启动查漏由 `startup_scan_enabled` 控制。查漏扫描只把候选视频文件加入稳定性队列，不直接创建上传任务。补偿扫描间隔为代码内置 30 秒，不提供页面或接口配置。
 
 ## 稳定性和去重
 
-目录监控发现文件后，会先进入稳定性队列。稳定性签名为文件 `size + mtime`；签名变化会重置稳定计数。只有文件满足 `stability_seconds` 和 `stability_required_count` 后，才会创建上传任务。
+目录监控发现文件后，会先进入稳定性队列。稳定性签名为文件 `size + mtime`；签名变化会重置稳定计数。稳定性检查间隔为内置 2 秒，文件需要在内置 15 秒稳定窗口内保持签名不变，并连续 3 次检查不变后，才会创建上传任务。这些稳定性参数不提供页面或接口配置。
 
 同一规则下，`monitor_path + relative_path + signature` 会按 `processed_cache_ttl_seconds` 做内存 TTL 去重，避免 create / write 多事件重复创建任务。TTL 过期且文件签名变化后允许再次处理。
 
@@ -45,7 +45,13 @@ OSS `CompleteMultipartUpload` 完成后，必须带回 115 init 返回的 `callb
 
 目录监控上传只创建 `db_upload_tasks.source = directory_monitor` 的上传任务，真实上传仍由全局上传队列执行。任务会写入 `sync_path_id`、`relative_path`、`remote_file_id` 和 `remote_path_id`，因此会出现在上传队列页面。
 
-创建任务前会检查远端同目录同名文件。只有远端文件 SHA1 和大小都与本地文件一致时，才把上传任务直接标记为 `completed`，`upload_result = remote_exists`，并创建后续 STRM 生成任务。该行为是远端已存在跳过，不是断点续传。
+创建任务前会检查远端同目录同名文件。只有远端文件大小和 SHA1 都与本地文件一致时，才把上传任务直接标记为 `completed`，`upload_result = remote_exists`，并创建后续 STRM 生成任务。该行为是远端已存在跳过，不是断点续传。
+
+同名文件大小或 SHA1 不一致时，按 `overwrite_mode` 处理：
+
+- `skip_same`：跳过本地文件，不创建上传任务，不删除远端文件。
+- `fail_conflict`：停止处理并记录错误，不创建上传任务。
+- `replace_conflict`：先删除远端同名文件，再创建新的上传任务。
 
 普通上传成功、秒传成功或断点续传完成后，由上传任务统一创建 STRM 生成任务。`upload_result = skipped_after_rapid_wait` 不会创建 STRM 生成任务，也不会触发源文件删除。
 

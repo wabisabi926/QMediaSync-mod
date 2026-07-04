@@ -144,8 +144,13 @@ func (service *Service) StartRule(ctx context.Context, rule *models.DirectoryUpl
 }
 
 func (service *Service) startRuleWatcher(ctx context.Context, rule *models.DirectoryUploadRule) (RuleWatcher, RuleRuntimeMode, error) {
-	if rule.WatchMode == models.DirectoryUploadWatchModePolling {
+	switch rule.WatchMode {
+	case "", models.DirectoryUploadWatchModeAuto:
+	case models.DirectoryUploadWatchModePolling:
 		return nil, RuleRuntimeModePolling, nil
+	case models.DirectoryUploadWatchModeFSNotify:
+	default:
+		return nil, "", fmt.Errorf("不支持的监控模式：%s", rule.WatchMode)
 	}
 	factory := service.watcherFactory
 	if factory == nil {
@@ -162,7 +167,7 @@ func (service *Service) startRuleWatcher(ctx context.Context, rule *models.Direc
 			_ = watcher.Close()
 		}
 	}
-	if rule.WatchMode == models.DirectoryUploadWatchModeWatcher {
+	if rule.WatchMode == models.DirectoryUploadWatchModeFSNotify {
 		return nil, "", fmt.Errorf("启动 watcher 失败：%w", err)
 	}
 	helpers.AppLogger.Warnf("[目录上传] 规则 %d watcher 不可用，切换为 polling：%v", rule.ID, err)
@@ -215,26 +220,18 @@ func (service *Service) processStableFiles(ctx context.Context, rule *models.Dir
 	}
 }
 
-func (service *Service) pollingInterval(rule *models.DirectoryUploadRule) time.Duration {
+func (service *Service) pollingInterval(_ *models.DirectoryUploadRule) time.Duration {
 	if service.pollInterval > 0 {
 		return service.pollInterval
 	}
-	seconds := 300
-	if rule != nil && rule.RescanIntervalSeconds > 0 {
-		seconds = rule.RescanIntervalSeconds
-	}
-	return time.Duration(seconds) * time.Second
+	return time.Duration(models.DirectoryUploadDefaultRescanIntervalSeconds) * time.Second
 }
 
-func (service *Service) stabilityInterval(rule *models.DirectoryUploadRule) time.Duration {
+func (service *Service) stabilityInterval(_ *models.DirectoryUploadRule) time.Duration {
 	if service.stabilityCheckInterval > 0 {
 		return service.stabilityCheckInterval
 	}
-	seconds := 2
-	if rule != nil && rule.StabilityCheckIntervalSeconds > 0 {
-		seconds = rule.StabilityCheckIntervalSeconds
-	}
-	return time.Duration(seconds) * time.Second
+	return time.Duration(models.DirectoryUploadDefaultStabilityCheckIntervalSeconds) * time.Second
 }
 
 var globalService struct {

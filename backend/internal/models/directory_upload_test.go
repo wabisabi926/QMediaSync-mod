@@ -68,8 +68,8 @@ func TestDirectoryUploadRuleSaveAndDefaults(t *testing.T) {
 	if got.StabilitySeconds != 15 || got.StabilityCheckIntervalSeconds != 2 || got.StabilityRequiredCount != 3 {
 		t.Fatalf("稳定性默认值 = %+v，期望 15/2/3", got)
 	}
-	if got.RescanIntervalSeconds != 300 || !got.StartupScanEnabled || got.ProcessedCacheTTLSeconds != 600 {
-		t.Fatalf("补偿扫描默认值 = %+v，期望 rescan=300 startup=true ttl=600", got)
+	if got.RescanIntervalSeconds != 30 || !got.StartupScanEnabled || got.ProcessedCacheTTLSeconds != 600 {
+		t.Fatalf("补偿扫描默认值 = %+v，期望 rescan=30 startup=true ttl=600", got)
 	}
 	if got.DeleteSourceAfterSuccess {
 		t.Fatal("delete_source_after_success 默认应为 false")

@@ -14,17 +14,26 @@ import (
 type DirectoryUploadWatchMode string
 
 const (
-	DirectoryUploadWatchModeAuto    DirectoryUploadWatchMode = "auto"
-	DirectoryUploadWatchModeWatcher DirectoryUploadWatchMode = "watcher"
-	DirectoryUploadWatchModePolling DirectoryUploadWatchMode = "polling"
+	DirectoryUploadWatchModeAuto     DirectoryUploadWatchMode = "auto"
+	DirectoryUploadWatchModeFSNotify DirectoryUploadWatchMode = "fsnotify"
+	DirectoryUploadWatchModePolling  DirectoryUploadWatchMode = "polling"
 )
 
 // DirectoryUploadOverwriteMode 是远端已有文件处理策略。
 type DirectoryUploadOverwriteMode string
 
 const (
-	DirectoryUploadOverwriteSkipSame DirectoryUploadOverwriteMode = "skip_same"
-	DirectoryUploadOverwriteAlways   DirectoryUploadOverwriteMode = "always"
+	DirectoryUploadOverwriteSkipSame        DirectoryUploadOverwriteMode = "skip_same"
+	DirectoryUploadOverwriteFailConflict    DirectoryUploadOverwriteMode = "fail_conflict"
+	DirectoryUploadOverwriteReplaceConflict DirectoryUploadOverwriteMode = "replace_conflict"
+)
+
+// 目录监控上传内置计时参数。
+const (
+	DirectoryUploadDefaultStabilitySeconds              = 15
+	DirectoryUploadDefaultStabilityCheckIntervalSeconds = 2
+	DirectoryUploadDefaultStabilityRequiredCount        = 3
+	DirectoryUploadDefaultRescanIntervalSeconds         = 30
 )
 
 // DirectoryUploadRule 保存目录监控上传规则。
@@ -41,7 +50,7 @@ type DirectoryUploadRule struct {
 	StabilitySeconds              int                          `json:"stability_seconds" gorm:"default:15"`
 	StabilityCheckIntervalSeconds int                          `json:"stability_check_interval_seconds" gorm:"default:2"`
 	StabilityRequiredCount        int                          `json:"stability_required_count" gorm:"default:3"`
-	RescanIntervalSeconds         int                          `json:"rescan_interval_seconds" gorm:"default:300"`
+	RescanIntervalSeconds         int                          `json:"rescan_interval_seconds" gorm:"default:30"`
 	StartupScanEnabled            bool                         `json:"startup_scan_enabled" gorm:"default:true"`
 	ProcessedCacheTTLSeconds      int                          `json:"processed_cache_ttl_seconds" gorm:"default:600"`
 	DeleteSourceAfterSuccess      bool                         `json:"delete_source_after_success" gorm:"default:false"`
@@ -143,18 +152,10 @@ func (rule *DirectoryUploadRule) applyDefaults() {
 	if rule.WatchMode == "" {
 		rule.WatchMode = DirectoryUploadWatchModeAuto
 	}
-	if rule.StabilitySeconds <= 0 {
-		rule.StabilitySeconds = 15
-	}
-	if rule.StabilityCheckIntervalSeconds <= 0 {
-		rule.StabilityCheckIntervalSeconds = 2
-	}
-	if rule.StabilityRequiredCount <= 0 {
-		rule.StabilityRequiredCount = 3
-	}
-	if rule.RescanIntervalSeconds <= 0 {
-		rule.RescanIntervalSeconds = 300
-	}
+	rule.StabilitySeconds = DirectoryUploadDefaultStabilitySeconds
+	rule.StabilityCheckIntervalSeconds = DirectoryUploadDefaultStabilityCheckIntervalSeconds
+	rule.StabilityRequiredCount = DirectoryUploadDefaultStabilityRequiredCount
+	rule.RescanIntervalSeconds = DirectoryUploadDefaultRescanIntervalSeconds
 	if rule.ProcessedCacheTTLSeconds <= 0 {
 		rule.ProcessedCacheTTLSeconds = 600
 	}

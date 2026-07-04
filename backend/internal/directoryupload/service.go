@@ -36,6 +36,7 @@ type RemoteFile struct {
 type RemoteClient interface {
 	EnsureDir(ctx context.Context, rule *models.DirectoryUploadRule, relativeDir string) (RemoteDirectory, error)
 	FindFile(ctx context.Context, parentID string, fileName string) (*RemoteFile, error)
+	DeleteFile(ctx context.Context, parentID string, fileID string) error
 }
 
 // ServiceOptions 是目录监控上传服务依赖。
@@ -282,21 +283,37 @@ func (service *Service) HandleStableFile(ctx context.Context, rule *models.Direc
 	if err != nil {
 		return fmt.Errorf("检查远端同名文件失败：%w", err)
 	}
-	if isSameRemoteFile(remoteFile, filePath, info.Size()) {
-		task.Status = models.UploadStatusCompleted
-		task.UploadResult = models.UploadResultRemoteExists
-		task.UploadedBytes = info.Size()
-		task.CompletedRemoteFileId = remoteFile.ID
-		task.CompletedPickCode = remoteFile.PickCode
-		task.EndTime = service.now().Unix()
-		if err := models.AddDirectoryMonitorUploadTask(task); err != nil {
-			return fmt.Errorf("创建远端已存在上传任务失败：%w", err)
+	if remoteFile != nil && remoteFile.ID != "" {
+		if isSameRemoteFile(remoteFile, filePath, info.Size()) {
+			task.Status = models.UploadStatusCompleted
+			task.UploadResult = models.UploadResultRemoteExists
+			task.UploadedBytes = info.Size()
+			task.CompletedRemoteFileId = remoteFile.ID
+			task.CompletedPickCode = remoteFile.PickCode
+			task.EndTime = service.now().Unix()
+			if err := models.AddDirectoryMonitorUploadTask(task); err != nil {
+				return fmt.Errorf("创建远端已存在上传任务失败：%w", err)
+			}
+			if err := task.EnqueueStrmGenerationAfterUpload(); err != nil {
+				return fmt.Errorf("创建 STRM 生成任务失败：%w", err)
+			}
+			service.markProcessed(rule, rel, signature)
+			return nil
 		}
-		if err := task.EnqueueStrmGenerationAfterUpload(); err != nil {
-			return fmt.Errorf("创建 STRM 生成任务失败：%w", err)
+
+		switch rule.OverwriteMode {
+		case "", models.DirectoryUploadOverwriteSkipSame:
+			service.markProcessed(rule, rel, signature)
+			return nil
+		case models.DirectoryUploadOverwriteFailConflict:
+			return fmt.Errorf("远端已存在同名文件且大小或 SHA1 不一致：%s", remoteFilePath)
+		case models.DirectoryUploadOverwriteReplaceConflict:
+			if err := remoteClient.DeleteFile(ctx, remoteDir.ID, remoteFile.ID); err != nil {
+				return fmt.Errorf("删除远端同名文件失败：%w", err)
+			}
+		default:
+			return fmt.Errorf("不支持的同名文件处理方式：%s", rule.OverwriteMode)
 		}
-		service.markProcessed(rule, rel, signature)
-		return nil
 	}
 
 	if err := models.AddDirectoryMonitorUploadTask(task); err != nil {
@@ -559,4 +576,21 @@ func (client *open115RemoteClient) FindFile(ctx context.Context, parentID string
 			return nil, nil
 		}
 	}
+}
+
+func (client *open115RemoteClient) DeleteFile(ctx context.Context, parentID string, fileID string) error {
+	if client == nil || client.client == nil {
+		return errors.New("115 远端客户端为空")
+	}
+	if parentID == "" || fileID == "" {
+		return errors.New("远端文件信息为空")
+	}
+	success, err := client.client.Del(ctx, []string{fileID}, parentID)
+	if err != nil {
+		return err
+	}
+	if !success {
+		return errors.New("115 删除接口返回失败")
+	}
+	return nil
 }

@@ -234,12 +234,116 @@ func TestDirectoryUploadRuleDefaults(t *testing.T) {
 	}
 	if !rule.Enabled || !rule.Recursive || !rule.StartupScanEnabled ||
 		rule.WatchMode != models.DirectoryUploadWatchModeAuto ||
-		rule.StabilitySeconds <= 0 || rule.RescanIntervalSeconds <= 0 ||
+		rule.StabilitySeconds != 15 || rule.RescanIntervalSeconds != 30 ||
 		rule.ProcessedCacheTTLSeconds <= 0 {
 		t.Fatalf("默认规则 = %+v，期望填充默认值", rule)
 	}
 	if rule.DeleteSourceAfterSuccess {
 		t.Fatal("删除源文件开关默认应关闭")
+	}
+}
+
+func TestDirectoryUploadRuleIgnoresTimingFieldsFromPayload(t *testing.T) {
+	router, syncPath := setupDirectoryUploadControllerTest(t)
+	payload := map[string]any{
+		"sync_path_id":                     syncPath.ID,
+		"account_id":                       syncPath.AccountId,
+		"monitor_path":                     t.TempDir(),
+		"remote_root_path":                 "/remote",
+		"remote_root_id":                   "remote-root",
+		"stability_seconds":                3600,
+		"stability_check_interval_seconds": 99,
+		"stability_required_count":         99,
+		"rescan_interval_seconds":          999,
+	}
+	body, _ := json.Marshal(payload)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/rules", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("创建规则失败: code=%d body=%s", w.Code, w.Body.String())
+	}
+
+	var rule models.DirectoryUploadRule
+	if err := db.Db.First(&rule).Error; err != nil {
+		t.Fatalf("读取默认规则失败: %v", err)
+	}
+	if rule.StabilitySeconds != 15 ||
+		rule.StabilityCheckIntervalSeconds != 2 ||
+		rule.StabilityRequiredCount != 3 ||
+		rule.RescanIntervalSeconds != 30 {
+		t.Fatalf("规则计时字段 = %+v，期望忽略请求值并使用内置默认值", rule)
+	}
+}
+
+func TestDirectoryUploadRuleAcceptsNewEnumValues(t *testing.T) {
+	router, syncPath := setupDirectoryUploadControllerTest(t)
+	payload := map[string]any{
+		"sync_path_id":     syncPath.ID,
+		"account_id":       syncPath.AccountId,
+		"monitor_path":     t.TempDir(),
+		"remote_root_path": "/remote",
+		"remote_root_id":   "remote-root",
+		"watch_mode":       "fsnotify",
+		"overwrite_mode":   "replace_conflict",
+	}
+	body, _ := json.Marshal(payload)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/rules", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("创建新枚举规则失败: code=%d body=%s", w.Code, w.Body.String())
+	}
+	var rule models.DirectoryUploadRule
+	if err := db.Db.First(&rule).Error; err != nil {
+		t.Fatalf("读取新枚举规则失败: %v", err)
+	}
+	if rule.WatchMode != models.DirectoryUploadWatchModeFSNotify ||
+		rule.OverwriteMode != models.DirectoryUploadOverwriteReplaceConflict {
+		t.Fatalf("规则枚举 = %+v，期望 fsnotify / replace_conflict", rule)
+	}
+}
+
+func TestDirectoryUploadRuleRejectsLegacyEnumValues(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(map[string]any)
+	}{
+		{
+			name: "拒绝旧 watcher 监控模式",
+			mutate: func(payload map[string]any) {
+				payload["watch_mode"] = "watcher"
+			},
+		},
+		{
+			name: "拒绝旧 always 覆盖策略",
+			mutate: func(payload map[string]any) {
+				payload["overwrite_mode"] = "always"
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router, syncPath := setupDirectoryUploadControllerTest(t)
+			payload := map[string]any{
+				"sync_path_id":     syncPath.ID,
+				"account_id":       syncPath.AccountId,
+				"monitor_path":     t.TempDir(),
+				"remote_root_path": "/remote",
+				"remote_root_id":   "remote-root",
+			}
+			tt.mutate(payload)
+			body, _ := json.Marshal(payload)
+			w := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/rules", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			router.ServeHTTP(w, req)
+			if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "不支持") {
+				t.Fatalf("旧枚举响应异常: code=%d body=%s", w.Code, w.Body.String())
+			}
+		})
 	}
 }
 

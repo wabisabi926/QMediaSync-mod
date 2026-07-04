@@ -94,9 +94,7 @@
           :inactive-value="false"
           :disabled="loading"
         />
-        <div class="form-help">
-          上传初始化未命中秒传时，按配置重复尝试秒传；默认关闭。
-        </div>
+        <div class="form-help">上传初始化未命中秒传时，按配置重复尝试秒传；默认关闭。</div>
       </el-form-item>
       <el-form-item label="最小等待文件大小 (MB)" prop="uploadRapidWaitMinSizeMB">
         <el-input-number
@@ -280,7 +278,9 @@ async function fetchThreadSettings() {
     formData.uploadRapidWaitIntervalSeconds =
       response?.data.data.upload_rapid_wait_interval_seconds || 60
     formData.uploadRapidWaitMinSizeMB = bytesToMB(response?.data.data.upload_rapid_wait_min_size)
-    formData.uploadRapidWaitForceSizeMB = bytesToMB(response?.data.data.upload_rapid_wait_force_size)
+    formData.uploadRapidWaitForceSizeMB = bytesToMB(
+      response?.data.data.upload_rapid_wait_force_size,
+    )
     formData.uploadRapidWaitSkipUpload = response?.data.data.upload_rapid_wait_skip_upload === 1
   } catch (error) {
     console.error('获取线程设置失败：', error)

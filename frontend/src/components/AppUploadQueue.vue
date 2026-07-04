@@ -146,7 +146,9 @@
           <div class="mobile-task-summary">
             <div class="mobile-task-meta">
               <el-text type="primary"># {{ scope.row.id }}</el-text>
-              <el-tag size="small" effect="plain">{{ getUploadSourceName(scope.row.source) }}</el-tag>
+              <el-tag size="small" effect="plain">{{
+                getUploadSourceName(scope.row.source)
+              }}</el-tag>
               <el-tag size="small" :type="getStatusTagType(scope.row.status)">
                 {{ getStatusText(scope.row.status) }}
               </el-tag>
@@ -932,7 +934,10 @@ useWSEvent('upload_queue_changed', (data) => {
   if (!isPageActive || document.hidden) {
     return
   }
-  if (isUploadProgressPatch(data) && applyUploadQueuePatch(queueData.value, data as UploadQueuePatch)) {
+  if (
+    isUploadProgressPatch(data) &&
+    applyUploadQueuePatch(queueData.value, data as UploadQueuePatch)
+  ) {
     if (hasActiveQueueWork.value) {
       startAutoRefresh()
     } else {

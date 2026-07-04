@@ -16,23 +16,19 @@ import (
 )
 
 type directoryUploadRuleRequest struct {
-	SyncPathID                    uint                                `json:"sync_path_id"`
-	AccountID                     uint                                `json:"account_id"`
-	Enabled                       *bool                               `json:"enabled"`
-	MonitorPath                   string                              `json:"monitor_path"`
-	RemoteRootPath                string                              `json:"remote_root_path"`
-	RemoteRootID                  string                              `json:"remote_root_id"`
-	Recursive                     *bool                               `json:"recursive"`
-	WatchMode                     models.DirectoryUploadWatchMode     `json:"watch_mode"`
-	StabilitySeconds              int                                 `json:"stability_seconds"`
-	StabilityCheckIntervalSeconds int                                 `json:"stability_check_interval_seconds"`
-	StabilityRequiredCount        int                                 `json:"stability_required_count"`
-	RescanIntervalSeconds         int                                 `json:"rescan_interval_seconds"`
-	StartupScanEnabled            *bool                               `json:"startup_scan_enabled"`
-	ProcessedCacheTTLSeconds      int                                 `json:"processed_cache_ttl_seconds"`
-	DeleteSourceAfterSuccess      *bool                               `json:"delete_source_after_success"`
-	IgnorePatterns                []string                            `json:"ignore_patterns"`
-	OverwriteMode                 models.DirectoryUploadOverwriteMode `json:"overwrite_mode"`
+	SyncPathID               uint                                `json:"sync_path_id"`
+	AccountID                uint                                `json:"account_id"`
+	Enabled                  *bool                               `json:"enabled"`
+	MonitorPath              string                              `json:"monitor_path"`
+	RemoteRootPath           string                              `json:"remote_root_path"`
+	RemoteRootID             string                              `json:"remote_root_id"`
+	Recursive                *bool                               `json:"recursive"`
+	WatchMode                models.DirectoryUploadWatchMode     `json:"watch_mode"`
+	StartupScanEnabled       *bool                               `json:"startup_scan_enabled"`
+	ProcessedCacheTTLSeconds int                                 `json:"processed_cache_ttl_seconds"`
+	DeleteSourceAfterSuccess *bool                               `json:"delete_source_after_success"`
+	IgnorePatterns           []string                            `json:"ignore_patterns"`
+	OverwriteMode            models.DirectoryUploadOverwriteMode `json:"overwrite_mode"`
 }
 
 type directoryUploadStatusRequest struct {
@@ -201,18 +197,6 @@ func buildDirectoryUploadRuleFromRequest(existing *models.DirectoryUploadRule, r
 	if req.WatchMode != "" {
 		rule.WatchMode = req.WatchMode
 	}
-	if req.StabilitySeconds > 0 {
-		rule.StabilitySeconds = req.StabilitySeconds
-	}
-	if req.StabilityCheckIntervalSeconds > 0 {
-		rule.StabilityCheckIntervalSeconds = req.StabilityCheckIntervalSeconds
-	}
-	if req.StabilityRequiredCount > 0 {
-		rule.StabilityRequiredCount = req.StabilityRequiredCount
-	}
-	if req.RescanIntervalSeconds > 0 {
-		rule.RescanIntervalSeconds = req.RescanIntervalSeconds
-	}
 	if req.StartupScanEnabled != nil {
 		rule.StartupScanEnabled = *req.StartupScanEnabled
 	}
@@ -245,18 +229,10 @@ func applyDirectoryUploadRuleDefaults(rule *models.DirectoryUploadRule, isCreate
 	if rule.WatchMode == "" {
 		rule.WatchMode = models.DirectoryUploadWatchModeAuto
 	}
-	if rule.StabilitySeconds <= 0 {
-		rule.StabilitySeconds = 15
-	}
-	if rule.StabilityCheckIntervalSeconds <= 0 {
-		rule.StabilityCheckIntervalSeconds = 2
-	}
-	if rule.StabilityRequiredCount <= 0 {
-		rule.StabilityRequiredCount = 3
-	}
-	if rule.RescanIntervalSeconds <= 0 {
-		rule.RescanIntervalSeconds = 300
-	}
+	rule.StabilitySeconds = models.DirectoryUploadDefaultStabilitySeconds
+	rule.StabilityCheckIntervalSeconds = models.DirectoryUploadDefaultStabilityCheckIntervalSeconds
+	rule.StabilityRequiredCount = models.DirectoryUploadDefaultStabilityRequiredCount
+	rule.RescanIntervalSeconds = models.DirectoryUploadDefaultRescanIntervalSeconds
 	if rule.ProcessedCacheTTLSeconds <= 0 {
 		rule.ProcessedCacheTTLSeconds = 600
 	}
@@ -272,14 +248,17 @@ func applyDirectoryUploadRuleDefaults(rule *models.DirectoryUploadRule, isCreate
 
 func validateDirectoryUploadRuleEnums(rule *models.DirectoryUploadRule) error {
 	switch rule.WatchMode {
-	case models.DirectoryUploadWatchModeAuto, models.DirectoryUploadWatchModeWatcher, models.DirectoryUploadWatchModePolling:
+	case models.DirectoryUploadWatchModeAuto, models.DirectoryUploadWatchModeFSNotify, models.DirectoryUploadWatchModePolling:
 	default:
 		return fmt.Errorf("不支持的监控模式：%s", rule.WatchMode)
 	}
 	switch rule.OverwriteMode {
-	case "", models.DirectoryUploadOverwriteSkipSame, models.DirectoryUploadOverwriteAlways:
+	case "",
+		models.DirectoryUploadOverwriteSkipSame,
+		models.DirectoryUploadOverwriteFailConflict,
+		models.DirectoryUploadOverwriteReplaceConflict:
 	default:
-		return fmt.Errorf("不支持的远端冲突策略：%s", rule.OverwriteMode)
+		return fmt.Errorf("不支持的同名文件处理方式：%s", rule.OverwriteMode)
 	}
 	return nil
 }

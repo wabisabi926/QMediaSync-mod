@@ -213,7 +213,9 @@
           <el-button @click="copyStrmWebhookUrl" :icon="DocumentCopy">复制</el-button>
         </div>
         <div class="form-help">
-          <p>外部程序可通过该地址请求生成 STRM，请使用 `X-API-Key` 请求头或 `api_key` 查询参数鉴权。</p>
+          <p>
+            外部程序可通过该地址请求生成 STRM，请使用 `X-API-Key` 请求头或 `api_key` 查询参数鉴权。
+          </p>
           <p>请求只接受 115 远端定位信息，不能传入 `local_path` 指定本地写入位置。</p>
         </div>
       </el-form-item>

@@ -65,9 +65,11 @@
 
 ## 目录监控上传
 
-目录监控上传通过 `/api/directory-upload/rules` 系列接口配置，绑定一个同步目录和 115 上传目标目录。规则启用后，程序启动时会加载规则；`watch_mode=auto` 优先使用 `fsnotify` watcher，初始化失败时回退 polling；`watch_mode=polling` 始终按 `rescan_interval_seconds` 做补偿扫描。
+目录监控上传通过 `/api/directory-upload/rules` 系列接口配置，绑定一个同步目录和 115 目标目录。目标目录必须位于该同步目录的远端路径下，方便把上传后的远端文件映射回 STRM 路径。规则启用后，程序启动时会加载规则；`watch_mode=auto` 为自动（推荐），优先使用 fsnotify 实时发现，初始化失败时回退 polling 查漏；`watch_mode=fsnotify` 为性能模式，初始化失败则规则启动失败；`watch_mode=polling` 为兼容模式，始终按内置 30 秒间隔做定期查漏。
 
-补偿扫描和 watcher 事件只把候选视频文件加入稳定性队列。文件需要满足 `stability_seconds` 和 `stability_required_count`，并通过 `monitor_path + relative_path + size + mtime` 的 TTL 去重后，才会创建上传队列任务。目录监控上传不在 watcher goroutine 内直接上传文件。
+查漏扫描和 fsnotify 事件只把候选视频文件加入稳定性队列。稳定性检查间隔、稳定窗口和补偿扫描间隔均为代码内置：稳定性检查每 2 秒执行一次，文件需要在 15 秒内保持 `size + mtime` 不变，并连续 3 次检查不变；补偿扫描每 30 秒执行一次。候选文件还会通过 `monitor_path + relative_path + size + mtime` 的 TTL 去重后，才会创建上传队列任务。目录监控上传不在事件 goroutine 内直接上传文件。
+
+创建上传任务前会检查 115 同目录同名文件。远端文件大小和 SHA1 都与本地一致时直接标记为远端已存在并创建 STRM；大小或 SHA1 不一致时按 `overwrite_mode` 处理：`skip_same` 跳过、`fail_conflict` 停止、`replace_conflict` 删除远端旧文件后重新上传。
 
 `delete_source_after_success` 默认关闭。开启后，仍必须等目录监控上传任务成功且关联 STRM 生成任务成功后才删除本地源文件，并向上清理空目录但不删除监控根目录。上传失败、STRM 失败、秒传等待超时后跳过真实上传，或远端已存在但未确认 SHA1 / 大小一致时，都不会删除源文件。
 

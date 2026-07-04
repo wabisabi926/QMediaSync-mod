@@ -120,7 +120,12 @@ func TestStrmWebhookValidatesFileLocator(t *testing.T) {
 		{
 			name:    "缺少文件定位",
 			payload: map[string]any{"sync_path_id": syncPath.ID, "file_name": "movie.mkv"},
-			want:    "file_id、pick_code 或 path + file_name",
+			want:    "file_id 或 path + file_name",
+		},
+		{
+			name:    "拒绝仅提供 pick_code",
+			payload: map[string]any{"sync_path_id": syncPath.ID, "pick_code": "pick-1"},
+			want:    "仅提供 pick_code 无法生成 STRM",
 		},
 		{
 			name: "拒绝 local_path",

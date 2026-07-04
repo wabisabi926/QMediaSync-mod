@@ -269,8 +269,11 @@ func normalizeStrmWebhookFileItem(item strmWebhookFileItem) strmWebhookFileItem 
 
 func validateStrmWebhookFileItem(syncPath *models.SyncPath, item strmWebhookFileItem) error {
 	hasPathName := item.Path != "" && item.FileName != ""
-	if item.FileID == "" && item.PickCode == "" && !hasPathName {
-		return errors.New("file_id、pick_code 或 path + file_name 至少需要提供一组")
+	if item.FileID == "" && !hasPathName {
+		if item.PickCode != "" {
+			return errors.New("仅提供 pick_code 无法生成 STRM，请提供 file_id 或 path + file_name")
+		}
+		return errors.New("file_id 或 path + file_name 至少需要提供一组")
 	}
 	if item.Path != "" && !remotePathWithin(item.Path, syncPath.RemotePath) {
 		return fmt.Errorf("远端路径 %s 不在同步远端目录 %s 下", item.Path, normalizeRemotePath(syncPath.RemotePath))

@@ -29,6 +29,9 @@ func CleanupSourceAfterStrmSuccess(uploadTaskID uint) error {
 	if task.Source != models.UploadSourceDirectoryMonitor {
 		return nil
 	}
+	if task.SourceCleanupStatus != models.UploadSourceCleanupStatusPending {
+		return nil
+	}
 	rule, err := findCleanupRule(&task)
 	if err != nil {
 		return markCleanupFailed(&task, err)

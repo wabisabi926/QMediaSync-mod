@@ -75,6 +75,41 @@ func TestCleanupSourceAfterStrmSuccessKeepsSourceWhenDisabledOrStrmFailed(t *tes
 	}
 }
 
+func TestCleanupSourceAfterStrmSuccessUsesTaskCleanupIntent(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), time.Now())
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.DeleteSourceAfterSuccess = false
+	if err := db.Db.Save(rule).Error; err != nil {
+		t.Fatalf("保存目录上传规则失败: %v", err)
+	}
+	task := createCleanupUploadTask(t, rule, filePath, models.UploadResultMultipartUploaded)
+	task.SourceCleanupStatus = models.UploadSourceCleanupStatusNone
+	if err := db.Db.Save(task).Error; err != nil {
+		t.Fatalf("保存任务清理意图失败: %v", err)
+	}
+	createCleanupStrmTask(t, task.ID, models.StrmGenerationStatusCompleted)
+	rule.DeleteSourceAfterSuccess = true
+	if err := db.Db.Save(rule).Error; err != nil {
+		t.Fatalf("更新目录上传规则失败: %v", err)
+	}
+
+	if err := CleanupSourceAfterStrmSuccess(task.ID); err != nil {
+		t.Fatalf("源文件清理返回错误: %v", err)
+	}
+	assertPathExists(t, filePath)
+
+	var got models.DbUploadTask
+	if err := db.Db.First(&got, task.ID).Error; err != nil {
+		t.Fatalf("读取上传任务失败: %v", err)
+	}
+	if got.SourceCleanupStatus != models.UploadSourceCleanupStatusNone || got.SourceDeletedAt != 0 {
+		t.Fatalf("清理状态 = %+v，期望保持 none 且不删除", got)
+	}
+}
+
 func TestCleanupSourceAfterStrmSuccessRequiresSafeUploadResult(t *testing.T) {
 	setupDirectoryUploadServiceTestDB(t)
 	monitorPath := t.TempDir()

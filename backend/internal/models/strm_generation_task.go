@@ -168,6 +168,9 @@ func IncrementStrmGenerationDirectoryStats(parentTaskId uint, accepted int, fail
 	}
 	parent.AcceptedItems += accepted
 	parent.FailedItems += failed
-	parent.TotalItems = parent.AcceptedItems + parent.FailedItems
+	processedItems := parent.AcceptedItems + parent.FailedItems
+	if parent.TotalItems < processedItems {
+		parent.TotalItems = processedItems
+	}
 	return db.Db.Save(&parent).Error
 }

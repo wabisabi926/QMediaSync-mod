@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	pathpkg "path"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -189,6 +191,212 @@ func (service *StrmGenerationService) buildFileCache(ctx context.Context, syncer
 	return file, nil
 }
 
+// ExpandDirectoryScan 将目录扫描父任务展开为待处理的单文件 STRM 任务。
+func (service *StrmGenerationService) ExpandDirectoryScan(ctx context.Context, task *models.StrmGenerationTask) (int, error) {
+	if service == nil {
+		service = NewStrmGenerationService()
+	}
+	if task == nil {
+		return 0, errors.New("STRM 生成任务为空")
+	}
+	if task.SyncPathId == 0 {
+		return 0, errors.New("STRM 生成任务缺少同步目录")
+	}
+	if task.TaskType != models.StrmGenerationTaskTypeDirectoryScan {
+		return 0, fmt.Errorf("非目录扫描 STRM 任务：%s", task.TaskType)
+	}
+
+	syncPath := models.GetSyncPathById(task.SyncPathId)
+	if syncPath == nil {
+		return 0, fmt.Errorf("同步目录不存在：%d", task.SyncPathId)
+	}
+	account, err := loadStrmGenerationAccount(syncPath, task.AccountId)
+	if err != nil {
+		return 0, err
+	}
+	syncer, err := service.buildSyncer(syncPath, account)
+	if err != nil {
+		return 0, err
+	}
+	if syncer == nil {
+		return 0, errors.New("STRM 同步器为空")
+	}
+	if syncer.SyncDriver == nil {
+		return 0, errors.New("STRM 同步器未初始化远端驱动")
+	}
+	if syncer.Cancel != nil {
+		defer syncer.Cancel()
+	}
+
+	directoryPath, directoryID, err := resolveDirectoryScanRoot(ctx, syncer, syncPath, task)
+	if err != nil {
+		return 0, err
+	}
+	totalItems, err := service.expandDirectoryScanChildren(ctx, task, syncer, syncPath, directoryPath, directoryID)
+	if err != nil {
+		return 0, err
+	}
+	task.TotalItems = totalItems
+	task.AcceptedItems = 0
+	task.FailedItems = 0
+	return totalItems, nil
+}
+
+func resolveDirectoryScanRoot(ctx context.Context, syncer *SyncStrm, syncPath *models.SyncPath, task *models.StrmGenerationTask) (string, string, error) {
+	directoryID := strings.TrimSpace(task.DirectoryId)
+	directoryPath := normalizeStrmRemotePath(task.DirectoryPath)
+	if directoryPath == "" && directoryID != "" && directoryID == syncPath.BaseCid {
+		directoryPath = normalizeStrmRemotePath(syncPath.RemotePath)
+	}
+	if directoryPath == "" && directoryID != "" {
+		detail, err := syncer.SyncDriver.DetailByFileId(ctx, directoryID)
+		if err != nil {
+			return "", "", fmt.Errorf("补齐远端目录详情失败：%w", err)
+		}
+		if detail == nil {
+			return "", "", errors.New("补齐远端目录详情失败：目录不存在")
+		}
+		if detail.FileType != v115open.TypeDir {
+			return "", "", fmt.Errorf("远端文件 %s 不是目录", directoryID)
+		}
+		if detail.SourceType == "" {
+			detail.SourceType = syncPath.SourceType
+		}
+		if detail.FileId != "" {
+			directoryID = detail.FileId
+		}
+		directoryPath = normalizeStrmRemotePath(detail.GetFullRemotePath())
+	}
+	if directoryPath == "" {
+		return "", "", errors.New("目录扫描任务缺少远端目录路径")
+	}
+	if !strmRemotePathWithin(directoryPath, syncPath.RemotePath) {
+		return "", "", fmt.Errorf("远端目录 %s 不在同步远端目录 %s 下", directoryPath, normalizeStrmRemotePath(syncPath.RemotePath))
+	}
+	if directoryID == "" {
+		var err error
+		directoryID, err = syncer.SyncDriver.GetPathIdByPath(ctx, directoryPath)
+		if err != nil {
+			return "", "", fmt.Errorf("获取远端目录 ID 失败：%w", err)
+		}
+		directoryID = strings.TrimSpace(directoryID)
+	}
+	if directoryID == "" {
+		return "", "", fmt.Errorf("远端目录不存在：%s", directoryPath)
+	}
+	return directoryPath, directoryID, nil
+}
+
+func (service *StrmGenerationService) expandDirectoryScanChildren(ctx context.Context, task *models.StrmGenerationTask, syncer *SyncStrm, syncPath *models.SyncPath, directoryPath string, directoryID string) (int, error) {
+	select {
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	default:
+	}
+	fileItems, err := syncer.SyncDriver.GetNetFileFiles(ctx, directoryPath, directoryID)
+	if err != nil {
+		return 0, fmt.Errorf("获取远端目录文件列表失败：%w", err)
+	}
+	totalItems := 0
+	for _, file := range fileItems {
+		if file == nil {
+			continue
+		}
+		if file.SourceType == "" {
+			file.SourceType = syncPath.SourceType
+		}
+		if file.ParentId == "" {
+			file.ParentId = directoryID
+		}
+		if file.Path == "" {
+			file.Path = directoryPath
+		}
+		if file.FileType == v115open.TypeDir {
+			childPath := normalizeStrmRemotePath(file.GetFullRemotePath())
+			childID := file.GetFileId()
+			if childID == "" {
+				return totalItems, fmt.Errorf("远端子目录缺少目录 ID：%s", childPath)
+			}
+			childTotal, err := service.expandDirectoryScanChildren(ctx, task, syncer, syncPath, childPath, childID)
+			totalItems += childTotal
+			if err != nil {
+				return totalItems, err
+			}
+			continue
+		}
+		if !syncer.IsValidVideoExt(file.FileName) {
+			continue
+		}
+		if _, err := models.EnqueueStrmGenerationTask(buildDirectoryScanChildTask(task, syncPath, file)); err != nil {
+			return totalItems, fmt.Errorf("创建目录扫描子任务失败：%w", err)
+		}
+		totalItems++
+	}
+	return totalItems, nil
+}
+
+func buildDirectoryScanChildTask(parent *models.StrmGenerationTask, syncPath *models.SyncPath, file *SyncFileCache) *models.StrmGenerationTask {
+	source := parent.Source
+	if source == "" {
+		source = models.StrmGenerationSourceWebhook
+	}
+	accountID := parent.AccountId
+	if accountID == 0 {
+		accountID = syncPath.AccountId
+	}
+	return &models.StrmGenerationTask{
+		Source:       source,
+		TaskType:     models.StrmGenerationTaskTypeFile,
+		ParentTaskId: parent.ID,
+		SyncPathId:   parent.SyncPathId,
+		AccountId:    accountID,
+		FileId:       file.GetFileId(),
+		ParentId:     file.ParentId,
+		PickCode:     file.PickCode,
+		Path:         file.GetPath(),
+		FileName:     file.FileName,
+		FileSize:     file.FileSize,
+		Sha1:         file.Sha1,
+		Mtime:        file.MTime,
+		RequestHash:  directoryScanChildRequestHash(parent, syncPath, file),
+	}
+}
+
+func directoryScanChildRequestHash(parent *models.StrmGenerationTask, syncPath *models.SyncPath, file *SyncFileCache) string {
+	return fmt.Sprintf(
+		"directory_scan:file:%d:%d:%s:%s:%s:%s",
+		syncPath.ID,
+		parent.ID,
+		file.GetFileId(),
+		file.PickCode,
+		file.GetPath(),
+		file.FileName,
+	)
+}
+
+func normalizeStrmRemotePath(value string) string {
+	value = strings.TrimSpace(strings.ReplaceAll(value, "\\", "/"))
+	if value == "" {
+		return ""
+	}
+	if !strings.HasPrefix(value, "/") {
+		value = "/" + value
+	}
+	return pathpkg.Clean(value)
+}
+
+func strmRemotePathWithin(remotePath string, basePath string) bool {
+	remotePath = normalizeStrmRemotePath(remotePath)
+	basePath = normalizeStrmRemotePath(basePath)
+	if remotePath == "" || basePath == "" {
+		return false
+	}
+	if basePath == "/" {
+		return strings.HasPrefix(remotePath, "/")
+	}
+	return remotePath == basePath || strings.HasPrefix(remotePath, basePath+"/")
+}
+
 func fileNeedsRemoteDetail(file *SyncFileCache) bool {
 	if file == nil {
 		return false
@@ -340,7 +548,7 @@ func ProcessPendingStrmGenerationTasks(ctx context.Context, service *StrmGenerat
 			continue
 		}
 		processed++
-		if _, err := service.Generate(ctx, StrmGenerationInput{Task: task}); err != nil {
+		if err := processStrmGenerationTask(ctx, service, task); err != nil {
 			if markErr := task.MarkFailed(err.Error()); markErr != nil {
 				return processed, markErr
 			}
@@ -362,4 +570,13 @@ func ProcessPendingStrmGenerationTasks(ctx context.Context, service *StrmGenerat
 		}
 	}
 	return processed, nil
+}
+
+func processStrmGenerationTask(ctx context.Context, service *StrmGenerationService, task *models.StrmGenerationTask) error {
+	if task.TaskType == models.StrmGenerationTaskTypeDirectoryScan {
+		_, err := service.ExpandDirectoryScan(ctx, task)
+		return err
+	}
+	_, err := service.Generate(ctx, StrmGenerationInput{Task: task})
+	return err
 }

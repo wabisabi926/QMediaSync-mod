@@ -260,3 +260,32 @@ func TestStrmGenerationDirectoryParentChildStats(t *testing.T) {
 		t.Fatalf("目录统计 = accepted:%d failed:%d total:%d，期望 1/2/3", got.AcceptedItems, got.FailedItems, got.TotalItems)
 	}
 }
+
+func TestStrmGenerationDirectoryStatsKeepsExpandedTotal(t *testing.T) {
+	setupStrmGenerationTaskTestDB(t)
+
+	parent, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:        StrmGenerationSourceWebhook,
+		TaskType:      StrmGenerationTaskTypeDirectoryScan,
+		SyncPathId:    10,
+		AccountId:     2,
+		DirectoryId:   "dir-1",
+		DirectoryPath: "/remote/show",
+		TotalItems:    2,
+		RequestHash:   "sync:10:dir:dir-1",
+	})
+	if err != nil {
+		t.Fatalf("目录扫描父任务入队失败: %v", err)
+	}
+
+	if err := IncrementStrmGenerationDirectoryStats(parent.ID, 1, 0); err != nil {
+		t.Fatalf("累计目录扫描统计失败: %v", err)
+	}
+	var got StrmGenerationTask
+	if err := db.Db.First(&got, parent.ID).Error; err != nil {
+		t.Fatalf("读取目录扫描父任务失败: %v", err)
+	}
+	if got.AcceptedItems != 1 || got.FailedItems != 0 || got.TotalItems != 2 {
+		t.Fatalf("目录统计 = accepted:%d failed:%d total:%d，期望 1/0/2", got.AcceptedItems, got.FailedItems, got.TotalItems)
+	}
+}

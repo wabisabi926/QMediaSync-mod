@@ -46,6 +46,7 @@ const phaseLabelMap: Record<string, string> = {
   resumed_uploading: '恢复上传',
   multipart_uploading: '上传中',
   uploading: '上传中',
+  completing: '完成处理中',
   complete_callback: '完成处理中',
   rapid_uploaded: '秒传成功',
 }
@@ -59,6 +60,10 @@ const resultLabelMap: Record<string, string> = {
 }
 
 const resumeStateLabelMap: Record<string, string> = {
+  none: '',
+  new_session: '新上传',
+  resumed_session: '已恢复上传',
+  session_expired_restarted: '续传会话已失效，已重新上传',
   resumed: '已恢复上传',
   resume_available: '可断点续传',
   no_session: '未发现可续传会话',
@@ -67,7 +72,9 @@ const resumeStateLabelMap: Record<string, string> = {
 }
 
 const cleanupStatusLabelMap: Record<string, string> = {
+  none: '未清理',
   pending: '等待清理',
+  completed: '清理成功',
   skipped: '未清理',
   success: '清理成功',
   deleted: '清理成功',

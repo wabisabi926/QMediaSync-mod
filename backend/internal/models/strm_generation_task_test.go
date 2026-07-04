@@ -119,6 +119,104 @@ func TestStrmGenerationTaskRetryAndRunningReset(t *testing.T) {
 	}
 }
 
+func TestStrmGenerationTaskRunningAndCompletedTransitions(t *testing.T) {
+	setupStrmGenerationTaskTestDB(t)
+
+	task, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:     StrmGenerationSourceUploadCompleted,
+		TaskType:   StrmGenerationTaskTypeFile,
+		SyncPathId: 10,
+		AccountId:  2,
+		FileId:     "file-transition",
+	})
+	if err != nil {
+		t.Fatalf("入队失败: %v", err)
+	}
+
+	if err := task.MarkRunning(); err != nil {
+		t.Fatalf("标记 running 失败: %v", err)
+	}
+	var running StrmGenerationTask
+	if err := db.Db.First(&running, task.ID).Error; err != nil {
+		t.Fatalf("读取 running 任务失败: %v", err)
+	}
+	if running.Status != StrmGenerationStatusRunning || running.LastError != "" {
+		t.Fatalf("running 任务 = %+v，期望 status=running 且清空 last_error", running)
+	}
+
+	if err := running.MarkCompleted(); err != nil {
+		t.Fatalf("标记 completed 失败: %v", err)
+	}
+	var completed StrmGenerationTask
+	if err := db.Db.First(&completed, task.ID).Error; err != nil {
+		t.Fatalf("读取 completed 任务失败: %v", err)
+	}
+	if completed.Status != StrmGenerationStatusCompleted || completed.LastError != "" {
+		t.Fatalf("completed 任务 = %+v，期望 completed 且无错误", completed)
+	}
+}
+
+func TestGetPendingStrmGenerationTasksFiltersAndOrders(t *testing.T) {
+	setupStrmGenerationTaskTestDB(t)
+
+	first, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:     StrmGenerationSourceWebhook,
+		TaskType:   StrmGenerationTaskTypeFile,
+		SyncPathId: 10,
+		AccountId:  2,
+		FileId:     "file-pending-1",
+	})
+	if err != nil {
+		t.Fatalf("创建第一个 pending 任务失败: %v", err)
+	}
+	if _, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:     StrmGenerationSourceWebhook,
+		TaskType:   StrmGenerationTaskTypeFile,
+		SyncPathId: 10,
+		AccountId:  2,
+		FileId:     "file-running",
+		Status:     StrmGenerationStatusRunning,
+	}); err != nil {
+		t.Fatalf("创建 running 任务失败: %v", err)
+	}
+	if _, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:     StrmGenerationSourceWebhook,
+		TaskType:   StrmGenerationTaskTypeFile,
+		SyncPathId: 10,
+		AccountId:  2,
+		FileId:     "file-failed",
+		Status:     StrmGenerationStatusFailed,
+	}); err != nil {
+		t.Fatalf("创建 failed 任务失败: %v", err)
+	}
+	second, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:     StrmGenerationSourceWebhook,
+		TaskType:   StrmGenerationTaskTypeFile,
+		SyncPathId: 10,
+		AccountId:  2,
+		FileId:     "file-pending-2",
+	})
+	if err != nil {
+		t.Fatalf("创建第二个 pending 任务失败: %v", err)
+	}
+
+	tasks, err := GetPendingStrmGenerationTasks(1)
+	if err != nil {
+		t.Fatalf("查询 pending 任务失败: %v", err)
+	}
+	if len(tasks) != 1 || tasks[0].ID != first.ID {
+		t.Fatalf("limit=1 返回 = %+v，期望只返回第一个 pending", tasks)
+	}
+
+	tasks, err = GetPendingStrmGenerationTasks(10)
+	if err != nil {
+		t.Fatalf("查询 pending 任务失败: %v", err)
+	}
+	if len(tasks) != 2 || tasks[0].ID != first.ID || tasks[1].ID != second.ID {
+		t.Fatalf("pending 任务 = %+v，期望按 ID 返回两个 pending", tasks)
+	}
+}
+
 func TestStrmGenerationDirectoryParentChildStats(t *testing.T) {
 	setupStrmGenerationTaskTestDB(t)
 

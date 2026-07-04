@@ -39,6 +39,7 @@ trustedOrigins:
 - 文件管理器排序入口暂时整体隐藏，前端不提交 `sort_by` 和 `sort_order`。后端接口仍保留这两个查询参数作为兼容能力，但当前只使用上游支持的全局排序参数，不做当前页或单个缓存批次的本地排序。已知 115 Open API 在部分目录中返回顺序与请求排序参数不一致；OpenList 第一版也只使用默认顺序。后续应在后端实现完整目录排序视图缓存后，再恢复前端排序入口。
 - 上传 / 下载队列列表响应包含 `queue_status` 快照，前端批量按钮状态以该快照为准；暂停 / 恢复只依据队列运行态，清理 / 重试类操作再依据任务数量；WebSocket 状态事件只更新运行标记，最终仍以 HTTP 快照校准。
 - 上传队列列表会在 115 任务上补齐 `upload_phase`、`progress_percent`、`uploaded_bytes`、`total_parts`、`uploaded_parts`、`upload_result` 和 `resume_state` 等面向展示的字段。`upload_queue_changed` 事件在进度变化时也会带同名 patch 字段，进度事件按任务节流到约 1 秒；创建、状态切换、完成和失败事件不按进度节流。
+- 上传完成、远端已存在跳过和后续 STRM Webhook 使用 `strm_generation_tasks` 作为统一 STRM 生成队列。后端启动时会把遗留的 `running` STRM 生成任务恢复为 `pending`，后台 worker 轮询处理；文件级任务生成或确认 STRM 后才按变化情况提交 Emby 刷新。
 - WebSocket 事件只用于通知状态或列表可能发生变化，前端收到事件后按当前页、筛选条件重新拉取快照，不在客户端维护分页列表增量状态。
 - 长任务进度优先使用事件推送；保留 HTTP 状态接口作为首次加载、刷新恢复和 WebSocket 断线兜底。
 - 115 OAuth 和二维码授权属于短生命周期外部授权流程，继续使用现有轮询，不接入通用队列事件。

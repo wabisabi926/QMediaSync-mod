@@ -63,6 +63,14 @@
 
 自动化测试覆盖协议字段、part size、callback 校验和本地 mock 请求。真实 115 小文件 / 大文件上传实测需要有效 115 Open API 沙箱账号和可写测试目录，且会产生远端写入副作用；未获得明确沙箱授权前，不应在开发环境自动执行真实外部上传。
 
+## STRM 生成后处理
+
+115 上传任务成功或确认远端同名同 SHA1 / 同大小文件已存在后，会按远端文件 ID / PickCode 创建 `strm_generation_tasks`。后台 STRM 生成 worker 会读取待处理任务，并复用现有同步目录配置和 `syncstrm.ProcessStrmFile()` 写入 STRM 内容，因此仍兼容 `strm_base_url`、`add_path`、PickCode 和账号用户 ID 等既有 STRM 规则。
+
+文件级任务只传 `file_id` 时，服务会通过对应网盘 driver 补齐文件名、路径、父目录 ID、PickCode、mtime 和大小。写入流程会先确认新 STRM 内容需要新增或更新；如果同一 `file_id` / `pick_code` 的远端路径变化，会在新 STRM 写入成功后精确删除旧 `SyncFile.LocalFilePath` 对应的旧 STRM。旧路径清理失败不会删除新 STRM，也不会把任务标记完成，任务会记录错误并保留为失败状态供后续排查或重试。
+
+当前 STRM 生成完成后的 Emby 刷新仍使用同步目录关联媒体库刷新入口；只有 STRM 新增或更新时才提交刷新，STRM 内容无变化时只更新 / 确认 `SyncFile`，不重复提交刷新任务。
+
 ## Emby 302 出站 HTTPS
 
 Emby 302 代理请求 Emby、OpenList、m3u8 和下载资源时，默认启用 HTTPS 证书校验。共享 HTTP client 会复用空闲连接，避免同一上游的连续请求反复建立 TCP / TLS 连接。

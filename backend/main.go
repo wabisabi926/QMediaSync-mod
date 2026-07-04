@@ -30,6 +30,7 @@ import (
 	"qmediasync/internal/migrate"
 	"qmediasync/internal/models"
 	"qmediasync/internal/synccron"
+	"qmediasync/internal/syncstrm"
 	"qmediasync/internal/v115open"
 	"qmediasync/internal/websocket"
 
@@ -516,6 +517,7 @@ func initOthers() {
 	// 启动同步任务队列管理器
 	synccron.InitNewSyncQueueManager()
 	models.InitEmbyLibraryRefreshCoordinator()
+	syncstrm.InitStrmGenerationWorker()
 	// 初始化 WebSocket 事件中心
 	wsHub := websocket.NewEventHub()
 	websocket.GlobalEventHub = wsHub

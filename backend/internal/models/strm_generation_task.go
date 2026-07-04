@@ -108,6 +108,51 @@ func (task *StrmGenerationTask) MarkFailed(message string) error {
 	return db.Db.Save(task).Error
 }
 
+// MarkRunning 标记 STRM 生成任务开始执行。
+func (task *StrmGenerationTask) MarkRunning() error {
+	if task == nil {
+		return errors.New("STRM 生成任务为空")
+	}
+	result := db.Db.Model(task).
+		Where("id = ? AND status = ?", task.ID, StrmGenerationStatusPending).
+		Updates(map[string]interface{}{
+			"status":     StrmGenerationStatusRunning,
+			"last_error": "",
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("STRM 生成任务状态不可执行")
+	}
+	task.Status = StrmGenerationStatusRunning
+	task.LastError = ""
+	return nil
+}
+
+// MarkCompleted 标记 STRM 生成任务执行完成。
+func (task *StrmGenerationTask) MarkCompleted() error {
+	if task == nil {
+		return errors.New("STRM 生成任务为空")
+	}
+	task.Status = StrmGenerationStatusCompleted
+	task.LastError = ""
+	return db.Db.Save(task).Error
+}
+
+// GetPendingStrmGenerationTasks 按创建顺序获取待执行 STRM 生成任务。
+func GetPendingStrmGenerationTasks(limit int) ([]*StrmGenerationTask, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	var tasks []*StrmGenerationTask
+	err := db.Db.Where("status = ?", StrmGenerationStatusPending).
+		Order("id ASC").
+		Limit(limit).
+		Find(&tasks).Error
+	return tasks, err
+}
+
 // ResetRunningStrmGenerationTasks 将进程退出前的运行中任务恢复为待处理。
 func ResetRunningStrmGenerationTasks() error {
 	return db.Db.Model(&StrmGenerationTask{}).

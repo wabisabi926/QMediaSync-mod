@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -742,8 +743,8 @@ func (task *DbUploadTask) enqueueStrmGenerationAfterUpload() error {
 	syncPathID := task.SyncPathId
 	accountID := task.AccountId
 	parentID := task.RemotePathId
-	path := task.RemoteFileId
 	fileName := task.FileName
+	remotePath := remoteParentPathForStrmTask(task.RemoteFileId, fileName)
 	fileSize := task.FileSize
 	var sha1 string
 	var mtime int64
@@ -768,8 +769,8 @@ func (task *DbUploadTask) enqueueStrmGenerationAfterUpload() error {
 			if parentID == "" {
 				parentID = syncFile.ParentId
 			}
-			if path == "" {
-				path = syncFile.Path
+			if remotePath == "" {
+				remotePath = syncFile.Path
 			}
 			if fileName == "" {
 				fileName = syncFile.FileName
@@ -803,7 +804,7 @@ func (task *DbUploadTask) enqueueStrmGenerationAfterUpload() error {
 		FileId:       task.CompletedRemoteFileId,
 		ParentId:     parentID,
 		PickCode:     task.CompletedPickCode,
-		Path:         path,
+		Path:         remotePath,
 		FileName:     fileName,
 		FileSize:     fileSize,
 		Sha1:         sha1,
@@ -811,4 +812,21 @@ func (task *DbUploadTask) enqueueStrmGenerationAfterUpload() error {
 		RequestHash:  requestHash,
 	})
 	return err
+}
+
+func remoteParentPathForStrmTask(remoteFilePath string, fileName string) string {
+	remoteFilePath = strings.TrimSpace(remoteFilePath)
+	fileName = strings.TrimSpace(fileName)
+	if remoteFilePath == "" || fileName == "" {
+		return remoteFilePath
+	}
+	cleaned := path.Clean(remoteFilePath)
+	if path.Base(cleaned) != fileName {
+		return remoteFilePath
+	}
+	parent := path.Dir(cleaned)
+	if parent == "." {
+		return ""
+	}
+	return parent
 }

@@ -248,6 +248,9 @@ func TestUpload115FilePersistsResultAndEnqueuesStrmTask(t *testing.T) {
 		strmTask.PickCode != "pick-1" {
 		t.Fatalf("STRM 生成任务 = %+v，期望写入上传完成的远端定位信息", strmTask)
 	}
+	if strmTask.Path != "/remote" {
+		t.Fatalf("STRM 生成任务 Path = %q，期望远端父目录 /remote", strmTask.Path)
+	}
 }
 
 type fakeUpload115Runner struct {

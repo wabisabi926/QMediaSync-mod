@@ -408,6 +408,15 @@
                 自动（推荐）会先用性能模式尽快发现新文件，发现不到时再用兼容模式定期查漏
               </div>
             </el-form-item>
+            <el-form-item label="上传元数据">
+              <el-switch
+                v-model="directoryUploadForm.upload_metadata"
+                :active-value="true"
+                :inactive-value="false"
+                :disabled="loading || directoryUploadLoading"
+              />
+              <div class="form-tip">开启后会同时上传当前同步目录配置中的元数据扩展名文件</div>
+            </el-form-item>
             <el-form-item label="遇到同名文件时">
               <el-radio-group v-model="directoryUploadForm.overwrite_mode">
                 <el-radio-button value="skip_same">跳过</el-radio-button>
@@ -850,6 +859,15 @@
                 自动（推荐）会先用性能模式尽快发现新文件，发现不到时再用兼容模式定期查漏
               </div>
             </el-form-item>
+            <el-form-item label="上传元数据">
+              <el-switch
+                v-model="directoryUploadForm.upload_metadata"
+                :active-value="true"
+                :inactive-value="false"
+                :disabled="loading || directoryUploadLoading"
+              />
+              <div class="form-tip">开启后会同时上传当前同步目录配置中的元数据扩展名文件</div>
+            </el-form-item>
             <el-form-item label="遇到同名文件时">
               <el-radio-group v-model="directoryUploadForm.overwrite_mode">
                 <el-radio-button value="skip_same">跳过</el-radio-button>
@@ -961,6 +979,7 @@ interface DirectoryUploadRuleForm {
   remote_root_id: string
   recursive: boolean
   watch_mode: 'auto' | 'fsnotify' | 'polling'
+  upload_metadata: boolean
   startup_scan_enabled: boolean
   processed_cache_ttl_seconds: number
   delete_source_after_success: boolean
@@ -1009,6 +1028,7 @@ const directoryUploadForm = reactive<DirectoryUploadRuleForm>({
   remote_root_id: '',
   recursive: true,
   watch_mode: 'auto',
+  upload_metadata: false,
   startup_scan_enabled: true,
   processed_cache_ttl_seconds: 600,
   delete_source_after_success: false,
@@ -1067,6 +1087,7 @@ const resetDirectoryUploadForm = () => {
     remote_root_id: '',
     recursive: true,
     watch_mode: 'auto',
+    upload_metadata: false,
     startup_scan_enabled: true,
     processed_cache_ttl_seconds: 600,
     delete_source_after_success: false,
@@ -1084,6 +1105,7 @@ const fillDirectoryUploadForm = (rule: Partial<DirectoryUploadRuleForm>) => {
     remote_root_id: rule.remote_root_id || '',
     recursive: rule.recursive !== false,
     watch_mode: rule.watch_mode || 'auto',
+    upload_metadata: rule.upload_metadata === true,
     startup_scan_enabled: rule.startup_scan_enabled !== false,
     processed_cache_ttl_seconds: rule.processed_cache_ttl_seconds || 600,
     delete_source_after_success: rule.delete_source_after_success === true,
@@ -1158,6 +1180,7 @@ const buildDirectoryUploadPayload = (syncPathId: number) => ({
   remote_root_id: directoryUploadForm.remote_root_id.trim(),
   recursive: directoryUploadForm.recursive,
   watch_mode: directoryUploadForm.watch_mode,
+  upload_metadata: directoryUploadForm.upload_metadata,
   startup_scan_enabled: directoryUploadForm.startup_scan_enabled,
   processed_cache_ttl_seconds: directoryUploadForm.processed_cache_ttl_seconds,
   delete_source_after_success: directoryUploadForm.delete_source_after_success,

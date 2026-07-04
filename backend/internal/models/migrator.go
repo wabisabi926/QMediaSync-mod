@@ -18,7 +18,7 @@ type Migrator struct {
 	VersionCode int `json:"version_code"` // 版本号
 }
 
-var MaxVersionCode = 54
+var MaxVersionCode = 55
 var AllTables = []any{
 	Migrator{},
 	BackupConfig{}, BackupRecord{},
@@ -609,6 +609,14 @@ func Migrate() {
 			return
 		}
 		helpers.AppLogger.Info("已添加上传任务本地 mtime 字段")
+		migrator.UpdateVersionCode(db.Db)
+	}
+	if migrator.VersionCode == 54 {
+		if err := db.Db.AutoMigrate(DirectoryUploadRule{}); err != nil {
+			helpers.AppLogger.Errorf("迁移目录监控上传元数据开关失败：%v", err)
+			return
+		}
+		helpers.AppLogger.Info("已添加目录监控上传元数据开关")
 		migrator.UpdateVersionCode(db.Db)
 	}
 	helpers.AppLogger.Infof("当前数据库版本 %d", migrator.VersionCode)

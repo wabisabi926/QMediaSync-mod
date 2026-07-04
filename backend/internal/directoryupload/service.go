@@ -139,7 +139,7 @@ func (service *Service) trackCandidatePath(ctx context.Context, rule *models.Dir
 	if shouldIgnorePath(rel, info.Name(), false, parseIgnorePatterns(rule.IgnorePatternsStr)) {
 		return false, nil
 	}
-	if !syncPath.IsValidVideoExt(info.Name()) {
+	if !shouldUploadByRule(rule, syncPath, info.Name()) {
 		return false, nil
 	}
 	service.queue.Track(rule.ID, path)
@@ -203,7 +203,7 @@ func (service *Service) ScanRule(ctx context.Context, rule *models.DirectoryUplo
 			}
 			return nil
 		}
-		if shouldIgnorePath(rel, entry.Name(), false, ignorePatterns) || !syncPath.IsValidVideoExt(entry.Name()) {
+		if shouldIgnorePath(rel, entry.Name(), false, ignorePatterns) || !shouldUploadByRule(rule, syncPath, entry.Name()) {
 			return nil
 		}
 		service.queue.Track(rule.ID, path)
@@ -239,7 +239,7 @@ func (service *Service) HandleStableFile(ctx context.Context, rule *models.Direc
 	if syncPath == nil {
 		return fmt.Errorf("%w：同步目录不存在：%d", errStableFileNoRetry, rule.SyncPathId)
 	}
-	if !syncPath.IsValidVideoExt(info.Name()) {
+	if !shouldUploadByRule(rule, syncPath, info.Name()) {
 		return nil
 	}
 	rel, err := safeRelativePath(rule.MonitorPath, filePath)
@@ -337,6 +337,16 @@ func (service *Service) remote(ctx context.Context, rule *models.DirectoryUpload
 		return client, nil
 	}
 	return newOpen115RemoteClient(ctx, rule)
+}
+
+func shouldUploadByRule(rule *models.DirectoryUploadRule, syncPath *models.SyncPath, name string) bool {
+	if syncPath == nil {
+		return false
+	}
+	if syncPath.IsValidVideoExt(name) {
+		return true
+	}
+	return rule != nil && rule.UploadMetadata && syncPath.IsValidMetaExt(name)
 }
 
 func (service *Service) isProcessed(rule *models.DirectoryUploadRule, rel string, signature string) bool {

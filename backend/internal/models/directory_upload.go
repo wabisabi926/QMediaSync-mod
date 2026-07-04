@@ -46,6 +46,7 @@ type DirectoryUploadRule struct {
 	RemoteRootPath                string                       `json:"remote_root_path" gorm:"type:text;size:1024"`
 	RemoteRootId                  string                       `json:"remote_root_id" gorm:"size:128"`
 	Recursive                     bool                         `json:"recursive" gorm:"default:true"`
+	UploadMetadata                bool                         `json:"upload_metadata" gorm:"default:false"`
 	WatchMode                     DirectoryUploadWatchMode     `json:"watch_mode" gorm:"size:32;default:auto"`
 	StabilitySeconds              int                          `json:"stability_seconds" gorm:"default:15"`
 	StabilityCheckIntervalSeconds int                          `json:"stability_check_interval_seconds" gorm:"default:2"`

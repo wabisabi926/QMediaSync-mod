@@ -23,6 +23,7 @@ type directoryUploadRuleRequest struct {
 	RemoteRootPath           string                              `json:"remote_root_path"`
 	RemoteRootID             string                              `json:"remote_root_id"`
 	Recursive                *bool                               `json:"recursive"`
+	UploadMetadata           *bool                               `json:"upload_metadata"`
 	WatchMode                models.DirectoryUploadWatchMode     `json:"watch_mode"`
 	StartupScanEnabled       *bool                               `json:"startup_scan_enabled"`
 	ProcessedCacheTTLSeconds int                                 `json:"processed_cache_ttl_seconds"`
@@ -198,6 +199,9 @@ func buildDirectoryUploadRuleFromRequest(existing *models.DirectoryUploadRule, r
 	if req.Recursive != nil {
 		rule.Recursive = *req.Recursive
 	}
+	if req.UploadMetadata != nil {
+		rule.UploadMetadata = *req.UploadMetadata
+	}
 	if req.WatchMode != "" {
 		rule.WatchMode = req.WatchMode
 	}
@@ -270,6 +274,7 @@ func validateDirectoryUploadRuleEnums(rule *models.DirectoryUploadRule) error {
 func createDirectoryUploadRule(rule *models.DirectoryUploadRule) error {
 	enabled := rule.Enabled
 	recursive := rule.Recursive
+	uploadMetadata := rule.UploadMetadata
 	startupScanEnabled := rule.StartupScanEnabled
 	deleteSourceAfterSuccess := rule.DeleteSourceAfterSuccess
 	if err := db.Db.Select("*").Create(rule).Error; err != nil {
@@ -277,11 +282,13 @@ func createDirectoryUploadRule(rule *models.DirectoryUploadRule) error {
 	}
 	rule.Enabled = enabled
 	rule.Recursive = recursive
+	rule.UploadMetadata = uploadMetadata
 	rule.StartupScanEnabled = startupScanEnabled
 	rule.DeleteSourceAfterSuccess = deleteSourceAfterSuccess
 	return db.Db.Model(rule).Updates(map[string]any{
 		"enabled":                     enabled,
 		"recursive":                   recursive,
+		"upload_metadata":             uploadMetadata,
 		"startup_scan_enabled":        startupScanEnabled,
 		"delete_source_after_success": deleteSourceAfterSuccess,
 	}).Error

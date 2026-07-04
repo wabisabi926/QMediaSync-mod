@@ -107,6 +107,19 @@ func createDirectoryUploadRuleForTest(t *testing.T, monitorPath string) (*models
 	return syncPath, rule
 }
 
+func setSyncPathMetaExtForTest(t *testing.T, syncPathID uint, metaExt []string) {
+	t.Helper()
+	encoded := models.SettingStrm{MetaExtArr: metaExt}.EncodeArr()
+	if encoded == nil {
+		t.Fatal("编码测试元数据扩展名失败")
+	}
+	if err := db.Db.Model(&models.SyncPath{}).
+		Where("id = ?", syncPathID).
+		Update("meta_ext", encoded.MetaExt).Error; err != nil {
+		t.Fatalf("更新同步目录元数据扩展名失败: %v", err)
+	}
+}
+
 func TestScanRuleAddsRecursiveVideoFilesToStabilityQueue(t *testing.T) {
 	setupDirectoryUploadServiceTestDB(t)
 	monitorPath := t.TempDir()
@@ -138,6 +151,107 @@ func TestScanRuleAddsRecursiveVideoFilesToStabilityQueue(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("pending paths=%v，期望 %v", got, want)
+	}
+}
+
+func TestScanRuleUsesUploadMetadataSwitchForMetadataFiles(t *testing.T) {
+	tests := []struct {
+		name           string
+		uploadMetadata bool
+		customMetaExt  []string
+		files          []string
+		wantAccepted   int
+		wantPending    []string
+	}{
+		{
+			name:           "关闭上传元数据时只加入视频",
+			uploadMetadata: false,
+			files:          []string{"movie.mkv", "movie.nfo"},
+			wantAccepted:   1,
+			wantPending:    []string{"movie.mkv"},
+		},
+		{
+			name:           "开启上传元数据时使用全局元数据扩展名",
+			uploadMetadata: true,
+			files:          []string{"movie.mkv", "movie.nfo"},
+			wantAccepted:   2,
+			wantPending:    []string{"movie.mkv", "movie.nfo"},
+		},
+		{
+			name:           "开启上传元数据时自定义元数据扩展名优先",
+			uploadMetadata: true,
+			customMetaExt:  []string{".poster"},
+			files:          []string{"movie.mkv", "movie.nfo", "movie.poster"},
+			wantAccepted:   2,
+			wantPending:    []string{"movie.mkv", "movie.poster"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupDirectoryUploadServiceTestDB(t)
+			monitorPath := t.TempDir()
+			for _, name := range tt.files {
+				writeFileWithMtime(t, filepath.Join(monitorPath, name), []byte(name), time.Now())
+			}
+			syncPath, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+			rule.UploadMetadata = tt.uploadMetadata
+			if len(tt.customMetaExt) > 0 {
+				setSyncPathMetaExtForTest(t, syncPath.ID, tt.customMetaExt)
+			}
+
+			service := NewService(ServiceOptions{})
+			accepted, err := service.ScanRule(context.Background(), rule)
+			if err != nil {
+				t.Fatalf("扫描目录失败: %v", err)
+			}
+			if accepted != tt.wantAccepted {
+				t.Fatalf("accepted=%d，期望 %d", accepted, tt.wantAccepted)
+			}
+
+			want := make([]string, 0, len(tt.wantPending))
+			for _, name := range tt.wantPending {
+				want = append(want, filepath.Join(monitorPath, name))
+			}
+			if got := service.PendingPaths(rule.ID); !reflect.DeepEqual(got, want) {
+				t.Fatalf("pending paths=%v，期望 %v", got, want)
+			}
+		})
+	}
+}
+
+func TestHandleStableFileUsesUploadMetadataSwitchForMetadataFiles(t *testing.T) {
+	tests := []struct {
+		name           string
+		uploadMetadata bool
+		wantTasks      int64
+	}{
+		{name: "关闭上传元数据时跳过元数据文件", uploadMetadata: false, wantTasks: 0},
+		{name: "开启上传元数据时创建元数据上传任务", uploadMetadata: true, wantTasks: 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupDirectoryUploadServiceTestDB(t)
+			monitorPath := t.TempDir()
+			filePath := filepath.Join(monitorPath, "movie.nfo")
+			writeFileWithMtime(t, filePath, []byte("metadata"), time.Unix(125, 0))
+			_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+			rule.UploadMetadata = tt.uploadMetadata
+			service := NewService(ServiceOptions{})
+			service.SetRemoteClient(&fakeRemoteClient{parentID: "remote-root"})
+
+			if err := service.HandleStableFile(context.Background(), rule, filePath); err != nil {
+				t.Fatalf("处理稳定元数据文件失败: %v", err)
+			}
+			var total int64
+			if err := db.Db.Model(&models.DbUploadTask{}).Count(&total).Error; err != nil {
+				t.Fatalf("统计上传任务失败: %v", err)
+			}
+			if total != tt.wantTasks {
+				t.Fatalf("上传任务数量 = %d，期望 %d", total, tt.wantTasks)
+			}
+		})
 	}
 }
 

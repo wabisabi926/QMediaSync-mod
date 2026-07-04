@@ -79,6 +79,7 @@ func TestDirectoryUploadRuleCRUDAndStatus(t *testing.T) {
 		"remote_root_path":            "/remote/uploads",
 		"remote_root_id":              "remote-root",
 		"recursive":                   false,
+		"upload_metadata":             true,
 		"startup_scan_enabled":        false,
 		"delete_source_after_success": true,
 	}
@@ -96,7 +97,7 @@ func TestDirectoryUploadRuleCRUDAndStatus(t *testing.T) {
 	if err := db.Db.First(&rule).Error; err != nil {
 		t.Fatalf("读取目录上传规则失败: %v", err)
 	}
-	if rule.Recursive || rule.StartupScanEnabled || !rule.DeleteSourceAfterSuccess {
+	if rule.Recursive || !rule.UploadMetadata || rule.StartupScanEnabled || !rule.DeleteSourceAfterSuccess {
 		t.Fatalf("规则布尔字段 = %+v，期望保留显式开关，创建响应: %s", rule, createBody)
 	}
 
@@ -108,6 +109,7 @@ func TestDirectoryUploadRuleCRUDAndStatus(t *testing.T) {
 		"remote_root_path":            "/remote/uploads",
 		"remote_root_id":              "remote-root",
 		"recursive":                   true,
+		"upload_metadata":             false,
 		"startup_scan_enabled":        true,
 		"delete_source_after_success": false,
 	})
@@ -132,6 +134,9 @@ func TestDirectoryUploadRuleCRUDAndStatus(t *testing.T) {
 	}
 	if rule.Enabled {
 		t.Fatal("规则应被停用")
+	}
+	if !rule.Recursive || rule.UploadMetadata || !rule.StartupScanEnabled || rule.DeleteSourceAfterSuccess {
+		t.Fatalf("更新后规则布尔字段 = %+v，期望保留更新值", rule)
 	}
 
 	w = httptest.NewRecorder()
@@ -275,6 +280,9 @@ func TestDirectoryUploadRuleDefaults(t *testing.T) {
 	}
 	if rule.DeleteSourceAfterSuccess {
 		t.Fatal("删除源文件开关默认应关闭")
+	}
+	if rule.UploadMetadata {
+		t.Fatal("上传元数据开关默认应关闭")
 	}
 }
 

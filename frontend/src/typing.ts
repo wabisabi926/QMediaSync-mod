@@ -196,6 +196,7 @@ interface DirectoryUploadRule {
   remote_root_id: string
   recursive: boolean
   watch_mode: DirectoryUploadWatchMode
+  upload_metadata: boolean
   startup_scan_enabled: boolean
   processed_cache_ttl_seconds: number
   delete_source_after_success: boolean

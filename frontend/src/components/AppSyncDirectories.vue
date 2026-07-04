@@ -567,7 +567,7 @@ const getSecondaryActions = (row: SyncDirectory, index: number): SyncDirectoryAc
       plain: true,
       circle: true,
       loading: directoryUploadRule.scanning,
-      ariaLabel: '立即扫描',
+      ariaLabel: '目录监控扫描',
       onClick: () => scanDirectoryUploadRule(row),
     })
   }

@@ -309,7 +309,8 @@ func WaitForRapidUpload(
 	}
 	attempts := rapidWaitAttempts(policy.Timeout, policy.Interval)
 	for i := 0; i < attempts; i++ {
-		if err := sleep(ctx, policy.Interval); err != nil {
+		sleepDuration := rapidWaitSleepDuration(policy.Timeout, policy.Interval, i)
+		if err := sleep(ctx, sleepDuration); err != nil {
 			return outcome, err
 		}
 		result, err := reinit(ctx)
@@ -350,6 +351,17 @@ func rapidWaitAttempts(timeout time.Duration, interval time.Duration) int {
 		attempts++
 	}
 	return attempts
+}
+
+func rapidWaitSleepDuration(timeout time.Duration, interval time.Duration, attempt int) time.Duration {
+	remaining := timeout - time.Duration(attempt)*interval
+	if remaining <= 0 {
+		return 0
+	}
+	if remaining < interval {
+		return remaining
+	}
+	return interval
 }
 
 func sleepWithTimer(ctx context.Context, d time.Duration) error {

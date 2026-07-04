@@ -224,8 +224,8 @@ STRM 相关字段：
 115 上传秒传等待字段：
 
 - `upload_rapid_wait_enabled`：是否启用秒传等待，默认 `0`。
-- `upload_rapid_wait_timeout_seconds`：秒传等待最大时长，单位秒，默认 `0`。
-- `upload_rapid_wait_interval_seconds`：秒传等待重试间隔，单位秒，默认 `60`。
+- `upload_rapid_wait_timeout_seconds`：秒传等待最大时长，单位秒，默认 `0`；最后一次等待会按剩余超时时间裁剪。
+- `upload_rapid_wait_interval_seconds`：秒传等待重试间隔，单位秒，默认 `60`，只控制重复 init 的频率。
 - `upload_rapid_wait_min_size`：启用秒传等待的最小文件大小，单位字节，默认 `0`。
 - `upload_rapid_wait_force_size`：强制等待到超时的文件大小阈值，单位字节，默认 `0`。
 - `upload_rapid_wait_skip_upload`：等待超时后是否跳过真实上传，默认 `0`。

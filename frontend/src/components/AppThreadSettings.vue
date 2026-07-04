@@ -128,6 +128,9 @@
           :disabled="loading || !formData.uploadRapidWaitEnabled"
           size="large"
         />
+        <div class="form-help">
+          没秒传成功时，每隔多少秒再问一次 115。间隔越短越快发现秒传，接口请求也会更多。
+        </div>
       </el-form-item>
       <el-form-item label="等待超时秒数" prop="uploadRapidWaitTimeoutSeconds">
         <el-input-number
@@ -139,7 +142,10 @@
           :disabled="loading || !formData.uploadRapidWaitEnabled"
           size="large"
         />
-        <div class="form-help">设置为 0 表示不等待，未命中秒传时直接进入真实上传。</div>
+        <div class="form-help">
+          最多等多久。到点后就停止等待，不会因为上面的间隔更长而多等；设置为 0
+          表示不等待，未命中秒传时直接进入真实上传。
+        </div>
       </el-form-item>
       <el-form-item label="超时后跳过真实上传" prop="uploadRapidWaitSkipUpload">
         <el-switch

@@ -274,6 +274,38 @@ func TestWaitForRapidUpload(t *testing.T) {
 			t.Fatalf("超时结果 = %+v", outcome)
 		}
 	})
+
+	t.Run("等待时长不超过剩余超时", func(t *testing.T) {
+		var sleeps []time.Duration
+		outcome, err := WaitForRapidUpload(
+			context.Background(),
+			first,
+			RapidUploadWaitPolicy{Enabled: true, Timeout: 1500 * time.Millisecond, Interval: time.Second},
+			1024,
+			func(context.Context) (*UploadInitResult, error) {
+				return &UploadInitResult{Status: UploadInitStatusNeedUpload, PickCode: "pick-2"}, nil
+			},
+			func(_ context.Context, d time.Duration) error {
+				sleeps = append(sleeps, d)
+				return nil
+			},
+		)
+		if err != nil {
+			t.Fatalf("等待秒传失败：%v", err)
+		}
+		if !outcome.TimedOut || outcome.Attempts != 2 {
+			t.Fatalf("超时结果 = %+v", outcome)
+		}
+		want := []time.Duration{time.Second, 500 * time.Millisecond}
+		if len(sleeps) != len(want) {
+			t.Fatalf("sleep 次数 = %d，期望 %d，sleeps=%v", len(sleeps), len(want), sleeps)
+		}
+		for i := range want {
+			if sleeps[i] != want[i] {
+				t.Fatalf("第 %d 次 sleep = %s，期望 %s，sleeps=%v", i+1, sleeps[i], want[i], sleeps)
+			}
+		}
+	})
 }
 
 func decodeBase64JSON(t *testing.T, value string) map[string]string {

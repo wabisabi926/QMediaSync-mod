@@ -1,8 +1,16 @@
 package requests
 
-import "testing"
+import (
+	"testing"
+
+	"qmediasync/internal/models"
+)
 
 func intPtr(value int) *int {
+	return &value
+}
+
+func int64Ptr(value int64) *int64 {
 	return &value
 }
 
@@ -86,12 +94,18 @@ func TestCronRequestNormalized(t *testing.T) {
 
 func TestUpdateThreadsRequestValidate(t *testing.T) {
 	valid := UpdateThreadsRequest{
-		DownloadThreads:    1,
-		FileDetailThreads:  2,
-		OpenlistQPS:        2,
-		OpenlistRetry:      1,
-		OpenlistRetryDelay: 30,
-		FileListPageSize:   1150,
+		DownloadThreads:                1,
+		FileDetailThreads:              2,
+		OpenlistQPS:                    2,
+		OpenlistRetry:                  1,
+		OpenlistRetryDelay:             30,
+		FileListPageSize:               1150,
+		UploadRapidWaitEnabled:         intPtr(1),
+		UploadRapidWaitTimeoutSeconds:  intPtr(600),
+		UploadRapidWaitIntervalSeconds: intPtr(60),
+		UploadRapidWaitMinSize:         int64Ptr(1073741824),
+		UploadRapidWaitForceSize:       int64Ptr(5368709120),
+		UploadRapidWaitSkipUpload:      intPtr(0),
 	}
 
 	tests := []struct {
@@ -105,6 +119,10 @@ func TestUpdateThreadsRequestValidate(t *testing.T) {
 		{name: "OpenList QPS 大于 10 失败", mutate: func(r *UpdateThreadsRequest) { r.OpenlistQPS = 11 }, wantErr: true},
 		{name: "重试间隔小于 30 失败", mutate: func(r *UpdateThreadsRequest) { r.OpenlistRetryDelay = 29 }, wantErr: true},
 		{name: "分页数量大于 1150 失败", mutate: func(r *UpdateThreadsRequest) { r.FileListPageSize = 1151 }, wantErr: true},
+		{name: "秒传等待开关非法失败", mutate: func(r *UpdateThreadsRequest) { r.UploadRapidWaitEnabled = intPtr(2) }, wantErr: true},
+		{name: "秒传等待间隔小于 1 失败", mutate: func(r *UpdateThreadsRequest) { r.UploadRapidWaitIntervalSeconds = intPtr(0) }, wantErr: true},
+		{name: "秒传等待超时小于 0 失败", mutate: func(r *UpdateThreadsRequest) { r.UploadRapidWaitTimeoutSeconds = intPtr(-1) }, wantErr: true},
+		{name: "秒传等待最小大小小于 0 失败", mutate: func(r *UpdateThreadsRequest) { r.UploadRapidWaitMinSize = int64Ptr(-1) }, wantErr: true},
 	}
 
 	for _, tt := range tests {
@@ -118,6 +136,69 @@ func TestUpdateThreadsRequestValidate(t *testing.T) {
 				t.Fatalf("Validate() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestUpdateThreadsRequestToModelIncludesRapidWaitPolicy(t *testing.T) {
+	req := UpdateThreadsRequest{
+		DownloadThreads:                1,
+		FileDetailThreads:              3,
+		OpenlistQPS:                    2,
+		OpenlistRetry:                  1,
+		OpenlistRetryDelay:             30,
+		FileListPageSize:               1150,
+		UploadRapidWaitEnabled:         intPtr(1),
+		UploadRapidWaitTimeoutSeconds:  intPtr(900),
+		UploadRapidWaitIntervalSeconds: intPtr(30),
+		UploadRapidWaitMinSize:         int64Ptr(1024),
+		UploadRapidWaitForceSize:       int64Ptr(2048),
+		UploadRapidWaitSkipUpload:      intPtr(1),
+	}
+
+	got := req.ToModel(models.SettingUploadRapidWait{})
+
+	if got.UploadRapidWaitEnabled != 1 {
+		t.Fatalf("UploadRapidWaitEnabled = %d，期望 1", got.UploadRapidWaitEnabled)
+	}
+	if got.UploadRapidWaitTimeoutSeconds != 900 {
+		t.Fatalf("UploadRapidWaitTimeoutSeconds = %d，期望 900", got.UploadRapidWaitTimeoutSeconds)
+	}
+	if got.UploadRapidWaitIntervalSeconds != 30 {
+		t.Fatalf("UploadRapidWaitIntervalSeconds = %d，期望 30", got.UploadRapidWaitIntervalSeconds)
+	}
+	if got.UploadRapidWaitMinSize != 1024 {
+		t.Fatalf("UploadRapidWaitMinSize = %d，期望 1024", got.UploadRapidWaitMinSize)
+	}
+	if got.UploadRapidWaitForceSize != 2048 {
+		t.Fatalf("UploadRapidWaitForceSize = %d，期望 2048", got.UploadRapidWaitForceSize)
+	}
+	if got.UploadRapidWaitSkipUpload != 1 {
+		t.Fatalf("UploadRapidWaitSkipUpload = %d，期望 1", got.UploadRapidWaitSkipUpload)
+	}
+}
+
+func TestUpdateThreadsRequestToModelKeepsRapidWaitPolicyWhenOmitted(t *testing.T) {
+	req := UpdateThreadsRequest{
+		DownloadThreads:    1,
+		FileDetailThreads:  3,
+		OpenlistQPS:        2,
+		OpenlistRetry:      1,
+		OpenlistRetryDelay: 30,
+		FileListPageSize:   1150,
+	}
+	base := models.SettingUploadRapidWait{
+		UploadRapidWaitEnabled:         1,
+		UploadRapidWaitTimeoutSeconds:  900,
+		UploadRapidWaitIntervalSeconds: 30,
+		UploadRapidWaitMinSize:         1024,
+		UploadRapidWaitForceSize:       2048,
+		UploadRapidWaitSkipUpload:      1,
+	}
+
+	got := req.ToModel(base)
+
+	if got.SettingUploadRapidWait != base {
+		t.Fatalf("SettingUploadRapidWait = %+v，期望 %+v", got.SettingUploadRapidWait, base)
 	}
 }
 

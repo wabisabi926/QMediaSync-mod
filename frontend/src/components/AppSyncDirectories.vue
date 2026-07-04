@@ -144,6 +144,32 @@
                 </div>
               </div>
 
+              <div class="info-row" v-if="row.source_type === '115'">
+                <div class="info-icon">
+                  <el-icon><Upload /></el-icon>
+                </div>
+                <div class="info-content">
+                  <span class="info-label">目录监控上传</span>
+                  <span class="info-value directory-upload-value">
+                    <el-tag :type="getDirectoryUploadStatusType(row)" size="small" effect="light">
+                      {{ getDirectoryUploadStatusText(row) }}
+                    </el-tag>
+                  </span>
+                </div>
+              </div>
+
+              <div class="info-row" v-if="getDirectoryUploadRule(row)">
+                <div class="info-icon">
+                  <el-icon><Folder /></el-icon>
+                </div>
+                <div class="info-content">
+                  <span class="info-label">监控目录</span>
+                  <span class="info-value path-value">
+                    {{ getDirectoryUploadRule(row)?.monitor_path }}
+                  </span>
+                </div>
+              </div>
+
               <div class="status-row">
                 <div class="status-indicator" :class="getStatusClass(row)">
                   <el-icon v-if="row.is_running === 2" class="rotating"><Loading /></el-icon>
@@ -355,6 +381,7 @@ import {
   RefreshRight,
   Timer,
   User,
+  Upload,
   VideoPause,
   VideoPlay,
   Warning,
@@ -386,6 +413,16 @@ interface SyncDirectory {
   stopping?: boolean
 }
 
+interface DirectoryUploadRule {
+  id: number
+  sync_path_id: number
+  enabled: boolean
+  monitor_path: string
+  remote_root_path: string
+  delete_source_after_success: boolean
+  scanning?: boolean
+}
+
 interface SyncDirectoryAction {
   key: string
   label: string
@@ -412,6 +449,7 @@ const http: AxiosStatic | undefined = inject('$http')
 const router = useRouter()
 
 const directories = ref<SyncDirectory[]>([])
+const directoryUploadRules = ref<Record<number, DirectoryUploadRule>>({})
 const loading = ref(false)
 const total = ref(0)
 const currentPage = ref(1)
@@ -431,6 +469,28 @@ const lastSyncPathEventTime = new Map<number, number>()
 const runningCount = computed(() => directories.value.filter((d) => d.is_running === 2).length)
 const waitingCount = computed(() => directories.value.filter((d) => d.is_running === 1).length)
 const cronEnabledCount = computed(() => directories.value.filter((d) => d.enable_cron).length)
+
+const getDirectoryUploadRule = (row: SyncDirectory): DirectoryUploadRule | undefined => {
+  return directoryUploadRules.value[row.id]
+}
+
+const getDirectoryUploadStatusText = (row: SyncDirectory): string => {
+  const rule = getDirectoryUploadRule(row)
+  if (!rule) {
+    return '未配置'
+  }
+  return rule.enabled ? '已启用' : '已停用'
+}
+
+const getDirectoryUploadStatusType = (
+  row: SyncDirectory,
+): 'success' | 'info' | 'warning' | 'danger' => {
+  const rule = getDirectoryUploadRule(row)
+  if (!rule) {
+    return 'info'
+  }
+  return rule.enabled ? 'success' : 'warning'
+}
 
 const getStatusClass = (row: SyncDirectory) => {
   if (row.is_running === 2) return 'status-running'
@@ -494,39 +554,60 @@ const getPrimaryActions = (row: SyncDirectory, index: number): SyncDirectoryActi
   return actions
 }
 
-const getSecondaryActions = (row: SyncDirectory, index: number): SyncDirectoryAction[] => [
-  {
-    key: 'edit',
-    label: '',
-    type: 'primary',
-    icon: Edit,
-    plain: true,
-    circle: true,
-    ariaLabel: '编辑同步目录',
-    onClick: () => handleEdit(row),
-  },
-  {
-    key: 'delete',
-    label: '',
-    type: 'danger',
-    icon: Delete,
-    plain: true,
-    circle: true,
-    loading: row.deleting,
-    ariaLabel: '删除同步目录',
-    onClick: () => handleDelete(row, index),
-  },
-  {
-    key: 'scrape-relation',
-    label: '',
-    type: 'warning',
-    icon: Link,
-    plain: true,
-    circle: true,
-    ariaLabel: '关联刮削目录',
-    onClick: () => openScrapePathDialog(row),
-  },
-]
+const getSecondaryActions = (row: SyncDirectory, index: number): SyncDirectoryAction[] => {
+  const actions: SyncDirectoryAction[] = []
+  const directoryUploadRule = getDirectoryUploadRule(row)
+
+  if (directoryUploadRule) {
+    actions.push({
+      key: 'directory-upload-scan',
+      label: '',
+      type: 'success',
+      icon: Refresh,
+      plain: true,
+      circle: true,
+      loading: directoryUploadRule.scanning,
+      ariaLabel: '立即补偿扫描',
+      onClick: () => scanDirectoryUploadRule(row),
+    })
+  }
+
+  actions.push(
+    {
+      key: 'edit',
+      label: '',
+      type: 'primary',
+      icon: Edit,
+      plain: true,
+      circle: true,
+      ariaLabel: '编辑同步目录',
+      onClick: () => handleEdit(row),
+    },
+    {
+      key: 'delete',
+      label: '',
+      type: 'danger',
+      icon: Delete,
+      plain: true,
+      circle: true,
+      loading: row.deleting,
+      ariaLabel: '删除同步目录',
+      onClick: () => handleDelete(row, index),
+    },
+    {
+      key: 'scrape-relation',
+      label: '',
+      type: 'warning',
+      icon: Link,
+      plain: true,
+      circle: true,
+      ariaLabel: '关联刮削目录',
+      onClick: () => openScrapePathDialog(row),
+    },
+  )
+
+  return actions
+}
 
 const checkMobile = () => {
   checkIsMobile.value = isMobile()
@@ -560,18 +641,38 @@ const loadDirectories = async () => {
     if (response?.data.code === 200) {
       directories.value = response.data.data.list || []
       total.value = response.data.data.total || 0
+      await loadDirectoryUploadRules()
     } else {
       ElMessage.error(response?.data.message || '加载同步目录失败')
       directories.value = []
       total.value = 0
+      directoryUploadRules.value = {}
     }
   } catch {
     console.error('加载同步目录错误')
     ElMessage.error('加载同步目录失败')
     directories.value = []
     total.value = 0
+    directoryUploadRules.value = {}
   } finally {
     loading.value = false
+  }
+}
+
+const loadDirectoryUploadRules = async () => {
+  try {
+    const response = await http?.get(`${SERVER_URL}/directory-upload/rules`)
+    if (response?.data.code !== 200) {
+      directoryUploadRules.value = {}
+      return
+    }
+    const nextRules: Record<number, DirectoryUploadRule> = {}
+    for (const rule of response.data.data?.list || []) {
+      nextRules[rule.sync_path_id] = rule
+    }
+    directoryUploadRules.value = nextRules
+  } catch {
+    directoryUploadRules.value = {}
   }
 }
 
@@ -780,6 +881,33 @@ const handleStop = async (row: SyncDirectory, index: number) => {
     if (directories.value[index]) {
       directories.value[index].stopping = false
     }
+  }
+}
+
+const scanDirectoryUploadRule = async (row: SyncDirectory) => {
+  const rule = getDirectoryUploadRule(row)
+  if (!rule) {
+    ElMessage.warning('该同步目录尚未配置目录监控上传')
+    return
+  }
+
+  try {
+    rule.scanning = true
+    const response = await http?.post(`${SERVER_URL}/directory-upload/rules/${rule.id}/scan`)
+    if (response?.data.code === 200) {
+      const accepted = response.data.data?.accepted
+      ElMessage.success(
+        typeof accepted === 'number'
+          ? `补偿扫描完成，已加入 ${accepted} 个候选文件`
+          : '补偿扫描已触发',
+      )
+    } else {
+      ElMessage.error(response?.data.message || '触发补偿扫描失败')
+    }
+  } catch {
+    ElMessage.error('触发补偿扫描失败')
+  } finally {
+    rule.scanning = false
   }
 }
 

@@ -205,6 +205,22 @@
           </p>
         </div>
       </el-form-item>
+
+      <el-divider content-position="left">STRM Webhook</el-divider>
+      <el-form-item label="Webhook 地址">
+        <div class="webhook-url-row">
+          <el-input :model-value="strmWebhookUrl" readonly class="limited-width-input" />
+          <el-button @click="copyStrmWebhookUrl" :icon="DocumentCopy">复制</el-button>
+        </div>
+        <div class="form-help">
+          <p>外部程序可通过该地址请求生成 STRM，请使用 `X-API-Key` 请求头或 `api_key` 查询参数鉴权。</p>
+          <p>请求只接受 115 远端定位信息，不能传入 `local_path` 指定本地写入位置。</p>
+        </div>
+      </el-form-item>
+      <el-form-item label="请求示例">
+        <pre class="webhook-example">{{ strmWebhookExample }}</pre>
+      </el-form-item>
+
       <!-- 保存和重置按钮 -->
       <div class="strm-actions">
         <el-button
@@ -235,10 +251,11 @@
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
-import { Check } from '@element-plus/icons-vue'
-import { inject, onMounted, reactive, ref, watch, useTemplateRef } from 'vue'
-import type { FormInstance, FormRules } from 'element-plus'
+import { Check, DocumentCopy } from '@element-plus/icons-vue'
+import { computed, inject, onMounted, reactive, ref, watch, useTemplateRef } from 'vue'
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { isMobile } from '@/utils/deviceUtils'
+import { copyText } from '@/utils/clipboard'
 import MetadataExtInput from './MetadataExtInput.vue'
 interface StrmData {
   video_ext_arr: string[]
@@ -292,6 +309,27 @@ const defaultStrmData: StrmData = {
 }
 
 const strmData = reactive<StrmData>({ ...defaultStrmData })
+
+const strmWebhookUrl = computed(() => {
+  return new URL(`${SERVER_URL}/strm/webhook`, window.location.origin).toString()
+})
+
+const strmWebhookExample = computed(() =>
+  JSON.stringify(
+    {
+      sync_path_id: 1,
+      action: 'file',
+      file_id: '115-file-id',
+      pick_code: 'pickcode',
+      path: '/电影/示例影片',
+      file_name: '示例影片.mkv',
+      size: 1073741824,
+      sha1: 'VIDEO_FILE_SHA1',
+    },
+    null,
+    2,
+  ),
+)
 
 // 表单验证规则
 const formRules: FormRules = {
@@ -471,6 +509,14 @@ const changeDownloadMeta = () => {
   }
 }
 
+const copyStrmWebhookUrl = async () => {
+  if (await copyText(strmWebhookUrl.value)) {
+    ElMessage.success('STRM Webhook 地址已复制到剪贴板')
+    return
+  }
+  ElMessage.error('复制失败，请手动复制')
+}
+
 // 监听 Cron 表达式变化
 watch(
   () => strmData.cron,
@@ -488,3 +534,38 @@ onMounted(() => {
   loadStrmConfig()
 })
 </script>
+
+<style scoped>
+.webhook-url-row {
+  display: flex;
+  width: 100%;
+  gap: 8px;
+}
+
+.webhook-example {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 720px;
+  margin: 0;
+  padding: 12px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #f5f7fa;
+  border: 1px solid #dcdfe6;
+  border-radius: 6px;
+  color: #303133;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+@media (max-width: 768px) {
+  .webhook-url-row {
+    flex-direction: column;
+  }
+
+  .webhook-url-row :deep(.el-button) {
+    width: 100%;
+  }
+}
+</style>

@@ -72,12 +72,18 @@ func (r ValidateCronRequest) NormalizedCronExpression() string {
 
 // UpdateThreadsRequest 更新线程配置请求。
 type UpdateThreadsRequest struct {
-	DownloadThreads    int `form:"download_threads" json:"download_threads" binding:"required"`
-	FileDetailThreads  int `form:"file_detail_threads" json:"file_detail_threads" binding:"required"`
-	OpenlistQPS        int `form:"openlist_qps" json:"openlist_qps" binding:"required"`
-	OpenlistRetry      int `form:"openlist_retry" json:"openlist_retry" binding:"required"`
-	OpenlistRetryDelay int `form:"openlist_retry_delay" json:"openlist_retry_delay" binding:"required"`
-	FileListPageSize   int `form:"file_list_page_size" json:"file_list_page_size" binding:"required"`
+	DownloadThreads                int    `form:"download_threads" json:"download_threads" binding:"required"`
+	FileDetailThreads              int    `form:"file_detail_threads" json:"file_detail_threads" binding:"required"`
+	OpenlistQPS                    int    `form:"openlist_qps" json:"openlist_qps" binding:"required"`
+	OpenlistRetry                  int    `form:"openlist_retry" json:"openlist_retry" binding:"required"`
+	OpenlistRetryDelay             int    `form:"openlist_retry_delay" json:"openlist_retry_delay" binding:"required"`
+	FileListPageSize               int    `form:"file_list_page_size" json:"file_list_page_size" binding:"required"`
+	UploadRapidWaitEnabled         *int   `form:"upload_rapid_wait_enabled" json:"upload_rapid_wait_enabled"`
+	UploadRapidWaitTimeoutSeconds  *int   `form:"upload_rapid_wait_timeout_seconds" json:"upload_rapid_wait_timeout_seconds"`
+	UploadRapidWaitIntervalSeconds *int   `form:"upload_rapid_wait_interval_seconds" json:"upload_rapid_wait_interval_seconds"`
+	UploadRapidWaitMinSize         *int64 `form:"upload_rapid_wait_min_size" json:"upload_rapid_wait_min_size"`
+	UploadRapidWaitForceSize       *int64 `form:"upload_rapid_wait_force_size" json:"upload_rapid_wait_force_size"`
+	UploadRapidWaitSkipUpload      *int   `form:"upload_rapid_wait_skip_upload" json:"upload_rapid_wait_skip_upload"`
 }
 
 // Validate 校验线程配置请求。
@@ -97,19 +103,74 @@ func (r UpdateThreadsRequest) Validate() error {
 	if err := validation.RangeInt("openlist_retry_delay", r.OpenlistRetryDelay, 30, 3600); err != nil {
 		return err
 	}
-	return validation.RangeInt("file_list_page_size", r.FileListPageSize, 100, 1150)
+	if err := validation.RangeInt("file_list_page_size", r.FileListPageSize, 100, 1150); err != nil {
+		return err
+	}
+	if r.UploadRapidWaitEnabled != nil {
+		if err := validation.OneOfInt("upload_rapid_wait_enabled", *r.UploadRapidWaitEnabled, []int{0, 1}); err != nil {
+			return err
+		}
+	}
+	if r.UploadRapidWaitTimeoutSeconds != nil {
+		if err := validation.RangeInt("upload_rapid_wait_timeout_seconds", *r.UploadRapidWaitTimeoutSeconds, 0, 86400); err != nil {
+			return err
+		}
+	}
+	if r.UploadRapidWaitIntervalSeconds != nil {
+		if err := validation.RangeInt("upload_rapid_wait_interval_seconds", *r.UploadRapidWaitIntervalSeconds, 1, 3600); err != nil {
+			return err
+		}
+	}
+	if r.UploadRapidWaitMinSize != nil {
+		if err := validation.RangeInt64("upload_rapid_wait_min_size", *r.UploadRapidWaitMinSize, 0, 9223372036854775807); err != nil {
+			return err
+		}
+	}
+	if r.UploadRapidWaitForceSize != nil {
+		if err := validation.RangeInt64("upload_rapid_wait_force_size", *r.UploadRapidWaitForceSize, 0, 9223372036854775807); err != nil {
+			return err
+		}
+	}
+	if r.UploadRapidWaitSkipUpload != nil {
+		if err := validation.OneOfInt("upload_rapid_wait_skip_upload", *r.UploadRapidWaitSkipUpload, []int{0, 1}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ToModel 转换为线程配置模型。
-func (r UpdateThreadsRequest) ToModel() models.SettingThreads {
-	return models.SettingThreads{
-		DownloadThreads:    r.DownloadThreads,
-		FileDetailThreads:  r.FileDetailThreads,
-		OpenlistQPS:        r.OpenlistQPS,
-		OpenlistRetry:      r.OpenlistRetry,
-		OpenlistRetryDelay: r.OpenlistRetryDelay,
-		FileListPageSize:   r.FileListPageSize,
+func (r UpdateThreadsRequest) ToModel(baseRapidWait models.SettingUploadRapidWait) models.SettingThreadAndRapidWait {
+	modelReq := models.SettingThreadAndRapidWait{
+		SettingThreads: models.SettingThreads{
+			DownloadThreads:    r.DownloadThreads,
+			FileDetailThreads:  r.FileDetailThreads,
+			OpenlistQPS:        r.OpenlistQPS,
+			OpenlistRetry:      r.OpenlistRetry,
+			OpenlistRetryDelay: r.OpenlistRetryDelay,
+			FileListPageSize:   r.FileListPageSize,
+		},
+		SettingUploadRapidWait: baseRapidWait,
 	}
+	if r.UploadRapidWaitEnabled != nil {
+		modelReq.UploadRapidWaitEnabled = *r.UploadRapidWaitEnabled
+	}
+	if r.UploadRapidWaitTimeoutSeconds != nil {
+		modelReq.UploadRapidWaitTimeoutSeconds = *r.UploadRapidWaitTimeoutSeconds
+	}
+	if r.UploadRapidWaitIntervalSeconds != nil {
+		modelReq.UploadRapidWaitIntervalSeconds = *r.UploadRapidWaitIntervalSeconds
+	}
+	if r.UploadRapidWaitMinSize != nil {
+		modelReq.UploadRapidWaitMinSize = *r.UploadRapidWaitMinSize
+	}
+	if r.UploadRapidWaitForceSize != nil {
+		modelReq.UploadRapidWaitForceSize = *r.UploadRapidWaitForceSize
+	}
+	if r.UploadRapidWaitSkipUpload != nil {
+		modelReq.UploadRapidWaitSkipUpload = *r.UploadRapidWaitSkipUpload
+	}
+	return modelReq
 }
 
 // UpdateStrmConfigRequest 更新 STRM 配置请求。

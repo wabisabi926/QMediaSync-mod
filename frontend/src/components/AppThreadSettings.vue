@@ -86,6 +86,75 @@
         </div>
       </el-form-item>
 
+      <el-divider content-position="left">115 秒传等待策略</el-divider>
+      <el-form-item label="启用秒传等待" prop="uploadRapidWaitEnabled">
+        <el-switch
+          v-model="formData.uploadRapidWaitEnabled"
+          :active-value="true"
+          :inactive-value="false"
+          :disabled="loading"
+        />
+        <div class="form-help">
+          上传初始化未命中秒传时，按配置重复尝试秒传；默认关闭。
+        </div>
+      </el-form-item>
+      <el-form-item label="最小等待文件大小 (MB)" prop="uploadRapidWaitMinSizeMB">
+        <el-input-number
+          v-model="formData.uploadRapidWaitMinSizeMB"
+          :min="0"
+          :step="100"
+          :precision="0"
+          :disabled="loading || !formData.uploadRapidWaitEnabled"
+          size="large"
+        />
+        <div class="form-help">小于该大小的文件不进入秒传等待。设置为 0 表示不限制。</div>
+      </el-form-item>
+      <el-form-item label="强制等待文件大小 (MB)" prop="uploadRapidWaitForceSizeMB">
+        <el-input-number
+          v-model="formData.uploadRapidWaitForceSizeMB"
+          :min="0"
+          :step="100"
+          :precision="0"
+          :disabled="loading || !formData.uploadRapidWaitEnabled"
+          size="large"
+        />
+        <div class="form-help">达到该大小的文件会等待到超时。设置为 0 表示不启用强制等待。</div>
+      </el-form-item>
+      <el-form-item label="等待间隔秒数" prop="uploadRapidWaitIntervalSeconds">
+        <el-input-number
+          v-model="formData.uploadRapidWaitIntervalSeconds"
+          :min="1"
+          :max="3600"
+          :step="10"
+          :precision="0"
+          :disabled="loading || !formData.uploadRapidWaitEnabled"
+          size="large"
+        />
+      </el-form-item>
+      <el-form-item label="等待超时秒数" prop="uploadRapidWaitTimeoutSeconds">
+        <el-input-number
+          v-model="formData.uploadRapidWaitTimeoutSeconds"
+          :min="0"
+          :max="86400"
+          :step="60"
+          :precision="0"
+          :disabled="loading || !formData.uploadRapidWaitEnabled"
+          size="large"
+        />
+        <div class="form-help">设置为 0 表示不等待，未命中秒传时直接进入真实上传。</div>
+      </el-form-item>
+      <el-form-item label="超时后跳过真实上传" prop="uploadRapidWaitSkipUpload">
+        <el-switch
+          v-model="formData.uploadRapidWaitSkipUpload"
+          :active-value="true"
+          :inactive-value="false"
+          :disabled="loading || !formData.uploadRapidWaitEnabled"
+        />
+        <div class="form-help">
+          开启后，秒传等待超时不会进入 OSS 分片上传；该任务不会生成后续 STRM。
+        </div>
+      </el-form-item>
+
       <div class="form-actions">
         <el-button
           type="success"
@@ -140,6 +209,12 @@ interface ThreadSettings {
   openlistRetryCount: number
   openlistRetryDelay: number
   fileListPageSize: number
+  uploadRapidWaitEnabled: boolean
+  uploadRapidWaitTimeoutSeconds: number
+  uploadRapidWaitIntervalSeconds: number
+  uploadRapidWaitMinSizeMB: number
+  uploadRapidWaitForceSizeMB: number
+  uploadRapidWaitSkipUpload: boolean
 }
 
 interface SaveStatus {
@@ -160,7 +235,27 @@ const formData = reactive<ThreadSettings>({
   openlistRetryCount: 1,
   openlistRetryDelay: 30,
   fileListPageSize: 1150,
+  uploadRapidWaitEnabled: false,
+  uploadRapidWaitTimeoutSeconds: 0,
+  uploadRapidWaitIntervalSeconds: 60,
+  uploadRapidWaitMinSizeMB: 0,
+  uploadRapidWaitForceSizeMB: 0,
+  uploadRapidWaitSkipUpload: false,
 })
+
+const bytesToMB = (value: number | undefined): number => {
+  if (!value || value <= 0) {
+    return 0
+  }
+  return Math.round(value / 1024 / 1024)
+}
+
+const mbToBytes = (value: number): number => {
+  if (!value || value <= 0) {
+    return 0
+  }
+  return Math.round(value * 1024 * 1024)
+}
 
 // 页面挂载时获取当前设置
 onMounted(async () => {
@@ -179,6 +274,14 @@ async function fetchThreadSettings() {
     formData.openlistRetryCount = response?.data.data.openlist_retry
     formData.openlistRetryDelay = response?.data.data.openlist_retry_delay
     formData.fileListPageSize = response?.data.data.file_list_page_size || 1150
+    formData.uploadRapidWaitEnabled = response?.data.data.upload_rapid_wait_enabled === 1
+    formData.uploadRapidWaitTimeoutSeconds =
+      response?.data.data.upload_rapid_wait_timeout_seconds || 0
+    formData.uploadRapidWaitIntervalSeconds =
+      response?.data.data.upload_rapid_wait_interval_seconds || 60
+    formData.uploadRapidWaitMinSizeMB = bytesToMB(response?.data.data.upload_rapid_wait_min_size)
+    formData.uploadRapidWaitForceSizeMB = bytesToMB(response?.data.data.upload_rapid_wait_force_size)
+    formData.uploadRapidWaitSkipUpload = response?.data.data.upload_rapid_wait_skip_upload === 1
   } catch (error) {
     console.error('获取线程设置失败：', error)
     ElMessage.error('获取线程设置失败，请稍后重试')
@@ -199,6 +302,12 @@ async function saveSettings() {
       openlist_retry: formData.openlistRetryCount,
       openlist_retry_delay: formData.openlistRetryDelay,
       file_list_page_size: formData.fileListPageSize,
+      upload_rapid_wait_enabled: formData.uploadRapidWaitEnabled ? 1 : 0,
+      upload_rapid_wait_timeout_seconds: formData.uploadRapidWaitTimeoutSeconds,
+      upload_rapid_wait_interval_seconds: formData.uploadRapidWaitIntervalSeconds,
+      upload_rapid_wait_min_size: mbToBytes(formData.uploadRapidWaitMinSizeMB),
+      upload_rapid_wait_force_size: mbToBytes(formData.uploadRapidWaitForceSizeMB),
+      upload_rapid_wait_skip_upload: formData.uploadRapidWaitSkipUpload ? 1 : 0,
     }
 
     await http?.post(`${SERVER_URL}/setting/threads`, payload)
@@ -261,5 +370,11 @@ async function saveSettings() {
 
 .warning-section {
   margin-bottom: 20px;
+}
+
+@media (max-width: 768px) {
+  .thread-form :deep(.el-input-number) {
+    width: 100%;
+  }
 }
 </style>

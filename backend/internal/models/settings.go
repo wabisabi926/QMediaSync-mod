@@ -47,6 +47,11 @@ type SettingUploadRapidWait struct {
 	UploadRapidWaitSkipUpload      int   `form:"upload_rapid_wait_skip_upload" json:"upload_rapid_wait_skip_upload" gorm:"default:0"`            // 等待超时后是否跳过真实上传
 }
 
+type SettingThreadAndRapidWait struct {
+	SettingThreads
+	SettingUploadRapidWait
+}
+
 type Settings struct {
 	BaseModel
 	SettingThreads
@@ -134,6 +139,14 @@ func (s SettingUploadRapidWait) ToMap() map[string]any {
 	}
 }
 
+func (s SettingThreadAndRapidWait) ToMap() map[string]any {
+	dataMap := s.SettingThreads.ToMap()
+	for key, value := range s.SettingUploadRapidWait.ToMap() {
+		dataMap[key] = value
+	}
+	return dataMap
+}
+
 func (s SettingStrm) EncodeArr() *SettingStrm {
 	// 全部转小写
 	for i, v := range s.MetaExtArr {
@@ -205,8 +218,16 @@ func (s SettingStrm) DecodeArr(isSetting bool) *SettingStrm {
 
 var SettingsGlobal = &Settings{}
 
-func (settings *Settings) UpdateThreads(req SettingThreads) bool {
-	settings.SettingThreads = req
+func (settings *Settings) ThreadAndRapidWait() SettingThreadAndRapidWait {
+	return SettingThreadAndRapidWait{
+		SettingThreads:         settings.SettingThreads,
+		SettingUploadRapidWait: settings.SettingUploadRapidWait,
+	}
+}
+
+func (settings *Settings) UpdateThreads(req SettingThreadAndRapidWait) bool {
+	settings.SettingThreads = req.SettingThreads
+	settings.SettingUploadRapidWait = req.SettingUploadRapidWait
 
 	updateData := req.ToMap()
 

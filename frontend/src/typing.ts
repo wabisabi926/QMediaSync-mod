@@ -183,6 +183,53 @@ interface FileListResponse {
   current_path: string
 }
 
+type DirectoryUploadWatchMode = 'auto' | 'watcher' | 'polling'
+type DirectoryUploadOverwriteMode = 'skip_same' | 'always'
+
+interface DirectoryUploadRule {
+  id: number
+  sync_path_id: number
+  account_id: number
+  enabled: boolean
+  monitor_path: string
+  remote_root_path: string
+  remote_root_id: string
+  recursive: boolean
+  watch_mode: DirectoryUploadWatchMode
+  stability_seconds: number
+  stability_check_interval_seconds: number
+  stability_required_count: number
+  rescan_interval_seconds: number
+  startup_scan_enabled: boolean
+  processed_cache_ttl_seconds: number
+  delete_source_after_success: boolean
+  overwrite_mode: DirectoryUploadOverwriteMode
+}
+
+type UploadTaskStatus = 0 | 1 | 2 | 3 | 4
+
+interface UploadTaskQueueItem {
+  id: string | number
+  source: string
+  source_type: string
+  file_name: string
+  local_full_path: string
+  remote_path: string
+  status: UploadTaskStatus
+  file_size: number
+  uploaded_bytes?: number
+  upload_result?: string
+  resume_state?: string
+  rapid_wait_until?: number
+  upload_phase?: string
+  upload_speed_bytes?: number
+  progress_percent?: number
+  total_parts?: number
+  uploaded_parts?: number
+  source_cleanup_status?: string
+  source_cleanup_error?: string
+}
+
 export type {
   oo5Account,
   LibForm,
@@ -209,4 +256,9 @@ export type {
   FileOperationType,
   FileSystemItem,
   FileListResponse,
+  DirectoryUploadWatchMode,
+  DirectoryUploadOverwriteMode,
+  DirectoryUploadRule,
+  UploadTaskStatus,
+  UploadTaskQueueItem,
 }

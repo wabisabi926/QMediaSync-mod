@@ -7,11 +7,13 @@ export const downloadSourceNameMap: Record<string, string> = {
 export const uploadSourceNameMap: Record<string, string> = {
   strm_sync: 'STRM 同步',
   scrape_organize: '刮削整理',
+  directory_monitor: '目录监控上传',
 }
 
 export const syncTaskTypeNameMap: Record<string, string> = {
   strm_sync: 'STRM 同步',
   scrape_organize: '刮削整理',
+  directory_monitor: '目录监控上传',
 }
 
 const taskSourceTypeNameMap: Record<string, string> = {

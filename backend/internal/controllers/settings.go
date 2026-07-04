@@ -538,7 +538,7 @@ func ValidateCron(c *gin.Context) {
 // @Security JwtAuth
 // @Security ApiKeyAuth
 func GetThreads(c *gin.Context) {
-	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取线程数成功", Data: models.SettingsGlobal.SettingThreads})
+	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取线程数成功", Data: models.SettingsGlobal.ThreadAndRapidWait()})
 }
 
 // UpdateThreads 更新线程配置
@@ -564,7 +564,7 @@ func UpdateThreads(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
-	modelReq := req.ToModel()
+	modelReq := req.ToModel(models.SettingsGlobal.SettingUploadRapidWait)
 	downloadThreads := modelReq.DownloadThreads
 	// 更新设置，传递当前的百度网盘限速值
 	if !models.SettingsGlobal.UpdateThreads(modelReq) {

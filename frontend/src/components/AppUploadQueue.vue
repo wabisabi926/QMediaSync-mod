@@ -102,6 +102,18 @@
                 {{ getStatusText(scope.row.status) }}
               </el-tag>
             </el-descriptions-item>
+            <el-descriptions-item label="进度">
+              {{ getUploadedSizeLabel(scope.row) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="速度">
+              {{ formatByteRate(scope.row.upload_speed_bytes) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="阶段">
+              {{ getUploadPhaseLabel(scope.row) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="结果">
+              {{ getUploadResultLabel(scope.row) }}
+            </el-descriptions-item>
             <el-descriptions-item label="文件大小">
               {{ formatFileSize(scope.row.file_size) }}
             </el-descriptions-item>
@@ -117,19 +129,38 @@
             <el-descriptions-item label="失败原因" v-if="scope.row.error" :span="2">
               {{ scope.row.error ? scope.row.error : '-' }}
             </el-descriptions-item>
+            <el-descriptions-item
+              v-for="detail in getUploadTaskDetailRows(scope.row)"
+              :key="detail.label"
+              :label="detail.label"
+              :span="2"
+            >
+              {{ detail.value }}
+            </el-descriptions-item>
           </el-descriptions>
         </template>
       </el-table-column>
 
       <el-table-column prop="speed" label="上传文件">
         <template #default="scope">
-          <p>
-            <el-text type="primary"># {{ scope.row.id }}</el-text>
-            <span class="queue-path-text">{{ scope.row.local_full_path }}</span>
-          </p>
-          <p>
-            => <span class="queue-path-text">{{ scope.row.remote_file_id }}</span>
-          </p>
+          <div class="mobile-task-summary">
+            <div class="mobile-task-meta">
+              <el-text type="primary"># {{ scope.row.id }}</el-text>
+              <el-tag size="small" effect="plain">{{ getUploadSourceName(scope.row.source) }}</el-tag>
+              <el-tag size="small" :type="getStatusTagType(scope.row.status)">
+                {{ getStatusText(scope.row.status) }}
+              </el-tag>
+            </div>
+            <div class="queue-path-text mobile-task-path">
+              {{ scope.row.file_name || scope.row.local_full_path }}
+            </div>
+            <el-progress
+              class="queue-progress mobile-progress"
+              :percentage="getUploadProgressPercent(scope.row)"
+              :stroke-width="6"
+              :show-text="false"
+            />
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -145,7 +176,7 @@
       :height="tableHeight"
       class="hidden-md-and-down"
     >
-      <el-table-column prop="id" label="任务 ID" width="64" />
+      <el-table-column prop="id" label="ID" width="64" />
       <el-table-column prop="source" label="来源" width="128" show-overflow-tooltip>
         <template #default="scope">
           {{ getUploadSourceName(scope.row.source) }}
@@ -170,9 +201,37 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="file_size" label="大小" width="104">
+      <el-table-column prop="progress_percent" label="进度" width="220">
         <template #default="scope">
-          {{ formatFileSize(scope.row.file_size) }}
+          <div class="progress-cell">
+            <el-progress
+              class="queue-progress"
+              :percentage="getUploadProgressPercent(scope.row)"
+              :stroke-width="8"
+            />
+            <div class="progress-meta">
+              <span>{{ getUploadedSizeLabel(scope.row) }}</span>
+              <span v-if="scope.row.status === 1 && scope.row.upload_speed_bytes">
+                {{ formatByteRate(scope.row.upload_speed_bytes) }}
+              </span>
+            </div>
+          </div>
+        </template>
+      </el-table-column>
+      <el-table-column prop="upload_phase" label="阶段 / 结果" width="148">
+        <template #default="scope">
+          <div class="stage-result-cell">
+            <el-tag :type="getStageResultTagType(scope.row)" effect="light">
+              {{ getUploadStageOrResultLabel(scope.row) }}
+            </el-tag>
+            <el-tooltip
+              v-if="getUploadDetailSummary(scope.row)"
+              :content="getUploadDetailSummary(scope.row)"
+              placement="top"
+            >
+              <el-text class="stage-detail-link" type="info">详情</el-text>
+            </el-tooltip>
+          </div>
         </template>
       </el-table-column>
       <el-table-column prop="start_time" label="时间" width="180">
@@ -238,6 +297,17 @@ import {
   getUploadSourceName,
 } from '@/utils/taskSourceUtils'
 import { formatDateTime } from '@/utils/timeUtils'
+import {
+  applyUploadQueuePatch,
+  formatByteRate,
+  getUploadedSizeLabel,
+  getUploadPhaseLabel,
+  getUploadProgressPercent,
+  getUploadResultLabel,
+  getUploadStageOrResultLabel,
+  getUploadTaskDetailRows,
+  type UploadQueuePatch,
+} from '@/utils/uploadQueueDisplayUtils'
 import { isMobile as checkIsMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 import {
   canPauseQueue,
@@ -265,6 +335,17 @@ interface UploadTask {
   retry_count: number
   last_retry_time: number
   is_season_or_tvshow_file: boolean
+  uploaded_bytes?: number
+  upload_result?: string
+  resume_state?: string
+  rapid_wait_until?: number
+  upload_phase?: string
+  upload_speed_bytes?: number
+  progress_percent?: number
+  total_parts?: number
+  uploaded_parts?: number
+  source_cleanup_status?: string
+  source_cleanup_error?: string
 }
 
 interface QueueMutationContextSnapshot {
@@ -397,6 +478,39 @@ const getStatusTagType = (
     default:
       return 'info'
   }
+}
+
+const getStageResultTagType = (
+  task: UploadTask,
+): 'primary' | 'success' | 'warning' | 'danger' | 'info' => {
+  if (task.upload_result === 'rapid_upload' || task.upload_result === 'multipart_uploaded') {
+    return 'success'
+  }
+  if (task.upload_result === 'remote_exists') {
+    return 'info'
+  }
+  if (task.upload_result === 'skipped_after_rapid_wait') {
+    return 'warning'
+  }
+  if (task.upload_phase === 'rapid_waiting') {
+    return 'warning'
+  }
+  if (task.status === 2) {
+    return 'success'
+  }
+  if (task.status === 3) {
+    return 'danger'
+  }
+  if (task.status === 1) {
+    return 'primary'
+  }
+  return 'info'
+}
+
+const getUploadDetailSummary = (task: UploadTask): string => {
+  return getUploadTaskDetailRows(task)
+    .map((item) => `${item.label}：${item.value}`)
+    .join('；')
 }
 
 // 表格行类名
@@ -782,6 +896,26 @@ const handleStatusChange = (val: number) => {
   loadQueueData()
 }
 
+const progressPatchFields = [
+  'uploaded_bytes',
+  'file_size',
+  'progress_percent',
+  'upload_speed_bytes',
+  'upload_phase',
+  'upload_result',
+  'resume_state',
+  'rapid_wait_until',
+  'total_parts',
+  'uploaded_parts',
+] as const
+
+const isUploadProgressPatch = (data: Record<string, unknown>): boolean => {
+  if (data.task_id === undefined && data.id === undefined) {
+    return false
+  }
+  return progressPatchFields.some((field) => data[field] !== undefined)
+}
+
 useWSEvent('upload_queue_status_changed', (data) => {
   if (typeof data.running === 'boolean') {
     queueStatusSnapshot.value = {
@@ -794,7 +928,18 @@ useWSEvent('upload_queue_status_changed', (data) => {
   }
 })
 
-useWSEvent('upload_queue_changed', () => {
+useWSEvent('upload_queue_changed', (data) => {
+  if (!isPageActive || document.hidden) {
+    return
+  }
+  if (isUploadProgressPatch(data) && applyUploadQueuePatch(queueData.value, data as UploadQueuePatch)) {
+    if (hasActiveQueueWork.value) {
+      startAutoRefresh()
+    } else {
+      stopAutoRefresh()
+    }
+    return
+  }
   if (isPageActive && !document.hidden) {
     loadQueueData()
   }
@@ -909,6 +1054,66 @@ onUnmounted(() => {
 
 .queue-path-text {
   overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.progress-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.queue-progress {
+  width: 100%;
+}
+
+.progress-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #606266;
+}
+
+.stage-result-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.stage-detail-link {
+  cursor: help;
+  font-size: 12px;
+}
+
+.mobile-task-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mobile-task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.mobile-task-path {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.mobile-progress {
+  max-width: 100%;
 }
 
 /* 表格行样式 */

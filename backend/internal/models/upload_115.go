@@ -43,6 +43,13 @@ type testingCleanup interface {
 
 var currentUpload115Runner upload115Runner = open115UploadRunner{}
 
+var get115FileDetailByCid = func(ctx context.Context, client *v115open.OpenClient, fileID string) (*v115open.FileDetail, error) {
+	if client == nil {
+		return nil, errors.New("115 客户端为空")
+	}
+	return client.GetFsDetailByCid(ctx, fileID)
+}
+
 func setUpload115RunnerForTesting(t testingCleanup, runner upload115Runner) {
 	oldRunner := currentUpload115Runner
 	currentUpload115Runner = runner
@@ -226,12 +233,9 @@ func (runner open115UploadRunner) uploadByInit(
 
 	switch initResult.Status {
 	case v115open.UploadInitStatusRapidUploaded:
-		complete := UploadSessionCompleteResult{
-			FileId:   initResult.FileId,
-			PickCode: initResult.PickCode,
-			ParentId: task.RemotePathId,
-			Sha1:     info.FileSha1,
-			Size:     info.FileSize,
+		complete, err := build115RapidUploadCompleteResult(ctx, client, task, info, initResult)
+		if err != nil {
+			return upload115TaskResult{}, err
 		}
 		if err := session.MarkCompleted(complete); err != nil {
 			return upload115TaskResult{}, fmt.Errorf("保存秒传完成状态失败：%w", err)
@@ -245,6 +249,7 @@ func (runner open115UploadRunner) uploadByInit(
 			CompletedParentId:     complete.ParentId,
 			CompletedSha1:         complete.Sha1,
 			CompletedSize:         complete.Size,
+			CompletedMtime:        complete.Mtime,
 		}, nil
 	case v115open.UploadInitStatusNeedUpload:
 		return runner.uploadMultipart(ctx, task, client, session, info)
@@ -255,6 +260,79 @@ func (runner open115UploadRunner) uploadByInit(
 	default:
 		return upload115TaskResult{}, fmt.Errorf("未知的 115 上传初始化状态：%d", initResult.Status)
 	}
+}
+
+func build115RapidUploadCompleteResult(
+	ctx context.Context,
+	client *v115open.OpenClient,
+	task *DbUploadTask,
+	info upload115LocalFileInfo,
+	initResult *v115open.UploadInitResult,
+) (UploadSessionCompleteResult, error) {
+	if initResult == nil || strings.TrimSpace(initResult.FileId) == "" {
+		return UploadSessionCompleteResult{}, errors.New("115 秒传成功但返回空文件 ID")
+	}
+	fallback := fallback115RapidUploadCompleteResult(task, info, initResult)
+	detail, err := get115FileDetailByCid(ctx, client, initResult.FileId)
+	if err != nil {
+		if !rapidUploadRequiresRemoteDetail(task) {
+			helpers.V115Log.Warnf("查询秒传文件详情失败，使用 init 返回兜底：file_id=%s, err=%v", initResult.FileId, err)
+			return fallback, nil
+		}
+		return UploadSessionCompleteResult{}, fmt.Errorf("查询秒传文件详情失败：%w", err)
+	}
+	if detail == nil || strings.TrimSpace(detail.FileId) == "" {
+		if !rapidUploadRequiresRemoteDetail(task) {
+			helpers.V115Log.Warnf("查询秒传文件详情返回空文件 ID，使用 init 返回兜底：file_id=%s", initResult.FileId)
+			return fallback, nil
+		}
+		return UploadSessionCompleteResult{}, errors.New("查询秒传文件详情失败：返回空文件 ID")
+	}
+	pickCode := strings.TrimSpace(detail.PickCode)
+	if pickCode == "" {
+		pickCode = fallback.PickCode
+	}
+	sha1 := strings.TrimSpace(detail.Sha1)
+	if sha1 == "" {
+		sha1 = fallback.Sha1
+	}
+	size := detail.FileSizeByte
+	if size == 0 {
+		size = fallback.Size
+	}
+	mtime := helpers.StringToInt64(detail.Ptime)
+	if mtime == 0 {
+		mtime = helpers.StringToInt64(detail.Utime)
+	}
+	return UploadSessionCompleteResult{
+		FileId:   strings.TrimSpace(detail.FileId),
+		PickCode: pickCode,
+		ParentId: fallback.ParentId,
+		Sha1:     sha1,
+		Size:     size,
+		Mtime:    mtime,
+	}, nil
+}
+
+func fallback115RapidUploadCompleteResult(task *DbUploadTask, info upload115LocalFileInfo, initResult *v115open.UploadInitResult) UploadSessionCompleteResult {
+	parentID := ""
+	if task != nil {
+		parentID = task.RemotePathId
+	}
+	result := UploadSessionCompleteResult{
+		ParentId: parentID,
+		Sha1:     info.FileSha1,
+		Size:     info.FileSize,
+	}
+	if initResult != nil {
+		result.FileId = strings.TrimSpace(initResult.FileId)
+		result.PickCode = strings.TrimSpace(initResult.PickCode)
+	}
+	return result
+}
+
+func rapidUploadRequiresRemoteDetail(task *DbUploadTask) bool {
+	return task != nil && task.Source == UploadSourceStrm
 }
 
 func (runner open115UploadRunner) uploadMultipart(

@@ -588,6 +588,7 @@ func setRouter(r *gin.Engine) {
 	})
 	r.POST("/emby/webhook", controllers.Webhook)
 	r.POST("/api/login", controllers.LoginAction)
+	r.POST("/api/strm/webhook", controllers.StrmWebhook)
 	r.GET("/api/setup/status", controllers.SetupStatusAction)
 	r.POST("/api/setup/admin", controllers.CreateInitialAdminAction)
 	r.GET("/api/session", controllers.SessionAction)

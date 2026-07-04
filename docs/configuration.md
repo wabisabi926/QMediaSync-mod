@@ -81,6 +81,14 @@
 
 STRM 新增或更新后会优先提交 Emby item 级定向刷新：已有 Movie、Video、Episode 关联时刷新对应 item；同季新增剧集没有自身 Episode 关联时优先刷新已有 Season，缺少 Season 时刷新 Series。无法从本地 Emby 索引、PickCode 或路径兜底查询定位可靠 item 时，自动回退到同步目录关联媒体库刷新。刷新仍进入 `emby_library_refresh_tasks` 协调器去抖和等待队列，不在 STRM 生成流程内直接请求 Emby。STRM 内容无变化时只更新 / 确认 `SyncFile`，不重复提交刷新任务。
 
+## STRM Webhook
+
+外部程序可以通过 `POST /api/strm/webhook` 请求生成 STRM。该接口只接受 API Key 鉴权，支持 `X-API-Key` header 和 `?api_key=` 查询参数，不使用浏览器登录态。
+
+请求必须提供 `sync_path_id`。单文件请求至少提供 `file_id`、`pick_code`、`path + file_name` 中的一组远端定位信息；批量请求使用 `items`；目录请求使用 `directory_id` 或 `directory_path`。`path` / `directory_path` 只表示远端路径，禁止通过 `local_path` 指定本地写入位置。
+
+Webhook 只创建 `strm_generation_tasks`，不在 HTTP 请求内直接写 STRM；后续由 STRM worker 统一处理。
+
 ## Emby 302 出站 HTTPS
 
 Emby 302 代理请求 Emby、OpenList、m3u8 和下载资源时，默认启用 HTTPS 证书校验。共享 HTTP client 会复用空闲连接，避免同一上游的连续请求反复建立 TCP / TLS 连接。

@@ -1,6 +1,7 @@
 package v115open
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -80,10 +81,6 @@ type SignCheckRange struct {
 type OSSCallbackInput struct {
 	Callback    string
 	CallbackVar string
-	Bucket      string
-	Object      string
-	FileSize    int64
-	FileSha1    string
 }
 
 // OSSCallbackHeaders 是 OSS callback header 的 Base64 值。
@@ -195,8 +192,19 @@ func (result uploadScheduleAPIResult) toUploadResumeResult() (*UploadResumeResul
 }
 
 func decodeUploadCallback(raw json.RawMessage) (UploadResultCallBack, error) {
-	if len(raw) == 0 || string(raw) == "null" {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
 		return UploadResultCallBack{}, nil
+	}
+	if raw[0] == '[' {
+		var callbacks []UploadResultCallBack
+		if err := json.Unmarshal(raw, &callbacks); err != nil {
+			return UploadResultCallBack{}, fmt.Errorf("解析上传 callback 失败：%w", err)
+		}
+		if len(callbacks) == 0 {
+			return UploadResultCallBack{}, nil
+		}
+		return callbacks[0], nil
 	}
 	var callback UploadResultCallBack
 	if err := json.Unmarshal(raw, &callback); err != nil {
@@ -226,33 +234,36 @@ func parseSignCheckRange(value string) (SignCheckRange, error) {
 
 // BuildOSSCallbackHeaders 构造 OSS complete multipart 所需 callback header。
 func BuildOSSCallbackHeaders(input OSSCallbackInput) (OSSCallbackHeaders, error) {
-	callbackMap := map[string]string{}
-	if err := json.Unmarshal([]byte(input.Callback), &callbackMap); err != nil {
+	callbackBytes := bytes.TrimSpace([]byte(input.Callback))
+	if len(callbackBytes) == 0 {
+		return OSSCallbackHeaders{}, errors.New("callback 为空")
+	}
+	if !json.Valid(callbackBytes) {
+		return OSSCallbackHeaders{}, errors.New("解析 callback 失败：不是合法 JSON")
+	}
+
+	callbackVarBytes := bytes.TrimSpace([]byte(input.CallbackVar))
+	if len(callbackVarBytes) == 0 {
+		callbackVarBytes = []byte("{}")
+	}
+	if !json.Valid(callbackVarBytes) {
+		return OSSCallbackHeaders{}, errors.New("解析 callback_var 失败：不是合法 JSON")
+	}
+	var callbackVarValue any
+	if err := json.Unmarshal(callbackVarBytes, &callbackVarValue); err != nil {
+		return OSSCallbackHeaders{}, fmt.Errorf("解析 callback_var 失败：%w", err)
+	}
+	if _, ok := callbackVarValue.(map[string]any); !ok {
+		return OSSCallbackHeaders{}, errors.New("解析 callback_var 失败：不是 JSON 对象")
+	}
+	var callbackValue any
+	if err := json.Unmarshal(callbackBytes, &callbackValue); err != nil {
 		return OSSCallbackHeaders{}, fmt.Errorf("解析 callback 失败：%w", err)
 	}
-	if callbackMap["callbackBodyType"] == "" {
-		callbackMap["callbackBodyType"] = "application/x-www-form-urlencoded"
+	if _, ok := callbackValue.(map[string]any); !ok {
+		return OSSCallbackHeaders{}, errors.New("解析 callback 失败：不是 JSON 对象")
 	}
 
-	callbackVarMap := map[string]string{}
-	if strings.TrimSpace(input.CallbackVar) != "" {
-		if err := json.Unmarshal([]byte(input.CallbackVar), &callbackVarMap); err != nil {
-			return OSSCallbackHeaders{}, fmt.Errorf("解析 callback_var 失败：%w", err)
-		}
-	}
-	callbackVarMap["bucket"] = input.Bucket
-	callbackVarMap["object"] = input.Object
-	callbackVarMap["size"] = strconv.FormatInt(input.FileSize, 10)
-	callbackVarMap["sha1"] = input.FileSha1
-
-	callbackBytes, err := json.Marshal(callbackMap)
-	if err != nil {
-		return OSSCallbackHeaders{}, fmt.Errorf("序列化 callback 失败：%w", err)
-	}
-	callbackVarBytes, err := json.Marshal(callbackVarMap)
-	if err != nil {
-		return OSSCallbackHeaders{}, fmt.Errorf("序列化 callback_var 失败：%w", err)
-	}
 	return OSSCallbackHeaders{
 		Callback:    base64.StdEncoding.EncodeToString(callbackBytes),
 		CallbackVar: base64.StdEncoding.EncodeToString(callbackVarBytes),

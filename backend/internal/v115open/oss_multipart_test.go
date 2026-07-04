@@ -81,7 +81,6 @@ func TestOSSMultipartUploaderResumesExistingParts(t *testing.T) {
 		CallbackVar: "{}",
 		FilePath:    filePath,
 		FileSize:    6,
-		FileSha1:    "SHA1",
 		UploadId:    "upload-1",
 		PartSize:    3,
 	})
@@ -115,7 +114,6 @@ func TestOSSMultipartUploaderCreatesNewSession(t *testing.T) {
 		CallbackVar: "{}",
 		FilePath:    filePath,
 		FileSize:    6,
-		FileSha1:    "SHA1",
 		PartSize:    3,
 	})
 	if err != nil {
@@ -123,6 +121,13 @@ func TestOSSMultipartUploaderCreatesNewSession(t *testing.T) {
 	}
 	if fakeClient.initiateCalls != 1 {
 		t.Fatalf("新 session 应初始化一次，initiateCalls=%d", fakeClient.initiateCalls)
+	}
+	if len(fakeClient.initiateRequests) != 1 {
+		t.Fatalf("初始化请求次数 = %d，期望 1", len(fakeClient.initiateRequests))
+	}
+	params := fakeClient.initiateRequests[0].Parameters
+	if gotParam := params["sequential"]; gotParam != "1" {
+		t.Fatalf("multipart 初始化 sequential = %q，期望 1", gotParam)
 	}
 	if got.UploadId != "upload-new" {
 		t.Fatalf("upload_id = %s，期望 upload-new", got.UploadId)
@@ -150,7 +155,6 @@ func TestOSSMultipartUploaderRefreshesClientAfterPartError(t *testing.T) {
 		CallbackVar: "{}",
 		FilePath:    filePath,
 		FileSize:    3,
-		FileSha1:    "SHA1",
 		PartSize:    3,
 		refreshClient: func(context.Context) (ossMultipartClient, error) {
 			refreshCalls++
@@ -174,14 +178,16 @@ func TestOSSMultipartUploaderRefreshesClientAfterPartError(t *testing.T) {
 type fakeOSSMultipartClient struct {
 	initUploadID      string
 	initiateCalls     int
+	initiateRequests  []*oss.InitiateMultipartUploadRequest
 	listParts         []oss.Part
 	uploadPartNumbers []int32
 	completeParts     []oss.UploadPart
 	uploadErr         error
 }
 
-func (c *fakeOSSMultipartClient) InitiateMultipartUpload(context.Context, *oss.InitiateMultipartUploadRequest, ...func(*oss.Options)) (*oss.InitiateMultipartUploadResult, error) {
+func (c *fakeOSSMultipartClient) InitiateMultipartUpload(_ context.Context, request *oss.InitiateMultipartUploadRequest, _ ...func(*oss.Options)) (*oss.InitiateMultipartUploadResult, error) {
 	c.initiateCalls++
+	c.initiateRequests = append(c.initiateRequests, request)
 	uploadID := c.initUploadID
 	if uploadID == "" {
 		uploadID = "upload-new"

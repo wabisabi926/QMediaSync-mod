@@ -49,11 +49,11 @@
 
 ## 115 上传协议边界
 
-115 Open API 上传分为 115 调度层和 OSS 数据层。`/open/upload/init` 负责上传初始化、秒传判断和二次认证调度；`status = 2` 表示秒传成功，`status = 1` 表示需要进入 OSS 上传，返回的 `callback` / `callback_var` 必须在 OSS 完成 multipart 时带回，让 115 完成文件入库。`/open/upload/get_token` 只负责获取 OSS 临时凭证，凭证不得写入数据库，也不得写入普通日志。
+115 Open API 上传分为 115 调度层和 OSS 数据层。`/open/upload/init` 负责上传初始化、秒传判断和二次认证调度；`status = 2` 表示秒传成功，`status = 1` 表示需要进入 OSS 上传，返回的 `callback` / `callback_var` 必须在 OSS 完成 multipart 时带回，让 115 完成文件入库。官方返回中的 `callback` 可能是单个对象，也可能是对象数组，后端会取第一个回调配置用于 OSS complete。传给 OSS 时，后端只按 OSS SDK V2 要求把 115 返回的两个 JSON 字符串原样 Base64 编码到 `x-oss-callback` / `x-oss-callback-var`，不本地展开 `callbackBody` 占位符，也不向 `callback_var` 注入 `bucket`、`object`、`size`、`sha1` 等非 `x:` 字段。`sha1` 占位符由 OSS 在 `CompleteMultipartUpload` 后基于最终对象生成并回填；本地 SHA1 只用于 115 `fileid`、秒传 / 续传调度和 session 校验，不作为 OSS multipart 输入。`/open/upload/get_token` 只负责获取 OSS 临时凭证，凭证不得写入数据库，也不得写入普通日志。
 
-当前 115 Open API 非秒传上传使用 OSS multipart：先 `InitiateMultipartUpload`，按 part 上传，再 `CompleteMultipartUpload` 并带回 115 callback。默认 part size 为 `32 MiB`；当文件按 `32 MiB` 切分会超过 `9999` 个 part 时，part size 会按 `ceil(file_size / 9999)` 放大并向上取整到 `1 MiB`。如果计算出的 part size 超过 OSS 单 part 上限，上传会失败并返回错误。单个 part 上传失败时至少重试 3 次；重试前会刷新 OSS 上传凭证并继续当前 part。
+当前 115 Open API 非秒传上传使用 OSS multipart：先带 `sequential=1` 调用 `InitiateMultipartUpload`，按 part 上传，再 `CompleteMultipartUpload` 并带回 115 callback。该链路已通过真实非秒传任务验证；成功时 OSS 返回最终对象 SHA1，115 callback 返回 `state=true`、远端 `file_id` 和 PickCode。默认 part size 为 `32 MiB`；当文件按 `32 MiB` 切分会超过 `9999` 个 part 时，part size 会按 `ceil(file_size / 9999)` 放大并向上取整到 `1 MiB`。如果计算出的 part size 超过 OSS 单 part 上限，上传会失败并返回错误。单个 part 上传失败时至少重试 3 次；重试前会刷新 OSS 上传凭证并继续当前 part。
 
-断点续传必须同时满足两层条件：先调用 115 `/open/upload/resume` 恢复 `file_size`、`target`、`fileid`、`pick_code` 对应的上传调度信息，再用 OSS `upload_id` 和 `ListParts` 查询已上传分片。上传队列会把 `upload_id`、part size、已上传字节数和分片进度保存到 `upload_sessions`，进程重启时只把 `uploading` 任务恢复为 `pending`，不删除 session。重试时如果本地文件大小、mtime、SHA1 和快速签名仍匹配，会优先按 session 续传；如果本地文件签名变化，会把旧 session 标记为 `aborted` 并让任务失败，避免同一路径不同文件误用旧 checkpoint。如果 OSS 明确返回 `NoSuchUpload`、`InvalidUploadId` 等 checkpoint 已失效错误，系统会把当前 session 标记为 `session_expired_restarted`，清空旧 `upload_id` 和分片进度，后续重试重新走 115 init 和新的 OSS multipart。仅重新调用 init、仅普通 multipart 上传，或发现远端已有同名同 SHA1 / 同大小文件，都不能称为断点续传。
+断点续传必须同时满足两层条件：先调用 115 `/open/upload/resume` 恢复 `file_size`、`target`、`fileid`、`pick_code` 对应的上传调度信息，再用 OSS `upload_id` 和 `ListParts` 查询已上传分片。上传队列会把 `upload_id`、part size、已上传字节数和分片进度保存到 `upload_sessions`，进程重启时只把 `uploading` 任务恢复为 `pending`，不删除 session。重试时如果本地文件大小、mtime、SHA1 和快速签名仍匹配，会优先按 session 续传；如果本地文件签名变化，会把旧 session 标记为 `aborted` 并让任务失败，避免同一路径不同文件误用旧 checkpoint。如果 OSS 明确返回 `NoSuchUpload`、`InvalidUploadId` 等 checkpoint 已失效错误，系统会把当前 session 标记为 `session_expired_restarted`，清空旧 `upload_id` 和分片进度，并在同一次任务中复用当前 115 调度结果重新创建 OSS multipart。仅重新调用 init、仅普通 multipart 上传，或发现远端已有同名同 SHA1 / 同大小文件，都不能称为断点续传。
 
 上传前会检查远端同路径文件；只有同名目标的 SHA1 和大小都与本地文件一致时，才跳过真实上传并把任务结果记为 `remote_exists`。这类任务仍会写入完成后的远端文件 ID / PickCode，并按需创建 STRM 生成任务；它不是断点续传。
 
@@ -61,7 +61,7 @@
 
 秒传等待策略保存于 `settings` 表，默认关闭。启用后，上传初始化未命中秒传时会按 `upload_rapid_wait_interval_seconds` 间隔重复 init，最长等待 `upload_rapid_wait_timeout_seconds`；`upload_rapid_wait_interval_seconds` 只控制重试频率，`upload_rapid_wait_timeout_seconds` 才是最大等待上限，最后一次等待会按剩余超时时间裁剪。`upload_rapid_wait_min_size` 和 `upload_rapid_wait_force_size` 用于限制哪些文件进入等待策略，`upload_rapid_wait_skip_upload` 用于控制等待超时后是否跳过真实上传。
 
-自动化测试覆盖协议字段、part size、callback 校验和本地 mock 请求。真实 115 小文件 / 大文件上传实测需要有效 115 Open API 沙箱账号和可写测试目录，且会产生远端写入副作用；未获得明确沙箱授权前，不应在开发环境自动执行真实外部上传。
+自动化测试覆盖协议字段、part size、`sequential=1`、callback 校验和本地 mock 请求。真实 115 小文件 / 大文件上传实测需要有效 115 Open API 沙箱账号和可写测试目录，且会产生远端写入副作用；未获得明确沙箱授权前，不应在开发环境自动执行真实外部上传。排查非秒传失败时，`115.log` 会记录 115 Open API 返回、OSS multipart 初始化、ListParts、UploadPart、CompleteMultipartUpload 请求边界和 callback 业务返回；日志会避免明文输出 STS 密钥和 SecurityToken。
 
 ## 目录监控上传
 

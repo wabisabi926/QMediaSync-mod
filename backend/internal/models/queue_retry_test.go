@@ -235,7 +235,7 @@ func TestPrepare115UploadSessionKeepsRestartedSessionForInit(t *testing.T) {
 	}
 }
 
-func TestUploadMultipartRestartsInvalidOSSCheckpoint(t *testing.T) {
+func TestUploadMultipartRetriesInvalidOSSCheckpointWithNewMultipart(t *testing.T) {
 	setupQueueStatusTestDB(t)
 
 	task := &DbUploadTask{
@@ -267,6 +267,8 @@ func TestUploadMultipartRestartsInvalidOSSCheckpoint(t *testing.T) {
 		PickCode:       "pick-1",
 		Bucket:         "bucket-1",
 		Object:         "object-1",
+		Callback:       `{"callbackUrl":"https://callback.example/upload"}`,
+		CallbackVar:    `{"x:keep":"yes"}`,
 		UploadId:       "bad-upload",
 		PartSize:       256,
 		UploadedBytes:  512,
@@ -278,18 +280,52 @@ func TestUploadMultipartRestartsInvalidOSSCheckpoint(t *testing.T) {
 		t.Fatalf("保存上传会话失败: %v", err)
 	}
 	originalUpload115MultipartWithResult := upload115MultipartWithResult
-	upload115MultipartWithResult = func(context.Context, *v115open.OpenClient, v115open.UploadMultipartInput) (v115open.OSSMultipartUploadResult, error) {
-		return v115open.OSSMultipartUploadResult{}, fmt.Errorf("查询 OSS 已上传分片失败：%w", &oss.ServiceError{
-			Code:       "NoSuchUpload",
-			Message:    "The specified upload does not exist. The upload ID may be invalid, or the upload may have been aborted or completed.",
-			StatusCode: 404,
-		})
+	calls := 0
+	upload115MultipartWithResult = func(_ context.Context, _ *v115open.OpenClient, input v115open.UploadMultipartInput) (v115open.OSSMultipartUploadResult, error) {
+		calls++
+		switch calls {
+		case 1:
+			if input.UploadId != "bad-upload" {
+				t.Fatalf("第一次 multipart upload_id = %q，期望 bad-upload", input.UploadId)
+			}
+			return v115open.OSSMultipartUploadResult{}, fmt.Errorf("查询 OSS 已上传分片失败：%w", &oss.ServiceError{
+				Code:       "NoSuchUpload",
+				Message:    "The specified upload does not exist. The upload ID may be invalid, or the upload may have been aborted or completed.",
+				StatusCode: 404,
+			})
+		case 2:
+			if input.UploadId != "" {
+				t.Fatalf("重新开始 multipart 时 upload_id = %q，期望为空", input.UploadId)
+			}
+			return v115open.OSSMultipartUploadResult{
+				CallbackResult: map[string]any{
+					"state":   true,
+					"message": "",
+					"data": map[string]any{
+						"file_id":   "file-1",
+						"pick_code": "pick-1",
+						"parent_id": "100",
+						"sha1":      "sha1",
+						"size":      float64(1024),
+						"mtime":     float64(123456),
+					},
+				},
+				UploadId:      "new-upload",
+				PartSize:      256,
+				TotalParts:    4,
+				UploadedBytes: 1024,
+				UploadedParts: 4,
+			}, nil
+		default:
+			t.Fatalf("multipart 调用次数过多：%d", calls)
+			return v115open.OSSMultipartUploadResult{}, nil
+		}
 	}
 	t.Cleanup(func() {
 		upload115MultipartWithResult = originalUpload115MultipartWithResult
 	})
 
-	_, err := open115UploadRunner{}.uploadMultipart(context.Background(), task, nil, session, upload115LocalFileInfo{
+	result, err := open115UploadRunner{}.uploadMultipart(context.Background(), task, nil, session, upload115LocalFileInfo{
 		FileName:       task.FileName,
 		FileSize:       task.FileSize,
 		LocalMtime:     100,
@@ -297,27 +333,40 @@ func TestUploadMultipartRestartsInvalidOSSCheckpoint(t *testing.T) {
 		FileSha1:       "sha1",
 		Preid:          "preid",
 	})
-	if err == nil {
-		t.Fatal("OSS checkpoint 失效时应返回错误并等待重试重新初始化")
+	if err != nil {
+		t.Fatalf("OSS checkpoint 失效后应在同一任务重新开始 multipart：%v", err)
+	}
+	if calls != 2 {
+		t.Fatalf("multipart 调用次数 = %d，期望 2", calls)
+	}
+	if result.UploadResult != UploadResultMultipartUploaded ||
+		result.CompletedRemoteFileId != "file-1" ||
+		result.CompletedPickCode != "pick-1" ||
+		result.UploadedBytes != 1024 ||
+		result.TotalParts != 4 ||
+		result.UploadedParts != 4 {
+		t.Fatalf("上传结果 = %+v，期望第二次 multipart 成功结果", result)
 	}
 
 	gotSession, readErr := GetUploadSessionByUploadTaskId(task.ID)
 	if readErr != nil {
 		t.Fatalf("读取上传会话失败: %v", readErr)
 	}
-	if gotSession.Status != UploadSessionStatusInit ||
+	if gotSession.Status != UploadSessionStatusCompleted ||
 		gotSession.ResumeState != UploadResumeStateSessionExpiredRestarted ||
-		gotSession.UploadId != "" ||
-		gotSession.UploadedBytes != 0 ||
-		gotSession.UploadedParts != 0 {
-		t.Fatalf("上传会话 = %+v，期望清空坏 checkpoint 并回到 init", gotSession)
+		gotSession.UploadId != "new-upload" ||
+		gotSession.UploadedBytes != 1024 ||
+		gotSession.UploadedParts != 4 ||
+		gotSession.CompletedFileId != "file-1" ||
+		gotSession.CompletedPickCode != "pick-1" {
+		t.Fatalf("上传会话 = %+v，期望清空坏 checkpoint 后重新 multipart 并完成", gotSession)
 	}
 	var gotTask DbUploadTask
 	if err := db.Db.First(&gotTask, task.ID).Error; err != nil {
 		t.Fatalf("读取上传任务失败: %v", err)
 	}
-	if gotTask.ResumeState != UploadResumeStateSessionExpiredRestarted || gotTask.UploadedBytes != 0 {
-		t.Fatalf("上传任务 = %+v，期望标记 session_expired_restarted 并清空进度", gotTask)
+	if gotTask.ResumeState != UploadResumeStateSessionExpiredRestarted || gotTask.UploadedBytes != 1024 {
+		t.Fatalf("上传任务 = %+v，期望记录 session_expired_restarted 并同步新 multipart 进度", gotTask)
 	}
 }
 

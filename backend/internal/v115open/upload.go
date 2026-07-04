@@ -120,7 +120,6 @@ type UploadMultipartInput struct {
 	CallbackVar string
 	FilePath    string
 	FileSize    int64
-	FileSha1    string
 	UploadId    string
 	PartSize    int64
 	OnProgress  func(OSSMultipartProgress)
@@ -256,7 +255,6 @@ func (c *OpenClient) Upload(ctx context.Context, filePath string, parentFileId s
 			CallbackVar: callbackVar,
 			FilePath:    filePath,
 			FileSize:    fileSize,
-			FileSha1:    fileSha1,
 			refreshClient: func(ctx context.Context) (ossMultipartClient, error) {
 				refreshedToken := c.GetUploadToken(ctx)
 				return newOSSMultipartClientFromToken(refreshedToken)
@@ -316,7 +314,6 @@ func (c *OpenClient) UploadMultipartWithResult(ctx context.Context, input Upload
 		CallbackVar: input.CallbackVar,
 		FilePath:    input.FilePath,
 		FileSize:    input.FileSize,
-		FileSha1:    input.FileSha1,
 		UploadId:    input.UploadId,
 		PartSize:    input.PartSize,
 		OnProgress:  input.OnProgress,

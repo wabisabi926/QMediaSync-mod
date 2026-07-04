@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -363,20 +364,32 @@ func (runner open115UploadRunner) uploadMultipart(
 		CallbackVar: session.CallbackVar,
 		FilePath:    task.LocalFullPath,
 		FileSize:    info.FileSize,
-		FileSha1:    info.FileSha1,
 		UploadId:    session.UploadId,
 		PartSize:    session.PartSize,
 		OnProgress: func(progress v115open.OSSMultipartProgress) {
 			task.save115UploadProgress(session, progress)
 		},
 	})
+	if err != nil &&
+		isOSSCheckpointInvalidError(err) &&
+		session.ResumeState == UploadResumeStateResumedSession &&
+		strings.TrimSpace(session.UploadId) != "" {
+		helpers.V115Log.Warnf("OSS multipart checkpoint 失效，清空 upload_id 后重新开始上传任务 %d：%v", task.ID, err)
+		task.mark115SessionRestarted(session, err)
+		task.publish115UploadPhase(session, uploadPhaseMultipartUploading)
+		ossResult, err = upload115MultipartWithResult(ctx, client, v115open.UploadMultipartInput{
+			Bucket:      session.Bucket,
+			Object:      session.Object,
+			Callback:    session.Callback,
+			CallbackVar: session.CallbackVar,
+			FilePath:    task.LocalFullPath,
+			FileSize:    info.FileSize,
+			OnProgress: func(progress v115open.OSSMultipartProgress) {
+				task.save115UploadProgress(session, progress)
+			},
+		})
+	}
 	if err != nil {
-		if isOSSCheckpointInvalidError(err) &&
-			session.ResumeState == UploadResumeStateResumedSession &&
-			strings.TrimSpace(session.UploadId) != "" {
-			task.mark115SessionRestarted(session, err)
-			return upload115TaskResult{}, err
-		}
 		session.Status = UploadSessionStatusFailed
 		session.LastError = err.Error()
 		_ = session.Save()
@@ -396,6 +409,14 @@ func (runner open115UploadRunner) uploadMultipart(
 
 	completeResult, err := v115open.ParseCompleteCallbackResult(ossResult.CallbackResult)
 	if err != nil {
+		helpers.V115Log.Errorf("115 callback 业务校验失败：task_id=%d，bucket=%s，object_id=%s，upload_id=%s，callback_result=%s，err=%v",
+			task.ID,
+			session.Bucket,
+			session.Object,
+			ossResult.UploadId,
+			upload115LogJSON(ossResult.CallbackResult),
+			err,
+		)
 		_ = session.MarkCompleteCallbackFailed(err)
 		return upload115TaskResult{}, err
 	}
@@ -955,4 +976,12 @@ func remoteParentPathForStrmTask(remoteFilePath string, fileName string) string 
 		return ""
 	}
 	return parent
+}
+
+func upload115LogJSON(value any) string {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Sprintf("%v", value)
+	}
+	return string(data)
 }

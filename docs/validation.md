@@ -135,7 +135,7 @@ Emby 条目同步默认 Cron 为 `0 * * * *`，含义是每小时整点执行一
 
 115 上传增强实现中，`preid` 计算窗口是官方协议参数，固定为文件前 `128 KiB` 的 SHA1，并通过单元测试约束；请求入口不允许外部传入自定义 `preid` 窗口。二次认证的 `sign_check` 必须解析为合法闭区间，结束位置不得小于起始位置，读取范围必须落在本地文件大小内。`/open/upload/resume` 只接受 `file_size`、`target`、`fileid`、`pick_code` 这组官方字段。
 
-OSS multipart 的 part size 必须由后端计算，不接受外部传入：默认 `32 MiB`，超过 `9999` 个 part 时动态放大并按 `1 MiB` 对齐，超过 OSS 单 part 上限时直接失败。`CompleteMultipartUpload` 后必须校验 115 callback 业务结果；`state=false`、`message` 非空、缺少 `file_id` 或缺少 `pick_code` 都不能视为上传成功。
+OSS multipart 的 part size 必须由后端计算，不接受外部传入：默认 `32 MiB`，超过 `9999` 个 part 时动态放大并按 `1 MiB` 对齐，超过 OSS 单 part 上限时直接失败。初始化 multipart 必须带 `sequential=1`，相关单元测试会校验该请求参数。115 调度返回的 `callback` 可为单个对象或对象数组，数组只使用第一个回调配置。传给 OSS complete 前必须校验 `callback` / `callback_var` 是 JSON 对象，并将 115 返回的 JSON 字符串原样 Base64 编码；不得提前展开 `callbackBody`，不得向 `callback_var` 增加非 `x:` 字段，也不得把本地 SHA1 作为 OSS multipart 或 callback 的替代输入。`CompleteMultipartUpload` 后必须校验 115 callback 业务结果；`state=false`、`message` 非空、缺少 `file_id` 或缺少 `pick_code` 都不能视为上传成功。
 
 目录监控上传规则通过 `/api/directory-upload/rules` 系列接口管理，当前控制器内使用私有请求结构绑定 JSON。规则必须绑定明确的 `sync_path_id` 和账号。`monitor_path` 不得等于同步目录的 `LocalPath`，避免生成的 STRM 被再次上传；`remote_root_path` 必须位于对应 `SyncPath.RemotePath` 之下，才能安全映射 STRM 输出路径。`watch_mode` 只允许 `auto`、`fsnotify`、`polling`，同名文件处理方式只允许 `skip_same`、`fail_conflict`、`replace_conflict`，不兼容旧 `watcher` / `always` 值。稳定窗口、稳定检查间隔和补偿扫描间隔为代码内置参数，接口不接收也不采纳 `stability_seconds`、`stability_check_interval_seconds`、`stability_required_count`、`rescan_interval_seconds`。上传后删除源文件是显式开关，默认关闭；开启后也只能在上传终态成功且 STRM 生成成功后执行，并且空目录清理不得删除监控根目录。
 

@@ -2,10 +2,13 @@ package v115open
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"sort"
+
+	"qmediasync/internal/helpers"
 
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss/credentials"
@@ -39,7 +42,6 @@ type OSSMultipartUploadInput struct {
 	CallbackVar   string
 	FilePath      string
 	FileSize      int64
-	FileSha1      string
 	UploadId      string
 	PartSize      int64
 	PartRetryMax  int
@@ -147,17 +149,33 @@ func (u *OSSMultipartUploader) UploadFileWithResult(ctx context.Context, input O
 
 	uploadId := input.UploadId
 	if uploadId == "" {
-		initResult, err := u.client.InitiateMultipartUpload(ctx, &oss.InitiateMultipartUploadRequest{
+		initRequest := &oss.InitiateMultipartUploadRequest{
 			Bucket: oss.Ptr(input.Bucket),
 			Key:    oss.Ptr(input.Object),
-		})
+			RequestCommon: oss.RequestCommon{
+				Parameters: map[string]string{"sequential": "1"},
+			},
+		}
+		initResult, err := u.client.InitiateMultipartUpload(ctx, initRequest)
 		if err != nil {
+			logV115OSSInfof("OSS multipart 初始化失败：bucket=%s，object_id=%s，parameters=%s，err=%v", input.Bucket, input.Object, ossLogJSON(initRequest.Parameters), err)
 			return OSSMultipartUploadResult{}, fmt.Errorf("初始化 OSS multipart 失败：%w", err)
 		}
 		if initResult.UploadId == nil || *initResult.UploadId == "" {
+			logV115OSSInfof("OSS multipart 初始化返回空 upload_id：bucket=%s，object_id=%s，status=%s，status_code=%d，headers=%s", input.Bucket, input.Object, initResult.Status, initResult.StatusCode, ossLogJSON(initResult.Headers))
 			return OSSMultipartUploadResult{}, fmt.Errorf("初始化 OSS multipart 返回空 upload_id")
 		}
 		uploadId = *initResult.UploadId
+		logV115OSSInfof(
+			"OSS multipart 初始化返回：bucket=%s，object_id=%s，parameters=%s，upload_id=%s，status=%s，status_code=%d，headers=%s",
+			input.Bucket,
+			input.Object,
+			ossLogJSON(initRequest.Parameters),
+			uploadId,
+			initResult.Status,
+			initResult.StatusCode,
+			ossLogJSON(initResult.Headers),
+		)
 	}
 	reportOSSMultipartProgress(input, OSSMultipartProgress{
 		UploadId:   uploadId,
@@ -235,14 +253,20 @@ func (u *OSSMultipartUploader) UploadFileWithResult(ctx context.Context, input O
 	headers, err := BuildOSSCallbackHeaders(OSSCallbackInput{
 		Callback:    input.Callback,
 		CallbackVar: input.CallbackVar,
-		Bucket:      input.Bucket,
-		Object:      input.Object,
-		FileSize:    input.FileSize,
-		FileSha1:    input.FileSha1,
 	})
 	if err != nil {
 		return OSSMultipartUploadResult{}, err
 	}
+	logV115OSSInfof(
+		"准备 OSS CompleteMultipartUpload：bucket=%s，object_id=%s，upload_id=%s，total_parts=%d，parts=%s，callback=%s，callback_var=%s",
+		input.Bucket,
+		input.Object,
+		uploadId,
+		len(completeParts),
+		ossLogJSON(completeParts),
+		input.Callback,
+		input.CallbackVar,
+	)
 	completeResult, err := u.client.CompleteMultipartUpload(ctx, &oss.CompleteMultipartUploadRequest{
 		Bucket:   oss.Ptr(input.Bucket),
 		Key:      oss.Ptr(input.Object),
@@ -254,8 +278,29 @@ func (u *OSSMultipartUploader) UploadFileWithResult(ctx context.Context, input O
 		CallbackVar: oss.Ptr(headers.CallbackVar),
 	})
 	if err != nil {
+		logV115OSSInfof(
+			"OSS CompleteMultipartUpload 失败：bucket=%s，object_id=%s，upload_id=%s，total_parts=%d，err=%v",
+			input.Bucket,
+			input.Object,
+			uploadId,
+			len(completeParts),
+			err,
+		)
 		return OSSMultipartUploadResult{}, fmt.Errorf("完成 OSS multipart 失败：%w", err)
 	}
+	logV115OSSInfof(
+		"OSS CompleteMultipartUpload 返回：bucket=%s，object_id=%s，upload_id=%s，status=%s，status_code=%d，headers=%s，etag=%s，hash_crc64=%s，location=%s，callback_result=%s",
+		input.Bucket,
+		input.Object,
+		uploadId,
+		completeResult.Status,
+		completeResult.StatusCode,
+		ossLogJSON(completeResult.Headers),
+		ossStringValue(completeResult.ETag),
+		ossStringValue(completeResult.HashCRC64),
+		ossStringValue(completeResult.Location),
+		ossLogJSON(completeResult.CallbackResult),
+	)
 	return OSSMultipartUploadResult{
 		CallbackResult: completeResult.CallbackResult,
 		UploadId:       uploadId,
@@ -286,8 +331,22 @@ func (u *OSSMultipartUploader) ListUploadedParts(ctx context.Context, bucket str
 			PartNumberMarker: marker,
 		})
 		if err != nil {
+			logV115OSSInfof("OSS ListParts 失败：bucket=%s，object_id=%s，upload_id=%s，part_number_marker=%d，err=%v", bucket, object, uploadId, marker, err)
 			return nil, fmt.Errorf("查询 OSS 已上传分片失败：%w", err)
 		}
+		logV115OSSInfof(
+			"OSS ListParts 返回：bucket=%s，object_id=%s，upload_id=%s，part_number_marker=%d，status=%s，status_code=%d，headers=%s，is_truncated=%v，next_part_number_marker=%d，parts=%s",
+			bucket,
+			object,
+			uploadId,
+			marker,
+			result.Status,
+			result.StatusCode,
+			ossLogJSON(result.Headers),
+			result.IsTruncated,
+			result.NextPartNumberMarker,
+			ossLogJSON(result.Parts),
+		)
 		for _, part := range result.Parts {
 			etag := ""
 			if part.ETag != nil {
@@ -339,14 +398,63 @@ func (u *OSSMultipartUploader) uploadPartWithRetry(
 		})
 		if err == nil {
 			if result.ETag == nil || *result.ETag == "" {
+				logV115OSSInfof(
+					"OSS UploadPart 返回空 ETag：bucket=%s，object_id=%s，upload_id=%s，part_number=%d，offset=%d，length=%d，status=%s，status_code=%d，headers=%s",
+					input.Bucket,
+					input.Object,
+					uploadId,
+					partNumber,
+					offset,
+					length,
+					result.Status,
+					result.StatusCode,
+					ossLogJSON(result.Headers),
+				)
 				return "", fmt.Errorf("OSS part %d 返回空 ETag", partNumber)
 			}
+			logV115OSSInfof(
+				"OSS UploadPart 返回：bucket=%s，object_id=%s，upload_id=%s，part_number=%d，offset=%d，length=%d，etag=%s，content_md5=%s，hash_crc64=%s，status=%s，status_code=%d，headers=%s",
+				input.Bucket,
+				input.Object,
+				uploadId,
+				partNumber,
+				offset,
+				length,
+				ossStringValue(result.ETag),
+				ossStringValue(result.ContentMD5),
+				ossStringValue(result.HashCRC64),
+				result.Status,
+				result.StatusCode,
+				ossLogJSON(result.Headers),
+			)
 			return *result.ETag, nil
 		}
 		lastErr = err
+		logV115OSSInfof(
+			"OSS UploadPart 失败：bucket=%s，object_id=%s，upload_id=%s，part_number=%d，offset=%d，length=%d，attempt=%d/%d，err=%v",
+			input.Bucket,
+			input.Object,
+			uploadId,
+			partNumber,
+			offset,
+			length,
+			attempt+1,
+			input.PartRetryMax,
+			err,
+		)
 		if attempt < input.PartRetryMax-1 && input.refreshClient != nil {
 			refreshedClient, refreshErr := input.refreshClient(ctx)
 			if refreshErr != nil {
+				logV115OSSInfof(
+					"OSS UploadPart 失败后刷新上传凭证失败：bucket=%s，object_id=%s，upload_id=%s，part_number=%d，attempt=%d/%d，err=%v",
+					input.Bucket,
+					input.Object,
+					uploadId,
+					partNumber,
+					attempt+1,
+					input.PartRetryMax,
+					refreshErr,
+				)
 				lastErr = refreshErr
 				continue
 			}
@@ -380,28 +488,24 @@ func minInt64(a int64, b int64) int64 {
 	return b
 }
 
-// OssUploadFile 是旧上传入口的兼容包装，内部使用 OSS multipart。
-func OssUploadFile(
-	endPoint string,
-	accessKeyId string,
-	accessKeySecret string,
-	securityToken string,
-	bucketName string,
-	objectId string,
-	callback string,
-	callbackVar string,
-	filePath string,
-	fileSize int64,
-	fileSha1 string,
-) (map[string]any, error) {
-	uploader := NewOSSMultipartUploader(endPoint, accessKeyId, accessKeySecret, securityToken)
-	return uploader.UploadFile(context.Background(), OSSMultipartUploadInput{
-		Bucket:      bucketName,
-		Object:      objectId,
-		Callback:    callback,
-		CallbackVar: callbackVar,
-		FilePath:    filePath,
-		FileSize:    fileSize,
-		FileSha1:    fileSha1,
-	})
+func logV115OSSInfof(format string, args ...any) {
+	if helpers.V115Log == nil {
+		return
+	}
+	helpers.V115Log.Infof(format, args...)
+}
+
+func ossLogJSON(value any) string {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Sprintf("%v", value)
+	}
+	return string(data)
+}
+
+func ossStringValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }

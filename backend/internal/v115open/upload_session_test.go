@@ -44,37 +44,81 @@ func TestParseSignCheckRange(t *testing.T) {
 }
 
 func TestBuildOSSCallbackHeaders(t *testing.T) {
-	headers, err := BuildOSSCallbackHeaders(OSSCallbackInput{
-		Callback:    `{"callbackUrl":"https://callback.example/upload","callbackBody":"bucket=${bucket}&object=${object}&size=${size}&sha1=${sha1}","callbackBodyType":"application/x-www-form-urlencoded"}`,
-		CallbackVar: `{"x:keep":"yes"}`,
-		Bucket:      "bucket-1",
-		Object:      "object-1",
-		FileSize:    1024,
-		FileSha1:    "SHA1",
-	})
+	tests := []struct {
+		name        string
+		callback    string
+		callbackVar string
+		wantErr     bool
+	}{
+		{
+			name:        "官方 callback 原样编码且不注入非 x 字段",
+			callback:    `{"callbackUrl":"http:\/\/uplb.115.com\/3.0\/completeupload.php","callbackBody":"bucket=${bucket}&object=${object}&size=${size}&sha1=${sha1}&pick_code=${x:pick_code}&user_id=${x:user_id}&behavior_type=${x:behavior_type}&source=${x:source}&target=${x:target}&task_uid=${x:task_uid}"}`,
+			callbackVar: `{"x:pick_code":"6a4953ee0de1972b7779ee44","x:user_id":"335314319","x:behavior_type":"0","x:source":"100","x:target":"U_1_3465929644904023372","x:task_uid":"335314319"}`,
+		},
+		{
+			name:        "callback 必须是 JSON 对象",
+			callback:    `[]`,
+			callbackVar: `{}`,
+			wantErr:     true,
+		},
+		{
+			name:        "callback_var 必须是 JSON 对象",
+			callback:    `{}`,
+			callbackVar: `[]`,
+			wantErr:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			headers, err := BuildOSSCallbackHeaders(OSSCallbackInput{
+				Callback:    tt.callback,
+				CallbackVar: tt.callbackVar,
+			})
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("期望构造 callback header 失败，实际返回 nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("构造 callback header 失败：%v", err)
+			}
+
+			callbackBytes, err := base64.StdEncoding.DecodeString(headers.Callback)
+			if err != nil {
+				t.Fatalf("解码 callback 失败：%v", err)
+			}
+			if string(callbackBytes) != tt.callback {
+				t.Fatalf("callback = %s，期望原样保留 %s", callbackBytes, tt.callback)
+			}
+			callbackVarBytes, err := base64.StdEncoding.DecodeString(headers.CallbackVar)
+			if err != nil {
+				t.Fatalf("解码 callback_var 失败：%v", err)
+			}
+			if string(callbackVarBytes) != tt.callbackVar {
+				t.Fatalf("callback_var = %s，期望原样保留 %s", callbackVarBytes, tt.callbackVar)
+			}
+			callbackVarJSON := decodeBase64JSON(t, headers.CallbackVar)
+			for _, key := range []string{"bucket", "object", "size", "sha1"} {
+				if _, ok := callbackVarJSON[key]; ok {
+					t.Fatalf("callback_var 不应注入 %s：%v", key, callbackVarJSON[key])
+				}
+			}
+		})
+	}
+}
+
+func TestDecodeUploadCallbackSupportsOfficialArray(t *testing.T) {
+	got, err := decodeUploadCallback(json.RawMessage(`[{"callback":"{\"callbackUrl\":\"https://callback.example/upload\"}","callback_var":"{\"x:keep\":\"yes\"}"}]`))
 	if err != nil {
-		t.Fatalf("构造 callback header 失败：%v", err)
+		t.Fatalf("解析官方 callback 数组失败：%v", err)
 	}
-
-	callbackJSON := decodeBase64JSON(t, headers.Callback)
-	if callbackJSON["callbackUrl"] != "https://callback.example/upload" {
-		t.Fatalf("callbackUrl = %v", callbackJSON["callbackUrl"])
+	if got.Callback != `{"callbackUrl":"https://callback.example/upload"}` {
+		t.Fatalf("callback = %s", got.Callback)
 	}
-	if callbackJSON["callbackBodyType"] != "application/x-www-form-urlencoded" {
-		t.Fatalf("callbackBodyType = %v", callbackJSON["callbackBodyType"])
-	}
-
-	callbackVarJSON := decodeBase64JSON(t, headers.CallbackVar)
-	for key, want := range map[string]string{
-		"bucket": "bucket-1",
-		"object": "object-1",
-		"size":   "1024",
-		"sha1":   "SHA1",
-		"x:keep": "yes",
-	} {
-		if got := callbackVarJSON[key]; got != want {
-			t.Fatalf("callback var %s = %v，期望 %s", key, got, want)
-		}
+	if got.CallbackVar != `{"x:keep":"yes"}` {
+		t.Fatalf("callback_var = %s", got.CallbackVar)
 	}
 }
 

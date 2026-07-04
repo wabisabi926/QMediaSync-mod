@@ -79,7 +79,7 @@
 
 ## STRM 生成后处理
 
-115 上传任务成功或确认远端同名同 SHA1 / 同大小文件已存在后，会按远端文件 ID / PickCode 创建 `strm_generation_tasks`。后台 STRM 生成 worker 会读取待处理任务，并复用现有同步目录配置和 `syncstrm.ProcessStrmFile()` 写入 STRM 内容，因此仍兼容 `strm_base_url`、`add_path`、PickCode 和账号用户 ID 等既有 STRM 规则。
+115 上传任务成功或确认远端同名同 SHA1 / 同大小文件已存在后，会按远端文件 ID / PickCode 创建 `strm_generation_tasks`。后台 STRM 生成 worker 会读取待处理任务，并复用现有同步目录配置和 `syncstrm.ProcessStrmFile()` 写入 STRM 内容，因此仍兼容 `strm_base_url`、`add_path`、PickCode 和账号用户 ID 等既有 STRM 规则。该后处理不会创建 `syncs` 同步记录，也不会把同步目录状态改成等待中；完整同步记录只由手动同步、定时同步等 STRM 同步入口创建。
 
 文件级任务只传 `file_id` 时，服务会通过对应网盘 driver 补齐文件名、路径、父目录 ID、PickCode、mtime 和大小。写入流程会先确认新 STRM 内容需要新增或更新；如果同一 `file_id` / `pick_code` 的远端路径变化，会在新 STRM 写入成功后精确删除旧 `SyncFile.LocalFilePath` 对应的旧 STRM。旧路径清理失败不会删除新 STRM，也不会把任务标记完成，任务会记录错误并保留为失败状态供后续排查或重试。
 

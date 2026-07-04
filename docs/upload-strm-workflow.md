@@ -57,7 +57,7 @@ OSS `CompleteMultipartUpload` 完成后，必须带回 115 init 返回的 `callb
 
 ## STRM 后处理和源文件删除
 
-STRM 生成 worker 会读取 `strm_generation_tasks`，复用同步目录配置写入或确认 STRM。STRM 新增或更新后，会优先提交 Emby item 级定向刷新；定位不到可靠 item 时回退同步目录关联媒体库刷新。
+STRM 生成 worker 会读取 `strm_generation_tasks`，复用同步目录配置写入或确认 STRM。该后处理只创建或更新 `SyncFile` 和 STRM 文件，不创建 `syncs` 同步记录，也不向同步目录队列添加“等待中”任务；完整同步记录只由手动同步、定时同步等 STRM 同步入口创建。STRM 新增或更新后，会优先提交 Emby item 级定向刷新；定位不到可靠 item 时回退同步目录关联媒体库刷新。
 
 如果同一远端文件发生移动或重命名，服务会用 `file_id` / `pick_code` 查找旧 `SyncFile`。新 STRM 写入成功后，只精确删除旧记录里的 `local_file_path`，不会按文件名模糊删除其他 `latest` 或同名文件。旧 STRM 删除失败时，新 STRM 会保留，任务记录失败原因，便于从 `strm_generation_tasks.last_error` 和应用日志排查。
 

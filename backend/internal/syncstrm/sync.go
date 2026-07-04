@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -86,6 +88,13 @@ type pathQueueItem struct {
 }
 
 func NewSyncStrm(account *models.Account, syncPathId uint, sourcePath, sourcePathId, targetPath string, config SyncStrmConfig, IsFullSync bool, lastSyncAt int64, isFile bool) *SyncStrm {
+	return newSyncStrm(account, syncPathId, sourcePath, sourcePathId, targetPath, config, IsFullSync, lastSyncAt, isFile, true)
+}
+
+func newSyncStrm(account *models.Account, syncPathId uint, sourcePath, sourcePathId, targetPath string, config SyncStrmConfig, IsFullSync bool, lastSyncAt int64, isFile bool, createSyncRecord bool) *SyncStrm {
+	if account == nil {
+		account = &models.Account{SourceType: models.SourceTypeLocal}
+	}
 	var syncDriver driverImpl
 	switch account.SourceType {
 	case models.SourceType115:
@@ -146,14 +155,34 @@ func NewSyncStrm(account *models.Account, syncPathId uint, sourcePath, sourcePat
 		s.SyncPathId = uint(time.Now().UnixNano())
 		s.TmpSyncPath = true
 	}
-	// 新增一条 Sync 记录
-	s.Sync = models.CreateSync(s.SyncPathId, s.SourcePath, s.SourcePathId, s.TargetPath)
-	if s.Sync == nil {
-		return nil
+	if createSyncRecord {
+		// 新增一条 Sync 记录
+		s.Sync = models.CreateSync(s.SyncPathId, s.SourcePath, s.SourcePathId, s.TargetPath)
+		if s.Sync == nil {
+			return nil
+		}
+		s.Sync.InitLogger()
+	} else {
+		s.Sync = &models.Sync{
+			SyncPathId: s.SyncPathId,
+			Status:     models.SyncStatusCompleted,
+			SubStatus:  models.SyncSubStatusNone,
+			LocalPath:  s.TargetPath,
+			RemotePath: s.SourcePath,
+			BaseCid:    s.SourcePathId,
+			IsFullSync: s.FullSync,
+			Logger:     effectiveSyncLogger(),
+		}
 	}
-	s.Sync.InitLogger()
 	s.SyncDriver.SetSyncStrm(s)
 	return s
+}
+
+func effectiveSyncLogger() *helpers.QLogger {
+	if helpers.AppLogger != nil {
+		return helpers.AppLogger
+	}
+	return &helpers.QLogger{Logger: log.New(io.Discard, "", 0)}
 }
 
 const syncProgressPublishInterval = time.Second
@@ -192,14 +221,26 @@ func (s *SyncStrm) PublishProgress(force bool) {
 }
 
 func NewSyncStrmFromSyncPath(syncPath *models.SyncPath) *SyncStrm {
-	var account *models.Account
+	return newSyncStrmFromSyncPath(syncPath, nil, true)
+}
+
+// NewSyncStrmForStrmGeneration 创建单文件 STRM 后处理同步器，不创建同步任务记录。
+func NewSyncStrmForStrmGeneration(syncPath *models.SyncPath, account *models.Account) *SyncStrm {
+	return newSyncStrmFromSyncPath(syncPath, account, false)
+}
+
+func newSyncStrmFromSyncPath(syncPath *models.SyncPath, account *models.Account, createSyncRecord bool) *SyncStrm {
+	if syncPath == nil {
+		return nil
+	}
 	var err error
-	if syncPath.AccountId != 0 {
+	if account == nil && syncPath.AccountId != 0 {
 		account, err = models.GetAccountById(syncPath.AccountId)
 		if err != nil {
 			return nil
 		}
-	} else {
+	}
+	if account == nil {
 		account = &models.Account{SourceType: models.SourceTypeLocal}
 	}
 	// 重新加载设置
@@ -237,7 +278,7 @@ func NewSyncStrmFromSyncPath(syncPath *models.SyncPath) *SyncStrm {
 		formatStrmConfigArray(excludeNames),
 		strmArrayConfigSource(syncPath.CustomConfig, syncPath.ExcludeNameArr),
 	)
-	return NewSyncStrm(account, syncPath.ID, syncPath.RemotePath, syncPath.BaseCid, syncPath.LocalPath, config, syncPath.IsFullSync, syncPath.LastSyncAt, false)
+	return newSyncStrm(account, syncPath.ID, syncPath.RemotePath, syncPath.BaseCid, syncPath.LocalPath, config, syncPath.IsFullSync, syncPath.LastSyncAt, false, createSyncRecord)
 }
 
 func strmArrayConfigSource(customConfig bool, localValue []string) string {

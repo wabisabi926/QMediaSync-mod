@@ -53,8 +53,8 @@ type StrmGenerationService struct {
 // NewStrmGenerationService 创建 STRM 生成服务。
 func NewStrmGenerationService() *StrmGenerationService {
 	service := &StrmGenerationService{}
-	service.buildSyncer = func(syncPath *models.SyncPath, _ *models.Account) (*SyncStrm, error) {
-		syncer := NewSyncStrmFromSyncPath(syncPath)
+	service.buildSyncer = func(syncPath *models.SyncPath, account *models.Account) (*SyncStrm, error) {
+		syncer := NewSyncStrmForStrmGeneration(syncPath, account)
 		if syncer == nil {
 			return nil, errors.New("初始化 STRM 同步器失败")
 		}

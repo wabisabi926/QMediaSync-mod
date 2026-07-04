@@ -222,6 +222,45 @@ func TestStrmGenerationServiceGenerateSkipsRefreshWhenStrmUnchanged(t *testing.T
 	}
 }
 
+func TestStrmGenerationServiceDefaultBuilderDoesNotCreateSyncRecord(t *testing.T) {
+	account, syncPath := setupStrmGenerationServiceTestDB(t)
+	service := NewStrmGenerationService()
+	service.compareStrm = func(_ *SyncStrm, _ *SyncFileCache) int { return 1 }
+	service.processStrmFile = func(_ *SyncStrm, _ *SyncFileCache) error {
+		t.Fatal("STRM 无变化时不应写入文件")
+		return nil
+	}
+	service.requestEmbyRefreshBySyncFile = func(*models.SyncFile) error {
+		t.Fatal("STRM 无变化时不应提交 Emby 刷新")
+		return nil
+	}
+
+	if _, err := service.Generate(context.Background(), StrmGenerationInput{
+		Task: &models.StrmGenerationTask{
+			Source:     models.StrmGenerationSourceUploadCompleted,
+			TaskType:   models.StrmGenerationTaskTypeFile,
+			SyncPathId: syncPath.ID,
+			AccountId:  account.ID,
+			FileId:     "file-no-sync",
+			ParentId:   "parent-no-sync",
+			PickCode:   "pick-no-sync",
+			Path:       "/remote",
+			FileName:   "movie.mkv",
+			FileSize:   1024,
+		},
+	}); err != nil {
+		t.Fatalf("生成 STRM 后处理失败: %v", err)
+	}
+
+	var syncCount int64
+	if err := db.Db.Model(&models.Sync{}).Count(&syncCount).Error; err != nil {
+		t.Fatalf("统计同步记录失败: %v", err)
+	}
+	if syncCount != 0 {
+		t.Fatalf("同步记录数量 = %d，期望目录监控上传后处理不创建同步记录", syncCount)
+	}
+}
+
 func TestStrmGenerationServiceCleansOldStrmAfterRemotePathChanges(t *testing.T) {
 	account, syncPath := setupStrmGenerationServiceTestDB(t)
 	oldStrmPath := filepath.Join(syncPath.LocalPath, "old", "movie.strm")

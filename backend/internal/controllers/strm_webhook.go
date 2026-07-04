@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -9,9 +10,14 @@ import (
 
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
+	"qmediasync/internal/v115open"
 
 	"github.com/gin-gonic/gin"
 )
+
+type strmWebhookFileDetailResolver func(context.Context, *models.Account, string) (*v115open.FileDetail, error)
+
+var resolveStrmWebhookFileDetail strmWebhookFileDetailResolver = defaultStrmWebhookFileDetailResolver
 
 const (
 	strmWebhookActionFile          = "file"
@@ -72,7 +78,7 @@ func StrmWebhook(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("请求参数错误：%v", err), Data: nil})
 		return
 	}
-	resp, err := handleStrmWebhookRequest(req)
+	resp, err := handleStrmWebhookRequest(c.Request.Context(), req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
@@ -91,7 +97,7 @@ func authenticateStrmWebhookAPIKey(c *gin.Context) (*models.ApiKey, error) {
 	return models.ValidateAPIKey(raw)
 }
 
-func handleStrmWebhookRequest(req strmWebhookRequest) (strmWebhookResponse, error) {
+func handleStrmWebhookRequest(ctx context.Context, req strmWebhookRequest) (strmWebhookResponse, error) {
 	if strings.TrimSpace(req.LocalPath) != "" {
 		return strmWebhookResponse{}, errors.New("不允许通过 local_path 指定本地写入路径")
 	}
@@ -103,7 +109,7 @@ func handleStrmWebhookRequest(req strmWebhookRequest) (strmWebhookResponse, erro
 	resp := strmWebhookResponse{RequestID: "strm_" + helpers.RandStr(16)}
 	switch action {
 	case strmWebhookActionFile:
-		result := enqueueStrmWebhookFile(syncPath, 0, req.strmWebhookFileItem)
+		result := enqueueStrmWebhookFile(ctx, syncPath, 0, req.strmWebhookFileItem)
 		if !result.Accepted {
 			return strmWebhookResponse{}, errors.New(result.Error)
 		}
@@ -113,7 +119,7 @@ func handleStrmWebhookRequest(req strmWebhookRequest) (strmWebhookResponse, erro
 			return strmWebhookResponse{}, errors.New("items 不能为空")
 		}
 		for index, item := range req.Items {
-			resp.Results = append(resp.Results, enqueueStrmWebhookFile(syncPath, index, item))
+			resp.Results = append(resp.Results, enqueueStrmWebhookFile(ctx, syncPath, index, item))
 		}
 	case strmWebhookActionDirectoryScan:
 		result := enqueueStrmWebhookDirectory(syncPath, req)
@@ -160,12 +166,15 @@ func inferStrmWebhookAction(req strmWebhookRequest) string {
 	return strmWebhookActionFile
 }
 
-func enqueueStrmWebhookFile(syncPath *models.SyncPath, index int, item strmWebhookFileItem) strmWebhookItemResult {
+func enqueueStrmWebhookFile(ctx context.Context, syncPath *models.SyncPath, index int, item strmWebhookFileItem) strmWebhookItemResult {
 	if strings.TrimSpace(item.LocalPath) != "" {
 		return strmWebhookItemResult{Index: index, Accepted: false, Error: "不允许通过 local_path 指定本地写入路径"}
 	}
 	item = normalizeStrmWebhookFileItem(item)
 	if err := validateStrmWebhookFileItem(syncPath, item); err != nil {
+		return strmWebhookItemResult{Index: index, Accepted: false, Error: err.Error()}
+	}
+	if err := resolveStrmWebhookFileItem(ctx, syncPath, &item); err != nil {
 		return strmWebhookItemResult{Index: index, Accepted: false, Error: err.Error()}
 	}
 	task, err := models.EnqueueStrmGenerationTask(&models.StrmGenerationTask{
@@ -187,6 +196,64 @@ func enqueueStrmWebhookFile(syncPath *models.SyncPath, index int, item strmWebho
 		return strmWebhookItemResult{Index: index, Accepted: false, Error: err.Error()}
 	}
 	return strmWebhookItemResult{Index: index, Accepted: true, TaskID: task.ID}
+}
+
+func defaultStrmWebhookFileDetailResolver(ctx context.Context, account *models.Account, fullPath string) (*v115open.FileDetail, error) {
+	if account == nil {
+		return nil, errors.New("账号为空")
+	}
+	client := account.Get115Client()
+	if client == nil {
+		return nil, errors.New("115 客户端为空")
+	}
+	return client.GetFsDetailByPath(ctx, fullPath)
+}
+
+func resolveStrmWebhookFileItem(ctx context.Context, syncPath *models.SyncPath, item *strmWebhookFileItem) error {
+	if item == nil || item.FileID != "" || item.PickCode != "" {
+		return nil
+	}
+	account, err := models.GetAccountById(syncPath.AccountId)
+	if err != nil {
+		return fmt.Errorf("查询同步账号失败: %w", err)
+	}
+	fullPath := pathpkg.Join(item.Path, item.FileName)
+	detail, err := resolveStrmWebhookFileDetail(ctx, account, fullPath)
+	if err != nil {
+		return fmt.Errorf("解析远端文件详情失败: %w", err)
+	}
+	if detail == nil || strings.TrimSpace(detail.FileId) == "" {
+		return errors.New("解析远端文件详情失败：返回空文件 ID")
+	}
+	item.FileID = strings.TrimSpace(detail.FileId)
+	item.PickCode = strings.TrimSpace(detail.PickCode)
+	item.FileName = strings.TrimSpace(detail.FileName)
+	if item.FileName == "" {
+		item.FileName = pathpkg.Base(fullPath)
+	}
+	item.Path = normalizeRemotePath(detail.Path)
+	if item.Path == "" {
+		item.Path = normalizeRemotePath(pathpkg.Dir(fullPath))
+	}
+	item.ParentID = strmWebhookDetailParentID(detail)
+	if detail.FileSizeByte > 0 {
+		item.FileSize = detail.FileSizeByte
+	} else {
+		item.FileSize = helpers.StringToInt64(detail.FileSize)
+	}
+	item.Sha1 = strings.TrimSpace(detail.Sha1)
+	item.Mtime = helpers.StringToInt64(detail.Utime)
+	if item.Mtime == 0 {
+		item.Mtime = helpers.StringToInt64(detail.Ptime)
+	}
+	return nil
+}
+
+func strmWebhookDetailParentID(detail *v115open.FileDetail) string {
+	if detail == nil || len(detail.Paths) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(detail.Paths[len(detail.Paths)-1].FileId)
 }
 
 func normalizeStrmWebhookFileItem(item strmWebhookFileItem) strmWebhookFileItem {

@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"log"
@@ -13,6 +14,7 @@ import (
 	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
+	"qmediasync/internal/v115open"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -62,6 +64,15 @@ func setupStrmWebhookControllerTest(t *testing.T) (*gin.Engine, string, *models.
 	router := gin.New()
 	router.POST("/api/strm/webhook", StrmWebhook)
 	return router, rawKey, syncPath
+}
+
+func setStrmWebhookFileDetailResolverForTesting(t *testing.T, resolver strmWebhookFileDetailResolver) {
+	t.Helper()
+	oldResolver := resolveStrmWebhookFileDetail
+	resolveStrmWebhookFileDetail = resolver
+	t.Cleanup(func() {
+		resolveStrmWebhookFileDetail = oldResolver
+	})
 }
 
 func TestStrmWebhookAuthSupportsHeaderAndQueryAPIKey(t *testing.T) {
@@ -169,6 +180,51 @@ func TestStrmWebhookEnqueuesFileTaskIdempotently(t *testing.T) {
 		task.FileId != "file-1" ||
 		task.PickCode != "pick-1" {
 		t.Fatalf("STRM 任务 = %+v，期望 webhook file 任务", task)
+	}
+}
+
+func TestStrmWebhookResolvesPathAndFileNameBeforeEnqueue(t *testing.T) {
+	router, rawKey, syncPath := setupStrmWebhookControllerTest(t)
+	setStrmWebhookFileDetailResolverForTesting(t, func(_ context.Context, account *models.Account, fullPath string) (*v115open.FileDetail, error) {
+		if account.ID != syncPath.AccountId {
+			t.Fatalf("解析账号 ID = %d，期望 %d", account.ID, syncPath.AccountId)
+		}
+		if fullPath != "/remote/show/movie.mkv" {
+			t.Fatalf("解析路径 = %s，期望 /remote/show/movie.mkv", fullPath)
+		}
+		return &v115open.FileDetail{
+			FileId:       "file-path-1",
+			PickCode:     "pick-path-1",
+			FileName:     "movie.mkv",
+			Path:         "/remote/show",
+			FileSizeByte: 2048,
+			Sha1:         "sha1-path",
+			Utime:        "123456",
+			Paths:        []v115open.FileDetailPath{{FileId: "parent-1", Name: "show"}},
+		}, nil
+	})
+
+	w := performStrmWebhookRequest(t, router, rawKey, "", map[string]any{
+		"sync_path_id": syncPath.ID,
+		"path":         "/remote/show",
+		"file_name":    "movie.mkv",
+	})
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"accepted_count":1`) {
+		t.Fatalf("path + file_name 入队响应异常: code=%d body=%s", w.Code, w.Body.String())
+	}
+	var task models.StrmGenerationTask
+	if err := db.Db.First(&task).Error; err != nil {
+		t.Fatalf("读取 STRM 任务失败: %v", err)
+	}
+	if task.FileId != "file-path-1" ||
+		task.PickCode != "pick-path-1" ||
+		task.ParentId != "parent-1" ||
+		task.Path != "/remote/show" ||
+		task.FileName != "movie.mkv" ||
+		task.FileSize != 2048 ||
+		task.Sha1 != "sha1-path" ||
+		task.Mtime != 123456 {
+		t.Fatalf("STRM 任务 = %+v，期望 path + file_name 已解析为完整远端详情", task)
 	}
 }
 

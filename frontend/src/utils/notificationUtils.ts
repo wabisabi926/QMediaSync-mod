@@ -61,6 +61,32 @@ export interface NotificationConfig {
   description?: string
 }
 
+export interface WebhookHeaderRow {
+  id: number
+  key: string
+  value: string
+}
+
+export function webhookHeaderRecordToRows(
+  headers?: Record<string, string> | null,
+): WebhookHeaderRow[] {
+  return Object.entries(headers ?? {}).map(([key, value], index) => ({
+    id: index + 1,
+    key,
+    value,
+  }))
+}
+
+export function webhookHeaderRowsToRecord(rows: WebhookHeaderRow[]): Record<string, string> {
+  return rows.reduce<Record<string, string>>((headers, row) => {
+    const key = row.key.trim()
+    if (key) {
+      headers[key] = row.value
+    }
+    return headers
+  }, {})
+}
+
 // 通知规则接口
 export interface NotificationRule {
   id: number

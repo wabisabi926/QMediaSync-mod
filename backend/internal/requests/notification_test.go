@@ -95,6 +95,43 @@ func TestNotificationRequestValidate(t *testing.T) {
 		}
 	})
 
+	t.Run("Webhook 多个额外 Header 通过并规范化头名", func(t *testing.T) {
+		req := CustomWebhookChannelRequest{
+			ChannelName: "webhook",
+			Endpoint:    "https://example.com/hook",
+			Method:      "POST",
+			Format:      "text",
+			Template:    "hello",
+			Headers: map[string]string{
+				" X-Trace-ID ":     "trace-1",
+				"X-Webhook-Source": "qmediasync",
+			},
+		}
+		if err := req.ValidateCreate(); err != nil {
+			t.Fatalf("ValidateCreate() error = %v", err)
+		}
+		if _, ok := req.Headers[" X-Trace-ID "]; ok {
+			t.Fatal("ValidateCreate() 未规范化 Header 名称")
+		}
+		if req.Headers["X-Trace-ID"] != "trace-1" || req.Headers["X-Webhook-Source"] != "qmediasync" {
+			t.Fatalf("Headers = %#v", req.Headers)
+		}
+	})
+
+	t.Run("Webhook 空 Header 名失败", func(t *testing.T) {
+		req := CustomWebhookChannelRequest{
+			ChannelName: "webhook",
+			Endpoint:    "https://example.com/hook",
+			Method:      "POST",
+			Format:      "text",
+			Template:    "hello",
+			Headers:     map[string]string{" ": "bad"},
+		}
+		if err := req.ValidateCreate(); err == nil {
+			t.Fatal("ValidateCreate() error = nil, want error")
+		}
+	})
+
 	t.Run("Webhook 更新缺少 ID 失败", func(t *testing.T) {
 		req := CustomWebhookChannelRequest{Endpoint: "https://example.com/hook"}
 		if err := req.ValidateUpdate("GET", ""); err == nil {

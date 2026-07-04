@@ -8,6 +8,8 @@ import (
 	"qmediasync/internal/validation"
 )
 
+var webhookHeaderNamePattern = regexp.MustCompile("^[!#$%&'*+\\-.^_`|~0-9A-Za-z]+$")
+
 // CreateTelegramChannelRequest 创建 Telegram 渠道请求。
 type CreateTelegramChannelRequest struct {
 	ChannelName string `json:"channel_name" binding:"required"`
@@ -216,6 +218,9 @@ func (r *CustomWebhookChannelRequest) ValidateCreate() error {
 	if err := validateWebhookAuth(*r); err != nil {
 		return err
 	}
+	if err := r.validateWebhookHeaders(); err != nil {
+		return err
+	}
 	return validateWebhookTemplate(r.Method, r.Format, r.Template)
 }
 
@@ -251,6 +256,9 @@ func (r *CustomWebhookChannelRequest) ValidateUpdate(existingMethod string, exis
 		if err := validateWebhookAuth(*r); err != nil {
 			return err
 		}
+	}
+	if err := r.validateWebhookHeaders(); err != nil {
+		return err
 	}
 	if r.Template != "" {
 		return validateWebhookTemplate(method, format, r.Template)
@@ -322,6 +330,26 @@ func validateWebhookAuth(r CustomWebhookChannelRequest) error {
 	default:
 		return validation.New("auth_type", "必须是 none、bearer、basic、header 或 query")
 	}
+	return nil
+}
+
+func (r *CustomWebhookChannelRequest) validateWebhookHeaders() error {
+	if r.Headers == nil {
+		return nil
+	}
+
+	headers := make(map[string]string, len(r.Headers))
+	for key, value := range r.Headers {
+		headerName := strings.TrimSpace(key)
+		if headerName == "" {
+			return validation.New("headers", "Header 名称不能为空")
+		}
+		if !webhookHeaderNamePattern.MatchString(headerName) {
+			return validation.New("headers", "Header 名称包含非法字符")
+		}
+		headers[headerName] = value
+	}
+	r.Headers = headers
 	return nil
 }
 

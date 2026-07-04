@@ -293,6 +293,7 @@
               <el-input v-model="channelForm.auth_token" placeholder="输入 Header 值" />
             </el-form-item>
           </template>
+          <WebhookHeadersEditor v-model="channelForm.headers" />
           <el-form-item label="备注说明">
             <el-input
               v-model="channelForm.description"
@@ -481,6 +482,7 @@
               <el-input v-model="channelForm.auth_token" placeholder="输入 Header 值" />
             </el-form-item>
           </template>
+          <WebhookHeadersEditor v-model="channelForm.headers" />
           <el-form-item label="备注说明">
             <el-input
               v-model="channelForm.description"
@@ -522,14 +524,18 @@ import {
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
 import ResponsiveIconButton from '@/components/common/ResponsiveIconButton.vue'
+import WebhookHeadersEditor from '@/components/notification/WebhookHeadersEditor.vue'
 import { useDeviceType } from '@/composables/useDeviceType'
 import { formatDateTime } from '@/utils/timeUtils'
 import {
   getChannelTypeName,
   getEventTypeName,
+  webhookHeaderRecordToRows,
+  webhookHeaderRowsToRecord,
   type NotificationChannel,
   type NotificationRule,
   type ChannelType,
+  type WebhookHeaderRow,
 } from '@/utils/notificationUtils'
 
 // 渠道表单接口
@@ -560,6 +566,7 @@ interface ChannelFormData {
   auth_pass: string
   auth_header_key: string
   auth_query_key: string
+  headers: WebhookHeaderRow[]
   description: string
 }
 
@@ -662,6 +669,7 @@ const channelForm = reactive<ChannelFormData>({
   auth_pass: '',
   auth_header_key: '',
   auth_query_key: '',
+  headers: [],
   description: '',
 })
 
@@ -718,6 +726,7 @@ const resetChannelForm = () => {
   channelForm.auth_pass = ''
   channelForm.auth_header_key = ''
   channelForm.auth_query_key = ''
+  channelForm.headers = []
   channelForm.description = ''
 }
 
@@ -775,6 +784,7 @@ const showEditDialog = async (channel: NotificationChannel) => {
           channelForm.auth_pass = config.auth_pass || ''
           channelForm.auth_header_key = config.auth_header_key || ''
           channelForm.auth_query_key = config.auth_query_key || ''
+          channelForm.headers = webhookHeaderRecordToRows(config.headers)
         }
       }
 
@@ -885,6 +895,10 @@ const createChannel = async () => {
           requestData.auth_token = channelForm.auth_token
         }
       }
+      const headers = webhookHeaderRowsToRecord(channelForm.headers)
+      if (Object.keys(headers).length > 0) {
+        requestData.headers = headers
+      }
       if (channelForm.description) {
         requestData.description = channelForm.description
       }
@@ -992,6 +1006,7 @@ const updateChannel = async () => {
           if (channelForm.auth_token) requestData.auth_token = channelForm.auth_token
         }
       }
+      requestData.headers = webhookHeaderRowsToRecord(channelForm.headers)
       if (channelForm.description) requestData.description = channelForm.description
     }
 

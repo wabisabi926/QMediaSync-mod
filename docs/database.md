@@ -808,7 +808,7 @@ Server酱 渠道配置表。
 - `auth_user` / `auth_pass`：Basic Auth 用户名和密码。
 - `auth_header_key`：Header 模式下的头名。
 - `auth_query_key`：Query 模式下的参数名。
-- `headers`：额外请求头，JSON 对象字符串。
+- `headers`：额外请求头，JSON 对象字符串，可保存多个自定义请求头。
 - `query_param`：GET 模式下承载模板的参数名，默认 `q`。
 
 ### `notification_rules`

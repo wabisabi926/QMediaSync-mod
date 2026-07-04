@@ -3,6 +3,7 @@ package controllers
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -179,6 +180,40 @@ func TestScanDirectoryUploadRuleReturnsAcceptedCount(t *testing.T) {
 	router.ServeHTTP(w, req)
 	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"accepted":1`) {
 		t.Fatalf("扫描响应异常: code=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestScanDirectoryUploadRuleRejectsDisabledRule(t *testing.T) {
+	router, syncPath := setupDirectoryUploadControllerTest(t)
+	monitorPath := t.TempDir()
+	if err := os.WriteFile(filepath.Join(monitorPath, "movie.mkv"), []byte("movie"), 0o644); err != nil {
+		t.Fatalf("写入测试视频失败: %v", err)
+	}
+	rule := &models.DirectoryUploadRule{
+		SyncPathId:               syncPath.ID,
+		AccountId:                syncPath.AccountId,
+		Enabled:                  true,
+		MonitorPath:              monitorPath,
+		RemoteRootPath:           "/remote",
+		RemoteRootId:             "remote-root",
+		Recursive:                true,
+		WatchMode:                models.DirectoryUploadWatchModePolling,
+		ProcessedCacheTTLSeconds: 600,
+	}
+	if err := db.Db.Create(rule).Error; err != nil {
+		t.Fatalf("创建目录上传规则失败: %v", err)
+	}
+	if err := models.SetDirectoryUploadRuleEnabled(rule.ID, false); err != nil {
+		t.Fatalf("停用目录上传规则失败: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/rules/%d/scan", rule.ID), nil)
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK ||
+		!strings.Contains(w.Body.String(), `"code":500`) ||
+		!strings.Contains(w.Body.String(), "未启用") {
+		t.Fatalf("停用规则扫描响应异常: code=%d body=%s", w.Code, w.Body.String())
 	}
 }
 

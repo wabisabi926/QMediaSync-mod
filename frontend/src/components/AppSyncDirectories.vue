@@ -558,7 +558,7 @@ const getSecondaryActions = (row: SyncDirectory, index: number): SyncDirectoryAc
   const actions: SyncDirectoryAction[] = []
   const directoryUploadRule = getDirectoryUploadRule(row)
 
-  if (directoryUploadRule) {
+  if (directoryUploadRule?.enabled) {
     actions.push({
       key: 'directory-upload-scan',
       label: '',
@@ -567,7 +567,7 @@ const getSecondaryActions = (row: SyncDirectory, index: number): SyncDirectoryAc
       plain: true,
       circle: true,
       loading: directoryUploadRule.scanning,
-      ariaLabel: '立即补偿扫描',
+      ariaLabel: '立即扫描',
       onClick: () => scanDirectoryUploadRule(row),
     })
   }
@@ -890,6 +890,10 @@ const scanDirectoryUploadRule = async (row: SyncDirectory) => {
     ElMessage.warning('该同步目录尚未配置目录监控上传')
     return
   }
+  if (!rule.enabled) {
+    ElMessage.warning('目录监控上传未启用')
+    return
+  }
 
   try {
     rule.scanning = true
@@ -897,15 +901,13 @@ const scanDirectoryUploadRule = async (row: SyncDirectory) => {
     if (response?.data.code === 200) {
       const accepted = response.data.data?.accepted
       ElMessage.success(
-        typeof accepted === 'number'
-          ? `补偿扫描完成，已加入 ${accepted} 个候选文件`
-          : '补偿扫描已触发',
+        typeof accepted === 'number' ? `扫描完成，已加入 ${accepted} 个候选文件` : '扫描已触发',
       )
     } else {
-      ElMessage.error(response?.data.message || '触发补偿扫描失败')
+      ElMessage.error(response?.data.message || '触发扫描失败')
     }
   } catch {
-    ElMessage.error('触发补偿扫描失败')
+    ElMessage.error('触发扫描失败')
   } finally {
     rule.scanning = false
   }

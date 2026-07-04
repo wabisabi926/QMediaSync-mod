@@ -23,7 +23,7 @@ OSS `CompleteMultipartUpload` 完成后，必须带回 115 init 返回的 `callb
 - `PUT /api/directory-upload/rules/:id`：更新规则。
 - `DELETE /api/directory-upload/rules/:id`：删除规则。
 - `POST /api/directory-upload/rules/:id/status`：启用或停用规则，请求体为 `{"enabled": true}`。
-- `POST /api/directory-upload/rules/:id/scan`：手动触发补偿扫描，返回本次加入稳定性队列的候选文件数。
+- `POST /api/directory-upload/rules/:id/scan`：手动触发扫描，返回本次加入稳定性队列的候选文件数；规则停用时会拒绝执行。
 
 监控模式：
 

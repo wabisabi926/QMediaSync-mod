@@ -139,7 +139,7 @@ func SetDirectoryUploadRuleStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "更新目录监控上传规则状态成功", Data: gin.H{"enabled": *req.Enabled}})
 }
 
-// ScanDirectoryUploadRule 手动触发目录监控补偿扫描。
+// ScanDirectoryUploadRule 手动触发目录监控扫描。
 func ScanDirectoryUploadRule(c *gin.Context) {
 	id, ok := parseUintParam(c, "id")
 	if !ok {
@@ -150,12 +150,16 @@ func ScanDirectoryUploadRule(c *gin.Context) {
 		c.JSON(http.StatusNotFound, APIResponse[any]{Code: BadRequest, Message: "目录监控上传规则不存在", Data: nil})
 		return
 	}
+	if !rule.Enabled {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "目录监控上传规则未启用", Data: nil})
+		return
+	}
 	accepted, err := directoryupload.ScanRuleNow(context.Background(), rule)
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
-	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "目录监控补偿扫描已完成", Data: gin.H{"accepted": accepted}})
+	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "目录监控扫描已完成", Data: gin.H{"accepted": accepted}})
 }
 
 func buildDirectoryUploadRuleFromRequest(existing *models.DirectoryUploadRule, req directoryUploadRuleRequest) (*models.DirectoryUploadRule, error) {

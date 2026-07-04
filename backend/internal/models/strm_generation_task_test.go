@@ -66,6 +66,51 @@ func TestEnqueueStrmGenerationTaskDedupesRequestHash(t *testing.T) {
 	}
 }
 
+func TestEnqueueStrmGenerationFileArchivesFailedRequestHash(t *testing.T) {
+	setupStrmGenerationTaskTestDB(t)
+
+	first, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:      StrmGenerationSourceWebhook,
+		TaskType:    StrmGenerationTaskTypeFile,
+		SyncPathId:  10,
+		AccountId:   2,
+		FileId:      "file-1",
+		RequestHash: "sync:10:file:file-1",
+	})
+	if err != nil {
+		t.Fatalf("首次单文件任务入队失败: %v", err)
+	}
+	if err := first.MarkFailed("生成 STRM 失败"); err != nil {
+		t.Fatalf("标记单文件任务失败失败: %v", err)
+	}
+
+	second, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:      StrmGenerationSourceWebhook,
+		TaskType:    StrmGenerationTaskTypeFile,
+		SyncPathId:  10,
+		AccountId:   2,
+		FileId:      "file-1",
+		RequestHash: "sync:10:file:file-1",
+	})
+	if err != nil {
+		t.Fatalf("失败后单文件任务重新入队失败: %v", err)
+	}
+	if second.ID == first.ID {
+		t.Fatalf("失败任务再次入队应创建新任务，仍返回 ID %d", second.ID)
+	}
+	if second.Status != StrmGenerationStatusPending {
+		t.Fatalf("新任务状态 = %s，期望 pending", second.Status)
+	}
+
+	var archived StrmGenerationTask
+	if err := db.Db.First(&archived, first.ID).Error; err != nil {
+		t.Fatalf("读取归档任务失败: %v", err)
+	}
+	if archived.RequestHash == "sync:10:file:file-1" {
+		t.Fatalf("旧失败任务 request_hash 未归档: %s", archived.RequestHash)
+	}
+}
+
 func TestEnqueueStrmGenerationDirectoryScanDedupesOnlyActiveTasks(t *testing.T) {
 	setupStrmGenerationTaskTestDB(t)
 

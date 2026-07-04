@@ -79,9 +79,7 @@ func EnqueueStrmGenerationTask(task *StrmGenerationTask) (*StrmGenerationTask, e
 		var existing StrmGenerationTask
 		err := db.Db.Where("request_hash = ?", task.RequestHash).First(&existing).Error
 		if err == nil {
-			if task.TaskType == StrmGenerationTaskTypeDirectoryScan &&
-				existing.Status != StrmGenerationStatusPending &&
-				existing.Status != StrmGenerationStatusRunning {
+			if !isActiveStrmGenerationStatus(existing.Status) {
 				archivedHash := archivedStrmGenerationRequestHash(task.RequestHash, existing.ID)
 				if err := db.Db.Model(&StrmGenerationTask{}).
 					Where("id = ? AND request_hash = ?", existing.ID, task.RequestHash).
@@ -107,6 +105,10 @@ func EnqueueStrmGenerationTask(task *StrmGenerationTask) (*StrmGenerationTask, e
 		return nil, err
 	}
 	return task, nil
+}
+
+func isActiveStrmGenerationStatus(status StrmGenerationStatus) bool {
+	return status == StrmGenerationStatusPending || status == StrmGenerationStatusRunning
 }
 
 func archivedStrmGenerationRequestHash(requestHash string, taskID uint) string {

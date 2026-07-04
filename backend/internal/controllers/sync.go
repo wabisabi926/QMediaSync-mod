@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"qmediasync/internal/directoryupload"
 	"qmediasync/internal/models"
 	"qmediasync/internal/requests"
 	"qmediasync/internal/synccron"
@@ -314,6 +315,7 @@ func DeleteSyncPath(c *gin.Context) {
 	}
 	synccron.InitSyncCron()
 	synccron.InitCron()
+	directoryupload.ReloadDirectoryUploadService()
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "删除同步路径成功", Data: nil})
 }
 

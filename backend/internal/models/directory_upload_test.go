@@ -22,7 +22,7 @@ func setupDirectoryUploadRuleTestDB(t *testing.T) {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
 	db.Db = testDb
-	if err := db.Db.AutoMigrate(&SyncPath{}, &DirectoryUploadRule{}); err != nil {
+	if err := db.Db.AutoMigrate(&SyncPath{}, &SyncFile{}, &EmbyLibrarySyncPath{}, &EmbyMediaSyncFile{}, &DirectoryUploadRule{}); err != nil {
 		t.Fatalf("迁移测试表失败: %v", err)
 	}
 }
@@ -91,6 +91,72 @@ func TestDirectoryUploadRuleSaveAndDefaults(t *testing.T) {
 	}
 	if !reloaded.DeleteSourceAfterSuccess {
 		t.Fatal("delete_source_after_success 应可保存为 true")
+	}
+}
+
+func TestDeleteSyncPathByIdDeletesDirectoryUploadRules(t *testing.T) {
+	setupDirectoryUploadRuleTestDB(t)
+
+	deletedSyncPath := &SyncPath{
+		AccountId:  3,
+		SourceType: SourceType115,
+		LocalPath:  "/strm/deleted",
+		RemotePath: "/remote/deleted",
+		BaseCid:    "remote-deleted",
+	}
+	if err := db.Db.Create(deletedSyncPath).Error; err != nil {
+		t.Fatalf("创建待删除同步目录失败: %v", err)
+	}
+	keptSyncPath := &SyncPath{
+		AccountId:  3,
+		SourceType: SourceType115,
+		LocalPath:  "/strm/kept",
+		RemotePath: "/remote/kept",
+		BaseCid:    "remote-kept",
+	}
+	if err := db.Db.Create(keptSyncPath).Error; err != nil {
+		t.Fatalf("创建保留同步目录失败: %v", err)
+	}
+
+	rules := []*DirectoryUploadRule{
+		{
+			SyncPathId:     deletedSyncPath.ID,
+			AccountId:      3,
+			Enabled:        true,
+			MonitorPath:    "/watch/deleted",
+			RemoteRootPath: "/remote/deleted/uploads",
+			RemoteRootId:   "upload-deleted",
+		},
+		{
+			SyncPathId:     keptSyncPath.ID,
+			AccountId:      3,
+			Enabled:        true,
+			MonitorPath:    "/watch/kept",
+			RemoteRootPath: "/remote/kept/uploads",
+			RemoteRootId:   "upload-kept",
+		},
+	}
+	if err := db.Db.Create(&rules).Error; err != nil {
+		t.Fatalf("创建目录监控规则失败: %v", err)
+	}
+
+	if ok := DeleteSyncPathById(deletedSyncPath.ID); !ok {
+		t.Fatal("删除同步目录应成功")
+	}
+
+	var deletedRuleCount int64
+	if err := db.Db.Model(&DirectoryUploadRule{}).Where("sync_path_id = ?", deletedSyncPath.ID).Count(&deletedRuleCount).Error; err != nil {
+		t.Fatalf("统计被删除同步目录的规则失败: %v", err)
+	}
+	if deletedRuleCount != 0 {
+		t.Fatalf("被删除同步目录的目录监控规则数量 = %d，期望 0", deletedRuleCount)
+	}
+	var keptRuleCount int64
+	if err := db.Db.Model(&DirectoryUploadRule{}).Where("sync_path_id = ?", keptSyncPath.ID).Count(&keptRuleCount).Error; err != nil {
+		t.Fatalf("统计保留同步目录的规则失败: %v", err)
+	}
+	if keptRuleCount != 1 {
+		t.Fatalf("保留同步目录的目录监控规则数量 = %d，期望 1", keptRuleCount)
 	}
 }
 

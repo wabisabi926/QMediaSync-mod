@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -216,8 +217,15 @@ func (service *Service) processStableFiles(ctx context.Context, rule *models.Dir
 		}
 		if err := service.HandleStableFile(ctx, rule, file.Path); err != nil {
 			helpers.AppLogger.Warnf("[目录上传] 规则 %d 创建上传任务失败：%v", rule.ID, err)
+			if ctx.Err() == nil && shouldRequeueStableFile(err) {
+				service.TrackPath(rule.ID, file.Path)
+			}
 		}
 	}
+}
+
+func shouldRequeueStableFile(err error) bool {
+	return err != nil && !errors.Is(err, errStableFileNoRetry) && !errors.Is(err, os.ErrNotExist)
 }
 
 func (service *Service) pollingInterval(_ *models.DirectoryUploadRule) time.Duration {

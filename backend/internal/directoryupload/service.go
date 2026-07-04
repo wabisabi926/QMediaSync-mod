@@ -39,6 +39,8 @@ type RemoteClient interface {
 	DeleteFile(ctx context.Context, parentID string, fileID string) error
 }
 
+var errStableFileNoRetry = errors.New("稳定文件不再重试")
+
 // ServiceOptions 是目录监控上传服务依赖。
 type ServiceOptions struct {
 	Now                    func() time.Time
@@ -235,7 +237,7 @@ func (service *Service) HandleStableFile(ctx context.Context, rule *models.Direc
 	}
 	syncPath := models.GetSyncPathById(rule.SyncPathId)
 	if syncPath == nil {
-		return fmt.Errorf("同步目录不存在：%d", rule.SyncPathId)
+		return fmt.Errorf("%w：同步目录不存在：%d", errStableFileNoRetry, rule.SyncPathId)
 	}
 	if !syncPath.IsValidVideoExt(info.Name()) {
 		return nil
@@ -310,13 +312,13 @@ func (service *Service) HandleStableFile(ctx context.Context, rule *models.Direc
 			service.markProcessed(rule, rel, signature)
 			return nil
 		case models.DirectoryUploadOverwriteFailConflict:
-			return fmt.Errorf("远端已存在同名文件且大小或 SHA1 不一致：%s", remoteFilePath)
+			return fmt.Errorf("%w：远端已存在同名文件且大小或 SHA1 不一致：%s", errStableFileNoRetry, remoteFilePath)
 		case models.DirectoryUploadOverwriteReplaceConflict:
 			if err := remoteClient.DeleteFile(ctx, remoteDir.ID, remoteFile.ID); err != nil {
 				return fmt.Errorf("删除远端同名文件失败：%w", err)
 			}
 		default:
-			return fmt.Errorf("不支持的同名文件处理方式：%s", rule.OverwriteMode)
+			return fmt.Errorf("%w：不支持的同名文件处理方式：%s", errStableFileNoRetry, rule.OverwriteMode)
 		}
 	}
 

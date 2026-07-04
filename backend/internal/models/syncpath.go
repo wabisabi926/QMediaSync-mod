@@ -404,9 +404,25 @@ func DeleteSyncPathById(id uint) bool {
 		tx.Rollback()
 		return false
 	}
-	tx.Delete(EmbyLibrarySyncPath{}, "sync_path_id = ?", syncPath.ID)
-	tx.Delete(EmbyMediaSyncFile{}, "sync_path_id = ?", syncPath.ID)
-	tx.Commit()
+	if result = tx.Delete(&DirectoryUploadRule{}, "sync_path_id = ?", syncPath.ID); result.Error != nil {
+		helpers.AppLogger.Errorf("删除同步路径目录监控规则失败：%v", result.Error)
+		tx.Rollback()
+		return false
+	}
+	if result = tx.Delete(EmbyLibrarySyncPath{}, "sync_path_id = ?", syncPath.ID); result.Error != nil {
+		helpers.AppLogger.Errorf("删除同步路径 Emby 媒体库关联失败：%v", result.Error)
+		tx.Rollback()
+		return false
+	}
+	if result = tx.Delete(EmbyMediaSyncFile{}, "sync_path_id = ?", syncPath.ID); result.Error != nil {
+		helpers.AppLogger.Errorf("删除同步路径 Emby 媒体文件关联失败：%v", result.Error)
+		tx.Rollback()
+		return false
+	}
+	if err := tx.Commit().Error; err != nil {
+		helpers.AppLogger.Errorf("提交删除同步路径事务失败：%v", err)
+		return false
+	}
 	// 其他类型删除 localPath/remotePath
 	fullPath := filepath.Join(syncPath.LocalPath, syncPath.RemotePath)
 	if syncPath.SourceType == SourceTypeLocal {

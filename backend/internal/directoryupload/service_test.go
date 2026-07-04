@@ -2,6 +2,7 @@ package directoryupload
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log"
 	"os"
@@ -22,9 +23,13 @@ type fakeRemoteClient struct {
 	parentID       string
 	files          map[string]*RemoteFile
 	deletedFileIDs []string
+	ensureDirErr   error
 }
 
 func (c *fakeRemoteClient) EnsureDir(context.Context, *models.DirectoryUploadRule, string) (RemoteDirectory, error) {
+	if c.ensureDirErr != nil {
+		return RemoteDirectory{}, c.ensureDirErr
+	}
 	return RemoteDirectory{ID: c.parentID, Path: "/remote/movie"}, nil
 }
 
@@ -191,6 +196,99 @@ func TestScanRuleStableFilesCreateUploadTasks(t *testing.T) {
 		if task.Source != models.UploadSourceDirectoryMonitor || task.Status != models.UploadStatusPending {
 			t.Fatalf("上传任务 = %+v，期望目录监控 pending 任务", task)
 		}
+	}
+}
+
+func TestProcessStableFilesRequeuesFileWhenCreatingUploadTaskFails(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	clock := &fakeClock{now: time.Unix(200, 0)}
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), clock.Now())
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	service := NewService(ServiceOptions{Now: clock.Now})
+	service.SetRemoteClient(&fakeRemoteClient{
+		parentID:     "remote-root",
+		ensureDirErr: errors.New("temporary remote error"),
+	})
+
+	if accepted, err := service.ScanRule(context.Background(), rule); err != nil || accepted != 1 {
+		t.Fatalf("扫描目录 accepted=%d err=%v，期望 1 个候选视频", accepted, err)
+	}
+	if ready, err := service.CheckStableFiles(rule); err != nil || len(ready) != 0 {
+		t.Fatalf("首次稳定性检查 ready=%v err=%v，期望未就绪", ready, err)
+	}
+	clock.Add(15 * time.Second)
+	for i := 1; i < 3; i++ {
+		ready, err := service.CheckStableFiles(rule)
+		if err != nil {
+			t.Fatalf("第 %d 次稳定性检查失败: %v", i, err)
+		}
+		if len(ready) != 0 {
+			t.Fatalf("第 %d 次稳定性检查 ready=%v，期望未就绪", i, ready)
+		}
+	}
+
+	service.processStableFiles(context.Background(), rule)
+
+	got := service.PendingPaths(rule.ID)
+	want := []string{filePath}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("pending paths=%v，期望失败后重新加入稳定性队列 %v", got, want)
+	}
+	var total int64
+	if err := db.Db.Model(&models.DbUploadTask{}).Count(&total).Error; err != nil {
+		t.Fatalf("统计上传任务失败: %v", err)
+	}
+	if total != 0 {
+		t.Fatalf("上传任务数量 = %d，期望创建任务失败时不落库", total)
+	}
+}
+
+func TestProcessStableFilesDoesNotRequeueRemoteConflict(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	clock := &fakeClock{now: time.Unix(250, 0)}
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), clock.Now())
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.OverwriteMode = models.DirectoryUploadOverwriteFailConflict
+	service := NewService(ServiceOptions{Now: clock.Now})
+	service.SetRemoteClient(&fakeRemoteClient{
+		parentID: "remote-root",
+		files: map[string]*RemoteFile{
+			"movie.mkv": {ID: "remote-file", PickCode: "pick-code", SHA1: "different", Size: 999},
+		},
+	})
+
+	if accepted, err := service.ScanRule(context.Background(), rule); err != nil || accepted != 1 {
+		t.Fatalf("扫描目录 accepted=%d err=%v，期望 1 个候选视频", accepted, err)
+	}
+	if ready, err := service.CheckStableFiles(rule); err != nil || len(ready) != 0 {
+		t.Fatalf("首次稳定性检查 ready=%v err=%v，期望未就绪", ready, err)
+	}
+	clock.Add(15 * time.Second)
+	for i := 1; i < 3; i++ {
+		ready, err := service.CheckStableFiles(rule)
+		if err != nil {
+			t.Fatalf("第 %d 次稳定性检查失败: %v", i, err)
+		}
+		if len(ready) != 0 {
+			t.Fatalf("第 %d 次稳定性检查 ready=%v，期望未就绪", i, ready)
+		}
+	}
+
+	service.processStableFiles(context.Background(), rule)
+
+	if got := service.PendingPaths(rule.ID); len(got) != 0 {
+		t.Fatalf("pending paths=%v，远端冲突属于确定性失败，不应重新加入稳定性队列", got)
+	}
+	var total int64
+	if err := db.Db.Model(&models.DbUploadTask{}).Count(&total).Error; err != nil {
+		t.Fatalf("统计上传任务失败: %v", err)
+	}
+	if total != 0 {
+		t.Fatalf("上传任务数量 = %d，期望远端冲突不创建上传任务", total)
 	}
 }
 

@@ -38,10 +38,20 @@ type SettingStrm struct {
 	CheckMetaMtime int      `form:"check_meta_mtime" json:"check_meta_mtime" gorm:"default:0"` // 是否检查元数据文件修改时间，默认 -1（使用 Settings 的值），0 表示不检查，1 表示检查
 }
 
+type SettingUploadRapidWait struct {
+	UploadRapidWaitEnabled         int   `form:"upload_rapid_wait_enabled" json:"upload_rapid_wait_enabled" gorm:"default:0"`                    // 是否启用秒传等待
+	UploadRapidWaitTimeoutSeconds  int   `form:"upload_rapid_wait_timeout_seconds" json:"upload_rapid_wait_timeout_seconds" gorm:"default:0"`    // 秒传等待最大时长，单位秒
+	UploadRapidWaitIntervalSeconds int   `form:"upload_rapid_wait_interval_seconds" json:"upload_rapid_wait_interval_seconds" gorm:"default:60"` // 秒传等待重试间隔，单位秒
+	UploadRapidWaitMinSize         int64 `form:"upload_rapid_wait_min_size" json:"upload_rapid_wait_min_size" gorm:"default:0"`                  // 启用秒传等待的最小文件大小
+	UploadRapidWaitForceSize       int64 `form:"upload_rapid_wait_force_size" json:"upload_rapid_wait_force_size" gorm:"default:0"`              // 强制等待到超时的文件大小阈值
+	UploadRapidWaitSkipUpload      int   `form:"upload_rapid_wait_skip_upload" json:"upload_rapid_wait_skip_upload" gorm:"default:0"`            // 等待超时后是否跳过真实上传
+}
+
 type Settings struct {
 	BaseModel
 	SettingThreads
 	SettingStrm
+	SettingUploadRapidWait
 	UseTelegram      int8   `json:"use_telegram"`       // @deprecated 已迁移到 TelegramChannelConfig 是否使用 Telegram Bot 通知
 	TelegramBotToken string `json:"telegram_bot_token"` // @deprecated 已迁移到 TelegramChannelConfig Telegram Bot Token
 	TelegramChatId   string `json:"telegram_chat_id"`   // @deprecated 已迁移到 TelegramChannelConfig Telegram Chat ID
@@ -111,6 +121,17 @@ func (s SettingStrm) ToMap(isDb bool, isSetting bool) map[string]any {
 		dataMap["video_ext"] = s.VideoExt
 	}
 	return dataMap
+}
+
+func (s SettingUploadRapidWait) ToMap() map[string]any {
+	return map[string]any{
+		"upload_rapid_wait_enabled":          s.UploadRapidWaitEnabled,
+		"upload_rapid_wait_timeout_seconds":  s.UploadRapidWaitTimeoutSeconds,
+		"upload_rapid_wait_interval_seconds": s.UploadRapidWaitIntervalSeconds,
+		"upload_rapid_wait_min_size":         s.UploadRapidWaitMinSize,
+		"upload_rapid_wait_force_size":       s.UploadRapidWaitForceSize,
+		"upload_rapid_wait_skip_upload":      s.UploadRapidWaitSkipUpload,
+	}
 }
 
 func (s SettingStrm) EncodeArr() *SettingStrm {

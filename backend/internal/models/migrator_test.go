@@ -44,6 +44,27 @@ func TestBatchCreateTableCreatesEmbyLibraryRefreshTasksTable(t *testing.T) {
 	}
 }
 
+func TestBatchCreateTableCreatesUploadStrmTables(t *testing.T) {
+	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	db.Db = testDb
+
+	if err := BatchCreateTable(); err != nil {
+		t.Fatalf("批量建表失败: %v", err)
+	}
+	for _, table := range []any{
+		UploadSession{},
+		DirectoryUploadRule{},
+		StrmGenerationTask{},
+	} {
+		if !db.Db.Migrator().HasTable(table) {
+			t.Fatalf("批量建表应创建 %s 表", GetTableName(table))
+		}
+	}
+}
+
 func TestInitDBDoesNotCreateDefaultAdmin(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -155,8 +176,8 @@ func TestMigrateNotificationChannelAllowsDuplicateTypesAndBackfillsRules(t *test
 	if err := db.Db.First(&migrator).Error; err != nil {
 		t.Fatalf("读取迁移版本失败: %v", err)
 	}
-	if migrator.VersionCode != 51 {
-		t.Fatalf("迁移版本 = %d，期望 51", migrator.VersionCode)
+	if migrator.VersionCode != 52 {
+		t.Fatalf("迁移版本 = %d，期望 52", migrator.VersionCode)
 	}
 
 	if err := db.Db.Create(&NotificationChannel{ChannelType: "telegram", ChannelName: "Telegram B", IsEnabled: true}).Error; err != nil {
@@ -251,8 +272,8 @@ func TestMigrateVersion50AddsEmbyDailyFirstFullSyncFields(t *testing.T) {
 	if err := db.Db.First(&migrator).Error; err != nil {
 		t.Fatalf("读取迁移版本失败: %v", err)
 	}
-	if migrator.VersionCode != 51 {
-		t.Fatalf("迁移版本 = %d，期望 51", migrator.VersionCode)
+	if migrator.VersionCode != 52 {
+		t.Fatalf("迁移版本 = %d，期望 52", migrator.VersionCode)
 	}
 	for _, column := range []string{
 		"enable_daily_first_full_sync",
@@ -303,8 +324,8 @@ func TestMigrateVersion46AddsUserSingletonKey(t *testing.T) {
 	if err := db.Db.First(&migrator).Error; err != nil {
 		t.Fatalf("读取迁移版本失败: %v", err)
 	}
-	if migrator.VersionCode != 51 {
-		t.Fatalf("迁移版本 = %d，期望 51", migrator.VersionCode)
+	if migrator.VersionCode != 52 {
+		t.Fatalf("迁移版本 = %d，期望 52", migrator.VersionCode)
 	}
 	if !db.Db.Migrator().HasColumn(&User{}, "singleton_key") {
 		t.Fatal("迁移应添加 users.singleton_key 字段")
@@ -344,8 +365,8 @@ func TestMigrateTaskSourceEnumValues(t *testing.T) {
 	if err := db.Db.First(&migrator).Error; err != nil {
 		t.Fatalf("读取迁移版本失败: %v", err)
 	}
-	if migrator.VersionCode != 51 {
-		t.Fatalf("迁移版本 = %d，期望 51", migrator.VersionCode)
+	if migrator.VersionCode != 52 {
+		t.Fatalf("迁移版本 = %d，期望 52", migrator.VersionCode)
 	}
 	if !db.Db.Migrator().HasTable(UserSession{}) {
 		t.Fatal("迁移应创建 user_sessions 表")
@@ -423,8 +444,8 @@ func TestMigrateVersion49AddsEmbySyncStateAndBatchFields(t *testing.T) {
 	if err := db.Db.First(&migrator).Error; err != nil {
 		t.Fatalf("读取迁移版本失败: %v", err)
 	}
-	if migrator.VersionCode != 51 {
-		t.Fatalf("迁移版本 = %d，期望 51", migrator.VersionCode)
+	if migrator.VersionCode != 52 {
+		t.Fatalf("迁移版本 = %d，期望 52", migrator.VersionCode)
 	}
 	for _, column := range []string{
 		"last_full_sync_at",
@@ -443,6 +464,72 @@ func TestMigrateVersion49AddsEmbySyncStateAndBatchFields(t *testing.T) {
 	for _, column := range []string{"last_seen_sync_run", "last_seen_at"} {
 		if !db.Db.Migrator().HasColumn(&EmbyMediaItem{}, column) {
 			t.Fatalf("迁移应添加 emby_media_items.%s 字段", column)
+		}
+	}
+}
+
+func TestMigrateVersion51AddsUploadStrmModels(t *testing.T) {
+	if helpers.AppLogger == nil {
+		helpers.AppLogger = &helpers.QLogger{
+			Logger: log.New(io.Discard, "", 0),
+		}
+	}
+	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	db.Db = testDb
+
+	createMigratorTestTable(t)
+	if err := db.Db.AutoMigrate(&DbUploadTask{}, &Settings{}); err != nil {
+		t.Fatalf("创建版本 51 测试表失败: %v", err)
+	}
+	if err := db.Db.Create(&Migrator{VersionCode: 51}).Error; err != nil {
+		t.Fatalf("创建迁移版本记录失败: %v", err)
+	}
+
+	Migrate()
+
+	var migrator Migrator
+	if err := db.Db.First(&migrator).Error; err != nil {
+		t.Fatalf("读取迁移版本失败: %v", err)
+	}
+	if migrator.VersionCode != 52 {
+		t.Fatalf("迁移版本 = %d，期望 52", migrator.VersionCode)
+	}
+	for _, table := range []any{
+		UploadSession{},
+		DirectoryUploadRule{},
+		StrmGenerationTask{},
+	} {
+		if !db.Db.Migrator().HasTable(table) {
+			t.Fatalf("迁移应创建 %s 表", GetTableName(table))
+		}
+	}
+	for _, column := range []string{
+		"sync_path_id",
+		"relative_path",
+		"uploaded_bytes",
+		"upload_result",
+		"resume_state",
+		"source_cleanup_status",
+		"source_cleanup_error",
+		"source_deleted_at",
+	} {
+		if !db.Db.Migrator().HasColumn(&DbUploadTask{}, column) {
+			t.Fatalf("迁移应添加 db_upload_tasks.%s 字段", column)
+		}
+	}
+	for _, column := range []string{
+		"upload_rapid_wait_enabled",
+		"upload_rapid_wait_timeout_seconds",
+		"upload_rapid_wait_interval_seconds",
+		"upload_rapid_wait_min_size",
+		"upload_rapid_wait_force_size",
+		"upload_rapid_wait_skip_upload",
+	} {
+		if !db.Db.Migrator().HasColumn(&Settings{}, column) {
+			t.Fatalf("迁移应添加 settings.%s 字段", column)
 		}
 	}
 }

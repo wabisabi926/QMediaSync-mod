@@ -18,16 +18,16 @@ type Migrator struct {
 	VersionCode int `json:"version_code"` // 版本号
 }
 
-var MaxVersionCode = 51
+var MaxVersionCode = 52
 var AllTables = []any{
 	Migrator{},
 	BackupConfig{}, BackupRecord{},
 	ApiKey{}, UserSession{}, Settings{}, Sync{}, User{}, Account{},
-	SyncPath{}, SyncFile{}, SyncPathScrapePath{},
+	SyncPath{}, SyncFile{}, SyncPathScrapePath{}, DirectoryUploadRule{},
 	ScrapeSettings{}, ScrapePath{}, MovieCategory{}, TvShowCategory{}, ScrapePathCategory{},
 	ScrapeMediaFile{}, Media{}, MediaSeason{}, MediaEpisode{}, ScrapeStrmPath{},
 	RequestStat{}, EmbyConfig{}, EmbyMediaItem{}, EmbyMediaSyncFile{}, EmbyLibrary{}, EmbyLibrarySyncPath{}, EmbyLibraryRefreshTask{},
-	DbDownloadTask{}, DbUploadTask{}, NotificationChannel{}, TelegramChannelConfig{}, MeoWChannelConfig{}, BarkChannelConfig{},
+	DbDownloadTask{}, DbUploadTask{}, UploadSession{}, StrmGenerationTask{}, NotificationChannel{}, TelegramChannelConfig{}, MeoWChannelConfig{}, BarkChannelConfig{},
 	ServerChanChannelConfig{}, CustomWebhookChannelConfig{}, NotificationRule{},
 }
 
@@ -587,6 +587,14 @@ func Migrate() {
 		helpers.AppLogger.Info("已添加 Emby 每日首次全量同步和最近成功模式字段")
 		migrator.UpdateVersionCode(db.Db)
 	}
+	if migrator.VersionCode == 51 {
+		if err := db.Db.AutoMigrate(UploadSession{}, DirectoryUploadRule{}, StrmGenerationTask{}, DbUploadTask{}, Settings{}); err != nil {
+			helpers.AppLogger.Errorf("迁移上传会话和 STRM 生成任务模型失败：%v", err)
+			return
+		}
+		helpers.AppLogger.Info("已添加上传会话、目录监控上传规则和 STRM 生成任务模型")
+		migrator.UpdateVersionCode(db.Db)
+	}
 	helpers.AppLogger.Infof("当前数据库版本 %d", migrator.VersionCode)
 }
 
@@ -718,6 +726,14 @@ func InitSettings() {
 			OpenlistQPS:        3,
 			OpenlistRetry:      1,
 			OpenlistRetryDelay: 60,
+		},
+		SettingUploadRapidWait: SettingUploadRapidWait{
+			UploadRapidWaitEnabled:         0,
+			UploadRapidWaitTimeoutSeconds:  0,
+			UploadRapidWaitIntervalSeconds: 60,
+			UploadRapidWaitMinSize:         0,
+			UploadRapidWaitForceSize:       0,
+			UploadRapidWaitSkipUpload:      0,
 		},
 	}
 	db.Db.Save(&defaultSettings)

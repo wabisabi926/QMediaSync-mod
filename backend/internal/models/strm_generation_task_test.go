@@ -1,0 +1,164 @@
+package models
+
+import (
+	"io"
+	"log"
+	"testing"
+
+	"qmediasync/internal/db"
+	"qmediasync/internal/helpers"
+
+	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
+)
+
+func setupStrmGenerationTaskTestDB(t *testing.T) {
+	t.Helper()
+	if helpers.AppLogger == nil {
+		helpers.AppLogger = &helpers.QLogger{Logger: log.New(io.Discard, "", 0)}
+	}
+	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	db.Db = testDb
+	if err := db.Db.AutoMigrate(&StrmGenerationTask{}); err != nil {
+		t.Fatalf("迁移测试表失败: %v", err)
+	}
+}
+
+func TestEnqueueStrmGenerationTaskDedupesRequestHash(t *testing.T) {
+	setupStrmGenerationTaskTestDB(t)
+
+	first, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:      StrmGenerationSourceWebhook,
+		TaskType:    StrmGenerationTaskTypeFile,
+		SyncPathId:  10,
+		AccountId:   2,
+		FileId:      "file-1",
+		RequestHash: "sync:10:file:file-1",
+	})
+	if err != nil {
+		t.Fatalf("首次入队失败: %v", err)
+	}
+
+	second, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:      StrmGenerationSourceWebhook,
+		TaskType:    StrmGenerationTaskTypeFile,
+		SyncPathId:  10,
+		AccountId:   2,
+		FileId:      "file-1",
+		RequestHash: "sync:10:file:file-1",
+	})
+	if err != nil {
+		t.Fatalf("重复入队失败: %v", err)
+	}
+	if second.ID != first.ID {
+		t.Fatalf("重复 request_hash 应返回已有任务，got %d want %d", second.ID, first.ID)
+	}
+
+	var count int64
+	if err := db.Db.Model(&StrmGenerationTask{}).Count(&count).Error; err != nil {
+		t.Fatalf("统计任务失败: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("任务数量 = %d，期望 1", count)
+	}
+}
+
+func TestStrmGenerationTaskRetryAndRunningReset(t *testing.T) {
+	setupStrmGenerationTaskTestDB(t)
+
+	task, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:       StrmGenerationSourceUploadCompleted,
+		TaskType:     StrmGenerationTaskTypeFile,
+		SyncPathId:   10,
+		AccountId:    2,
+		FileId:       "file-2",
+		UploadTaskId: 99,
+		RequestHash:  "sync:10:file:file-2",
+	})
+	if err != nil {
+		t.Fatalf("入队失败: %v", err)
+	}
+	if task.UploadTaskId != 99 {
+		t.Fatalf("upload_task_id = %d，期望 99", task.UploadTaskId)
+	}
+
+	if err := task.MarkFailed("生成 STRM 失败"); err != nil {
+		t.Fatalf("标记失败失败: %v", err)
+	}
+	var failed StrmGenerationTask
+	if err := db.Db.First(&failed, task.ID).Error; err != nil {
+		t.Fatalf("读取失败任务失败: %v", err)
+	}
+	if failed.Status != StrmGenerationStatusFailed || failed.RetryCount != 1 || failed.LastError != "生成 STRM 失败" {
+		t.Fatalf("失败任务 = %+v，期望 failed/retry_count=1/last_error", failed)
+	}
+
+	running := &StrmGenerationTask{
+		Source:     StrmGenerationSourceWebhook,
+		TaskType:   StrmGenerationTaskTypeFile,
+		SyncPathId: 10,
+		AccountId:  2,
+		FileId:     "file-running",
+		Status:     StrmGenerationStatusRunning,
+	}
+	if err := db.Db.Create(running).Error; err != nil {
+		t.Fatalf("创建 running 任务失败: %v", err)
+	}
+	if err := ResetRunningStrmGenerationTasks(); err != nil {
+		t.Fatalf("恢复 running 任务失败: %v", err)
+	}
+	var reset StrmGenerationTask
+	if err := db.Db.First(&reset, running.ID).Error; err != nil {
+		t.Fatalf("读取重置任务失败: %v", err)
+	}
+	if reset.Status != StrmGenerationStatusPending {
+		t.Fatalf("running 重置后 status = %s，期望 pending", reset.Status)
+	}
+}
+
+func TestStrmGenerationDirectoryParentChildStats(t *testing.T) {
+	setupStrmGenerationTaskTestDB(t)
+
+	parent, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:        StrmGenerationSourceWebhook,
+		TaskType:      StrmGenerationTaskTypeDirectoryScan,
+		SyncPathId:    10,
+		AccountId:     2,
+		DirectoryId:   "dir-1",
+		DirectoryPath: "/remote/show",
+		RequestHash:   "sync:10:dir:dir-1",
+	})
+	if err != nil {
+		t.Fatalf("目录扫描父任务入队失败: %v", err)
+	}
+
+	child, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:       StrmGenerationSourceWebhook,
+		TaskType:     StrmGenerationTaskTypeFile,
+		ParentTaskId: parent.ID,
+		SyncPathId:   10,
+		AccountId:    2,
+		FileId:       "file-child",
+		RequestHash:  "sync:10:file:file-child",
+	})
+	if err != nil {
+		t.Fatalf("目录扫描子任务入队失败: %v", err)
+	}
+	if child.ParentTaskId != parent.ID {
+		t.Fatalf("parent_task_id = %d，期望 %d", child.ParentTaskId, parent.ID)
+	}
+
+	if err := IncrementStrmGenerationDirectoryStats(parent.ID, 1, 2); err != nil {
+		t.Fatalf("累计目录扫描统计失败: %v", err)
+	}
+	var got StrmGenerationTask
+	if err := db.Db.First(&got, parent.ID).Error; err != nil {
+		t.Fatalf("读取目录扫描父任务失败: %v", err)
+	}
+	if got.AcceptedItems != 1 || got.FailedItems != 2 || got.TotalItems != 3 {
+		t.Fatalf("目录统计 = accepted:%d failed:%d total:%d，期望 1/2/3", got.AcceptedItems, got.FailedItems, got.TotalItems)
+	}
+}

@@ -42,7 +42,7 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 当 `migrator` 表不存在时，`InitDB()` 会直接执行：
 
 1. `BatchCreateTable()`：对 `AllTables` 逐表执行 `AutoMigrate`。
-2. `InitMigrationTable(MaxVersionCode)`：写入当前版本号，当前值是 `51`。
+2. `InitMigrationTable(MaxVersionCode)`：写入当前版本号，当前值是 `52`。
 3. `InitSettings()`：创建默认 `settings` 记录。
 4. `InitScrapeSetting()`：创建默认刮削配置和默认分类。
 5. `InitEmbyConfig()`：创建默认 `emby_config` 记录。
@@ -75,8 +75,9 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 | 48 | 49 | `db_download_tasks` 新增 `sync_path_id`，用于 Emby 刷新任务直接判断对应同步目录是否还有未完成下载。 |
 | 49 | 50 | `emby_config` 新增 Emby 条目同步状态字段，`emby_media_items` 新增全量同步批次标记字段。 |
 | 50 | 51 | `emby_config` 新增每日首次全量同步开关和最近成功同步模式字段。 |
+| 51 | 52 | 新增 `upload_sessions`、`directory_upload_rules`、`strm_generation_tasks` 表，并为上传任务和设置补齐上传增强字段。 |
 
-当前数据库版本是 `51`。
+当前数据库版本是 `52`。
 
 ## 修复与重建
 
@@ -111,7 +112,13 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 | `download.status` | `0` 待下载、`1` 下载中、`2` 已完成、`3` 失败、`4` 已取消 |
 | `download.source` | `strm_sync`、`local_file`、`emby_media` |
 | `upload.status` | `0` 等待中、`1` 上传中、`2` 已完成、`3` 失败、`4` 已取消 |
-| `upload.source` | `strm_sync`、`scrape_organize` |
+| `upload.source` | `strm_sync`、`scrape_organize`、`directory_monitor` |
+| `upload.result` | `unknown`、`rapid_upload`、`multipart_uploaded`、`remote_exists`、`skipped_after_rapid_wait` |
+| `upload.resume_state` | `none`、`new_session`、`resumed_session`、`session_expired_restarted` |
+| `upload.source_cleanup_status` | `none`、`pending`、`completed`、`failed` |
+| `strm_generation.source` | `upload_completed`、`webhook`、`remote_exists` |
+| `strm_generation.task_type` | `file`、`directory_scan` |
+| `strm_generation.status` | `pending`、`running`、`completed`、`failed`、`cancelled` |
 | `backup.status` | `pending`、`running`、`completed`、`failed`、`cancelled`、`timeout` |
 | `backup.type` | `manual`、`auto` |
 | `notification.type` | `sync_finish`、`sync_error`、`scrape_finish`、`scrape_error`、`system_alert`、`media_added`、`media_removed`、`playback_start`、`playback_pause`、`playback_stop` |
@@ -125,7 +132,7 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 
 - `id`：固定为 `1`。
 - `created_at` / `updated_at`：创建和更新时间。
-- `version_code`：当前数据库版本号，当前值为 `51`。
+- `version_code`：当前数据库版本号，当前值为 `52`。
 
 ### `users`
 
@@ -211,6 +218,15 @@ STRM 相关字段：
 - `delete_dir`：是否删除目录。
 - `add_path`：STRM 链接路径模式。全局配置使用 `1` 添加完整路径、`2` 只添加文件名、`3` 不添加；同步目录自定义配置额外使用 `-1` 表示继承全局 STRM 设置。
 - `check_meta_mtime`：是否检查元数据修改时间。
+
+115 上传秒传等待字段：
+
+- `upload_rapid_wait_enabled`：是否启用秒传等待，默认 `0`。
+- `upload_rapid_wait_timeout_seconds`：秒传等待最大时长，单位秒，默认 `0`。
+- `upload_rapid_wait_interval_seconds`：秒传等待重试间隔，单位秒，默认 `60`。
+- `upload_rapid_wait_min_size`：启用秒传等待的最小文件大小，单位字节，默认 `0`。
+- `upload_rapid_wait_force_size`：强制等待到超时的文件大小阈值，单位字节，默认 `0`。
+- `upload_rapid_wait_skip_upload`：等待超时后是否跳过真实上传，默认 `0`。
 
 历史兼容字段：
 
@@ -707,18 +723,82 @@ STRM 同步完成后，只有本次新增 STRM 数或下载元数据数大于 `0
 - `account_id`：账号 ID。
 - `sync_file_id`：同步文件 ID。
 - `scrape_media_file_id`：刮削文件 ID。
+- `sync_path_id`：同步目录 ID，目录监控上传和后续 STRM 生成使用。
 - `source_type`：任务来源账号类型。
 - `local_full_path`：本地完整路径。
+- `relative_path`：目录监控源文件相对监控根目录的路径。
 - `remote_file_id`：远程文件 ID 或路径。
 - `remote_path_id`：父目录 CID 或父路径。
 - `file_name`：上传文件名。
 - `status`：上传状态。
 - `file_size`：文件大小。
+- `uploaded_bytes`：已上传字节数，用于上传队列展示和恢复进度快照。
+- `upload_result`：上传结果，见上面的 `upload.result`。
+- `resume_state`：断点续传状态，见上面的 `upload.resume_state`。
+- `rapid_wait_attempts` / `rapid_wait_until`：秒传等待尝试次数和截止时间。
+- `completed_remote_file_id` / `completed_pick_code`：上传完成后的远端文件定位信息。
 - `error`：错误信息。
 - `start_time`、`end_time`：开始和结束时间戳。
 - `retry_count`：重试次数。
 - `last_retry_time`：最近重试时间。
+- `source_cleanup_status`：目录监控上传后的源文件清理状态，见上面的 `upload.source_cleanup_status`。
+- `source_cleanup_error`：源文件清理失败原因。
+- `source_deleted_at`：源文件删除时间戳。
 - `is_season_or_tvshow_file`：是否为剧集或电视剧文件。
+
+### `upload_sessions`
+
+115 上传会话表，保存上传初始化、断点续传和 OSS multipart checkpoint。STS 临时凭证不写入本表。
+
+- `upload_task_id`：关联 `db_upload_tasks.id`，唯一。
+- `account_id`：115 账号 ID。
+- `local_full_path`、`file_name`、`file_size`、`local_mtime`、`local_signature`：本地文件恢复校验信息。
+- `file_sha1`、`preid`：115 秒传和续传所需文件签名。
+- `parent_file_id`、`target`、`file_id`、`pick_code`：115 调度和远端定位字段。
+- `sign_key`、`sign_range_start`、`sign_range_end`、`sign_val_sha1`：二次认证相关字段。
+- `last_init_at`、`last_resume_at`：最近一次 init / resume 调度时间。
+- `callback`、`callback_var`：OSS complete 时需要带回 115 的回调参数。
+- `bucket`、`object`、`endpoint`、`region`、`upload_id`：OSS multipart 调度信息。
+- `part_size`、`total_parts`、`uploaded_bytes`、`uploaded_parts`、`last_part_number`、`last_part_etag`：分片进度快照。
+- `status`：上传会话状态。
+- `resume_state`：恢复状态。
+- `rapid_wait_until`、`rapid_wait_attempts`：秒传等待状态。
+- `retry_count`、`last_error`、`last_progress_at`：重试和排错信息。
+- `upload_started_at`、`completed_at`：上传开始和完成时间。
+- `complete_callback_state`、`complete_callback_error`：OSS complete 后 115 callback 业务状态。
+- `completed_file_id`、`completed_pick_code`、`completed_parent_id`、`completed_sha1`、`completed_size`、`completed_mtime`：最终远端文件信息。
+
+### `directory_upload_rules`
+
+目录监控上传规则表，绑定同步目录和 115 上传目标。
+
+- `sync_path_id`：关联同步目录 ID。
+- `account_id`：115 账号 ID。
+- `enabled`：是否启用。
+- `monitor_path`：本地监控目录。
+- `remote_root_path` / `remote_root_id`：远端上传根目录路径和目录 ID。
+- `recursive`：是否递归监控子目录，默认 `true`。
+- `watch_mode`：监控模式，`auto`、`watcher` 或 `polling`。
+- `stability_seconds`、`stability_check_interval_seconds`、`stability_required_count`：文件稳定性检查参数。
+- `rescan_interval_seconds`、`startup_scan_enabled`、`processed_cache_ttl_seconds`：补偿扫描和去重参数。
+- `delete_source_after_success`：上传成功且 STRM 生成成功后是否删除源文件，默认 `false`。
+- `ignore_patterns_str`：忽略规则 JSON 字符串。
+- `overwrite_mode`：远端已有文件处理策略，默认 `skip_same`。
+
+### `strm_generation_tasks`
+
+STRM 生成任务表，上传完成、远端已存在跳过和 STRM Webhook 会共用该任务模型。
+
+- `source`：任务来源，见上面的 `strm_generation.source`。
+- `task_type`：任务类型，见上面的 `strm_generation.task_type`。
+- `parent_task_id`：目录扫描父任务 ID。
+- `upload_task_id`：关联上传任务 ID。
+- `sync_path_id`、`account_id`：同步目录和账号 ID。
+- `file_id`、`parent_id`、`pick_code`、`path`、`file_name`、`file_size`、`sha1`、`mtime`：文件级 STRM 生成所需远端信息。
+- `directory_id`、`directory_path`、`total_items`、`accepted_items`、`failed_items`：目录级扫描信息和统计。
+- `status`：任务状态。
+- `request_hash`：幂等请求哈希，非空时唯一。
+- `retry_count`、`last_retry_time`、`last_error`：重试和失败信息。
 
 ### `backup_config`
 

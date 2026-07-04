@@ -55,6 +55,8 @@
 
 `preid` 按 115 官方“文件上传”文档使用文件前 `128 KiB` 的 SHA1。本项目以官方文档为准，并把该窗口封装为可测试实现，避免上传流程中散落协议常量。
 
+秒传等待策略保存于 `settings` 表，默认关闭。启用后，上传初始化未命中秒传时会按 `upload_rapid_wait_interval_seconds` 间隔重复 init，最长等待 `upload_rapid_wait_timeout_seconds`；`upload_rapid_wait_min_size` 和 `upload_rapid_wait_force_size` 用于限制哪些文件进入等待策略，`upload_rapid_wait_skip_upload` 用于控制等待超时后是否跳过真实上传。
+
 阶段 0 只完成官方公开文档、当前代码和 Aliyun OSS SDK v2 API 的交叉核验。真实 115 小文件 / 大文件上传实测需要有效 115 Open API 沙箱账号和可写测试目录，且会产生远端写入副作用；未获得明确沙箱授权前，不应在开发环境自动执行真实外部上传。
 
 ## Emby 302 出站 HTTPS

@@ -29,32 +29,66 @@ const (
 type UploadSource string
 
 const (
-	UploadSourceStrm   UploadSource = "strm_sync"
-	UploadSourceScrape UploadSource = "scrape_organize"
+	UploadSourceStrm             UploadSource = "strm_sync"
+	UploadSourceScrape           UploadSource = "scrape_organize"
+	UploadSourceDirectoryMonitor UploadSource = "directory_monitor"
+)
+
+// UploadResult 是上传任务的最终结果类型。
+type UploadResult string
+
+const (
+	UploadResultUnknown               UploadResult = "unknown"
+	UploadResultRapidUpload           UploadResult = "rapid_upload"
+	UploadResultMultipartUploaded     UploadResult = "multipart_uploaded"
+	UploadResultRemoteExists          UploadResult = "remote_exists"
+	UploadResultSkippedAfterRapidWait UploadResult = "skipped_after_rapid_wait"
+)
+
+// UploadSourceCleanupStatus 是目录监控上传后的源文件清理状态。
+type UploadSourceCleanupStatus string
+
+const (
+	UploadSourceCleanupStatusNone      UploadSourceCleanupStatus = "none"
+	UploadSourceCleanupStatusPending   UploadSourceCleanupStatus = "pending"
+	UploadSourceCleanupStatusCompleted UploadSourceCleanupStatus = "completed"
+	UploadSourceCleanupStatusFailed    UploadSourceCleanupStatus = "failed"
 )
 
 type DbUploadTask struct {
 	BaseModel
-	Source               UploadSource     `json:"source"` // 上传来源存储值，展示文案由前端映射
-	AccountId            uint             `json:"account_id"`
-	SyncFileId           uint             `json:"sync_file_id"`                                     // 同步文件 ID
-	ScrapeMediaFileId    uint             `json:"scrape_media_file_id"`                             // 刮削文件 ID
-	SourceType           SourceType       `json:"source_type"`                                      // 任务来源类型
-	LocalFullPath        string           `json:"local_full_path" gorm:"index:idx_local_full_path"` // 本地完整文件路径，包含文件名
-	RemoteFileId         string           `json:"remote_file_id" gorm:"index:idx_remote_file_id"`   // 远程文件 ID，包含完整路径
-	RemotePathId         string           `json:"remote_path_id"`                                   // 父目录 CID，如果是 115 则是文件夹 ID，如果是 OpenList 则是父文件夹路径
-	FileName             string           `json:"file_name"`                                        // 要上传的文件名
-	Status               UploadStatus     `json:"status" gorm:"index:idx_status_new"`               // 任务状态
-	FileSize             int64            `json:"file_size"`                                        // 文件大小
-	Error                string           `json:"error"`                                            // 错误信息
-	StartTime            int64            `json:"start_time"`                                       // 开始时间
-	EndTime              int64            `json:"end_time"`                                         // 结束时间
-	RetryCount           int              `json:"retry_count" gorm:"default:0"`                     // 已重试次数
-	LastRetryTime        int64            `json:"last_retry_time" gorm:"default:0"`                 // 最近重试时间
-	IsSeasonOrTvshowFile bool             `json:"is_season_or_tvshow_file"`                         // 是否是剧集或电视剧文件
-	SyncFile             *SyncFile        `json:"-" gorm:"-"`                                       // 同步文件
-	ScrapeMediaFile      *ScrapeMediaFile `json:"-" gorm:"-"`                                       // 刮削文件
-	Account              *Account         `json:"-" gorm:"-"`                                       // 账户
+	Source                UploadSource              `json:"source"` // 上传来源存储值，展示文案由前端映射
+	AccountId             uint                      `json:"account_id"`
+	SyncFileId            uint                      `json:"sync_file_id"`                                      // 同步文件 ID
+	ScrapeMediaFileId     uint                      `json:"scrape_media_file_id"`                              // 刮削文件 ID
+	SyncPathId            uint                      `json:"sync_path_id" gorm:"index"`                         // 同步目录 ID
+	SourceType            SourceType                `json:"source_type"`                                       // 任务来源类型
+	LocalFullPath         string                    `json:"local_full_path" gorm:"index:idx_local_full_path"`  // 本地完整文件路径，包含文件名
+	RelativePath          string                    `json:"relative_path" gorm:"type:text;size:1024"`          // 目录监控源文件相对路径
+	RemoteFileId          string                    `json:"remote_file_id" gorm:"index:idx_remote_file_id"`    // 远程文件 ID，包含完整路径
+	RemotePathId          string                    `json:"remote_path_id"`                                    // 父目录 CID，如果是 115 则是文件夹 ID，如果是 OpenList 则是父文件夹路径
+	FileName              string                    `json:"file_name"`                                         // 要上传的文件名
+	Status                UploadStatus              `json:"status" gorm:"index:idx_status_new"`                // 任务状态
+	FileSize              int64                     `json:"file_size"`                                         // 文件大小
+	UploadedBytes         int64                     `json:"uploaded_bytes" gorm:"default:0"`                   // 已上传字节数
+	UploadResult          UploadResult              `json:"upload_result" gorm:"size:32;default:unknown"`      // 上传结果
+	ResumeState           UploadResumeState         `json:"resume_state" gorm:"size:32;default:none"`          // 断点续传状态
+	RapidWaitAttempts     int                       `json:"rapid_wait_attempts" gorm:"default:0"`              // 秒传等待已尝试次数
+	RapidWaitUntil        int64                     `json:"rapid_wait_until" gorm:"default:0"`                 // 秒传等待截止时间
+	CompletedRemoteFileId string                    `json:"completed_remote_file_id" gorm:"size:128"`          // 完成后的远端文件 ID
+	CompletedPickCode     string                    `json:"completed_pick_code" gorm:"size:128"`               // 完成后的 pickcode
+	Error                 string                    `json:"error"`                                             // 错误信息
+	StartTime             int64                     `json:"start_time"`                                        // 开始时间
+	EndTime               int64                     `json:"end_time"`                                          // 结束时间
+	RetryCount            int                       `json:"retry_count" gorm:"default:0"`                      // 已重试次数
+	LastRetryTime         int64                     `json:"last_retry_time" gorm:"default:0"`                  // 最近重试时间
+	SourceCleanupStatus   UploadSourceCleanupStatus `json:"source_cleanup_status" gorm:"size:32;default:none"` // 源文件清理状态
+	SourceCleanupError    string                    `json:"source_cleanup_error" gorm:"type:text"`             // 源文件清理错误
+	SourceDeletedAt       int64                     `json:"source_deleted_at" gorm:"default:0"`                // 源文件删除时间
+	IsSeasonOrTvshowFile  bool                      `json:"is_season_or_tvshow_file"`                          // 是否是剧集或电视剧文件
+	SyncFile              *SyncFile                 `json:"-" gorm:"-"`                                        // 同步文件
+	ScrapeMediaFile       *ScrapeMediaFile          `json:"-" gorm:"-"`                                        // 刮削文件
+	Account               *Account                  `json:"-" gorm:"-"`                                        // 账户
 }
 
 // String 返回状态的字符串表示

@@ -23,6 +23,7 @@
 | --- | --- | --- | --- |
 | `db_upload_tasks.source` | `strm_sync` | `STRM 同步` | STRM 同步产生的上传任务 |
 | `db_upload_tasks.source` | `scrape_organize` | `刮削整理` | 刮削整理产生的上传任务 |
+| `db_upload_tasks.source` | `directory_monitor` | `目录监控上传` | 目录监控发现本地文件后产生的上传任务 |
 
 ## 同步队列任务类型
 

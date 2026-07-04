@@ -176,8 +176,8 @@ func TestMigrateNotificationChannelAllowsDuplicateTypesAndBackfillsRules(t *test
 	if err := db.Db.First(&migrator).Error; err != nil {
 		t.Fatalf("读取迁移版本失败: %v", err)
 	}
-	if migrator.VersionCode != 52 {
-		t.Fatalf("迁移版本 = %d，期望 52", migrator.VersionCode)
+	if migrator.VersionCode != MaxVersionCode {
+		t.Fatalf("迁移版本 = %d，期望 %d", migrator.VersionCode, MaxVersionCode)
 	}
 
 	if err := db.Db.Create(&NotificationChannel{ChannelType: "telegram", ChannelName: "Telegram B", IsEnabled: true}).Error; err != nil {
@@ -272,8 +272,8 @@ func TestMigrateVersion50AddsEmbyDailyFirstFullSyncFields(t *testing.T) {
 	if err := db.Db.First(&migrator).Error; err != nil {
 		t.Fatalf("读取迁移版本失败: %v", err)
 	}
-	if migrator.VersionCode != 52 {
-		t.Fatalf("迁移版本 = %d，期望 52", migrator.VersionCode)
+	if migrator.VersionCode != MaxVersionCode {
+		t.Fatalf("迁移版本 = %d，期望 %d", migrator.VersionCode, MaxVersionCode)
 	}
 	for _, column := range []string{
 		"enable_daily_first_full_sync",
@@ -324,8 +324,8 @@ func TestMigrateVersion46AddsUserSingletonKey(t *testing.T) {
 	if err := db.Db.First(&migrator).Error; err != nil {
 		t.Fatalf("读取迁移版本失败: %v", err)
 	}
-	if migrator.VersionCode != 52 {
-		t.Fatalf("迁移版本 = %d，期望 52", migrator.VersionCode)
+	if migrator.VersionCode != MaxVersionCode {
+		t.Fatalf("迁移版本 = %d，期望 %d", migrator.VersionCode, MaxVersionCode)
 	}
 	if !db.Db.Migrator().HasColumn(&User{}, "singleton_key") {
 		t.Fatal("迁移应添加 users.singleton_key 字段")
@@ -365,8 +365,8 @@ func TestMigrateTaskSourceEnumValues(t *testing.T) {
 	if err := db.Db.First(&migrator).Error; err != nil {
 		t.Fatalf("读取迁移版本失败: %v", err)
 	}
-	if migrator.VersionCode != 52 {
-		t.Fatalf("迁移版本 = %d，期望 52", migrator.VersionCode)
+	if migrator.VersionCode != MaxVersionCode {
+		t.Fatalf("迁移版本 = %d，期望 %d", migrator.VersionCode, MaxVersionCode)
 	}
 	if !db.Db.Migrator().HasTable(UserSession{}) {
 		t.Fatal("迁移应创建 user_sessions 表")
@@ -444,8 +444,8 @@ func TestMigrateVersion49AddsEmbySyncStateAndBatchFields(t *testing.T) {
 	if err := db.Db.First(&migrator).Error; err != nil {
 		t.Fatalf("读取迁移版本失败: %v", err)
 	}
-	if migrator.VersionCode != 52 {
-		t.Fatalf("迁移版本 = %d，期望 52", migrator.VersionCode)
+	if migrator.VersionCode != MaxVersionCode {
+		t.Fatalf("迁移版本 = %d，期望 %d", migrator.VersionCode, MaxVersionCode)
 	}
 	for _, column := range []string{
 		"last_full_sync_at",
@@ -494,8 +494,8 @@ func TestMigrateVersion51AddsUploadStrmModels(t *testing.T) {
 	if err := db.Db.First(&migrator).Error; err != nil {
 		t.Fatalf("读取迁移版本失败: %v", err)
 	}
-	if migrator.VersionCode != 52 {
-		t.Fatalf("迁移版本 = %d，期望 52", migrator.VersionCode)
+	if migrator.VersionCode != MaxVersionCode {
+		t.Fatalf("迁移版本 = %d，期望 %d", migrator.VersionCode, MaxVersionCode)
 	}
 	for _, table := range []any{
 		UploadSession{},
@@ -530,6 +530,64 @@ func TestMigrateVersion51AddsUploadStrmModels(t *testing.T) {
 	} {
 		if !db.Db.Migrator().HasColumn(&Settings{}, column) {
 			t.Fatalf("迁移应添加 settings.%s 字段", column)
+		}
+	}
+}
+
+func TestMigrateVersion52AddsEmbyTargetedRefreshFields(t *testing.T) {
+	if helpers.AppLogger == nil {
+		helpers.AppLogger = &helpers.QLogger{
+			Logger: log.New(io.Discard, "", 0),
+		}
+	}
+	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	db.Db = testDb
+
+	createMigratorTestTable(t)
+	if err := db.Db.Create(&Migrator{VersionCode: 52}).Error; err != nil {
+		t.Fatalf("创建迁移版本记录失败: %v", err)
+	}
+	if err := db.Db.Exec(`
+		CREATE TABLE emby_library_refresh_tasks (
+			id integer primary key autoincrement,
+			created_at integer,
+			updated_at integer,
+			library_id text,
+			library_name text,
+			sync_path_ids_str text,
+			status text,
+			last_event_at integer,
+			refresh_after_at integer,
+			deadline_at integer,
+			last_checked_at integer,
+			last_refresh_at integer,
+			error text
+		)
+	`).Error; err != nil {
+		t.Fatalf("创建版本 52 Emby 刷新任务表失败: %v", err)
+	}
+
+	Migrate()
+
+	var migrator Migrator
+	if err := db.Db.First(&migrator).Error; err != nil {
+		t.Fatalf("读取迁移版本失败: %v", err)
+	}
+	if migrator.VersionCode != MaxVersionCode {
+		t.Fatalf("迁移版本 = %d，期望 %d", migrator.VersionCode, MaxVersionCode)
+	}
+	for _, column := range []string{
+		"target_type",
+		"item_ids_str",
+		"item_recursive",
+		"fallback_library_id",
+		"fallback_library_name",
+	} {
+		if !db.Db.Migrator().HasColumn(&EmbyLibraryRefreshTask{}, column) {
+			t.Fatalf("迁移应添加 emby_library_refresh_tasks.%s 字段", column)
 		}
 	}
 }

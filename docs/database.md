@@ -42,7 +42,7 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 当 `migrator` 表不存在时，`InitDB()` 会直接执行：
 
 1. `BatchCreateTable()`：对 `AllTables` 逐表执行 `AutoMigrate`。
-2. `InitMigrationTable(MaxVersionCode)`：写入当前版本号，当前值是 `52`。
+2. `InitMigrationTable(MaxVersionCode)`：写入当前版本号，当前值是 `53`。
 3. `InitSettings()`：创建默认 `settings` 记录。
 4. `InitScrapeSetting()`：创建默认刮削配置和默认分类。
 5. `InitEmbyConfig()`：创建默认 `emby_config` 记录。
@@ -76,8 +76,9 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 | 49 | 50 | `emby_config` 新增 Emby 条目同步状态字段，`emby_media_items` 新增全量同步批次标记字段。 |
 | 50 | 51 | `emby_config` 新增每日首次全量同步开关和最近成功同步模式字段。 |
 | 51 | 52 | 新增 `upload_sessions`、`directory_upload_rules`、`strm_generation_tasks` 表，并为上传任务和设置补齐上传增强字段。 |
+| 52 | 53 | `emby_library_refresh_tasks` 新增 item 级定向刷新目标和媒体库回退字段。 |
 
-当前数据库版本是 `52`。
+当前数据库版本是 `53`。
 
 ## 修复与重建
 
@@ -119,6 +120,7 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 | `strm_generation.source` | `upload_completed`、`webhook`、`remote_exists` |
 | `strm_generation.task_type` | `file`、`directory_scan` |
 | `strm_generation.status` | `pending`、`running`、`completed`、`failed`、`cancelled` |
+| `emby_refresh.target_type` | `library`、`item` |
 | `backup.status` | `pending`、`running`、`completed`、`failed`、`cancelled`、`timeout` |
 | `backup.type` | `manual`、`auto` |
 | `notification.type` | `sync_finish`、`sync_error`、`scrape_finish`、`scrape_error`、`system_alert`、`media_added`、`media_removed`、`playback_start`、`playback_pause`、`playback_stop` |
@@ -132,7 +134,7 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 
 - `id`：固定为 `1`。
 - `created_at` / `updated_at`：创建和更新时间。
-- `version_code`：当前数据库版本号，当前值为 `52`。
+- `version_code`：当前数据库版本号，当前值为 `53`。
 
 ### `users`
 
@@ -662,11 +664,16 @@ Emby 媒体库与同步目录的关联表。
 
 ### `emby_library_refresh_tasks`
 
-Emby 媒体库刷新任务表。
+Emby 刷新任务表。旧媒体库刷新和 STRM 更新后的 item 定向刷新共用本表和同一套去抖、等待下载、等待 STRM 同步、定时检查机制。
 
-- `library_id`：媒体库 ID，唯一。
-- `library_name`：媒体库名称。
+- `library_id`：刷新目标唯一 key。媒体库刷新使用真实媒体库 ID；item 定向刷新使用 `item:<item_id>`。
+- `library_name`：媒体库名称或 item 名称。
 - `sync_path_ids_str`：关联的同步目录 ID 列表，JSON 字符串。
+- `target_type`：刷新目标类型，`library` 表示媒体库刷新，`item` 表示 Emby item 定向刷新；旧数据为空时按 `library` 兼容。
+- `item_ids_str`：item 定向刷新目标 ID 列表，JSON 字符串。
+- `item_recursive`：item 定向刷新是否递归。Movie、Video、Episode 默认为非递归；Season、Series、Folder 默认为递归。
+- `fallback_library_id`：item 定向刷新失败或无法执行时的回退媒体库 ID。
+- `fallback_library_name`：回退媒体库名称。
 - `status`：任务状态，`pending`、`refreshing`、`completed`、`failed`、`cancelled`。
 - `last_event_at`：最近一次事件时间戳。
 - `refresh_after_at`：去抖后的刷新执行时间。
@@ -675,7 +682,7 @@ Emby 媒体库刷新任务表。
 - `last_refresh_at`：最后刷新时间。
 - `error`：错误信息。
 
-STRM 同步完成后，只有本次新增 STRM 数或下载元数据数大于 `0` 时才会提交 Emby 媒体库刷新任务；二者皆为 `0` 时不会创建新的待刷新任务。
+STRM 生成新增或更新后会优先解析已有 Emby item 目标：已有关联的 Movie、Video、Episode 刷新对应 item；同季新增剧集没有自身 Episode 关联时优先刷新 Season，缺少 Season 时刷新 Series；无法可靠定位 item 时回退按同步目录关联媒体库刷新。STRM 内容无变化时只确认 `sync_files`，不会创建新的刷新任务。
 
 ### `request_stats`
 

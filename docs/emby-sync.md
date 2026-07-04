@@ -1,6 +1,6 @@
 # Emby 同步维护说明
 
-本文说明 QMediaSync 中 Emby 刷新媒体库和同步条目的职责边界，以及全量同步、增量同步、Webhook 单条同步和运行状态字段。业务时间字段策略见 [数据库 - 时间字段策略](database.md#时间字段策略)，Cron 表达式边界见 [请求校验约定 - Cron 表达式边界](validation.md#cron-表达式边界)。
+本文说明 QMediaSync 中 Emby 刷新目标和同步条目的职责边界，以及全量同步、增量同步、Webhook 单条同步和运行状态字段。业务时间字段策略见 [数据库 - 时间字段策略](database.md#时间字段策略)，Cron 表达式边界见 [请求校验约定 - Cron 表达式边界](validation.md#cron-表达式边界)。
 
 实现细节以 `backend/internal/emby`、`backend/internal/models`、`backend/internal/synccron` 和 `frontend/src/components/AppEmbySettings.vue` 为准。
 
@@ -8,9 +8,9 @@
 
 Emby 相关任务分为两条独立链路，不能混用。
 
-### 链路 A：刷新 Emby 扫描库
+### 链路 A：通知 Emby 刷新
 
-含义：QMediaSync 通知 Emby 重新扫描它自己的媒体库。
+含义：QMediaSync 通知 Emby 刷新已有 item 或重新扫描它自己的媒体库。
 
 触发场景：
 
@@ -20,17 +20,28 @@ Emby 相关任务分为两条独立链路，不能混用。
 
 当前实现：
 
-- STRM 同步完成后调用 `models.RequestEmbyLibraryRefreshBySyncPathId(...)`。
+- 传统同步目录刷新调用 `models.RequestEmbyLibraryRefreshBySyncPathId(...)`。
+- 上传完成或 STRM Webhook 生成 STRM 后调用 `models.RequestEmbyRefreshBySyncFile(...)`，优先解析 item 级刷新目标。
+- 已有关联的 Movie、Video、Episode 刷新对应 item；同季新增剧集没有自身 Episode 关联时优先刷新已有 Season，缺少 Season 时刷新 Series。
+- 本地索引无法定位 item 时，会按 STRM 本地路径调用 Emby `/Items?Path=...` 做一次兜底查询。
+- 仍无法定位可靠 item 时，回退同步目录关联媒体库刷新。
 - 创建或合并 `EmbyLibraryRefreshTask`。
 - 刷新任务创建、更新或下载事件批量落库后，会把全局最近到期 timer 调度到最早的 `pending.refresh_after_at`。
 - 并发调度时，如果一个较旧的查询结果晚于较新的更早 timer 返回，旧结果不能取消或覆盖已有更早 timer；最多提前唤醒检查一次。
 - 如果调度时发现已有到期且未按当前 `refresh_after_at` 检查过的 pending 任务，会立即触发一次检查。
 - timer 到期后通过原有检查通道唤醒协调器；60 秒 ticker 仍保留为兜底。
 - 协调器等待相关下载任务和 STRM 同步任务结束；如果到期时仍有下载任务，会继续等待后续下载事件或 60 秒 ticker 兜底检查。
-- 最后调用 `client.RefreshLibrary(libraryID, libraryName)`。
-- 实际通知 Emby 执行媒体库刷新接口：
+- 最后按任务目标调用 Emby item 刷新或媒体库刷新接口。
 
-全局 timer 只负责到点唤醒检查，不直接决定是否刷新。多个媒体库有各自的 `refresh_after_at` 和下载任务状态，全局 timer 只指向最早到期的一条；每次检查仍按媒体库独立判断是否 ready。
+全局 timer 只负责到点唤醒检查，不直接决定是否刷新。多个刷新任务有各自的 `refresh_after_at` 和下载任务状态，全局 timer 只指向最早到期的一条；每次检查仍按任务独立判断是否 ready。
+
+- item 定向刷新接口：
+
+```http
+POST /emby/Items/{itemId}/Refresh?Recursive=<true|false>
+```
+
+- 媒体库刷新接口：
 
 ```http
 POST /emby/Items/{libraryId}/Refresh
@@ -38,7 +49,7 @@ POST /emby/Items/{libraryId}/Refresh
 
 职责边界：
 
-- 只调用 Emby 刷新媒体库接口。
+- 只调用 Emby 刷新接口。
 - 不拉取 Emby item。
 - 不写入 `emby_media_items`。
 - 不建立 PickCode 和 `sync_files` 关联。

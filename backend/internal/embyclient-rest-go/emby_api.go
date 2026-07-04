@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"qmediasync/internal/helpers"
@@ -105,6 +106,8 @@ type QueryResultBaseItemDto struct {
 	Items            []BaseItemDtoV2 `json:"Items,omitempty"`
 	TotalRecordCount int32           `json:"TotalRecordCount,omitempty"`
 }
+
+const embyRefreshLookupItemTypes = "Movie,Video,Episode,Folder,Series"
 
 // EmbyItemsQuery 表示查询 Emby 媒体条目的分页参数。
 type EmbyItemsQuery struct {
@@ -444,6 +447,97 @@ func (c *Client) RefreshLibrary(libraryId string, libraryName string) error {
 	}
 	helpers.AppLogger.Infof("已触发 Emby 媒体库 %s => %s 刷新", libraryId, libraryName)
 	return nil
+}
+
+// RefreshItem 刷新单个 Emby 条目。
+func (c *Client) RefreshItem(itemId string, itemName string, recursive bool) error {
+	baseURL, err := url.Parse(fmt.Sprintf("%s/emby/Items/%s/Refresh", c.embyURL, url.PathEscape(itemId)))
+	if err != nil {
+		return fmt.Errorf("解析 Emby 条目刷新 URL 失败：%w", err)
+	}
+	params := url.Values{}
+	params.Add("api_key", c.apiKey)
+	params.Add("Fields", "MediaStreams")
+	params.Add("Recursive", strconv.FormatBool(recursive))
+	baseURL.RawQuery = params.Encode()
+
+	req, err := http.NewRequest(http.MethodPost, baseURL.String(), nil)
+	if err != nil {
+		return fmt.Errorf("创建 Emby 条目刷新请求失败：%w", err)
+	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("发送 Emby 条目刷新请求失败：%w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("刷新 Emby 条目失败，状态码：%d", resp.StatusCode)
+	}
+	helpers.AppLogger.Infof("已触发 Emby 条目 %s => %s 刷新，recursive=%v", itemId, itemName, recursive)
+	return nil
+}
+
+// FindItemByPath 按本地路径查询 Emby 条目。
+func (c *Client) FindItemByPath(path string) (*BaseItemDtoV2, error) {
+	if path == "" {
+		return nil, nil
+	}
+	params := url.Values{}
+	params.Add("Path", path)
+	params.Add("Recursive", "true")
+	params.Add("Fields", "Path")
+	params.Add("IncludeItemTypes", embyRefreshLookupItemTypes)
+	params.Add("Limit", "1")
+	return c.findFirstItem(params, "Emby 路径查询")
+}
+
+// FindItemByID 按 item ID 查询 Emby 条目。
+func (c *Client) FindItemByID(itemID string) (*BaseItemDtoV2, error) {
+	if itemID == "" {
+		return nil, nil
+	}
+	params := url.Values{}
+	params.Add("Ids", itemID)
+	params.Add("Recursive", "true")
+	params.Add("Fields", "Path")
+	params.Add("IncludeItemTypes", embyRefreshLookupItemTypes)
+	params.Add("Limit", "1")
+	return c.findFirstItem(params, "Emby ID 查询")
+}
+
+func (c *Client) findFirstItem(params url.Values, errorContext string) (*BaseItemDtoV2, error) {
+	baseURL, err := url.Parse(fmt.Sprintf("%s/emby/Items", c.embyURL))
+	if err != nil {
+		return nil, fmt.Errorf("解析 %s URL 失败：%w", errorContext, err)
+	}
+	params.Add("api_key", c.apiKey)
+	baseURL.RawQuery = params.Encode()
+
+	req, err := http.NewRequest(http.MethodGet, baseURL.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("创建 %s 请求失败：%w", errorContext, err)
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("发送 %s 请求失败：%w", errorContext, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%s 返回非 200 状态码：%d", errorContext, resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("读取 %s 响应失败：%w", errorContext, err)
+	}
+	var result QueryResultBaseItemDto
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("解析 %s 响应失败：%w", errorContext, err)
+	}
+	if len(result.Items) == 0 {
+		return nil, nil
+	}
+	return &result.Items[0], nil
 }
 
 func (c *Client) GetItemDetailByUser(itemId string, userID string) (*BaseItemDtoV2, error) {

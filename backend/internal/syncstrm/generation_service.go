@@ -39,11 +39,11 @@ type StrmGenerationResult struct {
 
 // StrmGenerationService 复用现有 SyncStrm 能力完成单文件 STRM 后处理。
 type StrmGenerationService struct {
-	buildSyncer        func(*models.SyncPath, *models.Account) (*SyncStrm, error)
-	compareStrm        func(*SyncStrm, *SyncFileCache) int
-	processStrmFile    func(*SyncStrm, *SyncFileCache) error
-	requestEmbyRefresh func(uint) error
-	detailByFileID     func(context.Context, *SyncStrm, string) (*SyncFileCache, error)
+	buildSyncer                  func(*models.SyncPath, *models.Account) (*SyncStrm, error)
+	compareStrm                  func(*SyncStrm, *SyncFileCache) int
+	processStrmFile              func(*SyncStrm, *SyncFileCache) error
+	requestEmbyRefreshBySyncFile func(*models.SyncFile) error
+	detailByFileID               func(context.Context, *SyncStrm, string) (*SyncFileCache, error)
 }
 
 // NewStrmGenerationService 创建 STRM 生成服务。
@@ -62,7 +62,7 @@ func NewStrmGenerationService() *StrmGenerationService {
 	service.processStrmFile = func(syncer *SyncStrm, file *SyncFileCache) error {
 		return syncer.ProcessStrmFile(file)
 	}
-	service.requestEmbyRefresh = models.RequestEmbyLibraryRefreshBySyncPathId
+	service.requestEmbyRefreshBySyncFile = models.RequestEmbyRefreshBySyncFile
 	service.detailByFileID = func(ctx context.Context, syncer *SyncStrm, fileID string) (*SyncFileCache, error) {
 		if syncer == nil || syncer.SyncDriver == nil {
 			return nil, errors.New("STRM 同步器未初始化远端驱动")
@@ -140,7 +140,7 @@ func (service *StrmGenerationService) Generate(ctx context.Context, input StrmGe
 		return nil, fmt.Errorf("保存 SyncFile 失败：%w", err)
 	}
 	if changed {
-		if err := service.requestEmbyRefresh(task.SyncPathId); err != nil {
+		if err := service.requestEmbyRefreshBySyncFile(syncFile); err != nil {
 			return nil, fmt.Errorf("提交 Emby 刷新任务失败：%w", err)
 		}
 	}

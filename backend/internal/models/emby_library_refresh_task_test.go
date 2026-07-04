@@ -37,6 +37,8 @@ func setupEmbyRefreshTestDB(t *testing.T) {
 	db.Db = testDb
 	if err := db.Db.AutoMigrate(
 		&EmbyConfig{},
+		&EmbyMediaItem{},
+		&EmbyMediaSyncFile{},
 		&EmbyLibrarySyncPath{},
 		&EmbyLibraryRefreshTask{},
 		&SyncFile{},

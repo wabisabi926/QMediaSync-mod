@@ -69,7 +69,7 @@
 
 文件级任务只传 `file_id` 时，服务会通过对应网盘 driver 补齐文件名、路径、父目录 ID、PickCode、mtime 和大小。写入流程会先确认新 STRM 内容需要新增或更新；如果同一 `file_id` / `pick_code` 的远端路径变化，会在新 STRM 写入成功后精确删除旧 `SyncFile.LocalFilePath` 对应的旧 STRM。旧路径清理失败不会删除新 STRM，也不会把任务标记完成，任务会记录错误并保留为失败状态供后续排查或重试。
 
-当前 STRM 生成完成后的 Emby 刷新仍使用同步目录关联媒体库刷新入口；只有 STRM 新增或更新时才提交刷新，STRM 内容无变化时只更新 / 确认 `SyncFile`，不重复提交刷新任务。
+STRM 新增或更新后会优先提交 Emby item 级定向刷新：已有 Movie、Video、Episode 关联时刷新对应 item；同季新增剧集没有自身 Episode 关联时优先刷新已有 Season，缺少 Season 时刷新 Series。无法从本地 Emby 索引、PickCode 或路径兜底查询定位可靠 item 时，自动回退到同步目录关联媒体库刷新。刷新仍进入 `emby_library_refresh_tasks` 协调器去抖和等待队列，不在 STRM 生成流程内直接请求 Emby。STRM 内容无变化时只更新 / 确认 `SyncFile`，不重复提交刷新任务。
 
 ## Emby 302 出站 HTTPS
 

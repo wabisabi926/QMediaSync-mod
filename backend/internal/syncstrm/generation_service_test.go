@@ -101,14 +101,14 @@ func TestStrmGenerationServiceGenerateUpsertsSyncFileAndProcessesStrm(t *testing
 	account, syncPath := setupStrmGenerationServiceTestDB(t)
 	service := newTestGenerationService(t, syncPath, account)
 	var processed *SyncFileCache
-	var refreshSyncPathID uint
+	var refreshSyncFile *models.SyncFile
 	service.processStrmFile = func(_ *SyncStrm, file *SyncFileCache) error {
 		processed = file
 		return nil
 	}
 	service.compareStrm = func(_ *SyncStrm, _ *SyncFileCache) int { return 0 }
-	service.requestEmbyRefresh = func(syncPathID uint) error {
-		refreshSyncPathID = syncPathID
+	service.requestEmbyRefreshBySyncFile = func(syncFile *models.SyncFile) error {
+		refreshSyncFile = syncFile
 		return nil
 	}
 
@@ -137,8 +137,8 @@ func TestStrmGenerationServiceGenerateUpsertsSyncFileAndProcessesStrm(t *testing
 	if !result.Changed {
 		t.Fatal("result.Changed = false，期望 true")
 	}
-	if refreshSyncPathID != syncPath.ID {
-		t.Fatalf("刷新同步目录 ID = %d，期望 %d", refreshSyncPathID, syncPath.ID)
+	if refreshSyncFile == nil || refreshSyncFile.SyncPathId != syncPath.ID || refreshSyncFile.FileId != "file-1" {
+		t.Fatalf("刷新 SyncFile = %+v，期望同步目录 %d 的 file-1", refreshSyncFile, syncPath.ID)
 	}
 
 	var syncFile models.SyncFile
@@ -176,7 +176,7 @@ func TestStrmGenerationServiceGenerateCompletesDetailByFileID(t *testing.T) {
 		return nil
 	}
 	service.compareStrm = func(_ *SyncStrm, _ *SyncFileCache) int { return 0 }
-	service.requestEmbyRefresh = func(uint) error { return nil }
+	service.requestEmbyRefreshBySyncFile = func(*models.SyncFile) error { return nil }
 
 	if _, err := service.Generate(context.Background(), StrmGenerationInput{
 		Task: &models.StrmGenerationTask{SyncPathId: syncPath.ID, AccountId: account.ID, FileId: "file-2"},
@@ -194,7 +194,7 @@ func TestStrmGenerationServiceGenerateSkipsRefreshWhenStrmUnchanged(t *testing.T
 	var refreshCalled bool
 	service.processStrmFile = func(_ *SyncStrm, _ *SyncFileCache) error { return nil }
 	service.compareStrm = func(_ *SyncStrm, _ *SyncFileCache) int { return 1 }
-	service.requestEmbyRefresh = func(uint) error {
+	service.requestEmbyRefreshBySyncFile = func(*models.SyncFile) error {
 		refreshCalled = true
 		return nil
 	}
@@ -254,7 +254,7 @@ func TestStrmGenerationServiceCleansOldStrmAfterRemotePathChanges(t *testing.T) 
 		return os.WriteFile(newStrmPath, []byte("new"), 0o644)
 	}
 	service.compareStrm = func(_ *SyncStrm, _ *SyncFileCache) int { return 0 }
-	service.requestEmbyRefresh = func(uint) error { return nil }
+	service.requestEmbyRefreshBySyncFile = func(*models.SyncFile) error { return nil }
 
 	result, err := service.Generate(context.Background(), StrmGenerationInput{
 		Task: &models.StrmGenerationTask{
@@ -314,7 +314,7 @@ func TestStrmGenerationServiceKeepsNewStrmWhenOldPathCleanupFails(t *testing.T) 
 		return os.WriteFile(newStrmPath, []byte("new"), 0o644)
 	}
 	service.compareStrm = func(_ *SyncStrm, _ *SyncFileCache) int { return 0 }
-	service.requestEmbyRefresh = func(uint) error { return nil }
+	service.requestEmbyRefreshBySyncFile = func(*models.SyncFile) error { return nil }
 
 	_, err := service.Generate(context.Background(), StrmGenerationInput{
 		Task: &models.StrmGenerationTask{
@@ -353,7 +353,7 @@ func TestProcessPendingStrmGenerationTasksMarksCompletedAndFailed(t *testing.T) 
 		}
 		return nil
 	}
-	service.requestEmbyRefresh = func(uint) error { return nil }
+	service.requestEmbyRefreshBySyncFile = func(*models.SyncFile) error { return nil }
 
 	completed, err := models.EnqueueStrmGenerationTask(&models.StrmGenerationTask{
 		Source:     models.StrmGenerationSourceUploadCompleted,

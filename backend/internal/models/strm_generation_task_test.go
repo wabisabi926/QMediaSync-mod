@@ -66,6 +66,65 @@ func TestEnqueueStrmGenerationTaskDedupesRequestHash(t *testing.T) {
 	}
 }
 
+func TestEnqueueStrmGenerationDirectoryScanDedupesOnlyActiveTasks(t *testing.T) {
+	setupStrmGenerationTaskTestDB(t)
+
+	first, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:        StrmGenerationSourceWebhook,
+		TaskType:      StrmGenerationTaskTypeDirectoryScan,
+		SyncPathId:    10,
+		AccountId:     2,
+		DirectoryPath: "/remote/show",
+		RequestHash:   "webhook:directory:10::/remote/show",
+	})
+	if err != nil {
+		t.Fatalf("首次目录扫描入队失败: %v", err)
+	}
+
+	activeDuplicate, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:        StrmGenerationSourceWebhook,
+		TaskType:      StrmGenerationTaskTypeDirectoryScan,
+		SyncPathId:    10,
+		AccountId:     2,
+		DirectoryPath: "/remote/show",
+		RequestHash:   "webhook:directory:10::/remote/show",
+	})
+	if err != nil {
+		t.Fatalf("运行中目录扫描重复入队失败: %v", err)
+	}
+	if activeDuplicate.ID != first.ID {
+		t.Fatalf("未完成目录扫描应去重，got %d want %d", activeDuplicate.ID, first.ID)
+	}
+
+	first.Status = StrmGenerationStatusCompleted
+	if err := db.Db.Save(first).Error; err != nil {
+		t.Fatalf("标记目录扫描完成失败: %v", err)
+	}
+
+	afterCompleted, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:        StrmGenerationSourceWebhook,
+		TaskType:      StrmGenerationTaskTypeDirectoryScan,
+		SyncPathId:    10,
+		AccountId:     2,
+		DirectoryPath: "/remote/show",
+		RequestHash:   "webhook:directory:10::/remote/show",
+	})
+	if err != nil {
+		t.Fatalf("完成后目录扫描重新入队失败: %v", err)
+	}
+	if afterCompleted.ID == first.ID {
+		t.Fatalf("已完成目录扫描再次请求应创建新任务，仍返回 ID %d", afterCompleted.ID)
+	}
+
+	var count int64
+	if err := db.Db.Model(&StrmGenerationTask{}).Count(&count).Error; err != nil {
+		t.Fatalf("统计任务失败: %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("任务数量 = %d，期望 2", count)
+	}
+}
+
 func TestStrmGenerationTaskRetryAndRunningReset(t *testing.T) {
 	setupStrmGenerationTaskTestDB(t)
 

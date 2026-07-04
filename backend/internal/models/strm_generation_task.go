@@ -2,6 +2,7 @@ package models
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"qmediasync/internal/db"
@@ -78,10 +79,22 @@ func EnqueueStrmGenerationTask(task *StrmGenerationTask) (*StrmGenerationTask, e
 		var existing StrmGenerationTask
 		err := db.Db.Where("request_hash = ?", task.RequestHash).First(&existing).Error
 		if err == nil {
-			return &existing, nil
-		}
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, err
+			if task.TaskType == StrmGenerationTaskTypeDirectoryScan &&
+				existing.Status != StrmGenerationStatusPending &&
+				existing.Status != StrmGenerationStatusRunning {
+				archivedHash := archivedStrmGenerationRequestHash(task.RequestHash, existing.ID)
+				if err := db.Db.Model(&StrmGenerationTask{}).
+					Where("id = ? AND request_hash = ?", existing.ID, task.RequestHash).
+					Update("request_hash", archivedHash).Error; err != nil {
+					return nil, err
+				}
+			} else {
+				return &existing, nil
+			}
+		} else {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, err
+			}
 		}
 	}
 	if task.Status == "" {
@@ -94,6 +107,19 @@ func EnqueueStrmGenerationTask(task *StrmGenerationTask) (*StrmGenerationTask, e
 		return nil, err
 	}
 	return task, nil
+}
+
+func archivedStrmGenerationRequestHash(requestHash string, taskID uint) string {
+	const maxRequestHashLength = 255
+	suffix := fmt.Sprintf(":history:%d", taskID)
+	if len(requestHash)+len(suffix) <= maxRequestHashLength {
+		return requestHash + suffix
+	}
+	keep := maxRequestHashLength - len(suffix)
+	if keep <= 0 {
+		return suffix[:maxRequestHashLength]
+	}
+	return requestHash[:keep] + suffix
 }
 
 // MarkFailed 标记 STRM 生成任务失败并累计重试次数。

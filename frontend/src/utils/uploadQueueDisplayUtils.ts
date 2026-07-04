@@ -123,7 +123,7 @@ export const getUploadResultLabel = (
 }
 
 export const getUploadStageOrResultLabel = (task: UploadQueueDisplayTask): string => {
-  if (task.status === 2 || task.upload_result) {
+  if (task.status === 2 || (task.upload_result && task.upload_result !== 'unknown')) {
     return getUploadResultLabel(task)
   }
   return getUploadPhaseLabel(task)

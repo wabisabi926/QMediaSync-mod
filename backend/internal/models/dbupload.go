@@ -71,6 +71,7 @@ type DbUploadTask struct {
 	FileName              string                    `json:"file_name"`                                         // 要上传的文件名
 	Status                UploadStatus              `json:"status" gorm:"index:idx_status_new"`                // 任务状态
 	FileSize              int64                     `json:"file_size"`                                         // 文件大小
+	LocalMtime            int64                     `json:"local_mtime" gorm:"default:0"`                      // 本地源文件修改时间，用于源文件清理前校验
 	UploadedBytes         int64                     `json:"uploaded_bytes" gorm:"default:0"`                   // 已上传字节数
 	UploadResult          UploadResult              `json:"upload_result" gorm:"size:32;default:unknown"`      // 上传结果
 	ResumeState           UploadResumeState         `json:"resume_state" gorm:"size:32;default:none"`          // 断点续传状态

@@ -49,6 +49,9 @@ func CleanupSourceAfterStrmSuccess(uploadTaskID uint) error {
 	if err := ensurePathWithinRoot(rule.MonitorPath, task.LocalFullPath); err != nil {
 		return markCleanupFailed(&task, err)
 	}
+	if err := validateCurrentSourceFileForCleanup(&task); err != nil {
+		return markCleanupFailed(&task, err)
+	}
 	if err := os.Remove(task.LocalFullPath); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return markCleanupFailed(&task, fmt.Errorf("删除源文件失败：%w", err))
 	}
@@ -102,6 +105,51 @@ func isSafeCleanupUploadTask(task *models.DbUploadTask) bool {
 	default:
 		return false
 	}
+}
+
+func validateCurrentSourceFileForCleanup(task *models.DbUploadTask) error {
+	if task == nil {
+		return errors.New("上传任务为空")
+	}
+	info, err := os.Stat(task.LocalFullPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("读取源文件信息失败：%w", err)
+	}
+	expectedSize, expectedMtime, err := cleanupSourceSignature(task)
+	if err != nil {
+		return err
+	}
+	if info.Size() != expectedSize {
+		return fmt.Errorf("源文件已变化，跳过删除：大小不匹配 task=%d current=%d", expectedSize, info.Size())
+	}
+	currentMtime := info.ModTime().Unix()
+	if currentMtime != expectedMtime {
+		return fmt.Errorf("源文件已变化，跳过删除：修改时间不匹配 task=%d current=%d", expectedMtime, currentMtime)
+	}
+	return nil
+}
+
+func cleanupSourceSignature(task *models.DbUploadTask) (int64, int64, error) {
+	if task == nil {
+		return 0, 0, errors.New("上传任务为空")
+	}
+	if task.FileSize > 0 && task.LocalMtime > 0 {
+		return task.FileSize, task.LocalMtime, nil
+	}
+	session, err := models.GetUploadSessionByUploadTaskId(task.ID)
+	if err == nil {
+		if session.FileSize > 0 && session.LocalMtime > 0 {
+			return session.FileSize, session.LocalMtime, nil
+		}
+		return 0, 0, errors.New("上传会话缺少源文件清理签名")
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return 0, 0, errors.New("上传任务缺少源文件清理签名")
+	}
+	return 0, 0, fmt.Errorf("读取上传会话失败：%w", err)
 }
 
 func hasCompletedStrmTask(uploadTaskID uint) (bool, error) {

@@ -278,6 +278,7 @@ func (service *Service) HandleStableFile(ctx context.Context, rule *models.Direc
 		FileName:            fileName,
 		Status:              models.UploadStatusPending,
 		FileSize:            info.Size(),
+		LocalMtime:          info.ModTime().Unix(),
 		UploadResult:        models.UploadResultUnknown,
 		SourceCleanupStatus: cleanupInitialStatus(rule),
 	}

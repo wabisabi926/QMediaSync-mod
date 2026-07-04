@@ -94,6 +94,7 @@ func (runner open115UploadRunner) Upload(ctx context.Context, task *DbUploadTask
 	}
 	task.FileName = info.FileName
 	task.FileSize = info.FileSize
+	task.LocalMtime = info.LocalMtime
 	task.publish115UploadPhase(nil, uploadPhaseCheckingRemote)
 
 	if result, ok := runner.findExistingRemoteFile(ctx, task, client, info); ok {

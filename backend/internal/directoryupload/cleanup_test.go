@@ -1,6 +1,7 @@
 package directoryupload
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -93,6 +94,37 @@ func TestCleanupSourceAfterStrmSuccessRequiresSafeUploadResult(t *testing.T) {
 	assertPathExists(t, filePath)
 }
 
+func TestCleanupSourceAfterStrmSuccessKeepsReplacedSourceFile(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	originalMtime := time.Unix(1000, 0)
+	writeFileWithMtime(t, filePath, []byte("movie"), originalMtime)
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.DeleteSourceAfterSuccess = true
+	if err := db.Db.Save(rule).Error; err != nil {
+		t.Fatalf("保存目录上传规则失败: %v", err)
+	}
+	task := createCleanupUploadTask(t, rule, filePath, models.UploadResultMultipartUploaded)
+	createCleanupUploadSession(t, task.ID, filePath)
+	createCleanupStrmTask(t, task.ID, models.StrmGenerationStatusCompleted)
+	replacedMtime := originalMtime.Add(time.Hour)
+	writeFileWithMtime(t, filePath, []byte("new movie content"), replacedMtime)
+
+	if err := CleanupSourceAfterStrmSuccess(task.ID); err == nil {
+		t.Fatal("源文件已被替换时应返回错误")
+	}
+	assertPathExists(t, filePath)
+
+	var got models.DbUploadTask
+	if err := db.Db.First(&got, task.ID).Error; err != nil {
+		t.Fatalf("读取上传任务失败: %v", err)
+	}
+	if got.SourceCleanupStatus != models.UploadSourceCleanupStatusFailed || got.SourceCleanupError == "" {
+		t.Fatalf("清理状态 = %+v，期望 failed 并记录错误", got)
+	}
+}
+
 func TestCleanupSourceAfterStrmSuccessKeepsSourceWhenUploadFailed(t *testing.T) {
 	setupDirectoryUploadServiceTestDB(t)
 	monitorPath := t.TempDir()
@@ -173,6 +205,10 @@ func TestCleanupSourceAfterStrmSuccessRecordsPathBoundaryError(t *testing.T) {
 
 func createCleanupUploadTask(t *testing.T, rule *models.DirectoryUploadRule, filePath string, result models.UploadResult) *models.DbUploadTask {
 	t.Helper()
+	info, err := os.Stat(filePath)
+	if err != nil {
+		t.Fatalf("读取测试文件信息失败: %v", err)
+	}
 	task := &models.DbUploadTask{
 		Source:                models.UploadSourceDirectoryMonitor,
 		AccountId:             rule.AccountId,
@@ -184,7 +220,8 @@ func createCleanupUploadTask(t *testing.T, rule *models.DirectoryUploadRule, fil
 		RemotePathId:          rule.RemoteRootId,
 		FileName:              filepath.Base(filePath),
 		Status:                models.UploadStatusCompleted,
-		FileSize:              int64(len("movie")),
+		FileSize:              info.Size(),
+		LocalMtime:            info.ModTime().Unix(),
 		UploadResult:          result,
 		CompletedRemoteFileId: "remote-file",
 		CompletedPickCode:     "pick-code",
@@ -194,6 +231,23 @@ func createCleanupUploadTask(t *testing.T, rule *models.DirectoryUploadRule, fil
 		t.Fatalf("创建上传任务失败: %v", err)
 	}
 	return task
+}
+
+func createCleanupUploadSession(t *testing.T, uploadTaskID uint, filePath string) {
+	t.Helper()
+	info, err := os.Stat(filePath)
+	if err != nil {
+		t.Fatalf("读取测试文件信息失败: %v", err)
+	}
+	if err := db.Db.Create(&models.UploadSession{
+		UploadTaskId:  uploadTaskID,
+		LocalFullPath: filePath,
+		FileSize:      info.Size(),
+		LocalMtime:    info.ModTime().Unix(),
+		Status:        models.UploadSessionStatusCompleted,
+	}).Error; err != nil {
+		t.Fatalf("创建上传会话失败: %v", err)
+	}
 }
 
 func createCleanupStrmTask(t *testing.T, uploadTaskID uint, status models.StrmGenerationStatus) {

@@ -139,6 +139,9 @@ func (service *StrmGenerationService) Generate(ctx context.Context, input StrmGe
 			return nil, err
 		}
 	}
+	if err := copyDirectoryUploadMetadata(syncer, task, file); err != nil {
+		return nil, fmt.Errorf("复制目录监控元数据失败：%w", err)
+	}
 
 	if err := db.Db.Save(syncFile).Error; err != nil {
 		return nil, fmt.Errorf("保存 SyncFile 失败：%w", err)
@@ -149,6 +152,80 @@ func (service *StrmGenerationService) Generate(ctx context.Context, input StrmGe
 		}
 	}
 	return &StrmGenerationResult{SyncFile: syncFile, Changed: changed}, nil
+}
+
+func copyDirectoryUploadMetadata(syncer *SyncStrm, task *models.StrmGenerationTask, file *SyncFileCache) error {
+	if syncer == nil || task == nil || file == nil {
+		return nil
+	}
+	if !file.IsMeta || file.IsVideo || task.UploadTaskId == 0 {
+		return nil
+	}
+
+	var uploadTask models.DbUploadTask
+	if err := db.Db.First(&uploadTask, task.UploadTaskId).Error; err != nil {
+		return fmt.Errorf("读取上传任务失败：%w", err)
+	}
+	if uploadTask.Source != models.UploadSourceDirectoryMonitor {
+		return nil
+	}
+
+	sourcePath := strings.TrimSpace(uploadTask.LocalFullPath)
+	if sourcePath == "" {
+		return errors.New("目录监控元数据缺少本地源文件路径")
+	}
+	targetPath := file.GetLocalFilePath(syncer.TargetPath, syncer.SourcePath)
+	if targetPath == "" {
+		return errors.New("目录监控元数据缺少 STRM 本地路径")
+	}
+	if filepath.Clean(sourcePath) == filepath.Clean(targetPath) {
+		return fmt.Errorf("目录监控元数据源文件和 STRM 目标文件相同：%s", sourcePath)
+	}
+
+	info, err := os.Stat(sourcePath)
+	if err != nil {
+		return fmt.Errorf("读取目录监控元数据源文件信息失败：%w", err)
+	}
+	if info.IsDir() {
+		return fmt.Errorf("目录监控元数据源路径是目录：%s", sourcePath)
+	}
+	if err := validateDirectoryUploadMetadataSource(&uploadTask, info); err != nil {
+		return err
+	}
+
+	content, err := os.ReadFile(sourcePath)
+	if err != nil {
+		return fmt.Errorf("读取目录监控元数据源文件失败：%w", err)
+	}
+	if err := helpers.WriteFileWithPerm(targetPath, content, 0777); err != nil {
+		return fmt.Errorf("写入目录监控元数据到 STRM 路径失败：%w", err)
+	}
+
+	mtime := uploadTask.LocalMtime
+	if mtime == 0 {
+		mtime = info.ModTime().Unix()
+	}
+	t := time.Unix(mtime, 0)
+	if err := os.Chtimes(targetPath, t, t); err != nil {
+		return fmt.Errorf("修改目录监控元数据 STRM 路径时间失败：%w", err)
+	}
+	return nil
+}
+
+func validateDirectoryUploadMetadataSource(task *models.DbUploadTask, info os.FileInfo) error {
+	if task == nil || info == nil {
+		return errors.New("目录监控元数据源文件校验参数为空")
+	}
+	if task.FileSize > 0 && info.Size() != task.FileSize {
+		return fmt.Errorf("目录监控元数据源文件已变化，大小不匹配 task=%d current=%d", task.FileSize, info.Size())
+	}
+	if task.LocalMtime > 0 {
+		currentMtime := info.ModTime().Unix()
+		if currentMtime != task.LocalMtime {
+			return fmt.Errorf("目录监控元数据源文件已变化，修改时间不匹配 task=%d current=%d", task.LocalMtime, currentMtime)
+		}
+	}
+	return nil
 }
 
 func (service *StrmGenerationService) buildFileCache(ctx context.Context, syncer *SyncStrm, syncPath *models.SyncPath, account *models.Account, task *models.StrmGenerationTask) (*SyncFileCache, error) {

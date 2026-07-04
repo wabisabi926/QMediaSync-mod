@@ -59,6 +59,8 @@ OSS `CompleteMultipartUpload` 完成后，必须带回 115 init 返回的 `callb
 
 STRM 生成 worker 会读取 `strm_generation_tasks`，复用同步目录配置写入或确认 STRM。该后处理只创建或更新 `SyncFile` 和 STRM 文件，不创建 `syncs` 同步记录，也不向同步目录队列添加“等待中”任务；完整同步记录只由手动同步、定时同步等 STRM 同步入口创建。文件级任务会先比较已有 STRM 内容；确认需要更新后直接写入新 STRM，不再重复比较，因此同一次后处理只输出一次 PickCode、路径或用户 ID 差异日志。STRM 新增或更新后，会优先提交 Emby item 级定向刷新；定位不到可靠 item 时回退同步目录关联媒体库刷新。
 
+目录监控规则 `upload_metadata=true` 时，元数据文件上传完成后也会进入同一 STRM 生成队列。worker 不会为元数据生成 `.strm`，而是把目录监控源文件复制到同步目录的 STRM 本地路径，文件名和扩展名保持不变，并保存对应 `SyncFile`。复制前会确认上传任务来源是 `directory_monitor`，并校验当前源文件大小和 mtime 仍与上传任务记录一致；源文件不存在、已被替换或写入 STRM 本地路径失败时，STRM 任务会失败，后续源文件清理不会触发。复制发生在源文件清理之前，因此开启 `delete_source_after_success` 时不会因为先删除源文件导致元数据丢失。
+
 “同步目录生效 STRM 配置”INFO 只在完整 STRM 同步启动时输出。上传完成后的单文件后处理仍沿用当前同步目录配置，但不会为每个后处理任务重复输出配置日志。
 
 如果同一远端文件发生移动或重命名，服务会用 `file_id` / `pick_code` 查找旧 `SyncFile`。新 STRM 写入成功后，只精确删除旧记录里的 `local_file_path`，不会按文件名模糊删除其他 `latest` 或同名文件。旧 STRM 删除失败时，新 STRM 会保留，任务记录失败原因，便于从 `strm_generation_tasks.last_error` 和应用日志排查。

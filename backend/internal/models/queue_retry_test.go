@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,6 +10,8 @@ import (
 
 	"qmediasync/internal/db"
 	"qmediasync/internal/v115open"
+
+	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
 )
 
 func TestCanRetryFailedDownloadTask(t *testing.T) {
@@ -175,6 +178,146 @@ func TestPrepare115UploadSessionAbortsChangedSignature(t *testing.T) {
 	}
 	if got.Status != UploadSessionStatusAborted || got.LastError == "" {
 		t.Fatalf("会话状态 = %+v，期望 aborted 并记录错误", got)
+	}
+}
+
+func TestPrepare115UploadSessionKeepsRestartedSessionForInit(t *testing.T) {
+	setupQueueStatusTestDB(t)
+
+	task := &DbUploadTask{
+		AccountId:     1,
+		Status:        UploadStatusPending,
+		Source:        UploadSourceDirectoryMonitor,
+		SourceType:    SourceType115,
+		LocalFullPath: "/watch/movie.mkv",
+		FileName:      "movie.mkv",
+		FileSize:      1024,
+		RemotePathId:  "100",
+		ResumeState:   UploadResumeStateSessionExpiredRestarted,
+	}
+	if err := db.Db.Create(task).Error; err != nil {
+		t.Fatalf("创建上传任务失败: %v", err)
+	}
+	session := &UploadSession{
+		UploadTaskId:   task.ID,
+		AccountId:      task.AccountId,
+		LocalFullPath:  task.LocalFullPath,
+		FileName:       task.FileName,
+		FileSize:       task.FileSize,
+		LocalMtime:     100,
+		LocalSignature: "sig",
+		FileSha1:       "sha1",
+		Preid:          "preid",
+		ParentFileId:   task.RemotePathId,
+		Status:         UploadSessionStatusInit,
+		ResumeState:    UploadResumeStateSessionExpiredRestarted,
+	}
+	if err := session.Save(); err != nil {
+		t.Fatalf("保存上传会话失败: %v", err)
+	}
+
+	got, err := task.prepare115UploadSession(upload115LocalFileInfo{
+		FileName:       task.FileName,
+		FileSize:       task.FileSize,
+		LocalMtime:     100,
+		LocalSignature: "sig",
+		FileSha1:       "sha1",
+		Preid:          "preid",
+	})
+	if err != nil {
+		t.Fatalf("准备上传会话失败: %v", err)
+	}
+	if got.ResumeState != UploadResumeStateSessionExpiredRestarted || got.UploadId != "" {
+		t.Fatalf("会话 = %+v，期望保持 session_expired_restarted 并等待重新 init", got)
+	}
+	if task.ResumeState != UploadResumeStateSessionExpiredRestarted || task.UploadedBytes != 0 {
+		t.Fatalf("任务 = %+v，期望保持 session_expired_restarted 并清空进度", task)
+	}
+}
+
+func TestUploadMultipartRestartsInvalidOSSCheckpoint(t *testing.T) {
+	setupQueueStatusTestDB(t)
+
+	task := &DbUploadTask{
+		AccountId:     1,
+		Status:        UploadStatusPending,
+		Source:        UploadSourceDirectoryMonitor,
+		SourceType:    SourceType115,
+		LocalFullPath: "/watch/movie.mkv",
+		FileName:      "movie.mkv",
+		FileSize:      1024,
+		RemotePathId:  "100",
+		UploadedBytes: 512,
+		ResumeState:   UploadResumeStateResumedSession,
+	}
+	if err := db.Db.Create(task).Error; err != nil {
+		t.Fatalf("创建上传任务失败: %v", err)
+	}
+	session := &UploadSession{
+		UploadTaskId:   task.ID,
+		AccountId:      task.AccountId,
+		LocalFullPath:  task.LocalFullPath,
+		FileName:       task.FileName,
+		FileSize:       task.FileSize,
+		LocalMtime:     100,
+		LocalSignature: "sig",
+		FileSha1:       "sha1",
+		Preid:          "preid",
+		ParentFileId:   task.RemotePathId,
+		PickCode:       "pick-1",
+		Bucket:         "bucket-1",
+		Object:         "object-1",
+		UploadId:       "bad-upload",
+		PartSize:       256,
+		UploadedBytes:  512,
+		UploadedParts:  2,
+		Status:         UploadSessionStatusMultipart,
+		ResumeState:    UploadResumeStateResumedSession,
+	}
+	if err := session.Save(); err != nil {
+		t.Fatalf("保存上传会话失败: %v", err)
+	}
+	originalUpload115MultipartWithResult := upload115MultipartWithResult
+	upload115MultipartWithResult = func(context.Context, *v115open.OpenClient, v115open.UploadMultipartInput) (v115open.OSSMultipartUploadResult, error) {
+		return v115open.OSSMultipartUploadResult{}, fmt.Errorf("查询 OSS 已上传分片失败：%w", &oss.ServiceError{
+			Code:       "NoSuchUpload",
+			Message:    "The specified upload does not exist. The upload ID may be invalid, or the upload may have been aborted or completed.",
+			StatusCode: 404,
+		})
+	}
+	t.Cleanup(func() {
+		upload115MultipartWithResult = originalUpload115MultipartWithResult
+	})
+
+	_, err := open115UploadRunner{}.uploadMultipart(context.Background(), task, nil, session, upload115LocalFileInfo{
+		FileName:       task.FileName,
+		FileSize:       task.FileSize,
+		LocalMtime:     100,
+		LocalSignature: "sig",
+		FileSha1:       "sha1",
+		Preid:          "preid",
+	})
+	if err == nil {
+		t.Fatal("OSS checkpoint 失效时应返回错误并等待重试重新初始化")
+	}
+
+	gotSession, readErr := GetUploadSessionByUploadTaskId(task.ID)
+	if readErr != nil {
+		t.Fatalf("读取上传会话失败: %v", readErr)
+	}
+	if gotSession.Status != UploadSessionStatusInit ||
+		gotSession.ResumeState != UploadResumeStateSessionExpiredRestarted ||
+		gotSession.UploadId != "" ||
+		gotSession.UploadedBytes != 0 ||
+		gotSession.UploadedParts != 0 {
+		t.Fatalf("上传会话 = %+v，期望清空坏 checkpoint 并回到 init", gotSession)
+	}
+	var gotTask DbUploadTask
+	if err := db.Db.First(&gotTask, task.ID).Error; err != nil {
+		t.Fatalf("读取上传任务失败: %v", err)
+	}
+	if gotTask.ResumeState != UploadResumeStateSessionExpiredRestarted || gotTask.UploadedBytes != 0 {
+		t.Fatalf("上传任务 = %+v，期望标记 session_expired_restarted 并清空进度", gotTask)
 	}
 }
 

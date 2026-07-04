@@ -50,6 +50,13 @@ var get115FileDetailByCid = func(ctx context.Context, client *v115open.OpenClien
 	return client.GetFsDetailByCid(ctx, fileID)
 }
 
+var upload115MultipartWithResult = func(ctx context.Context, client *v115open.OpenClient, input v115open.UploadMultipartInput) (v115open.OSSMultipartUploadResult, error) {
+	if client == nil {
+		return v115open.OSSMultipartUploadResult{}, errors.New("115 客户端为空")
+	}
+	return client.UploadMultipartWithResult(ctx, input)
+}
+
 func setUpload115RunnerForTesting(t testingCleanup, runner upload115Runner) {
 	oldRunner := currentUpload115Runner
 	currentUpload115Runner = runner
@@ -349,7 +356,7 @@ func (runner open115UploadRunner) uploadMultipart(
 	}
 	task.publish115UploadPhase(session, uploadPhaseMultipartUploading)
 
-	ossResult, err := client.UploadMultipartWithResult(ctx, v115open.UploadMultipartInput{
+	ossResult, err := upload115MultipartWithResult(ctx, client, v115open.UploadMultipartInput{
 		Bucket:      session.Bucket,
 		Object:      session.Object,
 		Callback:    session.Callback,
@@ -364,6 +371,12 @@ func (runner open115UploadRunner) uploadMultipart(
 		},
 	})
 	if err != nil {
+		if isOSSCheckpointInvalidError(err) &&
+			session.ResumeState == UploadResumeStateResumedSession &&
+			strings.TrimSpace(session.UploadId) != "" {
+			task.mark115SessionRestarted(session, err)
+			return upload115TaskResult{}, err
+		}
 		session.Status = UploadSessionStatusFailed
 		session.LastError = err.Error()
 		_ = session.Save()
@@ -409,6 +422,20 @@ func (runner open115UploadRunner) uploadMultipart(
 		CompletedSize:         completeResult.Size,
 		CompletedMtime:        completeResult.Mtime,
 	}, nil
+}
+
+func isOSSCheckpointInvalidError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var ossServiceError interface{ ErrorCode() string }
+	if errors.As(err, &ossServiceError) {
+		switch ossServiceError.ErrorCode() {
+		case "NoSuchUpload", "InvalidUploadId":
+			return true
+		}
+	}
+	return false
 }
 
 func buildUpload115LocalFileInfo(filePath string, preferredFileName string) (upload115LocalFileInfo, error) {
@@ -463,6 +490,21 @@ func (task *DbUploadTask) prepare115UploadSession(info upload115LocalFileInfo) (
 				"resume_state": task.ResumeState,
 			}).Error
 			return nil, fmt.Errorf("本地文件已变化，不能复用断点续传 session：%w", validateErr)
+		}
+		if session.ResumeState == UploadResumeStateSessionExpiredRestarted &&
+			session.Status == UploadSessionStatusInit &&
+			strings.TrimSpace(session.UploadId) == "" {
+			task.ResumeState = UploadResumeStateSessionExpiredRestarted
+			task.UploadedBytes = 0
+			task.RapidWaitAttempts = session.RapidWaitAttempts
+			task.RapidWaitUntil = session.RapidWaitUntil
+			_ = db.Db.Model(task).Updates(map[string]any{
+				"resume_state":        task.ResumeState,
+				"uploaded_bytes":      task.UploadedBytes,
+				"rapid_wait_attempts": task.RapidWaitAttempts,
+				"rapid_wait_until":    task.RapidWaitUntil,
+			}).Error
+			return session, nil
 		}
 		session.ResumeState = UploadResumeStateResumedSession
 		session.LastResumeAt = time.Now().Unix()
@@ -550,8 +592,13 @@ func (task *DbUploadTask) mark115SessionRestarted(session *UploadSession, cause 
 	session.ResumeState = UploadResumeStateSessionExpiredRestarted
 	session.Status = UploadSessionStatusInit
 	session.UploadId = ""
+	session.PartSize = 0
+	session.TotalParts = 0
 	session.UploadedBytes = 0
 	session.UploadedParts = 0
+	session.LastPartNumber = 0
+	session.LastPartEtag = ""
+	session.LastProgressAt = 0
 	session.LastError = cause.Error()
 	if err := session.Save(); err != nil {
 		helpers.AppLogger.Warnf("[上传] 保存重新初始化 session 状态失败：%s", err.Error())

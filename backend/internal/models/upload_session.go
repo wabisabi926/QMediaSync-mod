@@ -125,7 +125,7 @@ func (session *UploadSession) Save() error {
 // GetUploadSessionByUploadTaskId 按上传任务 ID 查询上传会话。
 func GetUploadSessionByUploadTaskId(uploadTaskId uint) (*UploadSession, error) {
 	var session UploadSession
-	if err := db.Db.Where("upload_task_id = ?", uploadTaskId).First(&session).Error; err != nil {
+	if err := db.Db.Where("upload_task_id = ?", uploadTaskId).Order("id DESC").First(&session).Error; err != nil {
 		return nil, err
 	}
 	return &session, nil
@@ -138,6 +138,9 @@ func (session *UploadSession) MarkCompleted(result UploadSessionCompleteResult) 
 	}
 	session.Status = UploadSessionStatusCompleted
 	session.CompletedAt = time.Now().Unix()
+	session.CompleteCallbackState = "completed"
+	session.CompleteCallbackError = ""
+	session.LastError = ""
 	session.CompletedFileId = result.FileId
 	session.CompletedPickCode = result.PickCode
 	session.CompletedParentId = result.ParentId

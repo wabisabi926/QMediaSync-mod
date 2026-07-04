@@ -113,3 +113,83 @@ func TestGetQueueStats限流中返回总等待时长(t *testing.T) {
 		t.Fatal("throttled_remaining_time 为空，期望返回剩余限流时间")
 	}
 }
+
+func setupUploadQueueControllerTest(t *testing.T) *gin.Engine {
+	t.Helper()
+
+	gin.SetMode(gin.TestMode)
+	helpers.AppLogger = &helpers.QLogger{Logger: log.New(io.Discard, "", 0)}
+	helpers.V115Log = &helpers.QLogger{Logger: log.New(io.Discard, "", 0)}
+
+	testDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	db.Db = testDB
+
+	if err := db.Db.AutoMigrate(&models.DbUploadTask{}, &models.UploadSession{}); err != nil {
+		t.Fatalf("创建上传队列表失败: %v", err)
+	}
+
+	r := gin.New()
+	r.GET("/upload/queue", UploadList)
+	return r
+}
+
+func TestUploadListIncludesResumeProgressFields(t *testing.T) {
+	r := setupUploadQueueControllerTest(t)
+	task := &models.DbUploadTask{
+		Source:        models.UploadSourceDirectoryMonitor,
+		SourceType:    models.SourceType115,
+		Status:        models.UploadStatusUploading,
+		LocalFullPath: "/watch/movie.mkv",
+		FileName:      "movie.mkv",
+		FileSize:      100,
+		UploadedBytes: 40,
+		UploadResult:  models.UploadResultUnknown,
+		ResumeState:   models.UploadResumeStateResumedSession,
+	}
+	if err := db.Db.Create(task).Error; err != nil {
+		t.Fatalf("创建上传任务失败: %v", err)
+	}
+	session := &models.UploadSession{
+		UploadTaskId:  task.ID,
+		Status:        models.UploadSessionStatusMultipart,
+		ResumeState:   models.UploadResumeStateResumedSession,
+		UploadId:      "upload-1",
+		PartSize:      20,
+		TotalParts:    5,
+		UploadedBytes: 40,
+		UploadedParts: 2,
+	}
+	if err := session.Save(); err != nil {
+		t.Fatalf("保存上传会话失败: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/upload/queue?status=-1&page=1&page_size=10", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("HTTP status = %d，期望 200，body=%s", w.Code, w.Body.String())
+	}
+
+	var resp APIResponse[map[string]any]
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("解析响应失败: %v", err)
+	}
+	list := resp.Data["list"].([]any)
+	if len(list) != 1 {
+		t.Fatalf("上传队列数量 = %d，期望 1", len(list))
+	}
+	item := list[0].(map[string]any)
+	if item["upload_phase"] != "multipart_uploading" {
+		t.Fatalf("upload_phase = %v，期望 multipart_uploading", item["upload_phase"])
+	}
+	if item["total_parts"] != float64(5) || item["uploaded_parts"] != float64(2) {
+		t.Fatalf("分片进度 = %v/%v，期望 2/5", item["uploaded_parts"], item["total_parts"])
+	}
+	if item["progress_percent"] != float64(40) {
+		t.Fatalf("progress_percent = %v，期望 40", item["progress_percent"])
+	}
+}

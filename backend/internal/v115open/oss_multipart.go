@@ -43,6 +43,7 @@ type OSSMultipartUploadInput struct {
 	UploadId      string
 	PartSize      int64
 	PartRetryMax  int
+	OnProgress    func(OSSMultipartProgress)
 	refreshClient func(context.Context) (ossMultipartClient, error)
 }
 
@@ -61,6 +62,17 @@ type OSSMultipartUploadResult struct {
 	TotalParts     int
 	UploadedBytes  int64
 	UploadedParts  int
+}
+
+// OSSMultipartProgress 是 multipart 上传过程中的 checkpoint 进度。
+type OSSMultipartProgress struct {
+	UploadId       string
+	PartSize       int64
+	TotalParts     int
+	UploadedBytes  int64
+	UploadedParts  int
+	LastPartNumber int
+	LastPartEtag   string
 }
 
 // CalculateMultipartPartSize 计算 OSS multipart 分片大小和分片数量。
@@ -147,6 +159,11 @@ func (u *OSSMultipartUploader) UploadFileWithResult(ctx context.Context, input O
 		}
 		uploadId = *initResult.UploadId
 	}
+	reportOSSMultipartProgress(input, OSSMultipartProgress{
+		UploadId:   uploadId,
+		PartSize:   partSize,
+		TotalParts: totalParts,
+	})
 
 	existingParts, err := u.ListUploadedParts(ctx, input.Bucket, input.Object, uploadId)
 	if err != nil {
@@ -179,6 +196,15 @@ func (u *OSSMultipartUploader) UploadFileWithResult(ctx context.Context, input O
 				PartNumber: int32(partNumber),
 				ETag:       oss.Ptr(existing.ETag),
 			})
+			reportOSSMultipartProgress(input, OSSMultipartProgress{
+				UploadId:       uploadId,
+				PartSize:       partSize,
+				TotalParts:     totalParts,
+				UploadedBytes:  uploadedBytes,
+				UploadedParts:  uploadedParts,
+				LastPartNumber: partNumber,
+				LastPartEtag:   existing.ETag,
+			})
 			continue
 		}
 
@@ -191,6 +217,15 @@ func (u *OSSMultipartUploader) UploadFileWithResult(ctx context.Context, input O
 		completeParts = append(completeParts, oss.UploadPart{
 			PartNumber: int32(partNumber),
 			ETag:       oss.Ptr(etag),
+		})
+		reportOSSMultipartProgress(input, OSSMultipartProgress{
+			UploadId:       uploadId,
+			PartSize:       partSize,
+			TotalParts:     totalParts,
+			UploadedBytes:  uploadedBytes,
+			UploadedParts:  uploadedParts,
+			LastPartNumber: partNumber,
+			LastPartEtag:   etag,
 		})
 	}
 	sort.Slice(completeParts, func(i, j int) bool {
@@ -229,6 +264,13 @@ func (u *OSSMultipartUploader) UploadFileWithResult(ctx context.Context, input O
 		UploadedBytes:  uploadedBytes,
 		UploadedParts:  uploadedParts,
 	}, nil
+}
+
+func reportOSSMultipartProgress(input OSSMultipartUploadInput, progress OSSMultipartProgress) {
+	if input.OnProgress == nil {
+		return
+	}
+	input.OnProgress(progress)
 }
 
 // ListUploadedParts 查询 OSS 已上传分片。

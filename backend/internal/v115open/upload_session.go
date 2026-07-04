@@ -363,6 +363,11 @@ func sleepWithTimer(ctx context.Context, d time.Duration) error {
 	}
 }
 
+// SignValueForRange 按 115 sign_check 闭区间计算二次认证签名。
+func SignValueForRange(filePath string, signCheck string) (string, error) {
+	return signValueForRange(filePath, signCheck)
+}
+
 func signValueForRange(filePath string, signCheck string) (string, error) {
 	signRange, err := parseSignCheckRange(signCheck)
 	if err != nil {

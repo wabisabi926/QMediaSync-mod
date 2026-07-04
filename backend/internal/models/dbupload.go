@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"qmediasync/internal/db"
@@ -89,6 +90,11 @@ type DbUploadTask struct {
 	SyncFile              *SyncFile                 `json:"-" gorm:"-"`                                        // 同步文件
 	ScrapeMediaFile       *ScrapeMediaFile          `json:"-" gorm:"-"`                                        // 刮削文件
 	Account               *Account                  `json:"-" gorm:"-"`                                        // 账户
+	UploadPhase           string                    `json:"upload_phase" gorm:"-"`                             // 上传阶段，仅用于队列展示
+	UploadSpeedBytes      int64                     `json:"upload_speed_bytes" gorm:"-"`                       // 上传速度，仅用于队列展示
+	ProgressPercent       float64                   `json:"progress_percent" gorm:"-"`                         // 上传进度，仅用于队列展示
+	TotalParts            int                       `json:"total_parts" gorm:"-"`                              // 总分片数，仅用于队列展示
+	UploadedParts         int                       `json:"uploaded_parts" gorm:"-"`                           // 已上传分片数，仅用于队列展示
 }
 
 // String 返回状态的字符串表示
@@ -114,14 +120,54 @@ func (task *DbUploadTask) CanRetry(maxRetry int) bool {
 	return task != nil && task.Status == UploadStatusFailed && task.RetryCount < maxRetry
 }
 
+var uploadQueueProgressBroadcast = struct {
+	sync.Mutex
+	lastAt map[uint]time.Time
+}{
+	lastAt: make(map[uint]time.Time),
+}
+
 func publishUploadQueueChanged(task *DbUploadTask, reason string) {
 	payload := ws.QueueChangedPayload{Reason: reason}
 	if task != nil {
+		if reason == "progress" && shouldThrottleUploadProgressBroadcast(task.ID) {
+			return
+		}
+		task.applyUploadQueueDisplayFields(nil)
 		payload.TaskID = task.ID
 		payload.Status = int(task.Status)
 		payload.Source = string(task.Source)
+		payload.UploadedBytes = task.UploadedBytes
+		payload.FileSize = task.FileSize
+		payload.ProgressPercent = task.ProgressPercent
+		payload.UploadSpeedBytes = task.UploadSpeedBytes
+		payload.UploadPhase = task.UploadPhase
+		payload.UploadResult = string(task.UploadResult)
+		payload.ResumeState = string(task.ResumeState)
+		payload.RapidWaitUntil = task.RapidWaitUntil
+		payload.TotalParts = task.TotalParts
+		payload.UploadedParts = task.UploadedParts
+	}
+	if reason == "progress" {
+		ws.TryBroadcastEvent(ws.EventUploadQueueChanged, payload)
+		return
 	}
 	ws.BroadcastQueueChanged(ws.EventUploadQueueChanged, payload)
+}
+
+func shouldThrottleUploadProgressBroadcast(taskID uint) bool {
+	if taskID == 0 {
+		return false
+	}
+	now := time.Now()
+	uploadQueueProgressBroadcast.Lock()
+	defer uploadQueueProgressBroadcast.Unlock()
+	lastAt := uploadQueueProgressBroadcast.lastAt[taskID]
+	if !lastAt.IsZero() && now.Sub(lastAt) < time.Second {
+		return true
+	}
+	uploadQueueProgressBroadcast.lastAt[taskID] = now
+	return false
 }
 
 // PrepareUploadRetry 将上传失败任务重新放回等待中
@@ -226,6 +272,9 @@ func (task *DbUploadTask) Upload() {
 	}
 	// 标记为已完成
 	task.Complete()
+	if err := task.enqueueStrmGenerationAfterUpload(); err != nil {
+		helpers.AppLogger.Warnf("[上传] 创建 STRM 生成任务失败：%s", err.Error())
+	}
 	// 如果是刮削类型，需要进行后续通知
 	if task.Source == UploadSourceScrape {
 		// 通知刮削整理完成
@@ -252,73 +301,19 @@ func (task *DbUploadTask) Upload115File() bool {
 		return false
 	}
 	task.Uploading()
-	// var file *SyncFile
-	// if task.Source == UploadSourceStrm {
-	// 	file = GetSyncFileById(task.SyncFileId)
-	// 	if file == nil {
-	// 		task.Fail(fmt.Errorf("同步文件 %d 不存在", task.SyncFileId))
-	// 		return false
-	// 	}
-	// }
-	// 检查远程文件是否存在
-	detail, existsErr := client.GetFsDetailByPath(context.Background(), task.RemoteFileId)
-
-	if existsErr == nil && detail.FileId != "" {
-		if task.Source == UploadSourceStrm {
-			return true
-		}
-		if task.Source == UploadSourceScrape {
-			// 回调
-			scrapeMediaFile := GetScrapeMediaFileById(task.ScrapeMediaFileId)
-			if scrapeMediaFile == nil {
-				helpers.AppLogger.Errorf("刮削文件 %d 不存在", task.ScrapeMediaFileId)
-				task.Fail(fmt.Errorf("同步文件 %d 不存在", task.SyncFileId))
-				return false
-			}
-			helpers.AppLogger.Infof("回调刮削整理：刮削文件 %d 上传成功，文件 ID：%s", task.ScrapeMediaFileId, task.RemoteFileId)
-			scrapeMediaFile.RemoveTmpFiles(task)
-			return true
-		}
-	}
-	// 检查父目录是否存在
-	detail, existsErr = client.GetFsDetailByCid(context.Background(), task.RemotePathId)
-	if existsErr != nil {
-		task.Fail(fmt.Errorf("115 检查父目录 %s 失败：%s", task.RemotePathId, existsErr.Error()))
-		return false
-	}
-	if detail.FileId == "" {
-		task.Fail(fmt.Errorf("115 检查父目录 %s 失败：返回空文件 ID", task.RemotePathId))
-		return false
-	}
-	helpers.AppLogger.Infof("准备将文件 %s 上传到 115 目录 %s", task.LocalFullPath, task.RemotePathId)
-	// 上传文件
-	fileId, err := client.Upload(context.Background(), task.LocalFullPath, task.RemotePathId, "", "")
+	result, err := currentUpload115Runner.Upload(context.Background(), task, client)
 	if err != nil {
 		task.Fail(fmt.Errorf("调用 115 上传 API 失败：%v", err))
 		return false
 	}
-	if fileId == "" {
-		task.Fail(fmt.Errorf("115 上传文件 %s 失败：返回空文件 ID", task.FileName))
-		return false
-	}
-	helpers.AppLogger.Infof("115 上传文件 %s 成功，新的文件 ID：%s", task.LocalFullPath, fileId)
+	task.applyUpload115TaskResult(result)
 	if task.Source == UploadSourceStrm {
-		// 查询文件详情，然后更新本地文件的修改时间
-		detail, err = client.GetFsDetailByCid(context.Background(), fileId)
-		if err != nil {
-			task.Fail(fmt.Errorf("115 查询文件详情 %s 失败：%s", fileId, err.Error()))
-			return false
-		}
-		if detail.FileId == "" {
-			task.Fail(fmt.Errorf("115 查询文件详情 %s 失败：返回空文件 ID", fileId))
-			return false
-		}
-		mtime := helpers.StringToInt64(detail.Ptime)
-		// 更新本地文件的修改时间
-		err = os.Chtimes(task.LocalFullPath, time.Unix(mtime, 0), time.Unix(mtime, 0))
-		if err != nil {
-			task.Fail(fmt.Errorf("更新本地文件 %s 修改时间失败：%v", task.LocalFullPath, err))
-			return false
+		if result.CompletedMtime > 0 {
+			mtime := time.Unix(result.CompletedMtime, 0)
+			if err = os.Chtimes(task.LocalFullPath, mtime, mtime); err != nil {
+				task.Fail(fmt.Errorf("更新本地文件 %s 修改时间失败：%v", task.LocalFullPath, err))
+				return false
+			}
 		}
 	}
 	return true
@@ -458,6 +453,7 @@ func AddUploadTaskFromSyncFile(file *SyncFile) error {
 		AccountId:     file.AccountId,
 		SourceType:    file.SourceType,
 		SyncFileId:    file.ID,
+		SyncPathId:    file.SyncPathId,
 		RemoteFileId:  remoteFileId,
 		FileName:      file.FileName,
 		RemotePathId:  file.ParentId,
@@ -545,6 +541,7 @@ func GetUploadTaskList(status UploadStatus, page, pageSize int) ([]*DbUploadTask
 		Offset((page - 1) * pageSize).
 		Order("id DESC").
 		Find(&tasks)
+	hydrateUploadTaskQueueFields(tasks)
 	return tasks, total
 }
 

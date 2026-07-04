@@ -53,7 +53,9 @@
 
 当前 115 Open API 非秒传上传使用 OSS multipart：先 `InitiateMultipartUpload`，按 part 上传，再 `CompleteMultipartUpload` 并带回 115 callback。默认 part size 为 `32 MiB`；当文件按 `32 MiB` 切分会超过 `9999` 个 part 时，part size 会按 `ceil(file_size / 9999)` 放大并向上取整到 `1 MiB`。如果计算出的 part size 超过 OSS 单 part 上限，上传会失败并返回错误。单个 part 上传失败时至少重试 3 次；重试前会刷新 OSS 上传凭证并继续当前 part。
 
-断点续传必须同时满足两层条件：先调用 115 `/open/upload/resume` 恢复 `file_size`、`target`、`fileid`、`pick_code` 对应的上传调度信息，再用 OSS `upload_id` 和 `ListParts` 查询已上传分片。仅重新调用 init、仅普通 multipart 上传，或发现远端已有同名同 SHA1 / 同大小文件，都不能称为断点续传。
+断点续传必须同时满足两层条件：先调用 115 `/open/upload/resume` 恢复 `file_size`、`target`、`fileid`、`pick_code` 对应的上传调度信息，再用 OSS `upload_id` 和 `ListParts` 查询已上传分片。上传队列会把 `upload_id`、part size、已上传字节数和分片进度保存到 `upload_sessions`，进程重启时只把 `uploading` 任务恢复为 `pending`，不删除 session。重试时如果本地文件大小、mtime、SHA1 和快速签名仍匹配，会优先按 session 续传；如果本地文件签名变化，会把旧 session 标记为 `aborted` 并让任务失败，避免同一路径不同文件误用旧 checkpoint。仅重新调用 init、仅普通 multipart 上传，或发现远端已有同名同 SHA1 / 同大小文件，都不能称为断点续传。
+
+上传前会检查远端同路径文件；只有同名目标的 SHA1 和大小都与本地文件一致时，才跳过真实上传并把任务结果记为 `remote_exists`。这类任务仍会写入完成后的远端文件 ID / PickCode，并按需创建 STRM 生成任务；它不是断点续传。
 
 `preid` 按 115 官方“文件上传”文档使用文件前 `128 KiB` 的 SHA1。本项目以官方文档为准，并把该窗口封装为可测试实现，避免上传流程中散落协议常量。
 

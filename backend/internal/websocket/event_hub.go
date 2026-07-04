@@ -40,10 +40,20 @@ type QueueStatusPayload struct {
 
 // QueueChangedPayload 队列列表变更事件数据。
 type QueueChangedPayload struct {
-	TaskID uint   `json:"task_id,omitempty"`
-	Status int    `json:"status,omitempty"`
-	Source string `json:"source,omitempty"`
-	Reason string `json:"reason,omitempty"`
+	TaskID           uint    `json:"task_id,omitempty"`
+	Status           int     `json:"status,omitempty"`
+	Source           string  `json:"source,omitempty"`
+	Reason           string  `json:"reason,omitempty"`
+	UploadedBytes    int64   `json:"uploaded_bytes,omitempty"`
+	FileSize         int64   `json:"file_size,omitempty"`
+	ProgressPercent  float64 `json:"progress_percent,omitempty"`
+	UploadSpeedBytes int64   `json:"upload_speed_bytes,omitempty"`
+	UploadPhase      string  `json:"upload_phase,omitempty"`
+	UploadResult     string  `json:"upload_result,omitempty"`
+	ResumeState      string  `json:"resume_state,omitempty"`
+	RapidWaitUntil   int64   `json:"rapid_wait_until,omitempty"`
+	TotalParts       int     `json:"total_parts,omitempty"`
+	UploadedParts    int     `json:"uploaded_parts,omitempty"`
 }
 
 // Client WebSocket 客户端

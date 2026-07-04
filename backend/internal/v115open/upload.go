@@ -112,6 +112,20 @@ type UploadResult[T any] struct {
 	Callback  T      `json:"callback"`
 }
 
+// UploadMultipartInput 是 OpenClient 发起 OSS multipart 上传的输入。
+type UploadMultipartInput struct {
+	Bucket      string
+	Object      string
+	Callback    string
+	CallbackVar string
+	FilePath    string
+	FileSize    int64
+	FileSha1    string
+	UploadId    string
+	PartSize    int64
+	OnProgress  func(OSSMultipartProgress)
+}
+
 // 获取文件下载地址
 // POST 域名 + /open/ufile/downurl
 func (c *OpenClient) GetDownloadUrl(ctx context.Context, pickCode string, userAgent string, bypassRateLimit bool) string {
@@ -274,6 +288,43 @@ func (c *OpenClient) GetUploadToken(ctx context.Context) *UploadToken {
 	}
 	respData.normalize()
 	return respData
+}
+
+// UploadMultipartWithResult 使用 115 临时凭证上传 OSS multipart，并在 part 失败重试前刷新凭证。
+func (c *OpenClient) UploadMultipartWithResult(ctx context.Context, input UploadMultipartInput) (OSSMultipartUploadResult, error) {
+	uploadToken := c.GetUploadToken(ctx)
+	if uploadToken == nil {
+		return OSSMultipartUploadResult{}, fmt.Errorf("获取上传凭证失败")
+	}
+	helpers.V115Log.Infof(
+		"准备 OSS multipart 上传：bucket=%s，object_id=%s，endpoint=%s，AccessKeyId=%s",
+		input.Bucket,
+		input.Object,
+		uploadToken.Endpoint,
+		uploadToken.AccessKeyId,
+	)
+	uploader := NewOSSMultipartUploader(
+		uploadToken.Endpoint,
+		uploadToken.AccessKeyId,
+		uploadToken.AccessKeySecret,
+		uploadToken.SecurityToken,
+	)
+	return uploader.UploadFileWithResult(ctx, OSSMultipartUploadInput{
+		Bucket:      input.Bucket,
+		Object:      input.Object,
+		Callback:    input.Callback,
+		CallbackVar: input.CallbackVar,
+		FilePath:    input.FilePath,
+		FileSize:    input.FileSize,
+		FileSha1:    input.FileSha1,
+		UploadId:    input.UploadId,
+		PartSize:    input.PartSize,
+		OnProgress:  input.OnProgress,
+		refreshClient: func(ctx context.Context) (ossMultipartClient, error) {
+			refreshedToken := c.GetUploadToken(ctx)
+			return newOSSMultipartClientFromToken(refreshedToken)
+		},
+	})
 }
 
 // 上传分片

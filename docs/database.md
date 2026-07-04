@@ -746,6 +746,18 @@ STRM 同步完成后，只有本次新增 STRM 数或下载元数据数大于 `0
 - `source_deleted_at`：源文件删除时间戳。
 - `is_season_or_tvshow_file`：是否为剧集或电视剧文件。
 
+运行时字段：
+
+- `upload_phase`：上传阶段，仅用于队列列表和 WebSocket 展示，不入库。
+- `upload_speed_bytes`：最近一次进度事件计算出的上传速度，不入库。
+- `progress_percent`：根据 `uploaded_bytes / file_size` 计算的进度百分比，不入库。
+- `total_parts` / `uploaded_parts`：从 `upload_sessions` 补齐的分片进度展示字段，不入库。
+
+说明：
+
+- 115 上传任务完成后会保存 `upload_result`、`resume_state`、`uploaded_bytes`、`completed_remote_file_id` 和 `completed_pick_code`。`upload_result=remote_exists` 表示远端同路径文件 SHA1 和大小均匹配，因此跳过真实上传。
+- 115 上传任务成功后，`strm_sync` 和 `directory_monitor` 来源会按远端文件 ID / PickCode 创建 `strm_generation_tasks` 记录；刮削整理来源仍只执行原有后处理。
+
 ### `upload_sessions`
 
 115 上传会话表，保存上传初始化、断点续传和 OSS multipart checkpoint。STS 临时凭证不写入本表。
@@ -767,6 +779,12 @@ STRM 同步完成后，只有本次新增 STRM 数或下载元数据数大于 `0
 - `upload_started_at`、`completed_at`：上传开始和完成时间。
 - `complete_callback_state`、`complete_callback_error`：OSS complete 后 115 callback 业务状态。
 - `completed_file_id`、`completed_pick_code`、`completed_parent_id`、`completed_sha1`、`completed_size`、`completed_mtime`：最终远端文件信息。
+
+说明：
+
+- `upload_task_id` 仍保持单任务一个当前 session。进程重启只恢复上传任务状态，不删除本表记录。
+- 有效 session 重试时会先走 115 `/open/upload/resume`，再用 OSS `upload_id` 查询已上传 part 并跳过已完成分片。
+- 本地文件大小、mtime、SHA1 或快速签名发生变化时，不复用旧 session；旧 session 会标记为 `aborted` 并记录 `last_error`。
 
 ### `directory_upload_rules`
 

@@ -131,6 +131,14 @@ Emby 条目同步默认 Cron 为 `0 * * * *`，含义是每小时整点执行一
 - Webhook JSON 模板会先替换内置变量再做 JSON 解析；Form 模板必须符合 `key=value&key2=value2` 格式。
 - Webhook 额外请求头使用 `headers` 对象传递，Header 名称会去除首尾空白，且必须是合法 HTTP token；空 Header 名会被拒绝。
 
+## 上传和 STRM 入站校验边界
+
+115 上传增强实现中，`preid` 计算窗口是官方协议参数，固定为文件前 `128 KiB` 的 SHA1，并通过单元测试约束；请求入口不允许外部传入自定义 `preid` 窗口。二次认证的 `sign_check` 必须解析为合法闭区间，结束位置不得小于起始位置，读取范围必须落在本地文件大小内。
+
+目录监控上传规则必须绑定明确的 `sync_path_id` 和账号。`monitor_path` 不得等于同步目录的 `LocalPath`，避免生成的 STRM 被再次上传；`remote_root_path` 必须位于对应 `SyncPath.RemotePath` 之下，才能安全映射 STRM 输出路径。上传后删除源文件是显式开关，默认关闭；开启后也只能在上传终态成功且 STRM 生成成功后执行，并且空目录清理不得删除监控根目录。
+
+STRM Webhook 应使用独立接口，鉴权沿用 API Key，支持 `X-API-Key` header 和 `?api_key=` 查询参数。请求必须提供 `sync_path_id`，文件级请求至少提供 `file_id`、`pick_code` 或远端 `path + file_name` 中的一组定位信息；目录级请求必须提供 `directory_id` 或远端 `directory_path`。Webhook 请求中的 `path` / `directory_path` 只表示 115 远端路径，禁止接受或信任 `local_path` 来决定本地写入位置，本地 STRM 路径只能由 `sync_path_id` 对应的同步目录计算。
+
 ## 当前例外
 
 以下接口或参数仍是特殊实现，不应作为新增接口的默认写法：

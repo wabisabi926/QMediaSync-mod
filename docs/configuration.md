@@ -47,6 +47,16 @@
 
 “限流中 / 运行正常”、本次等待时间、已过时间和剩余限流时间来自当前进程的 115 请求队列限流管理器。当前限流暂停时长为 1 分钟，程序重启后该运行态会恢复为未限流。
 
+## 115 上传协议边界
+
+115 Open API 上传分为 115 调度层和 OSS 数据层。`/open/upload/init` 负责上传初始化、秒传判断和二次认证调度；`status = 2` 表示秒传成功，`status = 1` 表示需要进入 OSS 上传，返回的 `callback` / `callback_var` 必须在 OSS 完成 multipart 时带回，让 115 完成文件入库。`/open/upload/get_token` 只负责获取 OSS 临时凭证，凭证不得写入数据库，也不得写入普通日志。
+
+断点续传必须同时满足两层条件：先调用 115 `/open/upload/resume` 恢复 `file_size`、`target`、`fileid`、`pick_code` 对应的上传调度信息，再用 OSS `upload_id` 和 `ListParts` 查询已上传分片。仅重新调用 init、仅普通 multipart 上传，或发现远端已有同名同 SHA1 / 同大小文件，都不能称为断点续传。
+
+`preid` 按 115 官方“文件上传”文档使用文件前 `128 KiB` 的 SHA1。本项目以官方文档为准，并把该窗口封装为可测试实现，避免上传流程中散落协议常量。
+
+阶段 0 只完成官方公开文档、当前代码和 Aliyun OSS SDK v2 API 的交叉核验。真实 115 小文件 / 大文件上传实测需要有效 115 Open API 沙箱账号和可写测试目录，且会产生远端写入副作用；未获得明确沙箱授权前，不应在开发环境自动执行真实外部上传。
+
 ## Emby 302 出站 HTTPS
 
 Emby 302 代理请求 Emby、OpenList、m3u8 和下载资源时，默认启用 HTTPS 证书校验。共享 HTTP client 会复用空闲连接，避免同一上游的连续请求反复建立 TCP / TLS 连接。

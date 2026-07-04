@@ -30,11 +30,15 @@ func (d *open115Driver) SetSyncStrm(s *SyncStrm) {
 	d.s = s
 }
 
+var list115FilesPage = func(ctx context.Context, client *v115open.OpenClient, parentPathID string, showCur bool, onlyDir bool, showDir bool, offset int, limit int) (*v115open.FileListResp, error) {
+	return client.GetFsList(ctx, parentPathID, showCur, onlyDir, showDir, offset, limit)
+}
+
 // 返回 SyncFile 的内存数据结构
 func (d *open115Driver) GetNetFileFiles(ctx context.Context, parentPath, parentPathId string) ([]*SyncFileCache, error) {
 	limit := models.GetFileListPageSize()
 	offset := 0
-	var fileItems []*SyncFileCache
+	fileItems := make([]*SyncFileCache, 0)
 mainloop:
 	for {
 		select {
@@ -42,7 +46,7 @@ mainloop:
 			d.s.Sync.Logger.Infof("获取 115 网盘文件列表的上下文已取消，offset=%d，limit=%d", offset, limit)
 			return nil, ctx.Err()
 		default:
-			resp, err := d.client.GetFsList(ctx, parentPathId, true, false, true, offset, limit)
+			resp, err := list115FilesPage(ctx, d.client, parentPathId, true, false, true, offset, limit)
 			if err != nil {
 				if err.Error() == "访问频率过高" {
 					// 访问频率过高，暂停 30 秒后重试。
@@ -56,7 +60,6 @@ mainloop:
 			if len(resp.Data) == 0 {
 				break mainloop
 			}
-			fileItems = make([]*SyncFileCache, 0, len(resp.Data))
 		fileloop:
 			for _, file := range resp.Data {
 				if file.Aid != "1" {

@@ -37,7 +37,7 @@ OSS `CompleteMultipartUpload` 完成后，必须带回 115 init 返回的 `callb
 
 目录监控发现文件后，会先进入稳定性队列。稳定性签名为文件 `size + mtime`；签名变化会重置稳定计数。稳定性检查间隔为内置 2 秒，文件需要在内置 15 秒稳定窗口内保持签名不变，并连续 3 次检查不变后，才会创建上传任务。这些稳定性参数不提供页面或接口配置。
 
-同一规则下，`monitor_path + relative_path + signature` 会按 `processed_cache_ttl_seconds` 做内存 TTL 去重，避免 create / write 多事件重复创建任务。TTL 过期且文件签名变化后允许再次处理。
+同一规则下，`monitor_path + relative_path + signature` 会按 `processed_cache_ttl_seconds` 做内存 TTL 去重，避免 create / write 多事件重复创建任务。TTL 过期且文件签名变化后允许再次处理。创建上传任务前还会按 `source=directory_monitor + local_full_path + pending/uploading` 查询数据库；已有未完成任务时会跳过重复入队，覆盖服务重启、轮询重复发现和大文件长时间上传场景。
 
 默认忽略隐藏文件、`.part`、`.tmp`、`.download` 文件，以及规则中的 `ignore_patterns`。
 

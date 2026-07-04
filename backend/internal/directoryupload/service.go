@@ -248,6 +248,9 @@ func (service *Service) HandleStableFile(ctx context.Context, rule *models.Direc
 	if service.isProcessed(rule, rel, signature) {
 		return nil
 	}
+	if !models.CheckCanUploadByLocalPath(models.UploadSourceDirectoryMonitor, filePath) {
+		return nil
+	}
 
 	relativeDir := filepath.ToSlash(filepath.Dir(rel))
 	if relativeDir == "." {

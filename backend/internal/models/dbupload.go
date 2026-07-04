@@ -405,17 +405,15 @@ func (task *DbUploadTask) UploadLocalFile() bool {
 }
 
 func CheckCanUploadByLocalPath(source UploadSource, localPath string) bool {
-	var task *DbUploadTask
-	err := db.Db.Model(&DbUploadTask{}).Where("source = ? AND local_full_path = ?", source, localPath).Order("id DESC").First(&task).Error
-	if err != nil || task == nil {
+	var total int64
+	err := db.Db.Model(&DbUploadTask{}).
+		Where("source = ? AND local_full_path = ? AND status IN ?", source, localPath, []UploadStatus{UploadStatusPending, UploadStatusUploading}).
+		Count(&total).Error
+	if err != nil {
+		helpers.AppLogger.Warnf("检查本地路径上传任务失败：source=%s, local_path=%s, err=%v", source, localPath, err)
 		return true
 	}
-	if task.Status == UploadStatusUploading || task.Status == UploadStatusPending {
-		// 待上传或者上传中，不能再次添加任务
-		return false
-	}
-	// 其他状态都可以再次上传
-	return true
+	return total == 0
 }
 
 // 检查任务是否已经存在，通过 Source + RemoteFileId

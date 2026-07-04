@@ -216,6 +216,9 @@ func TestServiceDedupesProcessedFileUntilTTLExpires(t *testing.T) {
 	if total != 1 {
 		t.Fatalf("TTL 内重复处理创建了 %d 条任务，期望 1", total)
 	}
+	if err := db.Db.Model(&models.DbUploadTask{}).Where("local_full_path = ?", filePath).Update("status", models.UploadStatusCompleted).Error; err != nil {
+		t.Fatalf("标记已有上传任务完成失败: %v", err)
+	}
 
 	clock.Add(11 * time.Second)
 	writeFileWithMtime(t, filePath, []byte("movie changed"), clock.Now())
@@ -225,6 +228,57 @@ func TestServiceDedupesProcessedFileUntilTTLExpires(t *testing.T) {
 	db.Db.Model(&models.DbUploadTask{}).Count(&total)
 	if total != 2 {
 		t.Fatalf("TTL 过期且签名变化后任务数 = %d，期望 2", total)
+	}
+}
+
+func TestServiceSkipsStableFileWhenActiveUploadTaskExists(t *testing.T) {
+	cases := []struct {
+		name   string
+		status models.UploadStatus
+	}{
+		{name: "已有等待任务", status: models.UploadStatusPending},
+		{name: "已有上传中任务", status: models.UploadStatusUploading},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			setupDirectoryUploadServiceTestDB(t)
+			monitorPath := t.TempDir()
+			filePath := filepath.Join(monitorPath, "movie.mkv")
+			writeFileWithMtime(t, filePath, []byte("movie"), time.Unix(350, 0))
+			_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+			existing := &models.DbUploadTask{
+				Source:        models.UploadSourceDirectoryMonitor,
+				AccountId:     rule.AccountId,
+				SyncPathId:    rule.SyncPathId,
+				SourceType:    models.SourceType115,
+				LocalFullPath: filePath,
+				RemoteFileId:  "/remote/movie.mkv",
+				FileName:      "movie.mkv",
+				Status:        tt.status,
+				FileSize:      int64(len("movie")),
+				UploadResult:  models.UploadResultUnknown,
+			}
+			if err := db.Db.Create(existing).Error; err != nil {
+				t.Fatalf("创建已有上传任务失败: %v", err)
+			}
+
+			service := NewService(ServiceOptions{})
+			service.SetRemoteClient(&fakeRemoteClient{parentID: "remote-root"})
+			if err := service.HandleStableFile(context.Background(), rule, filePath); err != nil {
+				t.Fatalf("处理已有上传任务的稳定文件失败: %v", err)
+			}
+
+			var total int64
+			if err := db.Db.Model(&models.DbUploadTask{}).
+				Where("source = ? AND local_full_path = ?", models.UploadSourceDirectoryMonitor, filePath).
+				Count(&total).Error; err != nil {
+				t.Fatalf("统计上传任务失败: %v", err)
+			}
+			if total != 1 {
+				t.Fatalf("上传任务数量 = %d，期望跳过重复入队保持 1 条", total)
+			}
+		})
 	}
 }
 

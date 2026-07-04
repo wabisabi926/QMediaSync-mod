@@ -182,3 +182,30 @@ func TestUploadSessionValidateLocalFile(t *testing.T) {
 		})
 	}
 }
+
+func TestUploadSessionMarkCompleteCallbackFailed(t *testing.T) {
+	setupUploadSessionTestDB(t)
+
+	task := &DbUploadTask{Source: UploadSourceDirectoryMonitor, SourceType: SourceType115, LocalFullPath: "/watch/movie.mkv"}
+	if err := db.Db.Create(task).Error; err != nil {
+		t.Fatalf("创建上传任务失败: %v", err)
+	}
+	session := &UploadSession{
+		UploadTaskId: task.ID,
+		Status:       UploadSessionStatusCompleting,
+	}
+	if err := session.Save(); err != nil {
+		t.Fatalf("保存上传会话失败: %v", err)
+	}
+
+	if err := session.MarkCompleteCallbackFailed(io.ErrUnexpectedEOF); err != nil {
+		t.Fatalf("标记 callback 失败失败: %v", err)
+	}
+	got, err := GetUploadSessionByUploadTaskId(task.ID)
+	if err != nil {
+		t.Fatalf("读取上传会话失败: %v", err)
+	}
+	if got.Status != UploadSessionStatusFailed || got.CompleteCallbackState != "failed" || got.CompleteCallbackError == "" {
+		t.Fatalf("callback 失败状态 = %+v，期望 failed 并记录错误", got)
+	}
+}

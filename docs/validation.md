@@ -133,7 +133,9 @@ Emby 条目同步默认 Cron 为 `0 * * * *`，含义是每小时整点执行一
 
 ## 上传和 STRM 入站校验边界
 
-115 上传增强实现中，`preid` 计算窗口是官方协议参数，固定为文件前 `128 KiB` 的 SHA1，并通过单元测试约束；请求入口不允许外部传入自定义 `preid` 窗口。二次认证的 `sign_check` 必须解析为合法闭区间，结束位置不得小于起始位置，读取范围必须落在本地文件大小内。
+115 上传增强实现中，`preid` 计算窗口是官方协议参数，固定为文件前 `128 KiB` 的 SHA1，并通过单元测试约束；请求入口不允许外部传入自定义 `preid` 窗口。二次认证的 `sign_check` 必须解析为合法闭区间，结束位置不得小于起始位置，读取范围必须落在本地文件大小内。`/open/upload/resume` 只接受 `file_size`、`target`、`fileid`、`pick_code` 这组官方字段。
+
+OSS multipart 的 part size 必须由后端计算，不接受外部传入：默认 `32 MiB`，超过 `9999` 个 part 时动态放大并按 `1 MiB` 对齐，超过 OSS 单 part 上限时直接失败。`CompleteMultipartUpload` 后必须校验 115 callback 业务结果；`state=false`、`message` 非空、缺少 `file_id` 或缺少 `pick_code` 都不能视为上传成功。
 
 目录监控上传规则必须绑定明确的 `sync_path_id` 和账号。`monitor_path` 不得等于同步目录的 `LocalPath`，避免生成的 STRM 被再次上传；`remote_root_path` 必须位于对应 `SyncPath.RemotePath` 之下，才能安全映射 STRM 输出路径。上传后删除源文件是显式开关，默认关闭；开启后也只能在上传终态成功且 STRM 生成成功后执行，并且空目录清理不得删除监控根目录。
 

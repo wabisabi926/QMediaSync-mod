@@ -147,6 +147,21 @@ func (session *UploadSession) MarkCompleted(result UploadSessionCompleteResult) 
 	return session.Save()
 }
 
+// MarkCompleteCallbackFailed 记录 OSS complete 后 115 callback 业务失败。
+func (session *UploadSession) MarkCompleteCallbackFailed(err error) error {
+	if session == nil {
+		return errors.New("上传会话为空")
+	}
+	if err == nil {
+		return errors.New("complete callback 错误为空")
+	}
+	session.Status = UploadSessionStatusFailed
+	session.CompleteCallbackState = "failed"
+	session.CompleteCallbackError = err.Error()
+	session.LastError = err.Error()
+	return session.Save()
+}
+
 // ValidateLocalFile 校验本地文件签名是否仍匹配可续传会话。
 func (session *UploadSession) ValidateLocalFile(signature UploadSessionLocalSignature) error {
 	if session == nil {

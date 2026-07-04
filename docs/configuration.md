@@ -51,13 +51,15 @@
 
 115 Open API 上传分为 115 调度层和 OSS 数据层。`/open/upload/init` 负责上传初始化、秒传判断和二次认证调度；`status = 2` 表示秒传成功，`status = 1` 表示需要进入 OSS 上传，返回的 `callback` / `callback_var` 必须在 OSS 完成 multipart 时带回，让 115 完成文件入库。`/open/upload/get_token` 只负责获取 OSS 临时凭证，凭证不得写入数据库，也不得写入普通日志。
 
+当前 115 Open API 非秒传上传使用 OSS multipart：先 `InitiateMultipartUpload`，按 part 上传，再 `CompleteMultipartUpload` 并带回 115 callback。默认 part size 为 `32 MiB`；当文件按 `32 MiB` 切分会超过 `9999` 个 part 时，part size 会按 `ceil(file_size / 9999)` 放大并向上取整到 `1 MiB`。如果计算出的 part size 超过 OSS 单 part 上限，上传会失败并返回错误。单个 part 上传失败时至少重试 3 次；重试前会刷新 OSS 上传凭证并继续当前 part。
+
 断点续传必须同时满足两层条件：先调用 115 `/open/upload/resume` 恢复 `file_size`、`target`、`fileid`、`pick_code` 对应的上传调度信息，再用 OSS `upload_id` 和 `ListParts` 查询已上传分片。仅重新调用 init、仅普通 multipart 上传，或发现远端已有同名同 SHA1 / 同大小文件，都不能称为断点续传。
 
 `preid` 按 115 官方“文件上传”文档使用文件前 `128 KiB` 的 SHA1。本项目以官方文档为准，并把该窗口封装为可测试实现，避免上传流程中散落协议常量。
 
 秒传等待策略保存于 `settings` 表，默认关闭。启用后，上传初始化未命中秒传时会按 `upload_rapid_wait_interval_seconds` 间隔重复 init，最长等待 `upload_rapid_wait_timeout_seconds`；`upload_rapid_wait_min_size` 和 `upload_rapid_wait_force_size` 用于限制哪些文件进入等待策略，`upload_rapid_wait_skip_upload` 用于控制等待超时后是否跳过真实上传。
 
-阶段 0 只完成官方公开文档、当前代码和 Aliyun OSS SDK v2 API 的交叉核验。真实 115 小文件 / 大文件上传实测需要有效 115 Open API 沙箱账号和可写测试目录，且会产生远端写入副作用；未获得明确沙箱授权前，不应在开发环境自动执行真实外部上传。
+自动化测试覆盖协议字段、part size、callback 校验和本地 mock 请求。真实 115 小文件 / 大文件上传实测需要有效 115 Open API 沙箱账号和可写测试目录，且会产生远端写入副作用；未获得明确沙箱授权前，不应在开发环境自动执行真实外部上传。
 
 ## Emby 302 出站 HTTPS
 

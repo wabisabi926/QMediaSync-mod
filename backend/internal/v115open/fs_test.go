@@ -29,7 +29,7 @@ type captureOpenAPITransport struct {
 func newCaptureOpenAPITransport(response string) *captureOpenAPITransport {
 	return &captureOpenAPITransport{
 		response: response,
-		requests: make(chan capturedOpenAPIRequest, 1),
+		requests: make(chan capturedOpenAPIRequest, 8),
 	}
 }
 

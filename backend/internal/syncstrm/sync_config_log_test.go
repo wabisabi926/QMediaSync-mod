@@ -14,7 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestNewSyncStrmFromSyncPathLogsEffectiveStrmConfig(t *testing.T) {
+func TestLogEffectiveStrmConfigUsesGlobalSources(t *testing.T) {
 	var logBuf bytes.Buffer
 	originalLogger := helpers.AppLogger
 	originalConfigDir := helpers.ConfigDir
@@ -87,6 +87,8 @@ func TestNewSyncStrmFromSyncPathLogsEffectiveStrmConfig(t *testing.T) {
 		t.Fatal("NewSyncStrmFromSyncPath() 返回 nil")
 	}
 
+	logEffectiveStrmConfig(syncPath, syncStrm.Config.VideoExt, syncStrm.Config.MetaExt, syncStrm.Config.ExcludeNames)
+
 	logOutput := logBuf.String()
 	wantParts := []string{
 		"同步目录 1 生效 STRM 配置",
@@ -104,7 +106,7 @@ func TestNewSyncStrmFromSyncPathLogsEffectiveStrmConfig(t *testing.T) {
 	}
 }
 
-func TestNewSyncStrmFromSyncPathLogsMixedEffectiveStrmConfigSources(t *testing.T) {
+func TestLogEffectiveStrmConfigUsesMixedSources(t *testing.T) {
 	var logBuf bytes.Buffer
 	originalLogger := helpers.AppLogger
 	originalConfigDir := helpers.ConfigDir
@@ -178,6 +180,8 @@ func TestNewSyncStrmFromSyncPathLogsMixedEffectiveStrmConfigSources(t *testing.T
 		t.Fatal("NewSyncStrmFromSyncPath() 返回 nil")
 	}
 
+	logEffectiveStrmConfig(syncPath, syncStrm.Config.VideoExt, syncStrm.Config.MetaExt, syncStrm.Config.ExcludeNames)
+
 	logOutput := logBuf.String()
 	wantParts := []string{
 		"同步目录 5 生效 STRM 配置",
@@ -192,6 +196,64 @@ func TestNewSyncStrmFromSyncPathLogsMixedEffectiveStrmConfigSources(t *testing.T
 	}
 	if strings.Contains(logOutput, "配置来源=同步目录自定义设置") {
 		t.Fatalf("日志不应把整条配置标记为同步目录自定义设置，实际日志：%s", logOutput)
+	}
+}
+
+func TestNewSyncStrmForStrmGenerationDoesNotLogEffectiveStrmConfig(t *testing.T) {
+	var logBuf bytes.Buffer
+	originalLogger := helpers.AppLogger
+	originalConfigDir := helpers.ConfigDir
+	originalSettingsGlobal := models.SettingsGlobal
+	originalDb := db.Db
+	t.Cleanup(func() {
+		helpers.AppLogger = originalLogger
+		helpers.ConfigDir = originalConfigDir
+		models.SettingsGlobal = originalSettingsGlobal
+		db.Db = originalDb
+	})
+
+	helpers.AppLogger = &helpers.QLogger{Logger: log.New(&logBuf, "", 0)}
+	helpers.ConfigDir = t.TempDir()
+	models.SettingsGlobal = &models.Settings{}
+
+	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	db.Db = testDb
+	if err := db.Db.AutoMigrate(&models.Settings{}, &models.Sync{}); err != nil {
+		t.Fatalf("迁移测试表失败: %v", err)
+	}
+	settings := &models.Settings{
+		SettingThreads: models.SettingThreads{
+			FileDetailThreads: 2,
+			OpenlistQPS:       3,
+		},
+		SettingStrm: models.SettingStrm{
+			VideoExtArr: []string{".mp4", ".mkv"},
+			MetaExtArr:  []string{".nfo", ".jpg"},
+		},
+	}
+	if err := db.Db.Create(settings).Error; err != nil {
+		t.Fatalf("创建测试设置失败: %v", err)
+	}
+
+	syncPath := &models.SyncPath{
+		BaseModel:    models.BaseModel{ID: 7},
+		CustomConfig: false,
+		LocalPath:    helpers.ConfigDir,
+		RemotePath:   "动漫",
+		SourceType:   models.SourceTypeLocal,
+	}
+
+	syncStrm := NewSyncStrmForStrmGeneration(syncPath, nil)
+	if syncStrm == nil {
+		t.Fatal("NewSyncStrmForStrmGeneration() 返回 nil")
+	}
+
+	logOutput := logBuf.String()
+	if strings.Contains(logOutput, "生效 STRM 配置") {
+		t.Fatalf("STRM 后处理同步器不应输出生效配置日志，实际日志：%s", logOutput)
 	}
 }
 

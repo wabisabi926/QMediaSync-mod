@@ -30,6 +30,10 @@ func (s *SyncStrm) ProcessStrmFile(sf *SyncFileCache) error {
 		// s.Sync.Logger.Infof("文件 %s 已存在且无需更新 STRM 文件，跳过", filepath.Join(sf.Path, sf.FileName))
 		return nil
 	}
+	return s.writeStrmFile(sf)
+}
+
+func (s *SyncStrm) writeStrmFile(sf *SyncFileCache) error {
 	// localFilePath := sf.GetLocalFilePath()
 	strmFullPath := sf.GetLocalFilePath(s.TargetPath, s.SourcePath)
 	strmContent := s.SyncDriver.MakeStrmContent(sf)

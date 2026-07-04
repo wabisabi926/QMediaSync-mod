@@ -268,6 +268,24 @@ func newSyncStrmFromSyncPath(syncPath *models.SyncPath, account *models.Account,
 		// OpenList 只使用自定义的 STRM 直连地址
 		config.StrmBaseUrl = syncPath.SettingStrm.StrmBaseUrl
 	}
+	return newSyncStrm(account, syncPath.ID, syncPath.RemotePath, syncPath.BaseCid, syncPath.LocalPath, config, syncPath.IsFullSync, syncPath.LastSyncAt, false, createSyncRecord)
+}
+
+func (s *SyncStrm) logEffectiveStrmConfig() {
+	if s == nil || s.TmpSyncPath || s.SyncPathId == 0 {
+		return
+	}
+	syncPath := models.GetSyncPathById(s.SyncPathId)
+	if syncPath == nil {
+		return
+	}
+	logEffectiveStrmConfig(syncPath, s.Config.VideoExt, s.Config.MetaExt, s.Config.ExcludeNames)
+}
+
+func logEffectiveStrmConfig(syncPath *models.SyncPath, videoExt, metaExt, excludeNames []string) {
+	if syncPath == nil {
+		return
+	}
 	helpers.AppLogger.Infof(
 		"同步目录 %d 生效 STRM 配置：视频扩展名=%s（来源=%s），元数据扩展名=%s（来源=%s），排除名称=%s（来源=%s）",
 		syncPath.ID,
@@ -278,7 +296,6 @@ func newSyncStrmFromSyncPath(syncPath *models.SyncPath, account *models.Account,
 		formatStrmConfigArray(excludeNames),
 		strmArrayConfigSource(syncPath.CustomConfig, syncPath.ExcludeNameArr),
 	)
-	return newSyncStrm(account, syncPath.ID, syncPath.RemotePath, syncPath.BaseCid, syncPath.LocalPath, config, syncPath.IsFullSync, syncPath.LastSyncAt, false, createSyncRecord)
 }
 
 func strmArrayConfigSource(customConfig bool, localValue []string) string {
@@ -341,6 +358,7 @@ func (s *SyncStrm) Start() error {
 	atomic.StoreInt64(&s.NewUpload, 0)
 	atomic.StoreInt64(&s.TotalFile, 0)
 	s.Sync.Logger.Infof("本次同步的入口目录：%s，目标目录：%s", s.SourcePath, s.TargetPath)
+	s.logEffectiveStrmConfig()
 	s.Sync.Logger.Infof("本次同步使用的 STRM 配置%+v", s.Config)
 	s.Sync.UpdateStatus(models.SyncStatusInProgress)
 	if s.IsFile {

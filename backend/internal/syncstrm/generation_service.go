@@ -64,7 +64,7 @@ func NewStrmGenerationService() *StrmGenerationService {
 		return syncer.CompareStrm(file)
 	}
 	service.processStrmFile = func(syncer *SyncStrm, file *SyncFileCache) error {
-		return syncer.ProcessStrmFile(file)
+		return syncer.writeStrmFile(file)
 	}
 	service.requestEmbyRefreshBySyncFile = models.RequestEmbyRefreshBySyncFile
 	service.detailByFileID = func(ctx context.Context, syncer *SyncStrm, fileID string) (*SyncFileCache, error) {

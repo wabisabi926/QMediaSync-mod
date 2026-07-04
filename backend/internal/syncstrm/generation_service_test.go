@@ -1,12 +1,14 @@
 package syncstrm
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"qmediasync/internal/baidupan"
@@ -34,6 +36,7 @@ func setupStrmGenerationServiceTestDB(t *testing.T) (*models.Account, *models.Sy
 		&models.Sync{},
 		&models.SyncFile{},
 		&models.StrmGenerationTask{},
+		&models.Settings{},
 		&models.EmbyConfig{},
 		&models.EmbyLibrary{},
 		&models.EmbyLibrarySyncPath{},
@@ -48,6 +51,9 @@ func setupStrmGenerationServiceTestDB(t *testing.T) (*models.Account, *models.Sy
 			MetaExtArr:  []string{".nfo"},
 			AddPath:     3,
 		},
+	}
+	if err := db.Db.Create(models.SettingsGlobal).Error; err != nil {
+		t.Fatalf("创建测试设置失败: %v", err)
 	}
 	account := &models.Account{
 		SourceType: models.SourceType115,
@@ -258,6 +264,52 @@ func TestStrmGenerationServiceDefaultBuilderDoesNotCreateSyncRecord(t *testing.T
 	}
 	if syncCount != 0 {
 		t.Fatalf("同步记录数量 = %d，期望目录监控上传后处理不创建同步记录", syncCount)
+	}
+}
+
+func TestStrmGenerationServiceDefaultWriterComparesStrmOnce(t *testing.T) {
+	account, syncPath := setupStrmGenerationServiceTestDB(t)
+	var logBuf bytes.Buffer
+	helpers.AppLogger = &helpers.QLogger{Logger: log.New(&logBuf, "", 0)}
+
+	existingStrmPath := filepath.Join(syncPath.LocalPath, "remote", "movie.strm")
+	if err := os.MkdirAll(filepath.Dir(existingStrmPath), 0o755); err != nil {
+		t.Fatalf("创建已有 STRM 目录失败: %v", err)
+	}
+	existingContent := "http://qms.local/115/url/video.mkv?pickcode=old-pick&userid=user-1"
+	if err := os.WriteFile(existingStrmPath, []byte(existingContent), 0o644); err != nil {
+		t.Fatalf("创建已有 STRM 失败: %v", err)
+	}
+
+	service := NewStrmGenerationService()
+	service.requestEmbyRefreshBySyncFile = func(*models.SyncFile) error { return nil }
+
+	result, err := service.Generate(context.Background(), StrmGenerationInput{
+		Task: &models.StrmGenerationTask{
+			Source:     models.StrmGenerationSourceUploadCompleted,
+			TaskType:   models.StrmGenerationTaskTypeFile,
+			SyncPathId: syncPath.ID,
+			AccountId:  account.ID,
+			FileId:     "file-compare-once",
+			ParentId:   "parent-compare-once",
+			PickCode:   "new-pick",
+			Path:       "/remote",
+			FileName:   "movie.mkv",
+			FileSize:   1024,
+			Sha1:       "sha1",
+			Mtime:      123456,
+		},
+	})
+	if err != nil {
+		t.Fatalf("生成 STRM 失败: %v", err)
+	}
+	if !result.Changed {
+		t.Fatal("result.Changed = false，期望 true")
+	}
+
+	logOutput := logBuf.String()
+	if count := strings.Count(logOutput, "STRM 内容 PickCode 与本地不一致"); count != 1 {
+		t.Fatalf("PickCode 差异日志数量 = %d，期望 1，实际日志：%s", count, logOutput)
 	}
 }
 

@@ -84,6 +84,29 @@ func GetDirectoryUploadRuleById(id uint) (*DirectoryUploadRule, error) {
 	return &rule, nil
 }
 
+// GetDirectoryUploadRules 查询目录监控上传规则列表。
+func GetDirectoryUploadRules(syncPathID uint) ([]*DirectoryUploadRule, error) {
+	var rules []*DirectoryUploadRule
+	query := db.Db.Order("id ASC")
+	if syncPathID > 0 {
+		query = query.Where("sync_path_id = ?", syncPathID)
+	}
+	if err := query.Find(&rules).Error; err != nil {
+		return nil, err
+	}
+	return rules, nil
+}
+
+// DeleteDirectoryUploadRule 删除目录监控上传规则。
+func DeleteDirectoryUploadRule(id uint) error {
+	return db.Db.Delete(&DirectoryUploadRule{}, id).Error
+}
+
+// SetDirectoryUploadRuleEnabled 设置目录监控上传规则启用状态。
+func SetDirectoryUploadRuleEnabled(id uint, enabled bool) error {
+	return db.Db.Model(&DirectoryUploadRule{}).Where("id = ?", id).Update("enabled", enabled).Error
+}
+
 // ValidateWithSyncPath 校验目录监控上传规则和同步目录的路径边界。
 func (rule *DirectoryUploadRule) ValidateWithSyncPath(syncPath *SyncPath) error {
 	if rule == nil {

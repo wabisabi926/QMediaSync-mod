@@ -25,6 +25,7 @@ import (
 	"qmediasync/internal/controllers"
 	"qmediasync/internal/db"
 	"qmediasync/internal/db/database"
+	"qmediasync/internal/directoryupload"
 	"qmediasync/internal/github"
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/migrate"
@@ -124,6 +125,8 @@ func (app *App) Stop() {
 	// 关闭上传下载队列
 	models.GlobalDownloadQueue.Stop()
 	models.GlobalUploadQueue.Stop()
+	// 关闭目录监控上传服务
+	directoryupload.StopDirectoryUploadService()
 	// 关闭定时任务（包含备份定时任务）
 	synccron.GlobalCron.Stop()
 	// 关闭数据库
@@ -518,6 +521,7 @@ func initOthers() {
 	synccron.InitNewSyncQueueManager()
 	models.InitEmbyLibraryRefreshCoordinator()
 	syncstrm.InitStrmGenerationWorker()
+	directoryupload.InitDirectoryUploadService()
 	// 初始化 WebSocket 事件中心
 	wsHub := websocket.NewEventHub()
 	websocket.GlobalEventHub = wsHub
@@ -717,6 +721,13 @@ func setRouter(r *gin.Engine) {
 		api.GET("/sync/path/:id/scrape-paths", controllers.GetRelScrapePath) // 获取同步路径关联的刮削路径
 		api.POST("/sync/path/scrape-paths", controllers.SaveRelScrapePath)   // 更新同步路径关联的刮削路径
 		api.POST("/sync/manual", controllers.ManualSync)                     // 手动同步
+
+		api.GET("/directory-upload/rules", controllers.ListDirectoryUploadRules)                 // 获取目录监控上传规则
+		api.POST("/directory-upload/rules", controllers.CreateDirectoryUploadRule)               // 创建目录监控上传规则
+		api.PUT("/directory-upload/rules/:id", controllers.UpdateDirectoryUploadRule)            // 更新目录监控上传规则
+		api.DELETE("/directory-upload/rules/:id", controllers.DeleteDirectoryUploadRule)         // 删除目录监控上传规则
+		api.POST("/directory-upload/rules/:id/status", controllers.SetDirectoryUploadRuleStatus) // 启停目录监控上传规则
+		api.POST("/directory-upload/rules/:id/scan", controllers.ScanDirectoryUploadRule)        // 手动触发目录监控补偿扫描
 
 		api.GET("/account/list", controllers.GetAccountList)             // 获取开放平台账号列表
 		api.POST("/account/add", controllers.CreateTmpAccount)           // 创建开放平台账号

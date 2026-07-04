@@ -63,6 +63,16 @@
 
 自动化测试覆盖协议字段、part size、callback 校验和本地 mock 请求。真实 115 小文件 / 大文件上传实测需要有效 115 Open API 沙箱账号和可写测试目录，且会产生远端写入副作用；未获得明确沙箱授权前，不应在开发环境自动执行真实外部上传。
 
+## 目录监控上传
+
+目录监控上传通过 `/api/directory-upload/rules` 系列接口配置，绑定一个同步目录和 115 上传目标目录。规则启用后，程序启动时会加载规则；`watch_mode=auto` 优先使用 `fsnotify` watcher，初始化失败时回退 polling；`watch_mode=polling` 始终按 `rescan_interval_seconds` 做补偿扫描。
+
+补偿扫描和 watcher 事件只把候选视频文件加入稳定性队列。文件需要满足 `stability_seconds` 和 `stability_required_count`，并通过 `monitor_path + relative_path + size + mtime` 的 TTL 去重后，才会创建上传队列任务。目录监控上传不在 watcher goroutine 内直接上传文件。
+
+`delete_source_after_success` 默认关闭。开启后，仍必须等目录监控上传任务成功且关联 STRM 生成任务成功后才删除本地源文件，并向上清理空目录但不删除监控根目录。上传失败、STRM 失败、秒传等待超时后跳过真实上传，或远端已存在但未确认 SHA1 / 大小一致时，都不会删除源文件。
+
+完整流程见 [上传和 STRM 后处理流程](upload-strm-workflow.md)。
+
 ## STRM 生成后处理
 
 115 上传任务成功或确认远端同名同 SHA1 / 同大小文件已存在后，会按远端文件 ID / PickCode 创建 `strm_generation_tasks`。后台 STRM 生成 worker 会读取待处理任务，并复用现有同步目录配置和 `syncstrm.ProcessStrmFile()` 写入 STRM 内容，因此仍兼容 `strm_base_url`、`add_path`、PickCode 和账号用户 ID 等既有 STRM 规则。

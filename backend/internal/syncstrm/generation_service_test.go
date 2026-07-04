@@ -407,3 +407,104 @@ func TestProcessPendingStrmGenerationTasksMarksCompletedAndFailed(t *testing.T) 
 		t.Fatalf("失败任务状态 = %+v，期望 failed/retry_count=1/last_error", failedTask)
 	}
 }
+
+func TestProcessPendingStrmGenerationTasksCallsSourceCleanupAfterCompletedUploadTask(t *testing.T) {
+	account, syncPath := setupStrmGenerationServiceTestDB(t)
+	service := newTestGenerationService(t, syncPath, account)
+	service.compareStrm = func(_ *SyncStrm, _ *SyncFileCache) int { return 1 }
+	service.processStrmFile = func(_ *SyncStrm, _ *SyncFileCache) error { return nil }
+	service.requestEmbyRefreshBySyncFile = func(*models.SyncFile) error { return nil }
+
+	var cleanupUploadTaskIDs []uint
+	oldCleanup := cleanupSourceAfterStrmSuccess
+	cleanupSourceAfterStrmSuccess = func(uploadTaskID uint) error {
+		cleanupUploadTaskIDs = append(cleanupUploadTaskIDs, uploadTaskID)
+		return nil
+	}
+	t.Cleanup(func() {
+		cleanupSourceAfterStrmSuccess = oldCleanup
+	})
+
+	if _, err := models.EnqueueStrmGenerationTask(&models.StrmGenerationTask{
+		Source:       models.StrmGenerationSourceUploadCompleted,
+		TaskType:     models.StrmGenerationTaskTypeFile,
+		UploadTaskId: 42,
+		SyncPathId:   syncPath.ID,
+		AccountId:    account.ID,
+		FileId:       "file-cleanup",
+		ParentId:     "parent-cleanup",
+		PickCode:     "pick-cleanup",
+		Path:         "/remote",
+		FileName:     "cleanup.mkv",
+	}); err != nil {
+		t.Fatalf("创建清理任务失败: %v", err)
+	}
+	if _, err := ProcessPendingStrmGenerationTasks(context.Background(), service, 10); err != nil {
+		t.Fatalf("处理 STRM 任务失败: %v", err)
+	}
+	if len(cleanupUploadTaskIDs) != 1 || cleanupUploadTaskIDs[0] != 42 {
+		t.Fatalf("cleanup ids=%v，期望只清理上传任务 42", cleanupUploadTaskIDs)
+	}
+}
+
+func TestProcessPendingStrmGenerationTasksSkipsCleanupWhenFailedOrNoUploadTask(t *testing.T) {
+	account, syncPath := setupStrmGenerationServiceTestDB(t)
+	service := newTestGenerationService(t, syncPath, account)
+	service.compareStrm = func(_ *SyncStrm, file *SyncFileCache) int {
+		if file.FileId == "file-fail-cleanup" {
+			return 0
+		}
+		return 1
+	}
+	service.processStrmFile = func(_ *SyncStrm, file *SyncFileCache) error {
+		if file.FileId == "file-fail-cleanup" {
+			return errors.New("写入失败")
+		}
+		return nil
+	}
+	service.requestEmbyRefreshBySyncFile = func(*models.SyncFile) error { return nil }
+
+	cleanupCalled := false
+	oldCleanup := cleanupSourceAfterStrmSuccess
+	cleanupSourceAfterStrmSuccess = func(uploadTaskID uint) error {
+		cleanupCalled = true
+		return nil
+	}
+	t.Cleanup(func() {
+		cleanupSourceAfterStrmSuccess = oldCleanup
+	})
+
+	if _, err := models.EnqueueStrmGenerationTask(&models.StrmGenerationTask{
+		Source:     models.StrmGenerationSourceUploadCompleted,
+		TaskType:   models.StrmGenerationTaskTypeFile,
+		SyncPathId: syncPath.ID,
+		AccountId:  account.ID,
+		FileId:     "file-no-upload",
+		ParentId:   "parent-no-upload",
+		PickCode:   "pick-no-upload",
+		Path:       "/remote",
+		FileName:   "no-upload.mkv",
+	}); err != nil {
+		t.Fatalf("创建无上传 ID 任务失败: %v", err)
+	}
+	if _, err := models.EnqueueStrmGenerationTask(&models.StrmGenerationTask{
+		Source:       models.StrmGenerationSourceUploadCompleted,
+		TaskType:     models.StrmGenerationTaskTypeFile,
+		UploadTaskId: 43,
+		SyncPathId:   syncPath.ID,
+		AccountId:    account.ID,
+		FileId:       "file-fail-cleanup",
+		ParentId:     "parent-fail-cleanup",
+		PickCode:     "pick-fail-cleanup",
+		Path:         "/remote",
+		FileName:     "fail-cleanup.mkv",
+	}); err != nil {
+		t.Fatalf("创建失败任务失败: %v", err)
+	}
+	if _, err := ProcessPendingStrmGenerationTasks(context.Background(), service, 10); err != nil {
+		t.Fatalf("处理 STRM 任务失败: %v", err)
+	}
+	if cleanupCalled {
+		t.Fatal("STRM 失败或无 upload_task_id 时不应触发源文件清理")
+	}
+}

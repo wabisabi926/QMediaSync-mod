@@ -430,6 +430,28 @@ func CheckUploadTaskExist(source UploadSource, remoteFileId string) *DbUploadTas
 	return task
 }
 
+// AddDirectoryMonitorUploadTask 添加目录监控产生的上传任务。
+func AddDirectoryMonitorUploadTask(task *DbUploadTask) error {
+	if task == nil {
+		return errors.New("上传任务为空")
+	}
+	task.Source = UploadSourceDirectoryMonitor
+	if task.Status == 0 {
+		task.Status = UploadStatusPending
+	}
+	if task.UploadResult == "" {
+		task.UploadResult = UploadResultUnknown
+	}
+	if task.SourceCleanupStatus == "" {
+		task.SourceCleanupStatus = UploadSourceCleanupStatusNone
+	}
+	if err := db.Db.Save(task).Error; err != nil {
+		return err
+	}
+	publishUploadQueueChanged(task, "created")
+	return nil
+}
+
 // 添加 STRM 同步产生的上传任务
 func AddUploadTaskFromSyncFile(file *SyncFile) error {
 	// 先检查是否存在

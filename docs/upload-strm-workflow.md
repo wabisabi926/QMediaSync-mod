@@ -1,0 +1,54 @@
+# 上传和 STRM 后处理流程
+
+本文说明 QMediaSync 当前上传增强、目录监控上传和 STRM 生成后处理的运行边界。
+
+## 目录监控上传
+
+目录监控上传规则绑定一个同步目录，只支持 115 Open API 上传目标。程序启动后会加载启用的规则；规则停用或程序退出时，后台 watcher / polling 会停止。
+
+规则接口：
+
+- `GET /api/directory-upload/rules`：查询规则列表，可用 `sync_path_id` 过滤。
+- `POST /api/directory-upload/rules`：创建规则。
+- `PUT /api/directory-upload/rules/:id`：更新规则。
+- `DELETE /api/directory-upload/rules/:id`：删除规则。
+- `POST /api/directory-upload/rules/:id/status`：启用或停用规则，请求体为 `{"enabled": true}`。
+- `POST /api/directory-upload/rules/:id/scan`：手动触发补偿扫描，返回本次加入稳定性队列的候选文件数。
+
+监控模式：
+
+- `auto`：优先使用 `fsnotify` watcher；初始化失败时自动回退到 polling。
+- `watcher`：强制使用 `fsnotify` watcher，初始化失败则规则启动失败。
+- `polling`：按 `rescan_interval_seconds` 周期递归扫描。
+
+启动补偿扫描由 `startup_scan_enabled` 控制。补偿扫描只把候选视频文件加入稳定性队列，不直接创建上传任务。
+
+## 稳定性和去重
+
+目录监控发现文件后，会先进入稳定性队列。稳定性签名为文件 `size + mtime`；签名变化会重置稳定计数。只有文件满足 `stability_seconds` 和 `stability_required_count` 后，才会创建上传任务。
+
+同一规则下，`monitor_path + relative_path + signature` 会按 `processed_cache_ttl_seconds` 做内存 TTL 去重，避免 create / write 多事件重复创建任务。TTL 过期且文件签名变化后允许再次处理。
+
+默认忽略隐藏文件、`.part`、`.tmp`、`.download` 文件，以及规则中的 `ignore_patterns`。
+
+## 上传任务和远端已存在
+
+目录监控上传只创建 `db_upload_tasks.source = directory_monitor` 的上传任务，真实上传仍由全局上传队列执行。任务会写入 `sync_path_id`、`relative_path`、`remote_file_id` 和 `remote_path_id`，因此会出现在上传队列页面。
+
+创建任务前会检查远端同目录同名文件。只有远端文件 SHA1 和大小都与本地文件一致时，才把上传任务直接标记为 `completed`，`upload_result = remote_exists`，并创建后续 STRM 生成任务。该行为是远端已存在跳过，不是断点续传。
+
+普通上传成功、秒传成功或断点续传完成后，由上传任务统一创建 STRM 生成任务。`upload_result = skipped_after_rapid_wait` 不会创建 STRM 生成任务，也不会触发源文件删除。
+
+## STRM 后处理和源文件删除
+
+STRM 生成 worker 会读取 `strm_generation_tasks`，复用同步目录配置写入或确认 STRM。STRM 新增或更新后，会优先提交 Emby item 级定向刷新；定位不到可靠 item 时回退同步目录关联媒体库刷新。
+
+目录监控规则的 `delete_source_after_success` 默认关闭。开启后，也必须同时满足以下条件才会删除本地源文件：
+
+- 上传任务来源为 `directory_monitor`。
+- 上传任务状态为 `completed`。
+- 上传结果为 `rapid_upload`、`multipart_uploaded` 或已确认签名的 `remote_exists`。
+- 关联 `StrmGenerationTask` 状态为 `completed`。
+- 源文件路径仍在规则 `monitor_path` 内。
+
+删除源文件成功后，程序会从源文件所在目录向上删除空目录，但不会删除 `monitor_path` 根目录。清理失败只记录到上传任务的 `source_cleanup_status` 和 `source_cleanup_error`，不会回滚远端文件或已生成的 STRM。

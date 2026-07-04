@@ -720,6 +720,11 @@ func uploadRapidWaitPolicyFromSettings() v115open.RapidUploadWaitPolicy {
 	}
 }
 
+// EnqueueStrmGenerationAfterUpload 根据上传完成结果创建 STRM 生成任务。
+func (task *DbUploadTask) EnqueueStrmGenerationAfterUpload() error {
+	return task.enqueueStrmGenerationAfterUpload()
+}
+
 func (task *DbUploadTask) enqueueStrmGenerationAfterUpload() error {
 	if task == nil {
 		return nil

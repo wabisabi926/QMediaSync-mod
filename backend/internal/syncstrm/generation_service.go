@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"qmediasync/internal/db"
+	"qmediasync/internal/directoryupload"
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
 	"qmediasync/internal/v115open"
@@ -25,6 +26,7 @@ const (
 )
 
 var strmGenerationWorkerOnce sync.Once
+var cleanupSourceAfterStrmSuccess = directoryupload.CleanupSourceAfterStrmSuccess
 
 // StrmGenerationInput 是单文件 STRM 生成输入。
 type StrmGenerationInput struct {
@@ -349,6 +351,11 @@ func ProcessPendingStrmGenerationTasks(ctx context.Context, service *StrmGenerat
 		}
 		if err := task.MarkCompleted(); err != nil {
 			return processed, err
+		}
+		if task.UploadTaskId > 0 {
+			if err := cleanupSourceAfterStrmSuccess(task.UploadTaskId); err != nil {
+				helpers.AppLogger.Warnf("STRM 生成完成后清理目录上传源文件失败：%v", err)
+			}
 		}
 		if task.ParentTaskId > 0 {
 			_ = models.IncrementStrmGenerationDirectoryStats(task.ParentTaskId, 1, 0)

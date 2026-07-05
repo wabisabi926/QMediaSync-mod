@@ -170,6 +170,83 @@ func TestEnqueueStrmGenerationDirectoryScanDedupesOnlyActiveTasks(t *testing.T) 
 	}
 }
 
+func TestStrmGenerationTaskWebhookOptionsDefaultFalse(t *testing.T) {
+	setupStrmGenerationTaskTestDB(t)
+
+	task, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:     StrmGenerationSourceWebhook,
+		TaskType:   StrmGenerationTaskTypeFile,
+		SyncPathId: 1,
+		FileId:     "file-1",
+		PickCode:   "pick-1",
+	})
+	if err != nil {
+		t.Fatalf("创建 STRM 任务失败: %v", err)
+	}
+	if task.DownloadMeta || task.RefreshEmby {
+		t.Fatalf("Webhook 开关默认值 = download_meta:%v refresh_emby:%v，期望均为 false", task.DownloadMeta, task.RefreshEmby)
+	}
+}
+
+func TestStrmGenerationTaskRefreshTargetsMergeAndLibraryOverride(t *testing.T) {
+	task := &StrmGenerationTask{}
+	task.MergeRefreshTargets([]EmbyRefreshTarget{
+		{
+			TargetType:        EmbyRefreshTargetTypeItem,
+			ItemID:            "movie-1",
+			ItemName:          "电影 1",
+			FallbackLibraryId: "lib-movie",
+		},
+		{
+			TargetType:          EmbyRefreshTargetTypeLibrary,
+			FallbackLibraryId:   "lib-movie",
+			FallbackLibraryName: "电影库",
+		},
+		{
+			TargetType:        EmbyRefreshTargetTypeItem,
+			ItemID:            "movie-2",
+			ItemName:          "电影 2",
+			FallbackLibraryId: "lib-movie",
+		},
+		{
+			TargetType:        EmbyRefreshTargetTypeItem,
+			ItemID:            "season-1",
+			ItemName:          "第一季",
+			ItemType:          "Season",
+			Recursive:         true,
+			FallbackLibraryId: "lib-tv",
+		},
+	})
+
+	got := task.GetRefreshTargets()
+	if len(got) != 2 {
+		t.Fatalf("刷新目标数量 = %d，期望电影库 + season 两个目标: %+v", len(got), got)
+	}
+	if got[0].TargetType != EmbyRefreshTargetTypeLibrary || got[0].FallbackLibraryId != "lib-movie" {
+		t.Fatalf("第一个目标 = %+v，期望 lib-movie 媒体库目标", got[0])
+	}
+	if got[1].TargetType != EmbyRefreshTargetTypeItem || got[1].ItemID != "season-1" {
+		t.Fatalf("第二个目标 = %+v，期望 season-1 item 目标", got[1])
+	}
+}
+
+func TestStrmGenerationParentReadyForRefresh(t *testing.T) {
+	parent := &StrmGenerationTask{
+		TotalItems:    3,
+		AcceptedItems: 2,
+		FailedItems:   1,
+		ChangedItems:  1,
+		RefreshEmby:   true,
+	}
+	if !parent.IsReadyToSubmitRefresh() {
+		t.Fatal("全部子任务完成且有变化时应可提交刷新")
+	}
+	parent.RefreshSubmitted = true
+	if parent.IsReadyToSubmitRefresh() {
+		t.Fatal("已提交刷新后不应再次提交")
+	}
+}
+
 func TestStrmGenerationTaskRetryAndRunningReset(t *testing.T) {
 	setupStrmGenerationTaskTestDB(t)
 

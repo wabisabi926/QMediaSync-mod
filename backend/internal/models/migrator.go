@@ -18,7 +18,7 @@ type Migrator struct {
 	VersionCode int `json:"version_code"` // 版本号
 }
 
-var MaxVersionCode = 55
+var MaxVersionCode = 56
 var AllTables = []any{
 	Migrator{},
 	BackupConfig{}, BackupRecord{},
@@ -617,6 +617,14 @@ func Migrate() {
 			return
 		}
 		helpers.AppLogger.Info("已添加目录监控上传元数据开关")
+		migrator.UpdateVersionCode(db.Db)
+	}
+	if migrator.VersionCode == 55 {
+		if err := db.Db.AutoMigrate(StrmGenerationTask{}); err != nil {
+			helpers.AppLogger.Errorf("迁移 STRM Webhook 任务刷新与元数据字段失败：%v", err)
+			return
+		}
+		helpers.AppLogger.Info("已添加 STRM Webhook 任务刷新与元数据字段")
 		migrator.UpdateVersionCode(db.Db)
 	}
 	helpers.AppLogger.Infof("当前数据库版本 %d", migrator.VersionCode)

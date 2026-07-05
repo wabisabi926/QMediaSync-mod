@@ -1,11 +1,14 @@
 package models
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"qmediasync/internal/db"
+	"qmediasync/internal/helpers"
 
 	"gorm.io/gorm"
 )
@@ -25,6 +28,7 @@ type StrmGenerationTaskType string
 const (
 	StrmGenerationTaskTypeFile          StrmGenerationTaskType = "file"
 	StrmGenerationTaskTypeDirectoryScan StrmGenerationTaskType = "directory_scan"
+	StrmGenerationTaskTypeBatchFiles    StrmGenerationTaskType = "batch_files"
 )
 
 // StrmGenerationStatus 是 STRM 生成任务状态。
@@ -48,6 +52,9 @@ type StrmGenerationTask struct {
 	SyncPathId   uint                   `json:"sync_path_id" gorm:"index"`
 	AccountId    uint                   `json:"account_id" gorm:"index"`
 
+	DownloadMeta bool `json:"download_meta" gorm:"default:false"`
+	RefreshEmby  bool `json:"refresh_emby" gorm:"default:false"`
+
 	FileId   string `json:"file_id" gorm:"size:128;index"`
 	ParentId string `json:"parent_id" gorm:"size:128"`
 	PickCode string `json:"pick_code" gorm:"size:128;index"`
@@ -62,6 +69,11 @@ type StrmGenerationTask struct {
 	TotalItems    int    `json:"total_items"`
 	AcceptedItems int    `json:"accepted_items"`
 	FailedItems   int    `json:"failed_items"`
+	ChangedItems  int    `json:"changed_items"`
+	NewMetaItems  int    `json:"new_meta_items"`
+
+	RefreshTargetsStr string `json:"-" gorm:"type:text;default:'[]'"`
+	RefreshSubmitted  bool   `json:"refresh_submitted" gorm:"default:false"`
 
 	Status        StrmGenerationStatus `json:"status" gorm:"size:32;index"`
 	RequestHash   string               `json:"request_hash" gorm:"size:255;uniqueIndex:idx_strm_generation_request_hash,where:request_hash <> ''"`
@@ -105,6 +117,161 @@ func EnqueueStrmGenerationTask(task *StrmGenerationTask) (*StrmGenerationTask, e
 		return nil, err
 	}
 	return task, nil
+}
+
+// StrmGenerationParentProgress 描述父任务需要累计的子任务结果。
+type StrmGenerationParentProgress struct {
+	Accepted       int
+	Failed         int
+	Changed        int
+	NewMeta        int
+	RefreshTargets []EmbyRefreshTarget
+}
+
+// GetRefreshTargets 返回父任务已累计的 Emby 刷新目标。
+func (task *StrmGenerationTask) GetRefreshTargets() []EmbyRefreshTarget {
+	var targets []EmbyRefreshTarget
+	if task == nil || task.RefreshTargetsStr == "" {
+		return targets
+	}
+	if err := json.Unmarshal([]byte(task.RefreshTargetsStr), &targets); err != nil {
+		helpers.AppLogger.Warnf("解析 STRM 生成任务刷新目标失败：%v", err)
+		return []EmbyRefreshTarget{}
+	}
+	return normalizeEmbyRefreshTargets(targets)
+}
+
+// SetRefreshTargets 保存父任务已累计的 Emby 刷新目标。
+func (task *StrmGenerationTask) SetRefreshTargets(targets []EmbyRefreshTarget) {
+	data, err := json.Marshal(normalizeEmbyRefreshTargets(targets))
+	if err != nil {
+		task.RefreshTargetsStr = "[]"
+		return
+	}
+	task.RefreshTargetsStr = string(data)
+}
+
+// MergeRefreshTargets 合并并去重父任务 Emby 刷新目标。
+func (task *StrmGenerationTask) MergeRefreshTargets(targets []EmbyRefreshTarget) {
+	if task == nil || len(targets) == 0 {
+		return
+	}
+	task.SetRefreshTargets(append(task.GetRefreshTargets(), targets...))
+}
+
+// IsReadyToSubmitRefresh 判断父任务是否已经可以提交一次批量 Emby 刷新。
+func (task *StrmGenerationTask) IsReadyToSubmitRefresh() bool {
+	if task == nil || !task.RefreshEmby || task.RefreshSubmitted {
+		return false
+	}
+	if task.ChangedItems == 0 && task.NewMetaItems == 0 {
+		return false
+	}
+	if task.TotalItems == 0 {
+		return false
+	}
+	return task.AcceptedItems+task.FailedItems >= task.TotalItems
+}
+
+func normalizeEmbyRefreshTargets(targets []EmbyRefreshTarget) []EmbyRefreshTarget {
+	libraries := make(map[string]EmbyRefreshTarget)
+	for _, target := range targets {
+		if target.TargetType != EmbyRefreshTargetTypeLibrary {
+			continue
+		}
+		key := refreshTargetLibraryKey(target)
+		if existing, ok := libraries[key]; ok {
+			libraries[key] = mergeRefreshLibraryTarget(existing, target)
+			continue
+		}
+		libraries[key] = target
+	}
+
+	items := make(map[string]EmbyRefreshTarget)
+	for _, target := range targets {
+		if target.TargetType == "" {
+			target.TargetType = EmbyRefreshTargetTypeLibrary
+		}
+		if target.TargetType == EmbyRefreshTargetTypeLibrary {
+			continue
+		}
+		if target.TargetType != EmbyRefreshTargetTypeItem || target.ItemID == "" {
+			continue
+		}
+		if _, covered := libraries[refreshTargetLibraryKey(target)]; covered {
+			continue
+		}
+		key := string(target.TargetType) + ":" + target.ItemID
+		if existing, ok := items[key]; ok {
+			items[key] = mergeRefreshItemTarget(existing, target)
+			continue
+		}
+		items[key] = target
+	}
+
+	result := make([]EmbyRefreshTarget, 0, len(libraries)+len(items))
+	for _, target := range libraries {
+		result = append(result, target)
+	}
+	for _, target := range items {
+		result = append(result, target)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return refreshTargetSortKey(result[i]) < refreshTargetSortKey(result[j])
+	})
+	return result
+}
+
+func refreshTargetLibraryKey(target EmbyRefreshTarget) string {
+	if target.FallbackLibraryId != "" {
+		return target.FallbackLibraryId
+	}
+	if target.SyncPathID > 0 {
+		return fmt.Sprintf("sync_path:%d", target.SyncPathID)
+	}
+	return "__default_library__"
+}
+
+func refreshTargetSortKey(target EmbyRefreshTarget) string {
+	switch target.TargetType {
+	case EmbyRefreshTargetTypeLibrary:
+		return "0:" + refreshTargetLibraryKey(target)
+	default:
+		return "1:" + target.FallbackLibraryId + ":" + target.ItemID
+	}
+}
+
+func mergeRefreshLibraryTarget(left EmbyRefreshTarget, right EmbyRefreshTarget) EmbyRefreshTarget {
+	if left.FallbackLibraryId == "" {
+		left.FallbackLibraryId = right.FallbackLibraryId
+	}
+	if left.FallbackLibraryName == "" {
+		left.FallbackLibraryName = right.FallbackLibraryName
+	}
+	if left.SyncPathID == 0 {
+		left.SyncPathID = right.SyncPathID
+	}
+	return left
+}
+
+func mergeRefreshItemTarget(left EmbyRefreshTarget, right EmbyRefreshTarget) EmbyRefreshTarget {
+	if left.ItemName == "" {
+		left.ItemName = right.ItemName
+	}
+	if left.ItemType == "" {
+		left.ItemType = right.ItemType
+	}
+	left.Recursive = left.Recursive || right.Recursive
+	if left.SyncPathID == 0 {
+		left.SyncPathID = right.SyncPathID
+	}
+	if left.FallbackLibraryId == "" {
+		left.FallbackLibraryId = right.FallbackLibraryId
+	}
+	if left.FallbackLibraryName == "" {
+		left.FallbackLibraryName = right.FallbackLibraryName
+	}
+	return left
 }
 
 func isActiveStrmGenerationStatus(status StrmGenerationStatus) bool {
@@ -190,15 +357,51 @@ func ResetRunningStrmGenerationTasks() error {
 
 // IncrementStrmGenerationDirectoryStats 累加目录扫描任务统计。
 func IncrementStrmGenerationDirectoryStats(parentTaskId uint, accepted int, failed int) error {
-	var parent StrmGenerationTask
-	if err := db.Db.First(&parent, parentTaskId).Error; err != nil {
-		return err
+	_, err := UpdateStrmGenerationParentProgress(parentTaskId, StrmGenerationParentProgress{
+		Accepted: accepted,
+		Failed:   failed,
+	})
+	return err
+}
+
+// UpdateStrmGenerationParentProgress 以事务方式累计父任务进度和刷新目标。
+func UpdateStrmGenerationParentProgress(parentTaskId uint, progress StrmGenerationParentProgress) (*StrmGenerationTask, error) {
+	if parentTaskId == 0 {
+		return nil, nil
 	}
-	parent.AcceptedItems += accepted
-	parent.FailedItems += failed
-	processedItems := parent.AcceptedItems + parent.FailedItems
-	if parent.TotalItems < processedItems {
-		parent.TotalItems = processedItems
+	var updated StrmGenerationTask
+	err := db.Db.Transaction(func(tx *gorm.DB) error {
+		var parent StrmGenerationTask
+		if err := tx.First(&parent, parentTaskId).Error; err != nil {
+			return err
+		}
+		parent.AcceptedItems += progress.Accepted
+		parent.FailedItems += progress.Failed
+		parent.ChangedItems += progress.Changed
+		parent.NewMetaItems += progress.NewMeta
+		processedItems := parent.AcceptedItems + parent.FailedItems
+		if parent.TotalItems < processedItems {
+			parent.TotalItems = processedItems
+		}
+		parent.MergeRefreshTargets(progress.RefreshTargets)
+		if err := tx.Save(&parent).Error; err != nil {
+			return err
+		}
+		updated = parent
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	return db.Db.Save(&parent).Error
+	return &updated, nil
+}
+
+// MarkStrmGenerationRefreshSubmitted 标记父任务刷新目标已经提交。
+func MarkStrmGenerationRefreshSubmitted(parentTaskId uint) error {
+	if parentTaskId == 0 {
+		return nil
+	}
+	return db.Db.Model(&StrmGenerationTask{}).
+		Where("id = ?", parentTaskId).
+		Update("refresh_submitted", true).Error
 }

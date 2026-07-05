@@ -37,9 +37,10 @@ type StrmGenerationInput struct {
 
 // StrmGenerationResult 描述单文件 STRM 生成结果。
 type StrmGenerationResult struct {
-	SyncFile *models.SyncFile
-	Changed  bool
-	NewMeta  int
+	SyncFile       *models.SyncFile
+	Changed        bool
+	NewMeta        int
+	RefreshTargets []models.EmbyRefreshTarget
 }
 
 // StrmGenerationService 复用现有 SyncStrm 能力完成单文件 STRM 后处理。
@@ -48,6 +49,8 @@ type StrmGenerationService struct {
 	compareStrm                  func(*SyncStrm, *SyncFileCache) int
 	processStrmFile              func(*SyncStrm, *SyncFileCache) error
 	requestEmbyRefreshBySyncFile func(*models.SyncFile) error
+	resolveRefreshTarget         func(*models.SyncFile) (models.EmbyRefreshTarget, error)
+	requestEmbyRefreshTargets    func(uint, []models.EmbyRefreshTarget) error
 	detailByFileID               func(context.Context, *SyncStrm, string) (*SyncFileCache, error)
 }
 
@@ -68,6 +71,8 @@ func NewStrmGenerationService() *StrmGenerationService {
 		return syncer.writeStrmFile(file)
 	}
 	service.requestEmbyRefreshBySyncFile = models.RequestEmbyRefreshBySyncFile
+	service.resolveRefreshTarget = models.ResolveEmbyRefreshTarget
+	service.requestEmbyRefreshTargets = models.RequestEmbyRefreshTargets
 	service.detailByFileID = func(ctx context.Context, syncer *SyncStrm, fileID string) (*SyncFileCache, error) {
 		if syncer == nil || syncer.SyncDriver == nil {
 			return nil, errors.New("STRM 同步器未初始化远端驱动")
@@ -154,12 +159,27 @@ func (service *StrmGenerationService) Generate(ctx context.Context, input StrmGe
 			return nil, err
 		}
 	}
-	if changed {
+	result := &StrmGenerationResult{SyncFile: syncFile, Changed: changed, NewMeta: newMeta}
+	isWebhookFile := task.Source == models.StrmGenerationSourceWebhook && task.TaskType == models.StrmGenerationTaskTypeFile
+	shouldSubmitWebhookRefresh := isWebhookFile && task.RefreshEmby && (changed || newMeta > 0)
+	switch {
+	case shouldSubmitWebhookRefresh:
+		target, err := service.resolveRefreshTarget(syncFile)
+		if err != nil {
+			return nil, err
+		}
+		result.RefreshTargets = []models.EmbyRefreshTarget{target}
+		if task.ParentTaskId == 0 {
+			if err := service.requestEmbyRefreshTargets(syncFile.SyncPathId, result.RefreshTargets); err != nil {
+				return nil, fmt.Errorf("提交 Emby 刷新任务失败：%w", err)
+			}
+		}
+	case changed && !isWebhookFile:
 		if err := service.requestEmbyRefreshBySyncFile(syncFile); err != nil {
 			return nil, fmt.Errorf("提交 Emby 刷新任务失败：%w", err)
 		}
 	}
-	return &StrmGenerationResult{SyncFile: syncFile, Changed: changed, NewMeta: newMeta}, nil
+	return result, nil
 }
 
 func (service *StrmGenerationService) downloadMatchedMetadata(ctx context.Context, syncer *SyncStrm, video *SyncFileCache) (int, error) {
@@ -702,12 +722,19 @@ func ProcessPendingStrmGenerationTasks(ctx context.Context, service *StrmGenerat
 			continue
 		}
 		processed++
-		if err := processStrmGenerationTask(ctx, service, task); err != nil {
+		result, err := processStrmGenerationTask(ctx, service, task)
+		if err != nil {
 			if markErr := task.MarkFailed(err.Error()); markErr != nil {
 				return processed, markErr
 			}
 			if task.ParentTaskId > 0 {
-				_ = models.IncrementStrmGenerationDirectoryStats(task.ParentTaskId, 0, 1)
+				parent, progressErr := completeStrmGenerationChild(task.ParentTaskId, nil, true)
+				if progressErr != nil {
+					return processed, progressErr
+				}
+				if submitErr := submitStrmGenerationParentRefreshIfReady(service, parent); submitErr != nil {
+					return processed, submitErr
+				}
 			}
 			continue
 		}
@@ -720,17 +747,67 @@ func ProcessPendingStrmGenerationTasks(ctx context.Context, service *StrmGenerat
 			}
 		}
 		if task.ParentTaskId > 0 {
-			_ = models.IncrementStrmGenerationDirectoryStats(task.ParentTaskId, 1, 0)
+			parent, progressErr := completeStrmGenerationChild(task.ParentTaskId, result, false)
+			if progressErr != nil {
+				return processed, progressErr
+			}
+			if submitErr := submitStrmGenerationParentRefreshIfReady(service, parent); submitErr != nil {
+				return processed, submitErr
+			}
 		}
 	}
 	return processed, nil
 }
 
-func processStrmGenerationTask(ctx context.Context, service *StrmGenerationService, task *models.StrmGenerationTask) error {
+func processStrmGenerationTask(ctx context.Context, service *StrmGenerationService, task *models.StrmGenerationTask) (*StrmGenerationResult, error) {
 	if task.TaskType == models.StrmGenerationTaskTypeDirectoryScan {
 		_, err := service.ExpandDirectoryScan(ctx, task)
+		return nil, err
+	}
+	return service.Generate(ctx, StrmGenerationInput{Task: task})
+}
+
+func completeStrmGenerationChild(parentTaskID uint, result *StrmGenerationResult, failed bool) (*models.StrmGenerationTask, error) {
+	if parentTaskID == 0 {
+		return nil, nil
+	}
+	progress := models.StrmGenerationParentProgress{
+		Accepted:       boolToInt(!failed),
+		Failed:         boolToInt(failed),
+		Changed:        boolToInt(result != nil && result.Changed),
+		NewMeta:        resultNewMeta(result),
+		RefreshTargets: resultRefreshTargets(result),
+	}
+	return models.UpdateStrmGenerationParentProgress(parentTaskID, progress)
+}
+
+func submitStrmGenerationParentRefreshIfReady(service *StrmGenerationService, parent *models.StrmGenerationTask) error {
+	if parent == nil || !parent.IsReadyToSubmitRefresh() {
+		return nil
+	}
+	if err := service.requestEmbyRefreshTargets(parent.SyncPathId, parent.GetRefreshTargets()); err != nil {
 		return err
 	}
-	_, err := service.Generate(ctx, StrmGenerationInput{Task: task})
-	return err
+	return models.MarkStrmGenerationRefreshSubmitted(parent.ID)
+}
+
+func boolToInt(value bool) int {
+	if value {
+		return 1
+	}
+	return 0
+}
+
+func resultNewMeta(result *StrmGenerationResult) int {
+	if result == nil {
+		return 0
+	}
+	return result.NewMeta
+}
+
+func resultRefreshTargets(result *StrmGenerationResult) []models.EmbyRefreshTarget {
+	if result == nil {
+		return nil
+	}
+	return result.RefreshTargets
 }

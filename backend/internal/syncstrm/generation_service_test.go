@@ -318,6 +318,55 @@ func TestStrmGenerationServiceDownloadsMatchedMetadata(t *testing.T) {
 	}
 }
 
+func TestStrmGenerationServiceWebhookRefreshRequiresEnabledChangeOrNewMetadata(t *testing.T) {
+	tests := []struct {
+		name        string
+		refreshEmby bool
+		compare     int
+	}{
+		{name: "刷新开关关闭时 STRM 变更也不刷新", refreshEmby: false, compare: 0},
+		{name: "刷新开关开启但 STRM 未变且无新增元数据时不刷新", refreshEmby: true, compare: 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			account, syncPath := setupStrmGenerationServiceTestDB(t)
+			service := newTestGenerationService(t, syncPath, account)
+			service.compareStrm = func(_ *SyncStrm, _ *SyncFileCache) int { return tt.compare }
+			service.processStrmFile = func(_ *SyncStrm, _ *SyncFileCache) error { return nil }
+			service.requestEmbyRefreshBySyncFile = func(*models.SyncFile) error {
+				t.Fatal("Webhook file 不应走旧逐文件 Emby 刷新入口")
+				return nil
+			}
+			service.resolveRefreshTarget = func(*models.SyncFile) (models.EmbyRefreshTarget, error) {
+				t.Fatal("未满足刷新条件时不应解析 Emby 刷新目标")
+				return models.EmbyRefreshTarget{}, nil
+			}
+			service.requestEmbyRefreshTargets = func(uint, []models.EmbyRefreshTarget) error {
+				t.Fatal("未满足刷新条件时不应提交 Emby 刷新目标")
+				return nil
+			}
+
+			if _, err := service.Generate(context.Background(), StrmGenerationInput{
+				Task: &models.StrmGenerationTask{
+					Source:      models.StrmGenerationSourceWebhook,
+					TaskType:    models.StrmGenerationTaskTypeFile,
+					SyncPathId:  syncPath.ID,
+					AccountId:   account.ID,
+					FileId:      "file-gate",
+					ParentId:    "parent-gate",
+					PickCode:    "pick-gate",
+					Path:        "/remote",
+					FileName:    "movie.mkv",
+					RefreshEmby: tt.refreshEmby,
+				},
+			}); err != nil {
+				t.Fatalf("生成 STRM 失败: %v", err)
+			}
+		})
+	}
+}
+
 func TestStrmGenerationServiceDefaultBuilderDoesNotCreateSyncRecord(t *testing.T) {
 	account, syncPath := setupStrmGenerationServiceTestDB(t)
 	service := NewStrmGenerationService()
@@ -587,6 +636,80 @@ func TestProcessPendingStrmGenerationTasksMarksCompletedAndFailed(t *testing.T) 
 	}
 	if failedTask.Status != models.StrmGenerationStatusFailed || failedTask.RetryCount != 1 || failedTask.LastError == "" {
 		t.Fatalf("失败任务状态 = %+v，期望 failed/retry_count=1/last_error", failedTask)
+	}
+}
+
+func TestProcessPendingStrmGenerationTasksDelaysParentRefreshUntilAllChildrenDone(t *testing.T) {
+	account, syncPath := setupStrmGenerationServiceTestDB(t)
+	parent, err := models.EnqueueStrmGenerationTask(&models.StrmGenerationTask{
+		Source:      models.StrmGenerationSourceWebhook,
+		TaskType:    models.StrmGenerationTaskTypeBatchFiles,
+		SyncPathId:  syncPath.ID,
+		AccountId:   account.ID,
+		RefreshEmby: true,
+		TotalItems:  2,
+		Status:      models.StrmGenerationStatusCompleted,
+	})
+	if err != nil {
+		t.Fatalf("创建父任务失败: %v", err)
+	}
+	for _, fileID := range []string{"file-1", "file-2"} {
+		if _, err := models.EnqueueStrmGenerationTask(&models.StrmGenerationTask{
+			Source:       models.StrmGenerationSourceWebhook,
+			TaskType:     models.StrmGenerationTaskTypeFile,
+			ParentTaskId: parent.ID,
+			SyncPathId:   syncPath.ID,
+			AccountId:    account.ID,
+			FileId:       fileID,
+			ParentId:     "parent-1",
+			PickCode:     "pick-" + fileID,
+			Path:         "/remote",
+			FileName:     fileID + ".mkv",
+			RefreshEmby:  true,
+		}); err != nil {
+			t.Fatalf("创建子任务失败: %v", err)
+		}
+	}
+
+	service := newTestGenerationService(t, syncPath, account)
+	service.compareStrm = func(_ *SyncStrm, _ *SyncFileCache) int { return 0 }
+	service.processStrmFile = func(_ *SyncStrm, _ *SyncFileCache) error { return nil }
+	service.requestEmbyRefreshBySyncFile = func(*models.SyncFile) error {
+		t.Fatal("Webhook 父任务路径不应逐文件提交 Emby 刷新")
+		return nil
+	}
+	service.resolveRefreshTarget = func(_ *models.SyncFile) (models.EmbyRefreshTarget, error) {
+		return models.EmbyRefreshTarget{
+			TargetType:        models.EmbyRefreshTargetTypeItem,
+			ItemID:            "season-1",
+			ItemName:          "第一季",
+			ItemType:          "Season",
+			Recursive:         true,
+			FallbackLibraryId: "lib-tv",
+		}, nil
+	}
+	var submitted int
+	service.requestEmbyRefreshTargets = func(_ uint, targets []models.EmbyRefreshTarget) error {
+		submitted++
+		if len(targets) != 1 || targets[0].ItemID != "season-1" {
+			t.Fatalf("提交目标 = %+v，期望单个 season-1", targets)
+		}
+		return nil
+	}
+
+	processed, err := ProcessPendingStrmGenerationTasks(context.Background(), service, 1)
+	if err != nil {
+		t.Fatalf("处理第一批失败: %v", err)
+	}
+	if processed != 1 || submitted != 0 {
+		t.Fatalf("第一批 processed=%d submitted=%d，期望处理一个且不提交", processed, submitted)
+	}
+	processed, err = ProcessPendingStrmGenerationTasks(context.Background(), service, 10)
+	if err != nil {
+		t.Fatalf("处理第二批失败: %v", err)
+	}
+	if processed != 1 || submitted != 1 {
+		t.Fatalf("第二批 processed=%d submitted=%d，期望最后一个子任务完成后提交一次", processed, submitted)
 	}
 }
 

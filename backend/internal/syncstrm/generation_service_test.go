@@ -102,6 +102,7 @@ func newTestGenerationService(t *testing.T, syncPath *models.SyncPath, account *
 				VideoExt:        syncPath.VideoExtArr,
 				MetaExt:         syncPath.MetaExtArr,
 			},
+			SyncDriver: &fakeDirectoryScanDriver{},
 		}, nil
 	}
 	return service
@@ -195,6 +196,62 @@ func TestStrmGenerationServiceGenerateCompletesDetailByFileID(t *testing.T) {
 	}
 	if processed == nil || processed.PickCode != "pick-2" || processed.Path != "/remote/show" {
 		t.Fatalf("补齐后的文件 = %+v，期望包含 pick_code 和路径", processed)
+	}
+}
+
+func TestStrmGenerationServiceGenerateCompletesRemoteDetailWhenMtimeMissing(t *testing.T) {
+	account, syncPath := setupStrmGenerationServiceTestDB(t)
+	service := newTestGenerationService(t, syncPath, account)
+	var detailCalled bool
+	service.detailByFileID = func(_ context.Context, _ *SyncStrm, fileID string) (*SyncFileCache, error) {
+		detailCalled = true
+		if fileID != "file-mtime" {
+			t.Fatalf("补详情 file_id = %s，期望 file-mtime", fileID)
+		}
+		return &SyncFileCache{
+			FileId:     "file-mtime",
+			ParentId:   "parent-mtime",
+			FileType:   v115open.TypeFile,
+			FileName:   "movie.mkv",
+			Path:       "/remote",
+			FileSize:   4096,
+			MTime:      345678,
+			PickCode:   "pick-mtime",
+			Sha1:       "sha1-mtime",
+			SourceType: models.SourceType115,
+		}, nil
+	}
+	service.compareStrm = func(_ *SyncStrm, _ *SyncFileCache) int { return 1 }
+	service.processStrmFile = func(_ *SyncStrm, _ *SyncFileCache) error { return nil }
+	service.requestEmbyRefreshBySyncFile = func(*models.SyncFile) error { return nil }
+
+	if _, err := service.Generate(context.Background(), StrmGenerationInput{
+		Task: &models.StrmGenerationTask{
+			Source:     models.StrmGenerationSourceUploadCompleted,
+			TaskType:   models.StrmGenerationTaskTypeFile,
+			SyncPathId: syncPath.ID,
+			AccountId:  account.ID,
+			FileId:     "file-mtime",
+			ParentId:   "parent-mtime",
+			PickCode:   "pick-mtime",
+			Path:       "/remote",
+			FileName:   "movie.mkv",
+			FileSize:   4096,
+			Sha1:       "sha1-mtime",
+		},
+	}); err != nil {
+		t.Fatalf("生成 STRM 失败: %v", err)
+	}
+	if !detailCalled {
+		t.Fatal("远端时间缺失时应按 file_id 补齐远端详情")
+	}
+
+	var syncFile models.SyncFile
+	if err := db.Db.Where("sync_path_id = ? AND file_id = ?", syncPath.ID, "file-mtime").First(&syncFile).Error; err != nil {
+		t.Fatalf("读取 SyncFile 失败: %v", err)
+	}
+	if syncFile.MTime != 345678 {
+		t.Fatalf("SyncFile.MTime=%d，期望补齐远端时间 345678", syncFile.MTime)
 	}
 }
 
@@ -460,6 +517,8 @@ func TestStrmGenerationServiceDefaultBuilderDoesNotCreateSyncRecord(t *testing.T
 			Path:       "/remote",
 			FileName:   "movie.mkv",
 			FileSize:   1024,
+			Sha1:       "sha1-no-sync",
+			Mtime:      123456,
 		},
 	}); err != nil {
 		t.Fatalf("生成 STRM 后处理失败: %v", err)

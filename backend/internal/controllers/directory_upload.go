@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -70,6 +69,7 @@ func CreateDirectoryUploadRule(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "创建目录监控上传规则失败", Data: nil})
 		return
 	}
+	rule.LoadIgnorePatterns()
 	directoryupload.ReloadDirectoryUploadService()
 	c.JSON(http.StatusOK, APIResponse[*models.DirectoryUploadRule]{Code: Success, Message: "创建目录监控上传规则成功", Data: rule})
 }
@@ -99,6 +99,7 @@ func UpdateDirectoryUploadRule(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "更新目录监控上传规则失败", Data: nil})
 		return
 	}
+	rule.LoadIgnorePatterns()
 	directoryupload.ReloadDirectoryUploadService()
 	c.JSON(http.StatusOK, APIResponse[*models.DirectoryUploadRule]{Code: Success, Message: "更新目录监控上传规则成功", Data: rule})
 }
@@ -218,11 +219,9 @@ func buildDirectoryUploadRuleFromRequest(existing *models.DirectoryUploadRule, r
 		rule.OverwriteMode = req.OverwriteMode
 	}
 	if req.IgnorePatterns != nil {
-		raw, err := json.Marshal(req.IgnorePatterns)
-		if err != nil {
-			return nil, fmt.Errorf("忽略规则编码失败：%w", err)
+		if err := rule.SetIgnorePatterns(req.IgnorePatterns); err != nil {
+			return nil, err
 		}
-		rule.IgnorePatternsStr = string(raw)
 	}
 	if err := validateDirectoryUploadRuleEnums(rule); err != nil {
 		return nil, err

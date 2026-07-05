@@ -154,6 +154,56 @@ func TestScanRuleAddsRecursiveVideoFilesToStabilityQueue(t *testing.T) {
 	}
 }
 
+func TestTrackCandidatePathSkipsNestedFileWhenRecursiveDisabled(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	nested := filepath.Join(monitorPath, "show")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("创建测试子目录失败: %v", err)
+	}
+	rootFile := filepath.Join(monitorPath, "movie.mkv")
+	nestedFile := filepath.Join(nested, "episode.mkv")
+	writeFileWithMtime(t, rootFile, []byte("movie"), time.Now())
+	writeFileWithMtime(t, nestedFile, []byte("episode"), time.Now())
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.Recursive = false
+
+	service := NewService(ServiceOptions{})
+	tests := []struct {
+		name         string
+		path         string
+		wantAccepted bool
+	}{
+		{
+			name:         "根目录文件允许入队",
+			path:         rootFile,
+			wantAccepted: true,
+		},
+		{
+			name:         "子目录文件不入队",
+			path:         nestedFile,
+			wantAccepted: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			accepted, err := service.trackCandidatePath(context.Background(), rule, tt.path)
+			if err != nil {
+				t.Fatalf("处理候选文件失败: %v", err)
+			}
+			if accepted != tt.wantAccepted {
+				t.Fatalf("accepted=%v，期望 %v", accepted, tt.wantAccepted)
+			}
+		})
+	}
+
+	got := service.PendingPaths(rule.ID)
+	want := []string{rootFile}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("pending paths=%v，期望只包含根目录文件 %v", got, want)
+	}
+}
+
 func TestScanRuleUsesUploadMetadataSwitchForMetadataFiles(t *testing.T) {
 	tests := []struct {
 		name           string

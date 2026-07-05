@@ -1110,7 +1110,7 @@ const fillDirectoryUploadForm = (rule: Partial<DirectoryUploadRuleForm>) => {
     processed_cache_ttl_seconds: rule.processed_cache_ttl_seconds || 600,
     delete_source_after_success: rule.delete_source_after_success === true,
     overwrite_mode: rule.overwrite_mode || 'skip_same',
-    ignore_patterns: rule.ignore_patterns || [],
+    ignore_patterns: Array.isArray(rule.ignore_patterns) ? rule.ignore_patterns : [],
   } satisfies DirectoryUploadRuleForm)
 }
 

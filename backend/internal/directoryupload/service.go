@@ -136,6 +136,9 @@ func (service *Service) trackCandidatePath(ctx context.Context, rule *models.Dir
 	if err != nil {
 		return false, err
 	}
+	if !rule.Recursive && isNestedRelativePath(rel) {
+		return false, nil
+	}
 	if shouldIgnorePath(rel, info.Name(), false, parseIgnorePatterns(rule.IgnorePatternsStr)) {
 		return false, nil
 	}
@@ -415,6 +418,11 @@ func safeRelativePath(basePath string, path string) (string, error) {
 		return "", fmt.Errorf("文件路径越界：%s", path)
 	}
 	return filepath.ToSlash(rel), nil
+}
+
+func isNestedRelativePath(rel string) bool {
+	rel = pathpkg.Clean(filepath.ToSlash(rel))
+	return rel != "." && pathpkg.Dir(rel) != "."
 }
 
 func parseIgnorePatterns(raw string) []string {

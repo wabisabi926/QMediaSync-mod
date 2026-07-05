@@ -200,6 +200,7 @@ interface DirectoryUploadRule {
   startup_scan_enabled: boolean
   processed_cache_ttl_seconds: number
   delete_source_after_success: boolean
+  ignore_patterns?: string[]
   overwrite_mode: DirectoryUploadOverwriteMode
 }
 

@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -151,6 +152,57 @@ func TestDirectoryUploadRuleCRUDAndStatus(t *testing.T) {
 	router.ServeHTTP(w, req)
 	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"code":200`) {
 		t.Fatalf("删除规则响应异常: code=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestListDirectoryUploadRulesReturnsIgnorePatterns(t *testing.T) {
+	router, syncPath := setupDirectoryUploadControllerTest(t)
+	rule := &models.DirectoryUploadRule{
+		SyncPathId:                    syncPath.ID,
+		AccountId:                     syncPath.AccountId,
+		Enabled:                       true,
+		MonitorPath:                   t.TempDir(),
+		RemoteRootPath:                "/remote/uploads",
+		RemoteRootId:                  "remote-root",
+		Recursive:                     true,
+		WatchMode:                     models.DirectoryUploadWatchModeAuto,
+		StabilitySeconds:              models.DirectoryUploadDefaultStabilitySeconds,
+		StabilityCheckIntervalSeconds: models.DirectoryUploadDefaultStabilityCheckIntervalSeconds,
+		StabilityRequiredCount:        models.DirectoryUploadDefaultStabilityRequiredCount,
+		RescanIntervalSeconds:         models.DirectoryUploadDefaultRescanIntervalSeconds,
+		StartupScanEnabled:            true,
+		ProcessedCacheTTLSeconds:      600,
+		IgnorePatternsStr:             `["**/sample/**","*.tmp"]`,
+		OverwriteMode:                 models.DirectoryUploadOverwriteSkipSame,
+	}
+	if err := db.Db.Create(rule).Error; err != nil {
+		t.Fatalf("创建目录上传规则失败: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/rules?sync_path_id=%d", syncPath.ID), nil)
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("查询规则响应状态异常: code=%d body=%s", w.Code, w.Body.String())
+	}
+
+	var response struct {
+		Code int `json:"code"`
+		Data struct {
+			List []struct {
+				IgnorePatterns []string `json:"ignore_patterns"`
+			} `json:"list"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("解析规则列表响应失败: %v, body=%s", err, w.Body.String())
+	}
+	if response.Code != int(Success) || len(response.Data.List) != 1 {
+		t.Fatalf("规则列表响应 = %+v，期望返回 1 条成功数据", response)
+	}
+	want := []string{"**/sample/**", "*.tmp"}
+	if !reflect.DeepEqual(response.Data.List[0].IgnorePatterns, want) {
+		t.Fatalf("ignore_patterns=%v，期望 %v", response.Data.List[0].IgnorePatterns, want)
 	}
 }
 

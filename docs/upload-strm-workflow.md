@@ -31,7 +31,7 @@ OSS `CompleteMultipartUpload` 完成后，必须带回 115 init 返回的 `callb
 - `fsnotify`：性能模式，强制使用 fsnotify，初始化失败则规则启动失败。
 - `polling`：兼容模式，按内置 30 秒周期递归扫描。
 
-启动查漏由 `startup_scan_enabled` 控制。查漏扫描默认只把候选视频文件加入稳定性队列；规则 `upload_metadata=true` 时，也会纳入当前同步目录配置中的元数据扩展名文件。视频扩展名和元数据扩展名都按同步目录自定义配置优先、为空回退全局 STRM 设置的规则解析。扫描不直接创建上传任务。补偿扫描间隔为代码内置 30 秒，不提供页面或接口配置。
+启动查漏由 `startup_scan_enabled` 控制。查漏扫描默认只把候选视频文件加入稳定性队列；规则 `upload_metadata=true` 时，也会纳入当前同步目录配置中的元数据扩展名文件。视频扩展名和元数据扩展名都按同步目录自定义配置优先、为空回退全局 STRM 设置的规则解析。`recursive=false` 时，查漏扫描和 fsnotify 事件都只处理监控根目录下的文件，新建子目录不会被加入 watcher。扫描不直接创建上传任务。补偿扫描间隔为代码内置 30 秒，不提供页面或接口配置。
 
 ## 稳定性和去重
 
@@ -39,7 +39,7 @@ OSS `CompleteMultipartUpload` 完成后，必须带回 115 init 返回的 `callb
 
 同一规则下，`monitor_path + relative_path + signature` 会按 `processed_cache_ttl_seconds` 做内存 TTL 去重，避免 create / write 多事件重复创建任务。TTL 过期且文件签名变化后允许再次处理。创建上传任务前还会按 `source=directory_monitor + local_full_path + pending/uploading` 查询数据库；已有未完成任务时会跳过重复入队，覆盖服务重启、轮询重复发现和大文件长时间上传场景。
 
-默认忽略隐藏文件、`.part`、`.tmp`、`.download` 文件，以及规则中的 `ignore_patterns`。
+默认忽略隐藏文件、`.part`、`.tmp`、`.download` 文件，以及规则中的 `ignore_patterns`。规则列表接口会把持久化的忽略规则解析为 `ignore_patterns` 数组返回，避免页面保存其他目录监控配置时丢失已有忽略规则。
 
 ## 上传任务和远端已存在
 
@@ -57,7 +57,7 @@ OSS `CompleteMultipartUpload` 完成后，必须带回 115 init 返回的 `callb
 
 ## STRM 后处理和源文件删除
 
-STRM 生成 worker 会读取 `strm_generation_tasks`，复用同步目录配置写入或确认 STRM。该后处理只创建或更新 `SyncFile` 和 STRM 文件，不创建 `syncs` 同步记录，也不向同步目录队列添加“等待中”任务；完整同步记录只由手动同步、定时同步等 STRM 同步入口创建。文件级任务会先比较已有 STRM 内容；确认需要更新后直接写入新 STRM，不再重复比较，因此同一次后处理只输出一次 PickCode、路径或用户 ID 差异日志。上传完成、远端已存在等非 Webhook 文件任务在 STRM 新增或更新后会优先提交 Emby item 级定向刷新，定位不到可靠 item 时回退同步目录关联媒体库刷新。Webhook 文件任务只有 `refresh_emby=true` 且 STRM 变更或新增元数据下载任务时才提交刷新；批量和目录扫描会等所有子任务完成或失败后统一提交目标集合。
+STRM 生成 worker 会读取 `strm_generation_tasks`，复用同步目录配置写入或确认 STRM。该后处理只创建或更新 `SyncFile` 和 STRM 文件，不创建 `syncs` 同步记录，也不向同步目录队列添加“等待中”任务；完整同步记录只由手动同步、定时同步等 STRM 同步入口创建。文件级任务会先比较已有 STRM 内容；确认需要更新后直接写入新 STRM，不再重复比较，因此同一次后处理只输出一次 PickCode、路径或用户 ID 差异日志。文件级任务在文件名、路径、父目录 ID、PickCode、mtime、大小或 115 SHA1 等远端元数据缺失时，会优先按 `file_id` 补齐文件详情后再保存 `SyncFile` 和 STRM 文件。上传完成、远端已存在等非 Webhook 文件任务在 STRM 新增或更新后会优先提交 Emby item 级定向刷新，定位不到可靠 item 时回退同步目录关联媒体库刷新。Webhook 文件任务只有 `refresh_emby=true` 且 STRM 变更或新增元数据下载任务时才提交刷新；批量和目录扫描会等所有子任务完成或失败后统一提交目标集合。
 
 外部程序触发 STRM 生成的接口见 [STRM Webhook](strm-webhook.md)。本文件只说明上传完成、远端已存在和 Webhook 入队后共用的 worker 后处理边界。
 

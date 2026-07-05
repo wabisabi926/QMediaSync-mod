@@ -577,7 +577,13 @@ func fileNeedsRemoteDetail(file *SyncFileCache) bool {
 	if file == nil {
 		return false
 	}
-	return file.FileName == "" || file.Path == "" || file.ParentId == "" || file.PickCode == ""
+	if file.FileName == "" || file.Path == "" || file.ParentId == "" || file.PickCode == "" {
+		return true
+	}
+	if file.MTime <= 0 || file.FileSize <= 0 {
+		return true
+	}
+	return file.SourceType == models.SourceType115 && file.Sha1 == ""
 }
 
 func mergeFileCache(target *SyncFileCache, detail *SyncFileCache) {

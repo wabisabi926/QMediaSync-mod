@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	pathpkg "path"
@@ -55,6 +56,7 @@ type DirectoryUploadRule struct {
 	StartupScanEnabled            bool                         `json:"startup_scan_enabled" gorm:"default:true"`
 	ProcessedCacheTTLSeconds      int                          `json:"processed_cache_ttl_seconds" gorm:"default:600"`
 	DeleteSourceAfterSuccess      bool                         `json:"delete_source_after_success" gorm:"default:false"`
+	IgnorePatterns                []string                     `json:"ignore_patterns" gorm:"-"`
 	IgnorePatternsStr             string                       `json:"-" gorm:"type:text"`
 	OverwriteMode                 DirectoryUploadOverwriteMode `json:"overwrite_mode" gorm:"size:32;default:skip_same"`
 }
@@ -63,6 +65,11 @@ type DirectoryUploadRule struct {
 func SaveDirectoryUploadRule(rule *DirectoryUploadRule) error {
 	if rule == nil {
 		return errors.New("目录监控上传规则为空")
+	}
+	if rule.IgnorePatterns != nil {
+		if err := rule.SetIgnorePatterns(rule.IgnorePatterns); err != nil {
+			return err
+		}
 	}
 	rule.applyDefaults()
 
@@ -73,7 +80,11 @@ func SaveDirectoryUploadRule(rule *DirectoryUploadRule) error {
 	if err := rule.ValidateWithSyncPath(syncPath); err != nil {
 		return err
 	}
-	return db.Db.Save(rule).Error
+	if err := db.Db.Save(rule).Error; err != nil {
+		return err
+	}
+	rule.LoadIgnorePatterns()
+	return nil
 }
 
 // GetEnabledDirectoryUploadRules 查询启用的目录监控上传规则。
@@ -82,6 +93,7 @@ func GetEnabledDirectoryUploadRules() ([]*DirectoryUploadRule, error) {
 	if err := db.Db.Where("enabled = ?", true).Order("id ASC").Find(&rules).Error; err != nil {
 		return nil, err
 	}
+	loadDirectoryUploadRuleIgnorePatterns(rules)
 	return rules, nil
 }
 
@@ -91,6 +103,7 @@ func GetDirectoryUploadRuleById(id uint) (*DirectoryUploadRule, error) {
 	if err := db.Db.First(&rule, id).Error; err != nil {
 		return nil, err
 	}
+	rule.LoadIgnorePatterns()
 	return &rule, nil
 }
 
@@ -104,6 +117,7 @@ func GetDirectoryUploadRules(syncPathID uint) ([]*DirectoryUploadRule, error) {
 	if err := query.Find(&rules).Error; err != nil {
 		return nil, err
 	}
+	loadDirectoryUploadRuleIgnorePatterns(rules)
 	return rules, nil
 }
 
@@ -147,6 +161,29 @@ func (rule *DirectoryUploadRule) ValidateWithSyncPath(syncPath *SyncPath) error 
 		return fmt.Errorf("远端上传根目录 %s 不在同步远端目录 %s 下", remoteRootPath, syncRemotePath)
 	}
 	return nil
+}
+
+// SetIgnorePatterns 设置并编码目录监控上传忽略规则。
+func (rule *DirectoryUploadRule) SetIgnorePatterns(patterns []string) error {
+	if rule == nil {
+		return errors.New("目录监控上传规则为空")
+	}
+	normalized := normalizeDirectoryUploadIgnorePatterns(patterns)
+	raw, err := json.Marshal(normalized)
+	if err != nil {
+		return fmt.Errorf("忽略规则编码失败：%w", err)
+	}
+	rule.IgnorePatterns = normalized
+	rule.IgnorePatternsStr = string(raw)
+	return nil
+}
+
+// LoadIgnorePatterns 解析目录监控上传忽略规则。
+func (rule *DirectoryUploadRule) LoadIgnorePatterns() {
+	if rule == nil {
+		return
+	}
+	rule.IgnorePatterns = parseDirectoryUploadIgnorePatterns(rule.IgnorePatternsStr)
 }
 
 func (rule *DirectoryUploadRule) applyDefaults() {
@@ -193,4 +230,36 @@ func isRemotePathWithin(remotePath string, basePath string) bool {
 		return strings.HasPrefix(remotePath, "/")
 	}
 	return remotePath == basePath || strings.HasPrefix(remotePath, basePath+"/")
+}
+
+func loadDirectoryUploadRuleIgnorePatterns(rules []*DirectoryUploadRule) {
+	for _, rule := range rules {
+		rule.LoadIgnorePatterns()
+	}
+}
+
+func parseDirectoryUploadIgnorePatterns(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return []string{}
+	}
+	var patterns []string
+	if err := json.Unmarshal([]byte(raw), &patterns); err == nil {
+		return normalizeDirectoryUploadIgnorePatterns(patterns)
+	}
+	fields := strings.FieldsFunc(raw, func(r rune) bool {
+		return r == '\n' || r == '\r' || r == ',' || r == ';'
+	})
+	return normalizeDirectoryUploadIgnorePatterns(fields)
+}
+
+func normalizeDirectoryUploadIgnorePatterns(patterns []string) []string {
+	result := make([]string, 0, len(patterns))
+	for _, pattern := range patterns {
+		pattern = strings.TrimSpace(pattern)
+		if pattern != "" {
+			result = append(result, pattern)
+		}
+	}
+	return result
 }

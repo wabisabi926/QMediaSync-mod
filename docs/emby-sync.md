@@ -21,7 +21,8 @@ Emby 相关任务分为两条独立链路，不能混用。
 当前实现：
 
 - 传统同步目录刷新调用 `models.RequestEmbyLibraryRefreshBySyncPathId(...)`。
-- 上传完成或 STRM Webhook 生成 STRM 后调用 `models.RequestEmbyRefreshBySyncFile(...)`，优先解析 item 级刷新目标。
+- 上传完成、远端已存在等非 Webhook STRM 任务生成 STRM 后调用 `models.RequestEmbyRefreshBySyncFile(...)`，优先解析 item 级刷新目标。
+- STRM Webhook 只有 `refresh_emby=true` 且 STRM 变更或新增元数据下载任务时才解析刷新目标；批量和目录扫描先累计子任务目标，父任务全部子任务完成或失败后调用 `models.RequestEmbyRefreshTargets(...)` 统一提交。
 - 已有关联的 Movie、Video、Episode 刷新对应 item；同季新增剧集没有自身 Episode 关联时优先刷新已有 Season，缺少 Season 时刷新 Series。
 - 本地索引无法定位 item 时，会按 STRM 本地路径调用 Emby `/Items?Path=...` 做一次兜底查询。
 - 仍无法定位可靠 item 时，回退同步目录关联媒体库刷新。

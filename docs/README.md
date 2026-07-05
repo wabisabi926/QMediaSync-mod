@@ -9,6 +9,7 @@
 - [数据库](database.md)：数据库引擎、配置项、目录、迁移、修复和备份恢复说明。
 - [配置和密钥](configuration.md)：默认端口、数据库、第三方密钥和本地加密密钥说明。
 - [上传和 STRM 后处理流程](upload-strm-workflow.md)：115 上传增强、目录监控上传、STRM 生成后处理和源文件清理边界。
+- [STRM Webhook](strm-webhook.md)：外部程序通过 API Key 请求创建 STRM 生成任务的接口、字段、响应和幂等边界。
 - [完整配置示例](examples/config.yaml)：`config/config.yaml` 的所有主配置项和注释说明。
 - [变更日志](../CHANGELOG.md)：历史版本的功能、修复和性能变更记录。
 

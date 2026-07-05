@@ -87,15 +87,9 @@
 
 “同步目录生效 STRM 配置”INFO 只在完整 STRM 同步启动时输出。上传完成后的单文件 STRM 后处理仍使用相同的生效配置，但不会为每个后处理任务重复输出该配置日志。
 
-STRM 新增或更新后会优先提交 Emby item 级定向刷新：已有 Movie、Video、Episode 关联时刷新对应 item；同季新增剧集没有自身 Episode 关联时优先刷新已有 Season，缺少 Season 时刷新 Series。无法从本地 Emby 索引、PickCode 或路径兜底查询定位可靠 item 时，自动回退到同步目录关联媒体库刷新。刷新仍进入 `emby_library_refresh_tasks` 协调器去抖和等待队列，不在 STRM 生成流程内直接请求 Emby。STRM 内容无变化时只更新 / 确认 `SyncFile`，不重复提交刷新任务。
+上传完成、远端已存在等非 Webhook STRM 任务在 STRM 新增或更新后会优先提交 Emby item 级定向刷新：已有 Movie、Video、Episode 关联时刷新对应 item；同季新增剧集没有自身 Episode 关联时优先刷新已有 Season，缺少 Season 时刷新 Series。无法从本地 Emby 索引、PickCode 或路径兜底查询定位可靠 item 时，自动回退到同步目录关联媒体库刷新。刷新仍进入 `emby_library_refresh_tasks` 协调器去抖和等待队列，不在 STRM 生成流程内直接请求 Emby。Webhook 请求默认不刷新，只有 `refresh_emby=true` 且 STRM 变更或新增元数据下载任务时才提交刷新；批量和目录扫描会等所有子任务完成或失败后统一提交。STRM 内容无变化时只更新 / 确认 `SyncFile`，不重复提交刷新任务。
 
-## STRM Webhook
-
-外部程序可以通过 `POST /api/strm/webhook` 请求生成 STRM。该接口只接受 API Key 鉴权，支持 `X-API-Key` header 和 `?api_key=` 查询参数，不使用浏览器登录态。
-
-请求必须提供 `sync_path_id`。单文件请求至少提供 `file_id` 或 `path + file_name` 中的一组远端定位信息，`pick_code` 可以作为辅助字段传入但不能单独定位文件；批量请求使用 `items`；目录请求使用 `directory_id` 或 `directory_path`。`path` / `directory_path` 只表示远端路径，禁止通过 `local_path` 指定本地写入位置。文件级任务入队前会解析远端详情，并校验解析后的真实路径仍位于该同步目录的远端路径下。
-
-Webhook 只创建 `strm_generation_tasks`，不在 HTTP 请求内直接写 STRM；后续由 STRM worker 统一处理。
+外部程序可以通过 [STRM Webhook](strm-webhook.md) 创建同一类 STRM 生成任务，接口字段、响应格式和幂等边界以独立文档为准。
 
 ## Emby 302 出站 HTTPS
 

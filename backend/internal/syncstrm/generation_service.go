@@ -152,15 +152,15 @@ func (service *StrmGenerationService) Generate(ctx context.Context, input StrmGe
 	if err := db.Db.Save(syncFile).Error; err != nil {
 		return nil, fmt.Errorf("保存 SyncFile 失败：%w", err)
 	}
+	isWebhookFile := task.Source == models.StrmGenerationSourceWebhook && task.TaskType == models.StrmGenerationTaskTypeFile
 	newMeta := 0
-	if task.DownloadMeta && file.IsVideo {
+	if isWebhookFile && task.DownloadMeta && file.IsVideo {
 		newMeta, err = service.downloadMatchedMetadata(ctx, syncer, file)
 		if err != nil {
 			return nil, err
 		}
 	}
 	result := &StrmGenerationResult{SyncFile: syncFile, Changed: changed, NewMeta: newMeta}
-	isWebhookFile := task.Source == models.StrmGenerationSourceWebhook && task.TaskType == models.StrmGenerationTaskTypeFile
 	shouldSubmitWebhookRefresh := isWebhookFile && task.RefreshEmby && (changed || newMeta > 0)
 	switch {
 	case shouldSubmitWebhookRefresh:

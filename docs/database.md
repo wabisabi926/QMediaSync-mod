@@ -836,7 +836,7 @@ STRM 生成任务表，上传完成、远端已存在跳过和 [STRM Webhook](st
 - `parent_task_id`：目录扫描父任务 ID。
 - `upload_task_id`：关联上传任务 ID。
 - `sync_path_id`、`account_id`：同步目录和账号 ID。
-- `download_meta`、`refresh_emby`：Webhook STRM 生成选项，默认关闭。
+- `download_meta`、`refresh_emby`：Webhook STRM 生成选项，默认关闭；`download_meta` 只对 `source=webhook` 且 `task_type=file` 的任务生效。
 - `file_id`、`parent_id`、`pick_code`、`path`、`file_name`、`file_size`、`sha1`、`mtime`：文件级 STRM 生成所需远端信息。
 - `directory_id`、`directory_path`、`total_items`、`accepted_items`、`failed_items`：目录级扫描或批量父任务信息和统计。
 - `changed_items`、`new_meta_items`：父任务统计中发生 STRM 变更和新增元数据下载任务的子任务数量。

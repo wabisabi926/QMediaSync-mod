@@ -318,6 +318,74 @@ func TestStrmGenerationServiceDownloadsMatchedMetadata(t *testing.T) {
 	}
 }
 
+func TestStrmGenerationServiceIgnoresDownloadMetaForNonWebhookTask(t *testing.T) {
+	account, syncPath := setupStrmGenerationServiceTestDB(t)
+	syncPath.MetaExtArr = []string{".nfo"}
+	service := newTestGenerationService(t, syncPath, account)
+	service.compareStrm = func(_ *SyncStrm, _ *SyncFileCache) int { return 0 }
+	service.processStrmFile = func(_ *SyncStrm, _ *SyncFileCache) error { return nil }
+	service.requestEmbyRefreshBySyncFile = func(*models.SyncFile) error { return nil }
+	service.buildSyncer = func(_ *models.SyncPath, _ *models.Account) (*SyncStrm, error) {
+		return &SyncStrm{
+			Account:      account,
+			SyncPathId:   syncPath.ID,
+			SourcePath:   syncPath.RemotePath,
+			SourcePathId: syncPath.BaseCid,
+			TargetPath:   syncPath.LocalPath,
+			Config: SyncStrmConfig{
+				StrmBaseUrl:     syncPath.StrmBaseUrl,
+				StrmUrlNeedPath: syncPath.AddPath,
+				VideoExt:        syncPath.VideoExtArr,
+				MetaExt:         syncPath.MetaExtArr,
+			},
+			SyncDriver: &fakeDirectoryScanDriver{
+				filesByID: map[string][]*SyncFileCache{
+					"parent-guard": {
+						{
+							FileId:     "nfo-guard",
+							ParentId:   "parent-guard",
+							FileName:   "movie.nfo",
+							Path:       "/remote",
+							PickCode:   "pick-nfo-guard",
+							SourceType: models.SourceType115,
+							FileType:   v115open.TypeFile,
+						},
+					},
+				},
+			},
+		}, nil
+	}
+
+	result, err := service.Generate(context.Background(), StrmGenerationInput{
+		Task: &models.StrmGenerationTask{
+			Source:       models.StrmGenerationSourceUploadCompleted,
+			TaskType:     models.StrmGenerationTaskTypeFile,
+			SyncPathId:   syncPath.ID,
+			AccountId:    account.ID,
+			FileId:       "file-guard",
+			ParentId:     "parent-guard",
+			PickCode:     "pick-video-guard",
+			Path:         "/remote",
+			FileName:     "movie.mkv",
+			DownloadMeta: true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("生成 STRM 失败: %v", err)
+	}
+	if result.NewMeta != 0 {
+		t.Fatalf("非 Webhook 任务新增元数据数 = %d，期望 0", result.NewMeta)
+	}
+
+	var count int64
+	if err := db.Db.Model(&models.DbDownloadTask{}).Count(&count).Error; err != nil {
+		t.Fatalf("统计下载任务失败: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("非 Webhook 任务创建下载任务数 = %d，期望 0", count)
+	}
+}
+
 func TestStrmGenerationServiceWebhookRefreshRequiresEnabledChangeOrNewMetadata(t *testing.T) {
 	tests := []struct {
 		name        string

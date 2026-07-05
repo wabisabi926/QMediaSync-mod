@@ -219,6 +219,92 @@ func TestStrmWebhookEnqueuesFileTaskIdempotently(t *testing.T) {
 	}
 }
 
+func TestStrmWebhookOptionsDefaultFalse(t *testing.T) {
+	router, rawKey, syncPath := setupStrmWebhookControllerTest(t)
+	setStrmWebhookFileIDDetailResolverForTesting(t, func(_ context.Context, _ *models.Account, fileID string) (*v115open.FileDetail, error) {
+		return &v115open.FileDetail{FileId: fileID, PickCode: "pick-1", FileName: "movie.mkv", Path: "/remote"}, nil
+	})
+
+	w := performStrmWebhookRequest(t, router, rawKey, "", map[string]any{
+		"sync_path_id": syncPath.ID,
+		"action":       "file",
+		"file_id":      "file-1",
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("响应异常: code=%d body=%s", w.Code, w.Body.String())
+	}
+	var task models.StrmGenerationTask
+	if err := db.Db.First(&task).Error; err != nil {
+		t.Fatalf("读取 STRM 任务失败: %v", err)
+	}
+	if task.DownloadMeta || task.RefreshEmby {
+		t.Fatalf("默认开关 = download_meta:%v refresh_emby:%v，期望 false/false", task.DownloadMeta, task.RefreshEmby)
+	}
+}
+
+func TestStrmWebhookBatchCreatesParentAndChildrenWithOptions(t *testing.T) {
+	router, rawKey, syncPath := setupStrmWebhookControllerTest(t)
+	setStrmWebhookFileIDDetailResolverForTesting(t, func(_ context.Context, _ *models.Account, fileID string) (*v115open.FileDetail, error) {
+		return &v115open.FileDetail{
+			FileId:   fileID,
+			PickCode: "pick-" + fileID,
+			FileName: fileID + ".mkv",
+			Path:     "/remote/show",
+		}, nil
+	})
+
+	w := performStrmWebhookRequest(t, router, rawKey, "", map[string]any{
+		"sync_path_id":  syncPath.ID,
+		"action":        "batch_files",
+		"download_meta": true,
+		"refresh_emby":  true,
+		"items": []map[string]any{
+			{"file_id": "file-1"},
+			{"file_id": "file-2"},
+		},
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("响应异常: code=%d body=%s", w.Code, w.Body.String())
+	}
+	var parent models.StrmGenerationTask
+	if err := db.Db.Where("task_type = ?", models.StrmGenerationTaskTypeBatchFiles).First(&parent).Error; err != nil {
+		t.Fatalf("读取批量父任务失败: %v", err)
+	}
+	if parent.TotalItems != 2 || !parent.DownloadMeta || !parent.RefreshEmby {
+		t.Fatalf("父任务 = %+v，期望 total=2 且开关为 true", parent)
+	}
+	var children []models.StrmGenerationTask
+	if err := db.Db.Where("parent_task_id = ?", parent.ID).Find(&children).Error; err != nil {
+		t.Fatalf("读取子任务失败: %v", err)
+	}
+	if len(children) != 2 {
+		t.Fatalf("子任务数量 = %d，期望 2", len(children))
+	}
+	for _, child := range children {
+		if !child.DownloadMeta || !child.RefreshEmby {
+			t.Fatalf("子任务未继承开关: %+v", child)
+		}
+	}
+}
+
+func TestStrmWebhookRejectsItemLevelOptions(t *testing.T) {
+	router, rawKey, syncPath := setupStrmWebhookControllerTest(t)
+	w := performStrmWebhookRequest(t, router, rawKey, "", map[string]any{
+		"sync_path_id": syncPath.ID,
+		"action":       "batch_files",
+		"items": []map[string]any{
+			{
+				"file_id":       "file-1",
+				"download_meta": true,
+				"refresh_emby":  false,
+			},
+		},
+	})
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "items[] 不允许设置 download_meta 或 refresh_emby") {
+		t.Fatalf("item 级开关应被拒绝: code=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
 func TestStrmWebhookResolvesPathAndFileNameBeforeEnqueue(t *testing.T) {
 	router, rawKey, syncPath := setupStrmWebhookControllerTest(t)
 	setStrmWebhookFileDetailResolverForTesting(t, func(_ context.Context, account *models.Account, fullPath string) (*v115open.FileDetail, error) {
@@ -317,8 +403,17 @@ func TestStrmWebhookBatchFilesReturnsItemResults(t *testing.T) {
 	if err := db.Db.Model(&models.StrmGenerationTask{}).Count(&total).Error; err != nil {
 		t.Fatalf("统计 STRM 任务失败: %v", err)
 	}
-	if total != 1 {
-		t.Fatalf("STRM 任务数量 = %d，期望只入队合法项", total)
+	if total != 2 {
+		t.Fatalf("STRM 任务数量 = %d，期望批量父任务 + 1 个合法子任务", total)
+	}
+	var childCount int64
+	if err := db.Db.Model(&models.StrmGenerationTask{}).
+		Where("task_type = ? AND parent_task_id > 0", models.StrmGenerationTaskTypeFile).
+		Count(&childCount).Error; err != nil {
+		t.Fatalf("统计 STRM 子任务失败: %v", err)
+	}
+	if childCount != 1 {
+		t.Fatalf("STRM 合法子任务数量 = %d，期望只入队 1 个合法项", childCount)
 	}
 }
 

@@ -28,9 +28,11 @@ const (
 )
 
 type strmWebhookRequest struct {
-	SyncPathID uint   `json:"sync_path_id"`
-	Action     string `json:"action"`
-	LocalPath  string `json:"local_path"`
+	SyncPathID   uint   `json:"sync_path_id"`
+	Action       string `json:"action"`
+	LocalPath    string `json:"local_path"`
+	DownloadMeta bool   `json:"download_meta"`
+	RefreshEmby  bool   `json:"refresh_emby"`
 
 	strmWebhookFileItem
 
@@ -49,6 +51,9 @@ type strmWebhookFileItem struct {
 	Sha1      string `json:"sha1"`
 	Mtime     int64  `json:"mtime"`
 	LocalPath string `json:"local_path"`
+
+	ItemDownloadMeta *bool `json:"download_meta"`
+	ItemRefreshEmby  *bool `json:"refresh_emby"`
 }
 
 type strmWebhookResponse struct {
@@ -64,6 +69,16 @@ type strmWebhookItemResult struct {
 	Accepted bool   `json:"accepted"`
 	TaskID   uint   `json:"task_id,omitempty"`
 	Error    string `json:"error,omitempty"`
+}
+
+type strmWebhookOptions struct {
+	DownloadMeta bool
+	RefreshEmby  bool
+}
+
+type strmWebhookPreparedFile struct {
+	index int
+	item  strmWebhookFileItem
 }
 
 // StrmWebhook 接收外部请求创建 STRM 生成任务。
@@ -108,10 +123,14 @@ func handleStrmWebhookRequest(ctx context.Context, req strmWebhookRequest) (strm
 		return strmWebhookResponse{}, err
 	}
 	action := inferStrmWebhookAction(req)
+	options := strmWebhookOptions{
+		DownloadMeta: req.DownloadMeta,
+		RefreshEmby:  req.RefreshEmby,
+	}
 	resp := strmWebhookResponse{RequestID: "strm_" + helpers.RandStr(16)}
 	switch action {
 	case strmWebhookActionFile:
-		result := enqueueStrmWebhookFile(ctx, syncPath, 0, req.strmWebhookFileItem)
+		result := enqueueStrmWebhookFile(ctx, syncPath, 0, options, 0, req.strmWebhookFileItem)
 		if !result.Accepted {
 			return strmWebhookResponse{}, errors.New(result.Error)
 		}
@@ -120,9 +139,26 @@ func handleStrmWebhookRequest(ctx context.Context, req strmWebhookRequest) (strm
 		if len(req.Items) == 0 {
 			return strmWebhookResponse{}, errors.New("items 不能为空")
 		}
-		for index, item := range req.Items {
-			resp.Results = append(resp.Results, enqueueStrmWebhookFile(ctx, syncPath, index, item))
+		if err := validateStrmWebhookItemOptions(req.Items); err != nil {
+			return strmWebhookResponse{}, err
 		}
+		preparedFiles, results := prepareStrmWebhookBatchFiles(ctx, syncPath, req.Items)
+		if len(preparedFiles) > 0 {
+			parent, err := enqueueStrmWebhookBatchParent(syncPath, options, preparedFiles)
+			if err != nil {
+				return strmWebhookResponse{}, err
+			}
+			for _, prepared := range preparedFiles {
+				results[prepared.index] = createStrmWebhookFileTask(
+					syncPath,
+					parent.ID,
+					options,
+					prepared.index,
+					prepared.item,
+				)
+			}
+		}
+		resp.Results = append(resp.Results, results...)
 	case strmWebhookActionDirectoryScan:
 		result := enqueueStrmWebhookDirectory(syncPath, req)
 		if !result.Accepted {
@@ -141,6 +177,15 @@ func handleStrmWebhookRequest(ctx context.Context, req strmWebhookRequest) (strm
 		}
 	}
 	return resp, nil
+}
+
+func validateStrmWebhookItemOptions(items []strmWebhookFileItem) error {
+	for _, item := range items {
+		if item.ItemDownloadMeta != nil || item.ItemRefreshEmby != nil {
+			return errors.New("items[] 不允许设置 download_meta 或 refresh_emby，请使用请求顶层字段统一控制")
+		}
+	}
+	return nil
 }
 
 func loadStrmWebhookSyncPath(syncPathID uint) (*models.SyncPath, error) {
@@ -168,36 +213,82 @@ func inferStrmWebhookAction(req strmWebhookRequest) string {
 	return strmWebhookActionFile
 }
 
-func enqueueStrmWebhookFile(ctx context.Context, syncPath *models.SyncPath, index int, item strmWebhookFileItem) strmWebhookItemResult {
+func enqueueStrmWebhookFile(ctx context.Context, syncPath *models.SyncPath, parentTaskID uint, options strmWebhookOptions, index int, item strmWebhookFileItem) strmWebhookItemResult {
+	prepared, result := prepareStrmWebhookFileItem(ctx, syncPath, index, item)
+	if !result.Accepted {
+		return result
+	}
+	return createStrmWebhookFileTask(syncPath, parentTaskID, options, index, prepared.item)
+}
+
+func prepareStrmWebhookBatchFiles(ctx context.Context, syncPath *models.SyncPath, items []strmWebhookFileItem) ([]strmWebhookPreparedFile, []strmWebhookItemResult) {
+	preparedFiles := make([]strmWebhookPreparedFile, 0, len(items))
+	results := make([]strmWebhookItemResult, len(items))
+	for index, item := range items {
+		prepared, result := prepareStrmWebhookFileItem(ctx, syncPath, index, item)
+		results[index] = result
+		if result.Accepted {
+			preparedFiles = append(preparedFiles, prepared)
+		}
+	}
+	return preparedFiles, results
+}
+
+func prepareStrmWebhookFileItem(ctx context.Context, syncPath *models.SyncPath, index int, item strmWebhookFileItem) (strmWebhookPreparedFile, strmWebhookItemResult) {
 	if strings.TrimSpace(item.LocalPath) != "" {
-		return strmWebhookItemResult{Index: index, Accepted: false, Error: "不允许通过 local_path 指定本地写入路径"}
+		return strmWebhookPreparedFile{}, strmWebhookItemResult{Index: index, Accepted: false, Error: "不允许通过 local_path 指定本地写入路径"}
 	}
 	item = normalizeStrmWebhookFileItem(item)
 	if err := validateStrmWebhookFileItem(syncPath, item); err != nil {
-		return strmWebhookItemResult{Index: index, Accepted: false, Error: err.Error()}
+		return strmWebhookPreparedFile{}, strmWebhookItemResult{Index: index, Accepted: false, Error: err.Error()}
 	}
 	if err := resolveStrmWebhookFileItem(ctx, syncPath, &item); err != nil {
-		return strmWebhookItemResult{Index: index, Accepted: false, Error: err.Error()}
+		return strmWebhookPreparedFile{}, strmWebhookItemResult{Index: index, Accepted: false, Error: err.Error()}
 	}
+	return strmWebhookPreparedFile{index: index, item: item}, strmWebhookItemResult{Index: index, Accepted: true}
+}
+
+func createStrmWebhookFileTask(syncPath *models.SyncPath, parentTaskID uint, options strmWebhookOptions, index int, item strmWebhookFileItem) strmWebhookItemResult {
 	task, err := models.EnqueueStrmGenerationTask(&models.StrmGenerationTask{
-		Source:      models.StrmGenerationSourceWebhook,
-		TaskType:    models.StrmGenerationTaskTypeFile,
-		SyncPathId:  syncPath.ID,
-		AccountId:   syncPath.AccountId,
-		FileId:      item.FileID,
-		ParentId:    item.ParentID,
-		PickCode:    item.PickCode,
-		Path:        item.Path,
-		FileName:    item.FileName,
-		FileSize:    item.FileSize,
-		Sha1:        item.Sha1,
-		Mtime:       item.Mtime,
-		RequestHash: strmWebhookFileRequestHash(syncPath.ID, item),
+		Source:       models.StrmGenerationSourceWebhook,
+		TaskType:     models.StrmGenerationTaskTypeFile,
+		ParentTaskId: parentTaskID,
+		SyncPathId:   syncPath.ID,
+		AccountId:    syncPath.AccountId,
+		DownloadMeta: options.DownloadMeta,
+		RefreshEmby:  options.RefreshEmby,
+		FileId:       item.FileID,
+		ParentId:     item.ParentID,
+		PickCode:     item.PickCode,
+		Path:         item.Path,
+		FileName:     item.FileName,
+		FileSize:     item.FileSize,
+		Sha1:         item.Sha1,
+		Mtime:        item.Mtime,
+		RequestHash:  strmWebhookFileRequestHash(syncPath.ID, parentTaskID, options, item),
 	})
 	if err != nil {
 		return strmWebhookItemResult{Index: index, Accepted: false, Error: err.Error()}
 	}
 	return strmWebhookItemResult{Index: index, Accepted: true, TaskID: task.ID}
+}
+
+func enqueueStrmWebhookBatchParent(syncPath *models.SyncPath, options strmWebhookOptions, preparedFiles []strmWebhookPreparedFile) (*models.StrmGenerationTask, error) {
+	if len(preparedFiles) == 0 {
+		return nil, errors.New("批量请求没有合法文件项")
+	}
+	// 父任务不由 worker 执行，completed 只表示父记录本身创建完成。
+	return models.EnqueueStrmGenerationTask(&models.StrmGenerationTask{
+		Source:       models.StrmGenerationSourceWebhook,
+		TaskType:     models.StrmGenerationTaskTypeBatchFiles,
+		SyncPathId:   syncPath.ID,
+		AccountId:    syncPath.AccountId,
+		DownloadMeta: options.DownloadMeta,
+		RefreshEmby:  options.RefreshEmby,
+		TotalItems:   len(preparedFiles),
+		Status:       models.StrmGenerationStatusCompleted,
+		RequestHash:  strmWebhookBatchRequestHash(syncPath.ID, options, preparedFiles),
+	})
 }
 
 func defaultStrmWebhookFileDetailResolver(ctx context.Context, account *models.Account, fullPath string) (*v115open.FileDetail, error) {
@@ -342,8 +433,40 @@ func enqueueStrmWebhookDirectory(syncPath *models.SyncPath, req strmWebhookReque
 	return strmWebhookItemResult{Index: 0, Accepted: true, TaskID: task.ID}
 }
 
-func strmWebhookFileRequestHash(syncPathID uint, item strmWebhookFileItem) string {
-	return fmt.Sprintf("webhook:file:%d:%s:%s:%s:%s", syncPathID, item.FileID, item.PickCode, item.Path, item.FileName)
+func strmWebhookFileRequestHash(syncPathID uint, parentTaskID uint, options strmWebhookOptions, item strmWebhookFileItem) string {
+	return fmt.Sprintf(
+		"webhook:file:%d:%d:%t:%t:%s:%s:%s:%s",
+		syncPathID,
+		parentTaskID,
+		options.DownloadMeta,
+		options.RefreshEmby,
+		item.FileID,
+		item.PickCode,
+		item.Path,
+		item.FileName,
+	)
+}
+
+func strmWebhookBatchRequestHash(syncPathID uint, options strmWebhookOptions, preparedFiles []strmWebhookPreparedFile) string {
+	var builder strings.Builder
+	for _, prepared := range preparedFiles {
+		item := prepared.item
+		builder.WriteString(fmt.Sprintf(
+			"%d:%s:%s:%s:%s\n",
+			prepared.index,
+			item.FileID,
+			item.PickCode,
+			item.Path,
+			item.FileName,
+		))
+	}
+	return fmt.Sprintf(
+		"webhook:batch:%d:%t:%t:%s",
+		syncPathID,
+		options.DownloadMeta,
+		options.RefreshEmby,
+		helpers.MD5Hash(builder.String()),
+	)
 }
 
 func strmWebhookDirectoryRequestHash(syncPathID uint, directoryID string, directoryPath string) string {

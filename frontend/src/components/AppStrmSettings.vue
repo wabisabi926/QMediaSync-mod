@@ -206,72 +206,6 @@
         </div>
       </el-form-item>
 
-      <el-divider content-position="left">STRM Webhook</el-divider>
-      <el-alert
-        type="warning"
-        show-icon
-        :closable="false"
-        class="webhook-warning"
-        title="STRM Webhook 仍处于测试阶段"
-        description="接口字段和处理行为后续可能调整。建议先在少量目录验证后再接入自动化流程，避免影响现有媒体库。"
-      />
-      <el-form-item label="Webhook 地址">
-        <div class="webhook-url-row">
-          <el-input :model-value="strmWebhookUrl" readonly class="limited-width-input" />
-          <el-button @click="copyStrmWebhookUrl" :icon="DocumentCopy">复制</el-button>
-        </div>
-        <div class="form-help">
-          <p>
-            外部程序可通过该地址请求生成 STRM，请使用 `X-API-Key` 请求头或 `api_key` 查询参数鉴权。
-          </p>
-          <p>请求只接受 115 远端定位信息，不能传入 `local_path` 指定本地写入位置。</p>
-        </div>
-      </el-form-item>
-      <el-form-item label="请求示例">
-        <div class="webhook-example-panel">
-          <div class="webhook-example-toolbar">
-            <el-popover
-              :trigger="checkIsMobile ? 'click' : 'hover'"
-              placement="top-start"
-              width="420"
-              popper-class="webhook-field-popover"
-            >
-              <template #reference>
-                <el-button text type="primary" :icon="InfoFilled">字段说明</el-button>
-              </template>
-              <div class="webhook-field-help">
-                <p><code>sync_path_id</code>：选择要写入哪个 STRM 同步目录。</p>
-                <p><code>action</code>：生成方式，单文件、批量文件或目录扫描。</p>
-                <p>
-                  <code>path</code>：文件所在的远端目录，只在 file 和 batch_files 的 items
-                  中使用。
-                </p>
-                <p>
-                  <code>directory_path</code>：要扫描的远端目录，只在 directory_scan 中使用。
-                </p>
-                <p><code>download_meta</code>：开启后只下载同名和 -thumb 元数据，默认关闭。</p>
-                <p>
-                  <code>refresh_emby</code>：开启后仅在 STRM 变更或新增元数据下载任务时通知
-                  Emby 刷新，默认关闭。
-                </p>
-                <p><code>file_id</code>：可选提供；提供后端会优先用它查询真实远端文件信息。</p>
-                <p><code>pick_code</code>：可作为辅助信息，不能单独用来定位文件。</p>
-              </div>
-            </el-popover>
-          </div>
-          <div class="webhook-example-list">
-            <div
-              v-for="example in webhookExamples"
-              :key="example.title"
-              class="webhook-example-block"
-            >
-              <div class="webhook-example-title">{{ example.title }}</div>
-              <pre class="webhook-example">{{ example.body }}</pre>
-            </div>
-          </div>
-        </div>
-      </el-form-item>
-
       <!-- 保存和重置按钮 -->
       <div class="strm-actions">
         <el-button
@@ -284,29 +218,38 @@
           保存 STRM 配置
         </el-button>
       </div>
-    </el-form>
 
-    <!-- STRM 配置状态显示 -->
-    <el-alert
-      v-if="strmStatus"
-      :title="strmStatus.title"
-      :type="strmStatus.type"
-      :description="strmStatus.description"
-      :closable="false"
-      show-icon
-      class="strm-status"
-    />
+      <!-- STRM 配置状态显示 -->
+      <el-alert
+        v-if="strmStatus"
+        :title="strmStatus.title"
+        :type="strmStatus.type"
+        :description="strmStatus.description"
+        :closable="false"
+        show-icon
+        class="strm-status"
+      />
+
+      <el-divider content-position="left">STRM Webhook</el-divider>
+      <el-alert
+        type="warning"
+        show-icon
+        :closable="false"
+        class="webhook-warning"
+        title="STRM Webhook 仍处于测试阶段"
+        description="当前仅支持 115 网盘，接口字段和处理行为后续可能调整。请求字段、示例和边界说明请查看正式文档，建议先在少量目录验证后再接入自动化流程。"
+      />
+    </el-form>
   </div>
 </template>
 
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
 import type { AxiosStatic } from 'axios'
-import { Check, DocumentCopy, InfoFilled } from '@element-plus/icons-vue'
-import { computed, inject, onMounted, reactive, ref, watch, useTemplateRef } from 'vue'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { Check } from '@element-plus/icons-vue'
+import { inject, onMounted, reactive, ref, watch, useTemplateRef } from 'vue'
+import type { FormInstance, FormRules } from 'element-plus'
 import { isMobile } from '@/utils/deviceUtils'
-import { copyText } from '@/utils/clipboard'
 import MetadataExtInput from './MetadataExtInput.vue'
 interface StrmData {
   video_ext_arr: string[]
@@ -360,67 +303,6 @@ const defaultStrmData: StrmData = {
 }
 
 const strmData = reactive<StrmData>({ ...defaultStrmData })
-
-const strmWebhookUrl = computed(() => {
-  return new URL(`${SERVER_URL}/strm/webhook`, window.location.origin).toString()
-})
-
-const webhookExamples = computed(() => [
-  {
-    title: '单文件生成',
-    body: JSON.stringify(
-      {
-        sync_path_id: 1,
-        action: 'file',
-        download_meta: true,
-        refresh_emby: true,
-        path: '/剧集/示例剧/S01',
-        file_name: '示例剧 - S01E01.mkv',
-      },
-      null,
-      2,
-    ),
-  },
-  {
-    title: '批量文件生成',
-    body: JSON.stringify(
-      {
-        sync_path_id: 1,
-        action: 'batch_files',
-        download_meta: false,
-        refresh_emby: false,
-        items: [
-          {
-            path: '/剧集/示例剧/S01',
-            file_name: '示例剧 - S01E01.mkv',
-            file_id: '115-file-id-1',
-          },
-          {
-            path: '/剧集/示例剧/S01',
-            file_name: '示例剧 - S01E02.mkv',
-            file_id: '115-file-id-2',
-          },
-        ],
-      },
-      null,
-      2,
-    ),
-  },
-  {
-    title: '目录扫描生成',
-    body: JSON.stringify(
-      {
-        sync_path_id: 1,
-        action: 'directory_scan',
-        download_meta: true,
-        refresh_emby: true,
-        directory_path: '/剧集/示例剧/S01',
-      },
-      null,
-      2,
-    ),
-  },
-])
 
 // 表单验证规则
 const formRules: FormRules = {
@@ -600,14 +482,6 @@ const changeDownloadMeta = () => {
   }
 }
 
-const copyStrmWebhookUrl = async () => {
-  if (await copyText(strmWebhookUrl.value)) {
-    ElMessage.success('STRM Webhook 地址已复制到剪贴板')
-    return
-  }
-  ElMessage.error('复制失败，请手动复制')
-}
-
 // 监听 Cron 表达式变化
 watch(
   () => strmData.cron,
@@ -629,83 +503,5 @@ onMounted(() => {
 <style scoped>
 .webhook-warning {
   margin-bottom: 18px;
-}
-
-.webhook-url-row {
-  display: flex;
-  width: 100%;
-  gap: 8px;
-}
-
-.webhook-example-panel {
-  width: 100%;
-  max-width: 760px;
-}
-
-.webhook-example-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 8px;
-}
-
-.webhook-example-list {
-  display: grid;
-  gap: 12px;
-}
-
-.webhook-example-block {
-  min-width: 0;
-}
-
-.webhook-example-title {
-  margin-bottom: 6px;
-  color: #606266;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
-.webhook-example {
-  box-sizing: border-box;
-  width: 100%;
-  margin: 0;
-  padding: 12px;
-  overflow-x: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
-  background: #f5f7fa;
-  border: 1px solid #dcdfe6;
-  border-radius: 6px;
-  color: #303133;
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-.webhook-field-help {
-  color: #303133;
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.webhook-field-help p {
-  margin: 0 0 8px;
-}
-
-.webhook-field-help p:last-child {
-  margin-bottom: 0;
-}
-
-@media (max-width: 768px) {
-  .webhook-url-row {
-    flex-direction: column;
-  }
-
-  .webhook-url-row :deep(.el-button) {
-    width: 100%;
-  }
-
-  .webhook-example-toolbar {
-    justify-content: flex-start;
-  }
 }
 </style>

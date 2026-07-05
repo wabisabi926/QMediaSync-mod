@@ -8,6 +8,7 @@ import (
 	pathpkg "path"
 	"strings"
 
+	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
 	"qmediasync/internal/v115open"
@@ -118,11 +119,19 @@ func handleStrmWebhookRequest(ctx context.Context, req strmWebhookRequest) (strm
 	if strings.TrimSpace(req.LocalPath) != "" {
 		return strmWebhookResponse{}, errors.New("不允许通过 local_path 指定本地写入路径")
 	}
-	syncPath, err := loadStrmWebhookSyncPath(req.SyncPathID)
+	action := inferStrmWebhookAction(req)
+	if action == strmWebhookActionBatchFiles {
+		if len(req.Items) == 0 {
+			return strmWebhookResponse{}, errors.New("items 不能为空")
+		}
+		if err := validateStrmWebhookItemOptions(req.Items); err != nil {
+			return strmWebhookResponse{}, err
+		}
+	}
+	syncPath, err := resolveStrmWebhookSyncPath(req, action)
 	if err != nil {
 		return strmWebhookResponse{}, err
 	}
-	action := inferStrmWebhookAction(req)
 	options := strmWebhookOptions{
 		DownloadMeta: req.DownloadMeta,
 		RefreshEmby:  req.RefreshEmby,
@@ -136,12 +145,6 @@ func handleStrmWebhookRequest(ctx context.Context, req strmWebhookRequest) (strm
 		}
 		resp.Results = append(resp.Results, result)
 	case strmWebhookActionBatchFiles:
-		if len(req.Items) == 0 {
-			return strmWebhookResponse{}, errors.New("items 不能为空")
-		}
-		if err := validateStrmWebhookItemOptions(req.Items); err != nil {
-			return strmWebhookResponse{}, err
-		}
 		preparedFiles, results := prepareStrmWebhookBatchFiles(ctx, syncPath, req.Items)
 		if len(preparedFiles) > 0 {
 			parent, err := enqueueStrmWebhookBatchParent(syncPath, options, preparedFiles)
@@ -197,6 +200,95 @@ func loadStrmWebhookSyncPath(syncPathID uint) (*models.SyncPath, error) {
 		return nil, fmt.Errorf("同步目录不存在：%d", syncPathID)
 	}
 	return syncPath, nil
+}
+
+func resolveStrmWebhookSyncPath(req strmWebhookRequest, action string) (*models.SyncPath, error) {
+	if req.SyncPathID != 0 {
+		return loadStrmWebhookSyncPath(req.SyncPathID)
+	}
+	switch action {
+	case strmWebhookActionFile:
+		item := normalizeStrmWebhookFileItem(req.strmWebhookFileItem)
+		if item.Path == "" || item.FileName == "" {
+			return nil, errors.New("sync_path_id 为空时 file 请求必须提供 path + file_name")
+		}
+		return matchStrmWebhookSyncPathByRemotePath(item.Path)
+	case strmWebhookActionBatchFiles:
+		return resolveStrmWebhookBatchSyncPath(req.Items)
+	case strmWebhookActionDirectoryScan:
+		directoryPath := normalizeRemotePath(req.DirectoryPath)
+		if directoryPath == "" {
+			return nil, errors.New("sync_path_id 为空时 directory_scan 请求必须提供 directory_path")
+		}
+		return matchStrmWebhookSyncPathByRemotePath(directoryPath)
+	default:
+		return nil, fmt.Errorf("不支持的 action：%s", action)
+	}
+}
+
+func resolveStrmWebhookBatchSyncPath(items []strmWebhookFileItem) (*models.SyncPath, error) {
+	var matched *models.SyncPath
+	for index, item := range items {
+		item = normalizeStrmWebhookFileItem(item)
+		if item.Path == "" || item.FileName == "" {
+			return nil, fmt.Errorf("sync_path_id 为空时 items[%d] 必须提供 path + file_name", index)
+		}
+		syncPath, err := matchStrmWebhookSyncPathByRemotePath(item.Path)
+		if err != nil {
+			return nil, err
+		}
+		if matched == nil {
+			matched = syncPath
+			continue
+		}
+		if matched.ID != syncPath.ID {
+			return nil, errors.New("batch_files 自动匹配到多个同步目录，请拆分请求或显式提供 sync_path_id")
+		}
+	}
+	if matched == nil {
+		return nil, errors.New("items 不能为空")
+	}
+	return matched, nil
+}
+
+func matchStrmWebhookSyncPathByRemotePath(remotePath string) (*models.SyncPath, error) {
+	remotePath = normalizeRemotePath(remotePath)
+	if remotePath == "" {
+		return nil, errors.New("远端路径为空，无法自动匹配同步目录")
+	}
+	var syncPaths []models.SyncPath
+	if err := db.Db.Where("source_type = ?", models.SourceType115).Find(&syncPaths).Error; err != nil {
+		return nil, fmt.Errorf("查询同步目录失败：%w", err)
+	}
+
+	var matched *models.SyncPath
+	matchedBaseLen := -1
+	ambiguous := false
+	for index := range syncPaths {
+		syncPath := &syncPaths[index]
+		basePath := normalizeRemotePath(syncPath.RemotePath)
+		if !remotePathWithin(remotePath, basePath) {
+			continue
+		}
+		baseLen := len(basePath)
+		if baseLen > matchedBaseLen {
+			matched = syncPath
+			matchedBaseLen = baseLen
+			ambiguous = false
+			continue
+		}
+		if baseLen == matchedBaseLen {
+			ambiguous = true
+		}
+	}
+	if matched == nil {
+		return nil, fmt.Errorf("远端路径 %s 未匹配到 115 同步目录，请显式提供 sync_path_id", remotePath)
+	}
+	if ambiguous {
+		return nil, fmt.Errorf("远端路径 %s 匹配到多个同步目录，请显式提供 sync_path_id", remotePath)
+	}
+	matched.ParseVideoAndMetaExt()
+	return matched, nil
 }
 
 func inferStrmWebhookAction(req strmWebhookRequest) string {

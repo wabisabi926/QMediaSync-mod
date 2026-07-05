@@ -22,11 +22,15 @@ API Key 在 Web 页面「系统设置 - API Key」中创建。完整密钥只会
 
 ## 处理边界
 
-- 请求必须提供 `sync_path_id`，并且同步目录必须存在。
+- 当前 STRM Webhook 仅支持 115 网盘来源。
+- `sync_path_id` 可选；未提供时，后端会按请求里的 115 远端路径自动匹配同步目录。
 - 当前 Webhook 按 115 远端文件详情解析文件信息，`path` 和 `directory_path` 都表示 115 远端路径。
 - 禁止通过 `local_path` 指定本地写入位置；顶层请求和批量项中的 `local_path` 都会被拒绝。
-- 本地 STRM 输出路径只能由 `sync_path_id` 对应同步目录的配置计算。
+- 本地 STRM 输出路径只能由显式指定或自动匹配到的同步目录配置计算。
 - 文件级请求入队前会按 `file_id` 或 `path + file_name` 查询远端详情，并以解析后的真实远端路径再次校验同步目录边界。
+- 未提供 `sync_path_id` 时，`file` 和 `batch_files` 必须提供 `path + file_name`；仅提供 `file_id` 无法自动判断同步目录。
+- 未提供 `sync_path_id` 时，`directory_scan` 必须提供 `directory_path`；仅提供 `directory_id` 无法自动判断同步目录。
+- 批量请求自动匹配时，所有 `items[]` 必须匹配到同一个同步目录；跨同步目录的文件需要拆成多个请求，或显式提供 `sync_path_id`。
 - 目录级请求只创建目录扫描父任务，HTTP 请求内不同步展开完整目录。
 - 合法请求只创建 `strm_generation_tasks`，不会在 HTTP 请求内直接写 STRM，也不会直接请求 Emby。
 - `download_meta` 和 `refresh_emby` 默认关闭；调用方必须显式开启需要的后处理。
@@ -53,7 +57,7 @@ API Key 在 Web 页面「系统设置 - API Key」中创建。完整密钥只会
 
 | 字段 | 必填 | 说明 |
 | --- | --- | --- |
-| `sync_path_id` | 是 | 同步目录 ID。 |
+| `sync_path_id` | 否 | 同步目录 ID。缺省时按 115 远端路径自动匹配最具体的同步目录。 |
 | `action` | 否 | `file`、`batch_files` 或 `directory_scan`。 |
 | `download_meta` | 否 | 是否下载本次视频强相关的同名元数据，默认 `false`。 |
 | `refresh_emby` | 否 | 是否在 STRM 变更或新增元数据下载任务后提交 Emby 刷新目标，默认 `false`。 |
@@ -64,9 +68,9 @@ API Key 在 Web 页面「系统设置 - API Key」中创建。完整密钥只会
 
 | 字段 | 必填 | 说明 |
 | --- | --- | --- |
-| `path` | 条件必填 | 文件所在 115 远端目录。使用 `path + file_name` 定位时必填。 |
-| `file_name` | 条件必填 | 文件名。使用 `path + file_name` 定位时必填。 |
-| `file_id` | 条件必填 | 115 文件 ID。与 `path + file_name` 至少提供一组；提供后后端优先用它查询真实远端文件信息。 |
+| `path` | 条件必填 | 文件所在 115 远端目录。使用 `path + file_name` 定位时必填；未提供 `sync_path_id` 时也必填。 |
+| `file_name` | 条件必填 | 文件名。使用 `path + file_name` 定位时必填；未提供 `sync_path_id` 时也必填。 |
+| `file_id` | 条件必填 | 115 文件 ID。与 `path + file_name` 至少提供一组；提供后后端优先用它查询真实远端文件信息。未提供 `sync_path_id` 时只能作为补充字段，不能单独定位。 |
 | `pick_code` | 否 | 只能作为辅助字段，不能单独定位文件。 |
 | `parent_id` | 否 | 父目录 ID；远端详情解析成功后会以解析结果为准。 |
 | `file_size` | 否 | 文件大小，单位字节；远端详情解析成功后会以解析结果为准。 |
@@ -79,8 +83,18 @@ API Key 在 Web 页面「系统设置 - API Key」中创建。完整密钥只会
 
 | 字段 | 必填 | 说明 |
 | --- | --- | --- |
-| `directory_id` | 条件必填 | 115 目录 ID。与 `directory_path` 至少提供一个。 |
-| `directory_path` | 条件必填 | 115 远端目录路径。提供时必须位于同步目录的 `remote_path` 下。 |
+| `directory_id` | 条件必填 | 115 目录 ID。与 `directory_path` 至少提供一个；未提供 `sync_path_id` 时不能单独使用。 |
+| `directory_path` | 条件必填 | 115 远端目录路径。提供时必须位于同步目录的 `remote_path` 下；未提供 `sync_path_id` 时必填。 |
+
+## 同步目录自动匹配
+
+未提供 `sync_path_id` 时，后端会用请求中的 115 远端路径匹配 `source_type=115` 的同步目录：
+
+- 只有路径位于同步目录 `remote_path` 内时才算匹配。
+- 如果多个同步目录都匹配，选择 `remote_path` 最长的同步目录，也就是最具体的目录。
+- 如果最长匹配仍有多个同步目录，返回 HTTP `400`，调用方需要显式提供 `sync_path_id`。
+- 如果没有任何同步目录匹配，返回 HTTP `400`。
+- `batch_files` 中所有 item 必须匹配到同一个同步目录；否则返回 HTTP `400`。
 
 ## 元数据下载
 
@@ -174,7 +188,6 @@ Webhook 入队会为请求生成 `request_hash`，哈希包含请求动作、远
 
 ```json
 {
-  "sync_path_id": 1,
   "action": "file",
   "download_meta": true,
   "refresh_emby": true,
@@ -187,7 +200,6 @@ Webhook 入队会为请求生成 `request_hash`，哈希包含请求动作、远
 
 ```json
 {
-  "sync_path_id": 1,
   "action": "file",
   "download_meta": true,
   "refresh_emby": true,
@@ -201,7 +213,6 @@ Webhook 入队会为请求生成 `request_hash`，哈希包含请求动作、远
 
 ```json
 {
-  "sync_path_id": 1,
   "action": "batch_files",
   "download_meta": false,
   "refresh_emby": false,
@@ -224,7 +235,6 @@ Webhook 入队会为请求生成 `request_hash`，哈希包含请求动作、远
 
 ```json
 {
-  "sync_path_id": 1,
   "action": "directory_scan",
   "download_meta": true,
   "refresh_emby": true,
@@ -239,7 +249,6 @@ curl -X POST 'http://127.0.0.1:12333/api/strm/webhook' \
   -H 'Content-Type: application/json' \
   -H 'X-API-Key: qms_xxxxxxxxxxxxxxxxxxxxxxxx' \
   -d '{
-    "sync_path_id": 1,
     "action": "file",
     "download_meta": true,
     "refresh_emby": true,

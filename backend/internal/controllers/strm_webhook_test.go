@@ -350,6 +350,87 @@ func TestStrmWebhookResolvesPathAndFileNameBeforeEnqueue(t *testing.T) {
 	}
 }
 
+func TestStrmWebhookAutoMatchesMostSpecificSyncPathByFilePath(t *testing.T) {
+	router, rawKey, syncPath := setupStrmWebhookControllerTest(t)
+	nestedSyncPath := &models.SyncPath{
+		SourceType: models.SourceType115,
+		AccountId:  syncPath.AccountId,
+		BaseCid:    "nested-root",
+		LocalPath:  t.TempDir(),
+		RemotePath: "/remote/show",
+	}
+	if err := db.Db.Create(nestedSyncPath).Error; err != nil {
+		t.Fatalf("创建嵌套同步目录失败: %v", err)
+	}
+	setStrmWebhookFileDetailResolverForTesting(t, func(_ context.Context, account *models.Account, fullPath string) (*v115open.FileDetail, error) {
+		if account.ID != nestedSyncPath.AccountId {
+			t.Fatalf("解析账号 ID = %d，期望 %d", account.ID, nestedSyncPath.AccountId)
+		}
+		if fullPath != "/remote/show/S01/movie.mkv" {
+			t.Fatalf("解析路径 = %s，期望 /remote/show/S01/movie.mkv", fullPath)
+		}
+		return &v115open.FileDetail{
+			FileId:       "file-auto",
+			PickCode:     "pick-auto",
+			FileName:     "movie.mkv",
+			Path:         "/remote/show/S01",
+			FileSizeByte: 2048,
+			Utime:        "123456",
+			Paths:        []v115open.FileDetailPath{{FileId: "parent-auto", Name: "S01"}},
+		}, nil
+	})
+
+	w := performStrmWebhookRequest(t, router, rawKey, "", map[string]any{
+		"action":    "file",
+		"path":      "/remote/show/S01",
+		"file_name": "movie.mkv",
+	})
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"accepted_count":1`) {
+		t.Fatalf("自动匹配同步目录响应异常: code=%d body=%s", w.Code, w.Body.String())
+	}
+	var task models.StrmGenerationTask
+	if err := db.Db.First(&task).Error; err != nil {
+		t.Fatalf("读取 STRM 任务失败: %v", err)
+	}
+	if task.SyncPathId != nestedSyncPath.ID || task.Path != "/remote/show/S01" {
+		t.Fatalf("STRM 任务 = %+v，期望使用最具体同步目录 %d", task, nestedSyncPath.ID)
+	}
+}
+
+func TestStrmWebhookRejectsFileIDOnlyWhenSyncPathIDMissing(t *testing.T) {
+	router, rawKey, _ := setupStrmWebhookControllerTest(t)
+	w := performStrmWebhookRequest(t, router, rawKey, "", map[string]any{
+		"action":  "file",
+		"file_id": "file-auto",
+	})
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "path + file_name") {
+		t.Fatalf("未提供 sync_path_id 时仅 file_id 应被拒绝: code=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestStrmWebhookRejectsAmbiguousAutoMatchedSyncPath(t *testing.T) {
+	router, rawKey, syncPath := setupStrmWebhookControllerTest(t)
+	duplicateSyncPath := &models.SyncPath{
+		SourceType: models.SourceType115,
+		AccountId:  syncPath.AccountId,
+		BaseCid:    "duplicate-root",
+		LocalPath:  t.TempDir(),
+		RemotePath: "/remote",
+	}
+	if err := db.Db.Create(duplicateSyncPath).Error; err != nil {
+		t.Fatalf("创建重复远端同步目录失败: %v", err)
+	}
+
+	w := performStrmWebhookRequest(t, router, rawKey, "", map[string]any{
+		"action":    "file",
+		"path":      "/remote",
+		"file_name": "movie.mkv",
+	})
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "多个同步目录") {
+		t.Fatalf("自动匹配到多个同步目录应被拒绝: code=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
 func TestStrmWebhookRejectsFileIDOutsideSyncPath(t *testing.T) {
 	router, rawKey, syncPath := setupStrmWebhookControllerTest(t)
 	setStrmWebhookFileIDDetailResolverForTesting(t, func(_ context.Context, _ *models.Account, fileID string) (*v115open.FileDetail, error) {
@@ -417,6 +498,31 @@ func TestStrmWebhookBatchFilesReturnsItemResults(t *testing.T) {
 	}
 }
 
+func TestStrmWebhookRejectsAutoMatchedBatchAcrossSyncPaths(t *testing.T) {
+	router, rawKey, syncPath := setupStrmWebhookControllerTest(t)
+	otherSyncPath := &models.SyncPath{
+		SourceType: models.SourceType115,
+		AccountId:  syncPath.AccountId,
+		BaseCid:    "other-root",
+		LocalPath:  t.TempDir(),
+		RemotePath: "/other",
+	}
+	if err := db.Db.Create(otherSyncPath).Error; err != nil {
+		t.Fatalf("创建其他同步目录失败: %v", err)
+	}
+
+	w := performStrmWebhookRequest(t, router, rawKey, "", map[string]any{
+		"action": "batch_files",
+		"items": []map[string]any{
+			{"path": "/remote", "file_name": "movie-a.mkv"},
+			{"path": "/other", "file_name": "movie-b.mkv"},
+		},
+	})
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "多个同步目录") {
+		t.Fatalf("跨同步目录批量请求应被拒绝: code=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
 func TestStrmWebhookDirectoryScan(t *testing.T) {
 	router, rawKey, syncPath := setupStrmWebhookControllerTest(t)
 	w := performStrmWebhookRequest(t, router, rawKey, "", map[string]any{
@@ -450,6 +556,24 @@ func TestStrmWebhookDirectoryScan(t *testing.T) {
 	})
 	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "不在同步远端目录") {
 		t.Fatalf("非法目录响应异常: code=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestStrmWebhookAutoMatchesSyncPathByDirectoryPath(t *testing.T) {
+	router, rawKey, syncPath := setupStrmWebhookControllerTest(t)
+	w := performStrmWebhookRequest(t, router, rawKey, "", map[string]any{
+		"action":         "directory_scan",
+		"directory_path": "/remote/show",
+	})
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"accepted_count":1`) {
+		t.Fatalf("目录扫描自动匹配响应异常: code=%d body=%s", w.Code, w.Body.String())
+	}
+	var task models.StrmGenerationTask
+	if err := db.Db.First(&task).Error; err != nil {
+		t.Fatalf("读取目录扫描任务失败: %v", err)
+	}
+	if task.SyncPathId != syncPath.ID || task.DirectoryPath != "/remote/show" {
+		t.Fatalf("目录扫描任务 = %+v，期望自动匹配同步目录 %d", task, syncPath.ID)
 	}
 }
 

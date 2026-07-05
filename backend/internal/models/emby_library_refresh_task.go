@@ -249,6 +249,52 @@ func RequestEmbyLibraryRefreshBySyncPathId(syncPathId uint) error {
 	return nil
 }
 
+// RequestEmbyRefreshTargets 批量提交已解析的 Emby 刷新目标。
+func RequestEmbyRefreshTargets(syncPathId uint, targets []EmbyRefreshTarget) error {
+	if syncPathId == 0 {
+		helpers.AppLogger.Infof("临时同步路径不触发 Emby 媒体库刷新")
+		return nil
+	}
+	if !isEmbyLibraryRefreshEnabled() {
+		helpers.AppLogger.Infof("Emby 未配置或未启用刷新媒体库，跳过提交刷新任务")
+		return nil
+	}
+	targets = normalizeEmbyRefreshTargets(targets)
+	if len(targets) == 0 {
+		return nil
+	}
+
+	now := nowUnix()
+	for _, target := range targets {
+		if target.TargetType == EmbyRefreshTargetTypeItem && target.ItemID != "" {
+			if err := upsertEmbyItemRefreshTask(target, syncPathId, now); err != nil {
+				return err
+			}
+			continue
+		}
+
+		libraryID := target.FallbackLibraryId
+		libraryName := target.FallbackLibraryName
+		if libraryID == "" {
+			for id, name := range GetEmbyLibraryIdsBySyncPathId(syncPathId) {
+				libraryID = id
+				libraryName = name
+				break
+			}
+		}
+		if libraryID == "" {
+			helpers.AppLogger.Infof("同步目录 %d 未关联 Emby 媒体库，跳过提交刷新任务", syncPathId)
+			continue
+		}
+		if err := upsertEmbyLibraryRefreshTask(libraryID, libraryName, syncPathId, now); err != nil {
+			return err
+		}
+	}
+	ScheduleNextEmbyLibraryRefreshCheck()
+	TriggerEmbyLibraryRefreshCheck()
+	return nil
+}
+
 // RequestEmbyRefreshBySyncFile 根据 STRM 对应的 SyncFile 提交 Emby 刷新任务。
 func RequestEmbyRefreshBySyncFile(syncFile *SyncFile) error {
 	if syncFile == nil {

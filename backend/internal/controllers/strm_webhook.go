@@ -418,14 +418,17 @@ func enqueueStrmWebhookDirectory(syncPath *models.SyncPath, req strmWebhookReque
 	if directoryPath != "" && !remotePathWithin(directoryPath, syncPath.RemotePath) {
 		return strmWebhookItemResult{Index: 0, Accepted: false, Error: fmt.Sprintf("远端目录 %s 不在同步远端目录 %s 下", directoryPath, normalizeRemotePath(syncPath.RemotePath))}
 	}
+	options := strmWebhookOptions{DownloadMeta: req.DownloadMeta, RefreshEmby: req.RefreshEmby}
 	task, err := models.EnqueueStrmGenerationTask(&models.StrmGenerationTask{
 		Source:        models.StrmGenerationSourceWebhook,
 		TaskType:      models.StrmGenerationTaskTypeDirectoryScan,
 		SyncPathId:    syncPath.ID,
 		AccountId:     syncPath.AccountId,
+		DownloadMeta:  options.DownloadMeta,
+		RefreshEmby:   options.RefreshEmby,
 		DirectoryId:   directoryID,
 		DirectoryPath: directoryPath,
-		RequestHash:   strmWebhookDirectoryRequestHash(syncPath.ID, directoryID, directoryPath),
+		RequestHash:   strmWebhookDirectoryRequestHash(syncPath.ID, options, directoryID, directoryPath),
 	})
 	if err != nil {
 		return strmWebhookItemResult{Index: 0, Accepted: false, Error: err.Error()}
@@ -469,8 +472,15 @@ func strmWebhookBatchRequestHash(syncPathID uint, options strmWebhookOptions, pr
 	)
 }
 
-func strmWebhookDirectoryRequestHash(syncPathID uint, directoryID string, directoryPath string) string {
-	return fmt.Sprintf("webhook:directory:%d:%s:%s", syncPathID, directoryID, directoryPath)
+func strmWebhookDirectoryRequestHash(syncPathID uint, options strmWebhookOptions, directoryID string, directoryPath string) string {
+	return fmt.Sprintf(
+		"webhook:directory:%d:%t:%t:%s:%s",
+		syncPathID,
+		options.DownloadMeta,
+		options.RefreshEmby,
+		directoryID,
+		directoryPath,
+	)
 }
 
 func normalizeRemotePath(value string) string {

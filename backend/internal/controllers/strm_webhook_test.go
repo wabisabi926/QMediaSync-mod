@@ -422,6 +422,8 @@ func TestStrmWebhookDirectoryScan(t *testing.T) {
 	w := performStrmWebhookRequest(t, router, rawKey, "", map[string]any{
 		"sync_path_id":   syncPath.ID,
 		"action":         "directory_scan",
+		"download_meta":  true,
+		"refresh_emby":   true,
 		"directory_id":   "dir-1",
 		"directory_path": "/remote/show",
 	})
@@ -436,6 +438,9 @@ func TestStrmWebhookDirectoryScan(t *testing.T) {
 		task.DirectoryId != "dir-1" ||
 		task.DirectoryPath != "/remote/show" {
 		t.Fatalf("目录扫描任务 = %+v，期望 directory_scan", task)
+	}
+	if !task.DownloadMeta || !task.RefreshEmby {
+		t.Fatalf("目录扫描任务开关 = download_meta:%v refresh_emby:%v，期望 true/true", task.DownloadMeta, task.RefreshEmby)
 	}
 
 	w = performStrmWebhookRequest(t, router, rawKey, "", map[string]any{

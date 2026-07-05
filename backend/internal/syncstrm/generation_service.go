@@ -524,6 +524,8 @@ func buildDirectoryScanChildTask(parent *models.StrmGenerationTask, syncPath *mo
 		ParentTaskId: parent.ID,
 		SyncPathId:   parent.SyncPathId,
 		AccountId:    accountID,
+		DownloadMeta: parent.DownloadMeta,
+		RefreshEmby:  parent.RefreshEmby,
 		FileId:       file.GetFileId(),
 		ParentId:     file.ParentId,
 		PickCode:     file.PickCode,

@@ -786,6 +786,8 @@ func TestProcessPendingStrmGenerationTasksExpandsDirectoryScan(t *testing.T) {
 		TaskType:      models.StrmGenerationTaskTypeDirectoryScan,
 		SyncPathId:    syncPath.ID,
 		AccountId:     account.ID,
+		DownloadMeta:  true,
+		RefreshEmby:   true,
 		DirectoryPath: "/remote/show",
 		RequestHash:   "webhook:directory:test",
 	})
@@ -821,6 +823,11 @@ func TestProcessPendingStrmGenerationTasksExpandsDirectoryScan(t *testing.T) {
 	}
 	if children[1].FileId != "file-2" || children[1].Path != "/remote/show/Season 01" || children[1].FileName != "episode.mp4" {
 		t.Fatalf("第二个子任务 = %+v，期望 episode.mp4", children[1])
+	}
+	for _, child := range children {
+		if child.DownloadMeta != gotParent.DownloadMeta || child.RefreshEmby != gotParent.RefreshEmby {
+			t.Fatalf("目录扫描子任务未继承父任务开关: child=%+v parent=%+v", child, gotParent)
+		}
 	}
 }
 

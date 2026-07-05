@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -35,6 +36,7 @@ func setupStrmGenerationServiceTestDB(t *testing.T) (*models.Account, *models.Sy
 		&models.SyncPath{},
 		&models.Sync{},
 		&models.SyncFile{},
+		&models.DbDownloadTask{},
 		&models.DbUploadTask{},
 		&models.StrmGenerationTask{},
 		&models.Settings{},
@@ -226,6 +228,93 @@ func TestStrmGenerationServiceGenerateSkipsRefreshWhenStrmUnchanged(t *testing.T
 	}
 	if refreshCalled {
 		t.Fatal("STRM 无变化时不应提交 Emby 刷新")
+	}
+}
+
+func TestStrmGenerationServiceDownloadsMatchedMetadata(t *testing.T) {
+	account, syncPath := setupStrmGenerationServiceTestDB(t)
+	syncPath.MetaExtArr = []string{".nfo", ".jpg"}
+	service := newTestGenerationService(t, syncPath, account)
+	service.compareStrm = func(_ *SyncStrm, _ *SyncFileCache) int { return 0 }
+	service.processStrmFile = func(_ *SyncStrm, _ *SyncFileCache) error { return nil }
+	service.requestEmbyRefreshBySyncFile = func(*models.SyncFile) error { return nil }
+	service.buildSyncer = func(_ *models.SyncPath, _ *models.Account) (*SyncStrm, error) {
+		return &SyncStrm{
+			Account:      account,
+			SyncPathId:   syncPath.ID,
+			SourcePath:   syncPath.RemotePath,
+			SourcePathId: syncPath.BaseCid,
+			TargetPath:   syncPath.LocalPath,
+			Config: SyncStrmConfig{
+				StrmBaseUrl:     syncPath.StrmBaseUrl,
+				StrmUrlNeedPath: syncPath.AddPath,
+				VideoExt:        syncPath.VideoExtArr,
+				MetaExt:         syncPath.MetaExtArr,
+			},
+			SyncDriver: &fakeDirectoryScanDriver{
+				filesByID: map[string][]*SyncFileCache{
+					"parent-1": {
+						{
+							FileId:     "nfo-1",
+							ParentId:   "parent-1",
+							FileName:   "movie.nfo",
+							Path:       "/remote",
+							PickCode:   "pick-nfo",
+							SourceType: models.SourceType115,
+							FileType:   v115open.TypeFile,
+						},
+						{
+							FileId:     "thumb-1",
+							ParentId:   "parent-1",
+							FileName:   "movie-thumb.jpg",
+							Path:       "/remote",
+							PickCode:   "pick-thumb",
+							SourceType: models.SourceType115,
+							FileType:   v115open.TypeFile,
+						},
+						{
+							FileId:     "poster-1",
+							ParentId:   "parent-1",
+							FileName:   "poster.jpg",
+							Path:       "/remote",
+							PickCode:   "pick-poster",
+							SourceType: models.SourceType115,
+							FileType:   v115open.TypeFile,
+						},
+					},
+				},
+			},
+		}, nil
+	}
+
+	_, err := service.Generate(context.Background(), StrmGenerationInput{
+		Task: &models.StrmGenerationTask{
+			Source:       models.StrmGenerationSourceWebhook,
+			TaskType:     models.StrmGenerationTaskTypeFile,
+			SyncPathId:   syncPath.ID,
+			AccountId:    account.ID,
+			FileId:       "file-1",
+			ParentId:     "parent-1",
+			PickCode:     "pick-video",
+			Path:         "/remote",
+			FileName:     "movie.mkv",
+			DownloadMeta: true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("生成 STRM 失败: %v", err)
+	}
+	var downloads []models.DbDownloadTask
+	if err := db.Db.Order("file_name ASC").Find(&downloads).Error; err != nil {
+		t.Fatalf("读取下载任务失败: %v", err)
+	}
+	gotNames := []string{}
+	for _, task := range downloads {
+		gotNames = append(gotNames, task.FileName)
+	}
+	wantNames := []string{"movie-thumb.jpg", "movie.nfo"}
+	if !reflect.DeepEqual(gotNames, wantNames) {
+		t.Fatalf("下载任务文件名 = %v，期望 %v", gotNames, wantNames)
 	}
 }
 

@@ -39,6 +39,7 @@ type StrmGenerationInput struct {
 type StrmGenerationResult struct {
 	SyncFile *models.SyncFile
 	Changed  bool
+	NewMeta  int
 }
 
 // StrmGenerationService 复用现有 SyncStrm 能力完成单文件 STRM 后处理。
@@ -146,12 +147,88 @@ func (service *StrmGenerationService) Generate(ctx context.Context, input StrmGe
 	if err := db.Db.Save(syncFile).Error; err != nil {
 		return nil, fmt.Errorf("保存 SyncFile 失败：%w", err)
 	}
+	newMeta := 0
+	if task.DownloadMeta && file.IsVideo {
+		newMeta, err = service.downloadMatchedMetadata(ctx, syncer, file)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if changed {
 		if err := service.requestEmbyRefreshBySyncFile(syncFile); err != nil {
 			return nil, fmt.Errorf("提交 Emby 刷新任务失败：%w", err)
 		}
 	}
-	return &StrmGenerationResult{SyncFile: syncFile, Changed: changed}, nil
+	return &StrmGenerationResult{SyncFile: syncFile, Changed: changed, NewMeta: newMeta}, nil
+}
+
+func (service *StrmGenerationService) downloadMatchedMetadata(ctx context.Context, syncer *SyncStrm, video *SyncFileCache) (int, error) {
+	if syncer == nil || syncer.SyncDriver == nil || video == nil || !video.IsVideo {
+		return 0, nil
+	}
+	if video.ParentId == "" || video.Path == "" {
+		return 0, nil
+	}
+	files, err := syncer.SyncDriver.GetNetFileFiles(ctx, video.Path, video.ParentId)
+	if err != nil {
+		return 0, fmt.Errorf("获取同目录元数据列表失败：%w", err)
+	}
+
+	wanted := matchedMetadataNames(video.FileName, syncer.Config.MetaExt)
+	created := 0
+	for _, item := range files {
+		if item == nil || item.FileType == v115open.TypeDir {
+			continue
+		}
+		if !wanted[item.FileName] || !syncer.IsValidMetaExt(item.FileName) {
+			continue
+		}
+		if item.SourceType == "" {
+			item.SourceType = video.SourceType
+		}
+		if item.ParentId == "" {
+			item.ParentId = video.ParentId
+		}
+		if item.Path == "" {
+			item.Path = video.Path
+		}
+		item.IsVideo = false
+		item.IsMeta = true
+
+		baseURL := ""
+		if syncer.Account != nil {
+			baseURL = syncer.Account.BaseUrl
+		}
+		syncFile := item.GetSyncFile(syncer, baseURL)
+		if helpers.PathExists(syncFile.LocalFilePath) {
+			continue
+		}
+		if err := db.Db.Save(syncFile).Error; err != nil {
+			return created, fmt.Errorf("保存元数据 SyncFile 失败：%w", err)
+		}
+		if err := models.AddDownloadTaskFromSyncFile(syncFile); err != nil {
+			if strings.Contains(err.Error(), "任务已存在") {
+				continue
+			}
+			return created, err
+		}
+		created++
+	}
+	return created, nil
+}
+
+func matchedMetadataNames(videoName string, metaExt []string) map[string]bool {
+	base := strings.TrimSuffix(videoName, filepath.Ext(videoName))
+	names := make(map[string]bool, len(metaExt)*2)
+	for _, ext := range metaExt {
+		ext = strings.TrimSpace(ext)
+		if ext == "" {
+			continue
+		}
+		names[base+ext] = true
+		names[base+"-thumb"+ext] = true
+	}
+	return names
 }
 
 func copyDirectoryUploadMetadata(syncer *SyncStrm, task *models.StrmGenerationTask, file *SyncFileCache) error {

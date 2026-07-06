@@ -209,33 +209,75 @@ func (service *Service) StartRule(ctx context.Context, rule *models.DirectoryUpl
 
 func (service *Service) startRuleWatcher(ctx context.Context, rule *models.DirectoryUploadRule) (RuleWatcher, RuleRuntimeMode, error) {
 	switch rule.WatchMode {
-	case "", models.DirectoryUploadWatchModeAuto:
 	case models.DirectoryUploadWatchModePolling:
 		return nil, RuleRuntimeModePolling, nil
 	case models.DirectoryUploadWatchModeFSNotify:
+		watcher, err := service.startFSNotifyRuleWatcher(ctx, rule)
+		if err != nil {
+			return nil, "", fmt.Errorf("启动 watcher 失败：%w", err)
+		}
+		return watcher, RuleRuntimeModeWatcher, nil
+	case "", models.DirectoryUploadWatchModeAuto:
 	default:
 		return nil, "", fmt.Errorf("不支持的监控模式：%s", rule.WatchMode)
+	}
+
+	decision := service.decideWatchMode(ctx, rule)
+	if decision.Err != nil {
+		return nil, "", decision.Err
+	}
+	if decision.Mode == RuleRuntimeModePolling {
+		helpers.AppLogger.Warnf("[目录上传] 规则 %d auto 选择 polling：%s", rule.ID, decision.Reason)
+		return nil, RuleRuntimeModePolling, nil
+	}
+	helpers.AppLogger.Debugf("[目录上传] 规则 %d auto 选择 fsnotify：%s", rule.ID, decision.Reason)
+	watcher, err := service.startFSNotifyRuleWatcher(ctx, rule)
+	if err == nil {
+		return watcher, RuleRuntimeModeWatcher, nil
+	}
+	if cancelErr := terminalContextError(ctx, err); cancelErr != nil {
+		return nil, "", cancelErr
+	}
+	helpers.AppLogger.Warnf(
+		"[目录上传] 规则 %d auto 选择 fsnotify（%s）但 watcher 启动失败，切换为 polling：%v",
+		rule.ID,
+		decision.Reason,
+		err,
+	)
+	return nil, RuleRuntimeModePolling, nil
+}
+
+func (service *Service) decideWatchMode(ctx context.Context, rule *models.DirectoryUploadRule) watchModeDecision {
+	if service == nil || service.watchModeDetector == nil {
+		return decideWatchMode(ctx, rule, newOSWatchModeDetector())
+	}
+	return decideWatchMode(ctx, rule, service.watchModeDetector)
+}
+
+func (service *Service) startFSNotifyRuleWatcher(ctx context.Context, rule *models.DirectoryUploadRule) (RuleWatcher, error) {
+	if err := terminalContextError(ctx, nil); err != nil {
+		return nil, err
 	}
 	factory := service.watcherFactory
 	if factory == nil {
 		factory = NewFSNotifyRuleWatcher
 	}
 	watcher, err := factory(service, rule)
-	if err == nil {
-		if watcher == nil {
-			err = errors.New("watcher 工厂返回空实例")
-		} else if err = watcher.Start(ctx); err == nil {
-			return watcher, RuleRuntimeModeWatcher, nil
-		}
-		if watcher != nil {
-			_ = watcher.Close()
-		}
+	if err != nil {
+		return nil, err
 	}
-	if rule.WatchMode == models.DirectoryUploadWatchModeFSNotify {
-		return nil, "", fmt.Errorf("启动 watcher 失败：%w", err)
+	if watcher == nil {
+		return nil, errors.New("watcher 工厂返回空实例")
 	}
-	helpers.AppLogger.Warnf("[目录上传] 规则 %d watcher 不可用，切换为 polling：%v", rule.ID, err)
-	return nil, RuleRuntimeModePolling, nil
+	if err := watcher.Start(ctx); err != nil {
+		_ = watcher.Close()
+		return nil, err
+	}
+	if err := terminalContextError(ctx, nil); err != nil {
+		_ = watcher.Close()
+		return nil, err
+	}
+	return watcher, nil
 }
 
 func (service *Service) runPollingLoop(ctx context.Context, runtime *RuleRuntime, rule *models.DirectoryUploadRule) {

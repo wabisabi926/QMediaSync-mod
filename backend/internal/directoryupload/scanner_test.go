@@ -3,6 +3,7 @@ package directoryupload
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -477,10 +478,21 @@ func TestStartRuleAutoFallsBackToPollingWhenWatcherFails(t *testing.T) {
 	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
 	rule.WatchMode = models.DirectoryUploadWatchModeAuto
 	rule.StartupScanEnabled = false
+	var watcherFactoryCalls atomic.Int32
 
 	service := NewService(ServiceOptions{
 		PollInterval: 10 * time.Millisecond,
+		watchModeDetector: &fakeWatchModeDetector{
+			filesystemType: "ext4",
+			limits: inotifyLimits{
+				Available:        true,
+				MaxUserWatches:   1024,
+				MaxUserInstances: 128,
+			},
+			directoryCount: 1,
+		},
 		WatcherFactory: func(*Service, *models.DirectoryUploadRule) (RuleWatcher, error) {
+			watcherFactoryCalls.Add(1)
 			return nil, errors.New("watcher unavailable")
 		},
 	})
@@ -492,10 +504,274 @@ func TestStartRuleAutoFallsBackToPollingWhenWatcherFails(t *testing.T) {
 	if runtime.Mode != RuleRuntimeModePolling {
 		t.Fatalf("runtime mode=%s，期望 fallback 到 polling", runtime.Mode)
 	}
+	if got := watcherFactoryCalls.Load(); got != 1 {
+		t.Fatalf("watcher factory calls=%d，期望 auto 先尝试创建 watcher", got)
+	}
 
 	filePath := filepath.Join(monitorPath, "episode.mp4")
 	writeFileWithMtime(t, filePath, []byte("episode"), time.Now())
 	waitForPendingPath(t, service, rule.ID, filePath)
+}
+
+func TestStartRuleAutoUsesPollingDecisionWithoutCreatingWatcher(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.WatchMode = models.DirectoryUploadWatchModeAuto
+	rule.StartupScanEnabled = false
+	var watcherFactoryCalls atomic.Int32
+
+	service := NewService(ServiceOptions{
+		PollInterval:           time.Hour,
+		StabilityCheckInterval: time.Hour,
+		watchModeDetector: &fakeWatchModeDetector{
+			filesystemType: "fuse.mergerfs",
+			limits: inotifyLimits{
+				Available:        true,
+				MaxUserWatches:   1024,
+				MaxUserInstances: 128,
+			},
+			directoryCount: 1,
+		},
+		WatcherFactory: func(*Service, *models.DirectoryUploadRule) (RuleWatcher, error) {
+			watcherFactoryCalls.Add(1)
+			return nil, errors.New("不应创建 watcher")
+		},
+	})
+	runtime, err := service.StartRule(context.Background(), rule)
+	if err != nil {
+		t.Fatalf("auto 决策为 polling 时启动失败: %v", err)
+	}
+	defer runtime.Stop()
+	if runtime.Mode != RuleRuntimeModePolling {
+		t.Fatalf("runtime mode=%s，期望 polling", runtime.Mode)
+	}
+	if got := watcherFactoryCalls.Load(); got != 0 {
+		t.Fatalf("watcher factory calls=%d，auto 决策 polling 时不应创建 watcher", got)
+	}
+}
+
+type fakeRuleWatcher struct {
+	startErr error
+	onStart  func()
+	closed   atomic.Bool
+}
+
+func (watcher *fakeRuleWatcher) Start(context.Context) error {
+	if watcher.onStart != nil {
+		watcher.onStart()
+	}
+	return watcher.startErr
+}
+
+func (watcher *fakeRuleWatcher) Close() error {
+	watcher.closed.Store(true)
+	return nil
+}
+
+func TestStartRuleAutoCancellationDoesNotFallbackToPolling(t *testing.T) {
+	tests := []struct {
+		name     string
+		ctx      func() context.Context
+		detector *fakeWatchModeDetector
+	}{
+		{
+			name: "detector 返回 context.Canceled",
+			ctx: func() context.Context {
+				return context.Background()
+			},
+			detector: &fakeWatchModeDetector{
+				filesystemErr: context.Canceled,
+				limits: inotifyLimits{
+					Available:        true,
+					MaxUserWatches:   1024,
+					MaxUserInstances: 128,
+				},
+				directoryCount: 1,
+			},
+		},
+		{
+			name: "启动上下文已取消",
+			ctx: func() context.Context {
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel()
+				return ctx
+			},
+			detector: &fakeWatchModeDetector{
+				filesystemType: "ext4",
+				limits: inotifyLimits{
+					Available:        true,
+					MaxUserWatches:   1024,
+					MaxUserInstances: 128,
+				},
+				directoryCount: 1,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupDirectoryUploadServiceTestDB(t)
+			monitorPath := t.TempDir()
+			_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+			rule.WatchMode = models.DirectoryUploadWatchModeAuto
+			rule.StartupScanEnabled = false
+			var watcherFactoryCalls atomic.Int32
+
+			service := NewService(ServiceOptions{
+				watchModeDetector: tt.detector,
+				WatcherFactory: func(*Service, *models.DirectoryUploadRule) (RuleWatcher, error) {
+					watcherFactoryCalls.Add(1)
+					return &fakeRuleWatcher{}, nil
+				},
+			})
+			runtime, err := service.StartRule(tt.ctx(), rule)
+			if runtime != nil {
+				runtime.Stop()
+			}
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("StartRule error=%v，期望 context.Canceled", err)
+			}
+			if runtime != nil {
+				t.Fatalf("取消时不应返回可用 runtime，got=%+v", runtime)
+			}
+			if got := watcherFactoryCalls.Load(); got != 0 {
+				t.Fatalf("watcher factory calls=%d，取消时不应继续创建 watcher", got)
+			}
+		})
+	}
+}
+
+func TestStartRuleAutoWatcherStartCanceledDoesNotFallbackToPolling(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.WatchMode = models.DirectoryUploadWatchModeAuto
+	rule.StartupScanEnabled = false
+	var watcherFactoryCalls atomic.Int32
+
+	service := NewService(ServiceOptions{
+		PollInterval:           time.Hour,
+		StabilityCheckInterval: time.Hour,
+		watchModeDetector: &fakeWatchModeDetector{
+			filesystemType: "ext4",
+			limits: inotifyLimits{
+				Available:        true,
+				MaxUserWatches:   1024,
+				MaxUserInstances: 128,
+			},
+			directoryCount: 1,
+		},
+		WatcherFactory: func(*Service, *models.DirectoryUploadRule) (RuleWatcher, error) {
+			watcherFactoryCalls.Add(1)
+			return &fakeRuleWatcher{startErr: context.Canceled}, nil
+		},
+	})
+
+	runtime, err := service.StartRule(context.Background(), rule)
+	if runtime != nil {
+		runtime.Stop()
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("watcher Start 取消时 StartRule error=%v，期望 context.Canceled", err)
+	}
+	if runtime != nil {
+		t.Fatalf("watcher Start 取消时不应 fallback 并返回 runtime，got=%+v", runtime)
+	}
+	if got := watcherFactoryCalls.Load(); got != 1 {
+		t.Fatalf("watcher factory calls=%d，期望只尝试创建一次 watcher", got)
+	}
+}
+
+func TestStartFSNotifyRuleWatcherClosesWatcherWhenContextCanceledAfterSuccessfulStart(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.StartupScanEnabled = false
+	ctx, cancel := context.WithCancel(context.Background())
+	fakeWatcher := &fakeRuleWatcher{onStart: cancel}
+
+	service := NewService(ServiceOptions{
+		WatcherFactory: func(*Service, *models.DirectoryUploadRule) (RuleWatcher, error) {
+			return fakeWatcher, nil
+		},
+	})
+	watcher, err := service.startFSNotifyRuleWatcher(ctx, rule)
+	if watcher != nil {
+		_ = watcher.Close()
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("watcher Start 成功后 ctx 取消应返回 context.Canceled，got=%v", err)
+	}
+	if watcher != nil {
+		t.Fatalf("ctx 取消时不应返回 watcher，got=%+v", watcher)
+	}
+	if !fakeWatcher.closed.Load() {
+		t.Fatal("ctx 取消时应关闭已启动的 watcher")
+	}
+}
+
+func TestFSNotifyWatcherStartReturnsCanceledWhenContextCanceledDuringRecursiveAdd(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("真实 fsnotify 递归 Add 取消回归测试只在 Linux inotify 环境运行")
+	}
+	monitorPath := t.TempDir()
+	const directoryCount = 4096
+	for i := 0; i < directoryCount; i++ {
+		if err := os.Mkdir(filepath.Join(monitorPath, fmt.Sprintf("dir-%04d", i)), 0o755); err != nil {
+			t.Fatalf("创建测试目录失败: %v", err)
+		}
+	}
+
+	service := NewService(ServiceOptions{})
+	rule := &models.DirectoryUploadRule{
+		MonitorPath: monitorPath,
+		Recursive:   true,
+	}
+	watcher := &fsNotifyRuleWatcher{service: service, rule: rule}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	t.Cleanup(func() {
+		_ = watcher.Close()
+	})
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- watcher.Start(ctx)
+	}()
+
+	deadline := time.Now().Add(time.Second)
+	for {
+		select {
+		case err := <-errCh:
+			if err != nil {
+				t.Fatalf("取消前 watcher Start 已失败: %v", err)
+			}
+			t.Fatal("取消前 watcher Start 已成功返回，测试未覆盖递归 Add 期间取消")
+		default:
+		}
+
+		watcher.mutex.Lock()
+		started := watcher.watcher != nil
+		watcher.mutex.Unlock()
+		if started {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("等待真实 fsnotify watcher 初始化超时")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	cancel()
+
+	select {
+	case err := <-errCh:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("递归 Add 期间 ctx 取消时 Start error=%v，期望 context.Canceled", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("递归 Add 期间 ctx 取消后 watcher Start 未返回")
+	}
 }
 
 func TestStartRuleFSNotifyFailsWhenWatcherFails(t *testing.T) {

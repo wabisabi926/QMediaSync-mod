@@ -27,7 +27,7 @@ OSS `CompleteMultipartUpload` 完成后，必须带回 115 init 返回的 `callb
 
 监控模式：
 
-- `auto`：自动（推荐），优先使用 fsnotify 实时发现；初始化失败时自动回退到 polling 查漏。
+- `auto`：自动（推荐），根据运行环境选择 fsnotify 或 polling。Linux 下会先通过 mount info 识别 `nfs`、`cifs`、`smb`、`fuse` 等网络文件系统或 FUSE 挂载，命中时直接使用 polling；再读取 inotify `max_user_watches` / `max_user_instances`，通过 `/proc/self/fdinfo` 统计当前进程已有 inotify watch / instance 使用量，并按规则递归语义统计本规则待 watch 目录数。`当前 watch 使用量 + 本规则目录数` 达到 `max_user_watches` 的 80%，或 `当前 instance 使用量 + 1` 达到 `max_user_instances` 的 80% 时使用 polling。检测失败不阻塞启动，会记录日志并继续尝试 fsnotify；非 Linux 不读取 `/proc`，只在 fsnotify 启动失败时自动回退到 polling 查漏。
 - `fsnotify`：性能模式，强制使用 fsnotify，初始化失败则规则启动失败。
 - `polling`：兼容模式，按内置 30 秒周期递归扫描。
 

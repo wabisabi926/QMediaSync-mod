@@ -57,6 +57,7 @@ type ServiceOptions struct {
 	Now                       func() time.Time
 	RemoteClient              RemoteClient
 	WatcherFactory            WatcherFactory
+	watchModeDetector         watchModeDetector
 	PollInterval              time.Duration
 	StabilityCheckInterval    time.Duration
 	ProcessedCleanupInterval  time.Duration
@@ -95,6 +96,7 @@ type Service struct {
 	queue                  *StabilityQueue
 	remoteClient           RemoteClient
 	watcherFactory         WatcherFactory
+	watchModeDetector      watchModeDetector
 	pollInterval           time.Duration
 	stabilityCheckInterval time.Duration
 	cleanupInterval        time.Duration
@@ -115,11 +117,16 @@ func NewService(options ServiceOptions) *Service {
 	if now == nil {
 		now = time.Now
 	}
+	watchModeDetector := options.watchModeDetector
+	if watchModeDetector == nil {
+		watchModeDetector = newOSWatchModeDetector()
+	}
 	service := &Service{
 		now:                    now,
 		queue:                  NewStabilityQueue(StabilityQueueOptions{Now: now}),
 		remoteClient:           options.RemoteClient,
 		watcherFactory:         options.WatcherFactory,
+		watchModeDetector:      watchModeDetector,
 		pollInterval:           options.PollInterval,
 		stabilityCheckInterval: options.StabilityCheckInterval,
 		cleanupInterval:        options.ProcessedCleanupInterval,

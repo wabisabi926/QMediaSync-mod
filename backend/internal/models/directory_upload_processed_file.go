@@ -48,6 +48,7 @@ type DirectoryUploadProcessedFile struct {
 }
 
 // BuildDirectoryUploadSourceFingerprint 生成目录监控源文件签名。
+// 当前 v1 只包含 size 和 mtime_ns，不包含 ctime、inode 或文件 hash。
 func BuildDirectoryUploadSourceFingerprint(size int64, mtimeNs int64) string {
 	return fmt.Sprintf("v1:%d:%d", size, mtimeNs)
 }

@@ -45,6 +45,21 @@ type RemoteClient interface {
 
 var errStableFileNoRetry = errors.New("稳定文件不再重试")
 
+var defaultIgnoredFileSuffixes = []string{
+	".part",
+	".tmp",
+	".download",
+	".aria2",
+	".torrent",
+}
+
+var defaultIgnoredRecycleDirNames = map[string]struct{}{
+	"@recycle": {},
+	"#recycle": {},
+	".trash":   {},
+	".trashes": {},
+}
+
 // HandleStableFileOptions 是处理稳定文件的内部选项。
 type HandleStableFileOptions struct {
 	Force bool
@@ -1083,7 +1098,10 @@ func shouldIgnorePath(rel string, name string, isDir bool, patterns []string) bo
 		return true
 	}
 	lowerName := strings.ToLower(name)
-	for _, suffix := range []string{".part", ".tmp", ".download"} {
+	if isDir && isDefaultRecycleDirName(lowerName) {
+		return true
+	}
+	for _, suffix := range defaultIgnoredFileSuffixes {
 		if strings.HasSuffix(lowerName, suffix) {
 			return true
 		}
@@ -1101,6 +1119,11 @@ func shouldIgnorePath(rel string, name string, isDir bool, patterns []string) bo
 		}
 	}
 	return false
+}
+
+func isDefaultRecycleDirName(lowerName string) bool {
+	_, ok := defaultIgnoredRecycleDirNames[lowerName]
+	return ok
 }
 
 func isSameRemoteFile(remoteFile *RemoteFile, localPath string, size int64) bool {

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -205,6 +206,131 @@ func TestScanRuleAddsRecursiveVideoFilesToStabilityQueue(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("pending paths=%v，期望 %v", got, want)
+	}
+}
+
+func TestDirectoryUploadDefaultIgnoresTemporaryFiles(t *testing.T) {
+	tests := []struct {
+		name        string
+		fileRel     string
+		isDir       bool
+		wantPending bool
+		wantIgnored bool
+	}{
+		{
+			name:        "忽略 part 临时文件",
+			fileRel:     "movie.mkv.part",
+			wantIgnored: true,
+		},
+		{
+			name:        "忽略 aria2 临时文件",
+			fileRel:     "movie.mkv.aria2",
+			wantIgnored: true,
+		},
+		{
+			name:        "忽略 torrent 临时文件",
+			fileRel:     "movie.mkv.torrent",
+			wantIgnored: true,
+		},
+		{
+			name:        "忽略 aria2 后缀目录",
+			fileRel:     filepath.Join("scratch.aria2", "movie.mkv"),
+			isDir:       true,
+			wantIgnored: true,
+		},
+		{
+			name:        "忽略隐藏文件",
+			fileRel:     ".hidden.mkv",
+			wantIgnored: true,
+		},
+		{
+			name:        "忽略回收站目录",
+			fileRel:     filepath.Join("@Recycle", "movie.mkv"),
+			isDir:       true,
+			wantIgnored: true,
+		},
+		{
+			name:        "忽略井号回收站目录",
+			fileRel:     filepath.Join("#recycle", "movie.mkv"),
+			isDir:       true,
+			wantIgnored: true,
+		},
+		{
+			name:        "忽略 Trash 回收站目录",
+			fileRel:     filepath.Join(".Trash", "movie.mkv"),
+			isDir:       true,
+			wantIgnored: true,
+		},
+		{
+			name:        "忽略 Trashes 回收站目录",
+			fileRel:     filepath.Join(".Trashes", "movie.mkv"),
+			isDir:       true,
+			wantIgnored: true,
+		},
+		{
+			name:        "普通视频文件不忽略",
+			fileRel:     "movie.mkv",
+			wantPending: true,
+		},
+		{
+			name:        "类似回收站名称的普通视频文件不忽略",
+			fileRel:     "@Recycle.mkv",
+			wantPending: true,
+		},
+		{
+			name:    "nfo 元数据文件不默认忽略",
+			fileRel: "movie.nfo",
+		},
+		{
+			name:    "jpg 元数据文件不默认忽略",
+			fileRel: "poster.jpg",
+		},
+		{
+			name:    "png 元数据文件不默认忽略",
+			fileRel: "poster.png",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			name := filepath.Base(tt.fileRel)
+			rel := filepath.ToSlash(tt.fileRel)
+			if tt.isDir {
+				name = strings.Split(rel, "/")[0]
+				rel = name
+			}
+			if got := shouldIgnorePath(rel, name, tt.isDir, nil); got != tt.wantIgnored {
+				t.Fatalf("shouldIgnorePath(%q, %q, %v)=%v，期望 %v", rel, name, tt.isDir, got, tt.wantIgnored)
+			}
+
+			setupDirectoryUploadServiceTestDB(t)
+			monitorPath := t.TempDir()
+			filePath := filepath.Join(monitorPath, tt.fileRel)
+			if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
+				t.Fatalf("创建测试目录失败: %v", err)
+			}
+			writeFileWithMtime(t, filePath, []byte("movie"), time.Now())
+			_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+
+			service := NewService(ServiceOptions{})
+			accepted, err := service.ScanRule(context.Background(), rule)
+			if err != nil {
+				t.Fatalf("扫描目录失败: %v", err)
+			}
+
+			wantAccepted := 0
+			wantPending := []string{}
+			if tt.wantPending {
+				wantAccepted = 1
+				wantPending = []string{filePath}
+			}
+			if accepted != wantAccepted {
+				t.Fatalf("accepted=%d，期望 %d", accepted, wantAccepted)
+			}
+			if got := service.PendingPaths(rule.ID); !reflect.DeepEqual(got, wantPending) {
+				t.Fatalf("pending paths=%v，期望 %v", got, wantPending)
+			}
+		})
 	}
 }
 
@@ -595,6 +721,14 @@ func TestScanRuleUsesUploadMetadataSwitchForMetadataFiles(t *testing.T) {
 			files:          []string{"movie.mkv", "movie.nfo", "movie.poster"},
 			wantAccepted:   2,
 			wantPending:    []string{"movie.mkv", "movie.poster"},
+		},
+		{
+			name:           "开启上传元数据时允许图片元数据扩展名",
+			uploadMetadata: true,
+			customMetaExt:  []string{".jpg", ".png"},
+			files:          []string{"movie.mkv", "movie.nfo", "poster.jpg", "poster.png"},
+			wantAccepted:   3,
+			wantPending:    []string{"movie.mkv", "poster.jpg", "poster.png"},
 		},
 	}
 

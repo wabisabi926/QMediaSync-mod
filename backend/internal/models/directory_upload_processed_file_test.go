@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,6 +37,17 @@ func TestBuildDirectoryUploadSourceFingerprintUsesNanosecondMtime(t *testing.T) 
 	expected := "v1:1024:123456789"
 	if got != expected {
 		t.Fatalf("BuildDirectoryUploadSourceFingerprint() = %q，期望 %q", got, expected)
+	}
+}
+
+func TestBuildDirectoryUploadSourceFingerprintKeepsVersionOneLayout(t *testing.T) {
+	got := BuildDirectoryUploadSourceFingerprint(2048, 987654321)
+	parts := strings.Split(got, ":")
+	if len(parts) != 3 {
+		t.Fatalf("source fingerprint = %q，期望只包含 version、size、mtime_ns 三段", got)
+	}
+	if parts[0] != "v1" || parts[1] != "2048" || parts[2] != "987654321" {
+		t.Fatalf("source fingerprint = %q，期望格式为 v1:size:mtime_ns", got)
 	}
 }
 

@@ -157,5 +157,6 @@ func fileSignature(info os.FileInfo) string {
 	if info == nil {
 		return ""
 	}
+	// 目录监控源文件签名保持 v1:size:mtime_ns，避免引入跨平台语义不稳定或 IO 成本高的字段。
 	return models.BuildDirectoryUploadSourceFingerprint(info.Size(), info.ModTime().UnixNano())
 }

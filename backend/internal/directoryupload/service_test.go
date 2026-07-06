@@ -423,6 +423,148 @@ func TestTrackCandidatePathSkipsNestedFileWhenRecursiveDisabled(t *testing.T) {
 	}
 }
 
+func TestTrackCandidatePathSkipsRecentlyQueuedSameFingerprint(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	clock := &fakeClock{now: time.Unix(120, 0)}
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), clock.Now())
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+
+	service := NewService(ServiceOptions{Now: clock.Now})
+	accepted, err := service.trackCandidatePath(context.Background(), rule, filePath)
+	if err != nil {
+		t.Fatalf("首次处理候选文件失败: %v", err)
+	}
+	if !accepted {
+		t.Fatal("首次处理候选文件应入队")
+	}
+
+	accepted, err = service.trackCandidatePath(context.Background(), rule, filePath)
+	if err != nil {
+		t.Fatalf("重复处理候选文件失败: %v", err)
+	}
+	if accepted {
+		t.Fatal("相同 source fingerprint 的重复候选文件不应再次入队")
+	}
+
+	got := service.PendingPaths(rule.ID)
+	want := []string{filePath}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("pending paths=%v，期望只保留首次入队文件 %v", got, want)
+	}
+
+	clock.Add(time.Duration(rule.ProcessedCacheTTLSeconds+1) * time.Second)
+	accepted, err = service.trackCandidatePath(context.Background(), rule, filePath)
+	if err != nil {
+		t.Fatalf("recently queued TTL 过期后处理候选文件失败: %v", err)
+	}
+	if !accepted {
+		t.Fatal("recently queued TTL 过期后的同 fingerprint 候选文件应重新入队")
+	}
+
+	clock.Add(time.Second)
+	writeFileWithMtime(t, filePath, []byte("movie changed"), clock.Now())
+	accepted, err = service.trackCandidatePath(context.Background(), rule, filePath)
+	if err != nil {
+		t.Fatalf("fingerprint 变化后处理候选文件失败: %v", err)
+	}
+	if !accepted {
+		t.Fatal("source fingerprint 变化后的候选文件应重新入队")
+	}
+
+	var processedTotal int64
+	if err := db.Db.Model(&models.DirectoryUploadProcessedFile{}).Count(&processedTotal).Error; err != nil {
+		t.Fatalf("统计 processed 记录失败: %v", err)
+	}
+	if processedTotal != 0 {
+		t.Fatalf("最近入队去重不应写 processed 记录，实际 %d 条", processedTotal)
+	}
+}
+
+func TestTrackCandidatePathCleansExpiredRecentlyQueuedOnNewFingerprint(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	clock := &fakeClock{now: time.Unix(130, 0)}
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), clock.Now())
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.ProcessedCacheTTLSeconds = 1
+
+	service := NewService(ServiceOptions{Now: clock.Now})
+	accepted, err := service.trackCandidatePath(context.Background(), rule, filePath)
+	if err != nil {
+		t.Fatalf("首次处理候选文件失败: %v", err)
+	}
+	if !accepted {
+		t.Fatal("首次处理候选文件应入队")
+	}
+	info, err := os.Stat(filePath)
+	if err != nil {
+		t.Fatalf("读取测试文件失败: %v", err)
+	}
+	oldFingerprint := models.BuildDirectoryUploadSourceFingerprint(info.Size(), info.ModTime().UnixNano())
+	oldKey := processedKey(rule.ID, "movie.mkv", oldFingerprint)
+	if _, ok := service.recentlyQueued[oldKey]; !ok {
+		t.Fatal("首次入队后应记录 recently queued key")
+	}
+
+	clock.Add(2 * time.Second)
+	writeFileWithMtime(t, filePath, []byte("movie changed"), clock.Now())
+	accepted, err = service.trackCandidatePath(context.Background(), rule, filePath)
+	if err != nil {
+		t.Fatalf("fingerprint 变化后处理候选文件失败: %v", err)
+	}
+	if !accepted {
+		t.Fatal("过期后 fingerprint 变化的候选文件应重新入队")
+	}
+	if _, ok := service.recentlyQueued[oldKey]; ok {
+		t.Fatal("新 mark 路径应机会性清理过期 recently queued key")
+	}
+	if len(service.recentlyQueued) != 1 {
+		t.Fatalf("recently queued key 数量 = %d，期望只保留新 fingerprint key", len(service.recentlyQueued))
+	}
+}
+
+func TestCleanupProcessedOnceRemovesExpiredMemoryCaches(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	clock := &fakeClock{now: time.Unix(140, 0)}
+	service := NewService(ServiceOptions{Now: clock.Now})
+	expiredAt := clock.Now().Add(-time.Second)
+	futureAt := clock.Now().Add(time.Minute)
+	service.processed = map[string]processedFile{
+		"processed-expired": {expiresAt: expiredAt},
+		"processed-future":  {expiresAt: futureAt},
+		"processed-zero":    {},
+	}
+	service.recentlyQueued = map[string]processedFile{
+		"queued-expired": {expiresAt: expiredAt},
+		"queued-future":  {expiresAt: futureAt},
+		"queued-zero":    {},
+	}
+
+	service.cleanupProcessedOnce()
+
+	if _, ok := service.processed["processed-expired"]; ok {
+		t.Fatal("cleanupProcessedOnce 应删除过期 processed 内存缓存")
+	}
+	if _, ok := service.recentlyQueued["queued-expired"]; ok {
+		t.Fatal("cleanupProcessedOnce 应删除过期 recently queued 内存缓存")
+	}
+	if _, ok := service.processed["processed-future"]; !ok {
+		t.Fatal("cleanupProcessedOnce 不应删除未过期 processed 内存缓存")
+	}
+	if _, ok := service.processed["processed-zero"]; !ok {
+		t.Fatal("cleanupProcessedOnce 不应删除无过期时间的 processed 内存缓存")
+	}
+	if _, ok := service.recentlyQueued["queued-future"]; !ok {
+		t.Fatal("cleanupProcessedOnce 不应删除未过期 recently queued 内存缓存")
+	}
+	if _, ok := service.recentlyQueued["queued-zero"]; !ok {
+		t.Fatal("cleanupProcessedOnce 不应删除无过期时间的 recently queued 内存缓存")
+	}
+}
+
 func TestScanRuleUsesUploadMetadataSwitchForMetadataFiles(t *testing.T) {
 	tests := []struct {
 		name           string

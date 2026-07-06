@@ -86,11 +86,12 @@ type Service struct {
 	cleanupInterval        time.Duration
 	missingSourceTTL       time.Duration
 
-	mutex         sync.Mutex
-	processed     map[string]processedFile
-	runtimes      []*RuleRuntime
-	cleanupCancel context.CancelFunc
-	cleanupDone   chan struct{}
+	mutex          sync.Mutex
+	processed      map[string]processedFile
+	recentlyQueued map[string]processedFile
+	runtimes       []*RuleRuntime
+	cleanupCancel  context.CancelFunc
+	cleanupDone    chan struct{}
 }
 
 // NewService 创建目录监控上传服务。
@@ -109,6 +110,7 @@ func NewService(options ServiceOptions) *Service {
 		cleanupInterval:        options.ProcessedCleanupInterval,
 		missingSourceTTL:       options.ProcessedMissingSourceTTL,
 		processed:              make(map[string]processedFile),
+		recentlyQueued:         make(map[string]processedFile),
 	}
 }
 
@@ -170,6 +172,10 @@ func (service *Service) trackCandidatePath(ctx context.Context, rule *models.Dir
 		return false, nil
 	}
 	if !shouldUploadByRule(rule, syncPath, info.Name()) {
+		return false, nil
+	}
+	sourceFingerprint := models.BuildDirectoryUploadSourceFingerprint(info.Size(), info.ModTime().UnixNano())
+	if service.trackRecentlyQueued(rule, rel, sourceFingerprint) {
 		return false, nil
 	}
 	service.queue.Track(rule.ID, path)
@@ -678,6 +684,53 @@ func (service *Service) markProcessed(rule *models.DirectoryUploadRule, rel stri
 	service.mutex.Lock()
 	defer service.mutex.Unlock()
 	service.processed[key] = processedFile{expiresAt: service.now().Add(ttl)}
+}
+
+func (service *Service) trackRecentlyQueued(rule *models.DirectoryUploadRule, rel string, signature string) bool {
+	if service == nil || rule == nil {
+		return false
+	}
+	key := processedKey(rule.ID, rel, signature)
+	ttl := time.Duration(rule.ProcessedCacheTTLSeconds) * time.Second
+	if ttl <= 0 {
+		ttl = 10 * time.Minute
+	}
+	now := time.Now()
+	if service.now != nil {
+		now = service.now()
+	}
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	if service.recentlyQueued == nil {
+		service.recentlyQueued = make(map[string]processedFile)
+	}
+	cleanupExpiredProcessedFileMap(service.recentlyQueued, now)
+	if item, ok := service.recentlyQueued[key]; ok {
+		if item.expiresAt.IsZero() || now.Before(item.expiresAt) || now.Equal(item.expiresAt) {
+			return true
+		}
+		delete(service.recentlyQueued, key)
+	}
+	service.recentlyQueued[key] = processedFile{expiresAt: now.Add(ttl)}
+	return false
+}
+
+func (service *Service) cleanupExpiredMemoryCaches(now time.Time) {
+	if service == nil {
+		return
+	}
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	cleanupExpiredProcessedFileMap(service.processed, now)
+	cleanupExpiredProcessedFileMap(service.recentlyQueued, now)
+}
+
+func cleanupExpiredProcessedFileMap(items map[string]processedFile, now time.Time) {
+	for key, file := range items {
+		if !file.expiresAt.IsZero() && now.After(file.expiresAt) {
+			delete(items, key)
+		}
+	}
 }
 
 func processedKey(ruleID uint, rel string, sourceFingerprint string) string {

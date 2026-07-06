@@ -275,7 +275,10 @@ func (service *Service) startProcessedCleanup(ctx context.Context) {
 }
 
 func (service *Service) cleanupProcessedOnce() {
-	deleted, err := models.CleanupDirectoryUploadProcessedFiles(service.now(), service.processedMissingSourceTTL())
+	now := service.now()
+	service.cleanupExpiredMemoryCaches(now)
+
+	deleted, err := models.CleanupDirectoryUploadProcessedFiles(now, service.processedMissingSourceTTL())
 	if err != nil {
 		helpers.AppLogger.Warnf("[目录上传] 清理 processed 账本失败：%v", err)
 		return

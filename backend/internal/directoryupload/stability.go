@@ -1,7 +1,6 @@
 package directoryupload
 
 import (
-	"fmt"
 	"os"
 	"sort"
 	"sync"
@@ -158,5 +157,5 @@ func fileSignature(info os.FileInfo) string {
 	if info == nil {
 		return ""
 	}
-	return fmt.Sprintf("%d:%d", info.Size(), info.ModTime().UnixNano())
+	return models.BuildDirectoryUploadSourceFingerprint(info.Size(), info.ModTime().UnixNano())
 }

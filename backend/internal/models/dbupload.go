@@ -66,12 +66,14 @@ type DbUploadTask struct {
 	SourceType            SourceType                `json:"source_type"`                                       // 任务来源类型
 	LocalFullPath         string                    `json:"local_full_path" gorm:"index:idx_local_full_path"`  // 本地完整文件路径，包含文件名
 	RelativePath          string                    `json:"relative_path" gorm:"type:text;size:1024"`          // 目录监控源文件相对路径
+	SourceFingerprint     string                    `json:"source_fingerprint" gorm:"size:128;index"`          // 目录监控源文件签名
 	RemoteFileId          string                    `json:"remote_file_id" gorm:"index:idx_remote_file_id"`    // 远程文件 ID，包含完整路径
 	RemotePathId          string                    `json:"remote_path_id"`                                    // 父目录 CID，如果是 115 则是文件夹 ID，如果是 OpenList 则是父文件夹路径
 	FileName              string                    `json:"file_name"`                                         // 要上传的文件名
 	Status                UploadStatus              `json:"status" gorm:"index:idx_status_new"`                // 任务状态
 	FileSize              int64                     `json:"file_size"`                                         // 文件大小
 	LocalMtime            int64                     `json:"local_mtime" gorm:"default:0"`                      // 本地源文件修改时间，用于源文件清理前校验
+	LocalMtimeNs          int64                     `json:"local_mtime_ns" gorm:"default:0"`                   // 本地源文件纳秒级修改时间
 	UploadedBytes         int64                     `json:"uploaded_bytes" gorm:"default:0"`                   // 已上传字节数
 	UploadResult          UploadResult              `json:"upload_result" gorm:"size:32;default:unknown"`      // 上传结果
 	ResumeState           UploadResumeState         `json:"resume_state" gorm:"size:32;default:none"`          // 断点续传状态

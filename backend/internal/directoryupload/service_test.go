@@ -360,6 +360,20 @@ func TestScanRuleStableFilesCreateUploadTasks(t *testing.T) {
 		if task.Source != models.UploadSourceDirectoryMonitor || task.Status != models.UploadStatusPending {
 			t.Fatalf("上传任务 = %+v，期望目录监控 pending 任务", task)
 		}
+		info, err := os.Stat(task.LocalFullPath)
+		if err != nil {
+			t.Fatalf("读取任务源文件失败: %v", err)
+		}
+		if task.FileSize != info.Size() {
+			t.Fatalf("file_size = %d，期望 %d", task.FileSize, info.Size())
+		}
+		if task.LocalMtimeNs != info.ModTime().UnixNano() {
+			t.Fatalf("local_mtime_ns = %d，期望 %d", task.LocalMtimeNs, info.ModTime().UnixNano())
+		}
+		expectedFingerprint := models.BuildDirectoryUploadSourceFingerprint(info.Size(), info.ModTime().UnixNano())
+		if task.SourceFingerprint != expectedFingerprint {
+			t.Fatalf("source_fingerprint = %q，期望 %q", task.SourceFingerprint, expectedFingerprint)
+		}
 	}
 }
 
@@ -546,15 +560,16 @@ func TestServiceSkipsStableFileWhenActiveUploadTaskExists(t *testing.T) {
 
 func TestServiceSkipsUploadWhenRemoteFileAlreadyExists(t *testing.T) {
 	setupDirectoryUploadServiceTestDB(t)
+	clock := &fakeClock{now: time.Unix(400, 0)}
 	monitorPath := t.TempDir()
 	filePath := filepath.Join(monitorPath, "movie.mkv")
-	writeFileWithMtime(t, filePath, []byte("movie"), time.Unix(400, 0))
+	writeFileWithMtime(t, filePath, []byte("movie"), clock.Now())
 	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
 	sha1, err := helpers.FileSHA1(filePath)
 	if err != nil {
 		t.Fatalf("计算测试文件 SHA1 失败: %v", err)
 	}
-	service := NewService(ServiceOptions{})
+	service := NewService(ServiceOptions{Now: clock.Now})
 	service.SetRemoteClient(&fakeRemoteClient{
 		parentID: "remote-root",
 		files: map[string]*RemoteFile{
@@ -580,6 +595,20 @@ func TestServiceSkipsUploadWhenRemoteFileAlreadyExists(t *testing.T) {
 		task.CompletedRemoteFileId != "remote-file" ||
 		task.CompletedPickCode != "pick-code" {
 		t.Fatalf("上传任务 = %+v，期望远端已存在完成任务", task)
+	}
+	info, err := os.Stat(filePath)
+	if err != nil {
+		t.Fatalf("读取任务源文件失败: %v", err)
+	}
+	if task.FileSize != info.Size() {
+		t.Fatalf("file_size = %d，期望 %d", task.FileSize, info.Size())
+	}
+	if task.LocalMtimeNs != info.ModTime().UnixNano() {
+		t.Fatalf("local_mtime_ns = %d，期望 %d", task.LocalMtimeNs, info.ModTime().UnixNano())
+	}
+	expectedFingerprint := models.BuildDirectoryUploadSourceFingerprint(info.Size(), info.ModTime().UnixNano())
+	if task.SourceFingerprint != expectedFingerprint {
+		t.Fatalf("source_fingerprint = %q，期望 %q", task.SourceFingerprint, expectedFingerprint)
 	}
 	var strmTask models.StrmGenerationTask
 	if err := db.Db.First(&strmTask).Error; err != nil {

@@ -249,8 +249,9 @@ func (service *Service) HandleStableFile(ctx context.Context, rule *models.Direc
 	if err != nil {
 		return err
 	}
-	signature := fileSignature(info)
-	if service.isProcessed(rule, rel, signature) {
+	mtimeNs := info.ModTime().UnixNano()
+	sourceFingerprint := models.BuildDirectoryUploadSourceFingerprint(info.Size(), mtimeNs)
+	if service.isProcessed(rule, rel, sourceFingerprint) {
 		return nil
 	}
 	if !models.CheckCanUploadByLocalPath(models.UploadSourceDirectoryMonitor, filePath) {
@@ -278,12 +279,14 @@ func (service *Service) HandleStableFile(ctx context.Context, rule *models.Direc
 		SourceType:          models.SourceType115,
 		LocalFullPath:       filePath,
 		RelativePath:        filepath.ToSlash(rel),
+		SourceFingerprint:   sourceFingerprint,
 		RemoteFileId:        remoteFilePath,
 		RemotePathId:        remoteDir.ID,
 		FileName:            fileName,
 		Status:              models.UploadStatusPending,
 		FileSize:            info.Size(),
 		LocalMtime:          info.ModTime().Unix(),
+		LocalMtimeNs:        mtimeNs,
 		UploadResult:        models.UploadResultUnknown,
 		SourceCleanupStatus: cleanupInitialStatus(rule),
 	}
@@ -306,13 +309,13 @@ func (service *Service) HandleStableFile(ctx context.Context, rule *models.Direc
 			if err := task.EnqueueStrmGenerationAfterUpload(); err != nil {
 				return fmt.Errorf("创建 STRM 生成任务失败：%w", err)
 			}
-			service.markProcessed(rule, rel, signature)
+			service.markProcessed(rule, rel, sourceFingerprint)
 			return nil
 		}
 
 		switch rule.OverwriteMode {
 		case "", models.DirectoryUploadOverwriteSkipSame:
-			service.markProcessed(rule, rel, signature)
+			service.markProcessed(rule, rel, sourceFingerprint)
 			return nil
 		case models.DirectoryUploadOverwriteFailConflict:
 			return fmt.Errorf("%w：远端已存在同名文件且大小或 SHA1 不一致：%s", errStableFileNoRetry, remoteFilePath)
@@ -328,7 +331,7 @@ func (service *Service) HandleStableFile(ctx context.Context, rule *models.Direc
 	if err := models.AddDirectoryMonitorUploadTask(task); err != nil {
 		return fmt.Errorf("创建目录监控上传任务失败：%w", err)
 	}
-	service.markProcessed(rule, rel, signature)
+	service.markProcessed(rule, rel, sourceFingerprint)
 	return nil
 }
 

@@ -186,6 +186,32 @@ func (service *Service) CheckStableFiles(rule *models.DirectoryUploadRule) ([]St
 
 // ScanRule 扫描目录上传规则，把候选视频文件加入稳定性队列。
 func (service *Service) ScanRule(ctx context.Context, rule *models.DirectoryUploadRule) (int, error) {
+	root := ""
+	if rule != nil {
+		root = rule.MonitorPath
+	}
+	return service.scanRoot(ctx, rule, root)
+}
+
+// ScanSubtree 扫描监控目录下的新子目录，把候选文件加入稳定性队列。
+func (service *Service) ScanSubtree(ctx context.Context, rule *models.DirectoryUploadRule, root string) (int, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	if rule == nil {
+		return 0, errors.New("目录监控规则为空")
+	}
+	if err := ensurePathInMonitor(rule.MonitorPath, root); err != nil {
+		return 0, err
+	}
+	accepted, err := service.scanRoot(ctx, rule, root)
+	if err != nil && errors.Is(err, os.ErrNotExist) {
+		return accepted, nil
+	}
+	return accepted, err
+}
+
+func (service *Service) scanRoot(ctx context.Context, rule *models.DirectoryUploadRule, root string) (int, error) {
 	if service == nil {
 		service = NewService(ServiceOptions{})
 	}
@@ -200,37 +226,46 @@ func (service *Service) ScanRule(ctx context.Context, rule *models.DirectoryUplo
 		return 0, fmt.Errorf("同步目录不存在：%d", rule.SyncPathId)
 	}
 	monitorPath := filepath.Clean(rule.MonitorPath)
-	info, err := os.Stat(monitorPath)
+	root = filepath.Clean(root)
+	if err := ensurePathInMonitor(monitorPath, root); err != nil {
+		return 0, err
+	}
+	info, err := os.Stat(root)
 	if err != nil {
 		return 0, fmt.Errorf("读取监控目录失败：%w", err)
 	}
 	if !info.IsDir() {
-		return 0, fmt.Errorf("监控路径不是目录：%s", monitorPath)
+		return 0, fmt.Errorf("监控路径不是目录：%s", root)
 	}
 
 	accepted := 0
 	ignorePatterns := parseIgnorePatterns(rule.IgnorePatternsStr)
-	walkErr := filepath.WalkDir(monitorPath, func(path string, entry os.DirEntry, err error) error {
+	walkErr := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
 			return err
 		}
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if path == monitorPath {
-			return nil
-		}
-		rel, err := filepath.Rel(monitorPath, path)
+		rel, err := relativePathInMonitor(monitorPath, path)
 		if err != nil {
 			return err
 		}
 		if entry.IsDir() {
-			if !rule.Recursive {
-				return filepath.SkipDir
+			if rel != "." {
+				if shouldIgnorePath(rel, entry.Name(), true, ignorePatterns) {
+					return filepath.SkipDir
+				}
+				if !rule.Recursive {
+					return filepath.SkipDir
+				}
 			}
-			if shouldIgnorePath(rel, entry.Name(), true, ignorePatterns) {
-				return filepath.SkipDir
-			}
+			return nil
+		}
+		if !rule.Recursive && isNestedRelativePath(rel) {
 			return nil
 		}
 		if shouldIgnorePath(rel, entry.Name(), false, ignorePatterns) || !shouldUploadByRule(rule, syncPath, entry.Name()) {
@@ -684,6 +719,20 @@ func safeRelativePath(basePath string, path string) (string, error) {
 		return "", fmt.Errorf("文件路径越界：%s", path)
 	}
 	return filepath.ToSlash(rel), nil
+}
+
+func ensurePathInMonitor(monitorPath string, path string) error {
+	_, err := relativePathInMonitor(monitorPath, path)
+	return err
+}
+
+func relativePathInMonitor(monitorPath string, path string) (string, error) {
+	monitorPath = filepath.Clean(monitorPath)
+	path = filepath.Clean(path)
+	if path == monitorPath {
+		return ".", nil
+	}
+	return safeRelativePath(monitorPath, path)
 }
 
 func isNestedRelativePath(rel string) bool {

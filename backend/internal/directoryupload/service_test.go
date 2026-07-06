@@ -208,6 +208,171 @@ func TestScanRuleAddsRecursiveVideoFilesToStabilityQueue(t *testing.T) {
 	}
 }
 
+func TestScanSubtreeAddsNestedVideoFilesToStabilityQueue(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	newDir := filepath.Join(monitorPath, "Show")
+	if err := os.MkdirAll(filepath.Join(newDir, "Season 01"), 0o755); err != nil {
+		t.Fatalf("创建目录失败: %v", err)
+	}
+	episode := filepath.Join(newDir, "Season 01", "E01.mkv")
+	writeFileWithMtime(t, episode, []byte("episode"), time.Unix(800, 0))
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	service := NewService(ServiceOptions{})
+
+	accepted, err := service.ScanSubtree(context.Background(), rule, newDir)
+	if err != nil {
+		t.Fatalf("扫描子目录失败: %v", err)
+	}
+	if accepted != 1 {
+		t.Fatalf("accepted = %d，期望 1", accepted)
+	}
+	got := service.PendingPaths(rule.ID)
+	if !reflect.DeepEqual(got, []string{episode}) {
+		t.Fatalf("pending paths=%v，期望 %v", got, []string{episode})
+	}
+}
+
+func TestScanSubtreeSkipsNestedFilesWhenRecursiveDisabled(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	newDir := filepath.Join(monitorPath, "Show")
+	nested := filepath.Join(newDir, "Season 01")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("创建目录失败: %v", err)
+	}
+	episode := filepath.Join(nested, "E01.mkv")
+	writeFileWithMtime(t, episode, []byte("episode"), time.Unix(810, 0))
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.Recursive = false
+	service := NewService(ServiceOptions{})
+
+	accepted, err := service.ScanSubtree(context.Background(), rule, newDir)
+	if err != nil {
+		t.Fatalf("扫描子目录失败: %v", err)
+	}
+	if accepted != 0 {
+		t.Fatalf("accepted = %d，期望 0", accepted)
+	}
+	if got := service.PendingPaths(rule.ID); len(got) != 0 {
+		t.Fatalf("pending paths=%v，期望空队列", got)
+	}
+}
+
+func TestScanSubtreeSkipsIgnoredDirectory(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	newDir := filepath.Join(monitorPath, "Show")
+	if err := os.MkdirAll(newDir, 0o755); err != nil {
+		t.Fatalf("创建目录失败: %v", err)
+	}
+	episode := filepath.Join(newDir, "E01.mkv")
+	writeFileWithMtime(t, episode, []byte("episode"), time.Unix(820, 0))
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.IgnorePatternsStr = `["Show"]`
+	service := NewService(ServiceOptions{})
+
+	accepted, err := service.ScanSubtree(context.Background(), rule, newDir)
+	if err != nil {
+		t.Fatalf("扫描忽略目录失败: %v", err)
+	}
+	if accepted != 0 {
+		t.Fatalf("accepted = %d，期望 0", accepted)
+	}
+	if got := service.PendingPaths(rule.ID); len(got) != 0 {
+		t.Fatalf("pending paths=%v，期望空队列", got)
+	}
+}
+
+func TestRuleWatcherSkipsNestedIgnoredDirectoryFromMonitorRoot(t *testing.T) {
+	monitorPath := t.TempDir()
+	rule := &models.DirectoryUploadRule{
+		MonitorPath:       monitorPath,
+		Recursive:         true,
+		IgnorePatternsStr: `["Show/Skip"]`,
+	}
+	watcher := &fsNotifyRuleWatcher{rule: rule}
+	ignorePatterns := parseIgnorePatterns(rule.IgnorePatternsStr)
+
+	shouldWatch, err := watcher.shouldWatchDirectory(filepath.Join(monitorPath, "Show", "Skip"), ignorePatterns)
+	if err != nil {
+		t.Fatalf("判断忽略目录失败: %v", err)
+	}
+	if shouldWatch {
+		t.Fatal("Show/Skip 按监控根目录命中忽略规则后不应加入 watcher")
+	}
+
+	shouldWatch, err = watcher.shouldWatchDirectory(filepath.Join(monitorPath, "Show", "Keep"), ignorePatterns)
+	if err != nil {
+		t.Fatalf("判断非忽略目录失败: %v", err)
+	}
+	if !shouldWatch {
+		t.Fatal("Show/Keep 未命中忽略规则，应加入 watcher")
+	}
+}
+
+func TestScanSubtreeReturnsZeroWhenDirectoryRemoved(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	newDir := filepath.Join(monitorPath, "Show")
+	if err := os.MkdirAll(newDir, 0o755); err != nil {
+		t.Fatalf("创建目录失败: %v", err)
+	}
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	if err := os.RemoveAll(newDir); err != nil {
+		t.Fatalf("删除测试目录失败: %v", err)
+	}
+	service := NewService(ServiceOptions{})
+
+	accepted, err := service.ScanSubtree(context.Background(), rule, newDir)
+	if err != nil {
+		t.Fatalf("扫描已删除目录不应失败: %v", err)
+	}
+	if accepted != 0 {
+		t.Fatalf("accepted = %d，期望 0", accepted)
+	}
+	if got := service.PendingPaths(rule.ID); len(got) != 0 {
+		t.Fatalf("pending paths=%v，期望空队列", got)
+	}
+}
+
+func TestScanSubtreeRejectsPathOutsideMonitorPath(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	outsideDir := t.TempDir()
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	service := NewService(ServiceOptions{})
+
+	accepted, err := service.ScanSubtree(context.Background(), rule, outsideDir)
+	if err == nil {
+		t.Fatal("扫描监控目录外路径应失败")
+	}
+	if accepted != 0 {
+		t.Fatalf("accepted = %d，期望 0", accepted)
+	}
+}
+
+func TestScanSubtreeReturnsContextErrorWhenCanceled(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	newDir := filepath.Join(monitorPath, "Show")
+	if err := os.MkdirAll(newDir, 0o755); err != nil {
+		t.Fatalf("创建目录失败: %v", err)
+	}
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	service := NewService(ServiceOptions{})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	accepted, err := service.ScanSubtree(ctx, rule, newDir)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v，期望 context.Canceled", err)
+	}
+	if accepted != 0 {
+		t.Fatalf("accepted = %d，期望 0", accepted)
+	}
+}
+
 func TestTrackCandidatePathSkipsNestedFileWhenRecursiveDisabled(t *testing.T) {
 	setupDirectoryUploadServiceTestDB(t)
 	monitorPath := t.TempDir()

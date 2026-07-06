@@ -107,9 +107,23 @@ func (watcher *fsNotifyRuleWatcher) handleEvent(ctx context.Context, event fsnot
 			if watcher.rule == nil || !watcher.rule.Recursive {
 				return
 			}
+			ignorePatterns := parseIgnorePatterns(watcher.rule.IgnorePatternsStr)
+			shouldWatch, err := watcher.shouldWatchDirectory(event.Name, ignorePatterns)
+			if err != nil {
+				helpers.AppLogger.Warnf("[目录上传] 新目录路径越界：%v", err)
+				return
+			}
+			if !shouldWatch {
+				return
+			}
 			if err := watcher.addRecursive(event.Name); err != nil {
 				helpers.AppLogger.Warnf("[目录上传] 新目录加入 watcher 失败：%v", err)
 			}
+			go func(path string) {
+				if _, err := watcher.service.ScanSubtree(ctx, watcher.rule, path); err != nil && !errors.Is(err, context.Canceled) {
+					helpers.AppLogger.Warnf("[目录上传] 新目录补偿扫描失败：%v", err)
+				}
+			}(event.Name)
 			return
 		}
 	}
@@ -128,17 +142,12 @@ func (watcher *fsNotifyRuleWatcher) addRecursive(root string) error {
 		if !entry.IsDir() {
 			return nil
 		}
-		if path != root {
-			rel, err := filepath.Rel(root, path)
-			if err != nil {
-				return err
-			}
-			if shouldIgnorePath(rel, entry.Name(), true, ignorePatterns) {
-				return filepath.SkipDir
-			}
-			if !watcher.rule.Recursive {
-				return filepath.SkipDir
-			}
+		shouldWatch, err := watcher.shouldWatchDirectory(path, ignorePatterns)
+		if err != nil {
+			return err
+		}
+		if !shouldWatch {
+			return filepath.SkipDir
 		}
 		watcher.mutex.Lock()
 		fsWatcher := watcher.watcher
@@ -148,4 +157,24 @@ func (watcher *fsNotifyRuleWatcher) addRecursive(root string) error {
 		}
 		return fsWatcher.Add(path)
 	})
+}
+
+func (watcher *fsNotifyRuleWatcher) shouldWatchDirectory(path string, ignorePatterns []string) (bool, error) {
+	if watcher == nil || watcher.rule == nil {
+		return false, errors.New("目录监控规则为空")
+	}
+	rel, err := relativePathInMonitor(watcher.rule.MonitorPath, path)
+	if err != nil {
+		return false, err
+	}
+	if rel == "." {
+		return true, nil
+	}
+	if shouldIgnorePath(rel, filepath.Base(path), true, ignorePatterns) {
+		return false, nil
+	}
+	if !watcher.rule.Recursive {
+		return false, nil
+	}
+	return true, nil
 }

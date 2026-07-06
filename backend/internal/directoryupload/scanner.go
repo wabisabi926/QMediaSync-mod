@@ -126,10 +126,11 @@ func (service *Service) StartRule(ctx context.Context, rule *models.DirectoryUpl
 	}
 
 	if rule.StartupScanEnabled {
-		if _, err := service.ScanRule(ruleCtx, rule); err != nil {
+		if _, _, _, err := service.validateScanRoot(ruleCtx, rule, rule.MonitorPath); err != nil {
 			cancel()
 			return nil, fmt.Errorf("启动补偿扫描失败：%w", err)
 		}
+		service.EnqueueScan(ruleCtx, rule, rule.MonitorPath)
 	}
 
 	watcher, mode, err := service.startRuleWatcher(ruleCtx, rule)
@@ -200,9 +201,7 @@ func (service *Service) runPollingLoop(ctx context.Context, rule *models.Directo
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if _, err := service.ScanRule(ctx, rule); err != nil && !errors.Is(err, context.Canceled) {
-				helpers.AppLogger.Warnf("[目录上传] 规则 %d polling 扫描失败：%v", rule.ID, err)
-			}
+			service.EnqueueScan(ctx, rule, rule.MonitorPath)
 		}
 	}
 }

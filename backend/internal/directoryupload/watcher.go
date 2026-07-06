@@ -119,11 +119,7 @@ func (watcher *fsNotifyRuleWatcher) handleEvent(ctx context.Context, event fsnot
 			if err := watcher.addRecursive(event.Name); err != nil {
 				helpers.AppLogger.Warnf("[目录上传] 新目录加入 watcher 失败：%v", err)
 			}
-			go func(path string) {
-				if _, err := watcher.service.ScanSubtree(ctx, watcher.rule, path); err != nil && !errors.Is(err, context.Canceled) {
-					helpers.AppLogger.Warnf("[目录上传] 新目录补偿扫描失败：%v", err)
-				}
-			}(event.Name)
+			watcher.service.EnqueueScan(ctx, watcher.rule, event.Name)
 			return
 		}
 	}

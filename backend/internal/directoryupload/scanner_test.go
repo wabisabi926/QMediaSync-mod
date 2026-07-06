@@ -5,7 +5,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"reflect"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -28,11 +29,7 @@ func TestStartRuleStartupScanAddsExistingFilesToStabilityQueue(t *testing.T) {
 	}
 	defer runtime.Stop()
 
-	got := service.PendingPaths(rule.ID)
-	want := []string{filePath}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("pending paths=%v，期望启动补偿扫描发现 %v", got, want)
-	}
+	waitForPendingPath(t, service, rule.ID, filePath)
 }
 
 func TestStartRulePollingFindsNewFiles(t *testing.T) {
@@ -53,6 +50,95 @@ func TestStartRulePollingFindsNewFiles(t *testing.T) {
 	filePath := filepath.Join(monitorPath, "movie.mkv")
 	writeFileWithMtime(t, filePath, []byte("movie"), time.Now())
 	waitForPendingPath(t, service, rule.ID, filePath)
+}
+
+func TestScanSubtreeEnqueueMergesSameRuleAndRoot(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	finished := make(chan struct{})
+	var calls atomic.Int32
+
+	service := NewService(ServiceOptions{})
+	service.scanExecutor = newScanExecutorWithScanFunc(1, func(ctx context.Context, _ *models.DirectoryUploadRule, _ string) (int, error) {
+		calls.Add(1)
+		close(started)
+		select {
+		case <-release:
+		case <-ctx.Done():
+			return 0, ctx.Err()
+		}
+		close(finished)
+		return 0, nil
+	})
+
+	service.EnqueueScan(context.Background(), rule, monitorPath)
+	waitForSignal(t, started, "等待服务扫描启动")
+	service.EnqueueScan(context.Background(), rule, monitorPath)
+	service.EnqueueScan(context.Background(), rule, filepath.Join(monitorPath, "."))
+
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("scan calls=%d，期望同一目录连续提交只执行一次", got)
+	}
+	close(release)
+	waitForSignal(t, finished, "等待服务扫描结束")
+}
+
+func TestStartRuleStartupScanPreflightFailsForInvalidRoot(t *testing.T) {
+	tests := []struct {
+		name      string
+		prepare   func(t *testing.T, rule *models.DirectoryUploadRule)
+		wantError string
+	}{
+		{
+			name: "监控目录不存在",
+			prepare: func(t *testing.T, rule *models.DirectoryUploadRule) {
+				rule.MonitorPath = filepath.Join(t.TempDir(), "missing")
+			},
+			wantError: "启动补偿扫描失败",
+		},
+		{
+			name: "监控路径不是目录",
+			prepare: func(t *testing.T, rule *models.DirectoryUploadRule) {
+				filePath := filepath.Join(t.TempDir(), "movie.mkv")
+				writeFileWithMtime(t, filePath, []byte("movie"), time.Now())
+				rule.MonitorPath = filePath
+			},
+			wantError: "启动补偿扫描失败",
+		},
+		{
+			name: "同步目录缺失",
+			prepare: func(t *testing.T, rule *models.DirectoryUploadRule) {
+				rule.SyncPathId = 999_999
+			},
+			wantError: "启动补偿扫描失败",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupDirectoryUploadServiceTestDB(t)
+			monitorPath := t.TempDir()
+			_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+			rule.WatchMode = models.DirectoryUploadWatchModePolling
+			rule.StartupScanEnabled = true
+			tt.prepare(t, rule)
+
+			service := NewService(ServiceOptions{})
+			runtime, err := service.StartRule(context.Background(), rule)
+			if runtime != nil {
+				runtime.Stop()
+			}
+			if err == nil {
+				t.Fatal("启动查漏基础校验失败时 StartRule 应返回错误")
+			}
+			if !strings.Contains(err.Error(), tt.wantError) {
+				t.Fatalf("StartRule error=%v，期望包含 %q", err, tt.wantError)
+			}
+		})
+	}
 }
 
 func TestStartRuleAutoFallsBackToPollingWhenWatcherFails(t *testing.T) {

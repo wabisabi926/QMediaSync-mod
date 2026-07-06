@@ -90,6 +90,7 @@ type Service struct {
 	processed      map[string]processedFile
 	recentlyQueued map[string]processedFile
 	runtimes       []*RuleRuntime
+	scanExecutor   *scanExecutor
 	cleanupCancel  context.CancelFunc
 	cleanupDone    chan struct{}
 }
@@ -100,7 +101,7 @@ func NewService(options ServiceOptions) *Service {
 	if now == nil {
 		now = time.Now
 	}
-	return &Service{
+	service := &Service{
 		now:                    now,
 		queue:                  NewStabilityQueue(StabilityQueueOptions{Now: now}),
 		remoteClient:           options.RemoteClient,
@@ -112,6 +113,8 @@ func NewService(options ServiceOptions) *Service {
 		processed:              make(map[string]processedFile),
 		recentlyQueued:         make(map[string]processedFile),
 	}
+	service.scanExecutor = newScanExecutor(service.ScanSubtree)
+	return service
 }
 
 // SetRemoteClient 设置远端客户端，主要供测试替换。
@@ -217,31 +220,31 @@ func (service *Service) ScanSubtree(ctx context.Context, rule *models.DirectoryU
 	return accepted, err
 }
 
+// EnqueueScan 提交目录扫描任务，由共享执行器合并重复目录并限制并发。
+func (service *Service) EnqueueScan(ctx context.Context, rule *models.DirectoryUploadRule, root string) {
+	if service == nil || ctx == nil || ctx.Err() != nil || rule == nil || root == "" {
+		return
+	}
+	executor := service.ensureScanExecutor()
+	executor.Enqueue(ctx, scanRequest{rule: rule, root: root})
+}
+
+func (service *Service) ensureScanExecutor() *scanExecutor {
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	if service.scanExecutor == nil {
+		service.scanExecutor = newScanExecutor(service.ScanSubtree)
+	}
+	return service.scanExecutor
+}
+
 func (service *Service) scanRoot(ctx context.Context, rule *models.DirectoryUploadRule, root string) (int, error) {
 	if service == nil {
 		service = NewService(ServiceOptions{})
 	}
-	if err := ctx.Err(); err != nil {
-		return 0, err
-	}
-	if rule == nil {
-		return 0, errors.New("目录监控规则为空")
-	}
-	syncPath := models.GetSyncPathById(rule.SyncPathId)
-	if syncPath == nil {
-		return 0, fmt.Errorf("同步目录不存在：%d", rule.SyncPathId)
-	}
-	monitorPath := filepath.Clean(rule.MonitorPath)
-	root = filepath.Clean(root)
-	if err := ensurePathInMonitor(monitorPath, root); err != nil {
-		return 0, err
-	}
-	info, err := os.Stat(root)
+	syncPath, monitorPath, root, err := service.validateScanRoot(ctx, rule, root)
 	if err != nil {
-		return 0, fmt.Errorf("读取监控目录失败：%w", err)
-	}
-	if !info.IsDir() {
-		return 0, fmt.Errorf("监控路径不是目录：%s", root)
+		return 0, err
 	}
 
 	accepted := 0
@@ -285,6 +288,41 @@ func (service *Service) scanRoot(ctx context.Context, rule *models.DirectoryUplo
 		return accepted, walkErr
 	}
 	return accepted, nil
+}
+
+func (service *Service) validateScanRoot(ctx context.Context, rule *models.DirectoryUploadRule, root string) (*models.SyncPath, string, string, error) {
+	if ctx == nil {
+		return nil, "", "", errors.New("扫描上下文为空")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, "", "", err
+	}
+	if rule == nil {
+		return nil, "", "", errors.New("目录监控规则为空")
+	}
+	syncPath := models.GetSyncPathById(rule.SyncPathId)
+	if syncPath == nil {
+		return nil, "", "", fmt.Errorf("同步目录不存在：%d", rule.SyncPathId)
+	}
+	if strings.TrimSpace(rule.MonitorPath) == "" {
+		return nil, "", "", errors.New("监控目录不能为空")
+	}
+	if strings.TrimSpace(root) == "" {
+		return nil, "", "", errors.New("扫描目录不能为空")
+	}
+	monitorPath := filepath.Clean(rule.MonitorPath)
+	root = filepath.Clean(root)
+	if err := ensurePathInMonitor(monitorPath, root); err != nil {
+		return nil, "", "", err
+	}
+	info, err := os.Stat(root)
+	if err != nil {
+		return nil, "", "", fmt.Errorf("读取监控目录失败：%w", err)
+	}
+	if !info.IsDir() {
+		return nil, "", "", fmt.Errorf("监控路径不是目录：%s", root)
+	}
+	return syncPath, monitorPath, root, nil
 }
 
 // HandleStableFile 为已稳定的本地文件创建上传任务。

@@ -151,14 +151,8 @@ func handleStrmWebhookRequest(ctx context.Context, req strmWebhookRequest) (strm
 			if err != nil {
 				return strmWebhookResponse{}, err
 			}
-			for _, prepared := range preparedFiles {
-				results[prepared.index] = createStrmWebhookFileTask(
-					syncPath,
-					parent.ID,
-					options,
-					prepared.index,
-					prepared.item,
-				)
+			if err := fillStrmWebhookBatchResults(syncPath, parent.ID, options, preparedFiles, results); err != nil {
+				return strmWebhookResponse{}, err
 			}
 		}
 		resp.Results = append(resp.Results, results...)
@@ -341,7 +335,21 @@ func prepareStrmWebhookFileItem(ctx context.Context, syncPath *models.SyncPath, 
 }
 
 func createStrmWebhookFileTask(syncPath *models.SyncPath, parentTaskID uint, options strmWebhookOptions, index int, item strmWebhookFileItem) strmWebhookItemResult {
-	task, err := models.EnqueueStrmGenerationTask(&models.StrmGenerationTask{
+	task, err := models.EnqueueStrmGenerationTask(newStrmWebhookFileTask(
+		syncPath,
+		parentTaskID,
+		options,
+		item,
+		strmWebhookFileRequestHash(syncPath.ID, parentTaskID, options, item),
+	))
+	if err != nil {
+		return strmWebhookItemResult{Index: index, Accepted: false, Error: err.Error()}
+	}
+	return strmWebhookItemResult{Index: index, Accepted: true, TaskID: task.ID}
+}
+
+func newStrmWebhookFileTask(syncPath *models.SyncPath, parentTaskID uint, options strmWebhookOptions, item strmWebhookFileItem, requestHash string) *models.StrmGenerationTask {
+	return &models.StrmGenerationTask{
 		Source:       models.StrmGenerationSourceWebhook,
 		TaskType:     models.StrmGenerationTaskTypeFile,
 		ParentTaskId: parentTaskID,
@@ -357,19 +365,16 @@ func createStrmWebhookFileTask(syncPath *models.SyncPath, parentTaskID uint, opt
 		FileSize:     item.FileSize,
 		Sha1:         item.Sha1,
 		Mtime:        item.Mtime,
-		RequestHash:  strmWebhookFileRequestHash(syncPath.ID, parentTaskID, options, item),
-	})
-	if err != nil {
-		return strmWebhookItemResult{Index: index, Accepted: false, Error: err.Error()}
+		Status:       models.StrmGenerationStatusPending,
+		RequestHash:  requestHash,
 	}
-	return strmWebhookItemResult{Index: index, Accepted: true, TaskID: task.ID}
 }
 
 func enqueueStrmWebhookBatchParent(syncPath *models.SyncPath, options strmWebhookOptions, preparedFiles []strmWebhookPreparedFile) (*models.StrmGenerationTask, error) {
 	if len(preparedFiles) == 0 {
 		return nil, errors.New("批量请求没有合法文件项")
 	}
-	// 父任务不由 worker 执行，completed 只表示父记录本身创建完成。
+	// 父任务不由 worker 执行，waiting_children 表示子任务尚未全部进入终态。
 	return models.EnqueueStrmGenerationTask(&models.StrmGenerationTask{
 		Source:       models.StrmGenerationSourceWebhook,
 		TaskType:     models.StrmGenerationTaskTypeBatchFiles,
@@ -378,9 +383,84 @@ func enqueueStrmWebhookBatchParent(syncPath *models.SyncPath, options strmWebhoo
 		DownloadMeta: options.DownloadMeta,
 		RefreshEmby:  options.RefreshEmby,
 		TotalItems:   len(preparedFiles),
-		Status:       models.StrmGenerationStatusCompleted,
+		Status:       models.StrmGenerationStatusWaitingChildren,
 		RequestHash:  strmWebhookBatchRequestHash(syncPath.ID, options, preparedFiles),
 	})
+}
+
+func fillStrmWebhookBatchResults(syncPath *models.SyncPath, parentID uint, options strmWebhookOptions, preparedFiles []strmWebhookPreparedFile, results []strmWebhookItemResult) error {
+	children, err := getStrmWebhookBatchChildren(parentID)
+	if err != nil {
+		return err
+	}
+	childrenByRequestHash := make(map[string][]models.StrmGenerationTask, len(children))
+	for _, child := range children {
+		if child.RequestHash == "" {
+			continue
+		}
+		childrenByRequestHash[child.RequestHash] = append(childrenByRequestHash[child.RequestHash], child)
+	}
+	for _, prepared := range preparedFiles {
+		requestHash := strmWebhookBatchChildRequestHash(syncPath.ID, parentID, options, prepared.index, prepared.item)
+		child, ok := takeStrmWebhookBatchChildByRequestHash(childrenByRequestHash, requestHash)
+		if !ok {
+			legacyHash := strmWebhookFileRequestHash(syncPath.ID, parentID, options, prepared.item)
+			child, ok = takeStrmWebhookBatchChildByRequestHash(childrenByRequestHash, legacyHash)
+		}
+		if ok {
+			results[prepared.index] = strmWebhookItemResult{Index: prepared.index, Accepted: true, TaskID: child.ID}
+			continue
+		}
+		result, err := ensureStrmWebhookBatchChildTask(syncPath, parentID, options, prepared.index, prepared.item)
+		if err != nil {
+			return err
+		}
+		results[prepared.index] = result
+	}
+	return nil
+}
+
+func takeStrmWebhookBatchChildByRequestHash(children map[string][]models.StrmGenerationTask, requestHash string) (models.StrmGenerationTask, bool) {
+	matches := children[requestHash]
+	if len(matches) == 0 {
+		return models.StrmGenerationTask{}, false
+	}
+	child := matches[0]
+	if len(matches) == 1 {
+		delete(children, requestHash)
+	} else {
+		children[requestHash] = matches[1:]
+	}
+	return child, true
+}
+
+func ensureStrmWebhookBatchChildTask(syncPath *models.SyncPath, parentID uint, options strmWebhookOptions, index int, item strmWebhookFileItem) (strmWebhookItemResult, error) {
+	requestHash := strmWebhookBatchChildRequestHash(syncPath.ID, parentID, options, index, item)
+	task := newStrmWebhookFileTask(syncPath, parentID, options, item, requestHash)
+	if err := db.Db.Create(task).Error; err != nil {
+		var existing models.StrmGenerationTask
+		if lookupErr := db.Db.Where("request_hash = ?", requestHash).First(&existing).Error; lookupErr == nil {
+			if existing.ParentTaskId == parentID {
+				return strmWebhookItemResult{Index: index, Accepted: true, TaskID: existing.ID}, nil
+			}
+		}
+		return strmWebhookItemResult{}, fmt.Errorf("创建批量 STRM 子任务失败: %w", err)
+	}
+	return strmWebhookItemResult{Index: index, Accepted: true, TaskID: task.ID}, nil
+}
+
+func getStrmWebhookBatchChildren(parentID uint) ([]models.StrmGenerationTask, error) {
+	if parentID == 0 {
+		return nil, nil
+	}
+	var children []models.StrmGenerationTask
+	if err := db.Db.
+		Where("parent_task_id = ?", parentID).
+		Order("id ASC").
+		Find(&children).Error; err != nil {
+		return nil, err
+	}
+	return children, nil
 }
 
 func defaultStrmWebhookFileDetailResolver(ctx context.Context, account *models.Account, fullPath string) (*v115open.FileDetail, error) {
@@ -561,6 +641,21 @@ func strmWebhookBatchRequestHash(syncPathID uint, options strmWebhookOptions, pr
 		options.DownloadMeta,
 		options.RefreshEmby,
 		helpers.MD5Hash(builder.String()),
+	)
+}
+
+func strmWebhookBatchChildRequestHash(syncPathID uint, parentTaskID uint, options strmWebhookOptions, index int, item strmWebhookFileItem) string {
+	return fmt.Sprintf(
+		"webhook:batch_file:%d:%d:%d:%t:%t:%s:%s:%s:%s",
+		syncPathID,
+		parentTaskID,
+		index,
+		options.DownloadMeta,
+		options.RefreshEmby,
+		item.FileID,
+		item.PickCode,
+		item.Path,
+		item.FileName,
 	)
 }
 

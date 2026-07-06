@@ -3,6 +3,7 @@ package models
 import (
 	"io"
 	"log"
+	"sync/atomic"
 	"testing"
 
 	"qmediasync/internal/db"
@@ -63,6 +64,39 @@ func TestEnqueueStrmGenerationTaskDedupesRequestHash(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("任务数量 = %d，期望 1", count)
+	}
+}
+
+func TestEnqueueStrmGenerationTaskTreatsWaitingChildrenAsActive(t *testing.T) {
+	setupStrmGenerationTaskTestDB(t)
+
+	first, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:      StrmGenerationSourceWebhook,
+		TaskType:    StrmGenerationTaskTypeBatchFiles,
+		SyncPathId:  10,
+		AccountId:   2,
+		TotalItems:  2,
+		Status:      StrmGenerationStatusWaitingChildren,
+		RequestHash: "webhook:batch:10:false:false:hash",
+	})
+	if err != nil {
+		t.Fatalf("首次批量父任务入队失败: %v", err)
+	}
+
+	second, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:      StrmGenerationSourceWebhook,
+		TaskType:    StrmGenerationTaskTypeBatchFiles,
+		SyncPathId:  10,
+		AccountId:   2,
+		TotalItems:  2,
+		Status:      StrmGenerationStatusWaitingChildren,
+		RequestHash: "webhook:batch:10:false:false:hash",
+	})
+	if err != nil {
+		t.Fatalf("重复批量父任务入队失败: %v", err)
+	}
+	if second.ID != first.ID {
+		t.Fatalf("等待子任务完成的父任务应复用，got %d want %d", second.ID, first.ID)
 	}
 }
 
@@ -468,5 +502,130 @@ func TestStrmGenerationDirectoryStatsKeepsExpandedTotal(t *testing.T) {
 	}
 	if got.AcceptedItems != 1 || got.FailedItems != 0 || got.TotalItems != 2 {
 		t.Fatalf("目录统计 = accepted:%d failed:%d total:%d，期望 1/0/2", got.AcceptedItems, got.FailedItems, got.TotalItems)
+	}
+}
+
+func TestUpdateStrmGenerationParentProgressCompletesWaitingParent(t *testing.T) {
+	setupStrmGenerationTaskTestDB(t)
+
+	parent, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:      StrmGenerationSourceWebhook,
+		TaskType:    StrmGenerationTaskTypeBatchFiles,
+		SyncPathId:  10,
+		AccountId:   2,
+		TotalItems:  2,
+		Status:      StrmGenerationStatusWaitingChildren,
+		RequestHash: "webhook:batch:10:false:false:progress",
+	})
+	if err != nil {
+		t.Fatalf("批量父任务入队失败: %v", err)
+	}
+
+	updated, err := UpdateStrmGenerationParentProgress(parent.ID, StrmGenerationParentProgress{Accepted: 1})
+	if err != nil {
+		t.Fatalf("首次累计父任务进度失败: %v", err)
+	}
+	if updated.Status != StrmGenerationStatusWaitingChildren {
+		t.Fatalf("部分子任务完成后 status = %s，期望 waiting_children", updated.Status)
+	}
+
+	updated, err = UpdateStrmGenerationParentProgress(parent.ID, StrmGenerationParentProgress{Accepted: 1})
+	if err != nil {
+		t.Fatalf("第二次累计父任务进度失败: %v", err)
+	}
+	if updated.Status != StrmGenerationStatusCompleted {
+		t.Fatalf("全部子任务完成后 status = %s，期望 completed", updated.Status)
+	}
+}
+
+func TestUpdateStrmGenerationParentProgressUsesAtomicIncrements(t *testing.T) {
+	setupStrmGenerationTaskTestDB(t)
+
+	parent, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:      StrmGenerationSourceWebhook,
+		TaskType:    StrmGenerationTaskTypeBatchFiles,
+		SyncPathId:  10,
+		AccountId:   2,
+		TotalItems:  3,
+		Status:      StrmGenerationStatusWaitingChildren,
+		RequestHash: "webhook:batch:10:false:false:atomic",
+	})
+	if err != nil {
+		t.Fatalf("批量父任务入队失败: %v", err)
+	}
+
+	var injected int32
+	callbackName := "test:inject_strm_parent_progress_increment"
+	if err := db.Db.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {
+		if atomic.CompareAndSwapInt32(&injected, 0, 1) {
+			if err := tx.Exec("UPDATE strm_generation_tasks SET accepted_items = accepted_items + 1 WHERE id = ?", parent.ID).Error; err != nil {
+				t.Fatalf("注入并发父任务进度失败: %v", err)
+			}
+		}
+	}); err != nil {
+		t.Fatalf("注册更新回调失败: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = db.Db.Callback().Update().Remove(callbackName)
+	})
+
+	updated, err := UpdateStrmGenerationParentProgress(parent.ID, StrmGenerationParentProgress{Accepted: 1})
+	if err != nil {
+		t.Fatalf("累计父任务进度失败: %v", err)
+	}
+	if updated.AcceptedItems != 2 {
+		t.Fatalf("父任务 accepted_items = %d，期望保留外部增量后为 2", updated.AcceptedItems)
+	}
+}
+
+func TestUpdateStrmGenerationParentProgressKeepsZeroTotalWaiting(t *testing.T) {
+	setupStrmGenerationTaskTestDB(t)
+
+	parent, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:      StrmGenerationSourceWebhook,
+		TaskType:    StrmGenerationTaskTypeBatchFiles,
+		SyncPathId:  10,
+		AccountId:   2,
+		Status:      StrmGenerationStatusWaitingChildren,
+		RequestHash: "webhook:batch:10:false:false:zero-total",
+	})
+	if err != nil {
+		t.Fatalf("批量父任务入队失败: %v", err)
+	}
+
+	updated, err := UpdateStrmGenerationParentProgress(parent.ID, StrmGenerationParentProgress{Accepted: 1})
+	if err != nil {
+		t.Fatalf("累计零总数父任务进度失败: %v", err)
+	}
+	if updated.Status != StrmGenerationStatusWaitingChildren {
+		t.Fatalf("total_items=0 时 status = %s，期望保持 waiting_children", updated.Status)
+	}
+}
+
+func TestUpdateStrmGenerationParentProgressFailsWaitingParent(t *testing.T) {
+	setupStrmGenerationTaskTestDB(t)
+
+	parent, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:      StrmGenerationSourceWebhook,
+		TaskType:    StrmGenerationTaskTypeBatchFiles,
+		SyncPathId:  10,
+		AccountId:   2,
+		TotalItems:  2,
+		Status:      StrmGenerationStatusWaitingChildren,
+		RequestHash: "webhook:batch:10:false:false:failed-child",
+	})
+	if err != nil {
+		t.Fatalf("批量父任务入队失败: %v", err)
+	}
+
+	if _, err := UpdateStrmGenerationParentProgress(parent.ID, StrmGenerationParentProgress{Accepted: 1}); err != nil {
+		t.Fatalf("累计成功子任务进度失败: %v", err)
+	}
+	updated, err := UpdateStrmGenerationParentProgress(parent.ID, StrmGenerationParentProgress{Failed: 1})
+	if err != nil {
+		t.Fatalf("累计失败子任务进度失败: %v", err)
+	}
+	if updated.Status != StrmGenerationStatusFailed {
+		t.Fatalf("存在失败子任务时 status = %s，期望 failed", updated.Status)
 	}
 }

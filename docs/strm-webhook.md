@@ -42,7 +42,7 @@ API Key 在 Web 页面「系统设置 - API Key」中创建。完整密钥只会
 | action | 说明 |
 | --- | --- |
 | `file` | 创建单文件 STRM 生成任务。 |
-| `batch_files` | 创建批量父任务，再为每个合法 `items[]` 项创建单文件子任务。单项失败不会影响其他合法项入队。 |
+| `batch_files` | 创建批量父任务，再为每个合法 `items[]` 项创建单文件子任务。单项失败不会影响其他合法项入队，重试会复用父任务并补齐缺失子任务。 |
 | `directory_scan` | 创建目录扫描父任务，后续由 STRM worker 异步枚举远端目录并为视频文件创建子任务。 |
 
 `action` 为空时，后端按字段自动判断：
@@ -176,10 +176,11 @@ API Key 在 Web 页面「系统设置 - API Key」中创建。完整密钥只会
 
 Webhook 入队会为请求生成 `request_hash`，哈希包含请求动作、远端定位信息和请求级开关：
 
-- `pending` 或 `running` 状态的相同请求会复用已有任务，不重复创建。
+- `pending`、`running` 或 `waiting_children` 状态的相同请求会复用已有任务，不重复创建。
 - 历史任务如果已经 `failed`、`completed` 或 `cancelled`，再次提交相同请求会归档旧请求哈希并创建新的待处理任务。
 - worker 只自动领取 `pending` 任务；执行失败会把任务标记为 `failed`，递增 `retry_count` 并写入 `last_error`。
-- `batch_files` 父任务状态为 `completed` 只表示父记录本身不需要 worker 执行，不表示整个批次已全部处理完成；批次完成度以 `total_items`、`accepted_items`、`failed_items` 和 `refresh_submitted` 判断。
+- `batch_files` 父任务不由 worker 执行；创建后状态为 `waiting_children`，所有子任务进入终态后才转为 `completed` 或 `failed`。相同批量请求重试时会按合法 item 的原始 `items[]` index 匹配子任务，已存在的子任务复用，缺失的子任务补建，非法项仍按原始 index 返回失败结果。
+- 如果合法 `batch_files` 子任务写入失败，整个请求返回错误；已创建的活跃父任务会保留，后续相同请求会继续补建缺失子任务。
 - `directory_scan` 父任务展开完成后记录 `total_items`；子任务后续完成或失败时累计 `accepted_items`、`failed_items`、`changed_items` 和 `new_meta_items`。
 
 ## 示例

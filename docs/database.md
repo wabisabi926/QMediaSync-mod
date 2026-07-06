@@ -121,8 +121,8 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 | `upload.resume_state` | `none`、`new_session`、`resumed_session`、`session_expired_restarted` |
 | `upload.source_cleanup_status` | `none`、`pending`、`completed`、`failed` |
 | `strm_generation.source` | `upload_completed`、`webhook`、`remote_exists` |
-| `strm_generation.task_type` | `file`、`directory_scan` |
-| `strm_generation.status` | `pending`、`running`、`completed`、`failed`、`cancelled` |
+| `strm_generation.task_type` | `file`、`directory_scan`、`batch_files` |
+| `strm_generation.status` | `pending`、`running`、`waiting_children`、`completed`、`failed`、`cancelled` |
 | `emby_refresh.target_type` | `library`、`item` |
 | `backup.status` | `pending`、`running`、`completed`、`failed`、`cancelled`、`timeout` |
 | `backup.type` | `manual`、`auto` |
@@ -833,7 +833,7 @@ STRM 生成任务表，上传完成、远端已存在跳过和 [STRM Webhook](st
 
 - `source`：任务来源，见上面的 `strm_generation.source`。
 - `task_type`：任务类型，见上面的 `strm_generation.task_type`。
-- `parent_task_id`：目录扫描父任务 ID。
+- `parent_task_id`：目录扫描或批量父任务 ID。
 - `upload_task_id`：关联上传任务 ID。
 - `sync_path_id`、`account_id`：同步目录和账号 ID。
 - `download_meta`、`refresh_emby`：Webhook STRM 生成选项，默认关闭；`download_meta` 只对 `source=webhook` 且 `task_type=file` 的任务生效。
@@ -848,9 +848,10 @@ STRM 生成任务表，上传完成、远端已存在跳过和 [STRM Webhook](st
 说明：
 
 - 程序启动时会把上次异常退出遗留的 `running` 任务恢复为 `pending`，然后由后台 worker 按 ID 顺序领取待处理任务。
-- `batch_files` 父任务状态为 `completed` 只表示父记录本身不需要 worker 执行，不代表所有子任务已经处理完成；完成度以 `total_items`、`accepted_items`、`failed_items` 和 `refresh_submitted` 判断。
+- `batch_files` 父任务不由 worker 执行；创建后处于 `waiting_children`，表示子任务尚未全部进入终态。子任务累计达到 `total_items` 后，父任务无失败时转为 `completed`，存在失败时转为 `failed`。
+- 同一个 `batch_files` 请求在父任务仍为活跃状态时会复用父任务，并按每个合法 item 的原始 `items[]` index 匹配或补建缺失子任务；同批次重复文件项不会互相复用子任务。
 - `directory_scan` 父任务由 worker 异步展开远端目录，只为视频文件创建 `file` 子任务；115 目录枚举会按 `file_list_page_size` 分页累加所有文件列表结果，不会只处理最后一页。展开完成后 `total_items` 表示子任务总数，子任务后续完成或失败时累计 `accepted_items` / `failed_items`，不会把 `total_items` 降为当前已处理数。
-- `request_hash` 只对 `pending` / `running` 任务做幂等去重；如果历史任务已经 `failed`、`completed` 或 `cancelled`，再次提交同一请求会归档旧哈希并创建新任务。
+- `request_hash` 只对 `pending` / `running` / `waiting_children` 任务做幂等去重；如果历史任务已经 `failed`、`completed` 或 `cancelled`，再次提交同一请求会归档旧哈希并创建新任务。
 - worker 只自动领取 `pending` 任务；执行失败会把任务标记为 `failed`，递增 `retry_count` 并写入 `last_error`，不会删除已成功写出的新 STRM。
 - 文件级任务会通过 `sync_path_id` 加载同步目录和账号。任务只提供 `file_id` 且缺少路径、文件名或 PickCode 时，会先补查远端详情再生成 STRM。
 - Webhook 文件任务只有 `refresh_emby=true` 且 STRM 变更或新增元数据下载任务时才解析 Emby 目标；批量和目录扫描子任务会把目标累计到父任务，父任务全部子任务完成或失败后统一提交一次。

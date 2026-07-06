@@ -35,11 +35,12 @@ const (
 type StrmGenerationStatus string
 
 const (
-	StrmGenerationStatusPending   StrmGenerationStatus = "pending"
-	StrmGenerationStatusRunning   StrmGenerationStatus = "running"
-	StrmGenerationStatusCompleted StrmGenerationStatus = "completed"
-	StrmGenerationStatusFailed    StrmGenerationStatus = "failed"
-	StrmGenerationStatusCancelled StrmGenerationStatus = "cancelled"
+	StrmGenerationStatusPending         StrmGenerationStatus = "pending"
+	StrmGenerationStatusRunning         StrmGenerationStatus = "running"
+	StrmGenerationStatusWaitingChildren StrmGenerationStatus = "waiting_children"
+	StrmGenerationStatusCompleted       StrmGenerationStatus = "completed"
+	StrmGenerationStatusFailed          StrmGenerationStatus = "failed"
+	StrmGenerationStatusCancelled       StrmGenerationStatus = "cancelled"
 )
 
 // StrmGenerationTask 保存上传完成或 Webhook 触发的 STRM 生成任务。
@@ -275,7 +276,9 @@ func mergeRefreshItemTarget(left EmbyRefreshTarget, right EmbyRefreshTarget) Emb
 }
 
 func isActiveStrmGenerationStatus(status StrmGenerationStatus) bool {
-	return status == StrmGenerationStatusPending || status == StrmGenerationStatusRunning
+	return status == StrmGenerationStatusPending ||
+		status == StrmGenerationStatusRunning ||
+		status == StrmGenerationStatusWaitingChildren
 }
 
 func archivedStrmGenerationRequestHash(requestHash string, taskID uint) string {
@@ -371,21 +374,54 @@ func UpdateStrmGenerationParentProgress(parentTaskId uint, progress StrmGenerati
 	}
 	var updated StrmGenerationTask
 	err := db.Db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&StrmGenerationTask{}).
+			Where("id = ?", parentTaskId).
+			Updates(map[string]interface{}{
+				"accepted_items": gorm.Expr("accepted_items + ?", progress.Accepted),
+				"failed_items":   gorm.Expr("failed_items + ?", progress.Failed),
+				"changed_items":  gorm.Expr("changed_items + ?", progress.Changed),
+				"new_meta_items": gorm.Expr("new_meta_items + ?", progress.NewMeta),
+			}).Error; err != nil {
+			return err
+		}
+
 		var parent StrmGenerationTask
 		if err := tx.First(&parent, parentTaskId).Error; err != nil {
 			return err
 		}
-		parent.AcceptedItems += progress.Accepted
-		parent.FailedItems += progress.Failed
-		parent.ChangedItems += progress.Changed
-		parent.NewMetaItems += progress.NewMeta
 		processedItems := parent.AcceptedItems + parent.FailedItems
+		hasFixedTotalItems := parent.TotalItems > 0
+		updates := map[string]interface{}{}
 		if parent.TotalItems < processedItems {
 			parent.TotalItems = processedItems
+			updates["total_items"] = parent.TotalItems
 		}
-		parent.MergeRefreshTargets(progress.RefreshTargets)
-		if err := tx.Save(&parent).Error; err != nil {
-			return err
+		if hasFixedTotalItems &&
+			processedItems >= parent.TotalItems &&
+			parent.Status == StrmGenerationStatusWaitingChildren {
+			if parent.FailedItems > 0 {
+				parent.Status = StrmGenerationStatusFailed
+				updates["status"] = parent.Status
+			} else {
+				parent.Status = StrmGenerationStatusCompleted
+				parent.LastError = ""
+				updates["status"] = parent.Status
+				updates["last_error"] = parent.LastError
+			}
+		}
+		if len(progress.RefreshTargets) > 0 {
+			parent.MergeRefreshTargets(progress.RefreshTargets)
+			updates["refresh_targets_str"] = parent.RefreshTargetsStr
+		}
+		if len(updates) > 0 {
+			if err := tx.Model(&StrmGenerationTask{}).
+				Where("id = ?", parentTaskId).
+				Updates(updates).Error; err != nil {
+				return err
+			}
+			if err := tx.First(&parent, parentTaskId).Error; err != nil {
+				return err
+			}
 		}
 		updated = parent
 		return nil

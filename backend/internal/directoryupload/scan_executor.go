@@ -16,6 +16,7 @@ const defaultScanConcurrency = 2
 type scanRequest struct {
 	rule *models.DirectoryUploadRule
 	root string
+	scan scanFunc
 }
 
 type scanFunc func(context.Context, *models.DirectoryUploadRule, string) (int, error)
@@ -68,7 +69,7 @@ func (executor *scanExecutor) Enqueue(ctx context.Context, request scanRequest) 
 	executor.mu.Lock()
 	entry := &scanEntry{
 		key:     key,
-		request: scanRequest{rule: request.rule, root: root},
+		request: scanRequest{rule: request.rule, root: root, scan: request.scan},
 		ctx:     ctx,
 	}
 	if existing, exists := executor.inflight[key]; exists {
@@ -136,7 +137,11 @@ func (executor *scanExecutor) start(entry *scanEntry) {
 	go func() {
 		defer executor.releaseSemaphore()
 		defer executor.releaseInflight(entry)
-		if _, err := executor.scan(entry.ctx, entry.request.rule, entry.request.root); err != nil &&
+		scan := entry.request.scan
+		if scan == nil {
+			scan = executor.scan
+		}
+		if _, err := scan(entry.ctx, entry.request.rule, entry.request.root); err != nil &&
 			entry.ctx.Err() == nil &&
 			!errors.Is(err, context.Canceled) {
 			helpers.AppLogger.Warnf("[目录上传] 规则 %d 扫描目录 %s 失败：%v", entry.request.rule.ID, entry.request.root, err)

@@ -48,10 +48,8 @@ func TestScanExecutorMergesSameRuleAndRoot(t *testing.T) {
 
 func TestScanExecutorSkipsCanceledContext(t *testing.T) {
 	var calls atomic.Int32
-	started := make(chan struct{})
 	executor := newScanExecutorWithScanFunc(1, func(context.Context, *models.DirectoryUploadRule, string) (int, error) {
 		calls.Add(1)
-		close(started)
 		return 0, nil
 	})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -62,13 +60,13 @@ func TestScanExecutorSkipsCanceledContext(t *testing.T) {
 		root: t.TempDir(),
 	})
 
-	select {
-	case <-started:
-		t.Fatal("ctx 已取消时不应启动扫描")
-	case <-time.After(30 * time.Millisecond):
-	}
 	if got := calls.Load(); got != 0 {
 		t.Fatalf("scan calls=%d，期望 0", got)
+	}
+	executor.mu.Lock()
+	defer executor.mu.Unlock()
+	if executor.running || len(executor.queue) != 0 || len(executor.inflight) != 0 {
+		t.Fatalf("ctx 已取消时不应留下执行器状态: running=%v queue=%d inflight=%d", executor.running, len(executor.queue), len(executor.inflight))
 	}
 }
 
@@ -171,6 +169,160 @@ func TestScanExecutorReplacesCanceledRunningRequest(t *testing.T) {
 	}
 }
 
+func TestScanExecutorUsesRequestScanFunc(t *testing.T) {
+	rule := &models.DirectoryUploadRule{BaseModel: models.BaseModel{ID: 13}}
+	root := t.TempDir()
+	started := make(chan string, 1)
+	var defaultCalls atomic.Int32
+
+	executor := newScanExecutorWithScanFunc(1, func(context.Context, *models.DirectoryUploadRule, string) (int, error) {
+		defaultCalls.Add(1)
+		started <- "default"
+		return 0, nil
+	})
+	executor.Enqueue(context.Background(), scanRequest{
+		rule: rule,
+		root: root,
+		scan: func(context.Context, *models.DirectoryUploadRule, string) (int, error) {
+			started <- "request"
+			return 0, nil
+		},
+	})
+
+	if got := waitForScanRoot(t, started); got != "request" {
+		t.Fatalf("scan func=%s，期望执行请求自带扫描函数", got)
+	}
+	if got := defaultCalls.Load(); got != 0 {
+		t.Fatalf("default scan calls=%d，期望 request scan 存在时不调用默认扫描", got)
+	}
+}
+
+func TestScanExecutorRequestScanFuncDoesNotReplaceDefaultForSameKey(t *testing.T) {
+	rule := &models.DirectoryUploadRule{BaseModel: models.BaseModel{ID: 15}}
+	root := t.TempDir()
+	started := make(chan string, 2)
+
+	executor := newScanExecutorWithScanFunc(1, func(context.Context, *models.DirectoryUploadRule, string) (int, error) {
+		started <- "default"
+		return 0, nil
+	})
+	executor.Enqueue(context.Background(), scanRequest{
+		rule: rule,
+		root: root,
+		scan: func(context.Context, *models.DirectoryUploadRule, string) (int, error) {
+			started <- "request"
+			return 0, nil
+		},
+	})
+	if got := waitForScanRoot(t, started); got != "request" {
+		t.Fatalf("首次 scan func=%s，期望 request", got)
+	}
+	waitForInflightToClear(t, executor, rule, root)
+
+	executor.Enqueue(context.Background(), scanRequest{rule: rule, root: root})
+	if got := waitForScanRoot(t, started); got != "default" {
+		t.Fatalf("同 key 后续默认扫描执行=%s，期望 default", got)
+	}
+}
+
+func TestScanExecutorCanceledQueuedReplacementUsesNewRequestScanFunc(t *testing.T) {
+	rule := &models.DirectoryUploadRule{BaseModel: models.BaseModel{ID: 14}}
+	baseDir := t.TempDir()
+	rootA := filepath.Join(baseDir, "A")
+	rootK := filepath.Join(baseDir, "K")
+	started := make(chan string, 3)
+	releaseA := make(chan struct{})
+
+	executor := newScanExecutorWithScanFunc(1, func(context.Context, *models.DirectoryUploadRule, string) (int, error) {
+		started <- "default"
+		return 0, nil
+	})
+	executor.Enqueue(context.Background(), scanRequest{
+		rule: rule,
+		root: rootA,
+		scan: func(ctx context.Context, _ *models.DirectoryUploadRule, _ string) (int, error) {
+			started <- "blocker"
+			select {
+			case <-releaseA:
+			case <-ctx.Done():
+				return 0, ctx.Err()
+			}
+			return 0, nil
+		},
+	})
+	if got := waitForScanRoot(t, started); got != "blocker" {
+		t.Fatalf("首次扫描=%s，期望 blocker", got)
+	}
+
+	oldCtx, oldCancel := context.WithCancel(context.Background())
+	executor.Enqueue(oldCtx, scanRequest{
+		rule: rule,
+		root: rootK,
+		scan: func(context.Context, *models.DirectoryUploadRule, string) (int, error) {
+			started <- "old"
+			return 0, nil
+		},
+	})
+	oldCancel()
+	executor.Enqueue(context.Background(), scanRequest{
+		rule: rule,
+		root: rootK,
+		scan: func(context.Context, *models.DirectoryUploadRule, string) (int, error) {
+			started <- "new"
+			return 0, nil
+		},
+	})
+	close(releaseA)
+
+	if got := waitForScanRoot(t, started); got != "new" {
+		t.Fatalf("取消旧排队项后执行扫描=%s，期望使用新请求扫描函数", got)
+	}
+}
+
+func TestScanExecutorCanceledRunningReplacementUsesNewRequestScanFunc(t *testing.T) {
+	rule := &models.DirectoryUploadRule{BaseModel: models.BaseModel{ID: 16}}
+	root := filepath.Join(t.TempDir(), "K")
+	started := make(chan string, 2)
+	releaseOld := make(chan struct{})
+	oldCtx, oldCancel := context.WithCancel(context.Background())
+
+	executor := newScanExecutorWithScanFunc(1, func(context.Context, *models.DirectoryUploadRule, string) (int, error) {
+		started <- "default"
+		return 0, nil
+	})
+	executor.Enqueue(oldCtx, scanRequest{
+		rule: rule,
+		root: root,
+		scan: func(ctx context.Context, _ *models.DirectoryUploadRule, _ string) (int, error) {
+			started <- "old"
+			select {
+			case <-releaseOld:
+			case <-ctx.Done():
+				return 0, ctx.Err()
+			}
+			return 0, nil
+		},
+	})
+	if got := waitForScanRoot(t, started); got != "old" {
+		t.Fatalf("旧 running 扫描=%s，期望 old", got)
+	}
+
+	oldCancel()
+	executor.Enqueue(context.Background(), scanRequest{
+		rule: rule,
+		root: root,
+		scan: func(context.Context, *models.DirectoryUploadRule, string) (int, error) {
+			started <- "new"
+			return 0, nil
+		},
+	})
+	close(releaseOld)
+
+	if got := waitForScanRoot(t, started); got != "new" {
+		t.Fatalf("取消旧 running 后执行扫描=%s，期望使用新请求扫描函数", got)
+	}
+}
+
 func TestScanExecutorReleasesInflightAfterScan(t *testing.T) {
 	rule := &models.DirectoryUploadRule{BaseModel: models.BaseModel{ID: 9}}
 	root := t.TempDir()
@@ -236,12 +388,7 @@ func TestScanExecutorLimitsConcurrentScans(t *testing.T) {
 	executor.Enqueue(context.Background(), scanRequest{rule: rule, root: filepath.Join(t.TempDir(), "A")})
 	executor.Enqueue(context.Background(), scanRequest{rule: rule, root: filepath.Join(t.TempDir(), "B")})
 
-	first := waitForScanRoot(t, started)
-	select {
-	case second := <-started:
-		t.Fatalf("并发限制为 1 时第二个扫描不应同时启动，first=%s second=%s", first, second)
-	case <-time.After(30 * time.Millisecond):
-	}
+	_ = waitForScanRoot(t, started)
 	release <- struct{}{}
 	_ = waitForScanRoot(t, started)
 	release <- struct{}{}
@@ -249,6 +396,25 @@ func TestScanExecutorLimitsConcurrentScans(t *testing.T) {
 	if got := maxActive.Load(); got > 1 {
 		t.Fatalf("max active scans=%d，期望不超过 1", got)
 	}
+}
+
+func waitForInflightToClear(t *testing.T, executor *scanExecutor, rule *models.DirectoryUploadRule, root string) {
+	t.Helper()
+	key, _, ok := (scanRequest{rule: rule, root: root}).scanKey()
+	if !ok {
+		t.Fatal("测试 scan key 无效")
+	}
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		executor.mu.Lock()
+		_, exists := executor.inflight[key]
+		executor.mu.Unlock()
+		if !exists {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("等待 inflight %s 清理超时", key)
 }
 
 func waitForSignal(t *testing.T, ch <-chan struct{}, message string) {

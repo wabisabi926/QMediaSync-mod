@@ -75,6 +75,20 @@ type processedSourceState struct {
 	mtimeNs           int64
 }
 
+type scanResult struct {
+	Accepted int
+	Snapshot map[string]string
+}
+
+type scanTrackFunc func(rel string, path string, fingerprint string)
+
+type pollingSnapshotScanMode int
+
+const (
+	pollingSnapshotDiff pollingSnapshotScanMode = iota
+	pollingSnapshotTrackAll
+)
+
 // Service 负责把稳定后的本地文件转换为上传队列任务。
 type Service struct {
 	now                    func() time.Time
@@ -229,6 +243,26 @@ func (service *Service) EnqueueScan(ctx context.Context, rule *models.DirectoryU
 	executor.Enqueue(ctx, scanRequest{rule: rule, root: root})
 }
 
+func (service *Service) enqueuePollingSnapshotScan(
+	ctx context.Context,
+	runtime *RuleRuntime,
+	rule *models.DirectoryUploadRule,
+	root string,
+	mode pollingSnapshotScanMode,
+) {
+	if service == nil || runtime == nil || ctx == nil || ctx.Err() != nil || rule == nil || root == "" {
+		return
+	}
+	executor := service.ensureScanExecutor()
+	executor.Enqueue(ctx, scanRequest{
+		rule: rule,
+		root: root,
+		scan: func(scanCtx context.Context, scanRule *models.DirectoryUploadRule, scanRoot string) (int, error) {
+			return service.scanPollingSnapshot(scanCtx, runtime, scanRule, scanRoot, mode)
+		},
+	})
+}
+
 func (service *Service) ensureScanExecutor() *scanExecutor {
 	service.mutex.Lock()
 	defer service.mutex.Unlock()
@@ -239,15 +273,107 @@ func (service *Service) ensureScanExecutor() *scanExecutor {
 }
 
 func (service *Service) scanRoot(ctx context.Context, rule *models.DirectoryUploadRule, root string) (int, error) {
+	result, err := service.scanRootWithSnapshotAndTrack(ctx, rule, root, func(_ string, path string, _ string) {
+		service.queue.Track(rule.ID, path)
+	})
+	return result.Accepted, err
+}
+
+func (service *Service) scanRootWithSnapshot(ctx context.Context, rule *models.DirectoryUploadRule, root string) (scanResult, error) {
+	return service.scanRootWithSnapshotAndTrack(ctx, rule, root, nil)
+}
+
+func (service *Service) scanPollingSnapshot(
+	ctx context.Context,
+	runtime *RuleRuntime,
+	rule *models.DirectoryUploadRule,
+	root string,
+	mode pollingSnapshotScanMode,
+) (int, error) {
+	result, err := service.scanRootWithSnapshot(ctx, rule, root)
+	tracked := service.applyPollingSnapshotResult(runtime, rule, result, mode, err == nil)
+	return tracked, err
+}
+
+func (service *Service) applyPollingSnapshotResult(
+	runtime *RuleRuntime,
+	rule *models.DirectoryUploadRule,
+	result scanResult,
+	mode pollingSnapshotScanMode,
+	replaceSnapshot bool,
+) int {
+	if service == nil {
+		service = NewService(ServiceOptions{})
+	}
+	if service.queue == nil || runtime == nil || rule == nil {
+		return 0
+	}
+	previous := runtime.snapshot()
+	snapshot := make(map[string]string, len(result.Snapshot))
+	localPaths := make(map[string]string, len(result.Snapshot))
+	for rel, fingerprint := range result.Snapshot {
+		cleanRel, localPath, ok := localPathFromSnapshotRel(rule.MonitorPath, rel)
+		if !ok {
+			helpers.AppLogger.Warnf("[目录上传] 规则 %d polling snapshot 跳过越界相对路径：%s", rule.ID, rel)
+			continue
+		}
+		snapshot[cleanRel] = fingerprint
+		localPaths[cleanRel] = localPath
+	}
+	if replaceSnapshot {
+		runtime.replaceSnapshot(snapshot)
+	}
+
+	tracked := 0
+	for rel, fingerprint := range snapshot {
+		if mode == pollingSnapshotDiff {
+			if previousFingerprint, ok := previous[rel]; ok && previousFingerprint == fingerprint {
+				continue
+			}
+		}
+		service.queue.Track(rule.ID, localPaths[rel])
+		tracked++
+	}
+	return tracked
+}
+
+func localPathFromSnapshotRel(monitorPath string, rel string) (string, string, bool) {
+	monitorPath = filepath.Clean(monitorPath)
+	rel = pathpkg.Clean(rel)
+	if pathpkg.IsAbs(rel) {
+		return "", "", false
+	}
+	if rel == ".." || strings.HasPrefix(rel, "../") {
+		return "", "", false
+	}
+	if os.PathSeparator == '\\' && strings.Contains(rel, "\\") {
+		return "", "", false
+	}
+	if rel == "" || rel == "." {
+		return ".", monitorPath, true
+	}
+	localPath := filepath.Clean(filepath.Join(monitorPath, filepath.FromSlash(rel)))
+	if err := ensurePathInMonitor(monitorPath, localPath); err != nil {
+		return "", "", false
+	}
+	return rel, localPath, true
+}
+
+func (service *Service) scanRootWithSnapshotAndTrack(
+	ctx context.Context,
+	rule *models.DirectoryUploadRule,
+	root string,
+	track scanTrackFunc,
+) (scanResult, error) {
 	if service == nil {
 		service = NewService(ServiceOptions{})
 	}
 	syncPath, monitorPath, root, err := service.validateScanRoot(ctx, rule, root)
 	if err != nil {
-		return 0, err
+		return scanResult{Snapshot: map[string]string{}}, err
 	}
 
-	accepted := 0
+	result := scanResult{Snapshot: map[string]string{}}
 	ignorePatterns := parseIgnorePatterns(rule.IgnorePatternsStr)
 	walkErr := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
@@ -280,14 +406,29 @@ func (service *Service) scanRoot(ctx context.Context, rule *models.DirectoryUplo
 		if shouldIgnorePath(rel, entry.Name(), false, ignorePatterns) || !shouldUploadByRule(rule, syncPath, entry.Name()) {
 			return nil
 		}
-		service.queue.Track(rule.ID, path)
-		accepted++
+		// 使用 os.Stat 跟随 symlink，保持 snapshot fingerprint 与稳定性处理语义一致。
+		info, err := os.Stat(path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		fingerprint := models.BuildDirectoryUploadSourceFingerprint(info.Size(), info.ModTime().UnixNano())
+		result.Snapshot[rel] = fingerprint
+		result.Accepted++
+		if track != nil {
+			track(rel, path, fingerprint)
+		}
 		return nil
 	})
 	if walkErr != nil {
-		return accepted, walkErr
+		return result, walkErr
 	}
-	return accepted, nil
+	return result, nil
 }
 
 func (service *Service) validateScanRoot(ctx context.Context, rule *models.DirectoryUploadRule, root string) (*models.SyncPath, string, string, error) {

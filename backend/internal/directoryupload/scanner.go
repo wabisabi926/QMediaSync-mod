@@ -39,10 +39,12 @@ type RuleRuntime struct {
 	RuleID uint
 	Mode   RuleRuntimeMode
 
-	cancel  context.CancelFunc
-	watcher RuleWatcher
-	done    chan struct{}
-	once    sync.Once
+	cancel          context.CancelFunc
+	watcher         RuleWatcher
+	done            chan struct{}
+	once            sync.Once
+	pollingMu       sync.Mutex
+	pollingSnapshot map[string]string
 }
 
 // Stop 停止目录监控规则运行时。
@@ -61,6 +63,34 @@ func (runtime *RuleRuntime) Stop() {
 			<-runtime.done
 		}
 	})
+}
+
+func (runtime *RuleRuntime) snapshot() map[string]string {
+	if runtime == nil {
+		return map[string]string{}
+	}
+	runtime.pollingMu.Lock()
+	defer runtime.pollingMu.Unlock()
+
+	snapshot := make(map[string]string, len(runtime.pollingSnapshot))
+	for rel, fingerprint := range runtime.pollingSnapshot {
+		snapshot[rel] = fingerprint
+	}
+	return snapshot
+}
+
+func (runtime *RuleRuntime) replaceSnapshot(snapshot map[string]string) {
+	if runtime == nil {
+		return
+	}
+	next := make(map[string]string, len(snapshot))
+	for rel, fingerprint := range snapshot {
+		next[rel] = fingerprint
+	}
+	runtime.pollingMu.Lock()
+	defer runtime.pollingMu.Unlock()
+
+	runtime.pollingSnapshot = next
 }
 
 // Start 启动所有已启用的目录上传规则。
@@ -130,7 +160,6 @@ func (service *Service) StartRule(ctx context.Context, rule *models.DirectoryUpl
 			cancel()
 			return nil, fmt.Errorf("启动补偿扫描失败：%w", err)
 		}
-		service.EnqueueScan(ruleCtx, rule, rule.MonitorPath)
 	}
 
 	watcher, mode, err := service.startRuleWatcher(ruleCtx, rule)
@@ -140,13 +169,30 @@ func (service *Service) StartRule(ctx context.Context, rule *models.DirectoryUpl
 	}
 	runtime.watcher = watcher
 	runtime.Mode = mode
+	if runtime.Mode == RuleRuntimeModePolling {
+		if rule.StartupScanEnabled {
+			service.enqueuePollingSnapshotScan(ruleCtx, runtime, rule, rule.MonitorPath, pollingSnapshotTrackAll)
+		} else {
+			result, err := service.scanRootWithSnapshot(ruleCtx, rule, rule.MonitorPath)
+			if err != nil && (ruleCtx.Err() != nil || errors.Is(err, context.Canceled)) {
+				cancel()
+				return nil, fmt.Errorf("建立 polling baseline 失败：%w", err)
+			}
+			runtime.replaceSnapshot(result.Snapshot)
+			if err != nil {
+				helpers.AppLogger.Warnf("[目录上传] 规则 %d polling baseline 建立失败，后续 polling 将重试：%v", rule.ID, err)
+			}
+		}
+	} else if rule.StartupScanEnabled {
+		service.EnqueueScan(ruleCtx, rule, rule.MonitorPath)
+	}
 
 	var wg sync.WaitGroup
 	if runtime.Mode == RuleRuntimeModePolling {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			service.runPollingLoop(ruleCtx, rule)
+			service.runPollingLoop(ruleCtx, runtime, rule)
 		}()
 	}
 	wg.Add(1)
@@ -192,7 +238,7 @@ func (service *Service) startRuleWatcher(ctx context.Context, rule *models.Direc
 	return nil, RuleRuntimeModePolling, nil
 }
 
-func (service *Service) runPollingLoop(ctx context.Context, rule *models.DirectoryUploadRule) {
+func (service *Service) runPollingLoop(ctx context.Context, runtime *RuleRuntime, rule *models.DirectoryUploadRule) {
 	interval := service.pollingInterval(rule)
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -201,7 +247,7 @@ func (service *Service) runPollingLoop(ctx context.Context, rule *models.Directo
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			service.EnqueueScan(ctx, rule, rule.MonitorPath)
+			service.enqueuePollingSnapshotScan(ctx, runtime, rule, rule.MonitorPath, pollingSnapshotDiff)
 		}
 	}
 }

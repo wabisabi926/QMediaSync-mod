@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -50,6 +51,335 @@ func TestStartRulePollingFindsNewFiles(t *testing.T) {
 	filePath := filepath.Join(monitorPath, "movie.mkv")
 	writeFileWithMtime(t, filePath, []byte("movie"), time.Now())
 	waitForPendingPath(t, service, rule.ID, filePath)
+}
+
+func TestPollingSnapshotTracksOnlyNewAndChangedFiles(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.WatchMode = models.DirectoryUploadWatchModePolling
+	rule.StartupScanEnabled = false
+
+	service := NewService(ServiceOptions{})
+	runtime := &RuleRuntime{}
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), time.Unix(100, 0))
+	tracked, err := service.scanPollingSnapshot(context.Background(), runtime, rule, monitorPath, pollingSnapshotDiff)
+	if err != nil {
+		t.Fatalf("执行 polling 快照扫描失败: %v", err)
+	}
+	if tracked != 1 {
+		t.Fatalf("tracked=%d，期望首次发现文件入队", tracked)
+	}
+	waitForPendingPath(t, service, rule.ID, filePath)
+
+	removePendingPathForTest(t, service, rule.ID, filePath)
+	tracked, err = service.scanPollingSnapshot(context.Background(), runtime, rule, monitorPath, pollingSnapshotDiff)
+	if err != nil {
+		t.Fatalf("执行未变化文件 polling 快照扫描失败: %v", err)
+	}
+	if tracked != 0 {
+		t.Fatalf("tracked=%d，期望未变化文件不重复入队", tracked)
+	}
+	assertNoPendingPath(t, service, rule.ID, filePath)
+
+	writeFileWithMtime(t, filePath, []byte("movie changed"), time.Unix(101, 0))
+	tracked, err = service.scanPollingSnapshot(context.Background(), runtime, rule, monitorPath, pollingSnapshotDiff)
+	if err != nil {
+		t.Fatalf("执行变化文件 polling 快照扫描失败: %v", err)
+	}
+	if tracked != 1 {
+		t.Fatalf("tracked=%d，期望 fingerprint 变化后重新入队", tracked)
+	}
+	waitForPendingPath(t, service, rule.ID, filePath)
+}
+
+func TestPollingSnapshotBuildsBaselineWhenStartupScanDisabled(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), time.Unix(200, 0))
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.WatchMode = models.DirectoryUploadWatchModePolling
+	rule.StartupScanEnabled = false
+
+	service := NewService(ServiceOptions{
+		PollInterval:           time.Hour,
+		StabilityCheckInterval: time.Hour,
+	})
+	runtime, err := service.StartRule(context.Background(), rule)
+	if err != nil {
+		t.Fatalf("启动 polling 目录监控规则失败: %v", err)
+	}
+	defer runtime.Stop()
+
+	assertNoPendingPath(t, service, rule.ID, filePath)
+
+	writeFileWithMtime(t, filePath, []byte("movie changed"), time.Unix(201, 0))
+	tracked, err := service.scanPollingSnapshot(context.Background(), runtime, rule, monitorPath, pollingSnapshotDiff)
+	if err != nil {
+		t.Fatalf("执行 baseline 后 polling 快照扫描失败: %v", err)
+	}
+	if tracked != 1 {
+		t.Fatalf("tracked=%d，期望 baseline 后文件变化入队", tracked)
+	}
+	waitForPendingPath(t, service, rule.ID, filePath)
+}
+
+func TestPollingSnapshotStartupScanDoesNotRepeatSameFingerprint(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), time.Unix(300, 0))
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.WatchMode = models.DirectoryUploadWatchModePolling
+	rule.StartupScanEnabled = true
+
+	service := NewService(ServiceOptions{
+		PollInterval:           time.Hour,
+		StabilityCheckInterval: time.Hour,
+	})
+	runtime, err := service.StartRule(context.Background(), rule)
+	if err != nil {
+		t.Fatalf("启动 polling 目录监控规则失败: %v", err)
+	}
+	defer runtime.Stop()
+
+	waitForPendingPath(t, service, rule.ID, filePath)
+	removePendingPathForTest(t, service, rule.ID, filePath)
+	tracked, err := service.scanPollingSnapshot(context.Background(), runtime, rule, monitorPath, pollingSnapshotDiff)
+	if err != nil {
+		t.Fatalf("执行启动扫描后的 polling 快照扫描失败: %v", err)
+	}
+	if tracked != 0 {
+		t.Fatalf("tracked=%d，期望启动扫描初始化 snapshot 后不重复入队", tracked)
+	}
+	assertNoPendingPath(t, service, rule.ID, filePath)
+
+	writeFileWithMtime(t, filePath, []byte("movie changed"), time.Unix(301, 0))
+	tracked, err = service.scanPollingSnapshot(context.Background(), runtime, rule, monitorPath, pollingSnapshotDiff)
+	if err != nil {
+		t.Fatalf("执行启动扫描后的变化文件 polling 快照扫描失败: %v", err)
+	}
+	if tracked != 1 {
+		t.Fatalf("tracked=%d，期望启动扫描后 fingerprint 变化重新入队", tracked)
+	}
+	waitForPendingPath(t, service, rule.ID, filePath)
+}
+
+func TestPollingSnapshotPartialErrorTracksDiscoveredChangesWithoutReplacingSnapshot(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie changed"), time.Unix(400, 0))
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.WatchMode = models.DirectoryUploadWatchModePolling
+
+	runtime := &RuleRuntime{}
+	runtime.replaceSnapshot(map[string]string{
+		"movie.mkv": "v1:5:399000000000",
+		"old.mkv":   "v1:3:398000000000",
+	})
+	service := NewService(ServiceOptions{})
+	result := scanResult{
+		Accepted: 1,
+		Snapshot: map[string]string{
+			"movie.mkv": models.BuildDirectoryUploadSourceFingerprint(int64(len("movie changed")), time.Unix(400, 0).UnixNano()),
+		},
+	}
+
+	tracked := service.applyPollingSnapshotResult(runtime, rule, result, pollingSnapshotDiff, false)
+
+	if tracked != 1 {
+		t.Fatalf("tracked=%d，期望部分扫描错误时仍提交已发现的变化文件", tracked)
+	}
+	waitForPendingPath(t, service, rule.ID, filePath)
+	snapshot := runtime.snapshot()
+	if _, ok := snapshot["old.mkv"]; !ok {
+		t.Fatalf("部分扫描错误不应整体替换 snapshot，got=%v", snapshot)
+	}
+}
+
+func TestPollingSnapshotSkipsUnsafeRelativePath(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.WatchMode = models.DirectoryUploadWatchModePolling
+	service := NewService(ServiceOptions{})
+	runtime := &RuleRuntime{}
+	result := scanResult{
+		Accepted: 1,
+		Snapshot: map[string]string{
+			"../outside.mkv": models.BuildDirectoryUploadSourceFingerprint(1, time.Unix(410, 0).UnixNano()),
+		},
+	}
+
+	tracked := service.applyPollingSnapshotResult(runtime, rule, result, pollingSnapshotDiff, true)
+
+	if tracked != 0 {
+		t.Fatalf("tracked=%d，期望跳过越界 relative_path", tracked)
+	}
+	if got := service.PendingPaths(rule.ID); len(got) != 0 {
+		t.Fatalf("越界 relative_path 不应加入稳定性队列，got=%v", got)
+	}
+	if snapshot := runtime.snapshot(); len(snapshot) != 0 {
+		t.Fatalf("越界 relative_path 不应写入 polling snapshot，got=%v", snapshot)
+	}
+}
+
+func TestLocalPathFromSnapshotRelPreservesBackslashFilenameOnPOSIX(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows 使用反斜杠作为路径分隔符，POSIX 合法反斜杠文件名场景不适用")
+	}
+	monitorPath := t.TempDir()
+	tests := []struct {
+		name          string
+		rel           string
+		wantCleanRel  string
+		wantLocalPath string
+	}{
+		{
+			name:          "文件名中包含反斜杠",
+			rel:           "movie\\part.mkv",
+			wantCleanRel:  "movie\\part.mkv",
+			wantLocalPath: filepath.Join(monitorPath, "movie\\part.mkv"),
+		},
+		{
+			name:          "文件名以反斜杠开头",
+			rel:           "\\leading.mkv",
+			wantCleanRel:  "\\leading.mkv",
+			wantLocalPath: filepath.Join(monitorPath, "\\leading.mkv"),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cleanRel, localPath, ok := localPathFromSnapshotRel(monitorPath, tt.rel)
+			if !ok {
+				t.Fatalf("rel=%q 应恢复为监控目录内合法文件路径", tt.rel)
+			}
+			if cleanRel != tt.wantCleanRel {
+				t.Fatalf("cleanRel=%q，期望保留反斜杠文件名 %q", cleanRel, tt.wantCleanRel)
+			}
+			if localPath != tt.wantLocalPath {
+				t.Fatalf("localPath=%q，期望 %q", localPath, tt.wantLocalPath)
+			}
+		})
+	}
+}
+
+func TestPollingSnapshotTracksSymlinkTargetFingerprintChange(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows 下 symlink 权限和路径分隔符语义不同，跳过 POSIX symlink fingerprint 回归测试")
+	}
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	targetPath := filepath.Join(t.TempDir(), "target.mkv")
+	linkPath := filepath.Join(monitorPath, "linked.mkv")
+	writeFileWithMtime(t, targetPath, []byte("target"), time.Unix(430, 0))
+	if err := os.Symlink(targetPath, linkPath); err != nil {
+		t.Skipf("当前平台不支持创建 symlink: %v", err)
+	}
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.WatchMode = models.DirectoryUploadWatchModePolling
+
+	service := NewService(ServiceOptions{})
+	runtime := &RuleRuntime{}
+	tracked, err := service.scanPollingSnapshot(context.Background(), runtime, rule, monitorPath, pollingSnapshotDiff)
+	if err != nil {
+		t.Fatalf("执行 symlink polling 快照扫描失败: %v", err)
+	}
+	if tracked != 1 {
+		t.Fatalf("tracked=%d，期望首次发现 symlink 入队", tracked)
+	}
+	waitForPendingPath(t, service, rule.ID, linkPath)
+
+	removePendingPathForTest(t, service, rule.ID, linkPath)
+	writeFileWithMtime(t, targetPath, []byte("target changed"), time.Unix(431, 0))
+	tracked, err = service.scanPollingSnapshot(context.Background(), runtime, rule, monitorPath, pollingSnapshotDiff)
+	if err != nil {
+		t.Fatalf("执行 symlink 目标变化后的 polling 快照扫描失败: %v", err)
+	}
+	if tracked != 1 {
+		t.Fatalf("tracked=%d，期望 symlink 目标 fingerprint 变化后重新入队", tracked)
+	}
+	waitForPendingPath(t, service, rule.ID, linkPath)
+}
+
+func TestScanRootWithSnapshotKeepsPartialResultWhenWalkDirFails(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "a.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), time.Unix(420, 0))
+	errorDir := filepath.Join(monitorPath, "zzz")
+	if err := os.Mkdir(errorDir, 0o755); err != nil {
+		t.Fatalf("创建错误触发目录失败: %v", err)
+	}
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	service := NewService(ServiceOptions{})
+	replacedDir := false
+
+	result, err := service.scanRootWithSnapshotAndTrack(context.Background(), rule, monitorPath, func(rel string, _ string, _ string) {
+		if rel != "a.mkv" || replacedDir {
+			return
+		}
+		replacedDir = true
+		if removeErr := os.Remove(errorDir); removeErr != nil {
+			t.Fatalf("删除错误触发目录失败: %v", removeErr)
+		}
+		if writeErr := os.WriteFile(errorDir, []byte("not a directory"), 0o644); writeErr != nil {
+			t.Fatalf("写入错误触发文件失败: %v", writeErr)
+		}
+	})
+
+	if err == nil {
+		t.Fatal("期望 WalkDir 中途错误返回错误")
+	}
+	if result.Accepted != 1 {
+		t.Fatalf("accepted=%d，期望保留错误前已发现文件", result.Accepted)
+	}
+	if _, ok := result.Snapshot["a.mkv"]; !ok {
+		t.Fatalf("partial snapshot 未包含错误前已发现文件，got=%v", result.Snapshot)
+	}
+}
+
+func TestStartRulePollingBaselineFailureDoesNotBlockStartup(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := filepath.Join(t.TempDir(), "missing")
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.WatchMode = models.DirectoryUploadWatchModePolling
+	rule.StartupScanEnabled = false
+
+	service := NewService(ServiceOptions{
+		PollInterval:           time.Hour,
+		StabilityCheckInterval: time.Hour,
+	})
+	runtime, err := service.StartRule(context.Background(), rule)
+	if err != nil {
+		t.Fatalf("polling baseline 建立失败不应阻止规则启动: %v", err)
+	}
+	defer runtime.Stop()
+	if runtime.Mode != RuleRuntimeModePolling {
+		t.Fatalf("runtime mode=%s，期望 polling", runtime.Mode)
+	}
+}
+
+func TestStartRulePollingBaselineCanceledContextReturnsError(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.WatchMode = models.DirectoryUploadWatchModePolling
+	rule.StartupScanEnabled = false
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	service := NewService(ServiceOptions{})
+	runtime, err := service.StartRule(ctx, rule)
+	if runtime != nil {
+		runtime.Stop()
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("baseline ctx 取消应返回 context.Canceled，got=%v", err)
+	}
 }
 
 func TestScanSubtreeEnqueueMergesSameRuleAndRoot(t *testing.T) {
@@ -297,6 +627,26 @@ func waitForPendingPath(t *testing.T, service *Service, ruleID uint, filePath st
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("等待 pending path 超时: %s, got=%v", filePath, service.PendingPaths(ruleID))
+}
+
+func removePendingPathForTest(t *testing.T, service *Service, ruleID uint, filePath string) {
+	t.Helper()
+	if service == nil || service.queue == nil {
+		t.Fatal("目录上传服务稳定性队列为空")
+	}
+	service.queue.mutex.Lock()
+	defer service.queue.mutex.Unlock()
+
+	delete(service.queue.candidates[ruleID], filePath)
+}
+
+func assertNoPendingPath(t *testing.T, service *Service, ruleID uint, filePath string) {
+	t.Helper()
+	for _, pending := range service.PendingPaths(ruleID) {
+		if pending == filePath {
+			t.Fatalf("文件不应在稳定性队列中: %s, got=%v", filePath, service.PendingPaths(ruleID))
+		}
+	}
 }
 
 func waitForProcessedCount(t *testing.T, want int64) {

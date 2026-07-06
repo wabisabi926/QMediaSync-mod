@@ -37,7 +37,7 @@ OSS `CompleteMultipartUpload` 完成后，必须带回 115 init 返回的 `callb
 
 目录监控发现文件后，会先进入稳定性队列。稳定性签名为版本化源文件 fingerprint，格式为 `v1:size:mtime_ns`；签名只包含文件大小和纳秒级 mtime，不包含 ctime、inode 或文件内容 hash。签名变化会重置稳定计数。稳定性检查间隔为内置 2 秒，文件需要在内置 15 秒稳定窗口内保持签名不变，并连续 3 次检查不变后，才会创建上传任务。这些稳定性参数不提供页面或接口配置。
 
-同一规则处理范围下，`source_key` 和 `source_fingerprint` 会对已确认终态的源文件按 `processed_cache_ttl_seconds` 做内存 TTL 减噪，避免 create / write 多事件重复查询终态账本。`source_key` 包含监控目录和远端上传根目录等范围信息，因此同一规则修改监控或远端范围后，不会命中旧范围缓存。未命中终态缓存时会查询 `directory_upload_processed_files` 持久化账本：`uploaded`、`remote_exists`、`skipped_existing` 视为终态，源文件 fingerprint 未变化时直接跳过；`queued` 会结合关联上传任务是否仍为 `pending` / `uploading` 判断，不通过内存缓存绕过 DB 活跃状态检查；`failed` 不作为终态，后续扫描允许重试。创建上传任务前还会按 `source=directory_monitor + local_full_path + pending/uploading` 查询数据库；已有未完成任务时会跳过重复入队，覆盖服务重启、轮询重复发现和大文件长时间上传场景。TTL 过期后，如果同一路径文件 fingerprint 变化，会更新账本并重新创建上传任务。
+同一规则下，已确认终态的源文件会按 `processed_cache_ttl_seconds` 做内存 TTL 减噪，key 使用规则 ID、相对路径和 `source_fingerprint`，避免 create / write 多事件重复查询终态账本。内存层只用于减少相邻事件噪声，不作为正确性来源；强制重扫会绕过内存终态缓存和持久化终态记录。未命中终态缓存时会查询 `directory_upload_processed_files` 持久化账本：持久化 `source_key` 包含监控目录和远端上传根目录等范围信息；`uploaded`、`remote_exists`、`skipped_existing` 视为终态，源文件 fingerprint 未变化时直接跳过；`queued` 会结合关联上传任务是否仍为 `pending` / `uploading` 判断，不通过内存缓存绕过 DB 活跃状态检查；`failed` 不作为终态，后续扫描允许重试。创建上传任务前还会按 `source=directory_monitor + local_full_path + pending/uploading` 查询数据库；已有未完成任务时会跳过重复入队，覆盖服务重启、轮询重复发现、强制重扫和大文件长时间上传场景。TTL 过期后，如果同一路径文件 fingerprint 变化，会更新账本并重新创建上传任务。
 
 目录上传服务启动时会立即清理一次 processed 账本，运行期间默认每 24 小时清理一次。`queued` 记录在关联上传任务不存在或已结束时可清理；`failed` 和成功终态记录需要超过默认 30 天阈值，其中成功终态还必须确认本地源文件已不存在。
 

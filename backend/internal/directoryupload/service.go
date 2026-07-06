@@ -45,6 +45,13 @@ type RemoteClient interface {
 
 var errStableFileNoRetry = errors.New("稳定文件不再重试")
 
+// HandleStableFileOptions 是处理稳定文件的内部选项。
+type HandleStableFileOptions struct {
+	Force bool
+}
+
+type handleStableFileOptions = HandleStableFileOptions
+
 // ServiceOptions 是目录监控上传服务依赖。
 type ServiceOptions struct {
 	Now                       func() time.Time
@@ -241,6 +248,10 @@ func (service *Service) ScanRule(ctx context.Context, rule *models.DirectoryUplo
 
 // HandleStableFile 为已稳定的本地文件创建上传任务。
 func (service *Service) HandleStableFile(ctx context.Context, rule *models.DirectoryUploadRule, filePath string) error {
+	return service.handleStableFile(ctx, rule, filePath, handleStableFileOptions{})
+}
+
+func (service *Service) handleStableFile(ctx context.Context, rule *models.DirectoryUploadRule, filePath string, options handleStableFileOptions) error {
 	if service == nil {
 		service = NewService(ServiceOptions{})
 	}
@@ -269,7 +280,7 @@ func (service *Service) HandleStableFile(ctx context.Context, rule *models.Direc
 	if err != nil {
 		return err
 	}
-	skipProcessed, sourceState, err := service.shouldSkipProcessedSource(rule, rel, filePath, info)
+	skipProcessed, sourceState, err := service.shouldSkipProcessedSource(rule, rel, filePath, info, options)
 	if err != nil {
 		return err
 	}
@@ -325,7 +336,7 @@ func (service *Service) HandleStableFile(ctx context.Context, rule *models.Direc
 			task.CompletedRemoteFileId = remoteFile.ID
 			task.CompletedPickCode = remoteFile.PickCode
 			task.EndTime = service.now().Unix()
-			created, err := service.createDirectoryUploadTaskWithProcessedClaim(task, rule, rel, filePath, sourceState)
+			created, err := service.createDirectoryUploadTaskWithProcessedClaim(task, rule, rel, filePath, sourceState, options)
 			if err != nil {
 				return err
 			}
@@ -335,7 +346,7 @@ func (service *Service) HandleStableFile(ctx context.Context, rule *models.Direc
 			if err := task.EnqueueStrmGenerationAfterUploadAndMarkDirectoryProcessed(); err != nil {
 				return fmt.Errorf("创建 STRM 生成任务失败：%w", err)
 			}
-			service.markProcessed(rule, sourceState.sourceKey, sourceState.sourceFingerprint)
+			service.markProcessed(rule, rel, sourceState.sourceFingerprint)
 			return nil
 		}
 
@@ -344,7 +355,7 @@ func (service *Service) HandleStableFile(ctx context.Context, rule *models.Direc
 			if err := service.upsertDirectoryUploadProcessed(rule, rel, filePath, sourceState, models.DirectoryUploadProcessedResultSkippedExisting, 0); err != nil {
 				return fmt.Errorf("记录跳过已有远端文件失败：%w", err)
 			}
-			service.markProcessed(rule, sourceState.sourceKey, sourceState.sourceFingerprint)
+			service.markProcessed(rule, rel, sourceState.sourceFingerprint)
 			return nil
 		case models.DirectoryUploadOverwriteFailConflict:
 			if err := service.upsertDirectoryUploadProcessed(rule, rel, filePath, sourceState, models.DirectoryUploadProcessedResultFailed, 0); err != nil {
@@ -360,7 +371,7 @@ func (service *Service) HandleStableFile(ctx context.Context, rule *models.Direc
 		}
 	}
 
-	created, err := service.createDirectoryUploadTaskWithProcessedClaim(task, rule, rel, filePath, sourceState)
+	created, err := service.createDirectoryUploadTaskWithProcessedClaim(task, rule, rel, filePath, sourceState, options)
 	if err != nil {
 		return err
 	}
@@ -370,9 +381,12 @@ func (service *Service) HandleStableFile(ctx context.Context, rule *models.Direc
 	return nil
 }
 
-func (service *Service) shouldSkipProcessedSource(rule *models.DirectoryUploadRule, rel string, filePath string, info os.FileInfo) (bool, processedSourceState, error) {
+func (service *Service) shouldSkipProcessedSource(rule *models.DirectoryUploadRule, rel string, filePath string, info os.FileInfo, options handleStableFileOptions) (bool, processedSourceState, error) {
 	state := buildProcessedSourceState(rule, rel, info)
-	if service.isProcessed(state.sourceKey, state.sourceFingerprint) {
+	if options.Force {
+		return false, state, nil
+	}
+	if service.isProcessed(rule, rel, state.sourceFingerprint) {
 		return true, state, nil
 	}
 
@@ -393,7 +407,7 @@ func (service *Service) shouldSkipProcessedSource(rule *models.DirectoryUploadRu
 		if err := updateDirectoryUploadProcessedLastSeen(record.SourceKey, now); err != nil {
 			return false, state, fmt.Errorf("更新目录监控源文件最后发现时间失败：%w", err)
 		}
-		service.markProcessed(rule, state.sourceKey, state.sourceFingerprint)
+		service.markProcessed(rule, rel, state.sourceFingerprint)
 		return true, state, nil
 	case record.Result == models.DirectoryUploadProcessedResultQueued:
 		active, err := hasActiveDirectoryUploadTask(record.UploadTaskId, filePath)
@@ -454,10 +468,14 @@ func hasActiveDirectoryUploadTaskWithDB(tx *gorm.DB, uploadTaskID uint, filePath
 	return total > 0, nil
 }
 
-func (service *Service) createDirectoryUploadTaskWithProcessedClaim(task *models.DbUploadTask, rule *models.DirectoryUploadRule, rel string, filePath string, state processedSourceState) (bool, error) {
+func (service *Service) createDirectoryUploadTaskWithProcessedClaim(task *models.DbUploadTask, rule *models.DirectoryUploadRule, rel string, filePath string, state processedSourceState, options ...handleStableFileOptions) (bool, error) {
+	var option handleStableFileOptions
+	if len(options) > 0 {
+		option = options[0]
+	}
 	var created bool
 	err := db.Db.Transaction(func(tx *gorm.DB) error {
-		claimed, err := service.claimDirectoryUploadProcessedWithDB(tx, rule, rel, filePath, state)
+		claimed, err := service.claimDirectoryUploadProcessedWithDB(tx, rule, rel, filePath, state, option)
 		if err != nil || !claimed {
 			return err
 		}
@@ -479,7 +497,7 @@ func (service *Service) createDirectoryUploadTaskWithProcessedClaim(task *models
 	return created, nil
 }
 
-func (service *Service) claimDirectoryUploadProcessedWithDB(tx *gorm.DB, rule *models.DirectoryUploadRule, rel string, filePath string, state processedSourceState) (bool, error) {
+func (service *Service) claimDirectoryUploadProcessedWithDB(tx *gorm.DB, rule *models.DirectoryUploadRule, rel string, filePath string, state processedSourceState, options handleStableFileOptions) (bool, error) {
 	claim := service.newDirectoryUploadProcessedRecord(rule, rel, filePath, state, models.DirectoryUploadProcessedResultQueued, 0)
 	insert := tx.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "source_key"}},
@@ -505,6 +523,13 @@ func (service *Service) claimDirectoryUploadProcessedWithDB(tx *gorm.DB, rule *m
 		return false, nil
 	}
 	if existing.Result == models.DirectoryUploadProcessedResultQueued {
+		active, err := hasActiveDirectoryUploadTaskWithDB(tx, existing.UploadTaskId, filePath)
+		if err != nil || active {
+			return false, err
+		}
+		return service.updateDirectoryUploadProcessedClaimWithDB(tx, &existing, claim)
+	}
+	if options.Force {
 		active, err := hasActiveDirectoryUploadTaskWithDB(tx, existing.UploadTaskId, filePath)
 		if err != nil || active {
 			return false, err
@@ -593,8 +618,8 @@ func shouldUploadByRule(rule *models.DirectoryUploadRule, syncPath *models.SyncP
 	return rule != nil && rule.UploadMetadata && syncPath.IsValidMetaExt(name)
 }
 
-func (service *Service) isProcessed(sourceKey string, signature string) bool {
-	key := processedKey(sourceKey, signature)
+func (service *Service) isProcessed(rule *models.DirectoryUploadRule, rel string, signature string) bool {
+	key := processedKey(rule.ID, rel, signature)
 	now := service.now()
 	service.mutex.Lock()
 	defer service.mutex.Unlock()
@@ -609,8 +634,8 @@ func (service *Service) isProcessed(sourceKey string, signature string) bool {
 	return true
 }
 
-func (service *Service) markProcessed(rule *models.DirectoryUploadRule, sourceKey string, signature string) {
-	key := processedKey(sourceKey, signature)
+func (service *Service) markProcessed(rule *models.DirectoryUploadRule, rel string, signature string) {
+	key := processedKey(rule.ID, rel, signature)
 	ttl := time.Duration(rule.ProcessedCacheTTLSeconds) * time.Second
 	if ttl <= 0 {
 		ttl = 10 * time.Minute
@@ -620,8 +645,8 @@ func (service *Service) markProcessed(rule *models.DirectoryUploadRule, sourceKe
 	service.processed[key] = processedFile{expiresAt: service.now().Add(ttl)}
 }
 
-func processedKey(sourceKey string, signature string) string {
-	return fmt.Sprintf("%s:%s", sourceKey, signature)
+func processedKey(ruleID uint, rel string, sourceFingerprint string) string {
+	return fmt.Sprintf("%d:%s:%s", ruleID, filepath.ToSlash(strings.ReplaceAll(rel, "\\", "/")), sourceFingerprint)
 }
 
 func cleanupInitialStatus(rule *models.DirectoryUploadRule) models.UploadSourceCleanupStatus {

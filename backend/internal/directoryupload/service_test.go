@@ -680,7 +680,7 @@ func TestHandleStableFileProcessesAgainWhenSourceFingerprintChanges(t *testing.T
 	}
 }
 
-func TestHandleStableFileScopeChangeBypassesOldTerminalMemoryCache(t *testing.T) {
+func TestHandleStableFileScopeChangeUsesRelativeMemoryCacheUntilForce(t *testing.T) {
 	setupDirectoryUploadServiceTestDB(t)
 	clock := &fakeClock{now: time.Unix(332, 0)}
 	monitorPath := t.TempDir()
@@ -728,10 +728,17 @@ func TestHandleStableFileScopeChangeBypassesOldTerminalMemoryCache(t *testing.T)
 	if err := service.HandleStableFile(context.Background(), rule, filePath); err != nil {
 		t.Fatalf("范围变更后处理稳定文件失败: %v", err)
 	}
+	if remote.ensureDirCalls != 0 || remote.findFileCalls != 0 {
+		t.Fatalf("范围变更后普通处理应命中 relative memory cache，ensure=%d find=%d", remote.ensureDirCalls, remote.findFileCalls)
+	}
+
+	if err := service.handleStableFile(context.Background(), rule, filePath, HandleStableFileOptions{Force: true}); err != nil {
+		t.Fatalf("强制重扫范围变更后的稳定文件失败: %v", err)
+	}
 
 	var task models.DbUploadTask
 	if err := db.Db.Where("source = ? AND local_full_path = ?", models.UploadSourceDirectoryMonitor, filePath).First(&task).Error; err != nil {
-		t.Fatalf("范围变更后应创建新上传任务: %v", err)
+		t.Fatalf("强制重扫范围变更后应创建新上传任务: %v", err)
 	}
 	if task.RemoteFileId != "/remote/new/movie.mkv" {
 		t.Fatalf("新上传任务 remote_file_id = %q，期望使用新远端范围", task.RemoteFileId)
@@ -927,6 +934,129 @@ func TestServiceSkipsStableFileWhenActiveUploadTaskExists(t *testing.T) {
 			}
 			if total != 1 {
 				t.Fatalf("上传任务数量 = %d，期望跳过重复入队保持 1 条", total)
+			}
+		})
+	}
+}
+
+func TestProcessedKeyUsesRuleRelativePathAndFingerprint(t *testing.T) {
+	fingerprint := "v1:123:456789"
+
+	got := processedKey(42, "dir\\movie.mkv", fingerprint)
+	want := "42:dir/movie.mkv:v1:123:456789"
+	if got != want {
+		t.Fatalf("processedKey() = %q，期望 %q", got, want)
+	}
+
+	gotSlash := processedKey(42, "dir/movie.mkv", fingerprint)
+	if gotSlash != got {
+		t.Fatalf("processedKey() 未归一化相对路径分隔符，backslash=%q slash=%q", got, gotSlash)
+	}
+
+	if otherRule := processedKey(43, "dir/movie.mkv", fingerprint); otherRule == got {
+		t.Fatalf("processedKey() 不应在不同规则间复用 key: %q", otherRule)
+	}
+	if otherFingerprint := processedKey(42, "dir/movie.mkv", "v1:123:999"); otherFingerprint == got {
+		t.Fatalf("processedKey() 不应在不同 source fingerprint 间复用 key: %q", otherFingerprint)
+	}
+}
+
+func TestHandleStableFileForceBypassesTerminalProcessedCache(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	clock := &fakeClock{now: time.Unix(360, 0)}
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), clock.Now())
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+
+	service := NewService(ServiceOptions{Now: clock.Now})
+	service.SetRemoteClient(&fakeRemoteClient{parentID: "remote-root"})
+	if err := service.HandleStableFile(context.Background(), rule, filePath); err != nil {
+		t.Fatalf("首次处理稳定文件失败: %v", err)
+	}
+	var firstTask models.DbUploadTask
+	if err := db.Db.Where("local_full_path = ?", filePath).First(&firstTask).Error; err != nil {
+		t.Fatalf("读取首次上传任务失败: %v", err)
+	}
+	if err := db.Db.Model(&models.DbUploadTask{}).
+		Where("id = ?", firstTask.ID).
+		Update("status", models.UploadStatusCompleted).Error; err != nil {
+		t.Fatalf("标记首次上传任务完成失败: %v", err)
+	}
+	if err := models.MarkDirectoryUploadProcessedUploaded(firstTask.ID, models.DirectoryUploadProcessedResultUploaded); err != nil {
+		t.Fatalf("标记 processed 上传完成失败: %v", err)
+	}
+	service.markProcessed(rule, "movie.mkv", firstTask.SourceFingerprint)
+
+	clock.Add(time.Minute)
+	if err := service.handleStableFile(context.Background(), rule, filePath, HandleStableFileOptions{Force: true}); err != nil {
+		t.Fatalf("强制重扫已完成源文件失败: %v", err)
+	}
+
+	var tasks []models.DbUploadTask
+	if err := db.Db.Where("source = ? AND local_full_path = ?", models.UploadSourceDirectoryMonitor, filePath).
+		Order("id ASC").
+		Find(&tasks).Error; err != nil {
+		t.Fatalf("读取上传任务失败: %v", err)
+	}
+	if len(tasks) != 2 {
+		t.Fatalf("上传任务数量 = %d，期望强制重扫再次创建任务: %+v", len(tasks), tasks)
+	}
+	if tasks[1].Status != models.UploadStatusPending {
+		t.Fatalf("强制重扫创建的任务状态 = %s，期望 pending", tasks[1].Status.String())
+	}
+}
+
+func TestHandleStableFileForceKeepsActiveTaskDedup(t *testing.T) {
+	cases := []struct {
+		name   string
+		status models.UploadStatus
+	}{
+		{name: "已有等待任务", status: models.UploadStatusPending},
+		{name: "已有上传中任务", status: models.UploadStatusUploading},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			setupDirectoryUploadServiceTestDB(t)
+			monitorPath := t.TempDir()
+			filePath := filepath.Join(monitorPath, "movie.mkv")
+			writeFileWithMtime(t, filePath, []byte("movie"), time.Unix(370, 0))
+			_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+			existing := &models.DbUploadTask{
+				Source:        models.UploadSourceDirectoryMonitor,
+				AccountId:     rule.AccountId,
+				SyncPathId:    rule.SyncPathId,
+				SourceType:    models.SourceType115,
+				LocalFullPath: filePath,
+				RemoteFileId:  "/remote/movie.mkv",
+				FileName:      "movie.mkv",
+				Status:        tt.status,
+				FileSize:      int64(len("movie")),
+				UploadResult:  models.UploadResultUnknown,
+			}
+			if err := db.Db.Create(existing).Error; err != nil {
+				t.Fatalf("创建已有上传任务失败: %v", err)
+			}
+
+			remote := &fakeRemoteClient{parentID: "remote-root"}
+			service := NewService(ServiceOptions{})
+			service.SetRemoteClient(remote)
+			if err := service.handleStableFile(context.Background(), rule, filePath, HandleStableFileOptions{Force: true}); err != nil {
+				t.Fatalf("强制重扫已有活跃任务的稳定文件失败: %v", err)
+			}
+
+			var total int64
+			if err := db.Db.Model(&models.DbUploadTask{}).
+				Where("source = ? AND local_full_path = ?", models.UploadSourceDirectoryMonitor, filePath).
+				Count(&total).Error; err != nil {
+				t.Fatalf("统计上传任务失败: %v", err)
+			}
+			if total != 1 {
+				t.Fatalf("上传任务数量 = %d，期望强制重扫仍跳过活跃任务", total)
+			}
+			if remote.ensureDirCalls != 0 || remote.findFileCalls != 0 {
+				t.Fatalf("远端调用 ensure=%d find=%d，期望活跃任务检查在远端访问前拦截", remote.ensureDirCalls, remote.findFileCalls)
 			}
 		})
 	}

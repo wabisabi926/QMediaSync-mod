@@ -20,6 +20,11 @@ const (
 	RuleRuntimeModePolling RuleRuntimeMode = "polling"
 )
 
+const (
+	defaultProcessedCleanupInterval  = 24 * time.Hour
+	defaultProcessedMissingSourceTTL = 30 * 24 * time.Hour
+)
+
 // RuleWatcher 是单条目录监控规则的事件监听器。
 type RuleWatcher interface {
 	Start(ctx context.Context) error
@@ -67,6 +72,7 @@ func (service *Service) Start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	service.startProcessedCleanup(ctx)
 	for _, rule := range rules {
 		runtime, err := service.StartRule(ctx, rule)
 		if err != nil {
@@ -88,7 +94,17 @@ func (service *Service) Stop() {
 	service.mutex.Lock()
 	runtimes := append([]*RuleRuntime(nil), service.runtimes...)
 	service.runtimes = nil
+	cleanupCancel := service.cleanupCancel
+	cleanupDone := service.cleanupDone
+	service.cleanupCancel = nil
+	service.cleanupDone = nil
 	service.mutex.Unlock()
+	if cleanupCancel != nil {
+		cleanupCancel()
+	}
+	if cleanupDone != nil {
+		<-cleanupDone
+	}
 	for _, runtime := range runtimes {
 		runtime.Stop()
 	}
@@ -226,6 +242,61 @@ func (service *Service) processStableFiles(ctx context.Context, rule *models.Dir
 
 func shouldRequeueStableFile(err error) bool {
 	return err != nil && !errors.Is(err, errStableFileNoRetry) && !errors.Is(err, os.ErrNotExist)
+}
+
+func (service *Service) startProcessedCleanup(ctx context.Context) {
+	service.cleanupProcessedOnce()
+
+	cleanupCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	service.mutex.Lock()
+	if service.cleanupCancel != nil {
+		service.mutex.Unlock()
+		cancel()
+		return
+	}
+	service.cleanupCancel = cancel
+	service.cleanupDone = done
+	service.mutex.Unlock()
+
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(service.processedCleanupInterval())
+		defer ticker.Stop()
+		for {
+			select {
+			case <-cleanupCtx.Done():
+				return
+			case <-ticker.C:
+				service.cleanupProcessedOnce()
+			}
+		}
+	}()
+}
+
+func (service *Service) cleanupProcessedOnce() {
+	deleted, err := models.CleanupDirectoryUploadProcessedFiles(service.now(), service.processedMissingSourceTTL())
+	if err != nil {
+		helpers.AppLogger.Warnf("[目录上传] 清理 processed 账本失败：%v", err)
+		return
+	}
+	if deleted > 0 {
+		helpers.AppLogger.Infof("[目录上传] 清理 processed 账本记录 %d 条", deleted)
+	}
+}
+
+func (service *Service) processedCleanupInterval() time.Duration {
+	if service.cleanupInterval > 0 {
+		return service.cleanupInterval
+	}
+	return defaultProcessedCleanupInterval
+}
+
+func (service *Service) processedMissingSourceTTL() time.Duration {
+	if service.missingSourceTTL > 0 {
+		return service.missingSourceTTL
+	}
+	return defaultProcessedMissingSourceTTL
 }
 
 func (service *Service) pollingInterval(_ *models.DirectoryUploadRule) time.Duration {

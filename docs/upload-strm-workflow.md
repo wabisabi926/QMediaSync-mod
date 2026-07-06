@@ -37,13 +37,15 @@ OSS `CompleteMultipartUpload` 完成后，必须带回 115 init 返回的 `callb
 
 目录监控发现文件后，会先进入稳定性队列。稳定性签名为版本化源文件 fingerprint，格式为 `v1:size:mtime_ns`；签名只包含文件大小和纳秒级 mtime，不包含 ctime、inode 或文件内容 hash。签名变化会重置稳定计数。稳定性检查间隔为内置 2 秒，文件需要在内置 15 秒稳定窗口内保持签名不变，并连续 3 次检查不变后，才会创建上传任务。这些稳定性参数不提供页面或接口配置。
 
-同一规则下，监控规则、相对路径和 `source_fingerprint` 会按 `processed_cache_ttl_seconds` 做内存 TTL 去重，避免 create / write 多事件重复创建任务。TTL 过期且文件 fingerprint 变化后允许再次处理。创建上传任务前还会按 `source=directory_monitor + local_full_path + pending/uploading` 查询数据库；已有未完成任务时会跳过重复入队，覆盖服务重启、轮询重复发现和大文件长时间上传场景。
+同一规则处理范围下，`source_key` 和 `source_fingerprint` 会对已确认终态的源文件按 `processed_cache_ttl_seconds` 做内存 TTL 减噪，避免 create / write 多事件重复查询终态账本。`source_key` 包含监控目录和远端上传根目录等范围信息，因此同一规则修改监控或远端范围后，不会命中旧范围缓存。未命中终态缓存时会查询 `directory_upload_processed_files` 持久化账本：`uploaded`、`remote_exists`、`skipped_existing` 视为终态，源文件 fingerprint 未变化时直接跳过；`queued` 会结合关联上传任务是否仍为 `pending` / `uploading` 判断，不通过内存缓存绕过 DB 活跃状态检查；`failed` 不作为终态，后续扫描允许重试。创建上传任务前还会按 `source=directory_monitor + local_full_path + pending/uploading` 查询数据库；已有未完成任务时会跳过重复入队，覆盖服务重启、轮询重复发现和大文件长时间上传场景。TTL 过期后，如果同一路径文件 fingerprint 变化，会更新账本并重新创建上传任务。
+
+目录上传服务启动时会立即清理一次 processed 账本，运行期间默认每 24 小时清理一次。`queued` 记录在关联上传任务不存在或已结束时可清理；`failed` 和成功终态记录需要超过默认 30 天阈值，其中成功终态还必须确认本地源文件已不存在。
 
 默认忽略隐藏文件、`.part`、`.tmp`、`.download` 文件，以及规则中的 `ignore_patterns`。规则列表接口会把持久化的忽略规则解析为 `ignore_patterns` 数组返回，避免页面保存其他目录监控配置时丢失已有忽略规则。
 
 ## 上传任务和远端已存在
 
-目录监控上传只创建 `db_upload_tasks.source = directory_monitor` 的上传任务，真实上传仍由全局上传队列执行。任务会写入 `sync_path_id`、`relative_path`、`source_fingerprint`、`local_mtime_ns`、`remote_file_id` 和 `remote_path_id`，其中 `source_fingerprint` 使用 `v1:size:mtime_ns`。因此任务会出现在上传队列页面。
+目录监控上传只创建 `db_upload_tasks.source = directory_monitor` 的上传任务，真实上传仍由全局上传队列执行。任务会写入 `sync_path_id`、`relative_path`、`source_fingerprint`、`local_mtime_ns`、`remote_file_id` 和 `remote_path_id`，其中 `source_fingerprint` 使用 `v1:size:mtime_ns`。同时会写入 `directory_upload_processed_files`：待上传任务记录为 `queued`，上传完成并保存上传任务最终结果后按 `upload_result` 更新为 `uploaded` 或 `remote_exists`，不依赖后续 STRM 入队是否成功；`skipped_after_rapid_wait` 不写入终态。远端同名且内容一致时记录为 `remote_exists`，按 `skip_same` 跳过远端冲突时记录为 `skipped_existing`。因此任务会出现在上传队列页面。
 
 创建任务前会检查远端同目录同名文件。只有远端文件大小和 SHA1 都与本地文件一致时，才把上传任务直接标记为 `completed`，`upload_result = remote_exists`，并创建后续 STRM 生成任务。该行为是远端已存在跳过，不是断点续传。
 

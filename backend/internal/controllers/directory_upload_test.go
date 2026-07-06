@@ -33,6 +33,7 @@ func setupDirectoryUploadControllerTest(t *testing.T) (*gin.Engine, *models.Sync
 		&models.Account{},
 		&models.SyncPath{},
 		&models.DirectoryUploadRule{},
+		&models.DirectoryUploadProcessedFile{},
 	); err != nil {
 		t.Fatalf("迁移测试表失败: %v", err)
 	}

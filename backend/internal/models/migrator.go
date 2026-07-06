@@ -18,12 +18,12 @@ type Migrator struct {
 	VersionCode int `json:"version_code"` // 版本号
 }
 
-var MaxVersionCode = 56
+var MaxVersionCode = 57
 var AllTables = []any{
 	Migrator{},
 	BackupConfig{}, BackupRecord{},
 	ApiKey{}, UserSession{}, Settings{}, Sync{}, User{}, Account{},
-	SyncPath{}, SyncFile{}, SyncPathScrapePath{}, DirectoryUploadRule{},
+	SyncPath{}, SyncFile{}, SyncPathScrapePath{}, DirectoryUploadRule{}, DirectoryUploadProcessedFile{},
 	ScrapeSettings{}, ScrapePath{}, MovieCategory{}, TvShowCategory{}, ScrapePathCategory{},
 	ScrapeMediaFile{}, Media{}, MediaSeason{}, MediaEpisode{}, ScrapeStrmPath{},
 	RequestStat{}, EmbyConfig{}, EmbyMediaItem{}, EmbyMediaSyncFile{}, EmbyLibrary{}, EmbyLibrarySyncPath{}, EmbyLibraryRefreshTask{},
@@ -625,6 +625,14 @@ func Migrate() {
 			return
 		}
 		helpers.AppLogger.Info("已添加 STRM Webhook 任务刷新与元数据字段")
+		migrator.UpdateVersionCode(db.Db)
+	}
+	if migrator.VersionCode == 56 {
+		if err := db.Db.AutoMigrate(DirectoryUploadProcessedFile{}, DbUploadTask{}); err != nil {
+			helpers.AppLogger.Errorf("迁移目录监控源文件处理记录失败：%v", err)
+			return
+		}
+		helpers.AppLogger.Info("已添加目录监控源文件处理记录表")
 		migrator.UpdateVersionCode(db.Db)
 	}
 	helpers.AppLogger.Infof("当前数据库版本 %d", migrator.VersionCode)

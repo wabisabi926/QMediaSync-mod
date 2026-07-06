@@ -12,9 +12,13 @@ import (
 	"sync"
 	"time"
 
+	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
 	"qmediasync/internal/v115open"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // RemoteDirectory 是目录监控上传目标目录。
@@ -43,15 +47,25 @@ var errStableFileNoRetry = errors.New("稳定文件不再重试")
 
 // ServiceOptions 是目录监控上传服务依赖。
 type ServiceOptions struct {
-	Now                    func() time.Time
-	RemoteClient           RemoteClient
-	WatcherFactory         WatcherFactory
-	PollInterval           time.Duration
-	StabilityCheckInterval time.Duration
+	Now                       func() time.Time
+	RemoteClient              RemoteClient
+	WatcherFactory            WatcherFactory
+	PollInterval              time.Duration
+	StabilityCheckInterval    time.Duration
+	ProcessedCleanupInterval  time.Duration
+	ProcessedMissingSourceTTL time.Duration
 }
 
 type processedFile struct {
 	expiresAt time.Time
+}
+
+type processedSourceState struct {
+	scopeHash         string
+	sourceKey         string
+	sourceFingerprint string
+	fileSize          int64
+	mtimeNs           int64
 }
 
 // Service 负责把稳定后的本地文件转换为上传队列任务。
@@ -62,10 +76,14 @@ type Service struct {
 	watcherFactory         WatcherFactory
 	pollInterval           time.Duration
 	stabilityCheckInterval time.Duration
+	cleanupInterval        time.Duration
+	missingSourceTTL       time.Duration
 
-	mutex     sync.Mutex
-	processed map[string]processedFile
-	runtimes  []*RuleRuntime
+	mutex         sync.Mutex
+	processed     map[string]processedFile
+	runtimes      []*RuleRuntime
+	cleanupCancel context.CancelFunc
+	cleanupDone   chan struct{}
 }
 
 // NewService 创建目录监控上传服务。
@@ -81,6 +99,8 @@ func NewService(options ServiceOptions) *Service {
 		watcherFactory:         options.WatcherFactory,
 		pollInterval:           options.PollInterval,
 		stabilityCheckInterval: options.StabilityCheckInterval,
+		cleanupInterval:        options.ProcessedCleanupInterval,
+		missingSourceTTL:       options.ProcessedMissingSourceTTL,
 		processed:              make(map[string]processedFile),
 	}
 }
@@ -249,9 +269,11 @@ func (service *Service) HandleStableFile(ctx context.Context, rule *models.Direc
 	if err != nil {
 		return err
 	}
-	mtimeNs := info.ModTime().UnixNano()
-	sourceFingerprint := models.BuildDirectoryUploadSourceFingerprint(info.Size(), mtimeNs)
-	if service.isProcessed(rule, rel, sourceFingerprint) {
+	skipProcessed, sourceState, err := service.shouldSkipProcessedSource(rule, rel, filePath, info)
+	if err != nil {
+		return err
+	}
+	if skipProcessed {
 		return nil
 	}
 	if !models.CheckCanUploadByLocalPath(models.UploadSourceDirectoryMonitor, filePath) {
@@ -279,14 +301,14 @@ func (service *Service) HandleStableFile(ctx context.Context, rule *models.Direc
 		SourceType:          models.SourceType115,
 		LocalFullPath:       filePath,
 		RelativePath:        filepath.ToSlash(rel),
-		SourceFingerprint:   sourceFingerprint,
+		SourceFingerprint:   sourceState.sourceFingerprint,
 		RemoteFileId:        remoteFilePath,
 		RemotePathId:        remoteDir.ID,
 		FileName:            fileName,
 		Status:              models.UploadStatusPending,
-		FileSize:            info.Size(),
+		FileSize:            sourceState.fileSize,
 		LocalMtime:          info.ModTime().Unix(),
-		LocalMtimeNs:        mtimeNs,
+		LocalMtimeNs:        sourceState.mtimeNs,
 		UploadResult:        models.UploadResultUnknown,
 		SourceCleanupStatus: cleanupInitialStatus(rule),
 	}
@@ -303,21 +325,31 @@ func (service *Service) HandleStableFile(ctx context.Context, rule *models.Direc
 			task.CompletedRemoteFileId = remoteFile.ID
 			task.CompletedPickCode = remoteFile.PickCode
 			task.EndTime = service.now().Unix()
-			if err := models.AddDirectoryMonitorUploadTask(task); err != nil {
-				return fmt.Errorf("创建远端已存在上传任务失败：%w", err)
+			created, err := service.createDirectoryUploadTaskWithProcessedClaim(task, rule, rel, filePath, sourceState)
+			if err != nil {
+				return err
 			}
-			if err := task.EnqueueStrmGenerationAfterUpload(); err != nil {
+			if !created {
+				return nil
+			}
+			if err := task.EnqueueStrmGenerationAfterUploadAndMarkDirectoryProcessed(); err != nil {
 				return fmt.Errorf("创建 STRM 生成任务失败：%w", err)
 			}
-			service.markProcessed(rule, rel, sourceFingerprint)
+			service.markProcessed(rule, sourceState.sourceKey, sourceState.sourceFingerprint)
 			return nil
 		}
 
 		switch rule.OverwriteMode {
 		case "", models.DirectoryUploadOverwriteSkipSame:
-			service.markProcessed(rule, rel, sourceFingerprint)
+			if err := service.upsertDirectoryUploadProcessed(rule, rel, filePath, sourceState, models.DirectoryUploadProcessedResultSkippedExisting, 0); err != nil {
+				return fmt.Errorf("记录跳过已有远端文件失败：%w", err)
+			}
+			service.markProcessed(rule, sourceState.sourceKey, sourceState.sourceFingerprint)
 			return nil
 		case models.DirectoryUploadOverwriteFailConflict:
+			if err := service.upsertDirectoryUploadProcessed(rule, rel, filePath, sourceState, models.DirectoryUploadProcessedResultFailed, 0); err != nil {
+				return fmt.Errorf("记录远端同名冲突失败：%w", err)
+			}
 			return fmt.Errorf("%w：远端已存在同名文件且大小或 SHA1 不一致：%s", errStableFileNoRetry, remoteFilePath)
 		case models.DirectoryUploadOverwriteReplaceConflict:
 			if err := remoteClient.DeleteFile(ctx, remoteDir.ID, remoteFile.ID); err != nil {
@@ -328,11 +360,217 @@ func (service *Service) HandleStableFile(ctx context.Context, rule *models.Direc
 		}
 	}
 
-	if err := models.AddDirectoryMonitorUploadTask(task); err != nil {
-		return fmt.Errorf("创建目录监控上传任务失败：%w", err)
+	created, err := service.createDirectoryUploadTaskWithProcessedClaim(task, rule, rel, filePath, sourceState)
+	if err != nil {
+		return err
 	}
-	service.markProcessed(rule, rel, sourceFingerprint)
+	if !created {
+		return nil
+	}
 	return nil
+}
+
+func (service *Service) shouldSkipProcessedSource(rule *models.DirectoryUploadRule, rel string, filePath string, info os.FileInfo) (bool, processedSourceState, error) {
+	state := buildProcessedSourceState(rule, rel, info)
+	if service.isProcessed(state.sourceKey, state.sourceFingerprint) {
+		return true, state, nil
+	}
+
+	record, err := models.FindDirectoryUploadProcessedBySourceKey(state.sourceKey)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, state, nil
+		}
+		return false, state, fmt.Errorf("查询目录监控源文件处理记录失败：%w", err)
+	}
+	if record.SourceFingerprint != state.sourceFingerprint {
+		return false, state, nil
+	}
+
+	now := service.now().Unix()
+	switch {
+	case models.IsDirectoryUploadProcessedTerminal(record.Result):
+		if err := updateDirectoryUploadProcessedLastSeen(record.SourceKey, now); err != nil {
+			return false, state, fmt.Errorf("更新目录监控源文件最后发现时间失败：%w", err)
+		}
+		service.markProcessed(rule, state.sourceKey, state.sourceFingerprint)
+		return true, state, nil
+	case record.Result == models.DirectoryUploadProcessedResultQueued:
+		active, err := hasActiveDirectoryUploadTask(record.UploadTaskId, filePath)
+		if err != nil {
+			return false, state, fmt.Errorf("检查目录监控源文件上传任务状态失败：%w", err)
+		}
+		if active {
+			if err := updateDirectoryUploadProcessedLastSeen(record.SourceKey, now); err != nil {
+				return false, state, fmt.Errorf("更新目录监控源文件最后发现时间失败：%w", err)
+			}
+			return true, state, nil
+		}
+	}
+
+	return false, state, nil
+}
+
+func buildProcessedSourceState(rule *models.DirectoryUploadRule, rel string, info os.FileInfo) processedSourceState {
+	mtimeNs := info.ModTime().UnixNano()
+	scopeHash := models.BuildDirectoryUploadScopeHash(rule)
+	return processedSourceState{
+		scopeHash:         scopeHash,
+		sourceKey:         models.BuildDirectoryUploadSourceKey(scopeHash, rel),
+		sourceFingerprint: models.BuildDirectoryUploadSourceFingerprint(info.Size(), mtimeNs),
+		fileSize:          info.Size(),
+		mtimeNs:           mtimeNs,
+	}
+}
+
+func updateDirectoryUploadProcessedLastSeen(sourceKey string, lastSeenAt int64) error {
+	return db.Db.Model(&models.DirectoryUploadProcessedFile{}).
+		Where("source_key = ?", sourceKey).
+		Updates(map[string]any{
+			"last_seen_at": lastSeenAt,
+		}).Error
+}
+
+func hasActiveDirectoryUploadTask(uploadTaskID uint, filePath string) (bool, error) {
+	return hasActiveDirectoryUploadTaskWithDB(nil, uploadTaskID, filePath)
+}
+
+func hasActiveDirectoryUploadTaskWithDB(tx *gorm.DB, uploadTaskID uint, filePath string) (bool, error) {
+	handle := tx
+	if handle == nil {
+		handle = db.Db
+	}
+	query := handle.Model(&models.DbUploadTask{}).
+		Where("status IN ?", []models.UploadStatus{models.UploadStatusPending, models.UploadStatusUploading})
+	if uploadTaskID > 0 {
+		query = query.Where("id = ?", uploadTaskID)
+	} else {
+		query = query.Where("source = ? AND local_full_path = ?", models.UploadSourceDirectoryMonitor, filePath)
+	}
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return false, err
+	}
+	return total > 0, nil
+}
+
+func (service *Service) createDirectoryUploadTaskWithProcessedClaim(task *models.DbUploadTask, rule *models.DirectoryUploadRule, rel string, filePath string, state processedSourceState) (bool, error) {
+	var created bool
+	err := db.Db.Transaction(func(tx *gorm.DB) error {
+		claimed, err := service.claimDirectoryUploadProcessedWithDB(tx, rule, rel, filePath, state)
+		if err != nil || !claimed {
+			return err
+		}
+		if err := models.SaveDirectoryMonitorUploadTaskWithDB(tx, task); err != nil {
+			return err
+		}
+		if err := service.upsertDirectoryUploadProcessedWithDB(tx, rule, rel, filePath, state, models.DirectoryUploadProcessedResultQueued, task.ID); err != nil {
+			return err
+		}
+		created = true
+		return nil
+	})
+	if err != nil {
+		return false, fmt.Errorf("创建目录监控上传任务失败：%w", err)
+	}
+	if created {
+		models.PublishUploadTaskCreated(task)
+	}
+	return created, nil
+}
+
+func (service *Service) claimDirectoryUploadProcessedWithDB(tx *gorm.DB, rule *models.DirectoryUploadRule, rel string, filePath string, state processedSourceState) (bool, error) {
+	claim := service.newDirectoryUploadProcessedRecord(rule, rel, filePath, state, models.DirectoryUploadProcessedResultQueued, 0)
+	insert := tx.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "source_key"}},
+		DoNothing: true,
+	}).Create(claim)
+	if insert.Error != nil {
+		return false, insert.Error
+	}
+	if insert.RowsAffected > 0 {
+		return true, nil
+	}
+
+	var existing models.DirectoryUploadProcessedFile
+	if err := tx.Where("source_key = ?", state.sourceKey).First(&existing).Error; err != nil {
+		return false, err
+	}
+	if existing.SourceFingerprint != state.sourceFingerprint ||
+		existing.Result == models.DirectoryUploadProcessedResultFailed {
+		claimed, err := service.updateDirectoryUploadProcessedClaimWithDB(tx, &existing, claim)
+		if err != nil || claimed {
+			return claimed, err
+		}
+		return false, nil
+	}
+	if existing.Result == models.DirectoryUploadProcessedResultQueued {
+		active, err := hasActiveDirectoryUploadTaskWithDB(tx, existing.UploadTaskId, filePath)
+		if err != nil || active {
+			return false, err
+		}
+		return service.updateDirectoryUploadProcessedClaimWithDB(tx, &existing, claim)
+	}
+	return false, nil
+}
+
+func (service *Service) updateDirectoryUploadProcessedClaimWithDB(tx *gorm.DB, existing *models.DirectoryUploadProcessedFile, claim *models.DirectoryUploadProcessedFile) (bool, error) {
+	result := tx.Model(&models.DirectoryUploadProcessedFile{}).
+		Where("source_key = ? AND source_fingerprint = ? AND result = ? AND upload_task_id = ?",
+			existing.SourceKey,
+			existing.SourceFingerprint,
+			existing.Result,
+			existing.UploadTaskId,
+		).
+		Updates(map[string]any{
+			"rule_id":            claim.RuleId,
+			"sync_path_id":       claim.SyncPathId,
+			"account_id":         claim.AccountId,
+			"scope_hash":         claim.ScopeHash,
+			"relative_path":      claim.RelativePath,
+			"local_full_path":    claim.LocalFullPath,
+			"source_fingerprint": claim.SourceFingerprint,
+			"file_size":          claim.FileSize,
+			"local_mtime_ns":     claim.LocalMtimeNs,
+			"result":             claim.Result,
+			"upload_task_id":     claim.UploadTaskId,
+			"processed_at":       claim.ProcessedAt,
+			"last_seen_at":       claim.LastSeenAt,
+			"updated_at":         claim.UpdatedAt,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
+}
+
+func (service *Service) upsertDirectoryUploadProcessed(rule *models.DirectoryUploadRule, rel string, filePath string, state processedSourceState, result models.DirectoryUploadProcessedResult, uploadTaskID uint) error {
+	return service.upsertDirectoryUploadProcessedWithDB(db.Db, rule, rel, filePath, state, result, uploadTaskID)
+}
+
+func (service *Service) upsertDirectoryUploadProcessedWithDB(tx *gorm.DB, rule *models.DirectoryUploadRule, rel string, filePath string, state processedSourceState, result models.DirectoryUploadProcessedResult, uploadTaskID uint) error {
+	record := service.newDirectoryUploadProcessedRecord(rule, rel, filePath, state, result, uploadTaskID)
+	return models.UpsertDirectoryUploadProcessedFileWithDB(tx, record)
+}
+
+func (service *Service) newDirectoryUploadProcessedRecord(rule *models.DirectoryUploadRule, rel string, filePath string, state processedSourceState, result models.DirectoryUploadProcessedResult, uploadTaskID uint) *models.DirectoryUploadProcessedFile {
+	now := service.now().Unix()
+	return &models.DirectoryUploadProcessedFile{
+		RuleId:            rule.ID,
+		SyncPathId:        rule.SyncPathId,
+		AccountId:         rule.AccountId,
+		ScopeHash:         state.scopeHash,
+		SourceKey:         state.sourceKey,
+		RelativePath:      filepath.ToSlash(rel),
+		LocalFullPath:     filePath,
+		SourceFingerprint: state.sourceFingerprint,
+		FileSize:          state.fileSize,
+		LocalMtimeNs:      state.mtimeNs,
+		Result:            result,
+		UploadTaskId:      uploadTaskID,
+		ProcessedAt:       now,
+		LastSeenAt:        now,
+	}
 }
 
 func (service *Service) remote(ctx context.Context, rule *models.DirectoryUploadRule) (RemoteClient, error) {
@@ -355,8 +593,8 @@ func shouldUploadByRule(rule *models.DirectoryUploadRule, syncPath *models.SyncP
 	return rule != nil && rule.UploadMetadata && syncPath.IsValidMetaExt(name)
 }
 
-func (service *Service) isProcessed(rule *models.DirectoryUploadRule, rel string, signature string) bool {
-	key := processedKey(rule.ID, rel, signature)
+func (service *Service) isProcessed(sourceKey string, signature string) bool {
+	key := processedKey(sourceKey, signature)
 	now := service.now()
 	service.mutex.Lock()
 	defer service.mutex.Unlock()
@@ -371,8 +609,8 @@ func (service *Service) isProcessed(rule *models.DirectoryUploadRule, rel string
 	return true
 }
 
-func (service *Service) markProcessed(rule *models.DirectoryUploadRule, rel string, signature string) {
-	key := processedKey(rule.ID, rel, signature)
+func (service *Service) markProcessed(rule *models.DirectoryUploadRule, sourceKey string, signature string) {
+	key := processedKey(sourceKey, signature)
 	ttl := time.Duration(rule.ProcessedCacheTTLSeconds) * time.Second
 	if ttl <= 0 {
 		ttl = 10 * time.Minute
@@ -382,8 +620,8 @@ func (service *Service) markProcessed(rule *models.DirectoryUploadRule, rel stri
 	service.processed[key] = processedFile{expiresAt: service.now().Add(ttl)}
 }
 
-func processedKey(ruleID uint, rel string, signature string) string {
-	return fmt.Sprintf("%d:%s:%s", ruleID, filepath.ToSlash(rel), signature)
+func processedKey(sourceKey string, signature string) string {
+	return fmt.Sprintf("%s:%s", sourceKey, signature)
 }
 
 func cleanupInitialStatus(rule *models.DirectoryUploadRule) models.UploadSourceCleanupStatus {

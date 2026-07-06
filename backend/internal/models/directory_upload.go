@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"qmediasync/internal/db"
+
+	"gorm.io/gorm"
 )
 
 // DirectoryUploadWatchMode 是目录监控模式。
@@ -123,7 +125,12 @@ func GetDirectoryUploadRules(syncPathID uint) ([]*DirectoryUploadRule, error) {
 
 // DeleteDirectoryUploadRule 删除目录监控上传规则。
 func DeleteDirectoryUploadRule(id uint) error {
-	return db.Db.Delete(&DirectoryUploadRule{}, id).Error
+	return db.Db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Delete(&DirectoryUploadRule{}, id).Error; err != nil {
+			return err
+		}
+		return tx.Where("rule_id = ?", id).Delete(&DirectoryUploadProcessedFile{}).Error
+	})
 }
 
 // SetDirectoryUploadRuleEnabled 设置目录监控上传规则启用状态。

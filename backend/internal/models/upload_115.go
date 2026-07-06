@@ -726,6 +726,59 @@ func (task *DbUploadTask) applyUpload115TaskResult(result upload115TaskResult) {
 	task.applyUploadQueueDisplayFields(nil)
 }
 
+func (task *DbUploadTask) markDirectoryUploadProcessedAfterStrm() error {
+	return task.markDirectoryUploadProcessedAfterStrmWithDB(db.Db)
+}
+
+func (task *DbUploadTask) markDirectoryUploadProcessedAfterUploadComplete() error {
+	if task == nil || task.Source != UploadSourceDirectoryMonitor {
+		return nil
+	}
+	if strings.TrimSpace(task.SourceFingerprint) == "" {
+		return nil
+	}
+	result, ok := directoryUploadProcessedResultForUploadResult(task.UploadResult)
+	if !ok {
+		return nil
+	}
+	return MarkDirectoryUploadProcessedUploaded(task.ID, result)
+}
+
+func (task *DbUploadTask) markDirectoryUploadProcessedAfterStrmWithDB(tx *gorm.DB) error {
+	if task == nil || task.Source != UploadSourceDirectoryMonitor {
+		return nil
+	}
+	if strings.TrimSpace(task.SourceFingerprint) == "" {
+		return nil
+	}
+	result, ok := directoryUploadProcessedResultForUploadResult(task.UploadResult)
+	if !ok {
+		return nil
+	}
+	var record DirectoryUploadProcessedFile
+	if err := tx.Where("upload_task_id = ?", task.ID).First(&record).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	if IsDirectoryUploadProcessedTerminal(record.Result) {
+		return nil
+	}
+	return MarkDirectoryUploadProcessedUploadedWithDB(tx, task.ID, result)
+}
+
+func directoryUploadProcessedResultForUploadResult(result UploadResult) (DirectoryUploadProcessedResult, bool) {
+	switch result {
+	case UploadResultRapidUpload, UploadResultMultipartUploaded:
+		return DirectoryUploadProcessedResultUploaded, true
+	case UploadResultRemoteExists:
+		return DirectoryUploadProcessedResultRemoteExists, true
+	default:
+		return "", false
+	}
+}
+
 func hydrateUploadTaskQueueFields(tasks []*DbUploadTask) {
 	if len(tasks) == 0 {
 		return
@@ -873,18 +926,44 @@ func (task *DbUploadTask) EnqueueStrmGenerationAfterUpload() error {
 	return task.enqueueStrmGenerationAfterUpload()
 }
 
+// EnqueueStrmGenerationAfterUploadAndMarkDirectoryProcessed 创建 STRM 任务并更新目录监控处理账本。
+func (task *DbUploadTask) EnqueueStrmGenerationAfterUploadAndMarkDirectoryProcessed() error {
+	return task.enqueueStrmGenerationAfterUploadAndMarkDirectoryProcessed()
+}
+
 func (task *DbUploadTask) enqueueStrmGenerationAfterUpload() error {
+	_, err := task.enqueueStrmGenerationAfterUploadWithDB(db.Db)
+	return err
+}
+
+func (task *DbUploadTask) enqueueStrmGenerationAfterUploadAndMarkDirectoryProcessed() error {
+	return db.Db.Transaction(func(tx *gorm.DB) error {
+		created, err := task.enqueueStrmGenerationAfterUploadWithDB(tx)
+		if err != nil {
+			return err
+		}
+		if !created {
+			return nil
+		}
+		return task.markDirectoryUploadProcessedAfterStrmWithDB(tx)
+	})
+}
+
+func (task *DbUploadTask) enqueueStrmGenerationAfterUploadWithDB(tx *gorm.DB) (bool, error) {
+	if tx == nil {
+		return false, errors.New("数据库连接为空")
+	}
 	if task == nil {
-		return nil
+		return false, nil
 	}
 	if task.Source != UploadSourceDirectoryMonitor && task.Source != UploadSourceStrm {
-		return nil
+		return false, nil
 	}
 	if task.UploadResult == UploadResultSkippedAfterRapidWait {
-		return nil
+		return false, nil
 	}
 	if task.CompletedRemoteFileId == "" && task.CompletedPickCode == "" {
-		return nil
+		return false, nil
 	}
 
 	syncPathID := task.SyncPathId
@@ -934,7 +1013,7 @@ func (task *DbUploadTask) enqueueStrmGenerationAfterUpload() error {
 		}
 	}
 	if syncPathID == 0 {
-		return nil
+		return false, nil
 	}
 
 	source := StrmGenerationSourceUploadCompleted
@@ -942,7 +1021,7 @@ func (task *DbUploadTask) enqueueStrmGenerationAfterUpload() error {
 		source = StrmGenerationSourceRemoteExists
 	}
 	requestHash := fmt.Sprintf("%s:%d:%s:%s", source, syncPathID, task.CompletedRemoteFileId, task.CompletedPickCode)
-	_, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+	strmTask, err := EnqueueStrmGenerationTaskWithDB(tx, &StrmGenerationTask{
 		Source:       source,
 		TaskType:     StrmGenerationTaskTypeFile,
 		UploadTaskId: task.ID,
@@ -958,7 +1037,10 @@ func (task *DbUploadTask) enqueueStrmGenerationAfterUpload() error {
 		Mtime:        mtime,
 		RequestHash:  requestHash,
 	})
-	return err
+	if err != nil {
+		return false, err
+	}
+	return strmTask != nil, nil
 }
 
 func remoteParentPathForStrmTask(remoteFilePath string, fileName string) string {

@@ -22,7 +22,7 @@ func setupDirectoryUploadRuleTestDB(t *testing.T) {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
 	db.Db = testDb
-	if err := db.Db.AutoMigrate(&SyncPath{}, &SyncFile{}, &EmbyLibrarySyncPath{}, &EmbyMediaSyncFile{}, &DirectoryUploadRule{}); err != nil {
+	if err := db.Db.AutoMigrate(&SyncPath{}, &SyncFile{}, &EmbyLibrarySyncPath{}, &EmbyMediaSyncFile{}, &DirectoryUploadRule{}, &DirectoryUploadProcessedFile{}); err != nil {
 		t.Fatalf("迁移测试表失败: %v", err)
 	}
 }
@@ -157,6 +157,118 @@ func TestDeleteSyncPathByIdDeletesDirectoryUploadRules(t *testing.T) {
 	}
 	if keptRuleCount != 1 {
 		t.Fatalf("保留同步目录的目录监控规则数量 = %d，期望 1", keptRuleCount)
+	}
+}
+
+func TestDeleteSyncPathByIdDeletesDirectoryUploadProcessedFiles(t *testing.T) {
+	setupDirectoryUploadRuleTestDB(t)
+
+	deletedSyncPath := &SyncPath{
+		AccountId:  3,
+		SourceType: SourceType115,
+		LocalPath:  "/strm/deleted",
+		RemotePath: "/remote/deleted",
+		BaseCid:    "remote-deleted",
+	}
+	if err := db.Db.Create(deletedSyncPath).Error; err != nil {
+		t.Fatalf("创建待删除同步目录失败: %v", err)
+	}
+	keptSyncPath := &SyncPath{
+		AccountId:  3,
+		SourceType: SourceType115,
+		LocalPath:  "/strm/kept",
+		RemotePath: "/remote/kept",
+		BaseCid:    "remote-kept",
+	}
+	if err := db.Db.Create(keptSyncPath).Error; err != nil {
+		t.Fatalf("创建保留同步目录失败: %v", err)
+	}
+	records := []*DirectoryUploadProcessedFile{
+		{SyncPathId: deletedSyncPath.ID, SourceKey: "deleted-sync-path-1", SourceFingerprint: "v1:1:1", Result: DirectoryUploadProcessedResultUploaded},
+		{SyncPathId: deletedSyncPath.ID, SourceKey: "deleted-sync-path-2", SourceFingerprint: "v1:2:2", Result: DirectoryUploadProcessedResultQueued},
+		{SyncPathId: keptSyncPath.ID, SourceKey: "kept-sync-path-1", SourceFingerprint: "v1:3:3", Result: DirectoryUploadProcessedResultRemoteExists},
+	}
+	if err := db.Db.Create(&records).Error; err != nil {
+		t.Fatalf("创建 processed 记录失败: %v", err)
+	}
+
+	if ok := DeleteSyncPathById(deletedSyncPath.ID); !ok {
+		t.Fatal("删除同步目录应成功")
+	}
+
+	var deletedProcessedCount int64
+	if err := db.Db.Model(&DirectoryUploadProcessedFile{}).Where("sync_path_id = ?", deletedSyncPath.ID).Count(&deletedProcessedCount).Error; err != nil {
+		t.Fatalf("统计被删除同步目录的 processed 记录失败: %v", err)
+	}
+	if deletedProcessedCount != 0 {
+		t.Fatalf("被删除同步目录的 processed 记录数量 = %d，期望 0", deletedProcessedCount)
+	}
+	var keptProcessedCount int64
+	if err := db.Db.Model(&DirectoryUploadProcessedFile{}).Where("sync_path_id = ?", keptSyncPath.ID).Count(&keptProcessedCount).Error; err != nil {
+		t.Fatalf("统计保留同步目录的 processed 记录失败: %v", err)
+	}
+	if keptProcessedCount != 1 {
+		t.Fatalf("保留同步目录的 processed 记录数量 = %d，期望 1", keptProcessedCount)
+	}
+}
+
+func TestDeleteDirectoryUploadRuleDeletesProcessedFiles(t *testing.T) {
+	setupDirectoryUploadRuleTestDB(t)
+
+	rules := []*DirectoryUploadRule{
+		{
+			SyncPathId:     1,
+			AccountId:      3,
+			Enabled:        true,
+			MonitorPath:    "/watch/deleted",
+			RemoteRootPath: "/remote/deleted",
+			RemoteRootId:   "remote-deleted",
+		},
+		{
+			SyncPathId:     2,
+			AccountId:      3,
+			Enabled:        true,
+			MonitorPath:    "/watch/kept",
+			RemoteRootPath: "/remote/kept",
+			RemoteRootId:   "remote-kept",
+		},
+	}
+	if err := db.Db.Create(&rules).Error; err != nil {
+		t.Fatalf("创建目录监控规则失败: %v", err)
+	}
+	records := []*DirectoryUploadProcessedFile{
+		{RuleId: rules[0].ID, SourceKey: "deleted-1", SourceFingerprint: "v1:1:1", Result: DirectoryUploadProcessedResultUploaded},
+		{RuleId: rules[0].ID, SourceKey: "deleted-2", SourceFingerprint: "v1:2:2", Result: DirectoryUploadProcessedResultQueued},
+		{RuleId: rules[1].ID, SourceKey: "kept-1", SourceFingerprint: "v1:3:3", Result: DirectoryUploadProcessedResultUploaded},
+	}
+	if err := db.Db.Create(&records).Error; err != nil {
+		t.Fatalf("创建 processed 记录失败: %v", err)
+	}
+
+	if err := DeleteDirectoryUploadRule(rules[0].ID); err != nil {
+		t.Fatalf("删除目录监控规则失败: %v", err)
+	}
+
+	var deletedRuleCount int64
+	if err := db.Db.Model(&DirectoryUploadRule{}).Where("id = ?", rules[0].ID).Count(&deletedRuleCount).Error; err != nil {
+		t.Fatalf("统计被删除规则失败: %v", err)
+	}
+	if deletedRuleCount != 0 {
+		t.Fatalf("被删除规则数量 = %d，期望 0", deletedRuleCount)
+	}
+	var deletedProcessedCount int64
+	if err := db.Db.Model(&DirectoryUploadProcessedFile{}).Where("rule_id = ?", rules[0].ID).Count(&deletedProcessedCount).Error; err != nil {
+		t.Fatalf("统计被删除规则的 processed 记录失败: %v", err)
+	}
+	if deletedProcessedCount != 0 {
+		t.Fatalf("被删除规则的 processed 记录数量 = %d，期望 0", deletedProcessedCount)
+	}
+	var keptProcessedCount int64
+	if err := db.Db.Model(&DirectoryUploadProcessedFile{}).Where("rule_id = ?", rules[1].ID).Count(&keptProcessedCount).Error; err != nil {
+		t.Fatalf("统计保留规则的 processed 记录失败: %v", err)
+	}
+	if keptProcessedCount != 1 {
+		t.Fatalf("保留规则的 processed 记录数量 = %d，期望 1", keptProcessedCount)
 	}
 }
 

@@ -85,16 +85,24 @@ type StrmGenerationTask struct {
 
 // EnqueueStrmGenerationTask 创建 STRM 生成任务，request_hash 非空时做幂等去重。
 func EnqueueStrmGenerationTask(task *StrmGenerationTask) (*StrmGenerationTask, error) {
+	return EnqueueStrmGenerationTaskWithDB(db.Db, task)
+}
+
+// EnqueueStrmGenerationTaskWithDB 在指定事务中创建 STRM 生成任务，request_hash 非空时做幂等去重。
+func EnqueueStrmGenerationTaskWithDB(tx *gorm.DB, task *StrmGenerationTask) (*StrmGenerationTask, error) {
+	if tx == nil {
+		return nil, errors.New("数据库连接为空")
+	}
 	if task == nil {
 		return nil, errors.New("STRM 生成任务为空")
 	}
 	if task.RequestHash != "" {
 		var existing StrmGenerationTask
-		err := db.Db.Where("request_hash = ?", task.RequestHash).First(&existing).Error
+		err := tx.Where("request_hash = ?", task.RequestHash).First(&existing).Error
 		if err == nil {
 			if !isActiveStrmGenerationStatus(existing.Status) {
 				archivedHash := archivedStrmGenerationRequestHash(task.RequestHash, existing.ID)
-				if err := db.Db.Model(&StrmGenerationTask{}).
+				if err := tx.Model(&StrmGenerationTask{}).
 					Where("id = ? AND request_hash = ?", existing.ID, task.RequestHash).
 					Update("request_hash", archivedHash).Error; err != nil {
 					return nil, err
@@ -114,7 +122,7 @@ func EnqueueStrmGenerationTask(task *StrmGenerationTask) (*StrmGenerationTask, e
 	if task.TaskType == "" {
 		task.TaskType = StrmGenerationTaskTypeFile
 	}
-	if err := db.Db.Create(task).Error; err != nil {
+	if err := tx.Create(task).Error; err != nil {
 		return nil, err
 	}
 	return task, nil

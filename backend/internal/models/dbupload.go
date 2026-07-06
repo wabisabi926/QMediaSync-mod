@@ -275,7 +275,10 @@ func (task *DbUploadTask) Upload() {
 	}
 	// 标记为已完成
 	task.Complete()
-	if err := task.enqueueStrmGenerationAfterUpload(); err != nil {
+	if err := task.markDirectoryUploadProcessedAfterUploadComplete(); err != nil {
+		helpers.AppLogger.Warnf("[上传] 标记目录监控源文件上传完成失败：%s", err.Error())
+	}
+	if err := task.enqueueStrmGenerationAfterUploadAndMarkDirectoryProcessed(); err != nil {
 		helpers.AppLogger.Warnf("[上传] 创建 STRM 生成任务失败：%s", err.Error())
 	}
 	// 如果是刮削类型，需要进行后续通知
@@ -433,6 +436,18 @@ func CheckUploadTaskExist(source UploadSource, remoteFileId string) *DbUploadTas
 
 // AddDirectoryMonitorUploadTask 添加目录监控产生的上传任务。
 func AddDirectoryMonitorUploadTask(task *DbUploadTask) error {
+	if err := SaveDirectoryMonitorUploadTaskWithDB(db.Db, task); err != nil {
+		return err
+	}
+	PublishUploadTaskCreated(task)
+	return nil
+}
+
+// SaveDirectoryMonitorUploadTaskWithDB 在指定事务中保存目录监控上传任务。
+func SaveDirectoryMonitorUploadTaskWithDB(tx *gorm.DB, task *DbUploadTask) error {
+	if tx == nil {
+		return errors.New("数据库连接为空")
+	}
 	if task == nil {
 		return errors.New("上传任务为空")
 	}
@@ -446,11 +461,12 @@ func AddDirectoryMonitorUploadTask(task *DbUploadTask) error {
 	if task.SourceCleanupStatus == "" {
 		task.SourceCleanupStatus = UploadSourceCleanupStatusNone
 	}
-	if err := db.Db.Save(task).Error; err != nil {
-		return err
-	}
+	return tx.Save(task).Error
+}
+
+// PublishUploadTaskCreated 发布上传任务创建事件。
+func PublishUploadTaskCreated(task *DbUploadTask) {
 	publishUploadQueueChanged(task, "created")
-	return nil
 }
 
 // 添加 STRM 同步产生的上传任务

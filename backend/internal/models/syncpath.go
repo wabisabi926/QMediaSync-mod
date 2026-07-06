@@ -409,6 +409,11 @@ func DeleteSyncPathById(id uint) bool {
 		tx.Rollback()
 		return false
 	}
+	if result = tx.Delete(&DirectoryUploadProcessedFile{}, "sync_path_id = ?", syncPath.ID); result.Error != nil {
+		helpers.AppLogger.Errorf("删除同步路径目录监控 processed 记录失败：%v", result.Error)
+		tx.Rollback()
+		return false
+	}
 	if result = tx.Delete(EmbyLibrarySyncPath{}, "sync_path_id = ?", syncPath.ID); result.Error != nil {
 		helpers.AppLogger.Errorf("删除同步路径 Emby 媒体库关联失败：%v", result.Error)
 		tx.Rollback()

@@ -3,11 +3,13 @@ package directoryupload
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
 
+	"qmediasync/internal/db"
 	"qmediasync/internal/models"
 )
 
@@ -110,6 +112,57 @@ func TestStartRuleRejectsLegacyWatcherMode(t *testing.T) {
 	}
 }
 
+func TestStartRunsProcessedCleanupOnStartupAndInterval(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	clock := &fakeClock{now: time.Unix(200_000, 0)}
+	oldPath := filepath.Join(t.TempDir(), "missing-startup.mkv")
+	startupRecord := &models.DirectoryUploadProcessedFile{
+		SourceKey:         "cleanup-startup",
+		LocalFullPath:     oldPath,
+		SourceFingerprint: "v1:1:1",
+		Result:            models.DirectoryUploadProcessedResultUploaded,
+		ProcessedAt:       clock.Now().Add(-48 * time.Hour).Unix(),
+		LastSeenAt:        clock.Now().Add(-48 * time.Hour).Unix(),
+	}
+	if err := db.Db.Create(startupRecord).Error; err != nil {
+		t.Fatalf("创建启动清理 processed 记录失败: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	service := NewService(ServiceOptions{
+		Now:                       clock.Now,
+		ProcessedCleanupInterval:  10 * time.Millisecond,
+		ProcessedMissingSourceTTL: 24 * time.Hour,
+	})
+	if err := service.Start(ctx); err != nil {
+		cancel()
+		t.Fatalf("启动目录上传服务失败: %v", err)
+	}
+	defer func() {
+		cancel()
+		service.Stop()
+	}()
+
+	waitForProcessedCount(t, 0)
+
+	intervalPath := filepath.Join(t.TempDir(), "missing-interval.mkv")
+	intervalRecord := &models.DirectoryUploadProcessedFile{
+		SourceKey:         "cleanup-interval",
+		LocalFullPath:     intervalPath,
+		SourceFingerprint: "v1:2:2",
+		Result:            models.DirectoryUploadProcessedResultRemoteExists,
+		ProcessedAt:       clock.Now().Add(-48 * time.Hour).Unix(),
+		LastSeenAt:        clock.Now().Add(-48 * time.Hour).Unix(),
+	}
+	if err := db.Db.Create(intervalRecord).Error; err != nil {
+		t.Fatalf("创建周期清理 processed 记录失败: %v", err)
+	}
+	waitForProcessedCount(t, 0)
+	if _, err := os.Stat(intervalPath); !os.IsNotExist(err) {
+		t.Fatalf("测试源文件应保持缺失状态: %s err=%v", intervalPath, err)
+	}
+}
+
 func TestPollingIntervalUsesBuiltInDefault(t *testing.T) {
 	rule := &models.DirectoryUploadRule{RescanIntervalSeconds: 999}
 	service := NewService(ServiceOptions{})
@@ -158,4 +211,24 @@ func waitForPendingPath(t *testing.T, service *Service, ruleID uint, filePath st
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("等待 pending path 超时: %s, got=%v", filePath, service.PendingPaths(ruleID))
+}
+
+func waitForProcessedCount(t *testing.T, want int64) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		var got int64
+		if err := db.Db.Model(&models.DirectoryUploadProcessedFile{}).Count(&got).Error; err != nil {
+			t.Fatalf("统计 processed 记录失败: %v", err)
+		}
+		if got == want {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	var got int64
+	if err := db.Db.Model(&models.DirectoryUploadProcessedFile{}).Count(&got).Error; err != nil {
+		t.Fatalf("统计 processed 记录失败: %v", err)
+	}
+	t.Fatalf("等待 processed 记录数量超时: got=%d want=%d", got, want)
 }

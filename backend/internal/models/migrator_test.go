@@ -65,6 +65,21 @@ func TestBatchCreateTableCreatesUploadStrmTables(t *testing.T) {
 	}
 }
 
+func TestBatchCreateTableCreatesDirectoryUploadProcessedFilesTable(t *testing.T) {
+	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	db.Db = testDb
+
+	if err := BatchCreateTable(); err != nil {
+		t.Fatalf("批量建表失败: %v", err)
+	}
+	if !db.Db.Migrator().HasTable(DirectoryUploadProcessedFile{}) {
+		t.Fatal("批量建表应创建 directory_upload_processed_files 表")
+	}
+}
+
 func TestInitDBDoesNotCreateDefaultAdmin(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -588,6 +603,64 @@ func TestMigrateVersion52AddsEmbyTargetedRefreshFields(t *testing.T) {
 	} {
 		if !db.Db.Migrator().HasColumn(&EmbyLibraryRefreshTask{}, column) {
 			t.Fatalf("迁移应添加 emby_library_refresh_tasks.%s 字段", column)
+		}
+	}
+}
+
+func TestMigrateVersion56AddsDirectoryUploadProcessedFiles(t *testing.T) {
+	if helpers.AppLogger == nil {
+		helpers.AppLogger = &helpers.QLogger{
+			Logger: log.New(io.Discard, "", 0),
+		}
+	}
+	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	db.Db = testDb
+
+	createMigratorTestTable(t)
+	if err := db.Db.Create(&Migrator{VersionCode: 56}).Error; err != nil {
+		t.Fatalf("创建迁移版本记录失败: %v", err)
+	}
+	if err := db.Db.Exec(`
+		CREATE TABLE db_upload_tasks (
+			id integer primary key autoincrement,
+			created_at integer,
+			updated_at integer,
+			source text,
+			account_id integer,
+			sync_path_id integer,
+			source_type text,
+			local_full_path text,
+			remote_file_id text,
+			remote_path_id text,
+			file_name text,
+			status integer,
+			file_size integer
+		)
+	`).Error; err != nil {
+		t.Fatalf("创建版本 56 上传任务表失败: %v", err)
+	}
+
+	Migrate()
+
+	var migrator Migrator
+	if err := db.Db.First(&migrator).Error; err != nil {
+		t.Fatalf("读取迁移版本失败: %v", err)
+	}
+	if migrator.VersionCode != MaxVersionCode {
+		t.Fatalf("迁移版本 = %d，期望 %d", migrator.VersionCode, MaxVersionCode)
+	}
+	if !db.Db.Migrator().HasTable(DirectoryUploadProcessedFile{}) {
+		t.Fatal("迁移应创建 directory_upload_processed_files 表")
+	}
+	for _, column := range []string{
+		"source_fingerprint",
+		"local_mtime_ns",
+	} {
+		if !db.Db.Migrator().HasColumn(&DbUploadTask{}, column) {
+			t.Fatalf("迁移应添加 db_upload_tasks.%s 字段", column)
 		}
 	}
 }

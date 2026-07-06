@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -24,9 +25,12 @@ type fakeRemoteClient struct {
 	files          map[string]*RemoteFile
 	deletedFileIDs []string
 	ensureDirErr   error
+	ensureDirCalls int
+	findFileCalls  int
 }
 
 func (c *fakeRemoteClient) EnsureDir(context.Context, *models.DirectoryUploadRule, string) (RemoteDirectory, error) {
+	c.ensureDirCalls++
 	if c.ensureDirErr != nil {
 		return RemoteDirectory{}, c.ensureDirErr
 	}
@@ -34,6 +38,7 @@ func (c *fakeRemoteClient) EnsureDir(context.Context, *models.DirectoryUploadRul
 }
 
 func (c *fakeRemoteClient) FindFile(_ context.Context, _ string, fileName string) (*RemoteFile, error) {
+	c.findFileCalls++
 	if c.files == nil {
 		return nil, nil
 	}
@@ -50,7 +55,7 @@ func setupDirectoryUploadServiceTestDB(t *testing.T) {
 	if helpers.AppLogger == nil {
 		helpers.AppLogger = &helpers.QLogger{Logger: log.New(io.Discard, "", 0)}
 	}
-	testDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	testDB, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "directoryupload.db")), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
@@ -59,6 +64,7 @@ func setupDirectoryUploadServiceTestDB(t *testing.T) {
 		&models.Account{},
 		&models.SyncPath{},
 		&models.DirectoryUploadRule{},
+		&models.DirectoryUploadProcessedFile{},
 		&models.DbUploadTask{},
 		&models.UploadSession{},
 		&models.StrmGenerationTask{},
@@ -72,6 +78,54 @@ func setupDirectoryUploadServiceTestDB(t *testing.T) {
 			MinVideoSize: 0,
 		},
 	}
+}
+
+type barrierRemoteClient struct {
+	parentID string
+	waitFor  int
+	release  chan struct{}
+	once     sync.Once
+
+	mutex          sync.Mutex
+	ensureDirCalls int
+	findFileCalls  int
+}
+
+func newBarrierRemoteClient(parentID string, waitFor int) *barrierRemoteClient {
+	return &barrierRemoteClient{
+		parentID: parentID,
+		waitFor:  waitFor,
+		release:  make(chan struct{}),
+	}
+}
+
+func (c *barrierRemoteClient) EnsureDir(ctx context.Context, _ *models.DirectoryUploadRule, _ string) (RemoteDirectory, error) {
+	c.mutex.Lock()
+	c.ensureDirCalls++
+	if c.ensureDirCalls >= c.waitFor {
+		c.once.Do(func() {
+			close(c.release)
+		})
+	}
+	c.mutex.Unlock()
+
+	select {
+	case <-c.release:
+		return RemoteDirectory{ID: c.parentID, Path: "/remote/movie"}, nil
+	case <-ctx.Done():
+		return RemoteDirectory{}, ctx.Err()
+	}
+}
+
+func (c *barrierRemoteClient) FindFile(context.Context, string, string) (*RemoteFile, error) {
+	c.mutex.Lock()
+	c.findFileCalls++
+	c.mutex.Unlock()
+	return nil, nil
+}
+
+func (c *barrierRemoteClient) DeleteFile(context.Context, string, string) error {
+	return nil
 }
 
 func createDirectoryUploadRuleForTest(t *testing.T, monitorPath string) (*models.SyncPath, *models.DirectoryUploadRule) {
@@ -504,6 +558,326 @@ func TestServiceDedupesProcessedFileUntilTTLExpires(t *testing.T) {
 	db.Db.Model(&models.DbUploadTask{}).Count(&total)
 	if total != 2 {
 		t.Fatalf("TTL 过期且签名变化后任务数 = %d，期望 2", total)
+	}
+}
+
+func TestHandleStableFileSkipsProcessedRetainedSourceAfterServiceRestart(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	clock := &fakeClock{now: time.Unix(320, 0)}
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), clock.Now())
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+
+	firstService := NewService(ServiceOptions{Now: clock.Now})
+	firstRemote := &fakeRemoteClient{parentID: "remote-root"}
+	firstService.SetRemoteClient(firstRemote)
+	if err := firstService.HandleStableFile(context.Background(), rule, filePath); err != nil {
+		t.Fatalf("首次处理稳定文件失败: %v", err)
+	}
+	var task models.DbUploadTask
+	if err := db.Db.Where("local_full_path = ?", filePath).First(&task).Error; err != nil {
+		t.Fatalf("读取首次上传任务失败: %v", err)
+	}
+	if err := db.Db.Model(&models.DbUploadTask{}).
+		Where("id = ?", task.ID).
+		Update("status", models.UploadStatusCompleted).Error; err != nil {
+		t.Fatalf("标记首次上传任务完成失败: %v", err)
+	}
+	if err := models.MarkDirectoryUploadProcessedUploaded(task.ID, models.DirectoryUploadProcessedResultUploaded); err != nil {
+		t.Fatalf("标记 processed 上传完成失败: %v", err)
+	}
+
+	clock.Add(time.Hour)
+	restartedService := NewService(ServiceOptions{Now: clock.Now})
+	restartedRemote := &fakeRemoteClient{parentID: "remote-root"}
+	restartedService.SetRemoteClient(restartedRemote)
+	if err := restartedService.HandleStableFile(context.Background(), rule, filePath); err != nil {
+		t.Fatalf("服务重启后处理已完成源文件失败: %v", err)
+	}
+
+	var total int64
+	if err := db.Db.Model(&models.DbUploadTask{}).
+		Where("source = ? AND local_full_path = ?", models.UploadSourceDirectoryMonitor, filePath).
+		Count(&total).Error; err != nil {
+		t.Fatalf("统计上传任务失败: %v", err)
+	}
+	if total != 1 {
+		t.Fatalf("上传任务数量 = %d，期望服务重启后保留源文件不重复入队", total)
+	}
+	if restartedRemote.findFileCalls != 0 || restartedRemote.ensureDirCalls != 0 {
+		t.Fatalf("远端调用 ensure=%d find=%d，期望命中 processed 表后不访问远端", restartedRemote.ensureDirCalls, restartedRemote.findFileCalls)
+	}
+
+	scopeHash := models.BuildDirectoryUploadScopeHash(rule)
+	sourceKey := models.BuildDirectoryUploadSourceKey(scopeHash, "movie.mkv")
+	processed, err := models.FindDirectoryUploadProcessedBySourceKey(sourceKey)
+	if err != nil {
+		t.Fatalf("读取 processed 记录失败: %v", err)
+	}
+	if processed.LastSeenAt != clock.Now().Unix() {
+		t.Fatalf("last_seen_at = %d，期望服务重启后跳过时更新为 %d", processed.LastSeenAt, clock.Now().Unix())
+	}
+}
+
+func TestHandleStableFileProcessesAgainWhenSourceFingerprintChanges(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	clock := &fakeClock{now: time.Unix(330, 0)}
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), clock.Now())
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+
+	firstService := NewService(ServiceOptions{Now: clock.Now})
+	firstService.SetRemoteClient(&fakeRemoteClient{parentID: "remote-root"})
+	if err := firstService.HandleStableFile(context.Background(), rule, filePath); err != nil {
+		t.Fatalf("首次处理稳定文件失败: %v", err)
+	}
+	var firstTask models.DbUploadTask
+	if err := db.Db.Where("local_full_path = ?", filePath).First(&firstTask).Error; err != nil {
+		t.Fatalf("读取首次上传任务失败: %v", err)
+	}
+	if err := db.Db.Model(&models.DbUploadTask{}).
+		Where("id = ?", firstTask.ID).
+		Update("status", models.UploadStatusCompleted).Error; err != nil {
+		t.Fatalf("标记首次上传任务完成失败: %v", err)
+	}
+	if err := models.MarkDirectoryUploadProcessedUploaded(firstTask.ID, models.DirectoryUploadProcessedResultUploaded); err != nil {
+		t.Fatalf("标记 processed 上传完成失败: %v", err)
+	}
+
+	clock.Add(time.Hour)
+	writeFileWithMtime(t, filePath, []byte("movie changed"), clock.Now())
+	restartedService := NewService(ServiceOptions{Now: clock.Now})
+	restartedService.SetRemoteClient(&fakeRemoteClient{parentID: "remote-root"})
+	if err := restartedService.HandleStableFile(context.Background(), rule, filePath); err != nil {
+		t.Fatalf("源文件 fingerprint 变化后处理失败: %v", err)
+	}
+
+	var tasks []models.DbUploadTask
+	if err := db.Db.Where("source = ? AND local_full_path = ?", models.UploadSourceDirectoryMonitor, filePath).
+		Order("id ASC").
+		Find(&tasks).Error; err != nil {
+		t.Fatalf("读取上传任务失败: %v", err)
+	}
+	if len(tasks) != 2 {
+		t.Fatalf("上传任务数量 = %d，期望 fingerprint 变化后重新创建任务", len(tasks))
+	}
+	if tasks[0].SourceFingerprint == tasks[1].SourceFingerprint {
+		t.Fatalf("两次任务 source_fingerprint 相同：%q，期望文件变化后不同", tasks[0].SourceFingerprint)
+	}
+
+	scopeHash := models.BuildDirectoryUploadScopeHash(rule)
+	sourceKey := models.BuildDirectoryUploadSourceKey(scopeHash, "movie.mkv")
+	processed, err := models.FindDirectoryUploadProcessedBySourceKey(sourceKey)
+	if err != nil {
+		t.Fatalf("读取 processed 记录失败: %v", err)
+	}
+	if processed.UploadTaskId != tasks[1].ID ||
+		processed.Result != models.DirectoryUploadProcessedResultQueued ||
+		processed.SourceFingerprint != tasks[1].SourceFingerprint {
+		t.Fatalf("processed 记录 = %+v，期望更新为第二次 queued 任务", processed)
+	}
+}
+
+func TestHandleStableFileScopeChangeBypassesOldTerminalMemoryCache(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	clock := &fakeClock{now: time.Unix(332, 0)}
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), clock.Now())
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.RemoteRootPath = "/remote/old"
+
+	info, err := os.Stat(filePath)
+	if err != nil {
+		t.Fatalf("读取测试文件失败: %v", err)
+	}
+	oldScopeHash := models.BuildDirectoryUploadScopeHash(rule)
+	oldSourceKey := models.BuildDirectoryUploadSourceKey(oldScopeHash, "movie.mkv")
+	fingerprint := models.BuildDirectoryUploadSourceFingerprint(info.Size(), info.ModTime().UnixNano())
+	if err := db.Db.Create(&models.DirectoryUploadProcessedFile{
+		RuleId:            rule.ID,
+		SyncPathId:        rule.SyncPathId,
+		AccountId:         rule.AccountId,
+		ScopeHash:         oldScopeHash,
+		SourceKey:         oldSourceKey,
+		RelativePath:      "movie.mkv",
+		LocalFullPath:     filePath,
+		SourceFingerprint: fingerprint,
+		FileSize:          info.Size(),
+		LocalMtimeNs:      info.ModTime().UnixNano(),
+		Result:            models.DirectoryUploadProcessedResultUploaded,
+		ProcessedAt:       clock.Now().Unix(),
+		LastSeenAt:        clock.Now().Unix(),
+	}).Error; err != nil {
+		t.Fatalf("创建旧范围 processed 记录失败: %v", err)
+	}
+
+	service := NewService(ServiceOptions{Now: clock.Now})
+	remote := &fakeRemoteClient{parentID: "remote-root"}
+	service.SetRemoteClient(remote)
+	if err := service.HandleStableFile(context.Background(), rule, filePath); err != nil {
+		t.Fatalf("旧范围终态缓存预热失败: %v", err)
+	}
+	if remote.ensureDirCalls != 0 || remote.findFileCalls != 0 {
+		t.Fatalf("旧范围命中 processed 后不应访问远端，ensure=%d find=%d", remote.ensureDirCalls, remote.findFileCalls)
+	}
+
+	rule.RemoteRootPath = "/remote/new"
+	if err := service.HandleStableFile(context.Background(), rule, filePath); err != nil {
+		t.Fatalf("范围变更后处理稳定文件失败: %v", err)
+	}
+
+	var task models.DbUploadTask
+	if err := db.Db.Where("source = ? AND local_full_path = ?", models.UploadSourceDirectoryMonitor, filePath).First(&task).Error; err != nil {
+		t.Fatalf("范围变更后应创建新上传任务: %v", err)
+	}
+	if task.RemoteFileId != "/remote/new/movie.mkv" {
+		t.Fatalf("新上传任务 remote_file_id = %q，期望使用新远端范围", task.RemoteFileId)
+	}
+	newScopeHash := models.BuildDirectoryUploadScopeHash(rule)
+	newSourceKey := models.BuildDirectoryUploadSourceKey(newScopeHash, "movie.mkv")
+	processed, err := models.FindDirectoryUploadProcessedBySourceKey(newSourceKey)
+	if err != nil {
+		t.Fatalf("读取新范围 processed 记录失败: %v", err)
+	}
+	if processed.Result != models.DirectoryUploadProcessedResultQueued || processed.UploadTaskId != task.ID {
+		t.Fatalf("新范围 processed 记录 = %+v，期望关联新 queued 任务 %+v", processed, task)
+	}
+}
+
+func TestHandleStableFileQueuedAllowsRetryWhenTaskInactiveWithinTTL(t *testing.T) {
+	tests := []struct {
+		name       string
+		status     models.UploadStatus
+		deleteTask bool
+	}{
+		{name: "关联任务失败", status: models.UploadStatusFailed},
+		{name: "关联任务已取消", status: models.UploadStatusCancelled},
+		{name: "关联任务已完成", status: models.UploadStatusCompleted},
+		{name: "关联任务不存在", status: models.UploadStatusFailed, deleteTask: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupDirectoryUploadServiceTestDB(t)
+			clock := &fakeClock{now: time.Unix(335, 0)}
+			monitorPath := t.TempDir()
+			filePath := filepath.Join(monitorPath, "movie.mkv")
+			writeFileWithMtime(t, filePath, []byte("movie"), clock.Now())
+			_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+			rule.ProcessedCacheTTLSeconds = 600
+
+			service := NewService(ServiceOptions{Now: clock.Now})
+			service.SetRemoteClient(&fakeRemoteClient{parentID: "remote-root"})
+			if err := service.HandleStableFile(context.Background(), rule, filePath); err != nil {
+				t.Fatalf("首次处理稳定文件失败: %v", err)
+			}
+			var firstTask models.DbUploadTask
+			if err := db.Db.Where("local_full_path = ?", filePath).First(&firstTask).Error; err != nil {
+				t.Fatalf("读取首次上传任务失败: %v", err)
+			}
+			if tt.deleteTask {
+				if err := db.Db.Delete(&firstTask).Error; err != nil {
+					t.Fatalf("删除首次上传任务失败: %v", err)
+				}
+			} else if err := db.Db.Model(&models.DbUploadTask{}).
+				Where("id = ?", firstTask.ID).
+				Update("status", tt.status).Error; err != nil {
+				t.Fatalf("更新首次上传任务状态失败: %v", err)
+			}
+
+			if err := service.HandleStableFile(context.Background(), rule, filePath); err != nil {
+				t.Fatalf("TTL 内处理非活跃 queued 源文件失败: %v", err)
+			}
+
+			var latestTask models.DbUploadTask
+			if err := db.Db.Where("source = ? AND local_full_path = ?", models.UploadSourceDirectoryMonitor, filePath).
+				Order("id DESC").
+				First(&latestTask).Error; err != nil {
+				t.Fatalf("读取重新创建的上传任务失败: %v", err)
+			}
+			if latestTask.ID == firstTask.ID {
+				t.Fatalf("最新上传任务 ID = %d，期望 TTL 内非活跃 queued 允许重新创建任务", latestTask.ID)
+			}
+
+			scopeHash := models.BuildDirectoryUploadScopeHash(rule)
+			sourceKey := models.BuildDirectoryUploadSourceKey(scopeHash, "movie.mkv")
+			processed, err := models.FindDirectoryUploadProcessedBySourceKey(sourceKey)
+			if err != nil {
+				t.Fatalf("读取 processed 记录失败: %v", err)
+			}
+			if processed.Result != models.DirectoryUploadProcessedResultQueued ||
+				processed.UploadTaskId != latestTask.ID ||
+				processed.SourceFingerprint != latestTask.SourceFingerprint {
+				t.Fatalf("processed 记录 = %+v，期望关联重新创建的 queued 任务 %+v", processed, latestTask)
+			}
+		})
+	}
+}
+
+func TestHandleStableFileConcurrentSameSourceCreatesOneTask(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	clock := &fakeClock{now: time.Unix(340, 0)}
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), clock.Now())
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+
+	const workers = 8
+	remote := newBarrierRemoteClient("remote-root", workers)
+	services := make([]*Service, 0, workers)
+	for range workers {
+		service := NewService(ServiceOptions{Now: clock.Now})
+		service.SetRemoteClient(remote)
+		services = append(services, service)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	start := make(chan struct{})
+	errCh := make(chan error, workers)
+	var wg sync.WaitGroup
+	for _, service := range services {
+		wg.Add(1)
+		go func(service *Service) {
+			defer wg.Done()
+			<-start
+			errCh <- service.HandleStableFile(ctx, rule, filePath)
+		}(service)
+	}
+	close(start)
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		if err != nil {
+			t.Fatalf("并发处理稳定文件失败: %v", err)
+		}
+	}
+
+	var tasks []models.DbUploadTask
+	if err := db.Db.Where("source = ? AND local_full_path = ?", models.UploadSourceDirectoryMonitor, filePath).
+		Order("id ASC").
+		Find(&tasks).Error; err != nil {
+		t.Fatalf("读取上传任务失败: %v", err)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("上传任务数量 = %d，期望并发同一稳定文件只创建 1 个任务: %+v", len(tasks), tasks)
+	}
+	scopeHash := models.BuildDirectoryUploadScopeHash(rule)
+	sourceKey := models.BuildDirectoryUploadSourceKey(scopeHash, "movie.mkv")
+	processed, err := models.FindDirectoryUploadProcessedBySourceKey(sourceKey)
+	if err != nil {
+		t.Fatalf("读取 processed 记录失败: %v", err)
+	}
+	if processed.Result != models.DirectoryUploadProcessedResultQueued ||
+		processed.UploadTaskId != tasks[0].ID ||
+		processed.SourceFingerprint != tasks[0].SourceFingerprint {
+		t.Fatalf("processed 记录 = %+v，期望 queued 且关联唯一上传任务 %+v", processed, tasks[0])
+	}
+	if remote.ensureDirCalls != workers {
+		t.Fatalf("ensureDir 调用数 = %d，期望 %d 个并发调用都进入创建路径", remote.ensureDirCalls, workers)
 	}
 }
 

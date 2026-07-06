@@ -723,12 +723,13 @@ func setRouter(r *gin.Engine) {
 		api.POST("/sync/path/scrape-paths", controllers.SaveRelScrapePath)   // 更新同步路径关联的刮削路径
 		api.POST("/sync/manual", controllers.ManualSync)                     // 手动同步
 
-		api.GET("/directory-upload/rules", controllers.ListDirectoryUploadRules)                 // 获取目录监控上传规则
-		api.POST("/directory-upload/rules", controllers.CreateDirectoryUploadRule)               // 创建目录监控上传规则
-		api.PUT("/directory-upload/rules/:id", controllers.UpdateDirectoryUploadRule)            // 更新目录监控上传规则
-		api.DELETE("/directory-upload/rules/:id", controllers.DeleteDirectoryUploadRule)         // 删除目录监控上传规则
-		api.POST("/directory-upload/rules/:id/status", controllers.SetDirectoryUploadRuleStatus) // 启停目录监控上传规则
-		api.POST("/directory-upload/rules/:id/scan", controllers.ScanDirectoryUploadRule)        // 手动触发目录监控补偿扫描
+		api.GET("/directory-upload/rules", controllers.ListDirectoryUploadRules)                   // 获取目录监控上传规则
+		api.POST("/directory-upload/rules", controllers.CreateDirectoryUploadRule)                 // 创建目录监控上传规则
+		api.PUT("/directory-upload/rules/:id", controllers.UpdateDirectoryUploadRule)              // 更新目录监控上传规则
+		api.DELETE("/directory-upload/rules/:id", controllers.DeleteDirectoryUploadRule)           // 删除目录监控上传规则
+		api.POST("/directory-upload/rules/:id/status", controllers.SetDirectoryUploadRuleStatus)   // 启停目录监控上传规则
+		api.POST("/directory-upload/rules/:id/scan", controllers.ScanDirectoryUploadRule)          // 手动触发目录监控补偿扫描
+		api.GET("/directory-upload/runtime-status", controllers.GetDirectoryUploadRuntimeStatuses) // 获取目录监控运行状态
 
 		api.GET("/account/list", controllers.GetAccountList)             // 获取开放平台账号列表
 		api.POST("/account/add", controllers.CreateTmpAccount)           // 创建开放平台账号

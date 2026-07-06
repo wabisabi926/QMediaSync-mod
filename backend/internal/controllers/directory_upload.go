@@ -164,6 +164,16 @@ func ScanDirectoryUploadRule(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "目录监控扫描已完成", Data: gin.H{"accepted": accepted}})
 }
 
+// GetDirectoryUploadRuntimeStatuses 获取目录监控运行状态。
+func GetDirectoryUploadRuntimeStatuses(c *gin.Context) {
+	statuses := directoryupload.GetDirectoryUploadRuntimeStatuses()
+	c.JSON(http.StatusOK, APIResponse[any]{
+		Code:    Success,
+		Message: "获取目录监控运行状态成功",
+		Data:    gin.H{"items": statuses},
+	})
+}
+
 func buildDirectoryUploadRuleFromRequest(existing *models.DirectoryUploadRule, req directoryUploadRuleRequest) (*models.DirectoryUploadRule, error) {
 	rule := &models.DirectoryUploadRule{}
 	if existing != nil {

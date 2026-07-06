@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"qmediasync/internal/db"
+	"qmediasync/internal/directoryupload"
 	"qmediasync/internal/models"
 
 	"github.com/gin-gonic/gin"
@@ -67,6 +68,7 @@ func setupDirectoryUploadControllerTest(t *testing.T) (*gin.Engine, *models.Sync
 	router.DELETE("/rules/:id", DeleteDirectoryUploadRule)
 	router.POST("/rules/:id/status", SetDirectoryUploadRuleStatus)
 	router.POST("/rules/:id/scan", ScanDirectoryUploadRule)
+	router.GET("/runtime-status", GetDirectoryUploadRuntimeStatuses)
 	return router, syncPath
 }
 
@@ -238,6 +240,65 @@ func TestScanDirectoryUploadRuleReturnsAcceptedCount(t *testing.T) {
 	router.ServeHTTP(w, req)
 	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"accepted":1`) {
 		t.Fatalf("扫描响应异常: code=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestDirectoryUploadRuntimeStatusReturnsItems(t *testing.T) {
+	router, syncPath := setupDirectoryUploadControllerTest(t)
+	directoryupload.StopDirectoryUploadService()
+	t.Cleanup(directoryupload.StopDirectoryUploadService)
+
+	monitorPath := t.TempDir()
+	rule := &models.DirectoryUploadRule{
+		SyncPathId:                    syncPath.ID,
+		AccountId:                     syncPath.AccountId,
+		Enabled:                       true,
+		MonitorPath:                   monitorPath,
+		RemoteRootPath:                "/remote",
+		RemoteRootId:                  "remote-root",
+		Recursive:                     true,
+		WatchMode:                     models.DirectoryUploadWatchModePolling,
+		StartupScanEnabled:            false,
+		StabilitySeconds:              0,
+		StabilityCheckIntervalSeconds: 1,
+		StabilityRequiredCount:        1,
+		ProcessedCacheTTLSeconds:      600,
+	}
+	if err := db.Db.Create(rule).Error; err != nil {
+		t.Fatalf("创建目录上传规则失败: %v", err)
+	}
+	directoryupload.InitDirectoryUploadService()
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/runtime-status", nil)
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("运行状态响应状态异常: code=%d body=%s", w.Code, w.Body.String())
+	}
+
+	var response struct {
+		Code int `json:"code"`
+		Data struct {
+			Items []struct {
+				RuleID         uint   `json:"rule_id"`
+				ConfiguredMode string `json:"configured_mode"`
+				ActualMode     string `json:"actual_mode"`
+				PendingCount   int    `json:"pending_count"`
+			} `json:"items"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("解析运行状态响应失败: %v, body=%s", err, w.Body.String())
+	}
+	if response.Code != int(Success) || len(response.Data.Items) != 1 {
+		t.Fatalf("运行状态响应 = %+v，期望返回 1 条成功数据", response)
+	}
+	item := response.Data.Items[0]
+	if item.RuleID != rule.ID ||
+		item.ConfiguredMode != string(models.DirectoryUploadWatchModePolling) ||
+		item.ActualMode != "polling" ||
+		item.PendingCount != 0 {
+		t.Fatalf("运行状态 item=%+v，期望 polling 规则状态", item)
 	}
 }
 

@@ -17,9 +17,10 @@ type fsNotifyRuleWatcher struct {
 	service *Service
 	rule    *models.DirectoryUploadRule
 
-	mutex   sync.Mutex
-	watcher *fsnotify.Watcher
-	once    sync.Once
+	mutex                sync.Mutex
+	watcher              *fsnotify.Watcher
+	runtimeErrorRecorder *RuleRuntime
+	once                 sync.Once
 }
 
 // NewFSNotifyRuleWatcher 创建基于 fsnotify 的目录监控 watcher。
@@ -107,6 +108,7 @@ func (watcher *fsNotifyRuleWatcher) run(ctx context.Context) {
 			if !ok {
 				return
 			}
+			watcher.recordError(err)
 			helpers.AppLogger.Warnf("[目录上传] watcher 错误：%v", err)
 		}
 	}
@@ -127,6 +129,7 @@ func (watcher *fsNotifyRuleWatcher) handleEvent(ctx context.Context, event fsnot
 			ignorePatterns := parseIgnorePatterns(watcher.rule.IgnorePatternsStr)
 			shouldWatch, err := watcher.shouldWatchDirectory(event.Name, ignorePatterns)
 			if err != nil {
+				watcher.recordError(err)
 				helpers.AppLogger.Warnf("[目录上传] 新目录路径越界：%v", err)
 				return
 			}
@@ -135,16 +138,54 @@ func (watcher *fsNotifyRuleWatcher) handleEvent(ctx context.Context, event fsnot
 			}
 			if err := watcher.addRecursive(ctx, event.Name); err != nil {
 				if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+					watcher.recordError(err)
 					helpers.AppLogger.Warnf("[目录上传] 新目录加入 watcher 失败：%v", err)
 				}
 			}
-			watcher.service.EnqueueScan(ctx, watcher.rule, event.Name)
+			if runtime := watcher.runtimeRecorder(); runtime != nil {
+				watcher.service.enqueueRuntimeScan(ctx, runtime, watcher.rule, event.Name)
+			} else {
+				watcher.service.EnqueueScan(ctx, watcher.rule, event.Name)
+			}
 			return
 		}
 	}
 	if _, err := watcher.service.trackCandidatePath(ctx, watcher.rule, event.Name); err != nil && !errors.Is(err, context.Canceled) {
+		watcher.recordError(err)
 		helpers.AppLogger.Warnf("[目录上传] watcher 处理文件事件失败：%v", err)
 	}
+}
+
+func (watcher *fsNotifyRuleWatcher) recordError(err error) {
+	if watcher == nil {
+		return
+	}
+	if runtime := watcher.runtimeRecorder(); runtime != nil {
+		runtime.recordError(err)
+		return
+	}
+	if watcher.service == nil || watcher.rule == nil {
+		return
+	}
+	watcher.service.recordRuleRuntimeError(watcher.rule.ID, err)
+}
+
+func (watcher *fsNotifyRuleWatcher) runtimeRecorder() *RuleRuntime {
+	if watcher == nil {
+		return nil
+	}
+	watcher.mutex.Lock()
+	defer watcher.mutex.Unlock()
+	return watcher.runtimeErrorRecorder
+}
+
+func (watcher *fsNotifyRuleWatcher) setRuntimeErrorRecorder(runtime *RuleRuntime) {
+	if watcher == nil {
+		return
+	}
+	watcher.mutex.Lock()
+	defer watcher.mutex.Unlock()
+	watcher.runtimeErrorRecorder = runtime
 }
 
 func (watcher *fsNotifyRuleWatcher) addRecursive(ctx context.Context, root string) error {

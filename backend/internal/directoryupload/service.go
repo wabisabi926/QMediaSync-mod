@@ -216,15 +216,32 @@ func (service *Service) CheckStableFiles(rule *models.DirectoryUploadRule) ([]St
 
 // ScanRule 扫描目录上传规则，把候选视频文件加入稳定性队列。
 func (service *Service) ScanRule(ctx context.Context, rule *models.DirectoryUploadRule) (int, error) {
+	if service == nil {
+		service = NewService(ServiceOptions{})
+	}
+	startedAt := service.now()
 	root := ""
 	if rule != nil {
 		root = rule.MonitorPath
 	}
-	return service.scanRoot(ctx, rule, root)
+	accepted, err := service.scanRoot(ctx, rule, root)
+	if rule != nil {
+		service.recordRuleRuntimeScan(rule.ID, startedAt, accepted, 0, err)
+	}
+	return accepted, err
 }
 
 // ScanSubtree 扫描监控目录下的新子目录，把候选文件加入稳定性队列。
-func (service *Service) ScanSubtree(ctx context.Context, rule *models.DirectoryUploadRule, root string) (int, error) {
+func (service *Service) ScanSubtree(ctx context.Context, rule *models.DirectoryUploadRule, root string) (accepted int, err error) {
+	if service == nil {
+		service = NewService(ServiceOptions{})
+	}
+	startedAt := service.now()
+	defer func() {
+		if rule != nil {
+			service.recordRuleRuntimeScan(rule.ID, startedAt, accepted, 0, err)
+		}
+	}()
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -234,7 +251,7 @@ func (service *Service) ScanSubtree(ctx context.Context, rule *models.DirectoryU
 	if err := ensurePathInMonitor(rule.MonitorPath, root); err != nil {
 		return 0, err
 	}
-	accepted, err := service.scanRoot(ctx, rule, root)
+	accepted, err = service.scanRoot(ctx, rule, root)
 	if err != nil && errors.Is(err, os.ErrNotExist) {
 		return accepted, nil
 	}
@@ -248,6 +265,20 @@ func (service *Service) EnqueueScan(ctx context.Context, rule *models.DirectoryU
 	}
 	executor := service.ensureScanExecutor()
 	executor.Enqueue(ctx, scanRequest{rule: rule, root: root})
+}
+
+func (service *Service) enqueueRuntimeScan(ctx context.Context, runtime *RuleRuntime, rule *models.DirectoryUploadRule, root string) {
+	if service == nil || runtime == nil || ctx == nil || ctx.Err() != nil || rule == nil || root == "" {
+		return
+	}
+	executor := service.ensureScanExecutor()
+	executor.Enqueue(ctx, scanRequest{
+		rule: rule,
+		root: root,
+		scan: func(scanCtx context.Context, scanRule *models.DirectoryUploadRule, scanRoot string) (int, error) {
+			return service.scanSubtreeWithRuntime(scanCtx, runtime, scanRule, scanRoot)
+		},
+	})
 }
 
 func (service *Service) enqueuePollingSnapshotScan(
@@ -280,6 +311,9 @@ func (service *Service) ensureScanExecutor() *scanExecutor {
 }
 
 func (service *Service) scanRoot(ctx context.Context, rule *models.DirectoryUploadRule, root string) (int, error) {
+	if service == nil {
+		service = NewService(ServiceOptions{})
+	}
 	result, err := service.scanRootWithSnapshotAndTrack(ctx, rule, root, func(_ string, path string, _ string) {
 		service.queue.Track(rule.ID, path)
 	})
@@ -297,9 +331,45 @@ func (service *Service) scanPollingSnapshot(
 	root string,
 	mode pollingSnapshotScanMode,
 ) (int, error) {
+	if service == nil {
+		service = NewService(ServiceOptions{})
+	}
+	startedAt := service.now()
 	result, err := service.scanRootWithSnapshot(ctx, rule, root)
 	tracked := service.applyPollingSnapshotResult(runtime, rule, result, mode, err == nil)
+	runtime.recordScan(service.now(), startedAt, result.Accepted, result.Accepted-tracked, err)
 	return tracked, err
+}
+
+func (service *Service) scanSubtreeWithRuntime(
+	ctx context.Context,
+	runtime *RuleRuntime,
+	rule *models.DirectoryUploadRule,
+	root string,
+) (int, error) {
+	if service == nil {
+		service = NewService(ServiceOptions{})
+	}
+	startedAt := service.now()
+	if err := ctx.Err(); err != nil {
+		runtime.recordScan(service.now(), startedAt, 0, 0, err)
+		return 0, err
+	}
+	if rule == nil {
+		err := errors.New("目录监控规则为空")
+		runtime.recordScan(service.now(), startedAt, 0, 0, err)
+		return 0, err
+	}
+	if err := ensurePathInMonitor(rule.MonitorPath, root); err != nil {
+		runtime.recordScan(service.now(), startedAt, 0, 0, err)
+		return 0, err
+	}
+	accepted, err := service.scanRoot(ctx, rule, root)
+	if err != nil && errors.Is(err, os.ErrNotExist) {
+		err = nil
+	}
+	runtime.recordScan(service.now(), startedAt, accepted, 0, err)
+	return accepted, err
 }
 
 func (service *Service) applyPollingSnapshotResult(

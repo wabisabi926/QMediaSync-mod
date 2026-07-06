@@ -34,6 +34,47 @@ func TestStartRuleStartupScanAddsExistingFilesToStabilityQueue(t *testing.T) {
 	waitForPendingPath(t, service, rule.ID, filePath)
 }
 
+func TestRuntimeStatusRecordsStartupWatcherScan(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "startup.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), time.Unix(710, 0))
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.WatchMode = models.DirectoryUploadWatchModeFSNotify
+	rule.StartupScanEnabled = true
+	if err := db.Db.Save(rule).Error; err != nil {
+		t.Fatalf("更新目录监控规则失败: %v", err)
+	}
+
+	service := NewService(ServiceOptions{
+		StabilityCheckInterval: time.Hour,
+		WatcherFactory: func(*Service, *models.DirectoryUploadRule) (RuleWatcher, error) {
+			return &fakeRuleWatcher{}, nil
+		},
+	})
+	runtime, err := service.StartRule(context.Background(), rule)
+	if err != nil {
+		t.Fatalf("启动 fsnotify 目录监控规则失败: %v", err)
+	}
+	defer runtime.Stop()
+
+	waitForPendingPath(t, service, rule.ID, filePath)
+
+	status := runtime.status()
+	if status.ConfiguredMode != string(models.DirectoryUploadWatchModeFSNotify) {
+		t.Fatalf("configured_mode=%q，期望 fsnotify", status.ConfiguredMode)
+	}
+	if status.ActualMode != string(RuleRuntimeModeWatcher) {
+		t.Fatalf("actual_mode=%q，期望 watcher", status.ActualMode)
+	}
+	if status.LastScanAt == 0 {
+		t.Fatal("启动扫描应记录 last_scan_at")
+	}
+	if status.LastScanCandidates != 1 || status.LastScanSkipped != 0 {
+		t.Fatalf("scan stats=%+v，期望启动扫描候选 1 跳过 0", status)
+	}
+}
+
 func TestStartRulePollingFindsNewFiles(t *testing.T) {
 	setupDirectoryUploadServiceTestDB(t)
 	monitorPath := t.TempDir()
@@ -569,6 +610,28 @@ func (watcher *fakeRuleWatcher) Close() error {
 	return nil
 }
 
+type runtimeAwareFakeWatcher struct {
+	recorder        *RuleRuntime
+	startRecorder   *RuleRuntime
+	startRecorderCh chan *RuleRuntime
+}
+
+func (watcher *runtimeAwareFakeWatcher) setRuntimeErrorRecorder(runtime *RuleRuntime) {
+	watcher.recorder = runtime
+}
+
+func (watcher *runtimeAwareFakeWatcher) Start(context.Context) error {
+	watcher.startRecorder = watcher.recorder
+	if watcher.startRecorderCh != nil {
+		watcher.startRecorderCh <- watcher.recorder
+	}
+	return nil
+}
+
+func (watcher *runtimeAwareFakeWatcher) Close() error {
+	return nil
+}
+
 func TestStartRuleAutoCancellationDoesNotFallbackToPolling(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -642,6 +705,41 @@ func TestStartRuleAutoCancellationDoesNotFallbackToPolling(t *testing.T) {
 	}
 }
 
+func TestStartFSNotifyRuleWatcherInjectsRuntimeBeforeStart(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.WatchMode = models.DirectoryUploadWatchModeFSNotify
+	rule.StartupScanEnabled = false
+	expectedRuntime := &RuleRuntime{RuleID: rule.ID}
+	startRecorderCh := make(chan *RuleRuntime, 1)
+	fakeWatcher := &runtimeAwareFakeWatcher{startRecorderCh: startRecorderCh}
+
+	service := NewService(ServiceOptions{
+		WatcherFactory: func(*Service, *models.DirectoryUploadRule) (RuleWatcher, error) {
+			return fakeWatcher, nil
+		},
+	})
+	watcher, err := service.startFSNotifyRuleWatcher(context.Background(), rule, expectedRuntime)
+	if err != nil {
+		t.Fatalf("启动 fake watcher 失败: %v", err)
+	}
+	if watcher != fakeWatcher {
+		t.Fatalf("watcher=%+v，期望返回 fake watcher", watcher)
+	}
+	select {
+	case got := <-startRecorderCh:
+		if got != expectedRuntime {
+			t.Fatalf("Start 中 recorder=%p，期望注入 runtime %p", got, expectedRuntime)
+		}
+	default:
+		t.Fatal("fake watcher Start 未被调用")
+	}
+	if fakeWatcher.startRecorder != expectedRuntime {
+		t.Fatalf("startRecorder=%p，期望注入 runtime %p", fakeWatcher.startRecorder, expectedRuntime)
+	}
+}
+
 func TestStartRuleAutoWatcherStartCanceledDoesNotFallbackToPolling(t *testing.T) {
 	setupDirectoryUploadServiceTestDB(t)
 	monitorPath := t.TempDir()
@@ -696,7 +794,7 @@ func TestStartFSNotifyRuleWatcherClosesWatcherWhenContextCanceledAfterSuccessful
 			return fakeWatcher, nil
 		},
 	})
-	watcher, err := service.startFSNotifyRuleWatcher(ctx, rule)
+	watcher, err := service.startFSNotifyRuleWatcher(ctx, rule, &RuleRuntime{RuleID: rule.ID})
 	if watcher != nil {
 		_ = watcher.Close()
 	}

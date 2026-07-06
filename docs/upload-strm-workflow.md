@@ -24,6 +24,7 @@ OSS `CompleteMultipartUpload` 完成后，必须带回 115 init 返回的 `callb
 - `DELETE /api/directory-upload/rules/:id`：删除规则。
 - `POST /api/directory-upload/rules/:id/status`：启用或停用规则，请求体为 `{"enabled": true}`。
 - `POST /api/directory-upload/rules/:id/scan`：手动触发扫描，返回本次加入稳定性队列的候选文件数；规则停用时会拒绝执行。
+- `GET /api/directory-upload/runtime-status`：查询当前目录监控运行状态，返回每条运行中规则的配置模式、实际模式、auto 降级原因、最近扫描时间、耗时、候选数、跳过数、最近错误和待稳定文件数。
 
 监控模式：
 
@@ -32,6 +33,8 @@ OSS `CompleteMultipartUpload` 完成后，必须带回 115 init 返回的 `callb
 - `polling`：兼容模式，按内置 30 秒周期递归扫描。
 
 启动查漏由 `startup_scan_enabled` 控制。查漏扫描默认只把候选视频文件加入稳定性队列；规则 `upload_metadata=true` 时，也会纳入当前同步目录配置中的元数据扩展名文件。视频扩展名和元数据扩展名都按同步目录自定义配置优先、为空回退全局 STRM 设置的规则解析。`recursive=false` 时，查漏扫描和 fsnotify 事件都只处理监控根目录下的文件，新建子目录不会被加入 watcher。扫描不直接创建上传任务。补偿扫描间隔为代码内置 30 秒，不提供页面或接口配置。启动查漏、polling 查漏和 fsnotify 新目录补偿扫描共用内置扫描执行器；执行器按 `rule_id + clean(root)` 合并重复目录任务，已取消的同 key 扫描会允许后续请求重新提交，默认并发为 2，不新增前端配置。polling 模式会在运行时维护 `relative_path -> source_fingerprint` 快照，每轮扫描只把新增文件或 fingerprint 变化的文件加入稳定性队列；`startup_scan_enabled=true` 时，启动查漏会处理已有文件并初始化快照，避免第一轮 polling 重复提交同一 fingerprint；`startup_scan_enabled=false` 时，启动时会先建立 baseline 快照，不处理已有文件，之后只有新增或变化的文件会进入队列；baseline 建立遇到非取消类扫描错误时会记录日志并由后续 polling 重试，已成功扫描到的部分仍作为 baseline。polling 定期扫描遇到非取消类中途错误时，不会用本轮 partial snapshot 替换完整快照，避免误删已知 fingerprint；但本轮已成功扫描部分中新增或变化的文件仍会加入稳定性队列，下一轮继续重试。启动查漏提交到执行器前会同步校验同步目录、监控路径和扫描根目录，基础校验失败会阻止规则启动；实际扫描期间发生的错误会写入应用日志，不阻塞已经启动的规则。
+
+运行状态接口只返回当前进程中正在运行的规则。`configured_mode` 来自规则配置，`actual_mode` 是实际运行模式；`auto` 最终使用 polling 时会在 `fallback_reason` 返回原因，显式 `fsnotify` 或 `polling` 不会伪造降级原因。`last_scan_candidates` 表示最近一次扫描中符合规则的候选文件数，`last_scan_skipped` 表示已被 polling baseline 或 snapshot diff 跳过、未加入稳定性队列的候选数；`pending_count` 来自当前稳定性队列。
 
 ## 稳定性和去重
 

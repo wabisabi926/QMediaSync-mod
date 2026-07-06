@@ -39,6 +39,16 @@ type RuleRuntime struct {
 	RuleID uint
 	Mode   RuleRuntimeMode
 
+	statusMu           sync.RWMutex
+	configuredMode     string
+	fallbackReason     string
+	lastScanAt         int64
+	lastScanDurationMs int64
+	lastScanCandidates int
+	lastScanSkipped    int
+	lastScanError      string
+	lastRuntimeError   string
+
 	cancel          context.CancelFunc
 	watcher         RuleWatcher
 	done            chan struct{}
@@ -162,18 +172,20 @@ func (service *Service) StartRule(ctx context.Context, rule *models.DirectoryUpl
 		}
 	}
 
-	watcher, mode, err := service.startRuleWatcher(ruleCtx, rule)
+	watcher, mode, fallbackReason, err := service.startRuleWatcher(ruleCtx, rule, runtime)
 	if err != nil {
 		cancel()
 		return nil, err
 	}
 	runtime.watcher = watcher
-	runtime.Mode = mode
+	runtime.setRuntimeMode(configuredWatchMode(rule), mode, fallbackReason)
 	if runtime.Mode == RuleRuntimeModePolling {
 		if rule.StartupScanEnabled {
 			service.enqueuePollingSnapshotScan(ruleCtx, runtime, rule, rule.MonitorPath, pollingSnapshotTrackAll)
 		} else {
+			startedAt := service.now()
 			result, err := service.scanRootWithSnapshot(ruleCtx, rule, rule.MonitorPath)
+			runtime.recordScan(service.now(), startedAt, result.Accepted, result.Accepted, err)
 			if err != nil && (ruleCtx.Err() != nil || errors.Is(err, context.Canceled)) {
 				cancel()
 				return nil, fmt.Errorf("建立 polling baseline 失败：%w", err)
@@ -184,7 +196,7 @@ func (service *Service) StartRule(ctx context.Context, rule *models.DirectoryUpl
 			}
 		}
 	} else if rule.StartupScanEnabled {
-		service.EnqueueScan(ruleCtx, rule, rule.MonitorPath)
+		service.enqueueRuntimeScan(ruleCtx, runtime, rule, rule.MonitorPath)
 	}
 
 	var wg sync.WaitGroup
@@ -207,36 +219,40 @@ func (service *Service) StartRule(ctx context.Context, rule *models.DirectoryUpl
 	return runtime, nil
 }
 
-func (service *Service) startRuleWatcher(ctx context.Context, rule *models.DirectoryUploadRule) (RuleWatcher, RuleRuntimeMode, error) {
+func (service *Service) startRuleWatcher(
+	ctx context.Context,
+	rule *models.DirectoryUploadRule,
+	runtime *RuleRuntime,
+) (RuleWatcher, RuleRuntimeMode, string, error) {
 	switch rule.WatchMode {
 	case models.DirectoryUploadWatchModePolling:
-		return nil, RuleRuntimeModePolling, nil
+		return nil, RuleRuntimeModePolling, "", nil
 	case models.DirectoryUploadWatchModeFSNotify:
-		watcher, err := service.startFSNotifyRuleWatcher(ctx, rule)
+		watcher, err := service.startFSNotifyRuleWatcher(ctx, rule, runtime)
 		if err != nil {
-			return nil, "", fmt.Errorf("启动 watcher 失败：%w", err)
+			return nil, "", "", fmt.Errorf("启动 watcher 失败：%w", err)
 		}
-		return watcher, RuleRuntimeModeWatcher, nil
+		return watcher, RuleRuntimeModeWatcher, "", nil
 	case "", models.DirectoryUploadWatchModeAuto:
 	default:
-		return nil, "", fmt.Errorf("不支持的监控模式：%s", rule.WatchMode)
+		return nil, "", "", fmt.Errorf("不支持的监控模式：%s", rule.WatchMode)
 	}
 
 	decision := service.decideWatchMode(ctx, rule)
 	if decision.Err != nil {
-		return nil, "", decision.Err
+		return nil, "", "", decision.Err
 	}
 	if decision.Mode == RuleRuntimeModePolling {
 		helpers.AppLogger.Warnf("[目录上传] 规则 %d auto 选择 polling：%s", rule.ID, decision.Reason)
-		return nil, RuleRuntimeModePolling, nil
+		return nil, RuleRuntimeModePolling, decision.Reason, nil
 	}
 	helpers.AppLogger.Debugf("[目录上传] 规则 %d auto 选择 fsnotify：%s", rule.ID, decision.Reason)
-	watcher, err := service.startFSNotifyRuleWatcher(ctx, rule)
+	watcher, err := service.startFSNotifyRuleWatcher(ctx, rule, runtime)
 	if err == nil {
-		return watcher, RuleRuntimeModeWatcher, nil
+		return watcher, RuleRuntimeModeWatcher, "", nil
 	}
 	if cancelErr := terminalContextError(ctx, err); cancelErr != nil {
-		return nil, "", cancelErr
+		return nil, "", "", cancelErr
 	}
 	helpers.AppLogger.Warnf(
 		"[目录上传] 规则 %d auto 选择 fsnotify（%s）但 watcher 启动失败，切换为 polling：%v",
@@ -244,7 +260,8 @@ func (service *Service) startRuleWatcher(ctx context.Context, rule *models.Direc
 		decision.Reason,
 		err,
 	)
-	return nil, RuleRuntimeModePolling, nil
+	fallbackReason := fmt.Sprintf("auto 选择 fsnotify（%s）但 watcher 启动失败，切换为 polling：%v", decision.Reason, err)
+	return nil, RuleRuntimeModePolling, fallbackReason, nil
 }
 
 func (service *Service) decideWatchMode(ctx context.Context, rule *models.DirectoryUploadRule) watchModeDecision {
@@ -254,7 +271,11 @@ func (service *Service) decideWatchMode(ctx context.Context, rule *models.Direct
 	return decideWatchMode(ctx, rule, service.watchModeDetector)
 }
 
-func (service *Service) startFSNotifyRuleWatcher(ctx context.Context, rule *models.DirectoryUploadRule) (RuleWatcher, error) {
+func (service *Service) startFSNotifyRuleWatcher(
+	ctx context.Context,
+	rule *models.DirectoryUploadRule,
+	runtime *RuleRuntime,
+) (RuleWatcher, error) {
 	if err := terminalContextError(ctx, nil); err != nil {
 		return nil, err
 	}
@@ -268,6 +289,9 @@ func (service *Service) startFSNotifyRuleWatcher(ctx context.Context, rule *mode
 	}
 	if watcher == nil {
 		return nil, errors.New("watcher 工厂返回空实例")
+	}
+	if setter, ok := watcher.(interface{ setRuntimeErrorRecorder(*RuleRuntime) }); ok {
+		setter.setRuntimeErrorRecorder(runtime)
 	}
 	if err := watcher.Start(ctx); err != nil {
 		_ = watcher.Close()

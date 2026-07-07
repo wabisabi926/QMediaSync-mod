@@ -40,6 +40,8 @@ export interface UploadTaskDetailRow {
 }
 
 const phaseLabelMap: Record<string, string> = {
+  pending: '等待上传',
+  checking_remote: '检查远端文件',
   rapid_waiting: '等待秒传',
   rapid_init: '等待秒传',
   resume_uploading: '恢复上传',
@@ -48,14 +50,19 @@ const phaseLabelMap: Record<string, string> = {
   uploading: '上传中',
   completing: '完成处理中',
   complete_callback: '完成处理中',
+  completed: '上传完成',
   rapid_uploaded: '秒传成功',
+  remote_exists: '远端已存在',
+  skipped: '已跳过上传',
+  failed: '上传失败',
+  cancelled: '已取消',
 }
 
 const resultLabelMap: Record<string, string> = {
   rapid_upload: '秒传成功',
   multipart_uploaded: '上传完成',
   remote_exists: '远端已存在',
-  skipped_after_rapid_wait: '秒传等待超时',
+  skipped_after_rapid_wait: '秒传等待超时，已跳过上传',
   unknown: '',
 }
 

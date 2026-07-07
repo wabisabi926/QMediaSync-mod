@@ -107,6 +107,20 @@ OAuth 回调参数收集：
 - `getTaskSourceTypeName(type)`
 - `getTaskSourceTypeTagType(type)`
 
+## uploadQueueDisplayUtils.ts
+
+上传队列展示辅助：
+
+- `getUploadPhaseLabel(task)`
+- `getUploadResultLabel(task)`
+- `getUploadStageOrResultLabel(task)`
+- `getUploadProgressPercent(task)`
+- `getUploadedSizeLabel(task)`
+- `getUploadTaskDetailRows(task)`
+- `applyUploadQueuePatch(rows, patch)`
+
+后端返回的 `upload_phase`、`upload_result` 和 `source_cleanup_status` 保持机器值，前端在这里统一映射为用户可读文案；不要把展示文案回写到接口字段或数据库字段。
+
 ## timeUtils.ts
 
 时间、存储空间和状态样式辅助。业务时间统一使用后端返回的 Unix 秒，并在前端按浏览器本地环境格式化；日志字符串保持原始日志格式，不强制转换。新接口如需毫秒时间或耗时，字段名必须使用 `_ms` 后缀，例如 `duration_ms`、`event_time_ms`。

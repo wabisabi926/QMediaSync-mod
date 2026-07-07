@@ -18,26 +18,18 @@ import (
 	"qmediasync/internal/models"
 
 	"github.com/gin-gonic/gin"
-	"github.com/glebarez/sqlite"
-	"gorm.io/gorm"
 )
 
 func setupDirectoryUploadControllerTest(t *testing.T) (*gin.Engine, *models.SyncPath) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
-	testDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	db.Db = testDB
-	if err := db.Db.AutoMigrate(
+	setupControllerTestDB(
+		t,
 		&models.Account{},
 		&models.SyncPath{},
 		&models.DirectoryUploadRule{},
 		&models.DirectoryUploadProcessedFile{},
-	); err != nil {
-		t.Fatalf("迁移测试表失败: %v", err)
-	}
+	)
 	models.SettingsGlobal = &models.Settings{
 		SettingStrm: models.SettingStrm{
 			VideoExtArr:  []string{".mkv", ".mp4"},

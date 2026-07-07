@@ -31,6 +31,10 @@ type APIResponse[T any] struct {
 	Data    T               `json:"data"`
 }
 
+var runAuthBackgroundTask = func(fn func()) {
+	go fn()
+}
+
 // JWTAuthMiddleware 基于 JWT 的认证中间件，用于验证用户是否登录。
 func JWTAuthMiddleware() func(c *gin.Context) {
 	return func(c *gin.Context) {
@@ -76,9 +80,9 @@ func authenticateAPIKey(c *gin.Context, apiKey string) bool {
 		return false
 	}
 	SetCurrentUser(c, user, authMethodAPIKey)
-	go func() {
+	runAuthBackgroundTask(func() {
 		_ = apiKeyModel.UpdateLastUsedAt()
-	}()
+	})
 	return true
 }
 
@@ -107,9 +111,9 @@ func authenticateCookieSession(c *gin.Context) bool {
 	SetCurrentUser(c, user, authMethodSession)
 	SetCurrentSession(c, session)
 	if now-session.LastSeenAt >= 60 {
-		go func() {
+		runAuthBackgroundTask(func() {
 			_ = models.TouchUserSession(session.SessionID, now)
-		}()
+		})
 	}
 	return true
 }

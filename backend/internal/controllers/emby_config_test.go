@@ -13,8 +13,6 @@ import (
 	"qmediasync/internal/models"
 
 	"github.com/gin-gonic/gin"
-	"github.com/glebarez/sqlite"
-	"gorm.io/gorm"
 )
 
 func setupEmbyConfigControllerTest(t *testing.T) *gin.Engine {
@@ -22,16 +20,8 @@ func setupEmbyConfigControllerTest(t *testing.T) *gin.Engine {
 
 	gin.SetMode(gin.TestMode)
 	helpers.AppLogger = &helpers.QLogger{Logger: log.New(io.Discard, "", 0)}
-	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	db.Db = testDb
 	models.GlobalEmbyConfig = nil
-
-	if err := db.Db.AutoMigrate(&models.EmbyConfig{}); err != nil {
-		t.Fatalf("迁移 EmbyConfig 失败: %v", err)
-	}
+	setupControllerTestDB(t, &models.EmbyConfig{})
 
 	r := gin.New()
 	r.PUT("/emby/config", UpdateEmbyConfig)

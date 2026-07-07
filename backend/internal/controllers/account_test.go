@@ -8,13 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gin-gonic/gin"
-	"github.com/glebarez/sqlite"
-	"gorm.io/gorm"
-
 	"qmediasync/internal/db"
 	"qmediasync/internal/models"
 	"qmediasync/internal/validation"
+
+	"github.com/gin-gonic/gin"
 )
 
 type apiMessageResponse struct {
@@ -25,14 +23,7 @@ type apiMessageResponse struct {
 func setupAccountControllerTest(t *testing.T) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
-	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	db.Db = testDb
-	if err := db.Db.AutoMigrate(&models.Account{}); err != nil {
-		t.Fatalf("迁移账号表失败: %v", err)
-	}
+	setupControllerTestDB(t, &models.Account{})
 }
 
 func decodeAPIMessage(t *testing.T, body *bytes.Buffer) apiMessageResponse {

@@ -13,8 +13,6 @@ import (
 	"qmediasync/internal/models"
 
 	"github.com/gin-gonic/gin"
-	"github.com/glebarez/sqlite"
-	"gorm.io/gorm"
 )
 
 func setupWebhookAPIKeyTest(t *testing.T) (*gin.Engine, string) {
@@ -22,14 +20,7 @@ func setupWebhookAPIKeyTest(t *testing.T) (*gin.Engine, string) {
 
 	gin.SetMode(gin.TestMode)
 	helpers.AppLogger = &helpers.QLogger{Logger: log.New(io.Discard, "", 0)}
-	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	db.Db = testDb
-	if err := db.Db.AutoMigrate(&models.User{}, &models.ApiKey{}); err != nil {
-		t.Fatalf("迁移测试表失败: %v", err)
-	}
+	setupControllerTestDB(t, &models.User{}, &models.ApiKey{})
 	user := &models.User{Username: "admin", Password: "hashed"}
 	if err := db.Db.Create(user).Error; err != nil {
 		t.Fatalf("创建用户失败: %v", err)

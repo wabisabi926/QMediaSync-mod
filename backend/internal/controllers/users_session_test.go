@@ -7,27 +7,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/glebarez/sqlite"
-	"gorm.io/gorm"
-
 	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
+
+	"github.com/gin-gonic/gin"
 )
 
 func setupSessionActionTest(t *testing.T) *models.User {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	helpers.GlobalConfig.JwtSecret = "test-secret"
-	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	db.Db = testDb
-	if err := db.Db.AutoMigrate(&models.User{}, &models.UserSession{}); err != nil {
-		t.Fatalf("迁移用户表失败: %v", err)
-	}
+	setupControllerTestDB(t, &models.User{}, &models.UserSession{})
 	user := &models.User{Username: "admin", Password: "hashed"}
 	if err := db.Db.Create(user).Error; err != nil {
 		t.Fatalf("创建测试用户失败: %v", err)

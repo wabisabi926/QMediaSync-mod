@@ -14,9 +14,7 @@ import (
 	"qmediasync/internal/models"
 
 	"github.com/gin-gonic/gin"
-	"github.com/glebarez/sqlite"
 	"gopkg.in/yaml.v2"
-	"gorm.io/gorm"
 )
 
 func setupAuthSecurityTest(t *testing.T) (*gin.Engine, *models.User, *models.UserSession, string) {
@@ -25,14 +23,7 @@ func setupAuthSecurityTest(t *testing.T) (*gin.Engine, *models.User, *models.Use
 	gin.SetMode(gin.TestMode)
 	helpers.AppLogger = &helpers.QLogger{Logger: log.New(io.Discard, "", 0)}
 	helpers.GlobalConfig = helpers.Config{JwtSecret: "test-secret"}
-	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	db.Db = testDb
-	if err := db.Db.AutoMigrate(&models.User{}, &models.UserSession{}, &models.ApiKey{}); err != nil {
-		t.Fatalf("迁移测试表失败: %v", err)
-	}
+	setupControllerTestDB(t, &models.User{}, &models.UserSession{}, &models.ApiKey{})
 	user := &models.User{Username: "admin", Password: "hashed"}
 	if err := db.Db.Create(user).Error; err != nil {
 		t.Fatalf("创建用户失败: %v", err)
@@ -246,6 +237,65 @@ func TestAPIKeyHeaderSkipsCSRFAndWinsOverQuery(t *testing.T) {
 	}
 }
 
+func TestAPIKeyAuthCanRunBackgroundUpdateSynchronouslyInTests(t *testing.T) {
+	r, user, _, _ := setupAuthSecurityTest(t)
+	setAuthBackgroundTaskRunnerForTest(t, func(fn func()) {
+		fn()
+	})
+	apiKey, rawKey, err := models.CreateAPIKey(user.ID, "sync-update")
+	if err != nil {
+		t.Fatalf("创建 api key 失败: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/protected", nil)
+	req.Header.Set(apiKeyHeaderName, rawKey)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("HTTP = %d, body=%s", w.Code, w.Body.String())
+	}
+	var updated models.ApiKey
+	if err := db.Db.First(&updated, apiKey.ID).Error; err != nil {
+		t.Fatalf("读取 api key 失败: %v", err)
+	}
+	if updated.LastUsedAt == 0 {
+		t.Fatalf("同步后台执行器未更新 api key last_used_at")
+	}
+}
+
+func TestCookieAuthCanRunSessionTouchSynchronouslyInTests(t *testing.T) {
+	r, _, session, csrfToken := setupAuthSecurityTest(t)
+	setAuthBackgroundTaskRunnerForTest(t, func(fn func()) {
+		fn()
+	})
+	oldLastSeenAt := time.Now().Add(-2 * time.Minute).Unix()
+	if err := db.Db.Model(session).Update("last_seen_at", oldLastSeenAt).Error; err != nil {
+		t.Fatalf("设置旧 session last_seen_at 失败: %v", err)
+	}
+	tokenString := buildSessionCookieTokenForTest(t, session)
+
+	req := httptest.NewRequest(http.MethodPost, "/protected", nil)
+	req.Host = "localhost:12333"
+	req.Header.Set("Origin", "http://localhost:12333")
+	req.Header.Set(csrfHeaderName, csrfToken)
+	req.AddCookie(&http.Cookie{Name: authCookieName, Value: tokenString})
+	req.AddCookie(&http.Cookie{Name: csrfCookieName, Value: csrfToken})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("HTTP = %d, body=%s", w.Code, w.Body.String())
+	}
+	var updated models.UserSession
+	if err := db.Db.First(&updated, session.ID).Error; err != nil {
+		t.Fatalf("读取 session 失败: %v", err)
+	}
+	if updated.LastSeenAt == oldLastSeenAt {
+		t.Fatalf("同步后台执行器未更新 session last_seen_at")
+	}
+}
+
 func buildSessionCookieTokenForTest(t *testing.T, session *models.UserSession) string {
 	t.Helper()
 
@@ -260,4 +310,13 @@ func buildSessionCookieTokenForTest(t *testing.T, session *models.UserSession) s
 		t.Fatalf("签发测试 JWT 失败: %v", err)
 	}
 	return tokenString
+}
+
+func setAuthBackgroundTaskRunnerForTest(t *testing.T, runner func(func())) {
+	t.Helper()
+	oldRunner := runAuthBackgroundTask
+	runAuthBackgroundTask = runner
+	t.Cleanup(func() {
+		runAuthBackgroundTask = oldRunner
+	})
 }

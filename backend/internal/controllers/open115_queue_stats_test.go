@@ -15,8 +15,6 @@ import (
 	"qmediasync/internal/v115open"
 
 	"github.com/gin-gonic/gin"
-	"github.com/glebarez/sqlite"
-	"gorm.io/gorm"
 )
 
 func setupQueueStatsControllerTest(t *testing.T) *gin.Engine {
@@ -29,15 +27,7 @@ func setupQueueStatsControllerTest(t *testing.T) *gin.Engine {
 		v115open.GetGlobalExecutor().Stop()
 	})
 
-	testDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	db.Db = testDB
-
-	if err := db.Db.AutoMigrate(&models.RequestStat{}); err != nil {
-		t.Fatalf("创建请求统计表失败: %v", err)
-	}
+	setupControllerTestDB(t, &models.RequestStat{})
 
 	r := gin.New()
 	r.GET("/115/queue/stats", GetQueueStats)
@@ -121,15 +111,7 @@ func setupUploadQueueControllerTest(t *testing.T) *gin.Engine {
 	helpers.AppLogger = &helpers.QLogger{Logger: log.New(io.Discard, "", 0)}
 	helpers.V115Log = &helpers.QLogger{Logger: log.New(io.Discard, "", 0)}
 
-	testDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	db.Db = testDB
-
-	if err := db.Db.AutoMigrate(&models.DbUploadTask{}, &models.UploadSession{}); err != nil {
-		t.Fatalf("创建上传队列表失败: %v", err)
-	}
+	setupControllerTestDB(t, &models.DbUploadTask{}, &models.UploadSession{})
 
 	r := gin.New()
 	r.GET("/upload/queue", UploadList)

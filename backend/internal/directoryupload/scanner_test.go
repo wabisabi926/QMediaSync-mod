@@ -360,7 +360,7 @@ func TestScanRootWithSnapshotKeepsPartialResultWhenWalkDirFails(t *testing.T) {
 	service := NewService(ServiceOptions{})
 	replacedDir := false
 
-	result, err := service.scanRootWithSnapshotAndTrack(context.Background(), rule, monitorPath, func(rel string, _ string, _ string) {
+	result, err := service.scanRootWithSnapshotAndTrack(context.Background(), rule, monitorPath, func(rel string, _ string, _ string, _ int64) {
 		if rel != "a.mkv" || replacedDir {
 			return
 		}

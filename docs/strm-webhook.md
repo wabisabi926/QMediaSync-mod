@@ -150,6 +150,8 @@ API Key 在 Web 页面「系统设置 - API Key」中创建。完整密钥只会
 
 单文件和目录扫描请求如果校验失败，会返回 HTTP `400`。批量请求中单项失败不会导致整个请求失败，只会在对应 `results` 项中写入错误；但 `items[]` 内放入请求级开关属于整批请求错误，会直接返回 HTTP `400`。
 
+请求完成入队统计后，会向 `app.log` 写入 `[STRM Webhook] 接收到 STRM 任务` INFO 日志，包含 `request_id`、`action`、`sync_path_id`、`download_meta`、`refresh_emby`、接收 / 拒绝数量和任务 ID 列表。日志不会记录 API Key、请求头或鉴权密钥。
+
 示例响应：
 
 ```json

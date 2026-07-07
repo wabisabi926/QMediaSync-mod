@@ -1,6 +1,7 @@
 package directoryupload
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -79,6 +80,17 @@ func setupDirectoryUploadServiceTestDB(t *testing.T) {
 			MinVideoSize: 0,
 		},
 	}
+}
+
+func setDirectoryUploadTestLogger(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	oldLogger := helpers.AppLogger
+	var logBuf bytes.Buffer
+	helpers.AppLogger = &helpers.QLogger{Logger: log.New(&logBuf, "", 0)}
+	t.Cleanup(func() {
+		helpers.AppLogger = oldLogger
+	})
+	return &logBuf
 }
 
 type barrierRemoteClient struct {
@@ -546,6 +558,116 @@ func TestTrackCandidatePathSkipsNestedFileWhenRecursiveDisabled(t *testing.T) {
 	want := []string{rootFile}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("pending paths=%v，期望只包含根目录文件 %v", got, want)
+	}
+}
+
+func TestTrackCandidatePathLogsAcceptedFile(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	logBuf := setDirectoryUploadTestLogger(t)
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), time.Unix(900, 0))
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	service := NewService(ServiceOptions{})
+
+	accepted, err := service.trackCandidatePath(context.Background(), rule, filePath)
+	if err != nil {
+		t.Fatalf("处理候选文件失败: %v", err)
+	}
+	if !accepted {
+		t.Fatal("候选文件应进入稳定性队列")
+	}
+
+	logOutput := logBuf.String()
+	for _, want := range []string{
+		"[目录上传] 监控到候选文件",
+		"rule_id=",
+		"source=fsnotify",
+		"path=" + filePath,
+		"relative_path=movie.mkv",
+		"size=5",
+		"fingerprint=v1:",
+	} {
+		if !strings.Contains(logOutput, want) {
+			t.Fatalf("日志缺少 %q，实际日志：%s", want, logOutput)
+		}
+	}
+}
+
+func TestHandleStableFileLogsCreatedUploadTask(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	logBuf := setDirectoryUploadTestLogger(t)
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), time.Unix(910, 0))
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	service := NewService(ServiceOptions{
+		RemoteClient: &fakeRemoteClient{parentID: "parent-1"},
+	})
+
+	if err := service.HandleStableFile(context.Background(), rule, filePath); err != nil {
+		t.Fatalf("处理稳定文件失败: %v", err)
+	}
+
+	logOutput := logBuf.String()
+	for _, want := range []string{
+		"[目录上传] 已创建上传任务",
+		"rule_id=",
+		"upload_task_id=",
+		"path=" + filePath,
+		"remote_path=/remote/movie.mkv",
+		"remote_parent_id=parent-1",
+		"size=5",
+		"cleanup_status=none",
+	} {
+		if !strings.Contains(logOutput, want) {
+			t.Fatalf("日志缺少 %q，实际日志：%s", want, logOutput)
+		}
+	}
+}
+
+func TestHandleStableFileLogsRemoteExistsStrmTask(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	logBuf := setDirectoryUploadTestLogger(t)
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), time.Unix(920, 0))
+	sha1, err := helpers.FileSHA1(filePath)
+	if err != nil {
+		t.Fatalf("计算测试文件 SHA1 失败: %v", err)
+	}
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	service := NewService(ServiceOptions{
+		RemoteClient: &fakeRemoteClient{
+			parentID: "parent-1",
+			files: map[string]*RemoteFile{
+				"movie.mkv": {
+					ID:       "remote-file-1",
+					PickCode: "pick-1",
+					SHA1:     sha1,
+					Size:     5,
+				},
+			},
+		},
+	})
+
+	if err := service.HandleStableFile(context.Background(), rule, filePath); err != nil {
+		t.Fatalf("处理远端已存在文件失败: %v", err)
+	}
+
+	logOutput := logBuf.String()
+	for _, want := range []string{
+		"[目录上传] 远端已存在同内容文件，已创建 STRM 后处理任务",
+		"rule_id=",
+		"upload_task_id=",
+		"strm_task_id=",
+		"path=" + filePath,
+		"remote_path=/remote/movie.mkv",
+		"remote_file_id=remote-file-1",
+	} {
+		if !strings.Contains(logOutput, want) {
+			t.Fatalf("日志缺少 %q，实际日志：%s", want, logOutput)
+		}
 	}
 }
 

@@ -117,6 +117,52 @@ func TestStrmWebhookAuthSupportsHeaderAndQueryAPIKey(t *testing.T) {
 	}
 }
 
+func TestStrmWebhookLogsAcceptedTask(t *testing.T) {
+	router, rawKey, syncPath := setupStrmWebhookControllerTest(t)
+	var logBuf bytes.Buffer
+	oldLogger := helpers.AppLogger
+	helpers.AppLogger = &helpers.QLogger{Logger: log.New(&logBuf, "", 0)}
+	t.Cleanup(func() {
+		helpers.AppLogger = oldLogger
+	})
+	setStrmWebhookFileIDDetailResolverForTesting(t, func(_ context.Context, _ *models.Account, fileID string) (*v115open.FileDetail, error) {
+		return &v115open.FileDetail{
+			FileId:       fileID,
+			PickCode:     "pick-" + fileID,
+			FileName:     "movie.mkv",
+			Path:         "/remote",
+			FileSizeByte: 1024,
+			Utime:        "123",
+		}, nil
+	})
+
+	resp := decodeStrmWebhookResponse(t, performStrmWebhookRequest(t, router, rawKey, "", map[string]any{
+		"sync_path_id":  syncPath.ID,
+		"file_id":       "file-log",
+		"download_meta": true,
+		"refresh_emby":  true,
+	}))
+
+	logOutput := logBuf.String()
+	for _, want := range []string{
+		"[STRM Webhook] 接收到 STRM 任务",
+		"action=file",
+		"sync_path_id=",
+		"download_meta=true",
+		"refresh_emby=true",
+		"accepted=1",
+		"failed=0",
+		"task_ids=[",
+	} {
+		if !strings.Contains(logOutput, want) {
+			t.Fatalf("日志缺少 %q，实际日志：%s，响应：%+v", want, logOutput, resp)
+		}
+	}
+	if strings.Contains(logOutput, rawKey) {
+		t.Fatalf("日志不应包含 API Key，实际日志：%s", logOutput)
+	}
+}
+
 func TestStrmWebhookValidatesFileLocator(t *testing.T) {
 	router, rawKey, syncPath := setupStrmWebhookControllerTest(t)
 	cases := []struct {

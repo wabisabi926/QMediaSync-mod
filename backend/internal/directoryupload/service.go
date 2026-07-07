@@ -8,6 +8,7 @@ import (
 	"os"
 	pathpkg "path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -96,7 +97,7 @@ type scanResult struct {
 	Snapshot map[string]string
 }
 
-type scanTrackFunc func(rel string, path string, fingerprint string)
+type scanTrackFunc func(rel string, path string, fingerprint string, size int64)
 
 type pollingSnapshotScanMode int
 
@@ -218,6 +219,7 @@ func (service *Service) trackCandidatePath(ctx context.Context, rule *models.Dir
 		return false, nil
 	}
 	service.queue.Track(rule.ID, path)
+	logDirectoryUploadCandidate(rule, "fsnotify", path, rel, sourceFingerprint, info.Size())
 	return true, nil
 }
 
@@ -329,8 +331,9 @@ func (service *Service) scanRoot(ctx context.Context, rule *models.DirectoryUplo
 	if service == nil {
 		service = NewService(ServiceOptions{})
 	}
-	result, err := service.scanRootWithSnapshotAndTrack(ctx, rule, root, func(_ string, path string, _ string) {
+	result, err := service.scanRootWithSnapshotAndTrack(ctx, rule, root, func(rel string, path string, fingerprint string, size int64) {
 		service.queue.Track(rule.ID, path)
+		logDirectoryUploadCandidate(rule, "scan", path, rel, fingerprint, size)
 	})
 	return result.Accepted, err
 }
@@ -424,6 +427,7 @@ func (service *Service) applyPollingSnapshotResult(
 			}
 		}
 		service.queue.Track(rule.ID, localPaths[rel])
+		logDirectoryUploadCandidate(rule, "polling", localPaths[rel], rel, fingerprint, directoryUploadFingerprintSize(fingerprint))
 		tracked++
 	}
 	return tracked
@@ -449,6 +453,33 @@ func localPathFromSnapshotRel(monitorPath string, rel string) (string, string, b
 		return "", "", false
 	}
 	return rel, localPath, true
+}
+
+func logDirectoryUploadCandidate(rule *models.DirectoryUploadRule, source string, filePath string, rel string, fingerprint string, size int64) {
+	if helpers.AppLogger == nil || rule == nil {
+		return
+	}
+	helpers.AppLogger.Infof(
+		"[目录上传] 监控到候选文件：rule_id=%d source=%s path=%s relative_path=%s size=%d fingerprint=%s",
+		rule.ID,
+		source,
+		filePath,
+		filepath.ToSlash(rel),
+		size,
+		fingerprint,
+	)
+}
+
+func directoryUploadFingerprintSize(fingerprint string) int64 {
+	parts := strings.Split(fingerprint, ":")
+	if len(parts) < 3 || parts[0] != "v1" {
+		return 0
+	}
+	size, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		return 0
+	}
+	return size
 }
 
 func (service *Service) scanRootWithSnapshotAndTrack(
@@ -513,7 +544,7 @@ func (service *Service) scanRootWithSnapshotAndTrack(
 		result.Snapshot[rel] = fingerprint
 		result.Accepted++
 		if track != nil {
-			track(rel, path, fingerprint)
+			track(rel, path, fingerprint, info.Size())
 		}
 		return nil
 	})
@@ -658,6 +689,7 @@ func (service *Service) handleStableFile(ctx context.Context, rule *models.Direc
 			if err := task.EnqueueStrmGenerationAfterUploadAndMarkDirectoryProcessed(); err != nil {
 				return fmt.Errorf("创建 STRM 生成任务失败：%w", err)
 			}
+			logDirectoryUploadRemoteExistsStrmTask(rule, task, latestStrmGenerationTaskIDForUpload(task.ID))
 			service.markProcessed(rule, rel, sourceState.sourceFingerprint)
 			return nil
 		}
@@ -856,8 +888,51 @@ func (service *Service) createDirectoryUploadTaskWithProcessedClaim(task *models
 	}
 	if created {
 		models.PublishUploadTaskCreated(task)
+		logDirectoryUploadTaskCreated(rule, task)
 	}
 	return created, nil
+}
+
+func logDirectoryUploadTaskCreated(rule *models.DirectoryUploadRule, task *models.DbUploadTask) {
+	if helpers.AppLogger == nil || rule == nil || task == nil || task.Status != models.UploadStatusPending {
+		return
+	}
+	helpers.AppLogger.Infof(
+		"[目录上传] 已创建上传任务：rule_id=%d upload_task_id=%d path=%s remote_path=%s remote_parent_id=%s size=%d cleanup_status=%s",
+		rule.ID,
+		task.ID,
+		task.LocalFullPath,
+		task.RemoteFileId,
+		task.RemotePathId,
+		task.FileSize,
+		task.SourceCleanupStatus,
+	)
+}
+
+func logDirectoryUploadRemoteExistsStrmTask(rule *models.DirectoryUploadRule, task *models.DbUploadTask, strmTaskID uint) {
+	if helpers.AppLogger == nil || rule == nil || task == nil {
+		return
+	}
+	helpers.AppLogger.Infof(
+		"[目录上传] 远端已存在同内容文件，已创建 STRM 后处理任务：rule_id=%d upload_task_id=%d strm_task_id=%d path=%s remote_path=%s remote_file_id=%s",
+		rule.ID,
+		task.ID,
+		strmTaskID,
+		task.LocalFullPath,
+		task.RemoteFileId,
+		task.CompletedRemoteFileId,
+	)
+}
+
+func latestStrmGenerationTaskIDForUpload(uploadTaskID uint) uint {
+	if uploadTaskID == 0 {
+		return 0
+	}
+	var task models.StrmGenerationTask
+	if err := db.Db.Where("upload_task_id = ?", uploadTaskID).Order("id DESC").First(&task).Error; err != nil {
+		return 0
+	}
+	return task.ID
 }
 
 func (service *Service) claimDirectoryUploadProcessedWithDB(tx *gorm.DB, rule *models.DirectoryUploadRule, rel string, filePath string, state processedSourceState, options handleStableFileOptions) (bool, uint, error) {

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"qmediasync/internal/db"
+	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
 
 	"gorm.io/gorm"
@@ -55,10 +56,21 @@ func CleanupSourceAfterStrmSuccess(uploadTaskID uint) error {
 	if err := validateCurrentSourceFileForCleanup(&task); err != nil {
 		return markCleanupFailed(&task, err)
 	}
-	if err := os.Remove(task.LocalFullPath); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return markCleanupFailed(&task, fmt.Errorf("删除源文件失败：%w", err))
+	if err := os.Remove(task.LocalFullPath); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return markCleanupFailed(&task, fmt.Errorf("删除源文件失败：%w", err))
+		}
+	} else if helpers.AppLogger != nil {
+		helpers.AppLogger.Infof(
+			"[目录上传] 已删除源文件：upload_task_id=%d rule_id=%d path=%s result=%s remote_file_id=%s",
+			task.ID,
+			rule.ID,
+			task.LocalFullPath,
+			task.UploadResult,
+			task.CompletedRemoteFileId,
+		)
 	}
-	if err := removeEmptyParents(filepath.Dir(task.LocalFullPath), rule.MonitorPath); err != nil {
+	if err := removeEmptyParents(filepath.Dir(task.LocalFullPath), rule.MonitorPath, task.ID, rule.ID); err != nil {
 		return markCleanupFailed(&task, err)
 	}
 	task.SourceCleanupStatus = models.UploadSourceCleanupStatusCompleted
@@ -153,7 +165,7 @@ func ensurePathWithinRoot(rootPath string, targetPath string) error {
 	return nil
 }
 
-func removeEmptyParents(startDir string, rootPath string) error {
+func removeEmptyParents(startDir string, rootPath string, uploadTaskID uint, ruleID uint) error {
 	rootPath = filepath.Clean(rootPath)
 	dir := filepath.Clean(startDir)
 	for {
@@ -180,6 +192,14 @@ func removeEmptyParents(startDir string, rootPath string) error {
 				continue
 			}
 			return fmt.Errorf("删除空目录失败：%w", err)
+		}
+		if helpers.AppLogger != nil {
+			helpers.AppLogger.Infof(
+				"[目录上传] 已删除空目录：upload_task_id=%d rule_id=%d path=%s",
+				uploadTaskID,
+				ruleID,
+				dir,
+			)
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {

@@ -3,6 +3,7 @@ package directoryupload
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 
 func TestCleanupSourceAfterStrmSuccessDeletesFileAndEmptyParents(t *testing.T) {
 	setupDirectoryUploadServiceTestDB(t)
+	logBuf := setDirectoryUploadTestLogger(t)
 	monitorPath := t.TempDir()
 	nested := filepath.Join(monitorPath, "show", "Season 01")
 	if err := ensureDir(nested); err != nil {
@@ -41,6 +43,22 @@ func TestCleanupSourceAfterStrmSuccessDeletesFileAndEmptyParents(t *testing.T) {
 	}
 	if got.SourceCleanupStatus != models.UploadSourceCleanupStatusCompleted || got.SourceDeletedAt == 0 || got.SourceCleanupError != "" {
 		t.Fatalf("清理状态 = %+v，期望 completed", got)
+	}
+	logOutput := logBuf.String()
+	for _, want := range []string{
+		"[目录上传] 已删除源文件",
+		"upload_task_id=",
+		"rule_id=",
+		"path=" + filePath,
+		"result=multipart_uploaded",
+		"remote_file_id=remote-file",
+		"[目录上传] 已删除空目录",
+		"path=" + nested,
+		"path=" + filepath.Join(monitorPath, "show"),
+	} {
+		if !strings.Contains(logOutput, want) {
+			t.Fatalf("日志缺少 %q，实际日志：%s", want, logOutput)
+		}
 	}
 }
 

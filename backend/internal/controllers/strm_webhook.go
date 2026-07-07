@@ -173,6 +173,19 @@ func handleStrmWebhookRequest(ctx context.Context, req strmWebhookRequest) (strm
 			resp.FailedCount++
 		}
 	}
+	if helpers.AppLogger != nil {
+		helpers.AppLogger.Infof(
+			"[STRM Webhook] 接收到 STRM 任务：request_id=%s action=%s sync_path_id=%d download_meta=%t refresh_emby=%t accepted=%d failed=%d task_ids=%v",
+			resp.RequestID,
+			action,
+			syncPath.ID,
+			options.DownloadMeta,
+			options.RefreshEmby,
+			resp.AcceptedCount,
+			resp.FailedCount,
+			resp.TaskIDs,
+		)
+	}
 	return resp, nil
 }
 

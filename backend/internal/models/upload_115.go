@@ -737,7 +737,7 @@ func (task *DbUploadTask) markDirectoryUploadProcessedAfterUploadComplete() erro
 	if strings.TrimSpace(task.SourceFingerprint) == "" {
 		return nil
 	}
-	result, ok := directoryUploadProcessedResultForUploadResult(task.UploadResult)
+	result, ok := directoryUploadProcessedPendingStrmResultForUploadResult(task.UploadResult)
 	if !ok {
 		return nil
 	}
@@ -774,6 +774,17 @@ func directoryUploadProcessedResultForUploadResult(result UploadResult) (Directo
 		return DirectoryUploadProcessedResultUploaded, true
 	case UploadResultRemoteExists:
 		return DirectoryUploadProcessedResultRemoteExists, true
+	default:
+		return "", false
+	}
+}
+
+func directoryUploadProcessedPendingStrmResultForUploadResult(result UploadResult) (DirectoryUploadProcessedResult, bool) {
+	switch result {
+	case UploadResultRapidUpload, UploadResultMultipartUploaded:
+		return DirectoryUploadProcessedResultUploadedPendingStrm, true
+	case UploadResultRemoteExists:
+		return DirectoryUploadProcessedResultRemoteExistsPendingStrm, true
 	default:
 		return "", false
 	}
@@ -937,7 +948,7 @@ func (task *DbUploadTask) enqueueStrmGenerationAfterUpload() error {
 }
 
 func (task *DbUploadTask) enqueueStrmGenerationAfterUploadAndMarkDirectoryProcessed() error {
-	return db.Db.Transaction(func(tx *gorm.DB) error {
+	err := db.Db.Transaction(func(tx *gorm.DB) error {
 		created, err := task.enqueueStrmGenerationAfterUploadWithDB(tx)
 		if err != nil {
 			return err
@@ -947,6 +958,26 @@ func (task *DbUploadTask) enqueueStrmGenerationAfterUploadAndMarkDirectoryProces
 		}
 		return task.markDirectoryUploadProcessedAfterStrmWithDB(tx)
 	})
+	if err != nil {
+		if markErr := task.markDirectoryUploadProcessedStrmEnqueueFailed(); markErr != nil {
+			return errors.Join(err, markErr)
+		}
+		return err
+	}
+	return nil
+}
+
+func (task *DbUploadTask) markDirectoryUploadProcessedStrmEnqueueFailed() error {
+	if task == nil || task.Source != UploadSourceDirectoryMonitor {
+		return nil
+	}
+	if strings.TrimSpace(task.SourceFingerprint) == "" {
+		return nil
+	}
+	if _, ok := directoryUploadProcessedPendingStrmResultForUploadResult(task.UploadResult); !ok {
+		return nil
+	}
+	return MarkDirectoryUploadProcessedStrmEnqueueFailed(task.ID)
 }
 
 func (task *DbUploadTask) enqueueStrmGenerationAfterUploadWithDB(tx *gorm.DB) (bool, error) {
@@ -963,6 +994,11 @@ func (task *DbUploadTask) enqueueStrmGenerationAfterUploadWithDB(tx *gorm.DB) (b
 		return false, nil
 	}
 	if task.CompletedRemoteFileId == "" && task.CompletedPickCode == "" {
+		if task.Source == UploadSourceDirectoryMonitor {
+			if _, ok := directoryUploadProcessedPendingStrmResultForUploadResult(task.UploadResult); ok {
+				return false, errors.New("目录监控上传任务缺少远端完成信息")
+			}
+		}
 		return false, nil
 	}
 
@@ -1013,6 +1049,9 @@ func (task *DbUploadTask) enqueueStrmGenerationAfterUploadWithDB(tx *gorm.DB) (b
 		}
 	}
 	if syncPathID == 0 {
+		if task.Source == UploadSourceDirectoryMonitor {
+			return false, errors.New("目录监控上传任务缺少同步目录 ID")
+		}
 		return false, nil
 	}
 

@@ -160,6 +160,59 @@ func TestCleanupSourceAfterStrmSuccessKeepsReplacedSourceFile(t *testing.T) {
 	}
 }
 
+func TestCleanupSourceAfterStrmSuccessUsesSourceFingerprint(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	originalMtime := time.Unix(1000, 100)
+	writeFileWithMtime(t, filePath, []byte("movie"), originalMtime)
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.DeleteSourceAfterSuccess = true
+	if err := db.Db.Save(rule).Error; err != nil {
+		t.Fatalf("保存目录上传规则失败: %v", err)
+	}
+	task := createCleanupUploadTask(t, rule, filePath, models.UploadResultMultipartUploaded)
+	createCleanupStrmTask(t, task.ID, models.StrmGenerationStatusCompleted)
+	replacedMtime := time.Unix(1000, 200)
+	writeFileWithMtime(t, filePath, []byte("movie"), replacedMtime)
+
+	if err := CleanupSourceAfterStrmSuccess(task.ID); err == nil {
+		t.Fatal("同秒同大小但 fingerprint 不同的源文件不应被删除")
+	}
+	assertPathExists(t, filePath)
+
+	var got models.DbUploadTask
+	if err := db.Db.First(&got, task.ID).Error; err != nil {
+		t.Fatalf("读取上传任务失败: %v", err)
+	}
+	if got.SourceCleanupStatus != models.UploadSourceCleanupStatusFailed || got.SourceCleanupError == "" {
+		t.Fatalf("清理状态 = %+v，期望 failed 并记录 fingerprint 错误", got)
+	}
+}
+
+func TestCleanupSourceAfterStrmSuccessRequiresSourceFingerprint(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), time.Now())
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.DeleteSourceAfterSuccess = true
+	if err := db.Db.Save(rule).Error; err != nil {
+		t.Fatalf("保存目录上传规则失败: %v", err)
+	}
+	task := createCleanupUploadTask(t, rule, filePath, models.UploadResultMultipartUploaded)
+	task.SourceFingerprint = ""
+	if err := db.Db.Save(task).Error; err != nil {
+		t.Fatalf("清空任务 fingerprint 失败: %v", err)
+	}
+	createCleanupStrmTask(t, task.ID, models.StrmGenerationStatusCompleted)
+
+	if err := CleanupSourceAfterStrmSuccess(task.ID); err == nil {
+		t.Fatal("缺少 source_fingerprint 时应拒绝删除源文件")
+	}
+	assertPathExists(t, filePath)
+}
+
 func TestCleanupSourceAfterStrmSuccessKeepsSourceWhenUploadFailed(t *testing.T) {
 	setupDirectoryUploadServiceTestDB(t)
 	monitorPath := t.TempDir()
@@ -257,6 +310,8 @@ func createCleanupUploadTask(t *testing.T, rule *models.DirectoryUploadRule, fil
 		Status:                models.UploadStatusCompleted,
 		FileSize:              info.Size(),
 		LocalMtime:            info.ModTime().Unix(),
+		LocalMtimeNs:          info.ModTime().UnixNano(),
+		SourceFingerprint:     models.BuildDirectoryUploadSourceFingerprint(info.Size(), info.ModTime().UnixNano()),
 		UploadResult:          result,
 		CompletedRemoteFileId: "remote-file",
 		CompletedPickCode:     "pick-code",

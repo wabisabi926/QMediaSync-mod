@@ -331,6 +331,81 @@ func TestCleanupDirectoryUploadProcessedFilesDeletesQueuedWithoutActiveTaskBefor
 	}
 }
 
+func TestCleanupDirectoryUploadProcessedFilesDeletesAwaitingStrmWithMissingUploadTask(t *testing.T) {
+	tests := []struct {
+		name        string
+		result      DirectoryUploadProcessedResult
+		task        *DbUploadTask
+		uploadID    uint
+		wantDeleted int64
+	}{
+		{
+			name:        "上传完成等待 STRM 但任务不存在",
+			result:      DirectoryUploadProcessedResultUploadedPendingStrm,
+			uploadID:    99,
+			wantDeleted: 1,
+		},
+		{
+			name:        "远端已存在等待 STRM 但任务不存在",
+			result:      DirectoryUploadProcessedResultRemoteExistsPendingStrm,
+			uploadID:    99,
+			wantDeleted: 1,
+		},
+		{
+			name:        "STRM 入队失败但任务不存在",
+			result:      DirectoryUploadProcessedResultStrmEnqueueFailed,
+			uploadID:    99,
+			wantDeleted: 1,
+		},
+		{
+			name:        "STRM 入队失败且完成任务仍存在",
+			result:      DirectoryUploadProcessedResultStrmEnqueueFailed,
+			task:        &DbUploadTask{Status: UploadStatusCompleted},
+			wantDeleted: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupDirectoryUploadProcessedFileTestDB(t)
+			now := time.Unix(1_000, 0)
+			uploadTaskID := tt.uploadID
+			if tt.task != nil {
+				if err := db.Db.Create(tt.task).Error; err != nil {
+					t.Fatalf("创建上传任务失败: %v", err)
+				}
+				uploadTaskID = tt.task.ID
+			}
+			record := &DirectoryUploadProcessedFile{
+				SourceKey:         "source-key-awaiting-strm",
+				SourceFingerprint: "v1:5:100",
+				Result:            tt.result,
+				UploadTaskId:      uploadTaskID,
+				ProcessedAt:       now.Unix(),
+				LastSeenAt:        now.Unix(),
+			}
+			if err := db.Db.Create(record).Error; err != nil {
+				t.Fatalf("创建 processed 记录失败: %v", err)
+			}
+
+			deleted, err := CleanupDirectoryUploadProcessedFiles(now, 24*time.Hour)
+			if err != nil {
+				t.Fatalf("清理 processed 记录失败: %v", err)
+			}
+			if deleted != tt.wantDeleted {
+				t.Fatalf("删除数量 = %d，期望 %d", deleted, tt.wantDeleted)
+			}
+			var total int64
+			if err := db.Db.Model(&DirectoryUploadProcessedFile{}).Count(&total).Error; err != nil {
+				t.Fatalf("统计 processed 记录失败: %v", err)
+			}
+			if total != 1-tt.wantDeleted {
+				t.Fatalf("processed 记录数 = %d，期望 %d", total, 1-tt.wantDeleted)
+			}
+		})
+	}
+}
+
 func TestCleanupDirectoryUploadProcessedFilesContinuesAfterActiveQueuedBatch(t *testing.T) {
 	setupDirectoryUploadProcessedFileTestDB(t)
 	now := time.Unix(1_000, 0)

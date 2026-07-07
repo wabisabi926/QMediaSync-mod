@@ -721,6 +721,19 @@ func (service *Service) shouldSkipProcessedSource(rule *models.DirectoryUploadRu
 		}
 		service.markProcessed(rule, rel, state.sourceFingerprint)
 		return true, state, nil
+	case models.IsDirectoryUploadProcessedAwaitingStrm(record.Result):
+		if err := service.retryDirectoryUploadStrmEnqueue(record.UploadTaskId); err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				deleted, deleteErr := deleteDirectoryUploadProcessedIfUnchanged(record)
+				if deleteErr != nil {
+					return false, state, fmt.Errorf("清理缺失上传任务的 STRM 等待记录失败：%w", deleteErr)
+				}
+				return !deleted, state, nil
+			}
+			return false, state, fmt.Errorf("重试 STRM 入队失败：%w", err)
+		}
+		service.markProcessed(rule, rel, state.sourceFingerprint)
+		return true, state, nil
 	case record.Result == models.DirectoryUploadProcessedResultQueued:
 		active, err := hasActiveDirectoryUploadTask(record.UploadTaskId, filePath)
 		if err != nil {
@@ -735,6 +748,23 @@ func (service *Service) shouldSkipProcessedSource(rule *models.DirectoryUploadRu
 	}
 
 	return false, state, nil
+}
+
+func (service *Service) retryDirectoryUploadStrmEnqueue(uploadTaskID uint) error {
+	if uploadTaskID == 0 {
+		return errors.New("目录监控上传任务 ID 为空")
+	}
+	var task models.DbUploadTask
+	if err := db.Db.First(&task, uploadTaskID).Error; err != nil {
+		return fmt.Errorf("读取目录监控上传任务失败：%w", err)
+	}
+	if task.Source != models.UploadSourceDirectoryMonitor {
+		return fmt.Errorf("上传任务来源不是目录监控：%s", task.Source)
+	}
+	if task.Status != models.UploadStatusCompleted {
+		return fmt.Errorf("目录监控上传任务未完成：%s", task.Status.String())
+	}
+	return task.EnqueueStrmGenerationAfterUploadAndMarkDirectoryProcessed()
 }
 
 func buildProcessedSourceState(rule *models.DirectoryUploadRule, rel string, info os.FileInfo) processedSourceState {
@@ -755,6 +785,24 @@ func updateDirectoryUploadProcessedLastSeen(sourceKey string, lastSeenAt int64) 
 		Updates(map[string]any{
 			"last_seen_at": lastSeenAt,
 		}).Error
+}
+
+func deleteDirectoryUploadProcessedIfUnchanged(record *models.DirectoryUploadProcessedFile) (bool, error) {
+	if record == nil {
+		return false, nil
+	}
+	result := db.Db.
+		Where("source_key = ? AND source_fingerprint = ? AND result = ? AND upload_task_id = ?",
+			record.SourceKey,
+			record.SourceFingerprint,
+			record.Result,
+			record.UploadTaskId,
+		).
+		Delete(&models.DirectoryUploadProcessedFile{})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
 }
 
 func hasActiveDirectoryUploadTask(uploadTaskID uint, filePath string) (bool, error) {
@@ -787,7 +835,7 @@ func (service *Service) createDirectoryUploadTaskWithProcessedClaim(task *models
 	}
 	var created bool
 	err := db.Db.Transaction(func(tx *gorm.DB) error {
-		claimed, err := service.claimDirectoryUploadProcessedWithDB(tx, rule, rel, filePath, state, option)
+		claimed, supersededUploadTaskID, err := service.claimDirectoryUploadProcessedWithDB(tx, rule, rel, filePath, state, option)
 		if err != nil || !claimed {
 			return err
 		}
@@ -795,6 +843,9 @@ func (service *Service) createDirectoryUploadTaskWithProcessedClaim(task *models
 			return err
 		}
 		if err := service.upsertDirectoryUploadProcessedWithDB(tx, rule, rel, filePath, state, models.DirectoryUploadProcessedResultQueued, task.ID); err != nil {
+			return err
+		}
+		if err := service.cancelSupersededFailedUploadTaskWithDB(tx, supersededUploadTaskID, task.ID); err != nil {
 			return err
 		}
 		created = true
@@ -809,46 +860,70 @@ func (service *Service) createDirectoryUploadTaskWithProcessedClaim(task *models
 	return created, nil
 }
 
-func (service *Service) claimDirectoryUploadProcessedWithDB(tx *gorm.DB, rule *models.DirectoryUploadRule, rel string, filePath string, state processedSourceState, options handleStableFileOptions) (bool, error) {
+func (service *Service) claimDirectoryUploadProcessedWithDB(tx *gorm.DB, rule *models.DirectoryUploadRule, rel string, filePath string, state processedSourceState, options handleStableFileOptions) (bool, uint, error) {
 	claim := service.newDirectoryUploadProcessedRecord(rule, rel, filePath, state, models.DirectoryUploadProcessedResultQueued, 0)
 	insert := tx.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "source_key"}},
 		DoNothing: true,
 	}).Create(claim)
 	if insert.Error != nil {
-		return false, insert.Error
+		return false, 0, insert.Error
 	}
 	if insert.RowsAffected > 0 {
-		return true, nil
+		return true, 0, nil
 	}
 
 	var existing models.DirectoryUploadProcessedFile
 	if err := tx.Where("source_key = ?", state.sourceKey).First(&existing).Error; err != nil {
-		return false, err
+		return false, 0, err
 	}
 	if existing.SourceFingerprint != state.sourceFingerprint ||
 		existing.Result == models.DirectoryUploadProcessedResultFailed {
 		claimed, err := service.updateDirectoryUploadProcessedClaimWithDB(tx, &existing, claim)
 		if err != nil || claimed {
-			return claimed, err
+			return claimed, existing.UploadTaskId, err
 		}
-		return false, nil
+		return false, 0, nil
 	}
 	if existing.Result == models.DirectoryUploadProcessedResultQueued {
 		active, err := hasActiveDirectoryUploadTaskWithDB(tx, existing.UploadTaskId, filePath)
 		if err != nil || active {
-			return false, err
+			return false, 0, err
 		}
-		return service.updateDirectoryUploadProcessedClaimWithDB(tx, &existing, claim)
+		claimed, err := service.updateDirectoryUploadProcessedClaimWithDB(tx, &existing, claim)
+		if err != nil || claimed {
+			return claimed, existing.UploadTaskId, err
+		}
+		return false, 0, nil
 	}
 	if options.Force {
 		active, err := hasActiveDirectoryUploadTaskWithDB(tx, existing.UploadTaskId, filePath)
 		if err != nil || active {
-			return false, err
+			return false, 0, err
 		}
-		return service.updateDirectoryUploadProcessedClaimWithDB(tx, &existing, claim)
+		claimed, err := service.updateDirectoryUploadProcessedClaimWithDB(tx, &existing, claim)
+		if err != nil || claimed {
+			return claimed, existing.UploadTaskId, err
+		}
+		return false, 0, nil
 	}
-	return false, nil
+	return false, 0, nil
+}
+
+func (service *Service) cancelSupersededFailedUploadTaskWithDB(tx *gorm.DB, oldUploadTaskID uint, newUploadTaskID uint) error {
+	if oldUploadTaskID == 0 || oldUploadTaskID == newUploadTaskID {
+		return nil
+	}
+	now := service.now().Unix()
+	result := tx.Model(&models.DbUploadTask{}).
+		Where("id = ? AND source = ? AND status = ?", oldUploadTaskID, models.UploadSourceDirectoryMonitor, models.UploadStatusFailed).
+		Updates(map[string]any{
+			"status":     models.UploadStatusCancelled,
+			"error":      fmt.Sprintf("已被新的目录监控上传任务 %d 替代", newUploadTaskID),
+			"end_time":   now,
+			"updated_at": now,
+		})
+	return result.Error
 }
 
 func (service *Service) updateDirectoryUploadProcessedClaimWithDB(tx *gorm.DB, existing *models.DirectoryUploadProcessedFile, claim *models.DirectoryUploadProcessedFile) (bool, error) {

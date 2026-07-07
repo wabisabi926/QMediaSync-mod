@@ -21,11 +21,14 @@ import (
 type DirectoryUploadProcessedResult string
 
 const (
-	DirectoryUploadProcessedResultQueued          DirectoryUploadProcessedResult = "queued"
-	DirectoryUploadProcessedResultUploaded        DirectoryUploadProcessedResult = "uploaded"
-	DirectoryUploadProcessedResultRemoteExists    DirectoryUploadProcessedResult = "remote_exists"
-	DirectoryUploadProcessedResultSkippedExisting DirectoryUploadProcessedResult = "skipped_existing"
-	DirectoryUploadProcessedResultFailed          DirectoryUploadProcessedResult = "failed"
+	DirectoryUploadProcessedResultQueued                  DirectoryUploadProcessedResult = "queued"
+	DirectoryUploadProcessedResultUploadedPendingStrm     DirectoryUploadProcessedResult = "uploaded_pending_strm"
+	DirectoryUploadProcessedResultRemoteExistsPendingStrm DirectoryUploadProcessedResult = "remote_exists_pending_strm"
+	DirectoryUploadProcessedResultStrmEnqueueFailed       DirectoryUploadProcessedResult = "strm_enqueue_failed"
+	DirectoryUploadProcessedResultUploaded                DirectoryUploadProcessedResult = "uploaded"
+	DirectoryUploadProcessedResultRemoteExists            DirectoryUploadProcessedResult = "remote_exists"
+	DirectoryUploadProcessedResultSkippedExisting         DirectoryUploadProcessedResult = "skipped_existing"
+	DirectoryUploadProcessedResultFailed                  DirectoryUploadProcessedResult = "failed"
 )
 
 // DirectoryUploadProcessedFile 保存目录监控源文件处理账本。
@@ -91,6 +94,18 @@ func IsDirectoryUploadProcessedTerminal(result DirectoryUploadProcessedResult) b
 	case DirectoryUploadProcessedResultUploaded,
 		DirectoryUploadProcessedResultRemoteExists,
 		DirectoryUploadProcessedResultSkippedExisting:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsDirectoryUploadProcessedAwaitingStrm 判断处理结果是否需要重试 STRM 入队。
+func IsDirectoryUploadProcessedAwaitingStrm(result DirectoryUploadProcessedResult) bool {
+	switch result {
+	case DirectoryUploadProcessedResultUploadedPendingStrm,
+		DirectoryUploadProcessedResultRemoteExistsPendingStrm,
+		DirectoryUploadProcessedResultStrmEnqueueFailed:
 		return true
 	default:
 		return false
@@ -170,6 +185,16 @@ func MarkDirectoryUploadProcessedUploadedWithDB(tx *gorm.DB, uploadTaskID uint, 
 		}).Error
 }
 
+// MarkDirectoryUploadProcessedStrmEnqueueFailed 标记目录监控上传任务关联源文件 STRM 入队失败。
+func MarkDirectoryUploadProcessedStrmEnqueueFailed(uploadTaskID uint) error {
+	return MarkDirectoryUploadProcessedStrmEnqueueFailedWithDB(db.Db, uploadTaskID)
+}
+
+// MarkDirectoryUploadProcessedStrmEnqueueFailedWithDB 在指定事务中标记目录监控上传任务关联源文件 STRM 入队失败。
+func MarkDirectoryUploadProcessedStrmEnqueueFailedWithDB(tx *gorm.DB, uploadTaskID uint) error {
+	return MarkDirectoryUploadProcessedUploadedWithDB(tx, uploadTaskID, DirectoryUploadProcessedResultStrmEnqueueFailed)
+}
+
 // DeleteDirectoryUploadProcessedFilesByRuleID 删除指定规则的源文件处理记录。
 func DeleteDirectoryUploadProcessedFilesByRuleID(ruleID uint) error {
 	return db.Db.Where("rule_id = ?", ruleID).Delete(&DirectoryUploadProcessedFile{}).Error
@@ -191,6 +216,12 @@ func CleanupDirectoryUploadProcessedFiles(now time.Time, missingSourceTTL time.D
 		return deleted, err
 	}
 	deleted += queuedDeleted
+
+	awaitingStrmDeleted, err := cleanupDirectoryUploadProcessedAwaitingStrm()
+	if err != nil {
+		return deleted, err
+	}
+	deleted += awaitingStrmDeleted
 
 	successDeleted, err := cleanupDirectoryUploadProcessedSuccessful(cutoff)
 	if err != nil {
@@ -259,6 +290,43 @@ func cleanupDirectoryUploadProcessedQueued() (int64, error) {
 	}
 }
 
+func cleanupDirectoryUploadProcessedAwaitingStrm() (int64, error) {
+	var deleted int64
+	var lastID uint
+	for {
+		var records []DirectoryUploadProcessedFile
+		if err := db.Db.
+			Where("result IN ? AND id > ?", []DirectoryUploadProcessedResult{
+				DirectoryUploadProcessedResultUploadedPendingStrm,
+				DirectoryUploadProcessedResultRemoteExistsPendingStrm,
+				DirectoryUploadProcessedResultStrmEnqueueFailed,
+			}, lastID).
+			Order("id ASC").
+			Limit(500).
+			Find(&records).Error; err != nil {
+			return deleted, err
+		}
+		if len(records) == 0 {
+			return deleted, nil
+		}
+		ids := make([]uint, 0, len(records))
+		for _, record := range records {
+			lastID = record.ID
+			if shouldDeleteAwaitingStrmDirectoryUploadProcessed(record) {
+				ids = append(ids, record.ID)
+			}
+		}
+		batchDeleted, err := deleteDirectoryUploadProcessedIDs(ids)
+		if err != nil {
+			return deleted, err
+		}
+		deleted += batchDeleted
+		if len(records) < 500 {
+			return deleted, nil
+		}
+	}
+}
+
 func cleanupDirectoryUploadProcessedSuccessful(cutoff int64) (int64, error) {
 	var deleted int64
 	var lastID uint
@@ -294,6 +362,17 @@ func cleanupDirectoryUploadProcessedSuccessful(cutoff int64) (int64, error) {
 			return deleted, nil
 		}
 	}
+}
+
+func shouldDeleteAwaitingStrmDirectoryUploadProcessed(record DirectoryUploadProcessedFile) bool {
+	if record.UploadTaskId == 0 {
+		return true
+	}
+	var task DbUploadTask
+	if err := db.Db.Select("id").First(&task, record.UploadTaskId).Error; err != nil {
+		return errors.Is(err, gorm.ErrRecordNotFound)
+	}
+	return false
 }
 
 func shouldDeleteQueuedDirectoryUploadProcessed(record DirectoryUploadProcessedFile) bool {

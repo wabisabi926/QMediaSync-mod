@@ -121,38 +121,15 @@ func validateCurrentSourceFileForCleanup(task *models.DbUploadTask) error {
 		}
 		return fmt.Errorf("读取源文件信息失败：%w", err)
 	}
-	expectedSize, expectedMtime, err := cleanupSourceSignature(task)
-	if err != nil {
-		return err
+	expectedFingerprint := strings.TrimSpace(task.SourceFingerprint)
+	if expectedFingerprint == "" {
+		return errors.New("上传任务缺少源文件 fingerprint，跳过删除")
 	}
-	if info.Size() != expectedSize {
-		return fmt.Errorf("源文件已变化，跳过删除：大小不匹配 task=%d current=%d", expectedSize, info.Size())
-	}
-	currentMtime := info.ModTime().Unix()
-	if currentMtime != expectedMtime {
-		return fmt.Errorf("源文件已变化，跳过删除：修改时间不匹配 task=%d current=%d", expectedMtime, currentMtime)
+	currentFingerprint := models.BuildDirectoryUploadSourceFingerprint(info.Size(), info.ModTime().UnixNano())
+	if currentFingerprint != expectedFingerprint {
+		return fmt.Errorf("源文件已变化，跳过删除：fingerprint 不匹配 task=%s current=%s", expectedFingerprint, currentFingerprint)
 	}
 	return nil
-}
-
-func cleanupSourceSignature(task *models.DbUploadTask) (int64, int64, error) {
-	if task == nil {
-		return 0, 0, errors.New("上传任务为空")
-	}
-	if task.FileSize > 0 && task.LocalMtime > 0 {
-		return task.FileSize, task.LocalMtime, nil
-	}
-	session, err := models.GetUploadSessionByUploadTaskId(task.ID)
-	if err == nil {
-		if session.FileSize > 0 && session.LocalMtime > 0 {
-			return session.FileSize, session.LocalMtime, nil
-		}
-		return 0, 0, errors.New("上传会话缺少源文件清理签名")
-	}
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return 0, 0, errors.New("上传任务缺少源文件清理签名")
-	}
-	return 0, 0, fmt.Errorf("读取上传会话失败：%w", err)
 }
 
 func hasCompletedStrmTask(uploadTaskID uint) (bool, error) {

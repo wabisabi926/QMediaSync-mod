@@ -148,10 +148,18 @@ func TestUpload115CompletionMarksDirectoryMonitorProcessedUploaded(t *testing.T)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			setupUpload115ProcessedTestDB(t)
+			if err := db.Db.AutoMigrate(&StrmGenerationTask{}); err != nil {
+				t.Fatalf("迁移 STRM 任务表失败: %v", err)
+			}
 			localPath := t.TempDir() + "/movie.mkv"
 			if err := os.WriteFile(localPath, []byte("movie"), 0o644); err != nil {
 				t.Fatalf("创建本地测试文件失败: %v", err)
 			}
+			info, err := os.Stat(localPath)
+			if err != nil {
+				t.Fatalf("读取本地测试文件失败: %v", err)
+			}
+			fingerprint := BuildDirectoryUploadSourceFingerprint(info.Size(), info.ModTime().UnixNano())
 			task := &DbUploadTask{
 				Source:            UploadSourceDirectoryMonitor,
 				SourceType:        SourceType115,
@@ -161,7 +169,7 @@ func TestUpload115CompletionMarksDirectoryMonitorProcessedUploaded(t *testing.T)
 				RemoteFileId:      "/remote/movie.mkv",
 				RemotePathId:      "parent-1",
 				FileName:          "movie.mkv",
-				SourceFingerprint: "v1:1024:100",
+				SourceFingerprint: fingerprint,
 				Status:            UploadStatusPending,
 				Account:           &Account{BaseModel: BaseModel{ID: 1}, SourceType: SourceType115, Name: "115"},
 			}
@@ -188,7 +196,14 @@ func TestUpload115CompletionMarksDirectoryMonitorProcessedUploaded(t *testing.T)
 				t.Fatalf("读取 processed 记录失败: %v", err)
 			}
 			if got.Result != DirectoryUploadProcessedResultUploaded || got.ProcessedAt <= record.ProcessedAt || got.LastSeenAt <= record.LastSeenAt {
-				t.Fatalf("processed 记录 = %+v，期望上传完成保存后立即标记 uploaded 并更新时间", got)
+				t.Fatalf("processed 记录 = %+v，期望 STRM 入队成功后标记 uploaded 并更新时间", got)
+			}
+			var strmTask StrmGenerationTask
+			if err := db.Db.Where("upload_task_id = ?", task.ID).First(&strmTask).Error; err != nil {
+				t.Fatalf("读取 STRM 任务失败: %v", err)
+			}
+			if strmTask.Status != StrmGenerationStatusPending || strmTask.FileId == "" {
+				t.Fatalf("STRM 任务 = %+v，期望入队待处理", strmTask)
 			}
 			var gotTask DbUploadTask
 			if err := db.Db.First(&gotTask, task.ID).Error; err != nil {
@@ -196,6 +211,55 @@ func TestUpload115CompletionMarksDirectoryMonitorProcessedUploaded(t *testing.T)
 			}
 			if gotTask.Status != UploadStatusCompleted {
 				t.Fatalf("上传任务状态 = %s，期望 completed，错误：%s", gotTask.Status.String(), gotTask.Error)
+			}
+		})
+	}
+}
+
+func TestUpload115CompletionMarksDirectoryMonitorProcessedPendingStrmBeforeEnqueue(t *testing.T) {
+	tests := []struct {
+		name       string
+		result     UploadResult
+		wantResult DirectoryUploadProcessedResult
+	}{
+		{name: "上传完成等待 STRM", result: UploadResultMultipartUploaded, wantResult: DirectoryUploadProcessedResultUploadedPendingStrm},
+		{name: "远端已存在等待 STRM", result: UploadResultRemoteExists, wantResult: DirectoryUploadProcessedResultRemoteExistsPendingStrm},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupUpload115ProcessedTestDB(t)
+			task := &DbUploadTask{
+				Source:            UploadSourceDirectoryMonitor,
+				SourceFingerprint: "v1:1024:100",
+				Status:            UploadStatusCompleted,
+				UploadResult:      tt.result,
+			}
+			if err := db.Db.Create(task).Error; err != nil {
+				t.Fatalf("创建上传任务失败: %v", err)
+			}
+			record := &DirectoryUploadProcessedFile{
+				SourceKey:         "source-key-" + tt.name,
+				SourceFingerprint: task.SourceFingerprint,
+				Result:            DirectoryUploadProcessedResultQueued,
+				UploadTaskId:      task.ID,
+				ProcessedAt:       time.Unix(100, 0).Unix(),
+				LastSeenAt:        time.Unix(100, 0).Unix(),
+			}
+			if err := db.Db.Create(record).Error; err != nil {
+				t.Fatalf("创建 processed 记录失败: %v", err)
+			}
+
+			if err := task.markDirectoryUploadProcessedAfterUploadComplete(); err != nil {
+				t.Fatalf("标记上传完成等待 STRM 失败: %v", err)
+			}
+
+			var got DirectoryUploadProcessedFile
+			if err := db.Db.Where("upload_task_id = ?", task.ID).First(&got).Error; err != nil {
+				t.Fatalf("读取 processed 记录失败: %v", err)
+			}
+			if got.Result != tt.wantResult {
+				t.Fatalf("processed result = %s，期望 %s", got.Result, tt.wantResult)
 			}
 		})
 	}
@@ -266,7 +330,7 @@ func TestUpload115StrmEnqueueFailureDoesNotMarkDirectoryMonitorProcessedFailed(t
 	record := &DirectoryUploadProcessedFile{
 		SourceKey:         "source-key-strm-failed",
 		SourceFingerprint: task.SourceFingerprint,
-		Result:            DirectoryUploadProcessedResultUploaded,
+		Result:            DirectoryUploadProcessedResultUploadedPendingStrm,
 		UploadTaskId:      task.ID,
 		ProcessedAt:       time.Unix(100, 0).Unix(),
 		LastSeenAt:        time.Unix(100, 0).Unix(),
@@ -284,16 +348,20 @@ func TestUpload115StrmEnqueueFailureDoesNotMarkDirectoryMonitorProcessedFailed(t
 	if err := db.Db.Where("upload_task_id = ?", task.ID).First(&got).Error; err != nil {
 		t.Fatalf("读取 processed 记录失败: %v", err)
 	}
-	if got.Result != DirectoryUploadProcessedResultUploaded {
-		t.Fatalf("processed result = %s，期望 STRM 入队失败不覆盖已上传终态", got.Result)
+	if got.Result != DirectoryUploadProcessedResultStrmEnqueueFailed {
+		t.Fatalf("processed result = %s，期望 STRM 入队失败标记为 strm_enqueue_failed", got.Result)
 	}
 }
 
-func TestUpload115StrmEnqueueFailureKeepsRemoteExistsProcessed(t *testing.T) {
+func TestUpload115StrmEnqueueFailureMarksRemoteExistsProcessedFailed(t *testing.T) {
 	setupUpload115ProcessedTestDB(t)
 	localPath := t.TempDir() + "/movie.mkv"
 	if err := os.WriteFile(localPath, []byte("movie"), 0o644); err != nil {
 		t.Fatalf("创建本地测试文件失败: %v", err)
+	}
+	info, err := os.Stat(localPath)
+	if err != nil {
+		t.Fatalf("读取本地测试文件失败: %v", err)
 	}
 	task := &DbUploadTask{
 		Source:            UploadSourceDirectoryMonitor,
@@ -305,7 +373,7 @@ func TestUpload115StrmEnqueueFailureKeepsRemoteExistsProcessed(t *testing.T) {
 		RemotePathId:      "parent-1",
 		FileName:          "movie.mkv",
 		FileSize:          1024,
-		SourceFingerprint: "v1:1024:100",
+		SourceFingerprint: BuildDirectoryUploadSourceFingerprint(info.Size(), info.ModTime().UnixNano()),
 		Status:            UploadStatusPending,
 		Account:           &Account{BaseModel: BaseModel{ID: 1}, SourceType: SourceType115, Name: "115"},
 	}
@@ -336,8 +404,8 @@ func TestUpload115StrmEnqueueFailureKeepsRemoteExistsProcessed(t *testing.T) {
 	if err := db.Db.Where("upload_task_id = ?", task.ID).First(&got).Error; err != nil {
 		t.Fatalf("读取 processed 记录失败: %v", err)
 	}
-	if got.Result != DirectoryUploadProcessedResultRemoteExists {
-		t.Fatalf("processed result = %s，期望远端已存在任务即使 STRM 入队失败也保持 remote_exists", got.Result)
+	if got.Result != DirectoryUploadProcessedResultStrmEnqueueFailed {
+		t.Fatalf("processed result = %s，期望远端已存在 STRM 入队失败标记为 strm_enqueue_failed", got.Result)
 	}
 	var gotTask DbUploadTask
 	if err := db.Db.First(&gotTask, task.ID).Error; err != nil {
@@ -348,7 +416,7 @@ func TestUpload115StrmEnqueueFailureKeepsRemoteExistsProcessed(t *testing.T) {
 	}
 }
 
-func TestUpload115MissingCompletedRemoteInfoKeepsDirectoryMonitorProcessedQueued(t *testing.T) {
+func TestUpload115MissingCompletedRemoteInfoMarksDirectoryMonitorProcessedStrmEnqueueFailed(t *testing.T) {
 	setupUpload115ProcessedTestDB(t)
 	task := &DbUploadTask{
 		Source:            UploadSourceDirectoryMonitor,
@@ -379,15 +447,47 @@ func TestUpload115MissingCompletedRemoteInfoKeepsDirectoryMonitorProcessedQueued
 		t.Fatalf("创建 processed 记录失败: %v", err)
 	}
 
-	if err := task.EnqueueStrmGenerationAfterUploadAndMarkDirectoryProcessed(); err != nil {
-		t.Fatalf("缺少远端完成信息时不应返回错误: %v", err)
+	if err := task.EnqueueStrmGenerationAfterUploadAndMarkDirectoryProcessed(); err == nil {
+		t.Fatal("缺少远端完成信息时应返回错误")
 	}
 
 	var got DirectoryUploadProcessedFile
 	if err := db.Db.Where("upload_task_id = ?", task.ID).First(&got).Error; err != nil {
 		t.Fatalf("读取 processed 记录失败: %v", err)
 	}
-	if got.Result != DirectoryUploadProcessedResultQueued {
-		t.Fatalf("processed result = %s，期望缺少远端完成信息时保持 queued", got.Result)
+	if got.Result != DirectoryUploadProcessedResultStrmEnqueueFailed {
+		t.Fatalf("processed result = %s，期望缺少远端完成信息时标记为 strm_enqueue_failed", got.Result)
+	}
+}
+
+func TestUploadSkipsStaleDirectoryMonitorTaskBeforeUpload(t *testing.T) {
+	setupUpload115ProcessedTestDB(t)
+	filePath := t.TempDir() + "/movie.mkv"
+	mtime := time.Unix(1000, 100)
+	if err := os.WriteFile(filePath, []byte("movie"), 0o644); err != nil {
+		t.Fatalf("创建本地测试文件失败: %v", err)
+	}
+	if err := os.Chtimes(filePath, mtime, mtime); err != nil {
+		t.Fatalf("设置本地测试文件 mtime 失败: %v", err)
+	}
+	task := &DbUploadTask{
+		Source:            UploadSourceDirectoryMonitor,
+		SourceType:        SourceType115,
+		LocalFullPath:     filePath,
+		SourceFingerprint: BuildDirectoryUploadSourceFingerprint(999, 1),
+		Status:            UploadStatusPending,
+	}
+	if err := db.Db.Create(task).Error; err != nil {
+		t.Fatalf("创建上传任务失败: %v", err)
+	}
+
+	task.Upload()
+
+	var got DbUploadTask
+	if err := db.Db.First(&got, task.ID).Error; err != nil {
+		t.Fatalf("读取上传任务失败: %v", err)
+	}
+	if got.Status != UploadStatusCancelled || got.Error == "" {
+		t.Fatalf("过期目录监控任务 = %+v，期望取消并记录错误", got)
 	}
 }

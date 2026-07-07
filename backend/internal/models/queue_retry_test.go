@@ -372,26 +372,32 @@ func TestUploadMultipartRetriesInvalidOSSCheckpointWithNewMultipart(t *testing.T
 
 func TestUpload115FilePersistsResultAndEnqueuesStrmTask(t *testing.T) {
 	setupQueueStatusTestDB(t)
-	if err := db.Db.AutoMigrate(&StrmGenerationTask{}); err != nil {
-		t.Fatalf("迁移 STRM 生成任务表失败: %v", err)
+	if err := db.Db.AutoMigrate(&DirectoryUploadProcessedFile{}, &StrmGenerationTask{}); err != nil {
+		t.Fatalf("迁移目录监控账本和 STRM 生成任务表失败: %v", err)
 	}
 
 	localPath := filepath.Join(t.TempDir(), "movie.mkv")
 	if err := os.WriteFile(localPath, []byte("movie-content"), 0o644); err != nil {
 		t.Fatalf("创建本地测试文件失败: %v", err)
 	}
+	info, err := os.Stat(localPath)
+	if err != nil {
+		t.Fatalf("读取本地测试文件失败: %v", err)
+	}
 	task := &DbUploadTask{
-		AccountId:     1,
-		SyncPathId:    10,
-		Status:        UploadStatusPending,
-		Source:        UploadSourceDirectoryMonitor,
-		SourceType:    SourceType115,
-		LocalFullPath: localPath,
-		FileName:      "movie.mkv",
-		FileSize:      13,
-		RemoteFileId:  "/remote/movie.mkv",
-		RemotePathId:  "100",
-		Account:       &Account{BaseModel: BaseModel{ID: 1}, SourceType: SourceType115, Name: "115"},
+		AccountId:         1,
+		SyncPathId:        10,
+		Status:            UploadStatusPending,
+		Source:            UploadSourceDirectoryMonitor,
+		SourceType:        SourceType115,
+		LocalFullPath:     localPath,
+		FileName:          "movie.mkv",
+		FileSize:          13,
+		LocalMtimeNs:      info.ModTime().UnixNano(),
+		SourceFingerprint: BuildDirectoryUploadSourceFingerprint(info.Size(), info.ModTime().UnixNano()),
+		RemoteFileId:      "/remote/movie.mkv",
+		RemotePathId:      "100",
+		Account:           &Account{BaseModel: BaseModel{ID: 1}, SourceType: SourceType115, Name: "115"},
 	}
 	if err := db.Db.Create(task).Error; err != nil {
 		t.Fatalf("创建上传任务失败: %v", err)

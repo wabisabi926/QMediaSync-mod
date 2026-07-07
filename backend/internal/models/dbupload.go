@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -221,6 +222,21 @@ func (task *DbUploadTask) Cancel() {
 	publishUploadQueueChanged(task, "status_changed")
 }
 
+func (task *DbUploadTask) cancelWithError(err error) {
+	if err == nil {
+		task.Cancel()
+		return
+	}
+	task.Status = UploadStatusCancelled
+	task.EndTime = time.Now().Unix()
+	task.Error = err.Error()
+	if saveErr := db.Db.Save(task).Error; saveErr != nil {
+		helpers.AppLogger.Warnf("[上传] 标记为已取消失败：%s", saveErr.Error())
+		return
+	}
+	publishUploadQueueChanged(task, "status_changed")
+}
+
 func (task *DbUploadTask) Uploading() {
 	task.Status = UploadStatusUploading
 	task.StartTime = time.Now().Unix()
@@ -250,6 +266,10 @@ func (task *DbUploadTask) GetAccount() *Account {
 func (task *DbUploadTask) Upload() {
 	if !helpers.PathExists(task.LocalFullPath) {
 		task.Fail(fmt.Errorf("本地文件 %s 不存在", task.LocalFullPath))
+		return
+	}
+	if err := task.validateDirectoryMonitorSourceFingerprint(); err != nil {
+		task.cancelWithError(err)
 		return
 	}
 	switch task.SourceType {
@@ -291,6 +311,24 @@ func (task *DbUploadTask) Upload() {
 		}
 		scrapeMediaFile.RemoveTmpFiles(task)
 	}
+}
+
+func (task *DbUploadTask) validateDirectoryMonitorSourceFingerprint() error {
+	if task == nil || task.Source != UploadSourceDirectoryMonitor {
+		return nil
+	}
+	if strings.TrimSpace(task.SourceFingerprint) == "" {
+		return errors.New("目录监控上传任务缺少源文件 fingerprint")
+	}
+	info, err := os.Stat(task.LocalFullPath)
+	if err != nil {
+		return fmt.Errorf("读取目录监控源文件信息失败：%w", err)
+	}
+	current := BuildDirectoryUploadSourceFingerprint(info.Size(), info.ModTime().UnixNano())
+	if current != task.SourceFingerprint {
+		return fmt.Errorf("目录监控源文件 fingerprint 不匹配：task=%s current=%s", task.SourceFingerprint, current)
+	}
+	return nil
 }
 
 func (task *DbUploadTask) Upload115File() bool {

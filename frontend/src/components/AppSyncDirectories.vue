@@ -1292,7 +1292,7 @@ onUnmounted(() => {
 
 .info-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
 }
 
@@ -1313,6 +1313,7 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  min-height: 32px;
   min-width: 0;
 }
 
@@ -1686,6 +1687,10 @@ onUnmounted(() => {
 
   .info-row {
     gap: 10px;
+  }
+
+  .info-content {
+    min-height: 28px;
   }
 
   .info-icon {

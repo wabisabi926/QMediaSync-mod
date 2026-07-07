@@ -934,8 +934,8 @@ func TestProcessPendingStrmGenerationTasksExpandsDirectoryScan(t *testing.T) {
 	if err := db.Db.First(&gotParent, parent.ID).Error; err != nil {
 		t.Fatalf("读取目录扫描父任务失败: %v", err)
 	}
-	if gotParent.Status != models.StrmGenerationStatusCompleted || gotParent.TotalItems != 2 || gotParent.AcceptedItems != 0 || gotParent.FailedItems != 0 {
-		t.Fatalf("目录扫描父任务 = %+v，期望 completed 且 total_items=2", gotParent)
+	if gotParent.Status != models.StrmGenerationStatusWaitingChildren || gotParent.TotalItems != 2 || gotParent.AcceptedItems != 0 || gotParent.FailedItems != 0 {
+		t.Fatalf("目录扫描父任务 = %+v，期望 waiting_children 且 total_items=2", gotParent)
 	}
 
 	var children []models.StrmGenerationTask
@@ -1028,8 +1028,8 @@ func TestProcessPendingStrmGenerationTasksExpandsDirectoryScanByDirectoryID(t *t
 	if err := db.Db.First(&gotParent, parent.ID).Error; err != nil {
 		t.Fatalf("读取目录扫描父任务失败: %v", err)
 	}
-	if gotParent.Status != models.StrmGenerationStatusCompleted || gotParent.TotalItems != 1 {
-		t.Fatalf("目录扫描父任务 = %+v，期望 completed 且 total_items=1", gotParent)
+	if gotParent.Status != models.StrmGenerationStatusWaitingChildren || gotParent.TotalItems != 1 {
+		t.Fatalf("目录扫描父任务 = %+v，期望 waiting_children 且 total_items=1", gotParent)
 	}
 
 	var child models.StrmGenerationTask
@@ -1038,6 +1038,164 @@ func TestProcessPendingStrmGenerationTasksExpandsDirectoryScanByDirectoryID(t *t
 	}
 	if child.FileId != "file-1" || child.Path != "/remote/show" || child.FileName != "movie.mkv" {
 		t.Fatalf("子任务 = %+v，期望 movie.mkv", child)
+	}
+}
+
+func TestProcessPendingStrmGenerationTasksDirectoryScanParentFailsWhenChildFails(t *testing.T) {
+	account, syncPath := setupStrmGenerationServiceTestDB(t)
+	service := newTestGenerationService(t, syncPath, account)
+	service.buildSyncer = func(_ *models.SyncPath, _ *models.Account) (*SyncStrm, error) {
+		return &SyncStrm{
+			Account:      account,
+			SyncPathId:   syncPath.ID,
+			SourcePath:   syncPath.RemotePath,
+			SourcePathId: syncPath.BaseCid,
+			TargetPath:   syncPath.LocalPath,
+			Config: SyncStrmConfig{
+				StrmBaseUrl:     syncPath.StrmBaseUrl,
+				StrmUrlNeedPath: syncPath.AddPath,
+				VideoExt:        syncPath.VideoExtArr,
+				MetaExt:         syncPath.MetaExtArr,
+			},
+			SyncDriver: &fakeDirectoryScanDriver{
+				filesByID: map[string][]*SyncFileCache{
+					"dir-root": {
+						{
+							FileId:     "file-fail",
+							ParentId:   "dir-root",
+							FileType:   v115open.TypeFile,
+							FileName:   "fail.mkv",
+							Path:       "/remote/show",
+							FileSize:   1024,
+							MTime:      101,
+							PickCode:   "pick-fail",
+							Sha1:       "sha1-fail",
+							SourceType: models.SourceType115,
+						},
+					},
+				},
+			},
+		}, nil
+	}
+	parent, err := models.EnqueueStrmGenerationTask(&models.StrmGenerationTask{
+		Source:        models.StrmGenerationSourceWebhook,
+		TaskType:      models.StrmGenerationTaskTypeDirectoryScan,
+		SyncPathId:    syncPath.ID,
+		AccountId:     account.ID,
+		DirectoryPath: "/remote/show",
+		RequestHash:   "webhook:directory:child-fails",
+	})
+	if err != nil {
+		t.Fatalf("创建目录扫描任务失败: %v", err)
+	}
+
+	processed, err := ProcessPendingStrmGenerationTasks(context.Background(), service, 1)
+	if err != nil {
+		t.Fatalf("展开目录扫描任务失败: %v", err)
+	}
+	if processed != 1 {
+		t.Fatalf("展开处理数 = %d，期望 1", processed)
+	}
+
+	service.compareStrm = func(_ *SyncStrm, _ *SyncFileCache) int { return 0 }
+	service.processStrmFile = func(_ *SyncStrm, _ *SyncFileCache) error {
+		return errors.New("写入失败")
+	}
+	processed, err = ProcessPendingStrmGenerationTasks(context.Background(), service, 10)
+	if err != nil {
+		t.Fatalf("处理目录扫描子任务失败: %v", err)
+	}
+	if processed != 1 {
+		t.Fatalf("子任务处理数 = %d，期望 1", processed)
+	}
+
+	var gotParent models.StrmGenerationTask
+	if err := db.Db.First(&gotParent, parent.ID).Error; err != nil {
+		t.Fatalf("读取目录扫描父任务失败: %v", err)
+	}
+	if gotParent.Status != models.StrmGenerationStatusFailed ||
+		gotParent.TotalItems != 1 ||
+		gotParent.AcceptedItems != 0 ||
+		gotParent.FailedItems != 1 {
+		t.Fatalf("目录扫描父任务 = %+v，期望 failed 且 failed_items=1", gotParent)
+	}
+}
+
+func TestProcessPendingStrmGenerationTasksDirectoryScanRetryReusesWaitingParent(t *testing.T) {
+	account, syncPath := setupStrmGenerationServiceTestDB(t)
+	service := newTestGenerationService(t, syncPath, account)
+	service.buildSyncer = func(_ *models.SyncPath, _ *models.Account) (*SyncStrm, error) {
+		return &SyncStrm{
+			Account:      account,
+			SyncPathId:   syncPath.ID,
+			SourcePath:   syncPath.RemotePath,
+			SourcePathId: syncPath.BaseCid,
+			TargetPath:   syncPath.LocalPath,
+			Config: SyncStrmConfig{
+				StrmBaseUrl:     syncPath.StrmBaseUrl,
+				StrmUrlNeedPath: syncPath.AddPath,
+				VideoExt:        syncPath.VideoExtArr,
+				MetaExt:         syncPath.MetaExtArr,
+			},
+			SyncDriver: &fakeDirectoryScanDriver{
+				filesByID: map[string][]*SyncFileCache{
+					"dir-root": {
+						{
+							FileId:     "file-1",
+							ParentId:   "dir-root",
+							FileType:   v115open.TypeFile,
+							FileName:   "movie.mkv",
+							Path:       "/remote/show",
+							FileSize:   1024,
+							MTime:      101,
+							PickCode:   "pick-1",
+							Sha1:       "sha1-1",
+							SourceType: models.SourceType115,
+						},
+					},
+				},
+			},
+		}, nil
+	}
+	const requestHash = "webhook:directory:retry-reuse"
+	parent, err := models.EnqueueStrmGenerationTask(&models.StrmGenerationTask{
+		Source:        models.StrmGenerationSourceWebhook,
+		TaskType:      models.StrmGenerationTaskTypeDirectoryScan,
+		SyncPathId:    syncPath.ID,
+		AccountId:     account.ID,
+		DirectoryPath: "/remote/show",
+		RequestHash:   requestHash,
+	})
+	if err != nil {
+		t.Fatalf("创建目录扫描任务失败: %v", err)
+	}
+	if _, err := ProcessPendingStrmGenerationTasks(context.Background(), service, 1); err != nil {
+		t.Fatalf("展开目录扫描任务失败: %v", err)
+	}
+
+	reused, err := models.EnqueueStrmGenerationTask(&models.StrmGenerationTask{
+		Source:        models.StrmGenerationSourceWebhook,
+		TaskType:      models.StrmGenerationTaskTypeDirectoryScan,
+		SyncPathId:    syncPath.ID,
+		AccountId:     account.ID,
+		DirectoryPath: "/remote/show",
+		RequestHash:   requestHash,
+	})
+	if err != nil {
+		t.Fatalf("重复目录扫描任务入队失败: %v", err)
+	}
+	if reused.ID != parent.ID {
+		t.Fatalf("重复目录扫描任务 ID = %d，期望复用父任务 %d", reused.ID, parent.ID)
+	}
+
+	var total int64
+	if err := db.Db.Model(&models.StrmGenerationTask{}).
+		Where("task_type = ?", models.StrmGenerationTaskTypeDirectoryScan).
+		Count(&total).Error; err != nil {
+		t.Fatalf("统计目录扫描父任务失败: %v", err)
+	}
+	if total != 1 {
+		t.Fatalf("目录扫描父任务数量 = %d，期望 1", total)
 	}
 }
 

@@ -762,6 +762,12 @@ func ProcessPendingStrmGenerationTasks(ctx context.Context, service *StrmGenerat
 			}
 			continue
 		}
+		if task.TaskType == models.StrmGenerationTaskTypeDirectoryScan {
+			if err := task.MarkDirectoryScanExpanded(task.TotalItems); err != nil {
+				return processed, err
+			}
+			continue
+		}
 		if err := task.MarkCompleted(); err != nil {
 			return processed, err
 		}

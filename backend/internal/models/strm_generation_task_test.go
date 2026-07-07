@@ -399,6 +399,60 @@ func TestStrmGenerationTaskRunningAndCompletedTransitions(t *testing.T) {
 	}
 }
 
+func TestStrmGenerationTaskMarkDirectoryScanExpanded(t *testing.T) {
+	setupStrmGenerationTaskTestDB(t)
+
+	tests := []struct {
+		name       string
+		totalItems int
+		wantStatus StrmGenerationStatus
+	}{
+		{
+			name:       "有子任务时等待子任务汇总",
+			totalItems: 2,
+			wantStatus: StrmGenerationStatusWaitingChildren,
+		},
+		{
+			name:       "空目录直接完成",
+			totalItems: 0,
+			wantStatus: StrmGenerationStatusCompleted,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			task, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+				Source:      StrmGenerationSourceWebhook,
+				TaskType:    StrmGenerationTaskTypeDirectoryScan,
+				SyncPathId:  10,
+				AccountId:   2,
+				Status:      StrmGenerationStatusRunning,
+				TotalItems:  99,
+				RequestHash: "webhook:directory:expanded:" + tt.name,
+			})
+			if err != nil {
+				t.Fatalf("创建目录扫描任务失败: %v", err)
+			}
+
+			if err := task.MarkDirectoryScanExpanded(tt.totalItems); err != nil {
+				t.Fatalf("标记目录扫描展开完成失败: %v", err)
+			}
+
+			var got StrmGenerationTask
+			if err := db.Db.First(&got, task.ID).Error; err != nil {
+				t.Fatalf("读取目录扫描任务失败: %v", err)
+			}
+			if got.Status != tt.wantStatus ||
+				got.TotalItems != tt.totalItems ||
+				got.AcceptedItems != 0 ||
+				got.FailedItems != 0 ||
+				got.LastError != "" {
+				t.Fatalf("目录扫描任务 = %+v，期望 status=%s total_items=%d 且清空统计", got, tt.wantStatus, tt.totalItems)
+			}
+		})
+	}
+}
+
 func TestGetPendingStrmGenerationTasksFiltersAndOrders(t *testing.T) {
 	setupStrmGenerationTaskTestDB(t)
 

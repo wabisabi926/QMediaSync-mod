@@ -396,6 +396,28 @@ func (task *StrmGenerationTask) MarkCompleted() error {
 	return db.Db.Save(task).Error
 }
 
+// MarkDirectoryScanExpanded 标记目录扫描任务已展开，等待子任务汇总。
+func (task *StrmGenerationTask) MarkDirectoryScanExpanded(totalItems int) error {
+	if task == nil {
+		return errors.New("STRM 生成任务为空")
+	}
+	if totalItems < 0 {
+		totalItems = 0
+	}
+	task.TotalItems = totalItems
+	task.AcceptedItems = 0
+	task.FailedItems = 0
+	task.ChangedItems = 0
+	task.NewMetaItems = 0
+	task.LastError = ""
+	if totalItems == 0 {
+		task.Status = StrmGenerationStatusCompleted
+	} else {
+		task.Status = StrmGenerationStatusWaitingChildren
+	}
+	return db.Db.Save(task).Error
+}
+
 // GetPendingStrmGenerationTasks 按创建顺序获取待执行 STRM 生成任务。
 func GetPendingStrmGenerationTasks(limit int) ([]*StrmGenerationTask, error) {
 	if limit <= 0 {

@@ -47,17 +47,18 @@ func (s SourceType) String() string {
 type SyncPath struct {
 	BaseModel
 	SettingStrm
-	CustomConfig bool       `json:"custom_config"`          // 是否自定义配置
-	BaseCid      string     `json:"base_cid" gorm:"unique"` // 同步源路径的目录 ID，115 网盘和 123 网盘需要该字段
-	LocalPath    string     `json:"local_path"`             // 存放 STRM 文件和元数据文件的本地路径
-	RemotePath   string     `json:"remote_path"`            // 同步源路径
-	SourceType   SourceType `json:"source_type"`            // 同步源类型，主要分为 115 网盘、本地目录和 123 网盘，无法编辑
-	AccountId    uint       `json:"account_id"`             // 115 账号 ID 或 123 账号 ID，根据 SourceType 决定，无法编辑
-	EnableCron   bool       `json:"enable_cron"`            // 是否启用定时同步
-	LastSyncAt   int64      `json:"last_sync_at"`           // 上次同步时间
-	AccountName  string     `json:"account_name" gorm:"-"`  // 115 账号名或 123 账号名，不参与数据库操作，仅供前端使用
-	IsFullSync   bool       `json:"is_full_sync"`           // 是否全量同步，默认 false
-	IsRunning    int        `json:"is_running" gorm:"-"`    // 是否正在运行：0 未运行，1 已在队列，2 正在运行
+	CustomConfig           bool       `json:"custom_config"`                                 // 是否自定义配置
+	BaseCid                string     `json:"base_cid" gorm:"unique"`                        // 同步源路径的目录 ID，115 网盘和 123 网盘需要该字段
+	LocalPath              string     `json:"local_path"`                                    // 存放 STRM 文件和元数据文件的本地路径
+	RemotePath             string     `json:"remote_path"`                                   // 同步源路径
+	SourceType             SourceType `json:"source_type"`                                   // 同步源类型，主要分为 115 网盘、本地目录和 123 网盘，无法编辑
+	AccountId              uint       `json:"account_id"`                                    // 115 账号 ID 或 123 账号 ID，根据 SourceType 决定，无法编辑
+	EnableCron             bool       `json:"enable_cron"`                                   // 是否启用定时同步
+	DirectoryUploadEnabled bool       `json:"directory_upload_enabled" gorm:"default:false"` // 是否启用目录监控上传总开关
+	LastSyncAt             int64      `json:"last_sync_at"`                                  // 上次同步时间
+	AccountName            string     `json:"account_name" gorm:"-"`                         // 115 账号名或 123 账号名，不参与数据库操作，仅供前端使用
+	IsFullSync             bool       `json:"is_full_sync"`                                  // 是否全量同步，默认 false
+	IsRunning              int        `json:"is_running" gorm:"-"`                           // 是否正在运行：0 未运行，1 已在队列，2 正在运行
 }
 
 type SyncPathScrapePath struct {
@@ -195,7 +196,7 @@ func (sp *SyncPath) GetStrmBaseUrl() string {
 }
 
 // 修改同步路径
-func (sp *SyncPath) Update(sourceType SourceType, accountId uint, baseCid, localPath, remotePath string, enableCron bool, customConfig bool, syncPathSetting SettingStrm) error {
+func (sp *SyncPath) Update(sourceType SourceType, accountId uint, baseCid, localPath, remotePath string, enableCron bool, customConfig bool, directoryUploadEnabled bool, syncPathSetting SettingStrm) error {
 	if runtime.GOOS != "windows" {
 		localPath = strings.TrimRight(localPath, "/")
 		remotePath = strings.Trim(remotePath, "/")
@@ -219,14 +220,16 @@ func (sp *SyncPath) Update(sourceType SourceType, accountId uint, baseCid, local
 	sp.LocalPath = localPath
 	sp.RemotePath = remotePath
 	sp.EnableCron = enableCron
+	sp.DirectoryUploadEnabled = directoryUploadEnabled
 	// 使用 map 保存需要更新的字段
 	updates := map[string]interface{}{
-		"custom_config": customConfig,
-		"base_cid":      baseCid,
-		"local_path":    localPath,
-		"remote_path":   remotePath,
-		"enable_cron":   enableCron,
-		"updated_at":    time.Now().Unix(),
+		"custom_config":            customConfig,
+		"base_cid":                 baseCid,
+		"local_path":               localPath,
+		"remote_path":              remotePath,
+		"enable_cron":              enableCron,
+		"directory_upload_enabled": directoryUploadEnabled,
+		"updated_at":               time.Now().Unix(),
 	}
 	strmSettingMap := sp.SettingStrm.ToMap(true, false)
 	maps.Copy(updates, strmSettingMap)
@@ -335,7 +338,7 @@ func (sp *SyncPath) MakeFullLocalPath(pid, name string) string {
 }
 
 // 创建同步路径
-func CreateSyncPath(sourceType SourceType, accountId uint, baseCid, localPath, remotePath string, enableCron bool, customConfig bool, syncPathSetting SettingStrm) *SyncPath {
+func CreateSyncPath(sourceType SourceType, accountId uint, baseCid, localPath, remotePath string, enableCron bool, customConfig bool, directoryUploadEnabled bool, syncPathSetting SettingStrm) *SyncPath {
 	if runtime.GOOS != "windows" {
 		localPath = strings.TrimRight(localPath, "/")
 		remotePath = strings.TrimRight(remotePath, "/")
@@ -351,15 +354,16 @@ func CreateSyncPath(sourceType SourceType, accountId uint, baseCid, localPath, r
 	}
 	// 使用 map[string]interface{} 格式入库，避免 0 值不入库
 	syncPathData := map[string]interface{}{
-		"source_type":   sourceType,
-		"base_cid":      baseCid,
-		"local_path":    localPath,
-		"remote_path":   remotePath,
-		"account_id":    accountId,
-		"enable_cron":   enableCron,
-		"custom_config": customConfig,
-		"created_at":    time.Now().Unix(),
-		"updated_at":    time.Now().Unix(),
+		"source_type":              sourceType,
+		"base_cid":                 baseCid,
+		"local_path":               localPath,
+		"remote_path":              remotePath,
+		"account_id":               accountId,
+		"enable_cron":              enableCron,
+		"directory_upload_enabled": directoryUploadEnabled,
+		"custom_config":            customConfig,
+		"created_at":               time.Now().Unix(),
+		"updated_at":               time.Now().Unix(),
 	}
 	strmSettingMap := syncPathSetting.ToMap(true, false)
 	maps.Copy(syncPathData, strmSettingMap)

@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 
-	"qmediasync/internal/db"
 	"qmediasync/internal/directoryupload"
 	"qmediasync/internal/models"
 
@@ -15,6 +14,7 @@ import (
 )
 
 type directoryUploadRuleRequest struct {
+	ID                       uint                                `json:"id"`
 	SyncPathID               uint                                `json:"sync_path_id"`
 	AccountID                uint                                `json:"account_id"`
 	Enabled                  *bool                               `json:"enabled"`
@@ -31,8 +31,15 @@ type directoryUploadRuleRequest struct {
 	OverwriteMode            models.DirectoryUploadOverwriteMode `json:"overwrite_mode"`
 }
 
-type directoryUploadStatusRequest struct {
-	Enabled *bool `json:"enabled"`
+type directoryUploadRulesSaveRequest struct {
+	Enabled *bool                         `json:"enabled"`
+	Rules   *[]directoryUploadRuleRequest `json:"rules"`
+}
+
+type directoryUploadRuleScanItem struct {
+	RuleID   uint   `json:"rule_id"`
+	Accepted int    `json:"accepted"`
+	Error    string `json:"error,omitempty"`
 }
 
 // ListDirectoryUploadRules 获取目录监控上传规则列表。
@@ -53,115 +60,101 @@ func ListDirectoryUploadRules(c *gin.Context) {
 	}})
 }
 
-// CreateDirectoryUploadRule 创建目录监控上传规则。
-func CreateDirectoryUploadRule(c *gin.Context) {
-	var req directoryUploadRuleRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("请求参数错误：%v", err), Data: nil})
-		return
-	}
-	rule, err := buildDirectoryUploadRuleFromRequest(nil, req)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
-		return
-	}
-	if err := createDirectoryUploadRule(rule); err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "创建目录监控上传规则失败", Data: nil})
-		return
-	}
-	rule.LoadIgnorePatterns()
-	directoryupload.ReloadDirectoryUploadService()
-	c.JSON(http.StatusOK, APIResponse[*models.DirectoryUploadRule]{Code: Success, Message: "创建目录监控上传规则成功", Data: rule})
-}
-
-// UpdateDirectoryUploadRule 更新目录监控上传规则。
-func UpdateDirectoryUploadRule(c *gin.Context) {
-	id, ok := parseUintParam(c, "id")
+// SaveDirectoryUploadSyncPathRules 批量保存同步目录下目录监控上传规则。
+func SaveDirectoryUploadSyncPathRules(c *gin.Context) {
+	syncPathID, ok := parseUintParam(c, "sync_path_id")
 	if !ok {
 		return
 	}
-	var existing models.DirectoryUploadRule
-	if err := db.Db.First(&existing, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, APIResponse[any]{Code: BadRequest, Message: "目录监控上传规则不存在", Data: nil})
+	syncPath := models.GetSyncPathById(syncPathID)
+	if syncPath == nil {
+		c.JSON(http.StatusNotFound, APIResponse[any]{Code: BadRequest, Message: "同步目录不存在", Data: nil})
 		return
 	}
-	var req directoryUploadRuleRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("请求参数错误：%v", err), Data: nil})
-		return
-	}
-	rule, err := buildDirectoryUploadRuleFromRequest(&existing, req)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
-		return
-	}
-	if err := db.Db.Save(rule).Error; err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "更新目录监控上传规则失败", Data: nil})
-		return
-	}
-	rule.LoadIgnorePatterns()
-	directoryupload.ReloadDirectoryUploadService()
-	c.JSON(http.StatusOK, APIResponse[*models.DirectoryUploadRule]{Code: Success, Message: "更新目录监控上传规则成功", Data: rule})
-}
-
-// DeleteDirectoryUploadRule 删除目录监控上传规则。
-func DeleteDirectoryUploadRule(c *gin.Context) {
-	id, ok := parseUintParam(c, "id")
-	if !ok {
-		return
-	}
-	if err := models.DeleteDirectoryUploadRule(id); err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "删除目录监控上传规则失败", Data: nil})
-		return
-	}
-	directoryupload.ReloadDirectoryUploadService()
-	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "删除目录监控上传规则成功", Data: nil})
-}
-
-// SetDirectoryUploadRuleStatus 设置目录监控上传规则启用状态。
-func SetDirectoryUploadRuleStatus(c *gin.Context) {
-	id, ok := parseUintParam(c, "id")
-	if !ok {
-		return
-	}
-	var req directoryUploadStatusRequest
-	if err := c.ShouldBindJSON(&req); err != nil || req.Enabled == nil {
+	var req directoryUploadRulesSaveRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.Enabled == nil || req.Rules == nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误", Data: nil})
 		return
 	}
-	if _, err := models.GetDirectoryUploadRuleById(id); err != nil {
-		c.JSON(http.StatusNotFound, APIResponse[any]{Code: BadRequest, Message: "目录监控上传规则不存在", Data: nil})
-		return
-	}
-	if err := models.SetDirectoryUploadRuleEnabled(id, *req.Enabled); err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "更新目录监控上传规则状态失败", Data: nil})
-		return
-	}
-	directoryupload.ReloadDirectoryUploadService()
-	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "更新目录监控上传规则状态成功", Data: gin.H{"enabled": *req.Enabled}})
-}
 
-// ScanDirectoryUploadRule 手动触发目录监控扫描。
-func ScanDirectoryUploadRule(c *gin.Context) {
-	id, ok := parseUintParam(c, "id")
-	if !ok {
-		return
+	rules := make([]*models.DirectoryUploadRule, 0, len(*req.Rules))
+	for _, item := range *req.Rules {
+		if item.SyncPathID != 0 && item.SyncPathID != syncPathID {
+			c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "目录监控上传规则不属于当前同步目录", Data: nil})
+			return
+		}
+		item.SyncPathID = syncPathID
+		var existing *models.DirectoryUploadRule
+		if item.ID > 0 {
+			rule, err := models.GetDirectoryUploadRuleById(item.ID)
+			if err != nil || rule.SyncPathId != syncPathID {
+				c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "目录监控上传规则不属于当前同步目录", Data: nil})
+				return
+			}
+			existing = rule
+		}
+		rule, err := buildDirectoryUploadRuleFromRequestWithoutScopeValidation(existing, item)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+			return
+		}
+		rules = append(rules, rule)
 	}
-	rule, err := models.GetDirectoryUploadRuleById(id)
-	if err != nil {
-		c.JSON(http.StatusNotFound, APIResponse[any]{Code: BadRequest, Message: "目录监控上传规则不存在", Data: nil})
-		return
-	}
-	if !rule.Enabled {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "目录监控上传规则未启用", Data: nil})
-		return
-	}
-	accepted, err := directoryupload.ScanRuleNow(context.Background(), rule)
+
+	saved, err := models.SaveDirectoryUploadRulesForSyncPath(syncPath.ID, *req.Enabled, rules)
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
-	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "目录监控扫描已完成", Data: gin.H{"accepted": accepted}})
+	directoryupload.ReloadDirectoryUploadService()
+	c.JSON(http.StatusOK, APIResponse[any]{
+		Code:    Success,
+		Message: "保存目录监控上传规则成功",
+		Data:    gin.H{"enabled": *req.Enabled, "list": saved, "total": len(saved)},
+	})
+}
+
+// ScanDirectoryUploadSyncPathRules 手动触发同步目录下所有启用目录监控规则扫描。
+func ScanDirectoryUploadSyncPathRules(c *gin.Context) {
+	syncPathID, ok := parseUintParam(c, "sync_path_id")
+	if !ok {
+		return
+	}
+	if models.GetSyncPathById(syncPathID) == nil {
+		c.JSON(http.StatusNotFound, APIResponse[any]{Code: BadRequest, Message: "同步目录不存在", Data: nil})
+		return
+	}
+	rules, err := models.GetEnabledDirectoryUploadRulesBySyncPathId(syncPathID)
+	if err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取目录监控上传规则失败", Data: nil})
+		return
+	}
+	if len(rules) == 0 {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "目录监控上传未启用", Data: nil})
+		return
+	}
+
+	items := make([]directoryUploadRuleScanItem, 0, len(rules))
+	totalAccepted := 0
+	var firstErr error
+	for _, rule := range rules {
+		accepted, scanErr := directoryupload.ScanRuleNow(context.Background(), rule)
+		item := directoryUploadRuleScanItem{RuleID: rule.ID, Accepted: accepted}
+		if scanErr != nil {
+			item.Error = scanErr.Error()
+			if firstErr == nil {
+				firstErr = scanErr
+			}
+		}
+		totalAccepted += accepted
+		items = append(items, item)
+	}
+	data := gin.H{"accepted": totalAccepted, "items": items}
+	if firstErr != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: firstErr.Error(), Data: data})
+		return
+	}
+	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "目录监控扫描已完成", Data: data})
 }
 
 // GetDirectoryUploadRuntimeStatuses 获取目录监控运行状态。
@@ -174,7 +167,7 @@ func GetDirectoryUploadRuntimeStatuses(c *gin.Context) {
 	})
 }
 
-func buildDirectoryUploadRuleFromRequest(existing *models.DirectoryUploadRule, req directoryUploadRuleRequest) (*models.DirectoryUploadRule, error) {
+func buildDirectoryUploadRuleFromRequestWithoutScopeValidation(existing *models.DirectoryUploadRule, req directoryUploadRuleRequest) (*models.DirectoryUploadRule, error) {
 	rule := &models.DirectoryUploadRule{}
 	if existing != nil {
 		*rule = *existing
@@ -198,15 +191,9 @@ func buildDirectoryUploadRuleFromRequest(existing *models.DirectoryUploadRule, r
 	if req.Enabled != nil {
 		rule.Enabled = *req.Enabled
 	}
-	if strings.TrimSpace(req.MonitorPath) != "" {
-		rule.MonitorPath = strings.TrimSpace(req.MonitorPath)
-	}
-	if strings.TrimSpace(req.RemoteRootPath) != "" {
-		rule.RemoteRootPath = strings.TrimSpace(req.RemoteRootPath)
-	}
-	if strings.TrimSpace(req.RemoteRootID) != "" {
-		rule.RemoteRootId = strings.TrimSpace(req.RemoteRootID)
-	}
+	rule.MonitorPath = strings.TrimSpace(req.MonitorPath)
+	rule.RemoteRootPath = strings.TrimSpace(req.RemoteRootPath)
+	rule.RemoteRootId = strings.TrimSpace(req.RemoteRootID)
 	if req.Recursive != nil {
 		rule.Recursive = *req.Recursive
 	}
@@ -278,29 +265,6 @@ func validateDirectoryUploadRuleEnums(rule *models.DirectoryUploadRule) error {
 		return fmt.Errorf("不支持的同名文件处理方式：%s", rule.OverwriteMode)
 	}
 	return nil
-}
-
-func createDirectoryUploadRule(rule *models.DirectoryUploadRule) error {
-	enabled := rule.Enabled
-	recursive := rule.Recursive
-	uploadMetadata := rule.UploadMetadata
-	startupScanEnabled := rule.StartupScanEnabled
-	deleteSourceAfterSuccess := rule.DeleteSourceAfterSuccess
-	if err := db.Db.Select("*").Create(rule).Error; err != nil {
-		return err
-	}
-	rule.Enabled = enabled
-	rule.Recursive = recursive
-	rule.UploadMetadata = uploadMetadata
-	rule.StartupScanEnabled = startupScanEnabled
-	rule.DeleteSourceAfterSuccess = deleteSourceAfterSuccess
-	return db.Db.Model(rule).Updates(map[string]any{
-		"enabled":                     enabled,
-		"recursive":                   recursive,
-		"upload_metadata":             uploadMetadata,
-		"startup_scan_enabled":        startupScanEnabled,
-		"delete_source_after_success": deleteSourceAfterSuccess,
-	}).Error
 }
 
 func parseOptionalUintQuery(c *gin.Context, name string) (uint, error) {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	pathpkg "path"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"qmediasync/internal/db"
@@ -82,6 +83,9 @@ func SaveDirectoryUploadRule(rule *DirectoryUploadRule) error {
 	if err := rule.ValidateWithSyncPath(syncPath); err != nil {
 		return err
 	}
+	if err := ValidateDirectoryUploadRuleScope(rule); err != nil {
+		return err
+	}
 	if err := db.Db.Save(rule).Error; err != nil {
 		return err
 	}
@@ -92,7 +96,28 @@ func SaveDirectoryUploadRule(rule *DirectoryUploadRule) error {
 // GetEnabledDirectoryUploadRules 查询启用的目录监控上传规则。
 func GetEnabledDirectoryUploadRules() ([]*DirectoryUploadRule, error) {
 	var rules []*DirectoryUploadRule
-	if err := db.Db.Where("enabled = ?", true).Order("id ASC").Find(&rules).Error; err != nil {
+	if err := db.Db.
+		Model(&DirectoryUploadRule{}).
+		Joins("JOIN sync_paths ON sync_paths.id = directory_upload_rules.sync_path_id").
+		Where("directory_upload_rules.enabled = ? AND sync_paths.directory_upload_enabled = ?", true, true).
+		Order("directory_upload_rules.id ASC").
+		Find(&rules).Error; err != nil {
+		return nil, err
+	}
+	loadDirectoryUploadRuleIgnorePatterns(rules)
+	return rules, nil
+}
+
+// GetEnabledDirectoryUploadRulesBySyncPathId 查询指定同步目录下启用的目录监控上传规则。
+func GetEnabledDirectoryUploadRulesBySyncPathId(syncPathID uint) ([]*DirectoryUploadRule, error) {
+	var rules []*DirectoryUploadRule
+	if err := db.Db.
+		Model(&DirectoryUploadRule{}).
+		Joins("JOIN sync_paths ON sync_paths.id = directory_upload_rules.sync_path_id").
+		Where("directory_upload_rules.sync_path_id = ? AND directory_upload_rules.enabled = ?", syncPathID, true).
+		Where("sync_paths.directory_upload_enabled = ?", true).
+		Order("directory_upload_rules.id ASC").
+		Find(&rules).Error; err != nil {
 		return nil, err
 	}
 	loadDirectoryUploadRuleIgnorePatterns(rules)
@@ -123,19 +148,137 @@ func GetDirectoryUploadRules(syncPathID uint) ([]*DirectoryUploadRule, error) {
 	return rules, nil
 }
 
-// DeleteDirectoryUploadRule 删除目录监控上传规则。
-func DeleteDirectoryUploadRule(id uint) error {
-	return db.Db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Delete(&DirectoryUploadRule{}, id).Error; err != nil {
+// SaveDirectoryUploadRulesForSyncPath 批量保存同步目录下目录监控上传规则。
+func SaveDirectoryUploadRulesForSyncPath(syncPathID uint, enabled bool, rules []*DirectoryUploadRule) ([]*DirectoryUploadRule, error) {
+	syncPath := GetSyncPathById(syncPathID)
+	if syncPath == nil {
+		return nil, fmt.Errorf("同步目录不存在")
+	}
+
+	var saved []*DirectoryUploadRule
+	err := db.Db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&SyncPath{}).
+			Where("id = ?", syncPathID).
+			Update("directory_upload_enabled", enabled).Error; err != nil {
 			return err
 		}
-		return tx.Where("rule_id = ?", id).Delete(&DirectoryUploadProcessedFile{}).Error
+		syncPath.DirectoryUploadEnabled = enabled
+
+		existingRules, err := getDirectoryUploadRulesWithDB(tx, syncPathID)
+		if err != nil {
+			return err
+		}
+		existingByID := make(map[uint]*DirectoryUploadRule, len(existingRules))
+		for _, rule := range existingRules {
+			existingByID[rule.ID] = rule
+		}
+
+		finalRules := make([]*DirectoryUploadRule, 0, len(rules))
+		seenRuleIDs := make(map[uint]struct{}, len(rules))
+		for _, rule := range rules {
+			if rule == nil {
+				return errors.New("目录监控上传规则为空")
+			}
+			if rule.SyncPathId != syncPathID {
+				return fmt.Errorf("目录监控上传规则 %d 不属于当前同步目录", rule.ID)
+			}
+			if rule.ID > 0 {
+				if _, seen := seenRuleIDs[rule.ID]; seen {
+					return fmt.Errorf("目录监控上传规则 %d 重复提交", rule.ID)
+				}
+				seenRuleIDs[rule.ID] = struct{}{}
+				if _, ok := existingByID[rule.ID]; !ok {
+					return fmt.Errorf("目录监控上传规则 %d 不属于当前同步目录", rule.ID)
+				}
+			}
+			if rule.IgnorePatterns != nil {
+				if err := rule.SetIgnorePatterns(rule.IgnorePatterns); err != nil {
+					return err
+				}
+			}
+			if err := rule.ValidateWithSyncPath(syncPath); err != nil {
+				return err
+			}
+			finalRules = append(finalRules, rule)
+		}
+		if enabled && !hasEnabledDirectoryUploadRule(finalRules) {
+			return errors.New("目录监控上传已启用，请至少启用一条规则")
+		}
+		if err := validateEnabledDirectoryUploadRuleSet(finalRules); err != nil {
+			return err
+		}
+
+		submittedIDSet := make(map[uint]struct{}, len(seenRuleIDs))
+		for id := range seenRuleIDs {
+			submittedIDSet[id] = struct{}{}
+		}
+		deletedIDs := make([]uint, 0)
+		for _, rule := range existingRules {
+			if _, ok := submittedIDSet[rule.ID]; !ok {
+				deletedIDs = append(deletedIDs, rule.ID)
+			}
+		}
+		if len(deletedIDs) > 0 {
+			if err := tx.Where("id IN ?", deletedIDs).Delete(&DirectoryUploadRule{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("rule_id IN ?", deletedIDs).Delete(&DirectoryUploadProcessedFile{}).Error; err != nil {
+				return err
+			}
+		}
+		for _, rule := range rules {
+			if rule.ID == 0 {
+				if err := createDirectoryUploadRuleWithDB(tx, rule); err != nil {
+					return err
+				}
+				continue
+			}
+			if err := tx.Save(rule).Error; err != nil {
+				return err
+			}
+		}
+		saved, err = getDirectoryUploadRulesWithDB(tx, syncPathID)
+		return err
 	})
+	if err != nil {
+		return nil, err
+	}
+	return saved, nil
 }
 
-// SetDirectoryUploadRuleEnabled 设置目录监控上传规则启用状态。
-func SetDirectoryUploadRuleEnabled(id uint, enabled bool) error {
-	return db.Db.Model(&DirectoryUploadRule{}).Where("id = ?", id).Update("enabled", enabled).Error
+func getDirectoryUploadRulesWithDB(handle *gorm.DB, syncPathID uint) ([]*DirectoryUploadRule, error) {
+	var rules []*DirectoryUploadRule
+	if err := handle.
+		Where("sync_path_id = ?", syncPathID).
+		Order("id ASC").
+		Find(&rules).Error; err != nil {
+		return nil, err
+	}
+	loadDirectoryUploadRuleIgnorePatterns(rules)
+	return rules, nil
+}
+
+func createDirectoryUploadRuleWithDB(handle *gorm.DB, rule *DirectoryUploadRule) error {
+	enabled := rule.Enabled
+	recursive := rule.Recursive
+	uploadMetadata := rule.UploadMetadata
+	startupScanEnabled := rule.StartupScanEnabled
+	deleteSourceAfterSuccess := rule.DeleteSourceAfterSuccess
+	if err := handle.Select("*").Create(rule).Error; err != nil {
+		return err
+	}
+	rule.Enabled = enabled
+	rule.Recursive = recursive
+	rule.UploadMetadata = uploadMetadata
+	rule.StartupScanEnabled = startupScanEnabled
+	rule.DeleteSourceAfterSuccess = deleteSourceAfterSuccess
+	return handle.Model(rule).Updates(map[string]any{
+		"enabled":                     enabled,
+		"recursive":                   recursive,
+		"upload_metadata":             uploadMetadata,
+		"startup_scan_enabled":        startupScanEnabled,
+		"delete_source_after_success": deleteSourceAfterSuccess,
+	}).Error
 }
 
 // ValidateWithSyncPath 校验目录监控上传规则和同步目录的路径边界。
@@ -166,6 +309,27 @@ func (rule *DirectoryUploadRule) ValidateWithSyncPath(syncPath *SyncPath) error 
 	}
 	if !isRemotePathWithin(remoteRootPath, syncRemotePath) {
 		return fmt.Errorf("远端上传根目录 %s 不在同步远端目录 %s 下", remoteRootPath, syncRemotePath)
+	}
+	return nil
+}
+
+// ValidateDirectoryUploadRuleScope 校验同一同步目录下目录监控规则是否重复或重叠。
+func ValidateDirectoryUploadRuleScope(rule *DirectoryUploadRule) error {
+	if rule == nil {
+		return errors.New("目录监控上传规则为空")
+	}
+	var rules []*DirectoryUploadRule
+	query := db.Db.Where("sync_path_id = ?", rule.SyncPathId)
+	if rule.ID > 0 {
+		query = query.Where("id <> ?", rule.ID)
+	}
+	if err := query.Order("id ASC").Find(&rules).Error; err != nil {
+		return fmt.Errorf("查询目录监控上传规则失败：%w", err)
+	}
+	for _, existing := range rules {
+		if err := validateDirectoryUploadRulePair(rule, existing); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -221,6 +385,19 @@ func cleanLocalPath(p string) string {
 	return filepath.Clean(p)
 }
 
+func cleanLocalPathForDirectoryUploadCompare(p string) string {
+	p = strings.TrimSpace(p)
+	if p == "" {
+		return ""
+	}
+	p = strings.ReplaceAll(p, "\\", string(filepath.Separator))
+	p = filepath.Clean(p)
+	if runtime.GOOS == "windows" {
+		p = strings.ToLower(p)
+	}
+	return p
+}
+
 func cleanRemotePath(p string) string {
 	p = strings.TrimSpace(strings.ReplaceAll(p, "\\", "/"))
 	if p == "" {
@@ -237,6 +414,71 @@ func isRemotePathWithin(remotePath string, basePath string) bool {
 		return strings.HasPrefix(remotePath, "/")
 	}
 	return remotePath == basePath || strings.HasPrefix(remotePath, basePath+"/")
+}
+
+func validateEnabledDirectoryUploadRuleSet(rules []*DirectoryUploadRule) error {
+	for i, rule := range rules {
+		for _, existing := range rules[i+1:] {
+			if err := validateDirectoryUploadRulePair(rule, existing); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func hasEnabledDirectoryUploadRule(rules []*DirectoryUploadRule) bool {
+	for _, rule := range rules {
+		if rule != nil && rule.Enabled {
+			return true
+		}
+	}
+	return false
+}
+
+func validateDirectoryUploadRulePair(rule *DirectoryUploadRule, existing *DirectoryUploadRule) error {
+	if rule == nil || existing == nil {
+		return nil
+	}
+	monitorPath := cleanLocalPathForDirectoryUploadCompare(rule.MonitorPath)
+	existingMonitorPath := cleanLocalPathForDirectoryUploadCompare(existing.MonitorPath)
+	remoteRootPath := cleanRemotePath(rule.RemoteRootPath)
+	existingRemoteRootPath := cleanRemotePath(existing.RemoteRootPath)
+	remoteRootID := strings.TrimSpace(rule.RemoteRootId)
+	existingRemoteRootID := strings.TrimSpace(existing.RemoteRootId)
+
+	if monitorPath == existingMonitorPath &&
+		remoteRootPath == existingRemoteRootPath &&
+		remoteRootID == existingRemoteRootID {
+		return fmt.Errorf("目录监控上传规则重复：监控目录 %s 已绑定到目标目录 %s", rule.MonitorPath, rule.RemoteRootPath)
+	}
+	if !rule.Enabled || !existing.Enabled {
+		return nil
+	}
+	if monitorPath == existingMonitorPath {
+		return fmt.Errorf("目录监控上传规则重叠：监控目录 %s 已被规则 %d 使用", rule.MonitorPath, existing.ID)
+	}
+	if existing.Recursive && isLocalPathWithinDirectoryUploadMonitor(monitorPath, existingMonitorPath) {
+		return fmt.Errorf("目录监控上传规则重叠：监控目录 %s 位于递归监控目录 %s 下", rule.MonitorPath, existing.MonitorPath)
+	}
+	if rule.Recursive && isLocalPathWithinDirectoryUploadMonitor(existingMonitorPath, monitorPath) {
+		return fmt.Errorf("目录监控上传规则重叠：已有监控目录 %s 位于递归监控目录 %s 下", existing.MonitorPath, rule.MonitorPath)
+	}
+	return nil
+}
+
+func isLocalPathWithinDirectoryUploadMonitor(path string, monitorPath string) bool {
+	if path == "" || monitorPath == "" || path == monitorPath {
+		return false
+	}
+	rel, err := filepath.Rel(monitorPath, path)
+	if err != nil {
+		return false
+	}
+	return rel != "." &&
+		rel != ".." &&
+		!strings.HasPrefix(rel, ".."+string(filepath.Separator)) &&
+		!filepath.IsAbs(rel)
 }
 
 func loadDirectoryUploadRuleIgnorePatterns(rules []*DirectoryUploadRule) {

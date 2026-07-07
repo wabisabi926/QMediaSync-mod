@@ -345,102 +345,156 @@
           <el-divider content-position="left">目录监控上传</el-divider>
           <el-form-item label="目录监控上传">
             <el-switch
-              v-model="directoryUploadForm.enabled"
+              v-model="directoryUploadEnabled"
               :active-value="true"
               :inactive-value="false"
               :disabled="loading || directoryUploadLoading"
+              @change="handleDirectoryUploadEnabledChange"
             />
             <div class="form-tip">开启后会监控本地目录，将新视频上传到当前 115 同步目录下</div>
           </el-form-item>
-          <template v-if="directoryUploadForm.enabled">
-            <el-form-item label="监控目录">
-              <div class="pan-dir-input">
-                <el-input
-                  v-model="directoryUploadForm.monitor_path"
-                  placeholder="请选择需要监控上传的本地目录"
-                  :disabled="loading || directoryUploadLoading"
-                  readonly
-                />
-                <el-button
-                  type="primary"
-                  @click="openDirectoryUploadMonitorSelector"
-                  :disabled="loading || directoryUploadLoading"
-                >
-                  选择目录
-                </el-button>
-              </div>
-              <div class="form-tip">不要选择 STRM 存放目录，避免生成的 STRM 被再次上传</div>
-            </el-form-item>
-            <el-form-item label="目标目录">
-              <div class="pan-dir-input">
-                <el-input
-                  v-model="directoryUploadForm.remote_root_path"
-                  placeholder="请选择要保存到 115 网盘的目录"
-                  :disabled="loading || directoryUploadLoading"
-                  readonly
-                />
-                <el-button
-                  type="primary"
-                  @click="openDirectoryUploadRemoteSelector"
-                  :disabled="loading || directoryUploadLoading"
-                >
-                  选择目录
-                </el-button>
-              </div>
-              <div class="form-help">
-                <p>
-                  例如当前同步目录的远端路径是 <code>/电影</code>，这里可以选
-                  <code>/电影/新片</code>。
-                </p>
-                <p>不要选 <code>/电视剧</code> 这类不在当前同步目录里的位置。</p>
-              </div>
-            </el-form-item>
-            <el-form-item label="监控模式">
-              <el-select
-                v-model="directoryUploadForm.watch_mode"
-                :disabled="loading || directoryUploadLoading"
+          <template v-if="directoryUploadEnabled">
+            <div class="directory-upload-rules">
+              <div
+                v-for="(rule, index) in directoryUploadRules"
+                :key="rule.clientId"
+                class="directory-upload-rule"
               >
-                <el-option label="自动（推荐）" value="auto" />
-                <el-option label="性能模式" value="fsnotify" />
-                <el-option label="兼容模式" value="polling" />
-              </el-select>
-              <div class="form-tip">
-                自动（推荐）会先用性能模式尽快发现新文件，发现不到时再用兼容模式定期查漏
+                <div class="directory-upload-rule__header">
+                  <span class="directory-upload-rule__title">监控目录 {{ index + 1 }}</span>
+                  <div class="directory-upload-rule__actions">
+                    <el-switch
+                      v-model="rule.enabled"
+                      :active-value="true"
+                      :inactive-value="false"
+                      :disabled="loading || directoryUploadLoading"
+                    />
+                    <el-button
+                      type="danger"
+                      plain
+                      :icon="Delete"
+                      :disabled="loading || directoryUploadLoading"
+                      @click="removeDirectoryUploadRule(rule.clientId)"
+                    >
+                      删除
+                    </el-button>
+                  </div>
+                </div>
+
+                <el-form-item
+                  :label="`监控目录 ${index + 1}`"
+                  :error="getDirectoryUploadRuleFieldError(rule, 'monitor_path')"
+                >
+                  <div class="pan-dir-input">
+                    <el-input
+                      v-model="rule.monitor_path"
+                      placeholder="请选择需要监控上传的本地目录"
+                      :disabled="loading || directoryUploadLoading || !rule.enabled"
+                      readonly
+                    />
+                    <el-button
+                      type="primary"
+                      @click="openDirectoryUploadMonitorSelector(rule.clientId)"
+                      :disabled="loading || directoryUploadLoading || !rule.enabled"
+                    >
+                      选择目录
+                    </el-button>
+                  </div>
+                  <div class="form-tip">不要选择 STRM 存放目录，避免生成的 STRM 被再次上传</div>
+                </el-form-item>
+
+                <el-form-item
+                  :label="`目标目录 ${index + 1}`"
+                  :error="getDirectoryUploadRuleFieldError(rule, 'remote_root_path')"
+                >
+                  <div class="pan-dir-input">
+                    <el-input
+                      v-model="rule.remote_root_path"
+                      placeholder="请选择要保存到 115 网盘的目录"
+                      :disabled="loading || directoryUploadLoading || !rule.enabled"
+                      readonly
+                    />
+                    <el-button
+                      type="primary"
+                      @click="openDirectoryUploadRemoteSelector(rule.clientId)"
+                      :disabled="loading || directoryUploadLoading || !rule.enabled"
+                    >
+                      选择目录
+                    </el-button>
+                  </div>
+                  <div class="form-help">
+                    <p>
+                      例如当前同步目录的远端路径是 <code>/电影</code>，这里可以选
+                      <code>/电影/新片</code>。
+                    </p>
+                    <p>不要选 <code>/电视剧</code> 这类不在当前同步目录里的位置。</p>
+                  </div>
+                </el-form-item>
+
+                <el-form-item label="监控模式">
+                  <el-select
+                    v-model="rule.watch_mode"
+                    :disabled="loading || directoryUploadLoading || !rule.enabled"
+                  >
+                    <el-option label="自动（推荐）" value="auto" />
+                    <el-option label="性能模式" value="fsnotify" />
+                    <el-option label="兼容模式" value="polling" />
+                  </el-select>
+                  <div class="form-tip">
+                    自动（推荐）会先用性能模式尽快发现新文件，发现不到时再用兼容模式定期查漏
+                  </div>
+                </el-form-item>
+
+                <el-form-item label="上传元数据">
+                  <el-switch
+                    v-model="rule.upload_metadata"
+                    :active-value="true"
+                    :inactive-value="false"
+                    :disabled="loading || directoryUploadLoading || !rule.enabled"
+                  />
+                  <div class="form-tip">开启后会同时上传当前同步目录配置中的元数据扩展名文件</div>
+                </el-form-item>
+
+                <el-form-item label="遇到同名文件时">
+                  <el-radio-group
+                    v-model="rule.overwrite_mode"
+                    :disabled="loading || directoryUploadLoading || !rule.enabled"
+                  >
+                    <el-radio-button value="skip_same">跳过</el-radio-button>
+                    <el-radio-button value="fail_conflict">停止</el-radio-button>
+                    <el-radio-button value="replace_conflict">覆盖</el-radio-button>
+                  </el-radio-group>
+                  <div class="form-help">
+                    <p>跳过：同名文件大小和 SHA1 一致时直接生成 STRM；不一致时不上传。</p>
+                    <p>停止：同名但大小或 SHA1 不一致时停止处理。</p>
+                    <p>覆盖：同名但大小或 SHA1 不一致时先删除网盘旧文件，再上传新文件。</p>
+                  </div>
+                </el-form-item>
+
+                <el-form-item label="上传后删除源文件">
+                  <el-switch
+                    v-model="rule.delete_source_after_success"
+                    :active-value="true"
+                    :inactive-value="false"
+                    :disabled="loading || directoryUploadLoading || !rule.enabled"
+                  />
+                  <div class="form-help">
+                    <p>默认关闭。开启后，仅在上传成功且 STRM 生成成功后删除源文件。</p>
+                    <p>删除源文件后会向上清理空目录，但不会删除监控根目录。</p>
+                  </div>
+                </el-form-item>
               </div>
-            </el-form-item>
-            <el-form-item label="上传元数据">
-              <el-switch
-                v-model="directoryUploadForm.upload_metadata"
-                :active-value="true"
-                :inactive-value="false"
+
+              <el-button
+                type="primary"
+                plain
+                :icon="Plus"
                 :disabled="loading || directoryUploadLoading"
-              />
-              <div class="form-tip">开启后会同时上传当前同步目录配置中的元数据扩展名文件</div>
-            </el-form-item>
-            <el-form-item label="遇到同名文件时">
-              <el-radio-group v-model="directoryUploadForm.overwrite_mode">
-                <el-radio-button value="skip_same">跳过</el-radio-button>
-                <el-radio-button value="fail_conflict">停止</el-radio-button>
-                <el-radio-button value="replace_conflict">覆盖</el-radio-button>
-              </el-radio-group>
-              <div class="form-help">
-                <p>跳过：同名文件大小和 SHA1 一致时直接生成 STRM；不一致时不上传。</p>
-                <p>停止：同名但大小或 SHA1 不一致时停止处理。</p>
-                <p>覆盖：同名但大小或 SHA1 不一致时先删除网盘旧文件，再上传新文件。</p>
-              </div>
-            </el-form-item>
-            <el-form-item label="上传后删除源文件">
-              <el-switch
-                v-model="directoryUploadForm.delete_source_after_success"
-                :active-value="true"
-                :inactive-value="false"
-                :disabled="loading || directoryUploadLoading"
-              />
-              <div class="form-help">
-                <p>默认关闭。开启后，仅在上传成功且 STRM 生成成功后删除源文件。</p>
-                <p>删除源文件后会向上清理空目录，但不会删除监控根目录。</p>
-              </div>
-            </el-form-item>
+                @click="addDirectoryUploadRule"
+              >
+                添加监控目录
+              </el-button>
+            </div>
           </template>
         </template>
       </el-form>
@@ -796,102 +850,156 @@
           <el-divider content-position="left">目录监控上传</el-divider>
           <el-form-item label="目录监控上传">
             <el-switch
-              v-model="directoryUploadForm.enabled"
+              v-model="directoryUploadEnabled"
               :active-value="true"
               :inactive-value="false"
               :disabled="loading || directoryUploadLoading"
+              @change="handleDirectoryUploadEnabledChange"
             />
             <div class="form-tip">开启后会监控本地目录，将新视频上传到当前 115 同步目录下</div>
           </el-form-item>
-          <template v-if="directoryUploadForm.enabled">
-            <el-form-item label="监控目录">
-              <div class="pan-dir-input">
-                <el-input
-                  v-model="directoryUploadForm.monitor_path"
-                  placeholder="请选择需要监控上传的本地目录"
-                  :disabled="loading || directoryUploadLoading"
-                  readonly
-                />
-                <el-button
-                  type="primary"
-                  @click="openDirectoryUploadMonitorSelector"
-                  :disabled="loading || directoryUploadLoading"
-                >
-                  选择目录
-                </el-button>
-              </div>
-              <div class="form-tip">不要选择 STRM 存放目录，避免生成的 STRM 被再次上传</div>
-            </el-form-item>
-            <el-form-item label="目标目录">
-              <div class="pan-dir-input">
-                <el-input
-                  v-model="directoryUploadForm.remote_root_path"
-                  placeholder="请选择要保存到 115 网盘的目录"
-                  :disabled="loading || directoryUploadLoading"
-                  readonly
-                />
-                <el-button
-                  type="primary"
-                  @click="openDirectoryUploadRemoteSelector"
-                  :disabled="loading || directoryUploadLoading"
-                >
-                  选择目录
-                </el-button>
-              </div>
-              <div class="form-help">
-                <p>
-                  例如当前同步目录的远端路径是 <code>/电影</code>，这里可以选
-                  <code>/电影/新片</code>。
-                </p>
-                <p>不要选 <code>/电视剧</code> 这类不在当前同步目录里的位置。</p>
-              </div>
-            </el-form-item>
-            <el-form-item label="监控模式">
-              <el-select
-                v-model="directoryUploadForm.watch_mode"
-                :disabled="loading || directoryUploadLoading"
+          <template v-if="directoryUploadEnabled">
+            <div class="directory-upload-rules">
+              <div
+                v-for="(rule, index) in directoryUploadRules"
+                :key="rule.clientId"
+                class="directory-upload-rule"
               >
-                <el-option label="自动（推荐）" value="auto" />
-                <el-option label="性能模式" value="fsnotify" />
-                <el-option label="兼容模式" value="polling" />
-              </el-select>
-              <div class="form-tip">
-                自动（推荐）会先用性能模式尽快发现新文件，发现不到时再用兼容模式定期查漏
+                <div class="directory-upload-rule__header">
+                  <span class="directory-upload-rule__title">监控目录 {{ index + 1 }}</span>
+                  <div class="directory-upload-rule__actions">
+                    <el-switch
+                      v-model="rule.enabled"
+                      :active-value="true"
+                      :inactive-value="false"
+                      :disabled="loading || directoryUploadLoading"
+                    />
+                    <el-button
+                      type="danger"
+                      plain
+                      :icon="Delete"
+                      :disabled="loading || directoryUploadLoading"
+                      @click="removeDirectoryUploadRule(rule.clientId)"
+                    >
+                      删除
+                    </el-button>
+                  </div>
+                </div>
+
+                <el-form-item
+                  :label="`监控目录 ${index + 1}`"
+                  :error="getDirectoryUploadRuleFieldError(rule, 'monitor_path')"
+                >
+                  <div class="pan-dir-input">
+                    <el-input
+                      v-model="rule.monitor_path"
+                      placeholder="请选择需要监控上传的本地目录"
+                      :disabled="loading || directoryUploadLoading || !rule.enabled"
+                      readonly
+                    />
+                    <el-button
+                      type="primary"
+                      @click="openDirectoryUploadMonitorSelector(rule.clientId)"
+                      :disabled="loading || directoryUploadLoading || !rule.enabled"
+                    >
+                      选择目录
+                    </el-button>
+                  </div>
+                  <div class="form-tip">不要选择 STRM 存放目录，避免生成的 STRM 被再次上传</div>
+                </el-form-item>
+
+                <el-form-item
+                  :label="`目标目录 ${index + 1}`"
+                  :error="getDirectoryUploadRuleFieldError(rule, 'remote_root_path')"
+                >
+                  <div class="pan-dir-input">
+                    <el-input
+                      v-model="rule.remote_root_path"
+                      placeholder="请选择要保存到 115 网盘的目录"
+                      :disabled="loading || directoryUploadLoading || !rule.enabled"
+                      readonly
+                    />
+                    <el-button
+                      type="primary"
+                      @click="openDirectoryUploadRemoteSelector(rule.clientId)"
+                      :disabled="loading || directoryUploadLoading || !rule.enabled"
+                    >
+                      选择目录
+                    </el-button>
+                  </div>
+                  <div class="form-help">
+                    <p>
+                      例如当前同步目录的远端路径是 <code>/电影</code>，这里可以选
+                      <code>/电影/新片</code>。
+                    </p>
+                    <p>不要选 <code>/电视剧</code> 这类不在当前同步目录里的位置。</p>
+                  </div>
+                </el-form-item>
+
+                <el-form-item label="监控模式">
+                  <el-select
+                    v-model="rule.watch_mode"
+                    :disabled="loading || directoryUploadLoading || !rule.enabled"
+                  >
+                    <el-option label="自动（推荐）" value="auto" />
+                    <el-option label="性能模式" value="fsnotify" />
+                    <el-option label="兼容模式" value="polling" />
+                  </el-select>
+                  <div class="form-tip">
+                    自动（推荐）会先用性能模式尽快发现新文件，发现不到时再用兼容模式定期查漏
+                  </div>
+                </el-form-item>
+
+                <el-form-item label="上传元数据">
+                  <el-switch
+                    v-model="rule.upload_metadata"
+                    :active-value="true"
+                    :inactive-value="false"
+                    :disabled="loading || directoryUploadLoading || !rule.enabled"
+                  />
+                  <div class="form-tip">开启后会同时上传当前同步目录配置中的元数据扩展名文件</div>
+                </el-form-item>
+
+                <el-form-item label="遇到同名文件时">
+                  <el-radio-group
+                    v-model="rule.overwrite_mode"
+                    :disabled="loading || directoryUploadLoading || !rule.enabled"
+                  >
+                    <el-radio-button value="skip_same">跳过</el-radio-button>
+                    <el-radio-button value="fail_conflict">停止</el-radio-button>
+                    <el-radio-button value="replace_conflict">覆盖</el-radio-button>
+                  </el-radio-group>
+                  <div class="form-help">
+                    <p>跳过：同名文件大小和 SHA1 一致时直接生成 STRM；不一致时不上传。</p>
+                    <p>停止：同名但大小或 SHA1 不一致时停止处理。</p>
+                    <p>覆盖：同名但大小或 SHA1 不一致时先删除网盘旧文件，再上传新文件。</p>
+                  </div>
+                </el-form-item>
+
+                <el-form-item label="上传后删除源文件">
+                  <el-switch
+                    v-model="rule.delete_source_after_success"
+                    :active-value="true"
+                    :inactive-value="false"
+                    :disabled="loading || directoryUploadLoading || !rule.enabled"
+                  />
+                  <div class="form-help">
+                    <p>默认关闭。开启后，仅在上传成功且 STRM 生成成功后删除源文件。</p>
+                    <p>删除源文件后会向上清理空目录，但不会删除监控根目录。</p>
+                  </div>
+                </el-form-item>
               </div>
-            </el-form-item>
-            <el-form-item label="上传元数据">
-              <el-switch
-                v-model="directoryUploadForm.upload_metadata"
-                :active-value="true"
-                :inactive-value="false"
+
+              <el-button
+                type="primary"
+                plain
+                :icon="Plus"
                 :disabled="loading || directoryUploadLoading"
-              />
-              <div class="form-tip">开启后会同时上传当前同步目录配置中的元数据扩展名文件</div>
-            </el-form-item>
-            <el-form-item label="遇到同名文件时">
-              <el-radio-group v-model="directoryUploadForm.overwrite_mode">
-                <el-radio-button value="skip_same">跳过</el-radio-button>
-                <el-radio-button value="fail_conflict">停止</el-radio-button>
-                <el-radio-button value="replace_conflict">覆盖</el-radio-button>
-              </el-radio-group>
-              <div class="form-help">
-                <p>跳过：同名文件大小和 SHA1 一致时直接生成 STRM；不一致时不上传。</p>
-                <p>停止：同名但大小或 SHA1 不一致时停止处理。</p>
-                <p>覆盖：同名但大小或 SHA1 不一致时先删除网盘旧文件，再上传新文件。</p>
-              </div>
-            </el-form-item>
-            <el-form-item label="上传后删除源文件">
-              <el-switch
-                v-model="directoryUploadForm.delete_source_after_success"
-                :active-value="true"
-                :inactive-value="false"
-                :disabled="loading || directoryUploadLoading"
-              />
-              <div class="form-help">
-                <p>默认关闭。开启后，仅在上传成功且 STRM 生成成功后删除源文件。</p>
-                <p>删除源文件后会向上清理空目录，但不会删除监控根目录。</p>
-              </div>
-            </el-form-item>
+                @click="addDirectoryUploadRule"
+              >
+                添加监控目录
+              </el-button>
+            </div>
           </template>
         </template>
       </el-form>
@@ -944,13 +1052,18 @@ import {
 } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { ArrowLeft } from '@element-plus/icons-vue'
+import { ArrowLeft, Delete, Plus } from '@element-plus/icons-vue'
 import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 import { navigateBackOrReplace } from '@/utils/navigation'
 import { sourceTypeOptions } from '@/utils/sourceTypeUtils'
 import MetadataExtInput from './MetadataExtInput.vue'
 import DirectorySelector from './DirectorySelector.vue'
-import type { DirInfo } from '@/typing'
+import type {
+  DirInfo,
+  DirectoryUploadOverwriteMode,
+  DirectoryUploadRule,
+  DirectoryUploadWatchMode,
+} from '@/typing'
 
 interface CloudAccount {
   id: number
@@ -972,20 +1085,29 @@ interface VersionInfo {
 type DirectorySelectTarget = 'source' | 'strmLocal' | 'uploadMonitor' | 'uploadRemote'
 
 interface DirectoryUploadRuleForm {
+  clientId: number
   id: number
+  autoCreated?: boolean
   enabled: boolean
   monitor_path: string
   remote_root_path: string
   remote_root_id: string
   recursive: boolean
-  watch_mode: 'auto' | 'fsnotify' | 'polling'
+  watch_mode: DirectoryUploadWatchMode
   upload_metadata: boolean
   startup_scan_enabled: boolean
   processed_cache_ttl_seconds: number
   delete_source_after_success: boolean
-  overwrite_mode: 'skip_same' | 'fail_conflict' | 'replace_conflict'
+  overwrite_mode: DirectoryUploadOverwriteMode
   ignore_patterns: string[]
 }
+
+type DirectoryUploadRuleFormSeed = Partial<DirectoryUploadRule> & {
+  clientId?: number
+  autoCreated?: boolean
+}
+type DirectoryUploadRuleRequiredField = 'monitor_path' | 'remote_root_path'
+type DirectoryUploadRuleFieldErrors = Partial<Record<DirectoryUploadRuleRequiredField, string>>
 
 const http: AxiosStatic | undefined = inject('$http')
 const route = useRoute()
@@ -1017,23 +1139,8 @@ const form = reactive({
   check_meta_mtime: STRM_CUSTOM_OPTIONS.checkMetaMtime[0] as -1 | 0 | 1,
   cron: '',
   enable_cron: false,
+  directory_upload_enabled: false,
   strm_base_url: '',
-})
-
-const directoryUploadForm = reactive<DirectoryUploadRuleForm>({
-  id: 0,
-  enabled: false,
-  monitor_path: '',
-  remote_root_path: '',
-  remote_root_id: '',
-  recursive: true,
-  watch_mode: 'auto',
-  upload_metadata: false,
-  startup_scan_enabled: true,
-  processed_cache_ttl_seconds: 600,
-  delete_source_after_success: false,
-  overwrite_mode: 'skip_same',
-  ignore_patterns: [],
 })
 
 const formRules: FormRules = {
@@ -1059,6 +1166,7 @@ const initialRootPath = ref('')
 const directorySelectTarget = ref<DirectorySelectTarget>('source')
 const selectedSourceType = ref('')
 const selectedAccountId: Ref<number | string> = ref(0)
+const activeDirectoryUploadRuleClientId = ref<number | null>(null)
 
 const versionInfo = ref<VersionInfo | null>(null)
 
@@ -1066,10 +1174,20 @@ const cronTimes = ref<string[]>([])
 const cronTimesLoading = ref(false)
 const strmExample = ref('')
 const directoryUploadLoading = ref(false)
+const directoryUploadRulesLoadFailed = ref(false)
+const directoryUploadRules = ref<DirectoryUploadRuleForm[]>([])
+const directoryUploadRuleFieldErrors = ref<Record<number, DirectoryUploadRuleFieldErrors>>({})
+let nextDirectoryUploadRuleClientId = 1
 
 const canConfigureDirectoryUpload = computed(
   () => form.source_type === '115' && (isEditMode.value || !!form.account_id),
 )
+const directoryUploadEnabled = computed({
+  get: () => form.directory_upload_enabled,
+  set: (enabled: boolean) => {
+    form.directory_upload_enabled = enabled
+  },
+})
 
 const formatTooltip = (value: number) => {
   if (value === STRM_CUSTOM_OPTIONS.downloadMeta[0]) {
@@ -1078,68 +1196,69 @@ const formatTooltip = (value: number) => {
   return `${value} MB`
 }
 
-const resetDirectoryUploadForm = () => {
-  Object.assign(directoryUploadForm, {
-    id: 0,
-    enabled: false,
-    monitor_path: '',
-    remote_root_path: '',
-    remote_root_id: '',
-    recursive: true,
-    watch_mode: 'auto',
-    upload_metadata: false,
-    startup_scan_enabled: true,
-    processed_cache_ttl_seconds: 600,
-    delete_source_after_success: false,
-    overwrite_mode: 'skip_same',
-    ignore_patterns: [],
-  } satisfies DirectoryUploadRuleForm)
+const createDirectoryUploadRuleForm = (
+  rule: DirectoryUploadRuleFormSeed = {},
+): DirectoryUploadRuleForm => ({
+  clientId: nextDirectoryUploadRuleClientId++,
+  id: rule.id || 0,
+  autoCreated: rule.autoCreated === true,
+  enabled: rule.enabled === true,
+  monitor_path: rule.monitor_path || '',
+  remote_root_path: rule.remote_root_path || '',
+  remote_root_id: rule.remote_root_id || '',
+  recursive: rule.recursive !== false,
+  watch_mode: rule.watch_mode || 'auto',
+  upload_metadata: rule.upload_metadata === true,
+  startup_scan_enabled: rule.startup_scan_enabled !== false,
+  processed_cache_ttl_seconds: rule.processed_cache_ttl_seconds || 600,
+  delete_source_after_success: rule.delete_source_after_success === true,
+  overwrite_mode: rule.overwrite_mode || 'skip_same',
+  ignore_patterns: Array.isArray(rule.ignore_patterns) ? rule.ignore_patterns : [],
+})
+
+const resetDirectoryUploadRules = () => {
+  form.directory_upload_enabled = false
+  directoryUploadRulesLoadFailed.value = false
+  directoryUploadRules.value = []
+  directoryUploadRuleFieldErrors.value = {}
+  activeDirectoryUploadRuleClientId.value = null
 }
 
-const fillDirectoryUploadForm = (rule: Partial<DirectoryUploadRuleForm>) => {
-  Object.assign(directoryUploadForm, {
-    id: rule.id || 0,
-    enabled: rule.enabled === true,
-    monitor_path: rule.monitor_path || '',
-    remote_root_path: rule.remote_root_path || '',
-    remote_root_id: rule.remote_root_id || '',
-    recursive: rule.recursive !== false,
-    watch_mode: rule.watch_mode || 'auto',
-    upload_metadata: rule.upload_metadata === true,
-    startup_scan_enabled: rule.startup_scan_enabled !== false,
-    processed_cache_ttl_seconds: rule.processed_cache_ttl_seconds || 600,
-    delete_source_after_success: rule.delete_source_after_success === true,
-    overwrite_mode: rule.overwrite_mode || 'skip_same',
-    ignore_patterns: Array.isArray(rule.ignore_patterns) ? rule.ignore_patterns : [],
-  } satisfies DirectoryUploadRuleForm)
+const fillDirectoryUploadRules = (rules: DirectoryUploadRule[]) => {
+  directoryUploadRulesLoadFailed.value = false
+  directoryUploadRules.value = rules.map((rule) => createDirectoryUploadRuleForm(rule))
+  directoryUploadRuleFieldErrors.value = {}
 }
 
-const loadDirectoryUploadRule = async (syncPathId: number) => {
+const loadDirectoryUploadRules = async (syncPathId: number) => {
   if (!syncPathId || form.source_type !== '115') {
-    resetDirectoryUploadForm()
+    resetDirectoryUploadRules()
     return
   }
 
   try {
     directoryUploadLoading.value = true
+    directoryUploadRulesLoadFailed.value = false
     const response = await http?.get(`${SERVER_URL}/directory-upload/rules`, {
       params: { sync_path_id: syncPathId },
     })
 
     if (response?.data.code === 200) {
-      const rule = response.data.data?.list?.[0]
-      if (rule) {
-        fillDirectoryUploadForm(rule)
+      const rules = response.data.data?.list || []
+      if (rules.length > 0) {
+        fillDirectoryUploadRules(rules)
       } else {
-        resetDirectoryUploadForm()
+        directoryUploadRules.value = []
+        directoryUploadRuleFieldErrors.value = {}
+        activeDirectoryUploadRuleClientId.value = null
       }
     } else {
       ElMessage.error(response?.data.message || '加载目录监控上传配置失败')
-      resetDirectoryUploadForm()
+      directoryUploadRulesLoadFailed.value = true
     }
   } catch {
     ElMessage.error('加载目录监控上传配置失败')
-    resetDirectoryUploadForm()
+    directoryUploadRulesLoadFailed.value = true
   } finally {
     directoryUploadLoading.value = false
   }
@@ -1149,79 +1268,271 @@ const normalizePathForCompare = (value: string): string => {
   return value.trim().replace(/\\/g, '/').replace(/\/+$/, '')
 }
 
-const validateDirectoryUploadRule = (): boolean => {
-  if (!canConfigureDirectoryUpload.value || !directoryUploadForm.enabled) {
-    return true
+const isPathInside = (path: string, parent: string): boolean => {
+  const normalizedPath = normalizePathForCompare(path)
+  const normalizedParent = normalizePathForCompare(parent)
+  return normalizedPath !== normalizedParent && normalizedPath.startsWith(`${normalizedParent}/`)
+}
+
+const hasDirectoryUploadRuleContent = (rule: DirectoryUploadRuleForm): boolean => {
+  return (
+    !!rule.monitor_path.trim() ||
+    !!rule.remote_root_path.trim() ||
+    !!rule.remote_root_id.trim() ||
+    rule.id > 0
+  )
+}
+
+const activeDirectoryUploadRules = () => directoryUploadRules.value.filter((rule) => rule.enabled)
+
+const getDirectoryUploadRulesToSave = () =>
+  directoryUploadRules.value.filter((rule) => rule.enabled || hasDirectoryUploadRuleContent(rule))
+
+const addDirectoryUploadRule = (autoCreated = false) => {
+  form.directory_upload_enabled = true
+  directoryUploadRules.value.push(
+    createDirectoryUploadRuleForm({
+      autoCreated,
+      enabled: true,
+      remote_root_path: selectedDirPath.value || form.remote_path || '',
+      remote_root_id: form.base_cid || '',
+    }),
+  )
+}
+
+const removeDirectoryUploadRule = (clientId: number) => {
+  directoryUploadRules.value = directoryUploadRules.value.filter(
+    (item) => item.clientId !== clientId,
+  )
+  clearDirectoryUploadRuleFieldErrors(clientId)
+}
+
+const removeCanceledDirectoryUploadDraftRules = () => {
+  directoryUploadRules.value = directoryUploadRules.value.filter(
+    (rule) => !(rule.id === 0 && rule.autoCreated && !rule.monitor_path.trim()),
+  )
+}
+
+const getDirectoryUploadRuleFieldError = (
+  rule: DirectoryUploadRuleForm,
+  field: DirectoryUploadRuleRequiredField,
+): string => directoryUploadRuleFieldErrors.value[rule.clientId]?.[field] || ''
+
+const clearDirectoryUploadRuleFieldErrors = (clientId: number) => {
+  if (!directoryUploadRuleFieldErrors.value[clientId]) {
+    return
   }
-  if (!directoryUploadForm.monitor_path.trim()) {
-    ElMessage.error('请选择目录监控上传的监控目录')
+  const nextErrors = { ...directoryUploadRuleFieldErrors.value }
+  delete nextErrors[clientId]
+  directoryUploadRuleFieldErrors.value = nextErrors
+}
+
+const clearDirectoryUploadRuleFieldError = (
+  clientId: number,
+  field: DirectoryUploadRuleRequiredField,
+) => {
+  const currentRuleErrors = directoryUploadRuleFieldErrors.value[clientId]
+  if (!currentRuleErrors?.[field]) {
+    return
+  }
+  const nextRuleErrors = { ...currentRuleErrors }
+  delete nextRuleErrors[field]
+
+  const nextErrors = { ...directoryUploadRuleFieldErrors.value }
+  if (Object.keys(nextRuleErrors).length > 0) {
+    nextErrors[clientId] = nextRuleErrors
+  } else {
+    delete nextErrors[clientId]
+  }
+  directoryUploadRuleFieldErrors.value = nextErrors
+}
+
+const isIncompleteDirectoryUploadRule = (rule: DirectoryUploadRuleForm): boolean => {
+  if (!hasDirectoryUploadRuleContent(rule)) {
     return false
   }
-  if (!directoryUploadForm.remote_root_path.trim()) {
-    ElMessage.error('请选择目录监控上传的目标目录')
-    return false
+  return !rule.monitor_path.trim() || !rule.remote_root_path.trim()
+}
+
+const markDirectoryUploadRuleRequiredFieldErrors = (rules: DirectoryUploadRuleForm[]): boolean => {
+  const nextErrors: Record<number, DirectoryUploadRuleFieldErrors> = {}
+  for (const rule of rules) {
+    const ruleErrors: DirectoryUploadRuleFieldErrors = {}
+    if (!rule.monitor_path.trim()) {
+      ruleErrors.monitor_path = '请选择目录监控上传的监控目录'
+    }
+    if (!rule.remote_root_path.trim()) {
+      ruleErrors.remote_root_path = '请选择目录监控上传的目标目录'
+    }
+    if (Object.keys(ruleErrors).length > 0) {
+      nextErrors[rule.clientId] = ruleErrors
+    }
   }
-  if (
-    normalizePathForCompare(directoryUploadForm.monitor_path) ===
-    normalizePathForCompare(form.local_path)
-  ) {
-    ElMessage.error('目录监控上传的监控目录不能等于 STRM 存放目录')
-    return false
+  directoryUploadRuleFieldErrors.value = nextErrors
+  return Object.keys(nextErrors).length === 0
+}
+
+const hasIncompleteManualDirectoryUploadDraftRules = (): boolean =>
+  getDirectoryUploadRulesToSave().some(
+    (rule) => rule.id === 0 && !rule.autoCreated && isIncompleteDirectoryUploadRule(rule),
+  )
+
+const hasIncompleteDirectoryUploadRulesToSave = (): boolean =>
+  getDirectoryUploadRulesToSave().some((rule) => isIncompleteDirectoryUploadRule(rule))
+
+const handleDirectoryUploadEnabledChange = (enabled: boolean | string | number) => {
+  const nextEnabled = enabled === true
+  if (!nextEnabled) {
+    removeCanceledDirectoryUploadDraftRules()
+    const requiredFieldsCompleted = markDirectoryUploadRuleRequiredFieldErrors(
+      getDirectoryUploadRulesToSave(),
+    )
+    if (
+      !requiredFieldsCompleted &&
+      (hasIncompleteManualDirectoryUploadDraftRules() || hasIncompleteDirectoryUploadRulesToSave())
+    ) {
+      form.directory_upload_enabled = true
+      ElMessage.error('请补完整目录监控上传规则，或删除未完成的规则后再关闭')
+      return
+    }
+    form.directory_upload_enabled = false
+    return
+  }
+  form.directory_upload_enabled = true
+  if (nextEnabled) {
+    if (directoryUploadRules.value.length === 0) {
+      addDirectoryUploadRule(true)
+    }
+  }
+}
+
+const getDirectoryUploadRuleByClientId = (
+  clientId: number | null,
+): DirectoryUploadRuleForm | undefined => {
+  if (clientId === null) {
+    return undefined
+  }
+  return directoryUploadRules.value.find((rule) => rule.clientId === clientId)
+}
+
+const validateDirectoryUploadRuleConflicts = (rules: DirectoryUploadRuleForm[]): boolean => {
+  const scopeKeys = new Set<string>()
+  for (const rule of rules) {
+    const monitorPath = normalizePathForCompare(rule.monitor_path)
+    const remoteRootPath = normalizePathForCompare(rule.remote_root_path)
+    const scopeKey = `${monitorPath}\n${remoteRootPath}\n${rule.remote_root_id.trim()}`
+    if (scopeKeys.has(scopeKey)) {
+      ElMessage.error('目录监控上传存在重复规则，请检查监控目录和目标目录')
+      return false
+    }
+    scopeKeys.add(scopeKey)
+  }
+
+  const enabledRules = rules.filter((rule) => rule.enabled)
+  for (let i = 0; i < enabledRules.length; i++) {
+    const current = enabledRules[i]
+    const currentPath = normalizePathForCompare(current.monitor_path)
+    for (const other of enabledRules.slice(i + 1)) {
+      const otherPath = normalizePathForCompare(other.monitor_path)
+      if (currentPath === otherPath) {
+        ElMessage.error('目录监控上传的监控目录不能重复')
+        return false
+      }
+      if (current.recursive && isPathInside(otherPath, currentPath)) {
+        ElMessage.error('目录监控上传的监控目录不能位于另一个递归监控目录下')
+        return false
+      }
+      if (other.recursive && isPathInside(currentPath, otherPath)) {
+        ElMessage.error('目录监控上传的监控目录不能位于另一个递归监控目录下')
+        return false
+      }
+    }
   }
   return true
 }
 
-const buildDirectoryUploadPayload = (syncPathId: number) => ({
-  sync_path_id: syncPathId,
-  account_id: Number(form.account_id) || 0,
-  enabled: directoryUploadForm.enabled,
-  monitor_path: directoryUploadForm.monitor_path.trim(),
-  remote_root_path: directoryUploadForm.remote_root_path.trim(),
-  remote_root_id: directoryUploadForm.remote_root_id.trim(),
-  recursive: directoryUploadForm.recursive,
-  watch_mode: directoryUploadForm.watch_mode,
-  upload_metadata: directoryUploadForm.upload_metadata,
-  startup_scan_enabled: directoryUploadForm.startup_scan_enabled,
-  processed_cache_ttl_seconds: directoryUploadForm.processed_cache_ttl_seconds,
-  delete_source_after_success: directoryUploadForm.delete_source_after_success,
-  ignore_patterns: directoryUploadForm.ignore_patterns,
-  overwrite_mode: directoryUploadForm.overwrite_mode,
-})
-
-const saveDirectoryUploadRule = async (syncPathId: number): Promise<boolean> => {
+const validateDirectoryUploadRules = (): boolean => {
   if (!canConfigureDirectoryUpload.value) {
     return true
   }
-  if (!syncPathId) {
-    return !directoryUploadForm.enabled && !directoryUploadForm.id
+  const rulesToSave = getDirectoryUploadRulesToSave()
+  const enabledRules = activeDirectoryUploadRules()
+  if (!form.directory_upload_enabled && rulesToSave.length === 0) {
+    return true
   }
-  if (!directoryUploadForm.enabled) {
-    if (!directoryUploadForm.id) {
-      return true
+  if (form.directory_upload_enabled && enabledRules.length === 0) {
+    ElMessage.error('请至少启用一个目录监控上传规则')
+    return false
+  }
+  if (!markDirectoryUploadRuleRequiredFieldErrors(rulesToSave)) {
+    if (rulesToSave.some((rule) => !rule.monitor_path.trim())) {
+      ElMessage.error('请选择目录监控上传的监控目录')
+    } else {
+      ElMessage.error('请选择目录监控上传的目标目录')
     }
-    const response = await http?.post(
-      `${SERVER_URL}/directory-upload/rules/${directoryUploadForm.id}/status`,
-      { enabled: false },
-    )
-    return response?.data.code === 200
+    return false
   }
-  if (!validateDirectoryUploadRule()) {
+  for (const rule of rulesToSave) {
+    if (normalizePathForCompare(rule.monitor_path) === normalizePathForCompare(form.local_path)) {
+      ElMessage.error('目录监控上传的监控目录不能等于 STRM 存放目录')
+      return false
+    }
+  }
+  return validateDirectoryUploadRuleConflicts(rulesToSave)
+}
+
+const buildDirectoryUploadPayload = (syncPathId: number, rule: DirectoryUploadRuleForm) => ({
+  id: rule.id,
+  sync_path_id: syncPathId,
+  account_id: Number(form.account_id) || 0,
+  enabled: rule.enabled,
+  monitor_path: rule.monitor_path.trim(),
+  remote_root_path: rule.remote_root_path.trim(),
+  remote_root_id: rule.remote_root_id.trim(),
+  recursive: rule.recursive,
+  watch_mode: rule.watch_mode,
+  upload_metadata: rule.upload_metadata,
+  startup_scan_enabled: rule.startup_scan_enabled,
+  processed_cache_ttl_seconds: rule.processed_cache_ttl_seconds,
+  delete_source_after_success: rule.delete_source_after_success,
+  ignore_patterns: rule.ignore_patterns,
+  overwrite_mode: rule.overwrite_mode,
+})
+
+const saveDirectoryUploadRules = async (syncPathId: number): Promise<boolean> => {
+  if (!canConfigureDirectoryUpload.value) {
+    return true
+  }
+  if (directoryUploadRulesLoadFailed.value) {
+    ElMessage.error('目录监控上传规则加载失败，请刷新或重试后再保存')
+    return false
+  }
+  if (!syncPathId) {
+    return !form.directory_upload_enabled && getDirectoryUploadRulesToSave().length === 0
+  }
+  if (!validateDirectoryUploadRules()) {
     return false
   }
 
-  const payload = buildDirectoryUploadPayload(syncPathId)
-  const response = directoryUploadForm.id
-    ? await http?.put(`${SERVER_URL}/directory-upload/rules/${directoryUploadForm.id}`, payload)
-    : await http?.post(`${SERVER_URL}/directory-upload/rules`, payload)
-
-  if (response?.data.code === 200) {
-    if (response.data.data?.id) {
-      directoryUploadForm.id = response.data.data.id
-    }
-    return true
+  const rulesToSave = getDirectoryUploadRulesToSave()
+  const response = await http?.put(
+    `${SERVER_URL}/directory-upload/sync-paths/${syncPathId}/rules`,
+    {
+      enabled: form.directory_upload_enabled,
+      rules: rulesToSave.map((rule) => buildDirectoryUploadPayload(syncPathId, rule)),
+    },
+  )
+  if (response?.data.code !== 200) {
+    ElMessage.error(response?.data.message || '保存目录监控上传配置失败')
+    return false
   }
-  ElMessage.error(response?.data.message || '保存目录监控上传配置失败')
-  return false
+  if (typeof response.data.data?.enabled === 'boolean') {
+    form.directory_upload_enabled = response.data.data.enabled
+  }
+  if (Array.isArray(response.data.data?.list)) {
+    fillDirectoryUploadRules(response.data.data.list)
+  }
+  return true
 }
 
 const loadCronTimes = async () => {
@@ -1300,7 +1611,7 @@ const handleSourceTypeChange = () => {
     loadAccounts()
   }
   if (form.source_type !== '115') {
-    resetDirectoryUploadForm()
+    resetDirectoryUploadRules()
   }
 }
 
@@ -1369,12 +1680,13 @@ const loadDirectoryData = async (id: number) => {
         form.baidu_sync_method = directory.baidu_sync_method
         form.cron = directory.cron || ''
         form.enable_cron = directory.enable_cron !== false
+        form.directory_upload_enabled = directory.directory_upload_enabled === true
         form.strm_base_url = directory.strm_base_url || ''
         updateStrmPath()
         if (form.strm_base_url) {
           updateStrmExample()
         }
-        await loadDirectoryUploadRule(directory.id)
+        await loadDirectoryUploadRules(directory.id)
       } else {
         ElMessage.error('未找到该同步目录')
         goBack()
@@ -1417,24 +1729,27 @@ const updateStrmPath = () => {
 const openDirSelector = async (isLocalPath: boolean = false) => {
   showDirDialog.value = true
   tempSelectedDir.value = null
+  activeDirectoryUploadRuleClientId.value = null
   directorySelectTarget.value = isLocalPath ? 'strmLocal' : 'source'
   selectedSourceType.value = isLocalPath ? 'local' : form.source_type
   selectedAccountId.value = form.account_id
   initialRootPath.value = ''
 }
 
-const openDirectoryUploadMonitorSelector = () => {
+const openDirectoryUploadMonitorSelector = (clientId: number) => {
   showDirDialog.value = true
   tempSelectedDir.value = null
+  activeDirectoryUploadRuleClientId.value = clientId
   directorySelectTarget.value = 'uploadMonitor'
   selectedSourceType.value = 'local'
   selectedAccountId.value = 0
   initialRootPath.value = ''
 }
 
-const openDirectoryUploadRemoteSelector = () => {
+const openDirectoryUploadRemoteSelector = (clientId: number) => {
   showDirDialog.value = true
   tempSelectedDir.value = null
+  activeDirectoryUploadRuleClientId.value = clientId
   directorySelectTarget.value = 'uploadRemote'
   selectedSourceType.value = '115'
   selectedAccountId.value = form.account_id
@@ -1449,23 +1764,35 @@ const confirmSelectDir = async () => {
   if (directorySelectTarget.value === 'strmLocal') {
     form.local_path = selectedDir.path ? selectedDir.path : selectedDir.name
   } else if (directorySelectTarget.value === 'uploadMonitor') {
-    directoryUploadForm.monitor_path = selectedDir.path ? selectedDir.path : selectedDir.name
+    const rule = getDirectoryUploadRuleByClientId(activeDirectoryUploadRuleClientId.value)
+    if (rule) {
+      rule.monitor_path = selectedDir.path ? selectedDir.path : selectedDir.name
+      clearDirectoryUploadRuleFieldError(rule.clientId, 'monitor_path')
+    }
   } else if (directorySelectTarget.value === 'uploadRemote') {
-    directoryUploadForm.remote_root_id = selectedDir.id
-    directoryUploadForm.remote_root_path = selectedDir.path
+    const rule = getDirectoryUploadRuleByClientId(activeDirectoryUploadRuleClientId.value)
+    if (rule) {
+      rule.remote_root_id = selectedDir.id
+      rule.remote_root_path = selectedDir.path
+      clearDirectoryUploadRuleFieldError(rule.clientId, 'remote_root_path')
+    }
   } else {
     form.base_cid = selectedDir.id
     selectedDirPath.value = selectedDir.path
-    if (!directoryUploadForm.remote_root_path) {
-      directoryUploadForm.remote_root_id = selectedDir.id
-      directoryUploadForm.remote_root_path = selectedDir.path
-    }
+    directoryUploadRules.value.forEach((rule) => {
+      if (!rule.remote_root_path) {
+        rule.remote_root_id = selectedDir.id
+        rule.remote_root_path = selectedDir.path
+        clearDirectoryUploadRuleFieldError(rule.clientId, 'remote_root_path')
+      }
+    })
     updateStrmPath()
   }
 
   showDirDialog.value = false
   tempSelectedDir.value = null
   directorySelectTarget.value = 'source'
+  activeDirectoryUploadRuleClientId.value = null
 }
 
 const handleSubmit = async () => {
@@ -1473,7 +1800,11 @@ const handleSubmit = async () => {
 
   try {
     await formRef.value.validate()
-    if (!validateDirectoryUploadRule()) {
+    if (directoryUploadRulesLoadFailed.value) {
+      ElMessage.error('目录监控上传规则加载失败，请刷新或重试后再保存')
+      return
+    }
+    if (!validateDirectoryUploadRules()) {
       return
     }
     loading.value = true
@@ -1500,6 +1831,9 @@ const handleSubmit = async () => {
         baidu_sync_method: form.baidu_sync_method,
         cron: form.cron.trim(),
         enable_cron: form.enable_cron,
+        directory_upload_enabled: canConfigureDirectoryUpload.value
+          ? form.directory_upload_enabled
+          : false,
         strm_base_url: form.strm_base_url.trim(),
       }
 
@@ -1510,7 +1844,7 @@ const handleSubmit = async () => {
       })
 
       if (response?.data.code === 200) {
-        const directoryUploadSaved = await saveDirectoryUploadRule(form.id)
+        const directoryUploadSaved = await saveDirectoryUploadRules(form.id)
         if (!directoryUploadSaved) {
           ElMessage.warning('同步目录已保存，目录监控上传配置保存失败，请重新编辑该目录')
           returnToDirectoryList()
@@ -1541,6 +1875,9 @@ const handleSubmit = async () => {
         baidu_sync_method: form.baidu_sync_method,
         cron: form.cron.trim(),
         enable_cron: form.enable_cron,
+        directory_upload_enabled: canConfigureDirectoryUpload.value
+          ? form.directory_upload_enabled
+          : false,
         strm_base_url: form.strm_base_url.trim(),
       }
 
@@ -1552,7 +1889,7 @@ const handleSubmit = async () => {
 
       if (response?.data.code === 200) {
         const syncPathId = Number(response.data.data?.id || 0)
-        const directoryUploadSaved = await saveDirectoryUploadRule(syncPathId)
+        const directoryUploadSaved = await saveDirectoryUploadRules(syncPathId)
         if (!directoryUploadSaved) {
           ElMessage.warning('同步目录已添加，目录监控上传配置保存失败，请进入编辑页重试')
           returnToDirectoryList()
@@ -1657,6 +1994,39 @@ onUnmounted(() => {
 
 .form-help p {
   margin: 4px 0;
+}
+
+.directory-upload-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.directory-upload-rule {
+  padding: 14px;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.directory-upload-rule__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.directory-upload-rule__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.directory-upload-rule__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .pan-dir-input {
@@ -1801,6 +2171,16 @@ onUnmounted(() => {
 
 .is-mobile .pan-dir-input .el-button {
   width: 100%;
+}
+
+.is-mobile .directory-upload-rule__header {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.is-mobile .directory-upload-rule__actions {
+  width: 100%;
+  justify-content: space-between;
 }
 
 .ext-input-wrapper {

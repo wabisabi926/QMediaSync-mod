@@ -18,7 +18,7 @@ type Migrator struct {
 	VersionCode int `json:"version_code"` // 版本号
 }
 
-var MaxVersionCode = 57
+var MaxVersionCode = 58
 var AllTables = []any{
 	Migrator{},
 	BackupConfig{}, BackupRecord{},
@@ -635,6 +635,18 @@ func Migrate() {
 		helpers.AppLogger.Info("已添加目录监控源文件处理记录表")
 		migrator.UpdateVersionCode(db.Db)
 	}
+	if migrator.VersionCode == 57 {
+		if err := db.Db.AutoMigrate(SyncPath{}); err != nil {
+			helpers.AppLogger.Errorf("迁移同步目录目录监控总开关失败：%v", err)
+			return
+		}
+		if err := backfillDirectoryUploadEnabled(db.Db); err != nil {
+			helpers.AppLogger.Errorf("回填同步目录目录监控总开关失败：%v", err)
+			return
+		}
+		helpers.AppLogger.Info("已添加同步目录目录监控总开关")
+		migrator.UpdateVersionCode(db.Db)
+	}
 	helpers.AppLogger.Infof("当前数据库版本 %d", migrator.VersionCode)
 }
 
@@ -733,6 +745,25 @@ func backfillEmbyLastSuccessSyncMode(dbConn *gorm.DB, fallbackMode string) error
 		}
 	}
 	return nil
+}
+
+func backfillDirectoryUploadEnabled(dbConn *gorm.DB) error {
+	if !dbConn.Migrator().HasTable(&DirectoryUploadRule{}) {
+		return nil
+	}
+	var syncPathIDs []uint
+	if err := dbConn.Model(&DirectoryUploadRule{}).
+		Where("enabled = ?", true).
+		Distinct().
+		Pluck("sync_path_id", &syncPathIDs).Error; err != nil {
+		return err
+	}
+	if len(syncPathIDs) == 0 {
+		return nil
+	}
+	return dbConn.Model(&SyncPath{}).
+		Where("id IN ?", syncPathIDs).
+		Update("directory_upload_enabled", true).Error
 }
 
 func InitSettings() {

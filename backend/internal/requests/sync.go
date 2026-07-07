@@ -95,13 +95,14 @@ func (r SyncPathStrmRequest) isZero() bool {
 
 // SyncPathRequest 创建同步路径请求。
 type SyncPathRequest struct {
-	SourceType   models.SourceType `json:"source_type" form:"source_type" binding:"required"`
-	AccountID    uint              `json:"account_id" form:"account_id"`
-	BaseCid      string            `json:"base_cid" form:"base_cid" binding:"required"`
-	LocalPath    string            `json:"local_path" form:"local_path" binding:"required"`
-	RemotePath   string            `json:"remote_path" form:"remote_path" binding:"required"`
-	EnableCron   bool              `json:"enable_cron" form:"enable_cron"`
-	CustomConfig bool              `json:"custom_config" form:"custom_config"`
+	SourceType             models.SourceType `json:"source_type" form:"source_type" binding:"required"`
+	AccountID              uint              `json:"account_id" form:"account_id"`
+	BaseCid                string            `json:"base_cid" form:"base_cid" binding:"required"`
+	LocalPath              string            `json:"local_path" form:"local_path" binding:"required"`
+	RemotePath             string            `json:"remote_path" form:"remote_path" binding:"required"`
+	EnableCron             bool              `json:"enable_cron" form:"enable_cron"`
+	DirectoryUploadEnabled *bool             `json:"directory_upload_enabled" form:"directory_upload_enabled"`
+	CustomConfig           bool              `json:"custom_config" form:"custom_config"`
 
 	// Setting 兼容计划中的嵌套结构；匿名字段兼容现有顶层 STRM 字段。
 	Setting SyncPathStrmRequest `json:"setting" form:"setting"`

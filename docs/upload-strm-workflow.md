@@ -14,17 +14,18 @@ OSS `CompleteMultipartUpload` 完成后，必须带回 115 init 返回的 `callb
 
 ## 目录监控上传
 
-目录监控上传规则绑定一个同步目录，只支持 115 Open API 上传目标。程序启动后会加载启用的规则；规则停用或程序退出时，后台 fsnotify / polling 会停止。
+目录监控上传规则绑定一个同步目录，只支持 115 Open API 上传目标。一个同步目录可以配置多条目录监控上传规则，每条规则对应一个本地监控目录和一个远端上传根目录。目录监控上传有两层开关：`sync_paths.directory_upload_enabled` 是同步目录总开关，`directory_upload_rules.enabled` 是单条规则开关。运行时只加载总开关开启且规则自身启用的规则；关闭总开关不会修改各规则的 `enabled`，下次重新打开时会保留上一次的规则启停状态。
 
 规则接口：
 
 - `GET /api/directory-upload/rules`：查询规则列表，可用 `sync_path_id` 过滤。
-- `POST /api/directory-upload/rules`：创建规则。
-- `PUT /api/directory-upload/rules/:id`：更新规则。
-- `DELETE /api/directory-upload/rules/:id`：删除规则。
-- `POST /api/directory-upload/rules/:id/status`：启用或停用规则，请求体为 `{"enabled": true}`。
-- `POST /api/directory-upload/rules/:id/scan`：手动触发扫描，返回本次加入稳定性队列的候选文件数；规则停用时会拒绝执行。
+- `PUT /api/directory-upload/sync-paths/:sync_path_id/rules`：保存一个同步目录下的目录监控上传配置，请求体为 `{"enabled": true, "rules": []}`。`enabled` 写入同步目录总开关，`rules` 是最终完整规则集合；已有规则未出现在 `rules` 中即视为删除，后端会在同一事务中校验并保存最终集合，避免多条规则交换监控目录时被旧数据误判冲突。总开关开启时至少需要一条规则自身启用；总开关关闭时允许规则集合为空，也不会改写规则自身 `enabled`。
+- `POST /api/directory-upload/sync-paths/:sync_path_id/scan`：手动触发一个同步目录下所有已启用规则扫描，返回汇总候选数和每条规则结果；页面“目录监控扫描”按钮会调用该接口，文案不区分单条或多条规则。
 - `GET /api/directory-upload/runtime-status`：查询当前目录监控运行状态，返回每条运行中规则的配置模式、实际模式、auto 降级原因、最近扫描时间、耗时、候选数、跳过数、最近错误和待稳定文件数。
+
+同步目录页面只有一个“保存设置”动作。前端必须先成功加载目录监控规则，才能把规则最终集合提交给后端；若规则加载失败，会阻止整页保存，避免把加载失败误当成空规则集合。关闭目录监控总开关时，如果仍有未补完整的规则，页面会保持总开关开启，并在缺少信息的目录输入项上显示字段级错误，提示用户补完整或删除规则后再关闭。通过同步目录基础接口修改 `directory_upload_enabled` 成功后，后端会重载目录监控服务，使运行中的 watcher 与总开关状态保持一致。
+
+同一同步目录下会做规则防呆：完全相同的 `monitor_path + remote_root_path + remote_root_id` 组合会被拒绝；两个启用规则的监控目录不能重复。若一个启用规则递归监控父目录，另一个启用规则不能监控其子目录，避免同一源文件被重复发现和重复上传。
 
 监控模式：
 

@@ -144,12 +144,13 @@ func (c *barrierRemoteClient) DeleteFile(context.Context, string, string) error 
 func createDirectoryUploadRuleForTest(t *testing.T, monitorPath string) (*models.SyncPath, *models.DirectoryUploadRule) {
 	t.Helper()
 	syncPath := &models.SyncPath{
-		SourceType:  models.SourceType115,
-		AccountId:   1,
-		BaseCid:     "root",
-		LocalPath:   filepath.Join(t.TempDir(), "strm"),
-		RemotePath:  "/remote",
-		SettingStrm: models.SettingStrm{VideoExtArr: []string{".mkv", ".mp4"}, MinVideoSize: 0},
+		SourceType:             models.SourceType115,
+		AccountId:              1,
+		BaseCid:                "root",
+		LocalPath:              filepath.Join(t.TempDir(), "strm"),
+		RemotePath:             "/remote",
+		DirectoryUploadEnabled: true,
+		SettingStrm:            models.SettingStrm{VideoExtArr: []string{".mkv", ".mp4"}, MinVideoSize: 0},
 	}
 	if err := db.Db.Create(syncPath).Error; err != nil {
 		t.Fatalf("创建同步目录失败: %v", err)

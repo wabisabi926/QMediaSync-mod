@@ -158,14 +158,14 @@
                 </div>
               </div>
 
-              <div class="info-row" v-if="getDirectoryUploadRule(row)">
+              <div class="info-row" v-if="getDirectoryUploadRules(row).length > 0">
                 <div class="info-icon">
                   <el-icon><Folder /></el-icon>
                 </div>
                 <div class="info-content">
                   <span class="info-label">监控目录</span>
                   <span class="info-value path-value">
-                    {{ getDirectoryUploadRule(row)?.monitor_path }}
+                    {{ getDirectoryUploadPathText(row) }}
                   </span>
                 </div>
               </div>
@@ -393,6 +393,13 @@ import { useRouter } from 'vue-router'
 import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 import { sourceTypeTagMap, sourceTypeMap } from '@/utils/sourceTypeUtils'
 import { formatTime } from '@/utils/timeUtils'
+import {
+  formatDirectoryUploadPathSummary,
+  formatDirectoryUploadStatus,
+  getEnabledDirectoryUploadRules,
+  groupDirectoryUploadRulesBySyncPath,
+} from '@/utils/directoryUploadRules'
+import type { DirectoryUploadRule } from '@/typing'
 
 interface SyncDirectory {
   id: number
@@ -409,19 +416,12 @@ interface SyncDirectory {
   account_id: number
   account_name: string
   enable_cron: boolean
+  directory_upload_enabled: boolean
   is_running: number
   stopping?: boolean
 }
 
-interface DirectoryUploadRule {
-  id: number
-  sync_path_id: number
-  enabled: boolean
-  monitor_path: string
-  remote_root_path: string
-  delete_source_after_success: boolean
-  scanning?: boolean
-}
+type DirectoryUploadRuleState = DirectoryUploadRule & { scanning?: boolean }
 
 interface SyncDirectoryAction {
   key: string
@@ -449,7 +449,7 @@ const http: AxiosStatic | undefined = inject('$http')
 const router = useRouter()
 
 const directories = ref<SyncDirectory[]>([])
-const directoryUploadRules = ref<Record<number, DirectoryUploadRule>>({})
+const directoryUploadRules = ref<Record<number, DirectoryUploadRuleState[]>>({})
 const loading = ref(false)
 const total = ref(0)
 const currentPage = ref(1)
@@ -470,26 +470,29 @@ const runningCount = computed(() => directories.value.filter((d) => d.is_running
 const waitingCount = computed(() => directories.value.filter((d) => d.is_running === 1).length)
 const cronEnabledCount = computed(() => directories.value.filter((d) => d.enable_cron).length)
 
-const getDirectoryUploadRule = (row: SyncDirectory): DirectoryUploadRule | undefined => {
-  return directoryUploadRules.value[row.id]
+const getDirectoryUploadRules = (row: SyncDirectory): DirectoryUploadRuleState[] => {
+  return directoryUploadRules.value[row.id] || []
 }
 
 const getDirectoryUploadStatusText = (row: SyncDirectory): string => {
-  const rule = getDirectoryUploadRule(row)
-  if (!rule) {
-    return '未配置'
-  }
-  return rule.enabled ? '已启用' : '已停用'
+  return formatDirectoryUploadStatus(getDirectoryUploadRules(row), row.directory_upload_enabled)
 }
 
 const getDirectoryUploadStatusType = (
   row: SyncDirectory,
 ): 'success' | 'info' | 'warning' | 'danger' => {
-  const rule = getDirectoryUploadRule(row)
-  if (!rule) {
+  const rules = getDirectoryUploadRules(row)
+  if (rules.length === 0) {
     return 'info'
   }
-  return rule.enabled ? 'success' : 'warning'
+  if (!row.directory_upload_enabled) {
+    return 'info'
+  }
+  return getEnabledDirectoryUploadRules(rules).length > 0 ? 'success' : 'warning'
+}
+
+const getDirectoryUploadPathText = (row: SyncDirectory): string => {
+  return formatDirectoryUploadPathSummary(getDirectoryUploadRules(row))
 }
 
 const getStatusClass = (row: SyncDirectory) => {
@@ -556,9 +559,9 @@ const getPrimaryActions = (row: SyncDirectory, index: number): SyncDirectoryActi
 
 const getSecondaryActions = (row: SyncDirectory, index: number): SyncDirectoryAction[] => {
   const actions: SyncDirectoryAction[] = []
-  const directoryUploadRule = getDirectoryUploadRule(row)
+  const enabledDirectoryUploadRules = getEnabledDirectoryUploadRules(getDirectoryUploadRules(row))
 
-  if (directoryUploadRule?.enabled) {
+  if (row.directory_upload_enabled && enabledDirectoryUploadRules.length > 0) {
     actions.push({
       key: 'directory-upload-scan',
       label: '',
@@ -566,7 +569,7 @@ const getSecondaryActions = (row: SyncDirectory, index: number): SyncDirectoryAc
       icon: Refresh,
       plain: true,
       circle: true,
-      loading: directoryUploadRule.scanning,
+      loading: enabledDirectoryUploadRules.some((rule) => rule.scanning),
       ariaLabel: '目录监控扫描',
       onClick: () => scanDirectoryUploadRule(row),
     })
@@ -666,11 +669,7 @@ const loadDirectoryUploadRules = async () => {
       directoryUploadRules.value = {}
       return
     }
-    const nextRules: Record<number, DirectoryUploadRule> = {}
-    for (const rule of response.data.data?.list || []) {
-      nextRules[rule.sync_path_id] = rule
-    }
-    directoryUploadRules.value = nextRules
+    directoryUploadRules.value = groupDirectoryUploadRulesBySyncPath(response.data.data?.list || [])
   } catch {
     directoryUploadRules.value = {}
   }
@@ -885,19 +884,26 @@ const handleStop = async (row: SyncDirectory, index: number) => {
 }
 
 const scanDirectoryUploadRule = async (row: SyncDirectory) => {
-  const rule = getDirectoryUploadRule(row)
-  if (!rule) {
+  const rules = getDirectoryUploadRules(row)
+  if (rules.length === 0) {
     ElMessage.warning('该同步目录尚未配置目录监控上传')
     return
   }
-  if (!rule.enabled) {
+  if (!row.directory_upload_enabled) {
+    ElMessage.warning('目录监控上传未启用')
+    return
+  }
+  const enabledRules = getEnabledDirectoryUploadRules(rules)
+  if (enabledRules.length === 0) {
     ElMessage.warning('目录监控上传未启用')
     return
   }
 
   try {
-    rule.scanning = true
-    const response = await http?.post(`${SERVER_URL}/directory-upload/rules/${rule.id}/scan`)
+    enabledRules.forEach((rule) => {
+      rule.scanning = true
+    })
+    const response = await http?.post(`${SERVER_URL}/directory-upload/sync-paths/${row.id}/scan`)
     if (response?.data.code === 200) {
       const accepted = response.data.data?.accepted
       ElMessage.success(
@@ -909,7 +915,9 @@ const scanDirectoryUploadRule = async (row: SyncDirectory) => {
   } catch {
     ElMessage.error('触发扫描失败')
   } finally {
-    rule.scanning = false
+    enabledRules.forEach((rule) => {
+      rule.scanning = false
+    })
   }
 }
 

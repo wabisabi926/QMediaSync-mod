@@ -3,6 +3,7 @@ package models
 import (
 	"io"
 	"log"
+	"path/filepath"
 	"testing"
 
 	"qmediasync/internal/db"
@@ -31,12 +32,13 @@ func TestDirectoryUploadRuleSaveAndDefaults(t *testing.T) {
 	setupDirectoryUploadRuleTestDB(t)
 
 	syncPath := &SyncPath{
-		BaseModel:  BaseModel{ID: 10},
-		AccountId:  3,
-		SourceType: SourceType115,
-		LocalPath:  "/strm",
-		RemotePath: "/remote",
-		BaseCid:    "remote-root",
+		BaseModel:              BaseModel{ID: 10},
+		AccountId:              3,
+		SourceType:             SourceType115,
+		LocalPath:              "/strm",
+		RemotePath:             "/remote",
+		BaseCid:                "remote-root",
+		DirectoryUploadEnabled: true,
 	}
 	if err := db.Db.Create(syncPath).Error; err != nil {
 		t.Fatalf("创建同步目录失败: %v", err)
@@ -91,6 +93,200 @@ func TestDirectoryUploadRuleSaveAndDefaults(t *testing.T) {
 	}
 	if !reloaded.DeleteSourceAfterSuccess {
 		t.Fatal("delete_source_after_success 应可保存为 true")
+	}
+}
+
+func TestSaveDirectoryUploadRulesForSyncPathReplacesFinalSetAndPreservesRuleEnabled(t *testing.T) {
+	setupDirectoryUploadRuleTestDB(t)
+
+	syncPath := &SyncPath{
+		AccountId:              3,
+		SourceType:             SourceType115,
+		LocalPath:              filepath.Join(t.TempDir(), "strm"),
+		RemotePath:             "/remote",
+		BaseCid:                "remote-root",
+		DirectoryUploadEnabled: true,
+	}
+	if err := db.Db.Create(syncPath).Error; err != nil {
+		t.Fatalf("创建同步目录失败: %v", err)
+	}
+
+	kept := &DirectoryUploadRule{
+		SyncPathId:     syncPath.ID,
+		AccountId:      syncPath.AccountId,
+		Enabled:        true,
+		MonitorPath:    filepath.Join(t.TempDir(), "keep"),
+		RemoteRootPath: "/remote/keep",
+		RemoteRootId:   "remote-keep",
+		Recursive:      true,
+	}
+	removed := &DirectoryUploadRule{
+		SyncPathId:     syncPath.ID,
+		AccountId:      syncPath.AccountId,
+		Enabled:        true,
+		MonitorPath:    filepath.Join(t.TempDir(), "remove"),
+		RemoteRootPath: "/remote/remove",
+		RemoteRootId:   "remote-remove",
+		Recursive:      true,
+	}
+	rules := []*DirectoryUploadRule{kept, removed}
+	if err := db.Db.Create(&rules).Error; err != nil {
+		t.Fatalf("创建目录监控规则失败: %v", err)
+	}
+	if err := db.Db.Create(&DirectoryUploadProcessedFile{
+		RuleId:       removed.ID,
+		SyncPathId:   syncPath.ID,
+		AccountId:    syncPath.AccountId,
+		ScopeHash:    "scope",
+		SourceKey:    "source",
+		RelativePath: "movie.mkv",
+		Result:       DirectoryUploadProcessedResultUploaded,
+	}).Error; err != nil {
+		t.Fatalf("创建目录监控处理记录失败: %v", err)
+	}
+
+	kept.MonitorPath = filepath.Join(t.TempDir(), "updated")
+	created := &DirectoryUploadRule{
+		SyncPathId:     syncPath.ID,
+		AccountId:      syncPath.AccountId,
+		Enabled:        false,
+		MonitorPath:    filepath.Join(t.TempDir(), "created"),
+		RemoteRootPath: "/remote/created",
+		RemoteRootId:   "remote-created",
+		Recursive:      true,
+	}
+	saved, err := SaveDirectoryUploadRulesForSyncPath(syncPath.ID, false, []*DirectoryUploadRule{kept, created})
+	if err != nil {
+		t.Fatalf("最终集合保存目录监控规则失败: %v", err)
+	}
+	if len(saved) != 2 {
+		t.Fatalf("保存后规则数量 = %d，期望 2", len(saved))
+	}
+
+	var reloaded SyncPath
+	if err := db.Db.First(&reloaded, syncPath.ID).Error; err != nil {
+		t.Fatalf("读取同步目录失败: %v", err)
+	}
+	if reloaded.DirectoryUploadEnabled {
+		t.Fatal("目录监控总开关应被关闭")
+	}
+	var keptReloaded DirectoryUploadRule
+	if err := db.Db.First(&keptReloaded, kept.ID).Error; err != nil {
+		t.Fatalf("读取保留规则失败: %v", err)
+	}
+	if !keptReloaded.Enabled {
+		t.Fatal("关闭总开关不应修改规则自身 enabled")
+	}
+	if keptReloaded.MonitorPath != kept.MonitorPath {
+		t.Fatalf("保留规则监控目录 = %s，期望 %s", keptReloaded.MonitorPath, kept.MonitorPath)
+	}
+	var removedTotal int64
+	if err := db.Db.Model(&DirectoryUploadRule{}).Where("id = ?", removed.ID).Count(&removedTotal).Error; err != nil {
+		t.Fatalf("统计被删除规则失败: %v", err)
+	}
+	if removedTotal != 0 {
+		t.Fatalf("被移出最终集合的规则数量 = %d，期望 0", removedTotal)
+	}
+	var processedTotal int64
+	if err := db.Db.Model(&DirectoryUploadProcessedFile{}).Where("rule_id = ?", removed.ID).Count(&processedTotal).Error; err != nil {
+		t.Fatalf("统计被删除规则处理记录失败: %v", err)
+	}
+	if processedTotal != 0 {
+		t.Fatalf("被删除规则处理记录数量 = %d，期望 0", processedTotal)
+	}
+}
+
+func TestGetEnabledDirectoryUploadRulesRequiresSyncPathMasterEnabled(t *testing.T) {
+	setupDirectoryUploadRuleTestDB(t)
+
+	disabledSyncPath := &SyncPath{
+		AccountId:              3,
+		SourceType:             SourceType115,
+		LocalPath:              filepath.Join(t.TempDir(), "disabled-strm"),
+		RemotePath:             "/disabled",
+		BaseCid:                "disabled-root",
+		DirectoryUploadEnabled: false,
+	}
+	enabledSyncPath := &SyncPath{
+		AccountId:              3,
+		SourceType:             SourceType115,
+		LocalPath:              filepath.Join(t.TempDir(), "enabled-strm"),
+		RemotePath:             "/enabled",
+		BaseCid:                "enabled-root",
+		DirectoryUploadEnabled: true,
+	}
+	if err := db.Db.Create(&[]*SyncPath{disabledSyncPath, enabledSyncPath}).Error; err != nil {
+		t.Fatalf("创建同步目录失败: %v", err)
+	}
+	rules := []*DirectoryUploadRule{
+		{
+			SyncPathId:     disabledSyncPath.ID,
+			AccountId:      3,
+			Enabled:        true,
+			MonitorPath:    filepath.Join(t.TempDir(), "disabled-rule"),
+			RemoteRootPath: "/disabled/uploads",
+			RemoteRootId:   "disabled-upload",
+			Recursive:      true,
+		},
+		{
+			SyncPathId:     enabledSyncPath.ID,
+			AccountId:      3,
+			Enabled:        true,
+			MonitorPath:    filepath.Join(t.TempDir(), "enabled-rule"),
+			RemoteRootPath: "/enabled/uploads",
+			RemoteRootId:   "enabled-upload",
+			Recursive:      true,
+		},
+	}
+	if err := db.Db.Create(&rules).Error; err != nil {
+		t.Fatalf("创建目录监控规则失败: %v", err)
+	}
+
+	enabledRules, err := GetEnabledDirectoryUploadRules()
+	if err != nil {
+		t.Fatalf("查询启用目录监控规则失败: %v", err)
+	}
+	if len(enabledRules) != 1 || enabledRules[0].SyncPathId != enabledSyncPath.ID {
+		t.Fatalf("启用规则 = %+v，期望只返回总开关开启的同步目录规则", enabledRules)
+	}
+}
+
+func TestSaveDirectoryUploadRuleRejectsDuplicateScope(t *testing.T) {
+	setupDirectoryUploadRuleTestDB(t)
+
+	syncPath := &SyncPath{
+		AccountId:  3,
+		SourceType: SourceType115,
+		LocalPath:  "/strm",
+		RemotePath: "/remote",
+		BaseCid:    "remote-root",
+	}
+	if err := db.Db.Create(syncPath).Error; err != nil {
+		t.Fatalf("创建同步目录失败: %v", err)
+	}
+
+	rule := &DirectoryUploadRule{
+		SyncPathId:     syncPath.ID,
+		AccountId:      syncPath.AccountId,
+		Enabled:        true,
+		MonitorPath:    "/watch",
+		RemoteRootPath: "/remote/uploads",
+		RemoteRootId:   "upload-root",
+	}
+	if err := SaveDirectoryUploadRule(rule); err != nil {
+		t.Fatalf("保存第一条目录监控上传规则失败: %v", err)
+	}
+
+	duplicate := &DirectoryUploadRule{
+		SyncPathId:     syncPath.ID,
+		AccountId:      syncPath.AccountId,
+		Enabled:        false,
+		MonitorPath:    "/watch",
+		RemoteRootPath: "/remote/uploads",
+		RemoteRootId:   "upload-root",
+	}
+	if err := SaveDirectoryUploadRule(duplicate); err == nil {
+		t.Fatal("完全相同的目录监控上传规则应被拒绝")
 	}
 }
 
@@ -209,66 +405,6 @@ func TestDeleteSyncPathByIdDeletesDirectoryUploadProcessedFiles(t *testing.T) {
 	}
 	if keptProcessedCount != 1 {
 		t.Fatalf("保留同步目录的 processed 记录数量 = %d，期望 1", keptProcessedCount)
-	}
-}
-
-func TestDeleteDirectoryUploadRuleDeletesProcessedFiles(t *testing.T) {
-	setupDirectoryUploadRuleTestDB(t)
-
-	rules := []*DirectoryUploadRule{
-		{
-			SyncPathId:     1,
-			AccountId:      3,
-			Enabled:        true,
-			MonitorPath:    "/watch/deleted",
-			RemoteRootPath: "/remote/deleted",
-			RemoteRootId:   "remote-deleted",
-		},
-		{
-			SyncPathId:     2,
-			AccountId:      3,
-			Enabled:        true,
-			MonitorPath:    "/watch/kept",
-			RemoteRootPath: "/remote/kept",
-			RemoteRootId:   "remote-kept",
-		},
-	}
-	if err := db.Db.Create(&rules).Error; err != nil {
-		t.Fatalf("创建目录监控规则失败: %v", err)
-	}
-	records := []*DirectoryUploadProcessedFile{
-		{RuleId: rules[0].ID, SourceKey: "deleted-1", SourceFingerprint: "v1:1:1", Result: DirectoryUploadProcessedResultUploaded},
-		{RuleId: rules[0].ID, SourceKey: "deleted-2", SourceFingerprint: "v1:2:2", Result: DirectoryUploadProcessedResultQueued},
-		{RuleId: rules[1].ID, SourceKey: "kept-1", SourceFingerprint: "v1:3:3", Result: DirectoryUploadProcessedResultUploaded},
-	}
-	if err := db.Db.Create(&records).Error; err != nil {
-		t.Fatalf("创建 processed 记录失败: %v", err)
-	}
-
-	if err := DeleteDirectoryUploadRule(rules[0].ID); err != nil {
-		t.Fatalf("删除目录监控规则失败: %v", err)
-	}
-
-	var deletedRuleCount int64
-	if err := db.Db.Model(&DirectoryUploadRule{}).Where("id = ?", rules[0].ID).Count(&deletedRuleCount).Error; err != nil {
-		t.Fatalf("统计被删除规则失败: %v", err)
-	}
-	if deletedRuleCount != 0 {
-		t.Fatalf("被删除规则数量 = %d，期望 0", deletedRuleCount)
-	}
-	var deletedProcessedCount int64
-	if err := db.Db.Model(&DirectoryUploadProcessedFile{}).Where("rule_id = ?", rules[0].ID).Count(&deletedProcessedCount).Error; err != nil {
-		t.Fatalf("统计被删除规则的 processed 记录失败: %v", err)
-	}
-	if deletedProcessedCount != 0 {
-		t.Fatalf("被删除规则的 processed 记录数量 = %d，期望 0", deletedProcessedCount)
-	}
-	var keptProcessedCount int64
-	if err := db.Db.Model(&DirectoryUploadProcessedFile{}).Where("rule_id = ?", rules[1].ID).Count(&keptProcessedCount).Error; err != nil {
-		t.Fatalf("统计保留规则的 processed 记录失败: %v", err)
-	}
-	if keptProcessedCount != 1 {
-		t.Fatalf("保留规则的 processed 记录数量 = %d，期望 1", keptProcessedCount)
 	}
 }
 

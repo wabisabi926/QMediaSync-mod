@@ -665,6 +665,89 @@ func TestMigrateVersion56AddsDirectoryUploadProcessedFiles(t *testing.T) {
 	}
 }
 
+func TestMigrateVersion57AddsDirectoryUploadEnabled(t *testing.T) {
+	if helpers.AppLogger == nil {
+		helpers.AppLogger = &helpers.QLogger{
+			Logger: log.New(io.Discard, "", 0),
+		}
+	}
+	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	db.Db = testDb
+
+	createMigratorTestTable(t)
+	if err := db.Db.Create(&Migrator{VersionCode: 57}).Error; err != nil {
+		t.Fatalf("创建迁移版本记录失败: %v", err)
+	}
+	if err := db.Db.Exec(`
+		CREATE TABLE sync_paths (
+			id integer primary key autoincrement,
+			created_at integer,
+			updated_at integer,
+			base_cid text,
+			local_path text,
+			remote_path text,
+			source_type text,
+			account_id integer,
+			enable_cron numeric
+		)
+	`).Error; err != nil {
+		t.Fatalf("创建版本 57 同步目录表失败: %v", err)
+	}
+	if err := db.Db.Exec(`
+		CREATE TABLE directory_upload_rules (
+			id integer primary key autoincrement,
+			sync_path_id integer,
+			enabled numeric
+		)
+	`).Error; err != nil {
+		t.Fatalf("创建版本 57 目录监控规则表失败: %v", err)
+	}
+	if err := db.Db.Exec(`
+		INSERT INTO sync_paths (id, created_at, updated_at, base_cid, local_path, remote_path, source_type, account_id, enable_cron)
+		VALUES
+			(1, 0, 0, 'enabled-root', '/strm/enabled', '/remote/enabled', '115', 1, 0),
+			(2, 0, 0, 'disabled-root', '/strm/disabled', '/remote/disabled', '115', 1, 0)
+	`).Error; err != nil {
+		t.Fatalf("写入版本 57 同步目录失败: %v", err)
+	}
+	if err := db.Db.Exec(`
+		INSERT INTO directory_upload_rules (sync_path_id, enabled)
+		VALUES (1, true), (2, false)
+	`).Error; err != nil {
+		t.Fatalf("写入版本 57 目录监控规则失败: %v", err)
+	}
+
+	Migrate()
+
+	var migrator Migrator
+	if err := db.Db.First(&migrator).Error; err != nil {
+		t.Fatalf("读取迁移版本失败: %v", err)
+	}
+	if migrator.VersionCode != MaxVersionCode {
+		t.Fatalf("迁移版本 = %d，期望 %d", migrator.VersionCode, MaxVersionCode)
+	}
+	if !db.Db.Migrator().HasColumn(&SyncPath{}, "directory_upload_enabled") {
+		t.Fatal("迁移应添加 sync_paths.directory_upload_enabled 字段")
+	}
+	var enabledSyncPath SyncPath
+	if err := db.Db.First(&enabledSyncPath, 1).Error; err != nil {
+		t.Fatalf("读取启用规则同步目录失败: %v", err)
+	}
+	if !enabledSyncPath.DirectoryUploadEnabled {
+		t.Fatal("存在启用目录监控规则的同步目录应回填总开关为 true")
+	}
+	var disabledSyncPath SyncPath
+	if err := db.Db.First(&disabledSyncPath, 2).Error; err != nil {
+		t.Fatalf("读取停用规则同步目录失败: %v", err)
+	}
+	if disabledSyncPath.DirectoryUploadEnabled {
+		t.Fatal("只有停用目录监控规则的同步目录总开关应保持 false")
+	}
+}
+
 func assertDownloadTaskSource(t *testing.T, remoteFileId string, wantSource string, wantSourceType string) {
 	t.Helper()
 	var task DbDownloadTask

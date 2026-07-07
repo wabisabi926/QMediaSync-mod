@@ -83,6 +83,10 @@ func findCleanupRule(task *models.DbUploadTask) (*models.DirectoryUploadRule, er
 	if task == nil || task.SyncPathId == 0 || task.LocalFullPath == "" {
 		return nil, nil
 	}
+	rule, found, err := findCleanupRuleByProcessedTask(task.ID)
+	if err != nil || found {
+		return rule, err
+	}
 	var rules []*models.DirectoryUploadRule
 	if err := db.Db.Where("sync_path_id = ?", task.SyncPathId).Find(&rules).Error; err != nil {
 		return nil, err
@@ -106,6 +110,27 @@ func findCleanupRule(task *models.DbUploadTask) (*models.DirectoryUploadRule, er
 		return nil, fmt.Errorf("源文件路径不在目录监控规则内：%s", task.LocalFullPath)
 	}
 	return selected, nil
+}
+
+func findCleanupRuleByProcessedTask(uploadTaskID uint) (*models.DirectoryUploadRule, bool, error) {
+	if uploadTaskID == 0 {
+		return nil, false, nil
+	}
+	var record models.DirectoryUploadProcessedFile
+	if err := db.Db.Where("upload_task_id = ?", uploadTaskID).First(&record).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, false, nil
+		}
+		return nil, true, err
+	}
+	if record.RuleId == 0 {
+		return nil, true, fmt.Errorf("目录监控处理记录缺少规则 ID：upload_task_id=%d", uploadTaskID)
+	}
+	rule, err := models.GetDirectoryUploadRuleById(record.RuleId)
+	if err != nil {
+		return nil, true, fmt.Errorf("读取目录监控清理规则失败：%w", err)
+	}
+	return rule, true, nil
 }
 
 func isSafeCleanupUploadTask(task *models.DbUploadTask) bool {

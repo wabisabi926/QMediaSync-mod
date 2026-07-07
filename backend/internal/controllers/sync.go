@@ -206,8 +206,12 @@ func AddSyncPath(c *gin.Context) {
 		}
 	}
 	remotePath := req.NormalizedRemotePath()
+	directoryUploadEnabled := false
+	if req.DirectoryUploadEnabled != nil {
+		directoryUploadEnabled = *req.DirectoryUploadEnabled
+	}
 	// 创建同步路径
-	syncPath := models.CreateSyncPath(req.SourceType, req.AccountID, baseCid, localPath, remotePath, req.EnableCron, req.CustomConfig, req.StrmSettingModel())
+	syncPath := models.CreateSyncPath(req.SourceType, req.AccountID, baseCid, localPath, remotePath, req.EnableCron, req.CustomConfig, directoryUploadEnabled, req.StrmSettingModel())
 	if syncPath == nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "创建同步路径失败", Data: nil})
 		return
@@ -255,6 +259,7 @@ func UpdateSyncPath(c *gin.Context) {
 		return
 	}
 	oldCron := syncPath.Cron
+	oldDirectoryUploadEnabled := syncPath.DirectoryUploadEnabled
 	if req.SourceType != models.SourceTypeLocal {
 		// 检查 accountId 是否存在
 		account, err := models.GetAccountById(req.AccountID)
@@ -273,14 +278,21 @@ func UpdateSyncPath(c *gin.Context) {
 	if req.SourceType == models.SourceTypeOpenList {
 		baseCid = strings.ReplaceAll(req.BaseCid, "\\", "/")
 	}
+	directoryUploadEnabled := syncPath.DirectoryUploadEnabled
+	if req.DirectoryUploadEnabled != nil {
+		directoryUploadEnabled = *req.DirectoryUploadEnabled
+	}
 	// helpers.AppLogger.Infof("更新同步路径 %d 定时任务：%s", syncPath.ID, req.Cron)
-	updateErr := syncPath.Update(req.SourceType, req.AccountID, baseCid, req.LocalPath, remotePath, req.EnableCron, req.CustomConfig, req.StrmSettingModel())
+	updateErr := syncPath.Update(req.SourceType, req.AccountID, baseCid, req.LocalPath, remotePath, req.EnableCron, req.CustomConfig, directoryUploadEnabled, req.StrmSettingModel())
 	if updateErr != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "更新同步路径失败：" + updateErr.Error(), Data: nil})
 		return
 	}
 	if oldCron != syncPath.Cron {
 		synccron.InitSyncCron()
+	}
+	if req.DirectoryUploadEnabled != nil && oldDirectoryUploadEnabled != directoryUploadEnabled {
+		directoryupload.ReloadDirectoryUploadService()
 	}
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "更新同步路径成功", Data: syncPath})
 }

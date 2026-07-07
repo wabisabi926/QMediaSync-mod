@@ -62,6 +62,71 @@ func TestCleanupSourceAfterStrmSuccessDeletesFileAndEmptyParents(t *testing.T) {
 	}
 }
 
+func TestCleanupSourceAfterStrmSuccessUsesQueuedRuleWhenDisabledChildOverlaps(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	parent := t.TempDir()
+	child := filepath.Join(parent, "child")
+	if err := ensureDir(child); err != nil {
+		t.Fatalf("创建子目录失败: %v", err)
+	}
+	filePath := filepath.Join(child, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), time.Now())
+	syncPath, parentRule := createDirectoryUploadRuleForTest(t, parent)
+	parentRule.DeleteSourceAfterSuccess = true
+	if err := db.Db.Save(parentRule).Error; err != nil {
+		t.Fatalf("保存父级目录上传规则失败: %v", err)
+	}
+	childRule := &models.DirectoryUploadRule{
+		SyncPathId:                    syncPath.ID,
+		AccountId:                     parentRule.AccountId,
+		Enabled:                       false,
+		MonitorPath:                   child,
+		RemoteRootPath:                "/remote/child",
+		RemoteRootId:                  "remote-child",
+		Recursive:                     true,
+		WatchMode:                     models.DirectoryUploadWatchModeAuto,
+		StabilitySeconds:              0,
+		StabilityCheckIntervalSeconds: 1,
+		StabilityRequiredCount:        1,
+		ProcessedCacheTTLSeconds:      600,
+		DeleteSourceAfterSuccess:      false,
+	}
+	if err := db.Db.Create(childRule).Error; err != nil {
+		t.Fatalf("创建停用子规则失败: %v", err)
+	}
+	childRule.Enabled = false
+	if err := db.Db.Save(childRule).Error; err != nil {
+		t.Fatalf("停用子规则失败: %v", err)
+	}
+	task := createCleanupUploadTask(t, parentRule, filePath, models.UploadResultMultipartUploaded)
+	if err := db.Db.Create(&models.DirectoryUploadProcessedFile{
+		RuleId:            parentRule.ID,
+		SyncPathId:        syncPath.ID,
+		AccountId:         parentRule.AccountId,
+		ScopeHash:         models.BuildDirectoryUploadScopeHash(parentRule),
+		SourceKey:         models.BuildDirectoryUploadSourceKey(models.BuildDirectoryUploadScopeHash(parentRule), task.RelativePath),
+		RelativePath:      task.RelativePath,
+		LocalFullPath:     filePath,
+		SourceFingerprint: task.SourceFingerprint,
+		FileSize:          task.FileSize,
+		LocalMtimeNs:      task.LocalMtimeNs,
+		Result:            models.DirectoryUploadProcessedResultUploadedPendingStrm,
+		UploadTaskId:      task.ID,
+		ProcessedAt:       time.Now().Unix(),
+		LastSeenAt:        time.Now().Unix(),
+	}).Error; err != nil {
+		t.Fatalf("创建目录监控处理记录失败: %v", err)
+	}
+	createCleanupStrmTask(t, task.ID, models.StrmGenerationStatusCompleted)
+
+	if err := CleanupSourceAfterStrmSuccess(task.ID); err != nil {
+		t.Fatalf("源文件清理失败: %v", err)
+	}
+	assertPathMissing(t, filePath)
+	assertPathMissing(t, child)
+	assertPathExists(t, parent)
+}
+
 func TestCleanupSourceAfterStrmSuccessKeepsSourceWhenDisabledOrStrmFailed(t *testing.T) {
 	tests := []struct {
 		name       string

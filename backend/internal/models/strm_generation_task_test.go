@@ -3,6 +3,7 @@ package models
 import (
 	"io"
 	"log"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -25,6 +26,33 @@ func setupStrmGenerationTaskTestDB(t *testing.T) {
 	db.Db = testDb
 	if err := db.Db.AutoMigrate(&StrmGenerationTask{}); err != nil {
 		t.Fatalf("迁移测试表失败: %v", err)
+	}
+}
+
+func TestBuildStrmRequestHashUsesShortStableDigest(t *testing.T) {
+	longPath := "/remote/" + strings.Repeat("very-long-path-segment/", 20)
+	longFileName := strings.Repeat("movie-", 60) + ".mkv"
+
+	first := BuildStrmRequestHash("webhook:file", "10", longPath, longFileName)
+	second := BuildStrmRequestHash("webhook:file", "10", longPath, longFileName)
+
+	if first != second {
+		t.Fatalf("相同输入生成的 request_hash 不稳定: %s != %s", first, second)
+	}
+	if len(first) > 255 {
+		t.Fatalf("request_hash 长度 = %d，期望不超过 255: %s", len(first), first)
+	}
+	if !strings.HasPrefix(first, "webhook:file:v2:") {
+		t.Fatalf("request_hash = %s，期望使用 v2 前缀", first)
+	}
+	if strings.Contains(first, longPath) || strings.Contains(first, longFileName) {
+		t.Fatalf("request_hash 不应包含明文长路径或文件名: %s", first)
+	}
+
+	ambiguousA := BuildStrmRequestHash("webhook:file", "ab", "c")
+	ambiguousB := BuildStrmRequestHash("webhook:file", "a", "bc")
+	if ambiguousA == ambiguousB {
+		t.Fatalf("长度前缀序列化应区分字段边界: %s", ambiguousA)
 	}
 }
 

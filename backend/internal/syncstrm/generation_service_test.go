@@ -1041,6 +1041,45 @@ func TestProcessPendingStrmGenerationTasksExpandsDirectoryScanByDirectoryID(t *t
 	}
 }
 
+func TestBuildDirectoryScanChildTaskUsesShortRequestHashAndPreservesRemoteFields(t *testing.T) {
+	longPath := "/remote/" + strings.Repeat("very-long-path-segment/", 20)
+	longFileName := strings.Repeat("movie-", 60) + ".mkv"
+	parent := &models.StrmGenerationTask{
+		BaseModel:    models.BaseModel{ID: 42},
+		Source:       models.StrmGenerationSourceWebhook,
+		SyncPathId:   10,
+		AccountId:    2,
+		DownloadMeta: true,
+		RefreshEmby:  true,
+	}
+	syncPath := &models.SyncPath{
+		BaseModel: models.BaseModel{ID: 10},
+		AccountId: 2,
+	}
+	file := &SyncFileCache{
+		FileId:   "file-long",
+		ParentId: "parent-long",
+		PickCode: "pick-long",
+		Path:     longPath,
+		FileName: longFileName,
+		FileSize: 1024,
+		Sha1:     "sha1-long",
+		MTime:    123,
+	}
+
+	task := buildDirectoryScanChildTask(parent, syncPath, file)
+
+	if len(task.RequestHash) > 255 || !strings.HasPrefix(task.RequestHash, "directory_scan:file:v2:") {
+		t.Fatalf("目录扫描子任务 request_hash = %s，期望短 v2 哈希", task.RequestHash)
+	}
+	if strings.Contains(task.RequestHash, longPath) || strings.Contains(task.RequestHash, longFileName) {
+		t.Fatalf("目录扫描子任务 request_hash 不应包含明文长路径或文件名: %s", task.RequestHash)
+	}
+	if task.Path != longPath || task.FileName != longFileName {
+		t.Fatalf("目录扫描子任务 path=%q file_name=%q，期望保留原始路径和文件名", task.Path, task.FileName)
+	}
+}
+
 func TestProcessPendingStrmGenerationTasksCallsSourceCleanupAfterCompletedUploadTask(t *testing.T) {
 	account, syncPath := setupStrmGenerationServiceTestDB(t)
 	service := newTestGenerationService(t, syncPath, account)

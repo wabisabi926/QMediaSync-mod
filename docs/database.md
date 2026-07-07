@@ -869,7 +869,7 @@ STRM 生成任务表，上传完成、远端已存在跳过和 [STRM Webhook](st
 - `changed_items`、`new_meta_items`：父任务统计中发生 STRM 变更和新增元数据下载任务的子任务数量。
 - `refresh_targets_str`、`refresh_submitted`：父任务收集到的 Emby 刷新目标和是否已提交刷新。
 - `status`：任务状态。
-- `request_hash`：幂等请求哈希，非空时唯一。
+- `request_hash`：幂等请求哈希，非空时唯一；Webhook 和目录扫描子任务使用 `*:v2:<sha256>` 短摘要格式，不保存明文长路径。
 - `retry_count`、`last_retry_time`、`last_error`：重试和失败信息。
 
 说明：
@@ -878,7 +878,7 @@ STRM 生成任务表，上传完成、远端已存在跳过和 [STRM Webhook](st
 - `batch_files` 父任务不由 worker 执行；创建后处于 `waiting_children`，表示子任务尚未全部进入终态。子任务累计达到 `total_items` 后，父任务无失败时转为 `completed`，存在失败时转为 `failed`。
 - 同一个 `batch_files` 请求在父任务仍为活跃状态时会复用父任务，并按每个合法 item 的原始 `items[]` index 匹配或补建缺失子任务；同批次重复文件项不会互相复用子任务。
 - `directory_scan` 父任务由 worker 异步展开远端目录，只为视频文件创建 `file` 子任务；115 目录枚举会按 `file_list_page_size` 分页累加所有文件列表结果，不会只处理最后一页。展开完成后 `total_items` 表示子任务总数，子任务后续完成或失败时累计 `accepted_items` / `failed_items`，不会把 `total_items` 降为当前已处理数。
-- `request_hash` 只对 `pending` / `running` / `waiting_children` 任务做幂等去重；如果历史任务已经 `failed`、`completed` 或 `cancelled`，再次提交同一请求会归档旧哈希并创建新任务。
+- `request_hash` 只对 `pending` / `running` / `waiting_children` 任务做幂等去重；如果历史任务已经 `failed`、`completed` 或 `cancelled`，再次提交同一请求会归档旧哈希并创建新任务。升级后新请求会写入短格式哈希；旧格式活跃任务仍可被相同请求复用。
 - worker 只自动领取 `pending` 任务；执行失败会把任务标记为 `failed`，递增 `retry_count` 并写入 `last_error`，不会删除已成功写出的新 STRM。
 - 文件级任务会通过 `sync_path_id` 加载同步目录和账号。任务只提供 `file_id` 且缺少路径、文件名或 PickCode 时，会先补查远端详情再生成 STRM。
 - Webhook 文件任务只有 `refresh_emby=true` 且 STRM 变更或新增元数据下载任务时才解析 Emby 目标；批量和目录扫描子任务会把目标累计到父任务，父任务全部子任务完成或失败后统一提交一次。

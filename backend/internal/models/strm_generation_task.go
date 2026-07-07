@@ -1,10 +1,13 @@
 package models
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"qmediasync/internal/db"
@@ -83,13 +86,38 @@ type StrmGenerationTask struct {
 	LastError     string               `json:"last_error" gorm:"type:text"`
 }
 
+// BuildStrmRequestHash 使用固定长度摘要构造 STRM 幂等请求哈希。
+func BuildStrmRequestHash(kind string, fields ...string) string {
+	var builder strings.Builder
+	writeStrmRequestHashField(&builder, kind)
+	for _, field := range fields {
+		writeStrmRequestHashField(&builder, field)
+	}
+	sum := sha256.Sum256([]byte(builder.String()))
+	return kind + ":v2:" + hex.EncodeToString(sum[:])
+}
+
+func writeStrmRequestHashField(builder *strings.Builder, value string) {
+	fmt.Fprintf(builder, "%d:%s;", len(value), value)
+}
+
 // EnqueueStrmGenerationTask 创建 STRM 生成任务，request_hash 非空时做幂等去重。
 func EnqueueStrmGenerationTask(task *StrmGenerationTask) (*StrmGenerationTask, error) {
 	return EnqueueStrmGenerationTaskWithDB(db.Db, task)
 }
 
+// EnqueueStrmGenerationTaskWithLegacyHashes 创建 STRM 生成任务，并允许复用旧格式活跃 request_hash。
+func EnqueueStrmGenerationTaskWithLegacyHashes(task *StrmGenerationTask, legacyRequestHashes ...string) (*StrmGenerationTask, error) {
+	return EnqueueStrmGenerationTaskWithDBAndLegacyHashes(db.Db, task, legacyRequestHashes...)
+}
+
 // EnqueueStrmGenerationTaskWithDB 在指定事务中创建 STRM 生成任务，request_hash 非空时做幂等去重。
 func EnqueueStrmGenerationTaskWithDB(tx *gorm.DB, task *StrmGenerationTask) (*StrmGenerationTask, error) {
+	return EnqueueStrmGenerationTaskWithDBAndLegacyHashes(tx, task)
+}
+
+// EnqueueStrmGenerationTaskWithDBAndLegacyHashes 在指定事务中创建 STRM 任务，并允许复用旧格式活跃 request_hash。
+func EnqueueStrmGenerationTaskWithDBAndLegacyHashes(tx *gorm.DB, task *StrmGenerationTask, legacyRequestHashes ...string) (*StrmGenerationTask, error) {
 	if tx == nil {
 		return nil, errors.New("数据库连接为空")
 	}
@@ -97,9 +125,11 @@ func EnqueueStrmGenerationTaskWithDB(tx *gorm.DB, task *StrmGenerationTask) (*St
 		return nil, errors.New("STRM 生成任务为空")
 	}
 	if task.RequestHash != "" {
-		var existing StrmGenerationTask
-		err := tx.Where("request_hash = ?", task.RequestHash).First(&existing).Error
-		if err == nil {
+		existing, found, err := findStrmGenerationTaskByRequestHash(tx, task.RequestHash)
+		if err != nil {
+			return nil, err
+		}
+		if found {
 			if !isActiveStrmGenerationStatus(existing.Status) {
 				archivedHash := archivedStrmGenerationRequestHash(task.RequestHash, existing.ID)
 				if err := tx.Model(&StrmGenerationTask{}).
@@ -108,12 +138,20 @@ func EnqueueStrmGenerationTaskWithDB(tx *gorm.DB, task *StrmGenerationTask) (*St
 					return nil, err
 				}
 			} else {
-				return &existing, nil
+				return existing, nil
 			}
-		} else {
-			if !errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, err
-			}
+		}
+	}
+	for _, legacyHash := range legacyRequestHashes {
+		if legacyHash == "" || legacyHash == task.RequestHash {
+			continue
+		}
+		existing, found, err := findStrmGenerationTaskByRequestHash(tx, legacyHash)
+		if err != nil {
+			return nil, err
+		}
+		if found && isActiveStrmGenerationStatus(existing.Status) {
+			return existing, nil
 		}
 	}
 	if task.Status == "" {
@@ -126,6 +164,18 @@ func EnqueueStrmGenerationTaskWithDB(tx *gorm.DB, task *StrmGenerationTask) (*St
 		return nil, err
 	}
 	return task, nil
+}
+
+func findStrmGenerationTaskByRequestHash(tx *gorm.DB, requestHash string) (*StrmGenerationTask, bool, error) {
+	var existing StrmGenerationTask
+	err := tx.Where("request_hash = ?", requestHash).First(&existing).Error
+	if err == nil {
+		return &existing, true, nil
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, false, nil
+	}
+	return nil, false, err
 }
 
 // StrmGenerationParentProgress 描述父任务需要累计的子任务结果。

@@ -501,7 +501,11 @@ func (service *StrmGenerationService) expandDirectoryScanChildren(ctx context.Co
 		if !syncer.IsValidVideoExt(file.FileName) {
 			continue
 		}
-		if _, err := models.EnqueueStrmGenerationTask(buildDirectoryScanChildTask(task, syncPath, file)); err != nil {
+		childTask := buildDirectoryScanChildTask(task, syncPath, file)
+		if _, err := models.EnqueueStrmGenerationTaskWithLegacyHashes(
+			childTask,
+			legacyDirectoryScanChildRequestHash(task, syncPath, file),
+		); err != nil {
 			return totalItems, fmt.Errorf("创建目录扫描子任务失败：%w", err)
 		}
 		totalItems++
@@ -539,6 +543,18 @@ func buildDirectoryScanChildTask(parent *models.StrmGenerationTask, syncPath *mo
 }
 
 func directoryScanChildRequestHash(parent *models.StrmGenerationTask, syncPath *models.SyncPath, file *SyncFileCache) string {
+	return models.BuildStrmRequestHash(
+		"directory_scan:file",
+		fmt.Sprint(syncPath.ID),
+		fmt.Sprint(parent.ID),
+		file.GetFileId(),
+		file.PickCode,
+		file.GetPath(),
+		file.FileName,
+	)
+}
+
+func legacyDirectoryScanChildRequestHash(parent *models.StrmGenerationTask, syncPath *models.SyncPath, file *SyncFileCache) string {
 	return fmt.Sprintf(
 		"directory_scan:file:%d:%d:%s:%s:%s:%s",
 		syncPath.ID,

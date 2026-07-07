@@ -18,28 +18,20 @@ import (
 	"qmediasync/internal/v115open"
 
 	"github.com/gin-gonic/gin"
-	"github.com/glebarez/sqlite"
-	"gorm.io/gorm"
 )
 
 func setupStrmWebhookControllerTest(t *testing.T) (*gin.Engine, string, *models.SyncPath) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	helpers.AppLogger = &helpers.QLogger{Logger: log.New(io.Discard, "", 0)}
-	testDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	db.Db = testDB
-	if err := db.Db.AutoMigrate(
+	setupControllerTestDB(
+		t,
 		&models.User{},
 		&models.ApiKey{},
 		&models.Account{},
 		&models.SyncPath{},
 		&models.StrmGenerationTask{},
-	); err != nil {
-		t.Fatalf("迁移测试表失败: %v", err)
-	}
+	)
 	user := &models.User{Username: "admin", Password: "hashed"}
 	if err := db.Db.Create(user).Error; err != nil {
 		t.Fatalf("创建用户失败: %v", err)
@@ -217,6 +209,141 @@ func TestStrmWebhookEnqueuesFileTaskIdempotently(t *testing.T) {
 		task.FileId != "file-1" ||
 		task.PickCode != "pick-1" {
 		t.Fatalf("STRM 任务 = %+v，期望 webhook file 任务", task)
+	}
+}
+
+func TestStrmWebhookRequestHashesUseShortV2Digest(t *testing.T) {
+	longPath := "/remote/" + strings.Repeat("very-long-path-segment/", 20)
+	longFileName := strings.Repeat("movie-", 60) + ".mkv"
+	options := strmWebhookOptions{DownloadMeta: true, RefreshEmby: true}
+	item := strmWebhookFileItem{
+		FileID:   "file-long",
+		PickCode: "pick-long",
+		Path:     longPath,
+		FileName: longFileName,
+	}
+	preparedFiles := []strmWebhookPreparedFile{{index: 0, item: item}}
+
+	cases := []struct {
+		name   string
+		hash   string
+		prefix string
+	}{
+		{
+			name:   "单文件",
+			hash:   strmWebhookFileRequestHash(10, 0, options, item),
+			prefix: "webhook:file:v2:",
+		},
+		{
+			name:   "批量父任务",
+			hash:   strmWebhookBatchRequestHash(10, options, preparedFiles),
+			prefix: "webhook:batch:v2:",
+		},
+		{
+			name:   "批量子任务",
+			hash:   strmWebhookBatchChildRequestHash(10, 20, options, 0, item),
+			prefix: "webhook:batch_file:v2:",
+		},
+		{
+			name:   "目录扫描",
+			hash:   strmWebhookDirectoryRequestHash(10, options, "dir-long", longPath),
+			prefix: "webhook:directory:v2:",
+		},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			if len(tt.hash) > 255 {
+				t.Fatalf("request_hash 长度 = %d，期望不超过 255: %s", len(tt.hash), tt.hash)
+			}
+			if !strings.HasPrefix(tt.hash, tt.prefix) {
+				t.Fatalf("request_hash = %s，期望前缀 %s", tt.hash, tt.prefix)
+			}
+			if strings.Contains(tt.hash, longPath) || strings.Contains(tt.hash, longFileName) {
+				t.Fatalf("request_hash 不应包含明文长路径或文件名: %s", tt.hash)
+			}
+		})
+	}
+}
+
+func TestStrmWebhookFileLongPathUsesShortRequestHashAndPreservesFields(t *testing.T) {
+	router, rawKey, syncPath := setupStrmWebhookControllerTest(t)
+	longPath := "/remote/" + strings.Repeat("very-long-path-segment/", 20)
+	longFileName := strings.Repeat("movie-", 60) + ".mkv"
+	setStrmWebhookFileIDDetailResolverForTesting(t, func(_ context.Context, _ *models.Account, fileID string) (*v115open.FileDetail, error) {
+		return &v115open.FileDetail{
+			FileId:       fileID,
+			PickCode:     "pick-long",
+			FileName:     longFileName,
+			Path:         longPath,
+			FileSizeByte: 1024,
+			Utime:        "123",
+		}, nil
+	})
+
+	w := performStrmWebhookRequest(t, router, rawKey, "", map[string]any{
+		"sync_path_id": syncPath.ID,
+		"file_id":      "file-long",
+	})
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"accepted_count":1`) {
+		t.Fatalf("长路径单文件入队响应异常: code=%d body=%s", w.Code, w.Body.String())
+	}
+	var task models.StrmGenerationTask
+	if err := db.Db.First(&task).Error; err != nil {
+		t.Fatalf("读取长路径 STRM 任务失败: %v", err)
+	}
+	if len(task.RequestHash) > 255 || !strings.HasPrefix(task.RequestHash, "webhook:file:v2:") {
+		t.Fatalf("request_hash = %s，期望短 v2 哈希", task.RequestHash)
+	}
+	if task.Path != normalizeRemotePath(longPath) || task.FileName != longFileName {
+		t.Fatalf("任务字段 path=%q file_name=%q，期望保存规范化路径并保留原始文件名", task.Path, task.FileName)
+	}
+}
+
+func TestStrmWebhookFileRetryReusesLegacyActiveHash(t *testing.T) {
+	router, rawKey, syncPath := setupStrmWebhookControllerTest(t)
+	item := strmWebhookFileItem{
+		FileID:   "file-legacy-active",
+		PickCode: "pick-legacy-active",
+		Path:     "/remote/show",
+		FileName: "legacy-active.mkv",
+	}
+	setStrmWebhookFileIDDetailResolverForTesting(t, func(_ context.Context, _ *models.Account, _ string) (*v115open.FileDetail, error) {
+		return &v115open.FileDetail{
+			FileId:   item.FileID,
+			PickCode: item.PickCode,
+			FileName: item.FileName,
+			Path:     item.Path,
+		}, nil
+	})
+	legacyTask := &models.StrmGenerationTask{
+		Source:      models.StrmGenerationSourceWebhook,
+		TaskType:    models.StrmGenerationTaskTypeFile,
+		SyncPathId:  syncPath.ID,
+		AccountId:   syncPath.AccountId,
+		FileId:      item.FileID,
+		PickCode:    item.PickCode,
+		Path:        item.Path,
+		FileName:    item.FileName,
+		Status:      models.StrmGenerationStatusPending,
+		RequestHash: legacyStrmWebhookFileRequestHash(syncPath.ID, 0, strmWebhookOptions{}, item),
+	}
+	if err := db.Db.Create(legacyTask).Error; err != nil {
+		t.Fatalf("预置旧式单文件任务失败: %v", err)
+	}
+
+	resp := decodeStrmWebhookResponse(t, performStrmWebhookRequest(t, router, rawKey, "", map[string]any{
+		"sync_path_id": syncPath.ID,
+		"file_id":      item.FileID,
+	}))
+	if len(resp.Data.TaskIDs) != 1 || resp.Data.TaskIDs[0] != legacyTask.ID {
+		t.Fatalf("旧式活跃单文件任务未被复用: task_ids=%v legacy_id=%d", resp.Data.TaskIDs, legacyTask.ID)
+	}
+	var total int64
+	if err := db.Db.Model(&models.StrmGenerationTask{}).Count(&total).Error; err != nil {
+		t.Fatalf("统计 STRM 任务失败: %v", err)
+	}
+	if total != 1 {
+		t.Fatalf("旧式活跃单文件任务复用后任务数量 = %d，期望 1", total)
 	}
 }
 
@@ -584,7 +711,7 @@ func TestStrmWebhookBatchFilesRetryReusesLegacyChildHashOnceForDuplicateItems(t 
 		Path:         item.Path,
 		FileName:     item.FileName,
 		Status:       models.StrmGenerationStatusPending,
-		RequestHash:  strmWebhookFileRequestHash(syncPath.ID, parent.ID, options, item),
+		RequestHash:  legacyStrmWebhookFileRequestHash(syncPath.ID, parent.ID, options, item),
 	}
 	if err := db.Db.Create(legacyChild).Error; err != nil {
 		t.Fatalf("预置旧式哈希子任务失败: %v", err)

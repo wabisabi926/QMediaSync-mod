@@ -139,6 +139,45 @@ func GetFileDetail(c *gin.Context) {
 
 var keyLock KeyLockWithTimeout
 
+const (
+	v115URLCacheModeDirect = "direct"
+	v115URLCacheModeProxy  = "proxy"
+
+	v115URLValidityCheckMaxWait = time.Duration(models.MaxURLValidityCheckTimeoutSeconds) * time.Second
+)
+
+var v115URLCacheLockWait = 10 * time.Second
+
+func v115URLPlaybackMode(force int, localProxy int) string {
+	if force == 0 && localProxy == 1 {
+		return v115URLCacheModeProxy
+	}
+	return v115URLCacheModeDirect
+}
+
+func v115EffectiveUA(force int, localProxy int, requestUA string) string {
+	if v115URLPlaybackMode(force, localProxy) == v115URLCacheModeProxy {
+		return v115open.DEFAULTUA
+	}
+	return requestUA
+}
+
+func v115URLCacheKey(pickCode string, force int, localProxy int, requestUA string) string {
+	mode := v115URLPlaybackMode(force, localProxy)
+	ua := v115EffectiveUA(force, localProxy, requestUA)
+	return fmt.Sprintf("115url:%s, mode=%s, ua=%s", pickCode, mode, ua)
+}
+
+func v115URLValidityCheckTimeout(timeout time.Duration) time.Duration {
+	if timeout <= 0 {
+		timeout = time.Duration(models.DefaultURLValidityCheckTimeoutSeconds) * time.Second
+	}
+	if timeout > v115URLValidityCheckMaxWait {
+		return v115URLValidityCheckMaxWait
+	}
+	return timeout
+}
+
 // Get115URLByPickCode 查询 115 直链并重定向。
 // @Summary 获取 115 文件直链
 // @Description 根据 PickCode 查询 115 文件直链并按需 302 跳转
@@ -188,52 +227,61 @@ func Get115UrlByPickCode(c *gin.Context) {
 		}
 		// helpers.AppLogger.Infof("通过用户 ID 查询到 115 账号：%s", account.Username)
 	}
-	ua := c.Request.UserAgent()
+	requestUA := c.Request.UserAgent()
+	localProxy := 0
+	if models.SettingsGlobal != nil {
+		localProxy = models.SettingsGlobal.LocalProxy
+	}
+	ua := v115EffectiveUA(req.Force, localProxy, requestUA)
 	client := account.Get115Client()
 	// helpers.AppLogger.Infof("检查是否具有直链播放标记， force=%d", req.Force)
-	cacheKey := fmt.Sprintf("115url:%s, ua=%s", pickCode, ua)
+	cacheKey := v115URLCacheKey(pickCode, req.Force, localProxy, requestUA)
 	// helpers.AppLogger.Infof("准备获取 115 文件下载链接：PickCode=%s，ua=%s，8095 播放=%d，加锁 10 秒", pickCode, ua, req.Force)
-	if keyLock.LockWithTimeout(cacheKey, 10*time.Second) {
-		defer keyLock.Unlock(cacheKey)
-		// helpers.AppLogger.Debugf("是否启用本地代理：%d", models.SettingsGlobal.LocalProxy)
-		if req.Force == 0 && models.SettingsGlobal.LocalProxy == 1 {
-			// 跳转到本地代理时使用统一的 UA
-			ua = v115open.DEFAULTUA
-			helpers.AppLogger.Infof("因为直链标识=%d，本地播放代理开关=%d，所以使用默认 UA：%s", req.Force, models.SettingsGlobal.LocalProxy, ua)
+	if !keyLock.LockWithTimeout(cacheKey, v115URLCacheLockWait) {
+		helpers.AppLogger.Warnf("获取 115 下载链接缓存锁超时：PickCode=%s，ua=%s", pickCode, ua)
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取 115 下载链接超时，请稍后重试", Data: nil})
+		return
+	}
+	defer keyLock.Unlock(cacheKey)
+
+	// helpers.AppLogger.Debugf("是否启用本地代理：%d", models.SettingsGlobal.LocalProxy)
+	if v115URLPlaybackMode(req.Force, localProxy) == v115URLCacheModeProxy {
+		helpers.AppLogger.Infof("因为直链标识=%d，本地播放代理开关=%d，所以使用默认 UA：%s", req.Force, localProxy, ua)
+	}
+	cachedUrl := string(db.Cache.Get(cacheKey))
+	if cachedUrl != "" {
+		helpers.AppLogger.Infof("从缓存中查询到 115 下载链接：PickCode=%s，ua=%s => %s", pickCode, ua, cachedUrl)
+		if !models.IsURLValidityCheckEnabled() {
+			helpers.AppLogger.Infof("115 直链缓存有效性检查已关闭，直接使用缓存链接：PickCode=%s", req.PickCode)
+		} else if !checkURLValidity(cachedUrl, ua, v115URLValidityCheckTimeout(models.URLValidityCheckTimeout())) {
+			helpers.AppLogger.Infof("缓存链接已失效，删除缓存并重新获取：PickCode=%s", req.PickCode)
+			db.Cache.Delete(cacheKey)
+			cachedUrl = ""
 		}
-		cachedUrl := string(db.Cache.Get(cacheKey))
-		if cachedUrl != "" {
-			helpers.AppLogger.Infof("从缓存中查询到 115 下载链接：PickCode=%s，ua=%s => %s", pickCode, ua, cachedUrl)
-			if !checkURLValidity(cachedUrl, ua) {
-				helpers.AppLogger.Infof("缓存链接已失效，删除缓存并重新获取：PickCode=%s", req.PickCode)
-				db.Cache.Delete(cacheKey)
-				cachedUrl = ""
-			}
-		}
+	}
+	if cachedUrl == "" {
+		cachedUrl = client.GetDownloadUrl(context.Background(), pickCode, ua, true)
 		if cachedUrl == "" {
-			cachedUrl = client.GetDownloadUrl(context.Background(), pickCode, ua, true)
-			if cachedUrl == "" {
-				c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取 115 下载链接失败", Data: nil})
-				return
-			}
-			helpers.AppLogger.Infof("从接口中查询到 115 下载链接：PickCode=%s，ua=%s => %s", pickCode, ua, cachedUrl)
-			// 缓存 50 分钟
-			db.Cache.Set(cacheKey, []byte(cachedUrl), 3000)
+			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取 115 下载链接失败", Data: nil})
+			return
 		}
-		if req.Force == 0 {
-			if models.SettingsGlobal.LocalProxy == 1 {
-				// 跳转到本地代理
-				helpers.AppLogger.Infof("通过本地代理访问 115 下载链接，Emby 端口播放：%s", cachedUrl)
-				proxyUrl := fmt.Sprintf("/proxy-115?url=%s", url.QueryEscape(cachedUrl))
-				c.Redirect(http.StatusFound, proxyUrl)
-			} else {
-				helpers.AppLogger.Infof("302 重定向到 115 下载链接，Emby 端口播放：%s", cachedUrl)
-				c.Redirect(http.StatusFound, cachedUrl)
-			}
+		helpers.AppLogger.Infof("从接口中查询到 115 下载链接：PickCode=%s，ua=%s => %s", pickCode, ua, cachedUrl)
+		// 缓存 50 分钟
+		db.Cache.Set(cacheKey, []byte(cachedUrl), 3000)
+	}
+	if req.Force == 0 {
+		if localProxy == 1 {
+			// 跳转到本地代理
+			helpers.AppLogger.Infof("通过本地代理访问 115 下载链接，Emby 端口播放：%s", cachedUrl)
+			proxyUrl := fmt.Sprintf("/proxy-115?url=%s", url.QueryEscape(cachedUrl))
+			c.Redirect(http.StatusFound, proxyUrl)
 		} else {
-			helpers.AppLogger.Infof("302 重定向到 115 下载链接，直链播放：%s", cachedUrl)
+			helpers.AppLogger.Infof("302 重定向到 115 下载链接，Emby 端口播放：%s", cachedUrl)
 			c.Redirect(http.StatusFound, cachedUrl)
 		}
+	} else {
+		helpers.AppLogger.Infof("302 重定向到 115 下载链接，直链播放：%s", cachedUrl)
+		c.Redirect(http.StatusFound, cachedUrl)
 	}
 }
 
@@ -731,15 +779,17 @@ func CleanOldRequestStats(c *gin.Context) {
 // checkURLValidity 使用 HEAD 请求检查 URL 是否有效。
 // 返回 true 表示 URL 有效（2xx 状态码），false 表示 URL 已失效。
 // ua 参数：必须使用当前请求的 User-Agent 访问 115 链接（否则返回 403）。
-func checkURLValidity(urlStr string, ua string) bool {
-	helpers.AppLogger.Infof("URL 有效性检查开始：%s，UA=%s", urlStr, ua)
+func checkURLValidity(urlStr string, ua string, timeout time.Duration) bool {
+	if timeout <= 0 {
+		timeout = time.Duration(models.DefaultURLValidityCheckTimeoutSeconds) * time.Second
+	}
+	helpers.AppLogger.Infof("URL 有效性检查开始：%s，UA=%s，超时=%s", urlStr, ua, timeout)
 	client := &http.Client{
-		Timeout: 3 * time.Second,
+		Timeout: timeout,
 		Transport: &http.Transport{
-			ResponseHeaderTimeout: 2 * time.Second, // 等待响应头的超时
-			DisableKeepAlives:     true,            // 禁用长连接，请求完立即关闭
-			TLSHandshakeTimeout:   1 * time.Second, // TLS 握手超时
-			MaxIdleConns:          0,               // 不保持空闲连接
+			DisableKeepAlives:   true,    // 禁用长连接，请求完立即关闭
+			TLSHandshakeTimeout: timeout, // TLS 握手超时与总超时保持一致
+			MaxIdleConns:        0,       // 不保持空闲连接
 		},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			// 不跟随重定向，只检查第一次响应

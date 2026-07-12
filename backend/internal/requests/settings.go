@@ -84,6 +84,8 @@ type UpdateThreadsRequest struct {
 	UploadRapidWaitMinSize         *int64 `form:"upload_rapid_wait_min_size" json:"upload_rapid_wait_min_size"`
 	UploadRapidWaitForceSize       *int64 `form:"upload_rapid_wait_force_size" json:"upload_rapid_wait_force_size"`
 	UploadRapidWaitSkipUpload      *int   `form:"upload_rapid_wait_skip_upload" json:"upload_rapid_wait_skip_upload"`
+	URLValidityCheckEnabled        *int   `form:"url_validity_check_enabled" json:"url_validity_check_enabled"`
+	URLValidityCheckTimeoutSeconds *int   `form:"url_validity_check_timeout_seconds" json:"url_validity_check_timeout_seconds"`
 }
 
 // Validate 校验线程配置请求。
@@ -136,11 +138,26 @@ func (r UpdateThreadsRequest) Validate() error {
 			return err
 		}
 	}
+	if r.URLValidityCheckEnabled != nil {
+		if err := validation.OneOfInt("url_validity_check_enabled", *r.URLValidityCheckEnabled, []int{0, 1}); err != nil {
+			return err
+		}
+	}
+	if r.URLValidityCheckTimeoutSeconds != nil {
+		if err := validation.RangeInt(
+			"url_validity_check_timeout_seconds",
+			*r.URLValidityCheckTimeoutSeconds,
+			1,
+			models.MaxURLValidityCheckTimeoutSeconds,
+		); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 // ToModel 转换为线程配置模型。
-func (r UpdateThreadsRequest) ToModel(baseRapidWait models.SettingUploadRapidWait) models.SettingThreadAndRapidWait {
+func (r UpdateThreadsRequest) ToModel(baseRapidWait models.SettingUploadRapidWait, baseURLValidityCheck models.SettingURLValidityCheck) models.SettingThreadAndRapidWait {
 	modelReq := models.SettingThreadAndRapidWait{
 		SettingThreads: models.SettingThreads{
 			DownloadThreads:    r.DownloadThreads,
@@ -150,7 +167,8 @@ func (r UpdateThreadsRequest) ToModel(baseRapidWait models.SettingUploadRapidWai
 			OpenlistRetryDelay: r.OpenlistRetryDelay,
 			FileListPageSize:   r.FileListPageSize,
 		},
-		SettingUploadRapidWait: baseRapidWait,
+		SettingUploadRapidWait:  baseRapidWait,
+		SettingURLValidityCheck: baseURLValidityCheck,
 	}
 	if r.UploadRapidWaitEnabled != nil {
 		modelReq.UploadRapidWaitEnabled = *r.UploadRapidWaitEnabled
@@ -169,6 +187,12 @@ func (r UpdateThreadsRequest) ToModel(baseRapidWait models.SettingUploadRapidWai
 	}
 	if r.UploadRapidWaitSkipUpload != nil {
 		modelReq.UploadRapidWaitSkipUpload = *r.UploadRapidWaitSkipUpload
+	}
+	if r.URLValidityCheckEnabled != nil {
+		modelReq.URLValidityCheckEnabled = *r.URLValidityCheckEnabled
+	}
+	if r.URLValidityCheckTimeoutSeconds != nil {
+		modelReq.URLValidityCheckTimeoutSeconds = *r.URLValidityCheckTimeoutSeconds
 	}
 	return modelReq
 }

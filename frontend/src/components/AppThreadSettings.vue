@@ -86,6 +86,33 @@
         </div>
       </el-form-item>
 
+      <el-divider content-position="left">115 直链缓存有效性检查</el-divider>
+      <el-form-item label="启用有效性检查" prop="urlValidityCheckEnabled">
+        <el-switch
+          v-model="formData.urlValidityCheckEnabled"
+          :active-value="true"
+          :inactive-value="false"
+          :disabled="loading"
+        />
+        <div class="form-help">
+          仅影响 115 直链缓存命中后的 HEAD 检查。关闭后会直接使用缓存链接，不会发起 HEAD。
+        </div>
+      </el-form-item>
+      <el-form-item label="有效性检查总超时秒数" prop="urlValidityCheckTimeoutSeconds">
+        <el-input-number
+          v-model="formData.urlValidityCheckTimeoutSeconds"
+          :min="THREAD_LIMITS.urlValidityCheckTimeout.min"
+          :max="THREAD_LIMITS.urlValidityCheckTimeout.max"
+          :step="1"
+          :precision="0"
+          :disabled="loading || !formData.urlValidityCheckEnabled"
+          size="large"
+        />
+        <div class="form-help">
+          HEAD 检查的总超时时间，范围 1 到 9 秒，默认 3 秒。该设置不影响百度网盘或 OpenList。
+        </div>
+      </el-form-item>
+
       <el-divider content-position="left">115 秒传等待策略</el-divider>
       <el-form-item label="启用秒传等待" prop="uploadRapidWaitEnabled">
         <el-switch
@@ -213,6 +240,8 @@ interface ThreadSettings {
   openlistRetryCount: number
   openlistRetryDelay: number
   fileListPageSize: number
+  urlValidityCheckEnabled: boolean
+  urlValidityCheckTimeoutSeconds: number
   uploadRapidWaitEnabled: boolean
   uploadRapidWaitTimeoutSeconds: number
   uploadRapidWaitIntervalSeconds: number
@@ -239,6 +268,8 @@ const formData = reactive<ThreadSettings>({
   openlistRetryCount: 1,
   openlistRetryDelay: 30,
   fileListPageSize: 1150,
+  urlValidityCheckEnabled: true,
+  urlValidityCheckTimeoutSeconds: 3,
   uploadRapidWaitEnabled: false,
   uploadRapidWaitTimeoutSeconds: 0,
   uploadRapidWaitIntervalSeconds: 60,
@@ -278,6 +309,12 @@ async function fetchThreadSettings() {
     formData.openlistRetryCount = response?.data.data.openlist_retry
     formData.openlistRetryDelay = response?.data.data.openlist_retry_delay
     formData.fileListPageSize = response?.data.data.file_list_page_size || 1150
+    formData.urlValidityCheckEnabled = response?.data.data.url_validity_check_enabled !== 0
+    const urlValidityCheckTimeout = response?.data.data.url_validity_check_timeout_seconds || 3
+    formData.urlValidityCheckTimeoutSeconds = Math.min(
+      Math.max(urlValidityCheckTimeout, THREAD_LIMITS.urlValidityCheckTimeout.min),
+      THREAD_LIMITS.urlValidityCheckTimeout.max,
+    )
     formData.uploadRapidWaitEnabled = response?.data.data.upload_rapid_wait_enabled === 1
     formData.uploadRapidWaitTimeoutSeconds =
       response?.data.data.upload_rapid_wait_timeout_seconds || 0
@@ -308,6 +345,8 @@ async function saveSettings() {
       openlist_retry: formData.openlistRetryCount,
       openlist_retry_delay: formData.openlistRetryDelay,
       file_list_page_size: formData.fileListPageSize,
+      url_validity_check_enabled: formData.urlValidityCheckEnabled ? 1 : 0,
+      url_validity_check_timeout_seconds: formData.urlValidityCheckTimeoutSeconds,
       upload_rapid_wait_enabled: formData.uploadRapidWaitEnabled ? 1 : 0,
       upload_rapid_wait_timeout_seconds: formData.uploadRapidWaitTimeoutSeconds,
       upload_rapid_wait_interval_seconds: formData.uploadRapidWaitIntervalSeconds,

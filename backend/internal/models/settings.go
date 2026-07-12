@@ -3,6 +3,7 @@ package models
 import (
 	"encoding/json"
 	"strings"
+	"time"
 
 	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
@@ -10,6 +11,12 @@ import (
 )
 
 var V115Login bool
+
+const (
+	DefaultURLValidityCheckEnabled        = 1
+	DefaultURLValidityCheckTimeoutSeconds = 3
+	MaxURLValidityCheckTimeoutSeconds     = 9
+)
 
 type SettingThreads struct {
 	DownloadThreads    int `form:"download_threads" json:"download_threads" binding:"required" gorm:"default:1"`          // 下载 QPS
@@ -47,9 +54,15 @@ type SettingUploadRapidWait struct {
 	UploadRapidWaitSkipUpload      int   `form:"upload_rapid_wait_skip_upload" json:"upload_rapid_wait_skip_upload" gorm:"default:0"`            // 等待超时后是否跳过真实上传
 }
 
+type SettingURLValidityCheck struct {
+	URLValidityCheckEnabled        int `form:"url_validity_check_enabled" json:"url_validity_check_enabled" gorm:"default:1"`                 // 是否启用 115 直链缓存有效性检查
+	URLValidityCheckTimeoutSeconds int `form:"url_validity_check_timeout_seconds" json:"url_validity_check_timeout_seconds" gorm:"default:3"` // 115 直链缓存有效性检查总超时，单位秒
+}
+
 type SettingThreadAndRapidWait struct {
 	SettingThreads
 	SettingUploadRapidWait
+	SettingURLValidityCheck
 }
 
 type Settings struct {
@@ -57,6 +70,7 @@ type Settings struct {
 	SettingThreads
 	SettingStrm
 	SettingUploadRapidWait
+	SettingURLValidityCheck
 	UseTelegram      int8   `json:"use_telegram"`       // @deprecated 已迁移到 TelegramChannelConfig 是否使用 Telegram Bot 通知
 	TelegramBotToken string `json:"telegram_bot_token"` // @deprecated 已迁移到 TelegramChannelConfig Telegram Bot Token
 	TelegramChatId   string `json:"telegram_chat_id"`   // @deprecated 已迁移到 TelegramChannelConfig Telegram Chat ID
@@ -139,9 +153,19 @@ func (s SettingUploadRapidWait) ToMap() map[string]any {
 	}
 }
 
+func (s SettingURLValidityCheck) ToMap() map[string]any {
+	return map[string]any{
+		"url_validity_check_enabled":         s.URLValidityCheckEnabled,
+		"url_validity_check_timeout_seconds": s.URLValidityCheckTimeoutSeconds,
+	}
+}
+
 func (s SettingThreadAndRapidWait) ToMap() map[string]any {
 	dataMap := s.SettingThreads.ToMap()
 	for key, value := range s.SettingUploadRapidWait.ToMap() {
+		dataMap[key] = value
+	}
+	for key, value := range s.SettingURLValidityCheck.ToMap() {
 		dataMap[key] = value
 	}
 	return dataMap
@@ -220,14 +244,16 @@ var SettingsGlobal = &Settings{}
 
 func (settings *Settings) ThreadAndRapidWait() SettingThreadAndRapidWait {
 	return SettingThreadAndRapidWait{
-		SettingThreads:         settings.SettingThreads,
-		SettingUploadRapidWait: settings.SettingUploadRapidWait,
+		SettingThreads:          settings.SettingThreads,
+		SettingUploadRapidWait:  settings.SettingUploadRapidWait,
+		SettingURLValidityCheck: settings.SettingURLValidityCheck,
 	}
 }
 
 func (settings *Settings) UpdateThreads(req SettingThreadAndRapidWait) bool {
 	settings.SettingThreads = req.SettingThreads
 	settings.SettingUploadRapidWait = req.SettingUploadRapidWait
+	settings.SettingURLValidityCheck = req.SettingURLValidityCheck
 
 	updateData := req.ToMap()
 
@@ -331,4 +357,24 @@ func GetFileListPageSize() int {
 		return 1150
 	}
 	return pageSize
+}
+
+// IsURLValidityCheckEnabled 返回 115 直链缓存有效性检查是否启用。
+func IsURLValidityCheckEnabled() bool {
+	if SettingsGlobal == nil {
+		return DefaultURLValidityCheckEnabled == 1
+	}
+	return SettingsGlobal.URLValidityCheckEnabled == 1
+}
+
+// URLValidityCheckTimeout 返回 115 直链缓存有效性检查总超时。
+func URLValidityCheckTimeout() time.Duration {
+	timeoutSeconds := DefaultURLValidityCheckTimeoutSeconds
+	if SettingsGlobal != nil && SettingsGlobal.URLValidityCheckTimeoutSeconds >= 1 {
+		timeoutSeconds = SettingsGlobal.URLValidityCheckTimeoutSeconds
+		if timeoutSeconds > MaxURLValidityCheckTimeoutSeconds {
+			timeoutSeconds = MaxURLValidityCheckTimeoutSeconds
+		}
+	}
+	return time.Duration(timeoutSeconds) * time.Second
 }

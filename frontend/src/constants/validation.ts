@@ -5,6 +5,7 @@ export const THREAD_LIMITS = {
   openlistRetry: { min: 1, max: 10 },
   openlistRetryDelay: { min: 30, max: 3600 },
   fileListPageSize: { min: 100, max: 1150 },
+  urlValidityCheckTimeout: { min: 1, max: 9 },
 } as const
 
 export const SCRAPE_THREAD_LIMITS = {

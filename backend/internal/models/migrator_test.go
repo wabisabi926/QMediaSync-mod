@@ -748,6 +748,82 @@ func TestMigrateVersion57AddsDirectoryUploadEnabled(t *testing.T) {
 	}
 }
 
+func TestMigrateVersion58AddsURLValidityCheckSettings(t *testing.T) {
+	if helpers.AppLogger == nil {
+		helpers.AppLogger = &helpers.QLogger{
+			Logger: log.New(io.Discard, "", 0),
+		}
+	}
+	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	db.Db = testDb
+
+	createMigratorTestTable(t)
+	if err := db.Db.Create(&Migrator{VersionCode: 58}).Error; err != nil {
+		t.Fatalf("创建迁移版本记录失败: %v", err)
+	}
+	if err := db.Db.Exec(`
+		CREATE TABLE settings (
+			id integer primary key autoincrement,
+			created_at integer,
+			updated_at integer,
+			download_threads integer,
+			file_detail_threads integer,
+			openlist_qps integer,
+			openlist_retry integer,
+			openlist_retry_delay integer,
+			file_list_page_size integer
+		)
+	`).Error; err != nil {
+		t.Fatalf("创建版本 58 设置表失败: %v", err)
+	}
+	if err := db.Db.Exec(`
+		INSERT INTO settings (
+			id,
+			created_at,
+			updated_at,
+			download_threads,
+			file_detail_threads,
+			openlist_qps,
+			openlist_retry,
+			openlist_retry_delay,
+			file_list_page_size
+		) VALUES (1, 0, 0, 1, 3, 3, 1, 60, 1150)
+	`).Error; err != nil {
+		t.Fatalf("写入版本 58 设置失败: %v", err)
+	}
+
+	Migrate()
+
+	var migrator Migrator
+	if err := db.Db.First(&migrator).Error; err != nil {
+		t.Fatalf("读取迁移版本失败: %v", err)
+	}
+	if migrator.VersionCode != MaxVersionCode {
+		t.Fatalf("迁移版本 = %d，期望 %d", migrator.VersionCode, MaxVersionCode)
+	}
+	for _, column := range []string{
+		"url_validity_check_enabled",
+		"url_validity_check_timeout_seconds",
+	} {
+		if !db.Db.Migrator().HasColumn(&Settings{}, column) {
+			t.Fatalf("迁移应添加 settings.%s 字段", column)
+		}
+	}
+	var settings Settings
+	if err := db.Db.First(&settings, 1).Error; err != nil {
+		t.Fatalf("读取设置失败: %v", err)
+	}
+	if settings.URLValidityCheckEnabled != 1 {
+		t.Fatalf("URLValidityCheckEnabled = %d，期望 1", settings.URLValidityCheckEnabled)
+	}
+	if settings.URLValidityCheckTimeoutSeconds != 3 {
+		t.Fatalf("URLValidityCheckTimeoutSeconds = %d，期望 3", settings.URLValidityCheckTimeoutSeconds)
+	}
+}
+
 func assertDownloadTaskSource(t *testing.T, remoteFileId string, wantSource string, wantSourceType string) {
 	t.Helper()
 	var task DbDownloadTask

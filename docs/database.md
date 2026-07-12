@@ -42,7 +42,7 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 当 `migrator` 表不存在时，`InitDB()` 会直接执行：
 
 1. `BatchCreateTable()`：对 `AllTables` 逐表执行 `AutoMigrate`。
-2. `InitMigrationTable(MaxVersionCode)`：写入当前版本号，当前值是 `58`。
+2. `InitMigrationTable(MaxVersionCode)`：写入当前版本号，当前值是 `59`。
 3. `InitSettings()`：创建默认 `settings` 记录。
 4. `InitScrapeSetting()`：创建默认刮削配置和默认分类。
 5. `InitEmbyConfig()`：创建默认 `emby_config` 记录。
@@ -82,8 +82,9 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 | 55 | 56 | `strm_generation_tasks` 新增 Webhook 元数据下载、Emby 刷新开关和父任务刷新目标统计字段。 |
 | 56 | 57 | 新增 `directory_upload_processed_files` 表，`db_upload_tasks` 新增目录监控源文件 fingerprint 关联字段。 |
 | 57 | 58 | `sync_paths` 新增 `directory_upload_enabled`，作为目录监控上传同步目录总开关，并按已有启用规则回填。 |
+| 58 | 59 | `settings` 新增 115 直链缓存有效性检查开关和总超时。 |
 
-当前数据库版本是 `58`。
+当前数据库版本是 `59`。
 
 ## 修复与重建
 
@@ -140,7 +141,7 @@ QMediaSync 当前支持 `SQLite` 和 `PostgreSQL` 两种数据库引擎。默认
 
 - `id`：固定为 `1`。
 - `created_at` / `updated_at`：创建和更新时间。
-- `version_code`：当前数据库版本号，当前值为 `58`。
+- `version_code`：当前数据库版本号，当前值为 `59`。
 
 ### `users`
 
@@ -211,6 +212,8 @@ API Key 认证表。
 - `openlist_retry`：OpenList 重试次数。
 - `openlist_retry_delay`：OpenList 重试间隔，单位秒。
 - `file_list_page_size`：115 文件列表分页大小。
+- `url_validity_check_enabled`：是否启用 115 直链缓存有效性检查，默认 `1`。关闭后 115 缓存命中不会发起 HEAD 检查。
+- `url_validity_check_timeout_seconds`：115 直链缓存有效性检查总超时，单位秒，默认 `3`，可配置范围为 `1` 到 `9`；旧配置中超过 `9` 的值会在运行时裁剪为 `9`。
 
 STRM 相关字段：
 

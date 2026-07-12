@@ -61,6 +61,8 @@
 
 秒传等待策略保存于 `settings` 表，默认关闭。启用后，上传初始化未命中秒传时会按 `upload_rapid_wait_interval_seconds` 间隔重复 init，最长等待 `upload_rapid_wait_timeout_seconds`；`upload_rapid_wait_interval_seconds` 只控制重试频率，`upload_rapid_wait_timeout_seconds` 才是最大等待上限，最后一次等待会按剩余超时时间裁剪。`upload_rapid_wait_min_size` 和 `upload_rapid_wait_force_size` 用于限制哪些文件进入等待策略，`upload_rapid_wait_skip_upload` 用于控制等待超时后是否跳过真实上传。
 
+115 直链缓存有效性检查保存于 `settings` 表，默认开启，默认总超时为 3 秒，可配置范围为 1 到 9 秒。该配置只影响 115 直链缓存命中后的 HEAD 检查；关闭后会直接使用缓存链接，不再对缓存 URL 发起 HEAD 请求。为避免同一缓存键并发请求长时间等待，服务端运行时会将旧配置中的更大超时值裁剪到 9 秒。百度网盘和 OpenList 不使用这套有效性检查机制。
+
 自动化测试覆盖协议字段、part size、`sequential=1`、callback 校验和本地 mock 请求。真实 115 小文件 / 大文件上传实测需要有效 115 Open API 沙箱账号和可写测试目录，且会产生远端写入副作用；未获得明确沙箱授权前，不应在开发环境自动执行真实外部上传。排查非秒传失败时，`115.log` 会记录 115 Open API 返回、OSS multipart 初始化、ListParts、UploadPart、CompleteMultipartUpload 请求边界和 callback 业务返回；日志会避免明文输出 STS 密钥和 SecurityToken。
 
 ## 目录监控上传

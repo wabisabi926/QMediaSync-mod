@@ -18,7 +18,7 @@ type Migrator struct {
 	VersionCode int `json:"version_code"` // 版本号
 }
 
-var MaxVersionCode = 58
+var MaxVersionCode = 59
 var AllTables = []any{
 	Migrator{},
 	BackupConfig{}, BackupRecord{},
@@ -647,6 +647,21 @@ func Migrate() {
 		helpers.AppLogger.Info("已添加同步目录目录监控总开关")
 		migrator.UpdateVersionCode(db.Db)
 	}
+	if migrator.VersionCode == 58 {
+		if err := db.Db.AutoMigrate(Settings{}); err != nil {
+			helpers.AppLogger.Errorf("迁移 URL 有效性检查设置失败：%v", err)
+			return
+		}
+		if err := db.Db.Model(&Settings{}).Where("1 = 1").Updates(map[string]any{
+			"url_validity_check_enabled":         DefaultURLValidityCheckEnabled,
+			"url_validity_check_timeout_seconds": DefaultURLValidityCheckTimeoutSeconds,
+		}).Error; err != nil {
+			helpers.AppLogger.Errorf("初始化 URL 有效性检查设置失败：%v", err)
+			return
+		}
+		helpers.AppLogger.Info("已添加 115 直链缓存有效性检查设置")
+		migrator.UpdateVersionCode(db.Db)
+	}
 	helpers.AppLogger.Infof("当前数据库版本 %d", migrator.VersionCode)
 }
 
@@ -805,6 +820,10 @@ func InitSettings() {
 			UploadRapidWaitMinSize:         0,
 			UploadRapidWaitForceSize:       0,
 			UploadRapidWaitSkipUpload:      0,
+		},
+		SettingURLValidityCheck: SettingURLValidityCheck{
+			URLValidityCheckEnabled:        DefaultURLValidityCheckEnabled,
+			URLValidityCheckTimeoutSeconds: DefaultURLValidityCheckTimeoutSeconds,
 		},
 	}
 	db.Db.Save(&defaultSettings)

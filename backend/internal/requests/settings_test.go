@@ -106,6 +106,8 @@ func TestUpdateThreadsRequestValidate(t *testing.T) {
 		UploadRapidWaitMinSize:         int64Ptr(1073741824),
 		UploadRapidWaitForceSize:       int64Ptr(5368709120),
 		UploadRapidWaitSkipUpload:      intPtr(0),
+		URLValidityCheckEnabled:        intPtr(1),
+		URLValidityCheckTimeoutSeconds: intPtr(3),
 	}
 
 	tests := []struct {
@@ -123,6 +125,9 @@ func TestUpdateThreadsRequestValidate(t *testing.T) {
 		{name: "秒传等待间隔小于 1 失败", mutate: func(r *UpdateThreadsRequest) { r.UploadRapidWaitIntervalSeconds = intPtr(0) }, wantErr: true},
 		{name: "秒传等待超时小于 0 失败", mutate: func(r *UpdateThreadsRequest) { r.UploadRapidWaitTimeoutSeconds = intPtr(-1) }, wantErr: true},
 		{name: "秒传等待最小大小小于 0 失败", mutate: func(r *UpdateThreadsRequest) { r.UploadRapidWaitMinSize = int64Ptr(-1) }, wantErr: true},
+		{name: "URL 有效性检查开关非法失败", mutate: func(r *UpdateThreadsRequest) { r.URLValidityCheckEnabled = intPtr(2) }, wantErr: true},
+		{name: "URL 有效性检查超时小于 1 失败", mutate: func(r *UpdateThreadsRequest) { r.URLValidityCheckTimeoutSeconds = intPtr(0) }, wantErr: true},
+		{name: "URL 有效性检查超时大于 9 失败", mutate: func(r *UpdateThreadsRequest) { r.URLValidityCheckTimeoutSeconds = intPtr(10) }, wantErr: true},
 	}
 
 	for _, tt := range tests {
@@ -153,9 +158,11 @@ func TestUpdateThreadsRequestToModelIncludesRapidWaitPolicy(t *testing.T) {
 		UploadRapidWaitMinSize:         int64Ptr(1024),
 		UploadRapidWaitForceSize:       int64Ptr(2048),
 		UploadRapidWaitSkipUpload:      intPtr(1),
+		URLValidityCheckEnabled:        intPtr(0),
+		URLValidityCheckTimeoutSeconds: intPtr(9),
 	}
 
-	got := req.ToModel(models.SettingUploadRapidWait{})
+	got := req.ToModel(models.SettingUploadRapidWait{}, models.SettingURLValidityCheck{})
 
 	if got.UploadRapidWaitEnabled != 1 {
 		t.Fatalf("UploadRapidWaitEnabled = %d，期望 1", got.UploadRapidWaitEnabled)
@@ -175,9 +182,15 @@ func TestUpdateThreadsRequestToModelIncludesRapidWaitPolicy(t *testing.T) {
 	if got.UploadRapidWaitSkipUpload != 1 {
 		t.Fatalf("UploadRapidWaitSkipUpload = %d，期望 1", got.UploadRapidWaitSkipUpload)
 	}
+	if got.URLValidityCheckEnabled != 0 {
+		t.Fatalf("URLValidityCheckEnabled = %d，期望 0", got.URLValidityCheckEnabled)
+	}
+	if got.URLValidityCheckTimeoutSeconds != 9 {
+		t.Fatalf("URLValidityCheckTimeoutSeconds = %d，期望 9", got.URLValidityCheckTimeoutSeconds)
+	}
 }
 
-func TestUpdateThreadsRequestToModelKeepsRapidWaitPolicyWhenOmitted(t *testing.T) {
+func TestUpdateThreadsRequestToModelKeepsOptionalPoliciesWhenOmitted(t *testing.T) {
 	req := UpdateThreadsRequest{
 		DownloadThreads:    1,
 		FileDetailThreads:  3,
@@ -194,11 +207,18 @@ func TestUpdateThreadsRequestToModelKeepsRapidWaitPolicyWhenOmitted(t *testing.T
 		UploadRapidWaitForceSize:       2048,
 		UploadRapidWaitSkipUpload:      1,
 	}
+	baseURLValidityCheck := models.SettingURLValidityCheck{
+		URLValidityCheckEnabled:        0,
+		URLValidityCheckTimeoutSeconds: 12,
+	}
 
-	got := req.ToModel(base)
+	got := req.ToModel(base, baseURLValidityCheck)
 
 	if got.SettingUploadRapidWait != base {
 		t.Fatalf("SettingUploadRapidWait = %+v，期望 %+v", got.SettingUploadRapidWait, base)
+	}
+	if got.SettingURLValidityCheck != baseURLValidityCheck {
+		t.Fatalf("SettingURLValidityCheck = %+v，期望 %+v", got.SettingURLValidityCheck, baseURLValidityCheck)
 	}
 }
 

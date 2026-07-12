@@ -564,7 +564,7 @@ func UpdateThreads(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
-	modelReq := req.ToModel(models.SettingsGlobal.SettingUploadRapidWait)
+	modelReq := req.ToModel(models.SettingsGlobal.SettingUploadRapidWait, models.SettingsGlobal.SettingURLValidityCheck)
 	downloadThreads := modelReq.DownloadThreads
 	// 更新设置，传递当前的百度网盘限速值
 	if !models.SettingsGlobal.UpdateThreads(modelReq) {

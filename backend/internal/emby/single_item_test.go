@@ -153,6 +153,65 @@ func TestSyncEmbyItemByID使用Ancestors解析Episode真实媒体库ID(t *testin
 	}
 }
 
+func TestSyncEmbyItemByID多媒体库候选不取第一个写入LibraryID(t *testing.T) {
+	helpers.AppLogger = &helpers.QLogger{Logger: log.New(io.Discard, "", 0)}
+	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	db.Db = testDb
+	models.GlobalEmbyConfig = nil
+	SetEmbySyncRunning(false)
+
+	if err := db.Db.AutoMigrate(&models.EmbyConfig{}, &models.EmbyMediaItem{}, &models.EmbyMediaSyncFile{}, &models.EmbyLibrarySyncPath{}, &models.SyncFile{}); err != nil {
+		t.Fatalf("迁移测试表失败: %v", err)
+	}
+	if err := db.Db.Create(&models.SyncFile{PickCode: "pc-ambiguous", SyncPathId: 23}).Error; err != nil {
+		t.Fatalf("创建 SyncFile 失败: %v", err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/emby/Items":
+			fmt.Fprint(w, `{"TotalRecordCount":1,"Items":[{"Id":"40001","Name":"多库电影","Type":"Movie","ParentId":"folder","MediaSources":[{"Path":"http://qms.local/stream?pickcode=pc-ambiguous"}]}]}`)
+		case "/emby/Items/40001/Ancestors":
+			fmt.Fprint(w, `[{"Id":"root","Path":"/media"},{"Id":"shared","Path":"/media/shared"}]`)
+		case "/emby/Library/VirtualFolders":
+			fmt.Fprint(w, `[{"Id":"lib-a","Name":"媒体库 A","Locations":["/media/shared"]},{"Id":"lib-b","Name":"媒体库 B","Locations":["/media/shared"]}]`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	if err := db.Db.Create(&models.EmbyConfig{EmbyUrl: server.URL, EmbyApiKey: "test-key", SyncEnabled: 1, SyncCron: "0 * * * *"}).Error; err != nil {
+		t.Fatalf("创建 EmbyConfig 失败: %v", err)
+	}
+
+	changed, err := SyncEmbyItemByID("40001")
+	if err != nil {
+		t.Fatalf("SyncEmbyItemByID() error = %v", err)
+	}
+	if !changed {
+		t.Fatal("SyncEmbyItemByID() changed = false, want true")
+	}
+
+	var item models.EmbyMediaItem
+	if err := db.Db.Where("item_id = ?", "40001").First(&item).Error; err != nil {
+		t.Fatalf("查询 EmbyMediaItem 失败: %v", err)
+	}
+	if item.LibraryId != "" {
+		t.Fatalf("LibraryId = %q，期望多库候选 unresolved 时不写入任意媒体库", item.LibraryId)
+	}
+	var relationCount int64
+	if err := db.Db.Model(&models.EmbyLibrarySyncPath{}).Count(&relationCount).Error; err != nil {
+		t.Fatalf("统计 EmbyLibrarySyncPath 失败: %v", err)
+	}
+	if relationCount != 0 {
+		t.Fatalf("媒体库关联数量 = %d，期望不写入任意媒体库关联", relationCount)
+	}
+}
+
 func TestSyncEmbyItemByID跳过未选择媒体库(t *testing.T) {
 	helpers.AppLogger = &helpers.QLogger{Logger: log.New(io.Discard, "", 0)}
 	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})

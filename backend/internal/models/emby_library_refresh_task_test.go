@@ -16,6 +16,7 @@ import (
 	"gorm.io/gorm"
 
 	"qmediasync/internal/db"
+	embyclientrestgo "qmediasync/internal/embyclient-rest-go"
 	"qmediasync/internal/helpers"
 )
 
@@ -56,6 +57,71 @@ func setupEmbyRefreshTestDB(t *testing.T) {
 	embyRefreshDownloadEventBatch.syncPathIds = make(map[uint]struct{})
 	embyRefreshDownloadEventBatch.syncFileIds = make(map[uint]struct{})
 	embyRefreshDownloadEventBatch.mutex.Unlock()
+}
+
+func TestCreateEmbyLibraryRefreshTaskIfAbsentDoesNotAbortAfterDuplicate(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	created, err := createEmbyLibraryRefreshTaskIfAbsent(db.Db, &EmbyLibraryRefreshTask{TaskKey: "item:1", LibraryId: "lib-movie"})
+	if err != nil {
+		t.Fatalf("首次创建刷新任务失败: %v", err)
+	}
+	if !created {
+		t.Fatal("首次创建应返回 created")
+	}
+	created, err = createEmbyLibraryRefreshTaskIfAbsent(db.Db, &EmbyLibraryRefreshTask{TaskKey: "item:1", LibraryId: "lib-movie"})
+	if err != nil {
+		t.Fatalf("重复创建刷新任务失败: %v", err)
+	}
+	if created {
+		t.Fatal("重复创建不应新增刷新任务")
+	}
+	var total int64
+	if err := db.Db.Model(&EmbyLibraryRefreshTask{}).Where("task_key = ?", "item:1").Count(&total).Error; err != nil {
+		t.Fatalf("统计刷新任务失败: %v", err)
+	}
+	if total != 1 {
+		t.Fatalf("刷新任务数量 = %d，期望 1", total)
+	}
+}
+
+func TestRequestEmbyLibraryRefreshBySyncPathIdUsesResolvedItemTargets(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	const syncPathID = 10
+	syncFile := &SyncFile{SyncPathId: syncPathID, FileId: "remote-file", PickCode: "pick-code", IsVideo: true}
+	if err := db.Db.Create(syncFile).Error; err != nil {
+		t.Fatalf("创建同步文件失败: %v", err)
+	}
+	item := &EmbyMediaItem{ItemId: "emby-movie", ItemIdInt: 1001, Type: "Movie", Name: "电影", LibraryId: "lib-movie"}
+	if err := db.Db.Create(item).Error; err != nil {
+		t.Fatalf("创建 Emby 条目失败: %v", err)
+	}
+	if err := db.Db.Create(&EmbyMediaSyncFile{SyncPathId: syncPathID, SyncFileId: syncFile.ID, EmbyItemId: uint(item.ItemIdInt), PickCode: syncFile.PickCode}).Error; err != nil {
+		t.Fatalf("创建 Emby 文件关联失败: %v", err)
+	}
+	if err := db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-movie", LibraryName: "电影库", SyncPathId: syncPathID}).Error; err != nil {
+		t.Fatalf("创建媒体库关联失败: %v", err)
+	}
+
+	if err := RequestEmbyLibraryRefreshBySyncPathId(syncPathID); err != nil {
+		t.Fatalf("提交 Emby 刷新任务失败: %v", err)
+	}
+
+	var itemTask EmbyLibraryRefreshTask
+	if err := db.Db.Where("task_key = ?", embyItemRefreshTaskKey("emby-movie")).First(&itemTask).Error; err != nil {
+		t.Fatalf("应创建 item 定向刷新任务: %v", err)
+	}
+	if itemTask.TargetType != EmbyLibraryRefreshTargetTypeItem || itemTask.FallbackLibraryId != "lib-movie" {
+		t.Fatalf("item 刷新任务 = %+v，期望使用真实媒体库", itemTask)
+	}
+	var libraryTaskCount int64
+	if err := db.Db.Model(&EmbyLibraryRefreshTask{}).
+		Where("library_id = ? AND target_type = ?", "lib-movie", EmbyLibraryRefreshTargetTypeLibrary).
+		Count(&libraryTaskCount).Error; err != nil {
+		t.Fatalf("统计纯媒体库任务失败: %v", err)
+	}
+	if libraryTaskCount != 0 {
+		t.Fatalf("已有 item 目标时不应退化为纯媒体库任务，数量=%d", libraryTaskCount)
+	}
 }
 
 func drainEmbyRefreshCheckChan() {
@@ -357,6 +423,232 @@ func TestRefreshTaskWaitsForSameLibraryDownloadOutsideTaskSyncPaths(t *testing.T
 	}
 }
 
+func TestRefreshTaskItemUsesFallbackLibraryForWaitSyncPaths(t *testing.T) {
+	tests := []struct {
+		name       string
+		arrange    func()
+		wantReason string
+	}{
+		{
+			name: "同媒体库其他同步目录有活跃同步任务",
+			arrange: func() {
+				IsStrmSyncTaskActiveFunc = func(syncPathId uint) bool {
+					return syncPathId == 11
+				}
+			},
+			wantReason: "sync_running",
+		},
+		{
+			name: "同媒体库其他同步目录有下载任务",
+			arrange: func() {
+				db.Db.Create(&DbDownloadTask{SyncPathId: 11, Status: DownloadStatusPending})
+			},
+			wantReason: "download_running",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupEmbyRefreshTestDB(t)
+			now := nowUnix()
+			db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-tv", LibraryName: "剧集", SyncPathId: 10})
+			db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-tv", LibraryName: "剧集", SyncPathId: 11})
+			task := newPendingEmbyItemRefreshTask(EmbyRefreshTarget{
+				TargetType:          EmbyRefreshTargetTypeItem,
+				ItemID:              "301",
+				ItemName:            "第一季",
+				ItemType:            "Season",
+				Recursive:           true,
+				FallbackLibraryId:   "lib-tv",
+				FallbackLibraryName: "剧集",
+			}, 10, now-100)
+			task.RefreshAfterAt = now - 1
+			if err := db.Db.Create(task).Error; err != nil {
+				t.Fatalf("创建 item 刷新任务失败: %v", err)
+			}
+			tt.arrange()
+
+			ready, reason, err := IsEmbyLibraryRefreshTaskReady(task, now)
+			if err != nil {
+				t.Fatalf("判断刷新任务失败: %v", err)
+			}
+			if ready {
+				t.Fatalf("item 任务所属媒体库还有未完成工作时不应刷新")
+			}
+			if reason != tt.wantReason {
+				t.Fatalf("等待原因 = %s，期望 %s", reason, tt.wantReason)
+			}
+		})
+	}
+}
+
+func TestRefreshTaskItemUsesIndexedLibraryForWaitSyncPathsWhenFallbackMissing(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	now := nowUnix()
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-tv", LibraryName: "剧集", SyncPathId: 10})
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-tv", LibraryName: "剧集", SyncPathId: 11})
+	db.Db.Create(&EmbyMediaItem{ItemId: "301", ItemIdInt: 301, LibraryId: "lib-tv", Name: "第一季", Type: "Season"})
+	task := newPendingEmbyItemRefreshTask(EmbyRefreshTarget{
+		TargetType: EmbyRefreshTargetTypeItem,
+		ItemID:     "301",
+		ItemName:   "第一季",
+		ItemType:   "Season",
+		Recursive:  true,
+	}, 10, now-100)
+	task.RefreshAfterAt = now - 1
+	if err := db.Db.Create(task).Error; err != nil {
+		t.Fatalf("创建缺少 fallback 的 item 刷新任务失败: %v", err)
+	}
+	db.Db.Create(&DbDownloadTask{SyncPathId: 11, Status: DownloadStatusPending})
+
+	ready, reason, err := IsEmbyLibraryRefreshTaskReady(task, now)
+	if err != nil {
+		t.Fatalf("判断刷新任务失败: %v", err)
+	}
+	if ready {
+		t.Fatal("fallback 为空时应按 item 所属媒体库等待其他同步目录下载完成")
+	}
+	if reason != "download_running" {
+		t.Fatalf("等待原因 = %s，期望 download_running", reason)
+	}
+}
+
+func TestRefreshTaskItemPrefersIndexedLibraryOverIncorrectFallbackForWaitSyncPaths(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	now := nowUnix()
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-movie", LibraryName: "电影", SyncPathId: 10})
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-tv", LibraryName: "剧集", SyncPathId: 10})
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-tv", LibraryName: "剧集", SyncPathId: 11})
+	db.Db.Create(&EmbyMediaItem{ItemId: "301", ItemIdInt: 301, LibraryId: "lib-tv", Name: "第 1 集", Type: "Episode"})
+	task := newPendingEmbyItemRefreshTask(EmbyRefreshTarget{
+		TargetType:          EmbyRefreshTargetTypeItem,
+		ItemID:              "301",
+		ItemName:            "第 1 集",
+		ItemType:            "Episode",
+		FallbackLibraryId:   "lib-movie",
+		FallbackLibraryName: "电影",
+	}, 10, now-100)
+	task.RefreshAfterAt = now - 1
+	if err := db.Db.Create(task).Error; err != nil {
+		t.Fatalf("创建旧错误 fallback 任务失败: %v", err)
+	}
+	db.Db.Create(&DbDownloadTask{SyncPathId: 11, Status: DownloadStatusPending})
+
+	ready, reason, err := IsEmbyLibraryRefreshTaskReady(task, now)
+	if err != nil {
+		t.Fatalf("判断刷新任务失败: %v", err)
+	}
+	if ready || reason != "download_running" {
+		t.Fatalf("ready=%v reason=%s，期望按本地真实 lib-tv 等待下载", ready, reason)
+	}
+}
+
+func TestRefreshTaskDownloadEventPrefersIndexedLibraryOverIncorrectFallback(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	now := nowUnix()
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-movie", LibraryName: "电影", SyncPathId: 10})
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-tv", LibraryName: "剧集", SyncPathId: 10})
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-tv", LibraryName: "剧集", SyncPathId: 11})
+	db.Db.Create(&EmbyMediaItem{ItemId: "301", ItemIdInt: 301, LibraryId: "lib-tv", Name: "第 1 集", Type: "Episode"})
+	task := newPendingEmbyItemRefreshTask(EmbyRefreshTarget{
+		TargetType:          EmbyRefreshTargetTypeItem,
+		ItemID:              "301",
+		ItemName:            "第 1 集",
+		ItemType:            "Episode",
+		FallbackLibraryId:   "lib-movie",
+		FallbackLibraryName: "电影",
+	}, 10, now-100)
+	task.RefreshAfterAt = now - 1
+	if err := db.Db.Create(task).Error; err != nil {
+		t.Fatalf("创建旧错误 fallback 任务失败: %v", err)
+	}
+
+	if err := NotifyEmbyRefreshDownloadTasksChangedBySyncPathIds([]uint{11}); err != nil {
+		t.Fatalf("处理下载事件失败: %v", err)
+	}
+	var updated EmbyLibraryRefreshTask
+	if err := db.Db.First(&updated, task.ID).Error; err != nil {
+		t.Fatalf("查询刷新任务失败: %v", err)
+	}
+	if updated.RefreshAfterAt <= now {
+		t.Fatalf("真实 lib-tv 的下载事件应延长稳定窗口，实际 refresh_after_at=%d", updated.RefreshAfterAt)
+	}
+}
+
+func TestRefreshItemFailureRepairsIncorrectFallbackBeforeLibraryRefresh(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-movie", LibraryName: "电影", SyncPathId: 10})
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-tv", LibraryName: "剧集", SyncPathId: 10})
+	db.Db.Create(&EmbyMediaItem{ItemId: "301", ItemIdInt: 301, LibraryId: "lib-tv", Name: "第 1 集", Type: "Episode"})
+	requestedLibrary := ""
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/Items/301/Refresh") {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if strings.Contains(r.URL.Path, "/Items/lib-") && strings.HasSuffix(r.URL.Path, "/Refresh") {
+			parts := strings.Split(r.URL.Path, "/")
+			requestedLibrary = parts[len(parts)-2]
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+	GlobalEmbyConfig.EmbyUrl = server.URL
+
+	task := newPendingEmbyItemRefreshTask(EmbyRefreshTarget{
+		TargetType:          EmbyRefreshTargetTypeItem,
+		ItemID:              "301",
+		ItemName:            "第 1 集",
+		ItemType:            "Episode",
+		FallbackLibraryId:   "lib-movie",
+		FallbackLibraryName: "电影",
+	}, 10, nowUnix()-100)
+	task.RefreshAfterAt = nowUnix() - 1
+	if err := db.Db.Create(task).Error; err != nil {
+		t.Fatalf("创建刷新任务失败: %v", err)
+	}
+
+	if err := refreshEmbyLibraryTask(task); err != nil {
+		t.Fatalf("item 失败后刷新真实媒体库失败: %v", err)
+	}
+	if requestedLibrary != "lib-tv" {
+		t.Fatalf("fallback 刷新媒体库 = %s，期望 lib-tv", requestedLibrary)
+	}
+	var updated EmbyLibraryRefreshTask
+	if err := db.Db.First(&updated, task.ID).Error; err != nil {
+		t.Fatalf("查询刷新任务失败: %v", err)
+	}
+	if updated.FallbackLibraryId != "lib-tv" || updated.FallbackLibraryName != "剧集" {
+		t.Fatalf("持久化 fallback = %s/%s，期望 lib-tv/剧集", updated.FallbackLibraryId, updated.FallbackLibraryName)
+	}
+}
+
+func TestExecuteEmbyRefreshTaskDoesNotUseFallbackWithoutItemIDs(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	refreshRequests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		refreshRequests++
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+	GlobalEmbyConfig.EmbyUrl = server.URL
+
+	client := embyclientrestgo.NewClient(server.URL, GlobalEmbyConfig.EmbyApiKey)
+	err := executeEmbyRefreshTask(client, &EmbyLibraryRefreshTask{
+		TargetType:          EmbyLibraryRefreshTargetTypeItem,
+		FallbackLibraryId:   "lib-movie",
+		FallbackLibraryName: "电影",
+	})
+	if err == nil {
+		t.Fatal("缺少 item ID 的历史任务应失败，不能直接刷新 fallback 媒体库")
+	}
+	if refreshRequests != 0 {
+		t.Fatalf("缺少 item ID 时刷新请求次数 = %d，期望 0", refreshRequests)
+	}
+}
+
 func TestRefreshTaskWaitsForRetryableFailedDownload(t *testing.T) {
 	setupEmbyRefreshTestDB(t)
 	db.Db.Create(&SyncFile{BaseModel: BaseModel{ID: 1}, SyncPathId: 10})
@@ -510,6 +802,64 @@ func TestDownloadTaskChangedSchedulesNextEmbyRefreshCheck(t *testing.T) {
 	assertScheduledEmbyRefreshCheckAt(t, updated.RefreshAfterAt)
 }
 
+func TestRefreshTaskDownloadEventDelaysItemByFallbackLibrary(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	now := nowUnix()
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-tv", LibraryName: "剧集", SyncPathId: 10})
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-tv", LibraryName: "剧集", SyncPathId: 11})
+	task := newPendingEmbyItemRefreshTask(EmbyRefreshTarget{
+		TargetType:          EmbyRefreshTargetTypeItem,
+		ItemID:              "301",
+		ItemName:            "第一季",
+		ItemType:            "Season",
+		Recursive:           true,
+		FallbackLibraryId:   "lib-tv",
+		FallbackLibraryName: "剧集",
+	}, 10, now-100)
+	task.RefreshAfterAt = now - 1
+	if err := db.Db.Create(task).Error; err != nil {
+		t.Fatalf("创建 item 刷新任务失败: %v", err)
+	}
+
+	if err := NotifyEmbyRefreshDownloadTasksChangedBySyncPathIds([]uint{11}); err != nil {
+		t.Fatalf("处理下载任务变化失败: %v", err)
+	}
+
+	var updated EmbyLibraryRefreshTask
+	if err := db.Db.Where("task_key = ?", embyItemRefreshTaskKey("301")).First(&updated).Error; err != nil {
+		t.Fatalf("查询 item 刷新任务失败: %v", err)
+	}
+	if updated.RefreshAfterAt <= now {
+		t.Fatalf("来自同媒体库其他同步目录的下载事件应延长 item 任务稳定窗口，实际 refresh_after_at=%d now=%d", updated.RefreshAfterAt, now)
+	}
+	assertScheduledEmbyRefreshCheckAt(t, updated.RefreshAfterAt)
+}
+
+func TestRefreshTaskDownloadEventMatchesItemOwnSyncPathWhenLibraryUnresolved(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	now := nowUnix()
+	task := newPendingEmbyItemRefreshTask(EmbyRefreshTarget{
+		TargetType: EmbyRefreshTargetTypeItem,
+		ItemID:     "unresolved-item",
+		ItemName:   "未知条目",
+	}, 10, now-100)
+	task.RefreshAfterAt = now - 1
+	if err := db.Db.Create(task).Error; err != nil {
+		t.Fatalf("创建 unresolved item 任务失败: %v", err)
+	}
+
+	if err := NotifyEmbyRefreshDownloadTasksChangedBySyncPathIds([]uint{10}); err != nil {
+		t.Fatalf("处理下载事件失败: %v", err)
+	}
+	var updated EmbyLibraryRefreshTask
+	if err := db.Db.First(&updated, task.ID).Error; err != nil {
+		t.Fatalf("查询刷新任务失败: %v", err)
+	}
+	if updated.RefreshAfterAt <= now {
+		t.Fatalf("任务自身同步目录事件应延长稳定窗口，实际 refresh_after_at=%d", updated.RefreshAfterAt)
+	}
+}
+
 func TestCheckPendingEmbyLibraryRefreshTasksReschedulesFutureTask(t *testing.T) {
 	setupEmbyRefreshTestDB(t)
 	now := nowUnix()
@@ -631,6 +981,74 @@ func TestClearDownloadPendingTasksCancelsPendingEmbyRefreshTask(t *testing.T) {
 	}
 	if !strings.Contains(updated.Error, "清空等待下载任务") {
 		t.Fatalf("媒体库刷新任务取消原因 = %s，期望包含 清空等待下载任务", updated.Error)
+	}
+}
+
+func TestRefreshTaskClearDownloadPendingCancelsItemByFallbackLibrary(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	now := nowUnix()
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-tv", LibraryName: "剧集", SyncPathId: 10})
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-tv", LibraryName: "剧集", SyncPathId: 11})
+	task := newPendingEmbyItemRefreshTask(EmbyRefreshTarget{
+		TargetType:          EmbyRefreshTargetTypeItem,
+		ItemID:              "301",
+		ItemName:            "第一季",
+		ItemType:            "Season",
+		Recursive:           true,
+		FallbackLibraryId:   "lib-tv",
+		FallbackLibraryName: "剧集",
+	}, 10, now)
+	if err := db.Db.Create(task).Error; err != nil {
+		t.Fatalf("创建 item 刷新任务失败: %v", err)
+	}
+	if err := db.Db.Create(&DbDownloadTask{
+		SyncPathId: 11,
+		Status:     DownloadStatusPending,
+		Source:     DownloadSourceStrm,
+	}).Error; err != nil {
+		t.Fatalf("创建等待下载任务失败: %v", err)
+	}
+
+	if err := ClearDownloadPendingTasks(); err != nil {
+		t.Fatalf("清空等待下载任务失败: %v", err)
+	}
+
+	var updated EmbyLibraryRefreshTask
+	if err := db.Db.Where("task_key = ?", embyItemRefreshTaskKey("301")).First(&updated).Error; err != nil {
+		t.Fatalf("查询 item 刷新任务失败: %v", err)
+	}
+	if updated.Status != EmbyLibraryRefreshStatusCancelled {
+		t.Fatalf("item 刷新任务状态 = %s，期望 cancelled", updated.Status)
+	}
+	if !strings.Contains(updated.Error, "清空等待下载任务") {
+		t.Fatalf("item 刷新任务取消原因 = %s，期望包含 清空等待下载任务", updated.Error)
+	}
+}
+
+func TestRefreshTaskClearDownloadPendingCancelsUnresolvedItemByOwnSyncPath(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	now := nowUnix()
+	task := newPendingEmbyItemRefreshTask(EmbyRefreshTarget{
+		TargetType: EmbyRefreshTargetTypeItem,
+		ItemID:     "unresolved-item",
+		ItemName:   "未知条目",
+	}, 10, now)
+	if err := db.Db.Create(task).Error; err != nil {
+		t.Fatalf("创建 unresolved item 任务失败: %v", err)
+	}
+	if err := db.Db.Create(&DbDownloadTask{SyncPathId: 10, Status: DownloadStatusPending, Source: DownloadSourceStrm}).Error; err != nil {
+		t.Fatalf("创建等待下载任务失败: %v", err)
+	}
+
+	if err := ClearDownloadPendingTasks(); err != nil {
+		t.Fatalf("清空等待下载任务失败: %v", err)
+	}
+	var updated EmbyLibraryRefreshTask
+	if err := db.Db.First(&updated, task.ID).Error; err != nil {
+		t.Fatalf("查询刷新任务失败: %v", err)
+	}
+	if updated.Status != EmbyLibraryRefreshStatusCancelled {
+		t.Fatalf("item 刷新任务状态 = %s，期望 cancelled", updated.Status)
 	}
 }
 

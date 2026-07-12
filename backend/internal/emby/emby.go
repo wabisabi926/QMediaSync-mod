@@ -552,20 +552,35 @@ func resolveEmbyItemLibrary(client *embyclientrestgo.Client, itemID string) (lib
 	if err != nil {
 		return "", "", err
 	}
+	names := make(map[string]string, len(libraries))
+	ids := make([]string, 0, len(libraries))
 	for _, library := range libraries {
 		id := library.ID
 		if id == "" {
 			id = library.ItemId
 		}
 		if id != "" {
-			return id, library.Name, nil
+			if _, exists := names[id]; !exists {
+				ids = append(ids, id)
+				names[id] = library.Name
+			}
 		}
+	}
+	if len(ids) == 1 {
+		return ids[0], names[ids[0]], nil
+	}
+	if len(ids) > 1 {
+		helpers.AppLogger.Warnf("Webhook 单条同步解析到多个 Emby 媒体库候选，保留条目但不写入 LibraryId：Item ID=%s，候选=%v", itemID, ids)
+		return "", "", nil
 	}
 	return "", "", fmt.Errorf("未找到 Emby 条目 %s 所属的媒体库", itemID)
 }
 
 func isEmbyLibrarySelected(config *models.EmbyConfig, libraryID string) bool {
 	if config == nil || config.SyncAllLibraries != 0 {
+		return true
+	}
+	if libraryID == "" {
 		return true
 	}
 	var selectedLibraryIDs []string

@@ -22,16 +22,17 @@ Emby 相关任务分为两条独立链路，不能混用。
 
 - 传统同步目录刷新调用 `models.RequestEmbyLibraryRefreshBySyncPathId(...)`。
 - 上传完成、远端已存在等非 Webhook STRM 任务生成 STRM 后调用 `models.RequestEmbyRefreshBySyncFile(...)`，优先解析 item 级刷新目标。
-- STRM Webhook 只有 `refresh_emby=true` 且 STRM 变更或新增元数据下载任务时才解析刷新目标；批量和目录扫描先累计子任务目标，父任务全部子任务完成或失败后调用 `models.RequestEmbyRefreshTargets(...)` 统一提交。
+- STRM Webhook 只有 `refresh_emby=true` 且 STRM 变更或新增元数据下载任务时才解析刷新目标；批量和目录扫描先累计子任务目标，只有父任务全部子任务成功完成且存在 STRM / 元数据变化时才调用 `models.RequestEmbyRefreshTargets(...)` 统一提交，任一子任务失败则不提交刷新。
 - 已有关联的 Movie、Video、Episode 刷新对应 item；同季新增剧集没有自身 Episode 关联时优先刷新已有 Season，缺少 Season 时刷新 Series。
-- 本地索引无法定位 item 时，会按 STRM 本地路径调用 Emby `/Items?Path=...` 做一次兜底查询。
+- 本地快速解析只读取本地索引，不会为校验缓存条目额外请求 Emby。只有本地索引无法定位 item 时，才会按 STRM 本地路径调用 Emby `/Items?Path=...` 做一次兜底查询；该查询命中 item 后，先采用本地 item 或 sibling Episode 证据，再通过 Ancestors 消歧，最后才使用同步路径唯一关联媒体库。远端 Ancestors 解析按 Emby 服务、凭据和 item ID 缓存 30 秒；同一 item 的并发解析会合并为一次请求，远端失败结果不缓存。
 - 仍无法定位可靠 item 时，回退同步目录关联媒体库刷新。
 - 创建或合并 `EmbyLibraryRefreshTask`。
+- item 级刷新任务使用 `task_key=item:<item_id>` 作为去重键，`library_id` 只保存真实媒体库 ID 或为空。`fallback_library_id` 仅保存当前已解析的有效媒体库或旧任务 hint；解析依次使用本地 item、Season/Series sibling Episode、Emby Ancestors、同步路径唯一关联库和仍属于候选集合的旧 hint。本地解析到库 ID 但当前同步路径没有库名时，会从全局媒体库关联或媒体库索引补全名称。Season/Series 的 sibling 证据出现多库冲突时才请求 Ancestors 消歧；多库且无证据时保持 unresolved，不再任选第一个媒体库。并发创建任务使用 `task_key` 的数据库冲突处理，不会在唯一键失败的事务中递归查询。
 - 刷新任务创建、更新或下载事件批量落库后，会把全局最近到期 timer 调度到最早的 `pending.refresh_after_at`。
 - 并发调度时，如果一个较旧的查询结果晚于较新的更早 timer 返回，旧结果不能取消或覆盖已有更早 timer；最多提前唤醒检查一次。
 - 如果调度时发现已有到期且未按当前 `refresh_after_at` 检查过的 pending 任务，会立即触发一次检查。
 - timer 到期后通过原有检查通道唤醒协调器；60 秒 ticker 仍保留为兜底。
-- 协调器等待相关下载任务和 STRM 同步任务结束；如果到期时仍有下载任务，会继续等待后续下载事件或 60 秒 ticker 兜底检查。
+- 协调器等待相关下载任务和 STRM 同步任务结束；等待范围始终包含任务自身 `sync_path_ids`，再扩展本地证据确认的媒体库关联目录。旧错误 `fallback_library_id` 不会覆盖 `emby_media_items.library_id` 或 sibling Episode 证据，也不会扩展到错误媒体库。如果 item 刷新失败，会重新执行本地解析并按需查询 Ancestors；只有解析成功才刷新真实媒体库，unresolved 时保留失败。
 - 最后按任务目标调用 Emby item 刷新或媒体库刷新接口。
 
 全局 timer 只负责到点唤醒检查，不直接决定是否刷新。多个刷新任务有各自的 `refresh_after_at` 和下载任务状态，全局 timer 只指向最早到期的一条；每次检查仍按任务独立判断是否 ready。

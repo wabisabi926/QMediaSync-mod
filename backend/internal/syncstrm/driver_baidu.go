@@ -108,7 +108,7 @@ func (d *BaiduPanDriver) MakeStrmContent(sf *SyncFileCache) string {
 	if pathValue := strmPathQueryValue(d.s.Config.StrmUrlNeedPath, sf); pathValue != "" {
 		params.Add("path", pathValue)
 	}
-	u.RawQuery = encodeStrmQuery(params)
+	u.RawQuery = encodeStrmQueryPathLast(params)
 	return u.String()
 }
 

@@ -20,6 +20,7 @@ type StrmData struct {
 	Path     string `json:"path"`      // 115 的路径
 	BaseUrl  string `json:"base_url"`  // 115 的 base URL
 	UrlPath  string `json:"url_path"`  // 115 的 URL path
+	RawQuery string `json:"raw_query"` // STRM URL 的原始 query
 }
 
 // 生成 STRM 文件
@@ -143,6 +144,11 @@ func (s *SyncStrm) CompareStrm(st *SyncFileCache) int {
 			s.Sync.Logger.Warnf("文件 %s 的 STRM 内容 URL 路径 %s 没有以 %s 结尾，重新生成", filepath.Join(st.Path, st.FileName), strmData.UrlPath, ext)
 			return 0
 		}
+		expectedRawQuery := expectedStrmQueryForSyncFile(s.Config.StrmUrlNeedPath, st, s.Account.UserId)
+		if strmData.RawQuery != expectedRawQuery {
+			s.Sync.Logger.Warnf("文件 %s 的 STRM 内容 query 顺序或编码与当前规范不一致，本地：%s，远程：%s", filepath.Join(st.Path, st.FileName), expectedRawQuery, strmData.RawQuery)
+			return 0
+		}
 	}
 	return 1
 }
@@ -165,6 +171,7 @@ func (s *SyncStrm) LoadDataFromStrm(strmPath string) *StrmData {
 		return nil
 	}
 	strmData.UrlPath = strmUrl.Path
+	strmData.RawQuery = strmUrl.RawQuery
 	queryParams := strmUrl.Query()
 	if pickCode := queryParams.Get("pickcode"); pickCode != "" {
 		strmData.PickCode = pickCode

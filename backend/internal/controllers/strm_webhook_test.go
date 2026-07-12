@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"qmediasync/internal/v115open"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func setupStrmWebhookControllerTest(t *testing.T) (*gin.Engine, string, *models.SyncPath) {
@@ -75,6 +77,29 @@ func setStrmWebhookFileIDDetailResolverForTesting(t *testing.T, resolver strmWeb
 	t.Cleanup(func() {
 		resolveStrmWebhookFileDetailByID = oldResolver
 	})
+}
+
+func TestStrmWebhookRejectsExplicitNon115SyncPath(t *testing.T) {
+	router, rawKey, syncPath := setupStrmWebhookControllerTest(t)
+	localSyncPath := &models.SyncPath{
+		SourceType: models.SourceTypeLocal,
+		AccountId:  syncPath.AccountId,
+		BaseCid:    "local-root",
+		LocalPath:  t.TempDir(),
+		RemotePath: "/local",
+	}
+	if err := db.Db.Create(localSyncPath).Error; err != nil {
+		t.Fatalf("创建非 115 同步目录失败: %v", err)
+	}
+
+	w := performStrmWebhookRequest(t, router, rawKey, "", map[string]any{
+		"sync_path_id":   localSyncPath.ID,
+		"action":         "directory_scan",
+		"directory_path": "/local",
+	})
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "115") {
+		t.Fatalf("非 115 同步目录应被拒绝: code=%d body=%s", w.Code, w.Body.String())
+	}
 }
 
 func TestStrmWebhookAuthSupportsHeaderAndQueryAPIKey(t *testing.T) {
@@ -633,7 +658,7 @@ func TestStrmWebhookBatchFilesRetryCompletesPartialParentAndKeepsInvalidResults(
 	}
 }
 
-func TestStrmWebhookBatchFilesChildCreateFailureReturnsErrorAndRetryRepairs(t *testing.T) {
+func TestStrmWebhookBatchFilesChildCreateFailureRollsBackParentAndRetryCreatesAll(t *testing.T) {
 	router, rawKey, syncPath := setupStrmWebhookControllerTest(t)
 	setStrmWebhookFileIDDetailResolverForTesting(t, func(_ context.Context, _ *models.Account, fileID string) (*v115open.FileDetail, error) {
 		return &v115open.FileDetail{
@@ -652,31 +677,22 @@ func TestStrmWebhookBatchFilesChildCreateFailureReturnsErrorAndRetryRepairs(t *t
 		Path:     "/remote/show",
 	}
 	preparedFiles := []strmWebhookPreparedFile{{index: 0, item: item}}
-	parent, err := models.EnqueueStrmGenerationTask(&models.StrmGenerationTask{
-		Source:      models.StrmGenerationSourceWebhook,
-		TaskType:    models.StrmGenerationTaskTypeBatchFiles,
-		SyncPathId:  syncPath.ID,
-		AccountId:   syncPath.AccountId,
-		TotalItems:  1,
-		Status:      models.StrmGenerationStatusWaitingChildren,
-		RequestHash: strmWebhookBatchRequestHash(syncPath.ID, options, preparedFiles),
+	failChildCreate := true
+	callbackName := "qms:test_fail_batch_child_create"
+	if err := db.Db.Callback().Create().Before("gorm:create").Register(callbackName, func(tx *gorm.DB) {
+		if !failChildCreate {
+			return
+		}
+		task, ok := tx.Statement.Dest.(*models.StrmGenerationTask)
+		if ok && task.TaskType == models.StrmGenerationTaskTypeFile && task.ParentTaskId > 0 {
+			tx.AddError(errors.New("inject batch child create failure"))
+		}
+	}); err != nil {
+		t.Fatalf("注册测试 callback 失败: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = db.Db.Callback().Create().Remove(callbackName)
 	})
-	if err != nil {
-		t.Fatalf("预置批量父任务失败: %v", err)
-	}
-
-	blocker := &models.StrmGenerationTask{
-		Source:      models.StrmGenerationSourceWebhook,
-		TaskType:    models.StrmGenerationTaskTypeFile,
-		SyncPathId:  syncPath.ID,
-		AccountId:   syncPath.AccountId,
-		FileId:      "request-hash-blocker",
-		Status:      models.StrmGenerationStatusPending,
-		RequestHash: strmWebhookBatchChildRequestHash(syncPath.ID, parent.ID, options, 0, item),
-	}
-	if err := db.Db.Create(blocker).Error; err != nil {
-		t.Fatalf("预置冲突子任务哈希失败: %v", err)
-	}
 
 	payload := map[string]any{
 		"sync_path_id": syncPath.ID,
@@ -690,25 +706,28 @@ func TestStrmWebhookBatchFilesChildCreateFailureReturnsErrorAndRetryRepairs(t *t
 		t.Fatalf("子任务创建失败不应返回 200: body=%s", w.Body.String())
 	}
 
-	var childCount int64
+	var parentCount int64
 	if err := db.Db.Model(&models.StrmGenerationTask{}).
-		Where("parent_task_id = ?", parent.ID).
-		Count(&childCount).Error; err != nil {
-		t.Fatalf("统计失败后的子任务失败: %v", err)
+		Where("request_hash = ?", strmWebhookBatchRequestHash(syncPath.ID, options, preparedFiles)).
+		Count(&parentCount).Error; err != nil {
+		t.Fatalf("统计失败后的父任务失败: %v", err)
 	}
-	if childCount != 0 {
-		t.Fatalf("子任务创建失败后 parent_task_id=%d 的子任务数量 = %d，期望 0", parent.ID, childCount)
+	if parentCount != 0 {
+		t.Fatalf("子任务创建失败后父任务数量 = %d，期望事务回滚不落父任务", parentCount)
 	}
 
-	if err := db.Db.Delete(blocker).Error; err != nil {
-		t.Fatalf("删除冲突任务失败: %v", err)
-	}
+	failChildCreate = false
 	resp := decodeStrmWebhookResponse(t, performStrmWebhookRequest(t, router, rawKey, "", payload))
 	if resp.Data.AcceptedCount != 1 || len(resp.Data.TaskIDs) != 1 || len(resp.Data.Results) != 1 {
-		t.Fatalf("清理冲突后重试响应 = %+v，期望补建 1 个子任务", resp.Data)
+		t.Fatalf("子任务创建恢复后重试响应 = %+v，期望创建 1 个父子事务任务", resp.Data)
 	}
-	if resp.Data.TaskIDs[0] == blocker.ID {
-		t.Fatalf("重试不应返回已删除的冲突任务 ID: %v", resp.Data.TaskIDs)
+	if err := db.Db.Model(&models.StrmGenerationTask{}).
+		Where("task_type = ?", models.StrmGenerationTaskTypeBatchFiles).
+		Count(&parentCount).Error; err != nil {
+		t.Fatalf("统计重试父任务失败: %v", err)
+	}
+	if parentCount != 1 {
+		t.Fatalf("重试后父任务数量 = %d，期望 1", parentCount)
 	}
 }
 
@@ -1030,6 +1049,17 @@ func TestStrmWebhookRejectsAutoMatchedBatchAcrossSyncPaths(t *testing.T) {
 
 func TestStrmWebhookDirectoryScan(t *testing.T) {
 	router, rawKey, syncPath := setupStrmWebhookControllerTest(t)
+	setStrmWebhookFileIDDetailResolverForTesting(t, func(_ context.Context, _ *models.Account, fileID string) (*v115open.FileDetail, error) {
+		if fileID != "dir-1" {
+			t.Fatalf("解析目录 ID = %s，期望 dir-1", fileID)
+		}
+		return &v115open.FileDetail{
+			FileId:       "dir-1",
+			FileName:     "show",
+			FileCategory: v115open.TypeDir,
+			Path:         "/remote",
+		}, nil
+	})
 	w := performStrmWebhookRequest(t, router, rawKey, "", map[string]any{
 		"sync_path_id":   syncPath.ID,
 		"action":         "directory_scan",
@@ -1061,6 +1091,31 @@ func TestStrmWebhookDirectoryScan(t *testing.T) {
 	})
 	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "不在同步远端目录") {
 		t.Fatalf("非法目录响应异常: code=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestStrmWebhookDirectoryScanRejectsMismatchedDirectoryIDAndPath(t *testing.T) {
+	router, rawKey, syncPath := setupStrmWebhookControllerTest(t)
+	setStrmWebhookFileIDDetailResolverForTesting(t, func(_ context.Context, _ *models.Account, fileID string) (*v115open.FileDetail, error) {
+		if fileID != "dir-actual" {
+			t.Fatalf("解析目录 ID = %s，期望 dir-actual", fileID)
+		}
+		return &v115open.FileDetail{
+			FileId:       "dir-actual",
+			FileName:     "actual",
+			FileCategory: v115open.TypeDir,
+			Path:         "/remote",
+		}, nil
+	})
+
+	w := performStrmWebhookRequest(t, router, rawKey, "", map[string]any{
+		"sync_path_id":   syncPath.ID,
+		"action":         "directory_scan",
+		"directory_id":   "dir-actual",
+		"directory_path": "/remote/show",
+	})
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "directory_id") {
+		t.Fatalf("目录 ID 和路径不一致应被拒绝: code=%d body=%s", w.Code, w.Body.String())
 	}
 }
 

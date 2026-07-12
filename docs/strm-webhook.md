@@ -23,11 +23,12 @@ API Key 在 Web 页面「系统设置 - API Key」中创建。完整密钥只会
 ## 处理边界
 
 - 当前 STRM Webhook 仅支持 115 网盘来源。
-- `sync_path_id` 可选；未提供时，后端会按请求里的 115 远端路径自动匹配同步目录。
+- `sync_path_id` 可选；显式提供时必须指向 115 同步目录；未提供时，后端会按请求里的 115 远端路径自动匹配同步目录。
 - 当前 Webhook 按 115 远端文件详情解析文件信息，`path` 和 `directory_path` 都表示 115 远端路径。
 - 禁止通过 `local_path` 指定本地写入位置；顶层请求和批量项中的 `local_path` 都会被拒绝。
 - 本地 STRM 输出路径只能由显式指定或自动匹配到的同步目录配置计算。
 - 文件级请求入队前会按 `file_id` 或 `path + file_name` 查询远端详情，并以解析后的真实远端路径再次校验同步目录边界。
+- 目录级请求同时提供 `directory_id` 和 `directory_path` 时，会按 `directory_id` 查询 115 目录详情，并要求返回对象是目录、目录 ID 和远端路径都与请求一致。
 - 未提供 `sync_path_id` 时，`file` 和 `batch_files` 必须提供 `path + file_name`；仅提供 `file_id` 无法自动判断同步目录。
 - 未提供 `sync_path_id` 时，`directory_scan` 必须提供 `directory_path`；仅提供 `directory_id` 无法自动判断同步目录。
 - 批量请求自动匹配时，所有 `items[]` 必须匹配到同一个同步目录；跨同步目录的文件需要拆成多个请求，或显式提供 `sync_path_id`。
@@ -57,7 +58,7 @@ API Key 在 Web 页面「系统设置 - API Key」中创建。完整密钥只会
 
 | 字段 | 必填 | 说明 |
 | --- | --- | --- |
-| `sync_path_id` | 否 | 同步目录 ID。缺省时按 115 远端路径自动匹配最具体的同步目录。 |
+| `sync_path_id` | 否 | 同步目录 ID。显式提供时必须是 115 同步目录；缺省时按 115 远端路径自动匹配最具体的同步目录。 |
 | `action` | 否 | `file`、`batch_files` 或 `directory_scan`。 |
 | `download_meta` | 否 | 是否下载本次视频强相关的同名元数据，默认 `false`。 |
 | `refresh_emby` | 否 | 是否在 STRM 变更或新增元数据下载任务后提交 Emby 刷新目标，默认 `false`。 |
@@ -83,8 +84,8 @@ API Key 在 Web 页面「系统设置 - API Key」中创建。完整密钥只会
 
 | 字段 | 必填 | 说明 |
 | --- | --- | --- |
-| `directory_id` | 条件必填 | 115 目录 ID。与 `directory_path` 至少提供一个；未提供 `sync_path_id` 时不能单独使用。 |
-| `directory_path` | 条件必填 | 115 远端目录路径。提供时必须位于同步目录的 `remote_path` 下；未提供 `sync_path_id` 时必填。 |
+| `directory_id` | 条件必填 | 115 目录 ID。与 `directory_path` 至少提供一个；未提供 `sync_path_id` 时不能单独使用；与 `directory_path` 同时提供时必须解析到同一个 115 目录。 |
+| `directory_path` | 条件必填 | 115 远端目录路径。提供时必须位于同步目录的 `remote_path` 下；未提供 `sync_path_id` 时必填；与 `directory_id` 同时提供时必须和 115 目录详情一致。 |
 
 ## 同步目录自动匹配
 
@@ -127,8 +128,8 @@ API Key 在 Web 页面「系统设置 - API Key」中创建。完整密钥只会
 `refresh_emby=true` 时，文件任务只有在 STRM 发生变更或新增元数据下载任务后才解析并提交刷新目标。
 
 - `file`：单文件任务完成后提交目标，但仍进入现有 Emby 刷新协调器防抖。
-- `batch_files`：所有子任务完成或失败后，由批量父任务统一提交一次已收集目标集合。
-- `directory_scan`：目录展开出的所有子任务完成或失败后，由目录扫描父任务统一提交一次已收集目标集合。
+- `batch_files`：所有子任务成功完成且存在 STRM / 元数据变化后，由批量父任务统一提交一次已收集目标集合；任一子任务失败则父任务失败且不提交刷新。
+- `directory_scan`：目录展开出的所有子任务成功完成且存在 STRM / 元数据变化后，由目录扫描父任务统一提交一次已收集目标集合；任一子任务失败则父任务失败且不提交刷新。
 
 刷新目标优先保持 item 精度。每个发生变化的文件会先解析为 Movie、Episode、Season、Series 等 item；解析不到可靠 item 时回退同步目录关联媒体库。目标集合会去重，同一媒体库内如果出现 library fallback，该媒体库内其他 item 目标会被覆盖，不再单独提交；不同媒体库互不影响。
 
@@ -178,12 +179,12 @@ API Key 在 Web 页面「系统设置 - API Key」中创建。完整密钥只会
 
 Webhook 入队会为请求生成短格式 `request_hash`，形如 `webhook:file:v2:<sha256>`。请求动作、远端定位信息和请求级开关会参与摘要计算，但远端路径、文件名和目录路径不会明文拼进唯一键；完整值仍保存在 `strm_generation_tasks.path`、`file_name` 或 `directory_path` 等任务字段中。
 
-- `pending`、`running` 或 `waiting_children` 状态的相同请求会复用已有任务，不重复创建。
+- `pending`、`running`、`finalizing` 或 `waiting_children` 状态的相同请求会复用已有任务，不重复创建。
 - 升级后再次提交相同请求时，会优先生成短格式哈希；如果数据库中仍有旧格式活跃任务，会复用旧任务，不重复创建。
 - 历史任务如果已经 `failed`、`completed` 或 `cancelled`，再次提交相同请求会归档旧请求哈希并创建新的待处理任务。
-- worker 只自动领取 `pending` 任务；执行失败会把任务标记为 `failed`，递增 `retry_count` 并写入 `last_error`。
+- worker 自动领取 `pending` 和 `finalizing` 任务；执行失败会把任务标记为 `failed`，递增 `retry_count` 并写入 `last_error`。
 - `batch_files` 父任务不由 worker 执行；创建后状态为 `waiting_children`，所有子任务进入终态后才转为 `completed` 或 `failed`。相同批量请求重试时会按合法 item 的原始 `items[]` index 匹配子任务，已存在的子任务复用，缺失的子任务补建，非法项仍按原始 index 返回失败结果。
-- 如果合法 `batch_files` 子任务写入失败，整个请求返回错误；已创建的活跃父任务会保留，后续相同请求会继续补建缺失子任务。
+- `batch_files` 父任务和合法子任务在同一个数据库事务内创建；任一子任务写入失败时整个请求返回错误并回滚父任务，后续相同请求会重新创建完整父子任务集合。
 - `directory_scan` 父任务展开完成后记录 `total_items`；子任务后续完成或失败时累计 `accepted_items`、`failed_items`、`changed_items` 和 `new_meta_items`。
 
 ## 示例

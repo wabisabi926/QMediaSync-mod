@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"qmediasync/internal/directoryupload"
 	"qmediasync/internal/models"
@@ -14,6 +15,7 @@ import (
 )
 
 type directoryUploadRuleRequest struct {
+	ClientID                 string                              `json:"client_id"`
 	ID                       uint                                `json:"id"`
 	SyncPathID               uint                                `json:"sync_path_id"`
 	AccountID                uint                                `json:"account_id"`
@@ -60,60 +62,6 @@ func ListDirectoryUploadRules(c *gin.Context) {
 	}})
 }
 
-// SaveDirectoryUploadSyncPathRules 批量保存同步目录下目录监控上传规则。
-func SaveDirectoryUploadSyncPathRules(c *gin.Context) {
-	syncPathID, ok := parseUintParam(c, "sync_path_id")
-	if !ok {
-		return
-	}
-	syncPath := models.GetSyncPathById(syncPathID)
-	if syncPath == nil {
-		c.JSON(http.StatusNotFound, APIResponse[any]{Code: BadRequest, Message: "同步目录不存在", Data: nil})
-		return
-	}
-	var req directoryUploadRulesSaveRequest
-	if err := c.ShouldBindJSON(&req); err != nil || req.Enabled == nil || req.Rules == nil {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误", Data: nil})
-		return
-	}
-
-	rules := make([]*models.DirectoryUploadRule, 0, len(*req.Rules))
-	for _, item := range *req.Rules {
-		if item.SyncPathID != 0 && item.SyncPathID != syncPathID {
-			c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "目录监控上传规则不属于当前同步目录", Data: nil})
-			return
-		}
-		item.SyncPathID = syncPathID
-		var existing *models.DirectoryUploadRule
-		if item.ID > 0 {
-			rule, err := models.GetDirectoryUploadRuleById(item.ID)
-			if err != nil || rule.SyncPathId != syncPathID {
-				c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "目录监控上传规则不属于当前同步目录", Data: nil})
-				return
-			}
-			existing = rule
-		}
-		rule, err := buildDirectoryUploadRuleFromRequestWithoutScopeValidation(existing, item)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
-			return
-		}
-		rules = append(rules, rule)
-	}
-
-	saved, err := models.SaveDirectoryUploadRulesForSyncPath(syncPath.ID, *req.Enabled, rules)
-	if err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
-		return
-	}
-	directoryupload.ReloadDirectoryUploadService()
-	c.JSON(http.StatusOK, APIResponse[any]{
-		Code:    Success,
-		Message: "保存目录监控上传规则成功",
-		Data:    gin.H{"enabled": *req.Enabled, "list": saved, "total": len(saved)},
-	})
-}
-
 // ScanDirectoryUploadSyncPathRules 手动触发同步目录下所有启用目录监控规则扫描。
 func ScanDirectoryUploadSyncPathRules(c *gin.Context) {
 	syncPathID, ok := parseUintParam(c, "sync_path_id")
@@ -134,11 +82,13 @@ func ScanDirectoryUploadSyncPathRules(c *gin.Context) {
 		return
 	}
 
+	scanCtx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Minute)
+	defer cancel()
 	items := make([]directoryUploadRuleScanItem, 0, len(rules))
 	totalAccepted := 0
 	var firstErr error
 	for _, rule := range rules {
-		accepted, scanErr := directoryupload.ScanRuleNow(context.Background(), rule)
+		accepted, scanErr := directoryupload.ScanRuleNow(scanCtx, rule)
 		item := directoryUploadRuleScanItem{RuleID: rule.ID, Accepted: accepted}
 		if scanErr != nil {
 			item.Error = scanErr.Error()

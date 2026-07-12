@@ -204,7 +204,7 @@ interface DirectoryUploadRule {
   overwrite_mode: DirectoryUploadOverwriteMode
 }
 
-type UploadTaskStatus = 0 | 1 | 2 | 3 | 4
+type UploadTaskStatus = 0 | 1 | 2 | 3 | 4 | 5
 
 interface UploadTaskQueueItem {
   id: string | number

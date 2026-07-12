@@ -108,11 +108,7 @@ func (s *SyncStrm) process115FilePage(ctx context.Context, page, limit int) erro
 			return err
 		}
 		// s.Sync.Logger.Infof("文件 %s => %s 插入同步缓存成功，路径 %s", syncFile.FileId, syncFile.FileName, syncFile.LocalFilePath)
-		// 如果路径完整，直接处理文件
-		if syncFile.LocalFilePath != "" {
-			s.processNetFile(&syncFile)
-		}
-		// s.Sync.Logger.Infof("文件 %s => %s 处理完成", syncFile.FileId, syncFile.FileName)
+		// 文件和路径收集完成后统一处理，避免同 basename 视频竞争同一个 STRM。
 	}
 	s.Sync.Logger.Infof("文件处理器处理完成，offset=%d，limit=%d，共处理 %d 个文件", offset, limit, len(files))
 	return nil

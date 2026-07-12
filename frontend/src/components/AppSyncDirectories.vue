@@ -450,6 +450,7 @@ const router = useRouter()
 
 const directories = ref<SyncDirectory[]>([])
 const directoryUploadRules = ref<Record<number, DirectoryUploadRuleState[]>>({})
+const directoryUploadRulesLoadFailed = ref(false)
 const loading = ref(false)
 const total = ref(0)
 const currentPage = ref(1)
@@ -475,12 +476,19 @@ const getDirectoryUploadRules = (row: SyncDirectory): DirectoryUploadRuleState[]
 }
 
 const getDirectoryUploadStatusText = (row: SyncDirectory): string => {
-  return formatDirectoryUploadStatus(getDirectoryUploadRules(row), row.directory_upload_enabled)
+  return formatDirectoryUploadStatus(
+    getDirectoryUploadRules(row),
+    row.directory_upload_enabled,
+    directoryUploadRulesLoadFailed.value,
+  )
 }
 
 const getDirectoryUploadStatusType = (
   row: SyncDirectory,
 ): 'success' | 'info' | 'warning' | 'danger' => {
+  if (directoryUploadRulesLoadFailed.value) {
+    return 'danger'
+  }
   const rules = getDirectoryUploadRules(row)
   if (rules.length === 0) {
     return 'info'
@@ -650,6 +658,7 @@ const loadDirectories = async () => {
       directories.value = []
       total.value = 0
       directoryUploadRules.value = {}
+      directoryUploadRulesLoadFailed.value = false
     }
   } catch {
     console.error('加载同步目录错误')
@@ -657,21 +666,25 @@ const loadDirectories = async () => {
     directories.value = []
     total.value = 0
     directoryUploadRules.value = {}
+    directoryUploadRulesLoadFailed.value = false
   } finally {
     loading.value = false
   }
 }
 
 const loadDirectoryUploadRules = async () => {
+  directoryUploadRulesLoadFailed.value = false
   try {
     const response = await http?.get(`${SERVER_URL}/directory-upload/rules`)
     if (response?.data.code !== 200) {
       directoryUploadRules.value = {}
+      directoryUploadRulesLoadFailed.value = true
       return
     }
     directoryUploadRules.value = groupDirectoryUploadRulesBySyncPath(response.data.data?.list || [])
   } catch {
     directoryUploadRules.value = {}
+    directoryUploadRulesLoadFailed.value = true
   }
 }
 
@@ -884,6 +897,10 @@ const handleStop = async (row: SyncDirectory, index: number) => {
 }
 
 const scanDirectoryUploadRule = async (row: SyncDirectory) => {
+  if (directoryUploadRulesLoadFailed.value) {
+    ElMessage.warning('目录监控上传规则加载失败，请刷新后重试')
+    return
+  }
   const rules = getDirectoryUploadRules(row)
   if (rules.length === 0) {
     ElMessage.warning('该同步目录尚未配置目录监控上传')

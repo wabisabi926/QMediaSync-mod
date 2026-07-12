@@ -51,7 +51,9 @@ mainloop:
 				if err.Error() == "访问频率过高" {
 					// 访问频率过高，暂停 30 秒后重试。
 					d.s.Sync.Logger.Warnf("获取 115 网盘文件列表失败：目录 ID %s，offset=%d，limit=%d，%v，暂停 30 秒后重试", parentPathId, offset, limit, err)
-					time.Sleep(30 * time.Second)
+					if err := wait115RateLimitRetry(ctx); err != nil {
+						return nil, err
+					}
 					continue mainloop
 				}
 				d.s.Sync.Logger.Errorf("获取 115 网盘文件列表失败：目录 ID %s，offset=%d，limit=%d，%v", parentPathId, offset, limit, err)
@@ -199,7 +201,9 @@ func (d *open115Driver) GetDirsByPathId(ctx context.Context, pathId string) ([]p
 			if err.Error() == "访问频率过高" {
 				// 访问频率过高，暂停 30 秒后重试。
 				d.s.Sync.Logger.Warnf("获取 115 网盘文件列表失败：目录 ID %s，offset=%d，limit=%d，%v，暂停 30 秒后重试", pathId, offset, limit, err)
-				time.Sleep(30 * time.Second)
+				if err := wait115RateLimitRetry(ctx); err != nil {
+					return nil, err
+				}
 				continue
 			}
 			d.s.Sync.Logger.Errorf("获取 115 网盘目录失败：目录 ID %s，%v", pathId, err)
@@ -229,6 +233,18 @@ func (d *open115Driver) GetDirsByPathId(ctx context.Context, pathId string) ([]p
 		offset += limit
 	}
 	return pathDirs, nil
+}
+
+// wait115RateLimitRetry 在限流重试期间响应调用方取消。
+func wait115RateLimitRetry(ctx context.Context) error {
+	timer := time.NewTimer(30 * time.Second)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 // 查询目录下的所有文件

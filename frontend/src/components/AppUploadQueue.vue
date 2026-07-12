@@ -60,6 +60,7 @@
           <el-option label="已完成" :value="2"></el-option>
           <el-option label="失败" :value="3"></el-option>
           <el-option label="已取消" :value="4"></el-option>
+          <el-option label="待收尾" :value="5"></el-option>
         </el-select>
       </div>
 
@@ -328,7 +329,7 @@ interface UploadTask {
   file_name: string
   local_full_path: string
   remote_path: string
-  status: 0 | 1 | 2 | 3 | 4
+  status: 0 | 1 | 2 | 3 | 4 | 5
   file_size: number
   start_time: number
   end_time: number
@@ -392,8 +393,30 @@ const hasActiveQueueWork = computed(
   () =>
     queueStatus.value === 1 ||
     uploading.value > 0 ||
-    queueData.value.some((task) => task.status <= 1),
+    queueData.value.some((task) => task.status === 0 || task.status === 1 || task.status === 5),
 )
+
+const taskMatchesCurrentStatusFilter = (task: UploadTask): boolean => {
+  return statusFilter.value === -1 || task.status === statusFilter.value
+}
+
+const removeQueueRowByTaskId = (taskId: string | number | undefined): boolean => {
+  if (taskId === undefined) {
+    return false
+  }
+  const beforeCount = queueData.value.length
+  queueData.value = queueData.value.filter((task) => String(task.id) !== String(taskId))
+  const removed = beforeCount - queueData.value.length
+  if (removed > 0) {
+    total.value = Math.max(0, total.value - removed)
+    pageStateStore.setExpandedRowKeys(
+      'upload-queue',
+      retainExistingKeys(pageState.expandedRowKeys, queueData.value, (row) => row.id),
+    )
+    return true
+  }
+  return false
+}
 
 // 定时器
 const refreshTimer = ref<number | null>(null)
@@ -457,6 +480,8 @@ const getStatusText = (status: number): string => {
       return '失败'
     case 4:
       return '已取消'
+    case 5:
+      return '待收尾'
     default:
       return '未知'
   }
@@ -477,6 +502,8 @@ const getStatusTagType = (
       return 'danger'
     case 4:
       return 'warning'
+    case 5:
+      return 'primary'
     default:
       return 'info'
   }
@@ -496,6 +523,9 @@ const getStageResultTagType = (
   }
   if (task.upload_phase === 'rapid_waiting') {
     return 'warning'
+  }
+  if (task.status === 5 || task.upload_phase === 'remote_completed_pending_finalize') {
+    return 'primary'
   }
   if (task.status === 2) {
     return 'success'
@@ -912,10 +942,25 @@ const progressPatchFields = [
 ] as const
 
 const isUploadProgressPatch = (data: Record<string, unknown>): boolean => {
+  if (data.reason !== 'progress') {
+    return false
+  }
   if (data.task_id === undefined && data.id === undefined) {
     return false
   }
   return progressPatchFields.some((field) => data[field] !== undefined)
+}
+
+const applyUploadProgressPatchForCurrentFilter = (patch: UploadQueuePatch): boolean => {
+  const taskId = patch.task_id ?? patch.id
+  if (!applyUploadQueuePatch(queueData.value, patch)) {
+    return false
+  }
+  const row = queueData.value.find((item) => String(item.id) === String(taskId))
+  if (row && !taskMatchesCurrentStatusFilter(row)) {
+    removeQueueRowByTaskId(taskId)
+  }
+  return true
 }
 
 useWSEvent('upload_queue_status_changed', (data) => {
@@ -936,7 +981,7 @@ useWSEvent('upload_queue_changed', (data) => {
   }
   if (
     isUploadProgressPatch(data) &&
-    applyUploadQueuePatch(queueData.value, data as UploadQueuePatch)
+    applyUploadProgressPatchForCurrentFilter(data as UploadQueuePatch)
   ) {
     if (hasActiveQueueWork.value) {
       startAutoRefresh()

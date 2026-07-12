@@ -315,7 +315,7 @@ func TestPollingSnapshotTracksSymlinkTargetFingerprintChange(t *testing.T) {
 	}
 	setupDirectoryUploadServiceTestDB(t)
 	monitorPath := t.TempDir()
-	targetPath := filepath.Join(t.TempDir(), "target.mkv")
+	targetPath := filepath.Join(monitorPath, "target.bin")
 	linkPath := filepath.Join(monitorPath, "linked.mkv")
 	writeFileWithMtime(t, targetPath, []byte("target"), time.Unix(430, 0))
 	if err := os.Symlink(targetPath, linkPath); err != nil {
@@ -345,6 +345,35 @@ func TestPollingSnapshotTracksSymlinkTargetFingerprintChange(t *testing.T) {
 		t.Fatalf("tracked=%d，期望 symlink 目标 fingerprint 变化后重新入队", tracked)
 	}
 	waitForPendingPath(t, service, rule.ID, linkPath)
+}
+
+func TestPollingSnapshotSkipsSymlinkEscapingMonitor(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows 下 symlink 权限和路径分隔符语义不同")
+	}
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	outsideTarget := filepath.Join(t.TempDir(), "outside.mkv")
+	linkPath := filepath.Join(monitorPath, "linked.mkv")
+	writeFileWithMtime(t, outsideTarget, []byte("outside"), time.Unix(431, 0))
+	if err := os.Symlink(outsideTarget, linkPath); err != nil {
+		t.Skipf("当前平台不支持创建 symlink: %v", err)
+	}
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.WatchMode = models.DirectoryUploadWatchModePolling
+
+	service := NewService(ServiceOptions{})
+	runtime := &RuleRuntime{}
+	tracked, err := service.scanPollingSnapshot(context.Background(), runtime, rule, monitorPath, pollingSnapshotDiff)
+	if err != nil {
+		t.Fatalf("执行越界 symlink polling 快照扫描失败: %v", err)
+	}
+	if tracked != 0 {
+		t.Fatalf("tracked=%d，期望越界 symlink 不入队", tracked)
+	}
+	if pending := service.PendingPaths(rule.ID); len(pending) != 0 {
+		t.Fatalf("pending paths=%v，期望越界 symlink 不进入稳定性队列", pending)
+	}
 }
 
 func TestScanRootWithSnapshotKeepsPartialResultWhenWalkDirFails(t *testing.T) {

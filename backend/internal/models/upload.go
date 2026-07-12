@@ -117,7 +117,9 @@ func (uq *UQ) moveTasksToChannel() {
 	defer uq.mutex.Unlock()
 
 	var total int64
-	db.Db.Model(&DbUploadTask{}).Where("status = ?", UploadStatusPending).Count(&total)
+	db.Db.Model(&DbUploadTask{}).
+		Where("status IN ?", []UploadStatus{UploadStatusPending, UploadStatusRemoteCompletedPendingFinalize}).
+		Count(&total)
 	if total == 0 {
 		if uq.retryTriggered {
 			return

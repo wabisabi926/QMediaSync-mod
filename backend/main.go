@@ -120,6 +120,7 @@ func (app *App) Start() {
 }
 
 func (app *App) Stop() {
+	app.shutdownHTTPServers()
 	// 关闭同步任务执行队列
 	synccron.PauseAllNewSyncQueues()
 	// 关闭上传下载队列
@@ -127,6 +128,8 @@ func (app *App) Stop() {
 	models.GlobalUploadQueue.Stop()
 	// 关闭目录监控上传服务
 	directoryupload.StopDirectoryUploadService()
+	// 关闭 STRM 生成 worker
+	syncstrm.StopStrmGenerationWorker()
 	// 关闭定时任务（包含备份定时任务）
 	synccron.GlobalCron.Stop()
 	// 关闭数据库
@@ -134,6 +137,10 @@ func (app *App) Stop() {
 		app.dbManager.Stop()
 	}
 	helpers.CloseLogger() // 关闭日志
+}
+
+// shutdownHTTPServers 停止接收新请求并等待现有 handler 退出。
+func (app *App) shutdownHTTPServers() {
 	if app.httpServer != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -710,8 +717,8 @@ func setRouter(r *gin.Engine) {
 		api.GET("/sync/records", controllers.GetSyncRecords)                 // 同步列表
 		api.GET("/sync/task", controllers.GetSyncTask)                       // 获取同步任务详情
 		api.GET("/sync/path-list", controllers.GetSyncPathList)              // 获取同步路径列表
-		api.POST("/sync/path-add", controllers.AddSyncPath)                  // 创建同步路径
-		api.POST("/sync/path-update", controllers.UpdateSyncPath)            // 更新同步路径
+		api.POST("/sync/paths", controllers.CreateSyncPathAggregate)         // 原子创建同步路径
+		api.PUT("/sync/paths/:id", controllers.UpdateSyncPathAggregate)      // 原子更新同步路径
 		api.POST("/sync/path-delete", controllers.DeleteSyncPath)            // 删除同步路径
 		api.POST("/sync/path/stop", controllers.StopSyncByPath)              // 停止同步路径的同步任务
 		api.POST("/sync/path/start", controllers.StartSyncByPath)            // 启动同步路径的同步任务
@@ -724,7 +731,6 @@ func setRouter(r *gin.Engine) {
 		api.POST("/sync/manual", controllers.ManualSync)                     // 手动同步
 
 		api.GET("/directory-upload/rules", controllers.ListDirectoryUploadRules)                                  // 获取目录监控上传规则
-		api.PUT("/directory-upload/sync-paths/:sync_path_id/rules", controllers.SaveDirectoryUploadSyncPathRules) // 保存同步目录目录监控上传配置
 		api.POST("/directory-upload/sync-paths/:sync_path_id/scan", controllers.ScanDirectoryUploadSyncPathRules) // 手动触发目录监控补偿扫描
 		api.GET("/directory-upload/runtime-status", controllers.GetDirectoryUploadRuntimeStatuses)                // 获取目录监控运行状态
 

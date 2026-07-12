@@ -67,7 +67,7 @@
 
 ## 目录监控上传
 
-目录监控上传通过 `PUT /api/directory-upload/sync-paths/:sync_path_id/rules` 统一保存配置，绑定一个同步目录和 115 目标目录，请求体为 `{"enabled": true, "rules": []}`。`enabled` 是同步目录总开关，规则内的 `enabled` 是单条规则开关；程序启动和重载时只加载两者都开启的规则。关闭总开关不会修改规则自身 `enabled`，下次开启时会恢复上一次的规则启停状态。目标目录必须位于该同步目录的远端路径下，方便把上传后的远端文件映射回 STRM 路径。`watch_mode=auto` 为自动（推荐），会根据运行环境选择 fsnotify 或 polling：Linux 下先用 mount info 判断监控目录是否位于 `nfs`、`cifs`、`smb`、`fuse` 等网络文件系统或 FUSE 挂载，命中时直接使用 polling；再读取 `/proc/sys/fs/inotify/max_user_watches` 和 `/proc/sys/fs/inotify/max_user_instances`，通过 `/proc/self/fdinfo` 统计当前进程已有 inotify watch / instance 使用量，并按规则递归语义统计本规则待 watch 目录数（不是文件数）。`当前 watch 使用量 + 本规则目录数` 达到 `max_user_watches` 的 80%，或 `当前 instance 使用量 + 1` 达到 `max_user_instances` 的 80% 时也使用 polling。检测失败会记录日志并继续尝试 fsnotify；非 Linux 不读取 `/proc`，只在 fsnotify 启动失败时由 auto 降级 polling。`watch_mode=fsnotify` 为性能模式，初始化失败则规则启动失败；`watch_mode=polling` 为兼容模式，始终按内置 30 秒间隔做定期查漏。`recursive=false` 时，只监控根目录文件，启动扫描、补偿扫描和 fsnotify 新建子目录事件都不会处理子目录中的文件；需要监控子目录时应保持 `recursive=true`。
+同步目录基础配置与目录监控上传规则通过 `POST /api/sync/paths` 或 `PUT /api/sync/paths/:id` 原子保存；旧 `/api/sync/path-add`、`/api/sync/path-update` 和规则独立写接口已移除。更新同步目录时，请求中的 `source_type` 和 `account_id` 必须与旧记录一致。请求中的 `directory_upload.enabled` 是同步目录总开关，规则内的 `enabled` 是单条规则开关；程序启动和重载时只加载两者都开启的规则。关闭总开关不会修改规则自身 `enabled`，下次开启时会恢复上一次的规则启停状态。创建请求可携带 `Idempotency-Key`，同一 key 已完成时回放已创建聚合，不会重复创建 SyncPath；该 key 仍处于处理中时返回 `IDEMPOTENCY_CONFLICT`。规则的 `remote_root_path` 和 `remote_root_id` 都不能为空，目标目录必须位于该同步目录的远端路径下。`watch_mode=auto` 会根据运行环境选择 fsnotify 或 polling；显式 `fsnotify` 初始化失败时规则启动失败，`polling` 使用内置 30 秒间隔查漏。`recursive=false` 时只处理监控根目录文件。
 
 查漏扫描和 fsnotify 事件默认只把候选视频文件加入稳定性队列；规则 `upload_metadata=true` 时，也会把当前同步目录识别为元数据扩展名的文件加入队列。视频扩展名和元数据扩展名都沿用同步目录配置：同步目录启用自定义配置且数组非空时使用自定义值，否则回退全局 STRM 设置。稳定性检查间隔、稳定窗口和补偿扫描间隔均为代码内置：稳定性检查每 2 秒执行一次，文件需要在 15 秒内保持 `v1:size:mtime_ns` fingerprint 不变，并连续 3 次检查不变；补偿扫描每 30 秒执行一次。启动查漏、polling 定期查漏和 fsnotify 新目录补偿扫描会提交到同一个内置扫描执行器；执行器按 `rule_id + clean(root)` 合并已排队或执行中的重复目录，已取消的同 key 扫描会允许后续请求重新提交，默认同时最多执行 2 个扫描任务，不提供页面或接口配置。polling 模式会在运行时维护 `relative_path -> source_fingerprint` 快照，每轮只把新增或 fingerprint 变化的文件加入稳定性队列；`startup_scan_enabled=true` 时，启动查漏会处理已有文件并初始化快照，避免第一轮 polling 重复提交同一 fingerprint；`startup_scan_enabled=false` 时，启动时会先建立 baseline 快照，不处理已有文件，之后只处理新增或变化文件；baseline 建立遇到非取消类扫描错误时会记录日志并由后续 polling 重试，已成功扫描到的部分仍作为 baseline。polling 定期扫描遇到非取消类中途错误时，不会用本轮 partial snapshot 替换完整快照，避免误删已知 fingerprint；但本轮已成功扫描部分中新增或变化的文件仍会加入稳定性队列，下一轮继续重试。启动查漏提交前会同步校验同步目录、监控路径和扫描根目录，基础校验失败会阻止规则启动；实际扫描期间发生的错误会写入应用日志，不阻塞已经启动的规则。fsnotify 文件事件候选在通过递归、忽略规则和扩展名过滤后，会先按 `rule_id + relative_path + source_fingerprint` 做 recently queued 内存 TTL 去重，再进入稳定性队列；`source_fingerprint` 使用同样的 `v1:size:mtime_ns`。这个缓存只用于减少同一 fsnotify 事件风暴造成的重复入队，不写入 `directory_upload_processed_files`，也不作用于启动查漏、手动扫描或 polling 补偿扫描。默认忽略隐藏路径、带 `.part`、`.tmp`、`.download`、`.aria2`、`.torrent` 临时后缀的文件或目录，以及 `@Recycle`、`#recycle`、`.Trash`、`.Trashes` 回收站目录和规则中的 `ignore_patterns`；不会按 `.nfo`、`.jpg`、`.png` 等元数据扩展名做默认忽略，`upload_metadata=true` 时仍可按同步目录配置上传元数据文件。规则查询接口会把忽略规则以 `ignore_patterns` 数组返回。目录监控上传不在事件 goroutine 内直接上传文件；如果确认远端目录、检查远端同名文件或写入上传任务等入队前步骤发生临时错误，文件会重新进入稳定性队列等待下一轮处理，已经创建成功的上传任务仍由全局上传队列按既有重试上限处理。
 
@@ -75,7 +75,7 @@
 
 统一保存接口中的 `rules` 是最终完整规则集合，已有规则未出现在请求中即视为删除；总开关开启时至少需要一条规则自身启用，总开关关闭时允许空规则集合。删除同步目录时，会在同一删除事务内清理其目录监控上传规则，并在接口成功后重载目录监控上传服务，避免已删除同步目录对应的 watcher 继续运行。
 
-`delete_source_after_success` 默认关闭。开启后，只有在任务创建时已标记为待清理的目录监控上传任务，才会在上传成功且关联 STRM 生成任务成功后删除本地源文件；任务创建后再开启规则删除开关，不会回头删除旧任务源文件。删除前会再次校验当前路径上的文件 fingerprint 是否仍与上传任务记录一致；如果同一路径已被新文件替换，会跳过删除并记录清理失败。删除成功后会向上清理空目录，但不删除监控根目录。上传失败、STRM 失败、秒传等待超时后跳过真实上传，或远端已存在但未确认 SHA1 / 大小一致时，都不会删除源文件。
+`delete_source_after_success` 默认关闭。开启后，只有任务创建时已标记为待清理的目录监控上传任务，才会在上传成功且关联 STRM 生成任务成功后删除本地源文件。删除前再次校验 fingerprint 与路径边界。清理依赖以 `strm_generation_tasks.upload_task_id` 关联上传任务为准；清理由 worker 完成事件和服务启动/周期补偿扫描两类幂等路径触发。删除规则、关闭删除开关或修改监控边界时，会先把相关 pending cleanup 改为 `none` 并记录取消原因，再删除 processed 账本，不追溯删除本地源文件。
 
 `upload_metadata=true` 时，目录监控上传成功的元数据文件会在 STRM 生成 worker 中复制一份到同步目录的 STRM 本地路径。复制使用同步目录的远端路径映射规则，保留原文件名和扩展名，不生成 `.strm`。复制发生在源文件清理之前；如果复制前发现源文件不存在、fingerprint 已变化，或者写入目标路径失败，STRM 任务会失败并阻止后续源文件删除。
 
@@ -87,9 +87,11 @@
 
 文件级任务只传 `file_id`，或传入了 `file_id` 但缺少文件名、路径、父目录 ID、PickCode、mtime、大小或 115 SHA1 等远端元数据时，服务会通过对应网盘 driver 补齐文件详情。写入流程会先确认新 STRM 内容需要新增或更新；确认需要更新后会直接写入新 STRM，不会再次执行内容一致性比较，因此同一次后处理只会输出一次 PickCode、路径或用户 ID 差异日志。如果同一 `file_id` / `pick_code` 的远端路径变化，会在新 STRM 写入成功后精确删除旧 `SyncFile.LocalFilePath` 对应的旧 STRM。旧路径清理失败不会删除新 STRM，也不会把任务标记完成，任务会记录错误并保留为失败状态供后续排查或重试。目录监控上传的元数据文件会在同一 worker 中复制到 STRM 本地路径并保存 `SyncFile`，但不会提交 STRM 内容刷新。
 
+115 同一目录下的视频如果去掉扩展名后映射到同一个本地 STRM，例如 `episode.mkv` 和 `episode.mp4` 都映射为 `episode.strm`，系统只允许上传时间 `Ptime` 最新的文件生成和更新该 STRM；上传时间相同时使用 FileID 固定排序，避免结果受分页顺序或并发调度影响。完整同步会先完成远端文件和路径收集，再在内存中选择 owner，不增加 115 文件列表请求；目录扫描会在已有目录列表中直接过滤 non-owner。上传完成、远端已存在和 Webhook 等单文件任务优先查询本地 `SyncFile`，只有发现同目标路径候选时才额外请求一次远端父目录确认 owner。相同目标路径的比较和写入使用进程内路径锁串行执行。
+
 “同步目录生效 STRM 配置”INFO 只在完整 STRM 同步启动时输出。上传完成后的单文件 STRM 后处理仍使用相同的生效配置，但不会为每个后处理任务重复输出该配置日志。
 
-上传完成、远端已存在等非 Webhook STRM 任务在 STRM 新增或更新后会优先提交 Emby item 级定向刷新：已有 Movie、Video、Episode 关联时刷新对应 item；同季新增剧集没有自身 Episode 关联时优先刷新已有 Season，缺少 Season 时刷新 Series。无法从本地 Emby 索引、PickCode 或路径兜底查询定位可靠 item 时，自动回退到同步目录关联媒体库刷新。刷新仍进入 `emby_library_refresh_tasks` 协调器去抖和等待队列，不在 STRM 生成流程内直接请求 Emby。Webhook 请求默认不刷新，只有 `refresh_emby=true` 且 STRM 变更或新增元数据下载任务时才提交刷新；批量和目录扫描会等所有子任务完成或失败后统一提交。STRM 内容无变化时只更新 / 确认 `SyncFile`，不重复提交刷新任务。
+上传完成、远端已存在等非 Webhook STRM 任务在 STRM 新增或更新后会优先提交 Emby item 级定向刷新：已有 Movie、Video、Episode 关联时刷新对应 item；同季新增剧集没有自身 Episode 关联时优先刷新已有 Season，缺少 Season 时刷新 Series。无法从本地 Emby 索引、PickCode 或路径兜底查询定位可靠 item 时，自动回退到同步目录关联媒体库刷新。刷新仍进入 `emby_library_refresh_tasks` 协调器去抖和等待队列，不在 STRM 生成流程内直接请求 Emby。Webhook 请求默认不刷新，只有 `refresh_emby=true` 且 STRM 变更或新增元数据下载任务时才提交刷新；批量和目录扫描只有在所有子任务成功完成且存在 STRM / 元数据变化时才统一提交，任一子任务失败则父任务失败且不提交刷新。STRM 内容无变化时只更新 / 确认 `SyncFile`，不重复提交刷新任务。
 
 外部程序可以通过 [STRM Webhook](strm-webhook.md) 创建同一类 STRM 生成任务，接口字段、响应格式和幂等边界以独立文档为准。
 

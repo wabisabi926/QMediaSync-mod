@@ -3,6 +3,7 @@ package directoryupload
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -144,6 +145,51 @@ func TestStabilityQueueUsesBuiltInWindowAndCount(t *testing.T) {
 	}
 	if len(ready) != 1 || ready[0].Path != path {
 		t.Fatalf("ready=%v，期望按内置 15s/3 次稳定规则入队 %s", ready, path)
+	}
+}
+
+func TestStabilityQueueDropsSymlinkWhenTargetEscapesMonitor(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows 下 symlink 权限和路径分隔符语义不同")
+	}
+	clock := &fakeClock{now: time.Unix(400, 0)}
+	monitorPath := t.TempDir()
+	insideTarget := filepath.Join(monitorPath, "inside.mkv")
+	outsideTarget := filepath.Join(t.TempDir(), "outside.mkv")
+	linkPath := filepath.Join(monitorPath, "linked.mkv")
+	writeFileWithMtime(t, insideTarget, []byte("inside"), clock.Now())
+	writeFileWithMtime(t, outsideTarget, []byte("outside"), clock.Now())
+	if err := os.Symlink(insideTarget, linkPath); err != nil {
+		t.Skipf("当前平台不支持创建 symlink: %v", err)
+	}
+
+	queue := NewStabilityQueue(StabilityQueueOptions{Now: clock.Now})
+	rule := &models.DirectoryUploadRule{
+		BaseModel:   models.BaseModel{ID: 4},
+		MonitorPath: monitorPath,
+	}
+	queue.Track(rule.ID, linkPath)
+
+	if ready, err := queue.Check(rule); err != nil || len(ready) != 0 {
+		t.Fatalf("首次检查 ready=%v err=%v，期望未稳定", ready, err)
+	}
+	if err := os.Remove(linkPath); err != nil {
+		t.Fatalf("删除内部 symlink 失败: %v", err)
+	}
+	if err := os.Symlink(outsideTarget, linkPath); err != nil {
+		t.Fatalf("创建越界 symlink 失败: %v", err)
+	}
+	clock.Add(15 * time.Second)
+
+	ready, err := queue.Check(rule)
+	if err != nil {
+		t.Fatalf("越界 symlink 稳定性检查不应中断队列: %v", err)
+	}
+	if len(ready) != 0 {
+		t.Fatalf("ready=%v，期望越界 symlink 不进入稳定文件", ready)
+	}
+	if pending := queue.PendingPaths(rule.ID); len(pending) != 0 {
+		t.Fatalf("pending paths=%v，期望越界 symlink 被移出稳定性队列", pending)
 	}
 }
 

@@ -6,7 +6,7 @@
 
 下载任务状态事件中的 `DownloadTaskStatusChangedPayload.Source` 也使用同一套机器值。事件消费者如果需要展示来源，必须先映射为展示文案。
 
-`DownloadTaskStatusChangedPayload.sync_path_id` 表示 STRM 下载任务所属同步目录 ID。Emby 刷新协调器优先使用该字段判断媒体库关联目录的下载队列是否完成；字段为 `0` 或 `NULL` 时兼容使用 `sync_file_id` 查询。同一 Emby 媒体库关联的任一同步目录仍在等待、运行或存在未完成下载任务时，该媒体库刷新任务会继续等待。
+`DownloadTaskStatusChangedPayload.sync_path_id` 表示 STRM 下载任务所属同步目录 ID。Emby 刷新协调器优先使用该字段判断媒体库关联目录的下载队列是否完成；字段为 `0` 或 `NULL` 时兼容使用 `sync_file_id` 查询。同一 Emby 媒体库关联的任一同步目录仍在等待、运行或存在未完成下载任务时，该媒体库刷新任务会继续等待。item 级刷新任务使用 `task_key=item:<item_id>` 去重，`library_id` 仅保存真实媒体库 ID 或为空；下载事件唤醒和清空 pending 下载任务取消时会按真实媒体库 ID 匹配，优先使用 `fallback_library_id`，为空时按任务 `item_ids` 查询本地 Emby item 所属媒体库。
 
 ## 下载任务
 

@@ -40,6 +40,7 @@ type StrmGenerationStatus string
 const (
 	StrmGenerationStatusPending         StrmGenerationStatus = "pending"
 	StrmGenerationStatusRunning         StrmGenerationStatus = "running"
+	StrmGenerationStatusFinalizing      StrmGenerationStatus = "finalizing"
 	StrmGenerationStatusWaitingChildren StrmGenerationStatus = "waiting_children"
 	StrmGenerationStatusCompleted       StrmGenerationStatus = "completed"
 	StrmGenerationStatusFailed          StrmGenerationStatus = "failed"
@@ -223,6 +224,12 @@ func (task *StrmGenerationTask) IsReadyToSubmitRefresh() bool {
 	if task == nil || !task.RefreshEmby || task.RefreshSubmitted {
 		return false
 	}
+	if task.Status != StrmGenerationStatusCompleted {
+		return false
+	}
+	if task.FailedItems > 0 {
+		return false
+	}
 	if task.ChangedItems == 0 && task.NewMetaItems == 0 {
 		return false
 	}
@@ -336,6 +343,7 @@ func mergeRefreshItemTarget(left EmbyRefreshTarget, right EmbyRefreshTarget) Emb
 func isActiveStrmGenerationStatus(status StrmGenerationStatus) bool {
 	return status == StrmGenerationStatusPending ||
 		status == StrmGenerationStatusRunning ||
+		status == StrmGenerationStatusFinalizing ||
 		status == StrmGenerationStatusWaitingChildren
 }
 
@@ -362,6 +370,41 @@ func (task *StrmGenerationTask) MarkFailed(message string) error {
 	task.LastRetryTime = time.Now().Unix()
 	task.LastError = message
 	return db.Db.Save(task).Error
+}
+
+// MarkStrmGenerationChildFailed 原子标记子任务失败并累计父任务失败进度。
+func MarkStrmGenerationChildFailed(childTaskID uint, parentTaskID uint, message string) (*StrmGenerationTask, error) {
+	if childTaskID == 0 {
+		return nil, errors.New("STRM 子任务为空")
+	}
+	if parentTaskID == 0 {
+		return nil, errors.New("STRM 父任务为空")
+	}
+	now := time.Now().Unix()
+	var parent *StrmGenerationTask
+	err := db.Db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&StrmGenerationTask{}).
+			Where("id = ? AND status = ?", childTaskID, StrmGenerationStatusRunning).
+			Updates(map[string]interface{}{
+				"status":          StrmGenerationStatusFailed,
+				"retry_count":     gorm.Expr("retry_count + ?", 1),
+				"last_retry_time": now,
+				"last_error":      message,
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return errors.New("STRM 子任务状态不可标记失败")
+		}
+		var err error
+		parent, err = updateStrmGenerationParentProgressWithDB(tx, parentTaskID, StrmGenerationParentProgress{Failed: 1})
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return parent, nil
 }
 
 // MarkRunning 标记 STRM 生成任务开始执行。
@@ -418,13 +461,16 @@ func (task *StrmGenerationTask) MarkDirectoryScanExpanded(totalItems int) error 
 	return db.Db.Save(task).Error
 }
 
-// GetPendingStrmGenerationTasks 按创建顺序获取待执行 STRM 生成任务。
+// GetPendingStrmGenerationTasks 按创建顺序获取待执行或待收尾 STRM 生成任务。
 func GetPendingStrmGenerationTasks(limit int) ([]*StrmGenerationTask, error) {
 	if limit <= 0 {
 		limit = 10
 	}
 	var tasks []*StrmGenerationTask
-	err := db.Db.Where("status = ?", StrmGenerationStatusPending).
+	err := db.Db.Where("status IN ?", []StrmGenerationStatus{
+		StrmGenerationStatusPending,
+		StrmGenerationStatusFinalizing,
+	}).
 		Order("id ASC").
 		Limit(limit).
 		Find(&tasks).Error
@@ -452,56 +498,11 @@ func UpdateStrmGenerationParentProgress(parentTaskId uint, progress StrmGenerati
 	if parentTaskId == 0 {
 		return nil, nil
 	}
-	var updated StrmGenerationTask
+	var updated *StrmGenerationTask
 	err := db.Db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&StrmGenerationTask{}).
-			Where("id = ?", parentTaskId).
-			Updates(map[string]interface{}{
-				"accepted_items": gorm.Expr("accepted_items + ?", progress.Accepted),
-				"failed_items":   gorm.Expr("failed_items + ?", progress.Failed),
-				"changed_items":  gorm.Expr("changed_items + ?", progress.Changed),
-				"new_meta_items": gorm.Expr("new_meta_items + ?", progress.NewMeta),
-			}).Error; err != nil {
+		parent, err := updateStrmGenerationParentProgressWithDB(tx, parentTaskId, progress)
+		if err != nil {
 			return err
-		}
-
-		var parent StrmGenerationTask
-		if err := tx.First(&parent, parentTaskId).Error; err != nil {
-			return err
-		}
-		processedItems := parent.AcceptedItems + parent.FailedItems
-		hasFixedTotalItems := parent.TotalItems > 0
-		updates := map[string]interface{}{}
-		if parent.TotalItems < processedItems {
-			parent.TotalItems = processedItems
-			updates["total_items"] = parent.TotalItems
-		}
-		if hasFixedTotalItems &&
-			processedItems >= parent.TotalItems &&
-			parent.Status == StrmGenerationStatusWaitingChildren {
-			if parent.FailedItems > 0 {
-				parent.Status = StrmGenerationStatusFailed
-				updates["status"] = parent.Status
-			} else {
-				parent.Status = StrmGenerationStatusCompleted
-				parent.LastError = ""
-				updates["status"] = parent.Status
-				updates["last_error"] = parent.LastError
-			}
-		}
-		if len(progress.RefreshTargets) > 0 {
-			parent.MergeRefreshTargets(progress.RefreshTargets)
-			updates["refresh_targets_str"] = parent.RefreshTargetsStr
-		}
-		if len(updates) > 0 {
-			if err := tx.Model(&StrmGenerationTask{}).
-				Where("id = ?", parentTaskId).
-				Updates(updates).Error; err != nil {
-				return err
-			}
-			if err := tx.First(&parent, parentTaskId).Error; err != nil {
-				return err
-			}
 		}
 		updated = parent
 		return nil
@@ -509,7 +510,108 @@ func UpdateStrmGenerationParentProgress(parentTaskId uint, progress StrmGenerati
 	if err != nil {
 		return nil, err
 	}
-	return &updated, nil
+	return updated, nil
+}
+
+// MarkStrmGenerationChildFinalizing 累计父任务进度，并把成功子任务标记为收尾中。
+func MarkStrmGenerationChildFinalizing(childTaskId uint, parentTaskId uint, progress StrmGenerationParentProgress) (*StrmGenerationTask, error) {
+	if childTaskId == 0 {
+		return nil, errors.New("STRM 子任务为空")
+	}
+	if parentTaskId == 0 {
+		return nil, nil
+	}
+	var updated *StrmGenerationTask
+	err := db.Db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&StrmGenerationTask{}).
+			Where("id = ? AND status = ?", childTaskId, StrmGenerationStatusRunning).
+			Updates(map[string]interface{}{
+				"status":     StrmGenerationStatusFinalizing,
+				"last_error": "",
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return errors.New("STRM 子任务状态不可收尾")
+		}
+
+		parent, err := updateStrmGenerationParentProgressWithDB(tx, parentTaskId, progress)
+		if err != nil {
+			return err
+		}
+		updated = parent
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return updated, nil
+}
+
+func updateStrmGenerationParentProgressWithDB(tx *gorm.DB, parentTaskId uint, progress StrmGenerationParentProgress) (*StrmGenerationTask, error) {
+	if err := tx.Model(&StrmGenerationTask{}).
+		Where("id = ?", parentTaskId).
+		Updates(map[string]interface{}{
+			"accepted_items": gorm.Expr("accepted_items + ?", progress.Accepted),
+			"failed_items":   gorm.Expr("failed_items + ?", progress.Failed),
+			"changed_items":  gorm.Expr("changed_items + ?", progress.Changed),
+			"new_meta_items": gorm.Expr("new_meta_items + ?", progress.NewMeta),
+		}).Error; err != nil {
+		return nil, err
+	}
+
+	var parent StrmGenerationTask
+	if err := tx.First(&parent, parentTaskId).Error; err != nil {
+		return nil, err
+	}
+	processedItems := parent.AcceptedItems + parent.FailedItems
+	hasFixedTotalItems := parent.TotalItems > 0
+	updates := map[string]interface{}{}
+	if parent.TotalItems < processedItems {
+		parent.TotalItems = processedItems
+		updates["total_items"] = parent.TotalItems
+	}
+	if hasFixedTotalItems &&
+		processedItems >= parent.TotalItems &&
+		parent.Status == StrmGenerationStatusWaitingChildren {
+		if parent.FailedItems > 0 {
+			parent.Status = StrmGenerationStatusFailed
+			updates["status"] = parent.Status
+		} else {
+			parent.Status = StrmGenerationStatusCompleted
+			parent.LastError = ""
+			updates["status"] = parent.Status
+			updates["last_error"] = parent.LastError
+		}
+	}
+	if len(progress.RefreshTargets) > 0 {
+		parent.MergeRefreshTargets(progress.RefreshTargets)
+		updates["refresh_targets_str"] = parent.RefreshTargetsStr
+	}
+	if len(updates) > 0 {
+		if err := tx.Model(&StrmGenerationTask{}).
+			Where("id = ?", parentTaskId).
+			Updates(updates).Error; err != nil {
+			return nil, err
+		}
+		if err := tx.First(&parent, parentTaskId).Error; err != nil {
+			return nil, err
+		}
+	}
+	return &parent, nil
+}
+
+// GetStrmGenerationTaskByID 按 ID 读取 STRM 生成任务。
+func GetStrmGenerationTaskByID(taskID uint) (*StrmGenerationTask, error) {
+	if taskID == 0 {
+		return nil, nil
+	}
+	var task StrmGenerationTask
+	if err := db.Db.First(&task, taskID).Error; err != nil {
+		return nil, err
+	}
+	return &task, nil
 }
 
 // MarkStrmGenerationRefreshSubmitted 标记父任务刷新目标已经提交。

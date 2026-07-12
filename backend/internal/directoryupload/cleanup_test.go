@@ -4,12 +4,107 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"qmediasync/internal/db"
 	"qmediasync/internal/models"
 )
+
+func TestCleanupSourceAfterStrmSuccessConcurrentTriggersConverge(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), time.Now())
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.DeleteSourceAfterSuccess = true
+	if err := db.Db.Save(rule).Error; err != nil {
+		t.Fatalf("保存目录上传规则失败: %v", err)
+	}
+	uploadTask := createCleanupUploadTask(t, rule, filePath, models.UploadResultMultipartUploaded)
+	createCleanupStrmTask(t, uploadTask.ID, models.StrmGenerationStatusCompleted)
+
+	oldRemove := removeSourceFile
+	var entered atomic.Int32
+	bothEntered := make(chan struct{})
+	release := make(chan struct{})
+	removeSourceFile = func(path string) error {
+		if entered.Add(1) == 2 {
+			close(bothEntered)
+		}
+		<-release
+		return os.Remove(path)
+	}
+	t.Cleanup(func() { removeSourceFile = oldRemove })
+
+	errorsCh := make(chan error, 2)
+	var wg sync.WaitGroup
+	for range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errorsCh <- CleanupSourceAfterStrmSuccess(uploadTask.ID)
+		}()
+	}
+	<-bothEntered
+	close(release)
+	wg.Wait()
+	close(errorsCh)
+	for err := range errorsCh {
+		if err != nil {
+			t.Fatalf("并发清理失败: %v", err)
+		}
+	}
+	assertPathMissing(t, filePath)
+	var updated models.DbUploadTask
+	if err := db.Db.First(&updated, uploadTask.ID).Error; err != nil {
+		t.Fatalf("读取上传任务失败: %v", err)
+	}
+	if updated.SourceCleanupStatus != models.UploadSourceCleanupStatusCompleted {
+		t.Fatalf("并发清理后状态 = %s，期望 completed", updated.SourceCleanupStatus)
+	}
+}
+
+func TestCleanupCompletedStrmDependenciesRetriesTransientDeleteFailure(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), time.Now())
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.DeleteSourceAfterSuccess = true
+	if err := db.Db.Save(rule).Error; err != nil {
+		t.Fatalf("保存目录上传规则失败: %v", err)
+	}
+	uploadTask := createCleanupUploadTask(t, rule, filePath, models.UploadResultMultipartUploaded)
+	createCleanupStrmTask(t, uploadTask.ID, models.StrmGenerationStatusCompleted)
+
+	oldRemove := removeSourceFile
+	removeSourceFile = func(string) error { return os.ErrPermission }
+	t.Cleanup(func() { removeSourceFile = oldRemove })
+	if _, err := CleanupCompletedStrmDependencies(100); err == nil {
+		t.Fatal("首次临时删除失败应返回错误")
+	}
+
+	var afterFailure models.DbUploadTask
+	if err := db.Db.First(&afterFailure, uploadTask.ID).Error; err != nil {
+		t.Fatalf("读取首次清理后的上传任务失败: %v", err)
+	}
+	if afterFailure.SourceCleanupStatus != models.UploadSourceCleanupStatusPending {
+		t.Fatalf("临时删除失败后状态 = %s，期望 pending 以便补偿重试", afterFailure.SourceCleanupStatus)
+	}
+
+	removeSourceFile = oldRemove
+	cleaned, err := CleanupCompletedStrmDependencies(100)
+	if err != nil {
+		t.Fatalf("补偿重试失败: %v", err)
+	}
+	if cleaned != 1 {
+		t.Fatalf("补偿重试清理数量 = %d，期望 1", cleaned)
+	}
+	assertPathMissing(t, filePath)
+}
 
 func TestCleanupSourceAfterStrmSuccessDeletesFileAndEmptyParents(t *testing.T) {
 	setupDirectoryUploadServiceTestDB(t)
@@ -125,6 +220,134 @@ func TestCleanupSourceAfterStrmSuccessUsesQueuedRuleWhenDisabledChildOverlaps(t 
 	assertPathMissing(t, filePath)
 	assertPathMissing(t, child)
 	assertPathExists(t, parent)
+}
+
+func TestCleanupCompletedStrmDependenciesCompensatesMissedImmediateEvent(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), time.Now())
+	syncPath, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.DeleteSourceAfterSuccess = true
+	if err := db.Db.Save(rule).Error; err != nil {
+		t.Fatalf("保存目录上传规则失败: %v", err)
+	}
+	uploadTask := createCleanupUploadTask(t, rule, filePath, models.UploadResultMultipartUploaded)
+	strmTask := &models.StrmGenerationTask{
+		Source:       models.StrmGenerationSourceUploadCompleted,
+		TaskType:     models.StrmGenerationTaskTypeFile,
+		UploadTaskId: uploadTask.ID,
+		SyncPathId:   syncPath.ID,
+		Status:       models.StrmGenerationStatusCompleted,
+	}
+	if err := db.Db.Create(strmTask).Error; err != nil {
+		t.Fatalf("创建已完成 STRM 任务失败: %v", err)
+	}
+	if err := db.Db.Create(&models.DirectoryUploadProcessedFile{
+		RuleId:            rule.ID,
+		SyncPathId:        syncPath.ID,
+		AccountId:         rule.AccountId,
+		SourceKey:         "dependency-compensation-source",
+		LocalFullPath:     filePath,
+		SourceFingerprint: uploadTask.SourceFingerprint,
+		Result:            models.DirectoryUploadProcessedResultUploaded,
+		UploadTaskId:      uploadTask.ID,
+		ProcessedAt:       time.Now().Unix(),
+		LastSeenAt:        time.Now().Unix(),
+	}).Error; err != nil {
+		t.Fatalf("创建 processed 依赖失败: %v", err)
+	}
+
+	cleaned, err := CleanupCompletedStrmDependencies(100)
+	if err != nil {
+		t.Fatalf("执行 STRM 清理补偿失败: %v", err)
+	}
+	if cleaned != 1 {
+		t.Fatalf("补偿清理数量 = %d，期望 1", cleaned)
+	}
+	assertPathMissing(t, filePath)
+}
+
+func TestCleanupCompletedStrmDependenciesDoesNotCountSkippedCleanup(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), time.Now())
+	syncPath, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	uploadTask := createCleanupUploadTask(t, rule, filePath, models.UploadResultMultipartUploaded)
+	strmTask := &models.StrmGenerationTask{
+		Source:       models.StrmGenerationSourceUploadCompleted,
+		TaskType:     models.StrmGenerationTaskTypeFile,
+		UploadTaskId: uploadTask.ID,
+		SyncPathId:   syncPath.ID,
+		Status:       models.StrmGenerationStatusCompleted,
+	}
+	if err := db.Db.Create(strmTask).Error; err != nil {
+		t.Fatalf("创建已完成 STRM 任务失败: %v", err)
+	}
+	if err := db.Db.Create(&models.DirectoryUploadProcessedFile{
+		RuleId:            rule.ID,
+		SyncPathId:        syncPath.ID,
+		AccountId:         rule.AccountId,
+		SourceKey:         "skipped-cleanup-source",
+		LocalFullPath:     filePath,
+		SourceFingerprint: uploadTask.SourceFingerprint,
+		Result:            models.DirectoryUploadProcessedResultUploaded,
+		UploadTaskId:      uploadTask.ID,
+		ProcessedAt:       time.Now().Unix(),
+		LastSeenAt:        time.Now().Unix(),
+	}).Error; err != nil {
+		t.Fatalf("创建 processed 依赖失败: %v", err)
+	}
+
+	cleaned, err := CleanupCompletedStrmDependencies(100)
+	if err != nil {
+		t.Fatalf("执行 STRM 清理补偿失败: %v", err)
+	}
+	if cleaned != 0 {
+		t.Fatalf("跳过源文件清理时统计数量 = %d，期望 0", cleaned)
+	}
+	assertPathExists(t, filePath)
+}
+
+func TestFindCompletedStrmDependencyUploadTasksExcludesUnrelatedPendingCleanup(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	completedFilePath := filepath.Join(monitorPath, "completed.mkv")
+	writeFileWithMtime(t, completedFilePath, []byte("completed"), time.Now())
+	completedUpload := createCleanupUploadTask(t, rule, completedFilePath, models.UploadResultMultipartUploaded)
+	createCleanupStrmTask(t, completedUpload.ID, models.StrmGenerationStatusCompleted)
+	var completedStrm models.StrmGenerationTask
+	if err := db.Db.Where("upload_task_id = ?", completedUpload.ID).First(&completedStrm).Error; err != nil {
+		t.Fatalf("读取 completed STRM 任务失败: %v", err)
+	}
+	if err := db.Db.Create(&models.DirectoryUploadProcessedFile{
+		RuleId:            rule.ID,
+		SyncPathId:        rule.SyncPathId,
+		AccountId:         rule.AccountId,
+		SourceKey:         "completed-strm-candidate",
+		LocalFullPath:     completedFilePath,
+		SourceFingerprint: completedUpload.SourceFingerprint,
+		Result:            models.DirectoryUploadProcessedResultUploaded,
+		UploadTaskId:      completedUpload.ID,
+		ProcessedAt:       time.Now().Unix(),
+		LastSeenAt:        time.Now().Unix(),
+	}).Error; err != nil {
+		t.Fatalf("创建 completed STRM 依赖失败: %v", err)
+	}
+
+	unrelatedFilePath := filepath.Join(monitorPath, "unrelated.mkv")
+	writeFileWithMtime(t, unrelatedFilePath, []byte("unrelated"), time.Now())
+	unrelatedUpload := createCleanupUploadTask(t, rule, unrelatedFilePath, models.UploadResultMultipartUploaded)
+
+	tasks, err := findCompletedStrmDependencyUploadTasks(0, 100)
+	if err != nil {
+		t.Fatalf("查询 STRM 清理候选失败: %v", err)
+	}
+	if len(tasks) != 1 || tasks[0].ID != completedUpload.ID {
+		t.Fatalf("STRM 清理候选 = %+v，期望仅包含 upload_task_id=%d，且不包含 %d", tasks, completedUpload.ID, unrelatedUpload.ID)
+	}
 }
 
 func TestCleanupSourceAfterStrmSuccessKeepsSourceWhenDisabledOrStrmFailed(t *testing.T) {

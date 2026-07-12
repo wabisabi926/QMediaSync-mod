@@ -423,3 +423,26 @@ func (c *MemorySyncCache) Clear() {
 func (c *MemorySyncCache) GetAllFile() map[string]*SyncFileCache {
 	return c.fileIndex
 }
+
+// ListAllFiles 返回当前缓存文件快照。
+func (c *MemorySyncCache) ListAllFiles() []*SyncFileCache {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	files := make([]*SyncFileCache, 0, len(c.fileIndex))
+	for _, file := range c.fileIndex {
+		files = append(files, file)
+	}
+	return files
+}
+
+// SetLocalPathOwner 设置本地路径对应的远端文件 owner。
+func (c *MemorySyncCache) SetLocalPathOwner(localFilePath string, file *SyncFileCache) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if localFilePath == "" || file == nil {
+		return
+	}
+	c.localPathIndex[localFilePath] = file
+}

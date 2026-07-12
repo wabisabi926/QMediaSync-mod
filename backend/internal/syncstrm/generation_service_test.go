@@ -10,7 +10,9 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"qmediasync/internal/baidupan"
 	"qmediasync/internal/db"
@@ -104,6 +106,9 @@ func newTestGenerationService(t *testing.T, syncPath *models.SyncPath, account *
 			},
 			SyncDriver: &fakeDirectoryScanDriver{},
 		}, nil
+	}
+	service.acquireRefreshSubmission = func(context.Context) (func(), error) {
+		return func() {}, nil
 	}
 	return service
 }
@@ -685,14 +690,21 @@ func TestStrmGenerationServiceKeepsNewStrmWhenOldPathCleanupFails(t *testing.T) 
 			FileName:   "new.mkv",
 		},
 	})
-	if err == nil {
-		t.Fatal("旧路径清理失败时应返回错误，保留任务可重试")
-	}
-	if !errors.Is(err, errOldStrmCleanupFailed) {
-		t.Fatalf("错误 = %v，期望包含 errOldStrmCleanupFailed", err)
+	if err != nil {
+		t.Fatalf("旧路径清理失败不应阻断 STRM 生成: %v", err)
 	}
 	if _, statErr := os.Stat(newStrmPath); statErr != nil {
 		t.Fatalf("新 STRM 不应因旧路径清理失败被删除: %v", statErr)
+	}
+	if _, statErr := os.Stat(oldDir); statErr != nil {
+		t.Fatalf("旧路径清理失败后旧路径应保持原状: %v", statErr)
+	}
+	var got models.SyncFile
+	if err := db.Db.Where("file_id = ? AND pick_code = ?", "file-4", "pick-4").First(&got).Error; err != nil {
+		t.Fatalf("读取更新后的 SyncFile 失败: %v", err)
+	}
+	if filepath.Clean(got.LocalFilePath) != filepath.Clean(newStrmPath) {
+		t.Fatalf("SyncFile.LocalFilePath = %s，期望保存为新 STRM 路径 %s", got.LocalFilePath, newStrmPath)
 	}
 }
 
@@ -763,6 +775,176 @@ func TestProcessPendingStrmGenerationTasksMarksCompletedAndFailed(t *testing.T) 
 	}
 	if failedTask.Status != models.StrmGenerationStatusFailed || failedTask.RetryCount != 1 || failedTask.LastError == "" {
 		t.Fatalf("失败任务状态 = %+v，期望 failed/retry_count=1/last_error", failedTask)
+	}
+}
+
+func TestStrmGenerationWorkerStopReturnsAndAllowsRestart(t *testing.T) {
+	setupStrmGenerationServiceTestDB(t)
+	t.Cleanup(func() {
+		StopStrmGenerationWorker()
+		strmGenerationWorkerState.mu.Lock()
+		strmGenerationWorkerState.stopping = false
+		strmGenerationWorkerState.mu.Unlock()
+	})
+
+	InitStrmGenerationWorker()
+	assertStopStrmGenerationWorkerReturns(t)
+
+	InitStrmGenerationWorker()
+	assertStopStrmGenerationWorkerReturns(t)
+}
+
+func TestWait115RateLimitRetryReturnsWhenContextCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	started := time.Now()
+	err := wait115RateLimitRetry(ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("限流等待取消 err = %v，期望 context.Canceled", err)
+	}
+	if time.Since(started) > 100*time.Millisecond {
+		t.Fatal("限流等待未及时响应取消")
+	}
+}
+
+func TestAcquireStrmGenerationRefreshSubmissionRejectsWhenStopping(t *testing.T) {
+	strmGenerationWorkerState.mu.Lock()
+	previousStopping := strmGenerationWorkerState.stopping
+	strmGenerationWorkerState.stopping = true
+	strmGenerationWorkerState.mu.Unlock()
+	t.Cleanup(func() {
+		strmGenerationWorkerState.mu.Lock()
+		strmGenerationWorkerState.stopping = previousStopping
+		strmGenerationWorkerState.mu.Unlock()
+	})
+
+	_, err := acquireStrmGenerationRefreshSubmission(context.Background())
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("停止期间获取刷新提交许可 err = %v，期望 context.Canceled", err)
+	}
+}
+
+func TestStopStrmGenerationWorkerCancelsBeforeWaitingForRefreshSubmission(t *testing.T) {
+	StopStrmGenerationWorker()
+	strmGenerationWorkerState.mu.Lock()
+	strmGenerationWorkerState.stopping = false
+	cancelled := make(chan struct{})
+	var cancelOnce sync.Once
+	strmGenerationWorkerState.cancel = func() { cancelOnce.Do(func() { close(cancelled) }) }
+	strmGenerationWorkerState.mu.Unlock()
+	t.Cleanup(func() {
+		StopStrmGenerationWorker()
+		strmGenerationWorkerState.mu.Lock()
+		strmGenerationWorkerState.cancel = nil
+		strmGenerationWorkerState.stopping = false
+		strmGenerationWorkerState.mu.Unlock()
+	})
+
+	release, err := acquireStrmGenerationRefreshSubmission(context.Background())
+	if err != nil {
+		t.Fatalf("获取刷新提交许可失败: %v", err)
+	}
+	done := make(chan struct{})
+	go func() {
+		StopStrmGenerationWorker()
+		close(done)
+	}()
+
+	select {
+	case <-cancelled:
+	case <-time.After(100 * time.Millisecond):
+		release()
+		<-done
+		t.Fatal("StopStrmGenerationWorker 应先发出 cancel，不应等待刷新提交许可释放")
+	}
+
+	release()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("StopStrmGenerationWorker 释放刷新提交许可后仍未返回")
+	}
+}
+
+func assertStopStrmGenerationWorkerReturns(t *testing.T) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() {
+		StopStrmGenerationWorker()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("停止 STRM 生成 worker 超时")
+	}
+}
+
+func TestProcessPendingStrmGenerationTasksKeepsTaskRetryableWhenContextCancelled(t *testing.T) {
+	account, syncPath := setupStrmGenerationServiceTestDB(t)
+	task, err := models.EnqueueStrmGenerationTask(&models.StrmGenerationTask{
+		Source:     models.StrmGenerationSourceUploadCompleted,
+		TaskType:   models.StrmGenerationTaskTypeFile,
+		SyncPathId: syncPath.ID,
+		AccountId:  account.ID,
+		FileId:     "cancelled-file",
+	})
+	if err != nil {
+		t.Fatalf("创建 STRM 任务失败: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	service := newTestGenerationService(t, syncPath, account)
+	service.detailByFileID = func(context.Context, *SyncStrm, string) (*SyncFileCache, error) {
+		cancel()
+		return nil, context.Canceled
+	}
+
+	processed, err := ProcessPendingStrmGenerationTasks(ctx, service, 1)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("处理取消任务 err = %v，期望 context.Canceled", err)
+	}
+	if processed != 1 {
+		t.Fatalf("处理任务数 = %d，期望 1", processed)
+	}
+
+	var got models.StrmGenerationTask
+	if err := db.Db.First(&got, task.ID).Error; err != nil {
+		t.Fatalf("读取 STRM 任务失败: %v", err)
+	}
+	if got.Status != models.StrmGenerationStatusRunning || got.RetryCount != 0 || got.LastError != "" {
+		t.Fatalf("取消后的 STRM 任务 = %+v，期望保持 running 且未记录失败", got)
+	}
+}
+
+func TestCompleteStrmGenerationTaskAfterSideEffectsSkipsCompletionWhenContextCancelled(t *testing.T) {
+	account, syncPath := setupStrmGenerationServiceTestDB(t)
+	task, err := models.EnqueueStrmGenerationTask(&models.StrmGenerationTask{
+		Source:     models.StrmGenerationSourceUploadCompleted,
+		TaskType:   models.StrmGenerationTaskTypeFile,
+		SyncPathId: syncPath.ID,
+		AccountId:  account.ID,
+		FileId:     "finalizing-file",
+		Status:     models.StrmGenerationStatusFinalizing,
+	})
+	if err != nil {
+		t.Fatalf("创建收尾 STRM 任务失败: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err = completeStrmGenerationTaskAfterSideEffects(ctx, newTestGenerationService(t, syncPath, account), task)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("收尾取消任务 err = %v，期望 context.Canceled", err)
+	}
+	var got models.StrmGenerationTask
+	if err := db.Db.First(&got, task.ID).Error; err != nil {
+		t.Fatalf("读取收尾 STRM 任务失败: %v", err)
+	}
+	if got.Status != models.StrmGenerationStatusFinalizing {
+		t.Fatalf("取消后的收尾任务 status = %s，期望 finalizing", got.Status)
 	}
 }
 
@@ -837,6 +1019,102 @@ func TestProcessPendingStrmGenerationTasksDelaysParentRefreshUntilAllChildrenDon
 	}
 	if processed != 1 || submitted != 1 {
 		t.Fatalf("第二批 processed=%d submitted=%d，期望最后一个子任务完成后提交一次", processed, submitted)
+	}
+}
+
+func TestProcessPendingStrmGenerationTasksKeepsChildRetryableWhenParentRefreshFails(t *testing.T) {
+	account, syncPath := setupStrmGenerationServiceTestDB(t)
+	parent, err := models.EnqueueStrmGenerationTask(&models.StrmGenerationTask{
+		Source:      models.StrmGenerationSourceWebhook,
+		TaskType:    models.StrmGenerationTaskTypeBatchFiles,
+		SyncPathId:  syncPath.ID,
+		AccountId:   account.ID,
+		RefreshEmby: true,
+		TotalItems:  1,
+		Status:      models.StrmGenerationStatusWaitingChildren,
+		RequestHash: "webhook:batch:refresh-fails",
+	})
+	if err != nil {
+		t.Fatalf("创建父任务失败: %v", err)
+	}
+	child, err := models.EnqueueStrmGenerationTask(&models.StrmGenerationTask{
+		Source:       models.StrmGenerationSourceWebhook,
+		TaskType:     models.StrmGenerationTaskTypeFile,
+		ParentTaskId: parent.ID,
+		SyncPathId:   syncPath.ID,
+		AccountId:    account.ID,
+		FileId:       "file-refresh-fails",
+		ParentId:     "parent-refresh-fails",
+		PickCode:     "pick-refresh-fails",
+		Path:         "/remote",
+		FileName:     "movie.mkv",
+		RefreshEmby:  true,
+		RequestHash:  "webhook:batch:file-refresh-fails",
+	})
+	if err != nil {
+		t.Fatalf("创建子任务失败: %v", err)
+	}
+
+	service := newTestGenerationService(t, syncPath, account)
+	service.compareStrm = func(_ *SyncStrm, _ *SyncFileCache) int { return 0 }
+	service.processStrmFile = func(_ *SyncStrm, _ *SyncFileCache) error { return nil }
+	service.resolveRefreshTarget = func(_ *models.SyncFile) (models.EmbyRefreshTarget, error) {
+		return models.EmbyRefreshTarget{
+			TargetType:        models.EmbyRefreshTargetTypeItem,
+			ItemID:            "season-refresh-fails",
+			FallbackLibraryId: "lib-tv",
+		}, nil
+	}
+	refreshAttempts := 0
+	service.requestEmbyRefreshTargets = func(uint, []models.EmbyRefreshTarget) error {
+		refreshAttempts++
+		if refreshAttempts == 1 {
+			return errors.New("emby refresh failed")
+		}
+		return nil
+	}
+
+	processed, err := ProcessPendingStrmGenerationTasks(context.Background(), service, 1)
+	if err == nil || !strings.Contains(err.Error(), "emby refresh failed") {
+		t.Fatalf("父刷新失败应向上返回错误，processed=%d err=%v", processed, err)
+	}
+
+	var gotChild models.StrmGenerationTask
+	if err := db.Db.First(&gotChild, child.ID).Error; err != nil {
+		t.Fatalf("读取子任务失败: %v", err)
+	}
+	if gotChild.Status != models.StrmGenerationStatusFinalizing {
+		t.Fatalf("父刷新失败时子任务 status = %s，期望 finalizing: %+v", gotChild.Status, gotChild)
+	}
+	var gotParent models.StrmGenerationTask
+	if err := db.Db.First(&gotParent, parent.ID).Error; err != nil {
+		t.Fatalf("读取父任务失败: %v", err)
+	}
+	if gotParent.Status != models.StrmGenerationStatusCompleted ||
+		gotParent.AcceptedItems != 1 ||
+		gotParent.ChangedItems != 1 ||
+		gotParent.RefreshSubmitted {
+		t.Fatalf("父刷新失败后父任务 = %+v，期望 completed 且进度只累计一次、未标记已刷新", gotParent)
+	}
+
+	processed, err = ProcessPendingStrmGenerationTasks(context.Background(), service, 1)
+	if err != nil {
+		t.Fatalf("重试父刷新失败任务失败: %v", err)
+	}
+	if processed != 1 {
+		t.Fatalf("重试 processed=%d，期望处理 finalizing 子任务 1 个", processed)
+	}
+	if err := db.Db.First(&gotChild, child.ID).Error; err != nil {
+		t.Fatalf("重试后读取子任务失败: %v", err)
+	}
+	if gotChild.Status != models.StrmGenerationStatusCompleted {
+		t.Fatalf("重试父刷新成功后子任务 status = %s，期望 completed", gotChild.Status)
+	}
+	if err := db.Db.First(&gotParent, parent.ID).Error; err != nil {
+		t.Fatalf("重试后读取父任务失败: %v", err)
+	}
+	if gotParent.AcceptedItems != 1 || gotParent.ChangedItems != 1 || !gotParent.RefreshSubmitted {
+		t.Fatalf("重试后父任务 = %+v，期望未重复累计且已标记刷新", gotParent)
 	}
 }
 
@@ -1274,6 +1552,62 @@ func TestProcessPendingStrmGenerationTasksCallsSourceCleanupAfterCompletedUpload
 	}
 	if len(cleanupUploadTaskIDs) != 1 || cleanupUploadTaskIDs[0] != 42 {
 		t.Fatalf("cleanup ids=%v，期望只清理上传任务 42", cleanupUploadTaskIDs)
+	}
+}
+
+func TestProcessPendingStrmGenerationTasksCleansOnlyStrmTaskUploadID(t *testing.T) {
+	account, syncPath := setupStrmGenerationServiceTestDB(t)
+	if err := db.Db.AutoMigrate(&models.DirectoryUploadProcessedFile{}); err != nil {
+		t.Fatalf("迁移目录监控处理记录表失败: %v", err)
+	}
+	service := newTestGenerationService(t, syncPath, account)
+	service.compareStrm = func(_ *SyncStrm, _ *SyncFileCache) int { return 1 }
+	service.processStrmFile = func(_ *SyncStrm, _ *SyncFileCache) error { return nil }
+	service.requestEmbyRefreshBySyncFile = func(*models.SyncFile) error { return nil }
+
+	var cleanupUploadTaskIDs []uint
+	oldCleanup := cleanupSourceAfterStrmSuccess
+	cleanupSourceAfterStrmSuccess = func(uploadTaskID uint) error {
+		cleanupUploadTaskIDs = append(cleanupUploadTaskIDs, uploadTaskID)
+		return nil
+	}
+	t.Cleanup(func() {
+		cleanupSourceAfterStrmSuccess = oldCleanup
+	})
+
+	_, err := models.EnqueueStrmGenerationTask(&models.StrmGenerationTask{
+		Source:       models.StrmGenerationSourceUploadCompleted,
+		TaskType:     models.StrmGenerationTaskTypeFile,
+		UploadTaskId: 42,
+		SyncPathId:   syncPath.ID,
+		AccountId:    account.ID,
+		FileId:       "file-reused-cleanup",
+		ParentId:     "parent-reused-cleanup",
+		PickCode:     "pick-reused-cleanup",
+		Path:         "/remote",
+		FileName:     "reused-cleanup.mkv",
+	})
+	if err != nil {
+		t.Fatalf("创建复用 STRM 任务失败: %v", err)
+	}
+	records := []*models.DirectoryUploadProcessedFile{
+		{SourceKey: "source-cleanup-42", UploadTaskId: 42},
+		{SourceKey: "source-cleanup-43", UploadTaskId: 43},
+	}
+	if err := db.Db.Create(&records).Error; err != nil {
+		t.Fatalf("创建目录监控处理账本记录失败: %v", err)
+	}
+
+	if _, err := ProcessPendingStrmGenerationTasks(context.Background(), service, 10); err != nil {
+		t.Fatalf("处理 STRM 任务失败: %v", err)
+	}
+
+	got := make(map[uint]int, len(cleanupUploadTaskIDs))
+	for _, uploadTaskID := range cleanupUploadTaskIDs {
+		got[uploadTaskID]++
+	}
+	if got[42] != 1 || len(got) != 1 {
+		t.Fatalf("cleanup ids=%v，期望只按 STRM 任务自身 upload_task_id 清理任务 42", cleanupUploadTaskIDs)
 	}
 }
 

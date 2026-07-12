@@ -128,6 +128,38 @@ func TestEnqueueStrmGenerationTaskTreatsWaitingChildrenAsActive(t *testing.T) {
 	}
 }
 
+func TestEnqueueStrmGenerationTaskTreatsFinalizingAsActive(t *testing.T) {
+	setupStrmGenerationTaskTestDB(t)
+
+	first, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:      StrmGenerationSourceWebhook,
+		TaskType:    StrmGenerationTaskTypeFile,
+		SyncPathId:  10,
+		AccountId:   2,
+		FileId:      "file-finalizing",
+		Status:      StrmGenerationStatusFinalizing,
+		RequestHash: "sync:10:file:file-finalizing",
+	})
+	if err != nil {
+		t.Fatalf("首次收尾中任务入队失败: %v", err)
+	}
+
+	second, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:      StrmGenerationSourceWebhook,
+		TaskType:    StrmGenerationTaskTypeFile,
+		SyncPathId:  10,
+		AccountId:   2,
+		FileId:      "file-finalizing",
+		RequestHash: "sync:10:file:file-finalizing",
+	})
+	if err != nil {
+		t.Fatalf("重复收尾中任务入队失败: %v", err)
+	}
+	if second.ID != first.ID {
+		t.Fatalf("收尾中任务应复用，got %d want %d", second.ID, first.ID)
+	}
+}
+
 func TestEnqueueStrmGenerationFileArchivesFailedRequestHash(t *testing.T) {
 	setupStrmGenerationTaskTestDB(t)
 
@@ -295,17 +327,40 @@ func TestStrmGenerationTaskRefreshTargetsMergeAndLibraryOverride(t *testing.T) {
 func TestStrmGenerationParentReadyForRefresh(t *testing.T) {
 	parent := &StrmGenerationTask{
 		TotalItems:    3,
-		AcceptedItems: 2,
-		FailedItems:   1,
+		AcceptedItems: 3,
+		FailedItems:   0,
 		ChangedItems:  1,
 		RefreshEmby:   true,
+		Status:        StrmGenerationStatusCompleted,
 	}
 	if !parent.IsReadyToSubmitRefresh() {
-		t.Fatal("全部子任务完成且有变化时应可提交刷新")
+		t.Fatal("全部子任务成功完成且有变化时应可提交刷新")
 	}
 	parent.RefreshSubmitted = true
 	if parent.IsReadyToSubmitRefresh() {
 		t.Fatal("已提交刷新后不应再次提交")
+	}
+
+	parent.RefreshSubmitted = false
+	parent.AcceptedItems = 2
+	parent.FailedItems = 1
+	if parent.IsReadyToSubmitRefresh() {
+		t.Fatal("父任务存在失败子项时不应提交刷新")
+	}
+
+	parent.AcceptedItems = 3
+	parent.FailedItems = 0
+	parent.Status = StrmGenerationStatusFailed
+	if parent.IsReadyToSubmitRefresh() {
+		t.Fatal("父任务失败时不应提交刷新")
+	}
+	parent.Status = StrmGenerationStatusWaitingChildren
+	if parent.IsReadyToSubmitRefresh() {
+		t.Fatal("父任务仍在等待子任务时不应提交刷新")
+	}
+	parent.Status = StrmGenerationStatusFinalizing
+	if parent.IsReadyToSubmitRefresh() {
+		t.Fatal("父任务仍在收尾时不应提交刷新")
 	}
 }
 
@@ -486,6 +541,17 @@ func TestGetPendingStrmGenerationTasksFiltersAndOrders(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("创建 failed 任务失败: %v", err)
 	}
+	finalizing := &StrmGenerationTask{
+		Source:     StrmGenerationSourceWebhook,
+		TaskType:   StrmGenerationTaskTypeFile,
+		SyncPathId: 10,
+		AccountId:  2,
+		FileId:     "file-finalizing",
+		Status:     StrmGenerationStatusFinalizing,
+	}
+	if err := db.Db.Create(finalizing).Error; err != nil {
+		t.Fatalf("创建 finalizing 任务失败: %v", err)
+	}
 	second, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
 		Source:     StrmGenerationSourceWebhook,
 		TaskType:   StrmGenerationTaskTypeFile,
@@ -509,8 +575,8 @@ func TestGetPendingStrmGenerationTasksFiltersAndOrders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("查询 pending 任务失败: %v", err)
 	}
-	if len(tasks) != 2 || tasks[0].ID != first.ID || tasks[1].ID != second.ID {
-		t.Fatalf("pending 任务 = %+v，期望按 ID 返回两个 pending", tasks)
+	if len(tasks) != 3 || tasks[0].ID != first.ID || tasks[1].ID != finalizing.ID || tasks[2].ID != second.ID {
+		t.Fatalf("待处理任务 = %+v，期望按 ID 返回 pending/finalizing/pending", tasks)
 	}
 }
 
@@ -709,5 +775,48 @@ func TestUpdateStrmGenerationParentProgressFailsWaitingParent(t *testing.T) {
 	}
 	if updated.Status != StrmGenerationStatusFailed {
 		t.Fatalf("存在失败子任务时 status = %s，期望 failed", updated.Status)
+	}
+}
+
+func TestMarkStrmGenerationChildFailedUpdatesChildAndParent(t *testing.T) {
+	setupStrmGenerationTaskTestDB(t)
+	parent, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:      StrmGenerationSourceWebhook,
+		TaskType:    StrmGenerationTaskTypeBatchFiles,
+		SyncPathId:  10,
+		AccountId:   2,
+		TotalItems:  1,
+		Status:      StrmGenerationStatusWaitingChildren,
+		RequestHash: "webhook:batch:atomic-failure",
+	})
+	if err != nil {
+		t.Fatalf("创建父任务失败: %v", err)
+	}
+	child, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+		Source:       StrmGenerationSourceWebhook,
+		TaskType:     StrmGenerationTaskTypeFile,
+		ParentTaskId: parent.ID,
+		SyncPathId:   10,
+		AccountId:    2,
+		Status:       StrmGenerationStatusRunning,
+		RequestHash:  "webhook:file:atomic-failure",
+	})
+	if err != nil {
+		t.Fatalf("创建子任务失败: %v", err)
+	}
+
+	updated, err := MarkStrmGenerationChildFailed(child.ID, parent.ID, "生成失败")
+	if err != nil {
+		t.Fatalf("原子标记子任务失败: %v", err)
+	}
+	if updated.Status != StrmGenerationStatusFailed || updated.FailedItems != 1 {
+		t.Fatalf("父任务 = %+v，期望 failed 且 failed_items=1", updated)
+	}
+	var gotChild StrmGenerationTask
+	if err := db.Db.First(&gotChild, child.ID).Error; err != nil {
+		t.Fatalf("读取子任务失败: %v", err)
+	}
+	if gotChild.Status != StrmGenerationStatusFailed || gotChild.RetryCount != 1 || gotChild.LastError != "生成失败" {
+		t.Fatalf("子任务 = %+v，期望 failed、retry_count=1 且保存错误", gotChild)
 	}
 }

@@ -15,50 +15,58 @@ import (
 	"gorm.io/gorm"
 )
 
+var removeSourceFile = os.Remove
+
 // CleanupSourceAfterStrmSuccess 在目录监控上传和 STRM 生成都成功后清理本地源文件。
 func CleanupSourceAfterStrmSuccess(uploadTaskID uint) error {
+	_, err := cleanupSourceAfterStrmSuccess(uploadTaskID)
+	return err
+}
+
+// cleanupSourceAfterStrmSuccess 返回本次调用是否完成了源文件清理收敛。
+func cleanupSourceAfterStrmSuccess(uploadTaskID uint) (bool, error) {
 	if uploadTaskID == 0 {
-		return nil
+		return false, nil
 	}
 	var task models.DbUploadTask
 	if err := db.Db.First(&task, uploadTaskID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil
+			return false, nil
 		}
-		return err
+		return false, err
 	}
 	if task.Source != models.UploadSourceDirectoryMonitor {
-		return nil
+		return false, nil
 	}
 	if task.SourceCleanupStatus != models.UploadSourceCleanupStatusPending {
-		return nil
+		return false, nil
 	}
 	rule, err := findCleanupRule(&task)
 	if err != nil {
-		return markCleanupFailed(&task, err)
+		return false, markCleanupFailed(&task, err)
 	}
 	if rule == nil || !rule.DeleteSourceAfterSuccess {
-		return markCleanupNone(&task)
+		return false, markCleanupNone(&task)
 	}
 	if !isSafeCleanupUploadTask(&task) {
-		return markCleanupNone(&task)
+		return false, markCleanupNone(&task)
 	}
 	hasCompletedStrm, err := hasCompletedStrmTask(task.ID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if !hasCompletedStrm {
-		return nil
+		return false, nil
 	}
 	if err := ensurePathWithinRoot(rule.MonitorPath, task.LocalFullPath); err != nil {
-		return markCleanupFailed(&task, err)
+		return false, markCleanupFailed(&task, err)
 	}
 	if err := validateCurrentSourceFileForCleanup(&task); err != nil {
-		return markCleanupFailed(&task, err)
+		return false, markCleanupFailed(&task, err)
 	}
-	if err := os.Remove(task.LocalFullPath); err != nil {
+	if err := removeSourceFile(task.LocalFullPath); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
-			return markCleanupFailed(&task, fmt.Errorf("删除源文件失败：%w", err))
+			return false, markCleanupPending(&task, fmt.Errorf("删除源文件失败：%w", err))
 		}
 	} else if helpers.AppLogger != nil {
 		helpers.AppLogger.Infof(
@@ -71,12 +79,81 @@ func CleanupSourceAfterStrmSuccess(uploadTaskID uint) error {
 		)
 	}
 	if err := removeEmptyParents(filepath.Dir(task.LocalFullPath), rule.MonitorPath, task.ID, rule.ID); err != nil {
-		return markCleanupFailed(&task, err)
+		return false, markCleanupPending(&task, err)
 	}
 	task.SourceCleanupStatus = models.UploadSourceCleanupStatusCompleted
 	task.SourceCleanupError = ""
 	task.SourceDeletedAt = time.Now().Unix()
-	return db.Db.Save(&task).Error
+	if err := db.Db.Save(&task).Error; err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// CleanupCompletedStrmDependencies 分页补偿已完成 STRM 依赖对应的待清理源文件。
+func CleanupCompletedStrmDependencies(batchSize int) (int, error) {
+	if db.Db == nil || !db.Db.Migrator().HasTable(&models.DbUploadTask{}) {
+		return 0, nil
+	}
+	if batchSize <= 0 {
+		batchSize = 200
+	}
+	cleaned := 0
+	lastID := uint(0)
+	var resultErr error
+	for {
+		tasks, err := findCompletedStrmDependencyUploadTasks(lastID, batchSize)
+		if err != nil {
+			return cleaned, errors.Join(resultErr, err)
+		}
+		if len(tasks) == 0 {
+			return cleaned, resultErr
+		}
+		for i := range tasks {
+			task := &tasks[i]
+			lastID = task.ID
+			completed, err := hasCompletedStrmTask(task.ID)
+			if err != nil {
+				resultErr = errors.Join(resultErr, err)
+				continue
+			}
+			if !completed {
+				continue
+			}
+			cleanedSource, err := cleanupSourceAfterStrmSuccess(task.ID)
+			if err != nil {
+				resultErr = errors.Join(resultErr, err)
+				continue
+			}
+			if cleanedSource {
+				cleaned++
+			}
+		}
+		if len(tasks) < batchSize {
+			return cleaned, resultErr
+		}
+	}
+}
+
+// findCompletedStrmDependencyUploadTasks 查询已满足 STRM 清理条件的上传任务。
+func findCompletedStrmDependencyUploadTasks(lastID uint, batchSize int) ([]models.DbUploadTask, error) {
+	var tasks []models.DbUploadTask
+	err := db.Db.Where(
+		"id > ? AND source = ? AND status = ? AND source_cleanup_status = ?",
+		lastID,
+		models.UploadSourceDirectoryMonitor,
+		models.UploadStatusCompleted,
+		models.UploadSourceCleanupStatusPending,
+	).Where(`
+		EXISTS (
+			SELECT 1
+			FROM strm_generation_tasks AS strm
+			WHERE strm.upload_task_id = db_upload_tasks.id
+				AND strm.status = ?
+		)`,
+		models.StrmGenerationStatusCompleted,
+	).Order("id ASC").Limit(batchSize).Find(&tasks).Error
+	return tasks, err
 }
 
 func findCleanupRule(task *models.DbUploadTask) (*models.DirectoryUploadRule, error) {
@@ -251,6 +328,19 @@ func markCleanupFailed(task *models.DbUploadTask, err error) error {
 		return err
 	}
 	task.SourceCleanupStatus = models.UploadSourceCleanupStatusFailed
+	task.SourceCleanupError = err.Error()
+	if saveErr := db.Db.Save(task).Error; saveErr != nil {
+		return saveErr
+	}
+	return err
+}
+
+// markCleanupPending 记录可重试的清理错误，使启动和周期补偿可以再次尝试。
+func markCleanupPending(task *models.DbUploadTask, err error) error {
+	if task == nil || err == nil {
+		return err
+	}
+	task.SourceCleanupStatus = models.UploadSourceCleanupStatusPending
 	task.SourceCleanupError = err.Error()
 	if saveErr := db.Db.Save(task).Error; saveErr != nil {
 		return saveErr

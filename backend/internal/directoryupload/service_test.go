@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -29,6 +30,7 @@ type fakeRemoteClient struct {
 	ensureDirErr   error
 	ensureDirCalls int
 	findFileCalls  int
+	onDelete       func(fileID string)
 }
 
 func (c *fakeRemoteClient) EnsureDir(context.Context, *models.DirectoryUploadRule, string) (RemoteDirectory, error) {
@@ -49,6 +51,9 @@ func (c *fakeRemoteClient) FindFile(_ context.Context, _ string, fileName string
 
 func (c *fakeRemoteClient) DeleteFile(_ context.Context, _ string, fileID string) error {
 	c.deletedFileIDs = append(c.deletedFileIDs, fileID)
+	if c.onDelete != nil {
+		c.onDelete(fileID)
+	}
 	return nil
 }
 
@@ -661,7 +666,7 @@ func TestHandleStableFileLogsRemoteExistsStrmTask(t *testing.T) {
 		"[目录上传] 远端已存在同内容文件，已创建 STRM 后处理任务",
 		"rule_id=",
 		"upload_task_id=",
-		"strm_task_id=",
+		"strm_generation_task_id=",
 		"path=" + filePath,
 		"remote_path=/remote/movie.mkv",
 		"remote_file_id=remote-file-1",
@@ -1963,5 +1968,79 @@ func TestServiceReplacesRemoteConflictBeforeUpload(t *testing.T) {
 	}
 	if task.Status != models.UploadStatusPending || task.UploadResult != models.UploadResultUnknown {
 		t.Fatalf("上传任务 = %+v，期望覆盖后创建 pending 任务", task)
+	}
+}
+
+func TestServiceWritesPendingReplaceBeforeDeletingRemoteConflict(t *testing.T) {
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	filePath := filepath.Join(monitorPath, "movie.mkv")
+	writeFileWithMtime(t, filePath, []byte("movie"), time.Unix(601, 0))
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	rule.OverwriteMode = models.DirectoryUploadOverwriteReplaceConflict
+
+	service := NewService(ServiceOptions{})
+	var sawPendingReplace bool
+	remoteClient := &fakeRemoteClient{
+		parentID: "remote-root",
+		files: map[string]*RemoteFile{
+			"movie.mkv": {ID: "remote-file", PickCode: "pick-code", SHA1: "different", Size: 999},
+		},
+		onDelete: func(fileID string) {
+			if fileID != "remote-file" {
+				t.Fatalf("删除远端文件 ID = %s，期望 remote-file", fileID)
+			}
+			var record models.DirectoryUploadProcessedFile
+			if err := db.Db.First(&record).Error; err != nil {
+				t.Fatalf("删除远端前应已写入 processed 账本: %v", err)
+			}
+			if record.Result != models.DirectoryUploadProcessedResult("pending_replace") || record.UploadTaskId != 0 {
+				t.Fatalf("删除远端前 processed = %+v，期望 pending_replace 且未绑定上传任务", record)
+			}
+			sawPendingReplace = true
+		},
+	}
+	service.SetRemoteClient(remoteClient)
+
+	if err := service.HandleStableFile(context.Background(), rule, filePath); err != nil {
+		t.Fatalf("覆盖远端同名文件后创建上传任务失败: %v", err)
+	}
+	if !sawPendingReplace {
+		t.Fatal("远端删除时未观察到 pending_replace 账本")
+	}
+	var record models.DirectoryUploadProcessedFile
+	if err := db.Db.First(&record).Error; err != nil {
+		t.Fatalf("读取 processed 账本失败: %v", err)
+	}
+	if record.Result != models.DirectoryUploadProcessedResultQueued || record.UploadTaskId == 0 {
+		t.Fatalf("创建上传任务后 processed = %+v，期望 queued 并绑定上传任务", record)
+	}
+}
+
+func TestHandleStableFileRejectsSymlinkEscapingMonitor(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows 下 symlink 权限和路径分隔符语义不同")
+	}
+	setupDirectoryUploadServiceTestDB(t)
+	monitorPath := t.TempDir()
+	outsideTarget := filepath.Join(t.TempDir(), "outside.mkv")
+	linkPath := filepath.Join(monitorPath, "linked.mkv")
+	writeFileWithMtime(t, outsideTarget, []byte("outside"), time.Unix(602, 0))
+	if err := os.Symlink(outsideTarget, linkPath); err != nil {
+		t.Skipf("当前平台不支持创建 symlink: %v", err)
+	}
+	_, rule := createDirectoryUploadRuleForTest(t, monitorPath)
+	service := NewService(ServiceOptions{RemoteClient: &fakeRemoteClient{parentID: "remote-root"}})
+
+	err := service.HandleStableFile(context.Background(), rule, linkPath)
+	if err == nil {
+		t.Fatal("symlink 真实目标越界时应拒绝上传")
+	}
+	var total int64
+	if err := db.Db.Model(&models.DbUploadTask{}).Count(&total).Error; err != nil {
+		t.Fatalf("统计上传任务失败: %v", err)
+	}
+	if total != 0 {
+		t.Fatalf("上传任务数量 = %d，期望 0", total)
 	}
 }

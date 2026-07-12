@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -20,12 +21,13 @@ import (
 type UploadStatus int
 
 const (
-	UploadStatusPending   UploadStatus = iota // 等待中
-	UploadStatusUploading                     // 上传中
-	UploadStatusCompleted                     // 已完成
-	UploadStatusFailed                        // 失败
-	UploadStatusCancelled                     // 已取消
-	UploadStatusAll       = -1                // 所有状态
+	UploadStatusPending                        UploadStatus = iota // 等待中
+	UploadStatusUploading                                          // 上传中
+	UploadStatusCompleted                                          // 已完成
+	UploadStatusFailed                                             // 失败
+	UploadStatusCancelled                                          // 已取消
+	UploadStatusRemoteCompletedPendingFinalize UploadStatus = 5    // 远端已完成，等待本地收尾
+	UploadStatusAll                                         = -1   // 所有状态
 )
 
 type UploadSource string
@@ -114,6 +116,8 @@ func (s UploadStatus) String() string {
 		return "failed"
 	case UploadStatusCancelled:
 		return "cancelled"
+	case UploadStatusRemoteCompletedPendingFinalize:
+		return "remote_completed_pending_finalize"
 	default:
 		return "unknown"
 	}
@@ -186,15 +190,35 @@ func (task *DbUploadTask) PrepareUploadRetry(maxRetry int) {
 }
 
 func (task *DbUploadTask) Complete() {
+	if err := task.complete(); err != nil {
+		helpers.AppLogger.Warnf("[上传] 标记为已完成失败：%s", err.Error())
+	}
+}
+
+func (task *DbUploadTask) complete() error {
 	// 标记为已完成
 	task.Status = UploadStatusCompleted
 	task.EndTime = time.Now().Unix()
 	err := db.Db.Save(task).Error
 	if err != nil {
-		helpers.AppLogger.Warnf("[上传] 标记为已完成失败：%s", err.Error())
-		return
+		return err
 	}
 	publishUploadQueueChanged(task, "status_changed")
+	return nil
+}
+
+func (task *DbUploadTask) MarkRemoteCompletedPendingFinalize() error {
+	if task == nil {
+		return errors.New("上传任务为空")
+	}
+	task.Status = UploadStatusRemoteCompletedPendingFinalize
+	task.EndTime = time.Now().Unix()
+	if err := db.Db.Save(task).Error; err != nil {
+		helpers.AppLogger.Warnf("[上传] 持久化远端完成待收尾状态失败：%s", err.Error())
+		return err
+	}
+	publishUploadQueueChanged(task, "status_changed")
+	return nil
 }
 
 func (task *DbUploadTask) Fail(err error) {
@@ -264,6 +288,12 @@ func (task *DbUploadTask) GetAccount() *Account {
 
 // 执行上传
 func (task *DbUploadTask) Upload() {
+	if task.Status == UploadStatusRemoteCompletedPendingFinalize {
+		if err := task.finalizeRemoteCompletedUpload(); err != nil {
+			helpers.AppLogger.Warnf("[上传] 远端完成任务收尾失败：task_id=%d err=%v", task.ID, err)
+		}
+		return
+	}
 	if !helpers.PathExists(task.LocalFullPath) {
 		task.Fail(fmt.Errorf("本地文件 %s 不存在", task.LocalFullPath))
 		return
@@ -293,13 +323,20 @@ func (task *DbUploadTask) Upload() {
 		task.Fail(fmt.Errorf("未知的上传来源类型 %s", task.SourceType))
 		return
 	}
-	// 标记为已完成
-	task.Complete()
+	if err := task.MarkRemoteCompletedPendingFinalize(); err != nil {
+		return
+	}
+	if err := task.finalizeRemoteCompletedUpload(); err != nil {
+		helpers.AppLogger.Warnf("[上传] 远端完成任务收尾失败：task_id=%d err=%v", task.ID, err)
+	}
+}
+
+func (task *DbUploadTask) finalizeRemoteCompletedUpload() error {
 	if err := task.markDirectoryUploadProcessedAfterUploadComplete(); err != nil {
-		helpers.AppLogger.Warnf("[上传] 标记目录监控源文件上传完成失败：%s", err.Error())
+		return fmt.Errorf("标记目录监控源文件上传完成失败：%w", err)
 	}
 	if err := task.enqueueStrmGenerationAfterUploadAndMarkDirectoryProcessed(); err != nil {
-		helpers.AppLogger.Warnf("[上传] 创建 STRM 生成任务失败：%s", err.Error())
+		return fmt.Errorf("创建 STRM 生成任务失败：%w", err)
 	}
 	// 如果是刮削类型，需要进行后续通知
 	if task.Source == UploadSourceScrape {
@@ -307,10 +344,14 @@ func (task *DbUploadTask) Upload() {
 		scrapeMediaFile := GetScrapeMediaFileById(task.ScrapeMediaFileId)
 		if scrapeMediaFile == nil {
 			helpers.AppLogger.Errorf("刮削文件 %d 不存在", task.ScrapeMediaFileId)
-			return
+		} else {
+			scrapeMediaFile.RemoveTmpFiles(task)
 		}
-		scrapeMediaFile.RemoveTmpFiles(task)
 	}
+	if err := task.complete(); err != nil {
+		return fmt.Errorf("标记上传任务完成失败：%w", err)
+	}
+	return nil
 }
 
 func (task *DbUploadTask) validateDirectoryMonitorSourceFingerprint() error {
@@ -327,6 +368,89 @@ func (task *DbUploadTask) validateDirectoryMonitorSourceFingerprint() error {
 	current := BuildDirectoryUploadSourceFingerprint(info.Size(), info.ModTime().UnixNano())
 	if current != task.SourceFingerprint {
 		return fmt.Errorf("目录监控源文件 fingerprint 不匹配：task=%s current=%s", task.SourceFingerprint, current)
+	}
+	if err := task.validateDirectoryMonitorRealPathBoundary(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (task *DbUploadTask) validateDirectoryMonitorRealPathBoundary() error {
+	rule, err := task.findDirectoryMonitorRuleForValidation()
+	if err != nil {
+		return err
+	}
+	if rule == nil {
+		return nil
+	}
+	if err := ensureLocalPathWithinRoot(rule.MonitorPath, task.LocalFullPath); err != nil {
+		return err
+	}
+	realRoot, err := filepath.EvalSymlinks(rule.MonitorPath)
+	if err != nil {
+		return fmt.Errorf("解析目录监控真实路径失败：%w", err)
+	}
+	realTarget, err := filepath.EvalSymlinks(task.LocalFullPath)
+	if err != nil {
+		return fmt.Errorf("解析目录监控源文件真实路径失败：%w", err)
+	}
+	if err := ensureLocalPathWithinRoot(realRoot, realTarget); err != nil {
+		return fmt.Errorf("目录监控源文件真实路径越界：%s", realTarget)
+	}
+	return nil
+}
+
+func (task *DbUploadTask) findDirectoryMonitorRuleForValidation() (*DirectoryUploadRule, error) {
+	var record DirectoryUploadProcessedFile
+	if err := db.Db.Where("upload_task_id = ?", task.ID).First(&record).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+	} else if record.RuleId > 0 {
+		rule, err := GetDirectoryUploadRuleById(record.RuleId)
+		if err != nil {
+			return nil, fmt.Errorf("读取目录监控规则失败：%w", err)
+		}
+		return rule, nil
+	}
+
+	if task.SyncPathId == 0 || task.AccountId == 0 {
+		return nil, nil
+	}
+	if !db.Db.Migrator().HasTable(&DirectoryUploadRule{}) {
+		return nil, nil
+	}
+	var rules []*DirectoryUploadRule
+	if err := db.Db.Where("sync_path_id = ? AND account_id = ?", task.SyncPathId, task.AccountId).Find(&rules).Error; err != nil {
+		return nil, err
+	}
+	var selected *DirectoryUploadRule
+	selectedLen := -1
+	for _, rule := range rules {
+		if rule == nil {
+			continue
+		}
+		if err := ensureLocalPathWithinRoot(rule.MonitorPath, task.LocalFullPath); err != nil {
+			continue
+		}
+		cleanLen := len(filepath.Clean(rule.MonitorPath))
+		if cleanLen > selectedLen {
+			selected = rule
+			selectedLen = cleanLen
+		}
+	}
+	return selected, nil
+}
+
+func ensureLocalPathWithinRoot(rootPath string, targetPath string) error {
+	rootPath = filepath.Clean(rootPath)
+	targetPath = filepath.Clean(targetPath)
+	rel, err := filepath.Rel(rootPath, targetPath)
+	if err != nil {
+		return fmt.Errorf("计算目录监控路径边界失败：%w", err)
+	}
+	if rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return fmt.Errorf("目录监控源文件路径越界：%s", targetPath)
 	}
 	return nil
 }
@@ -451,7 +575,7 @@ func (task *DbUploadTask) UploadLocalFile() bool {
 func CheckCanUploadByLocalPath(source UploadSource, localPath string) bool {
 	var total int64
 	err := db.Db.Model(&DbUploadTask{}).
-		Where("source = ? AND local_full_path = ? AND status IN ?", source, localPath, []UploadStatus{UploadStatusPending, UploadStatusUploading}).
+		Where("source = ? AND local_full_path = ? AND status IN ?", source, localPath, []UploadStatus{UploadStatusPending, UploadStatusUploading, UploadStatusRemoteCompletedPendingFinalize}).
 		Count(&total).Error
 	if err != nil {
 		helpers.AppLogger.Warnf("检查本地路径上传任务失败：source=%s, local_path=%s, err=%v", source, localPath, err)
@@ -517,6 +641,9 @@ func AddUploadTaskFromSyncFile(file *SyncFile) error {
 		if task.Status == UploadStatusUploading {
 			return errors.New("任务已存在，状态为上传中")
 		}
+		if task.Status == UploadStatusRemoteCompletedPendingFinalize {
+			return errors.New("任务已存在，状态为远端已完成待收尾")
+		}
 	}
 	// if file.SyncPath == nil {
 	// 	file.SyncPath = GetSyncPathById(file.SyncPathId)
@@ -565,6 +692,9 @@ func AddUploadTaskFromMediaFile(mediaFile *ScrapeMediaFile, scrapePath *ScrapePa
 		if task.Status == UploadStatusUploading {
 			return errors.New("任务已存在，状态为上传中")
 		}
+		if task.Status == UploadStatusRemoteCompletedPendingFinalize {
+			return errors.New("任务已存在，状态为远端已完成待收尾")
+		}
 	}
 	// 插入新纪录
 	task := &DbUploadTask{
@@ -590,7 +720,7 @@ func AddUploadTaskFromMediaFile(mediaFile *ScrapeMediaFile, scrapePath *ScrapePa
 func GetPendingUploadTasks(limit int) []*DbUploadTask {
 	var tasks []*DbUploadTask
 	db.Db.Model(&DbUploadTask{}).
-		Where("status = ?", UploadStatusPending).
+		Where("status IN ?", []UploadStatus{UploadStatusPending, UploadStatusRemoteCompletedPendingFinalize}).
 		Limit(limit).
 		Order("id ASC").
 		Find(&tasks)
@@ -696,7 +826,7 @@ func RetryFailedUploadTasks(maxRetry int) error {
 func GetUnFinishUploadTaskCountByScrapeMediaId(scrapeMediaFileId uint) int64 {
 	var count int64
 	db.Db.Model(&DbUploadTask{}).
-		Where("scrape_media_file_id = ? AND status IN (?, ?)", scrapeMediaFileId, UploadStatusPending, UploadStatusUploading).
+		Where("scrape_media_file_id = ? AND status IN ?", scrapeMediaFileId, []UploadStatus{UploadStatusPending, UploadStatusUploading, UploadStatusRemoteCompletedPendingFinalize}).
 		Count(&count)
 	return count
 }

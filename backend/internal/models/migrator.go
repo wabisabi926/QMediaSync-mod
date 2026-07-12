@@ -18,12 +18,12 @@ type Migrator struct {
 	VersionCode int `json:"version_code"` // 版本号
 }
 
-var MaxVersionCode = 59
+var MaxVersionCode = 60
 var AllTables = []any{
 	Migrator{},
 	BackupConfig{}, BackupRecord{},
 	ApiKey{}, UserSession{}, Settings{}, Sync{}, User{}, Account{},
-	SyncPath{}, SyncFile{}, SyncPathScrapePath{}, DirectoryUploadRule{}, DirectoryUploadProcessedFile{},
+	SyncPath{}, SyncFile{}, SyncPathScrapePath{}, DirectoryUploadRule{}, DirectoryUploadProcessedFile{}, SyncPathIdempotencyRecord{},
 	ScrapeSettings{}, ScrapePath{}, MovieCategory{}, TvShowCategory{}, ScrapePathCategory{},
 	ScrapeMediaFile{}, Media{}, MediaSeason{}, MediaEpisode{}, ScrapeStrmPath{},
 	RequestStat{}, EmbyConfig{}, EmbyMediaItem{}, EmbyMediaSyncFile{}, EmbyLibrary{}, EmbyLibrarySyncPath{}, EmbyLibraryRefreshTask{},
@@ -662,7 +662,78 @@ func Migrate() {
 		helpers.AppLogger.Info("已添加 115 直链缓存有效性检查设置")
 		migrator.UpdateVersionCode(db.Db)
 	}
+	if migrator.VersionCode == 59 {
+		if err := db.Db.AutoMigrate(SyncPathIdempotencyRecord{}); err != nil {
+			helpers.AppLogger.Errorf("迁移同步目录幂等记录失败：%v", err)
+			return
+		}
+		if err := migrateEmbyLibraryRefreshTaskKeys(db.Db); err != nil {
+			helpers.AppLogger.Errorf("迁移 Emby 刷新任务唯一键失败：%v", err)
+			return
+		}
+		helpers.AppLogger.Info("已添加同步目录幂等记录和 Emby 刷新任务键")
+		migrator.UpdateVersionCode(db.Db)
+	}
 	helpers.AppLogger.Infof("当前数据库版本 %d", migrator.VersionCode)
+}
+
+// migrateEmbyLibraryRefreshTaskKeys 将 item 刷新任务的去重键从 library_id 拆分到 task_key。
+func migrateEmbyLibraryRefreshTaskKeys(dbConn *gorm.DB) error {
+	if !dbConn.Migrator().HasTable(&EmbyLibraryRefreshTask{}) {
+		return nil
+	}
+	if !dbConn.Migrator().HasColumn(&EmbyLibraryRefreshTask{}, "TaskKey") {
+		if err := dbConn.Migrator().AddColumn(&EmbyLibraryRefreshTask{}, "TaskKey"); err != nil {
+			return fmt.Errorf("添加 emby_library_refresh_tasks.task_key 失败：%w", err)
+		}
+	}
+
+	var tasks []EmbyLibraryRefreshTask
+	if err := dbConn.Order("id ASC").Find(&tasks).Error; err != nil {
+		return fmt.Errorf("读取 Emby 刷新任务失败：%w", err)
+	}
+	for i := range tasks {
+		task := &tasks[i]
+		taskKey := embyLibraryRefreshTaskKey(task.LibraryId)
+		if task.TargetType == EmbyLibraryRefreshTargetTypeItem {
+			taskKey = task.LibraryId
+			if len(taskKey) < len("item:") || taskKey[:len("item:")] != "item:" {
+				itemIDs := task.GetItemIds()
+				if len(itemIDs) > 0 {
+					taskKey = embyItemRefreshTaskKey(itemIDs[0])
+				}
+			}
+		}
+		if err := dbConn.Model(task).Update("task_key", taskKey).Error; err != nil {
+			return fmt.Errorf("回填 Emby 刷新任务 %d 失败：%w", task.ID, err)
+		}
+	}
+
+	if dbConn.Migrator().HasIndex(&EmbyLibraryRefreshTask{}, "idx_emby_library_refresh_tasks_library_id") {
+		if err := dbConn.Migrator().DropIndex(&EmbyLibraryRefreshTask{}, "idx_emby_library_refresh_tasks_library_id"); err != nil {
+			return fmt.Errorf("移除 emby_library_refresh_tasks.library_id 唯一索引失败：%w", err)
+		}
+	}
+	for i := range tasks {
+		task := &tasks[i]
+		if task.TargetType != EmbyLibraryRefreshTargetTypeItem {
+			continue
+		}
+		if err := dbConn.Model(task).Update("library_id", task.FallbackLibraryId).Error; err != nil {
+			return fmt.Errorf("回填 Emby item 刷新任务 %d 的媒体库 ID 失败：%w", task.ID, err)
+		}
+	}
+	if !dbConn.Migrator().HasIndex(&EmbyLibraryRefreshTask{}, "idx_emby_library_refresh_tasks_task_key") {
+		if err := dbConn.Migrator().CreateIndex(&EmbyLibraryRefreshTask{}, "idx_emby_library_refresh_tasks_task_key"); err != nil {
+			return fmt.Errorf("创建 emby_library_refresh_tasks.task_key 唯一索引失败：%w", err)
+		}
+	}
+	if !dbConn.Migrator().HasIndex(&EmbyLibraryRefreshTask{}, "idx_emby_library_refresh_tasks_library_id") {
+		if err := dbConn.Migrator().CreateIndex(&EmbyLibraryRefreshTask{}, "idx_emby_library_refresh_tasks_library_id"); err != nil {
+			return fmt.Errorf("创建 emby_library_refresh_tasks.library_id 索引失败：%w", err)
+		}
+	}
+	return nil
 }
 
 // 补齐缺失的表、字段和索引

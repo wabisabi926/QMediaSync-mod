@@ -157,93 +157,150 @@ func SaveDirectoryUploadRulesForSyncPath(syncPathID uint, enabled bool, rules []
 
 	var saved []*DirectoryUploadRule
 	err := db.Db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&SyncPath{}).
-			Where("id = ?", syncPathID).
-			Update("directory_upload_enabled", enabled).Error; err != nil {
-			return err
-		}
-		syncPath.DirectoryUploadEnabled = enabled
-
-		existingRules, err := getDirectoryUploadRulesWithDB(tx, syncPathID)
-		if err != nil {
-			return err
-		}
-		existingByID := make(map[uint]*DirectoryUploadRule, len(existingRules))
-		for _, rule := range existingRules {
-			existingByID[rule.ID] = rule
-		}
-
-		finalRules := make([]*DirectoryUploadRule, 0, len(rules))
-		seenRuleIDs := make(map[uint]struct{}, len(rules))
-		for _, rule := range rules {
-			if rule == nil {
-				return errors.New("目录监控上传规则为空")
-			}
-			if rule.SyncPathId != syncPathID {
-				return fmt.Errorf("目录监控上传规则 %d 不属于当前同步目录", rule.ID)
-			}
-			if rule.ID > 0 {
-				if _, seen := seenRuleIDs[rule.ID]; seen {
-					return fmt.Errorf("目录监控上传规则 %d 重复提交", rule.ID)
-				}
-				seenRuleIDs[rule.ID] = struct{}{}
-				if _, ok := existingByID[rule.ID]; !ok {
-					return fmt.Errorf("目录监控上传规则 %d 不属于当前同步目录", rule.ID)
-				}
-			}
-			if rule.IgnorePatterns != nil {
-				if err := rule.SetIgnorePatterns(rule.IgnorePatterns); err != nil {
-					return err
-				}
-			}
-			if err := rule.ValidateWithSyncPath(syncPath); err != nil {
-				return err
-			}
-			finalRules = append(finalRules, rule)
-		}
-		if enabled && !hasEnabledDirectoryUploadRule(finalRules) {
-			return errors.New("目录监控上传已启用，请至少启用一条规则")
-		}
-		if err := validateEnabledDirectoryUploadRuleSet(finalRules); err != nil {
-			return err
-		}
-
-		submittedIDSet := make(map[uint]struct{}, len(seenRuleIDs))
-		for id := range seenRuleIDs {
-			submittedIDSet[id] = struct{}{}
-		}
-		deletedIDs := make([]uint, 0)
-		for _, rule := range existingRules {
-			if _, ok := submittedIDSet[rule.ID]; !ok {
-				deletedIDs = append(deletedIDs, rule.ID)
-			}
-		}
-		if len(deletedIDs) > 0 {
-			if err := tx.Where("id IN ?", deletedIDs).Delete(&DirectoryUploadRule{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("rule_id IN ?", deletedIDs).Delete(&DirectoryUploadProcessedFile{}).Error; err != nil {
-				return err
-			}
-		}
-		for _, rule := range rules {
-			if rule.ID == 0 {
-				if err := createDirectoryUploadRuleWithDB(tx, rule); err != nil {
-					return err
-				}
-				continue
-			}
-			if err := tx.Save(rule).Error; err != nil {
-				return err
-			}
-		}
-		saved, err = getDirectoryUploadRulesWithDB(tx, syncPathID)
+		var err error
+		saved, err = SaveDirectoryUploadRulesForSyncPathWithDB(tx, syncPath, enabled, rules)
 		return err
 	})
 	if err != nil {
 		return nil, err
 	}
 	return saved, nil
+}
+
+// SaveDirectoryUploadRulesForSyncPathWithDB 在指定事务中保存最终目录上传规则集合。
+func SaveDirectoryUploadRulesForSyncPathWithDB(tx *gorm.DB, syncPath *SyncPath, enabled bool, rules []*DirectoryUploadRule) ([]*DirectoryUploadRule, error) {
+	if tx == nil {
+		return nil, errors.New("数据库连接为空")
+	}
+	if syncPath == nil || syncPath.ID == 0 {
+		return nil, errors.New("同步目录不存在")
+	}
+	syncPathID := syncPath.ID
+	if err := tx.Model(&SyncPath{}).
+		Where("id = ?", syncPathID).
+		Update("directory_upload_enabled", enabled).Error; err != nil {
+		return nil, err
+	}
+	syncPath.DirectoryUploadEnabled = enabled
+
+	existingRules, err := getDirectoryUploadRulesWithDB(tx, syncPathID)
+	if err != nil {
+		return nil, err
+	}
+	existingByID := make(map[uint]*DirectoryUploadRule, len(existingRules))
+	for _, rule := range existingRules {
+		existingByID[rule.ID] = rule
+	}
+
+	finalRules := make([]*DirectoryUploadRule, 0, len(rules))
+	seenRuleIDs := make(map[uint]struct{}, len(rules))
+	for _, rule := range rules {
+		if rule == nil {
+			return nil, errors.New("目录监控上传规则为空")
+		}
+		if rule.SyncPathId != syncPathID {
+			return nil, fmt.Errorf("目录监控上传规则 %d 不属于当前同步目录", rule.ID)
+		}
+		if rule.ID > 0 {
+			if _, seen := seenRuleIDs[rule.ID]; seen {
+				return nil, fmt.Errorf("目录监控上传规则 %d 重复提交", rule.ID)
+			}
+			seenRuleIDs[rule.ID] = struct{}{}
+			if _, ok := existingByID[rule.ID]; !ok {
+				return nil, fmt.Errorf("目录监控上传规则 %d 不属于当前同步目录", rule.ID)
+			}
+		}
+		if rule.IgnorePatterns != nil {
+			if err := rule.SetIgnorePatterns(rule.IgnorePatterns); err != nil {
+				return nil, err
+			}
+		}
+		if err := rule.ValidateWithSyncPath(syncPath); err != nil {
+			return nil, err
+		}
+		finalRules = append(finalRules, rule)
+	}
+	if enabled && !hasEnabledDirectoryUploadRule(finalRules) {
+		return nil, errors.New("目录监控上传已启用，请至少启用一条规则")
+	}
+	if err := validateEnabledDirectoryUploadRuleSet(finalRules); err != nil {
+		return nil, err
+	}
+
+	submittedIDSet := make(map[uint]struct{}, len(seenRuleIDs))
+	for id := range seenRuleIDs {
+		submittedIDSet[id] = struct{}{}
+	}
+	deletedIDs := make([]uint, 0)
+	for _, rule := range existingRules {
+		if _, ok := submittedIDSet[rule.ID]; !ok {
+			deletedIDs = append(deletedIDs, rule.ID)
+		}
+	}
+	changedBoundaryIDs := make([]uint, 0)
+	for _, rule := range finalRules {
+		if rule.ID == 0 {
+			continue
+		}
+		existing := existingByID[rule.ID]
+		if existing != nil && existing.DeleteSourceAfterSuccess &&
+			(!rule.DeleteSourceAfterSuccess ||
+				cleanLocalPath(existing.MonitorPath) != cleanLocalPath(rule.MonitorPath) ||
+				existing.Recursive != rule.Recursive ||
+				cleanRemotePath(existing.RemoteRootPath) != cleanRemotePath(rule.RemoteRootPath) ||
+				strings.TrimSpace(existing.RemoteRootId) != strings.TrimSpace(rule.RemoteRootId)) {
+			changedBoundaryIDs = append(changedBoundaryIDs, rule.ID)
+		}
+	}
+	affectedCleanupRuleIDs := append(append([]uint{}, deletedIDs...), changedBoundaryIDs...)
+	if err := cancelPendingDirectoryUploadCleanupWithDB(tx, affectedCleanupRuleIDs); err != nil {
+		return nil, err
+	}
+	if len(deletedIDs) > 0 {
+		if err := tx.Where("id IN ?", deletedIDs).Delete(&DirectoryUploadRule{}).Error; err != nil {
+			return nil, err
+		}
+	}
+	if len(affectedCleanupRuleIDs) > 0 {
+		if err := tx.Where("rule_id IN ?", affectedCleanupRuleIDs).Delete(&DirectoryUploadProcessedFile{}).Error; err != nil {
+			return nil, err
+		}
+	}
+	for _, rule := range rules {
+		if rule.ID == 0 {
+			if err := createDirectoryUploadRuleWithDB(tx, rule); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if err := tx.Save(rule).Error; err != nil {
+			return nil, err
+		}
+	}
+	return getDirectoryUploadRulesWithDB(tx, syncPathID)
+}
+
+func cancelPendingDirectoryUploadCleanupWithDB(tx *gorm.DB, ruleIDs []uint) error {
+	ruleIDs = uniqueUintIds(ruleIDs)
+	if len(ruleIDs) == 0 {
+		return nil
+	}
+	var uploadTaskIDs []uint
+	if err := tx.Model(&DirectoryUploadProcessedFile{}).
+		Where("rule_id IN ? AND upload_task_id > 0", ruleIDs).
+		Distinct("upload_task_id").
+		Pluck("upload_task_id", &uploadTaskIDs).Error; err != nil {
+		return err
+	}
+	if len(uploadTaskIDs) == 0 {
+		return nil
+	}
+	return tx.Model(&DbUploadTask{}).
+		Where("id IN ? AND source_cleanup_status = ?", uploadTaskIDs, UploadSourceCleanupStatusPending).
+		Updates(map[string]any{
+			"source_cleanup_status": UploadSourceCleanupStatusNone,
+			"source_cleanup_error":  "目录上传规则或清理边界已变更，取消源文件清理",
+		}).Error
 }
 
 func getDirectoryUploadRulesWithDB(handle *gorm.DB, syncPathID uint) ([]*DirectoryUploadRule, error) {
@@ -256,6 +313,11 @@ func getDirectoryUploadRulesWithDB(handle *gorm.DB, syncPathID uint) ([]*Directo
 	}
 	loadDirectoryUploadRuleIgnorePatterns(rules)
 	return rules, nil
+}
+
+// GetDirectoryUploadRulesWithDB 在指定数据库连接中查询目录监控上传规则。
+func GetDirectoryUploadRulesWithDB(handle *gorm.DB, syncPathID uint) ([]*DirectoryUploadRule, error) {
+	return getDirectoryUploadRulesWithDB(handle, syncPathID)
 }
 
 func createDirectoryUploadRuleWithDB(handle *gorm.DB, rule *DirectoryUploadRule) error {
@@ -303,6 +365,9 @@ func (rule *DirectoryUploadRule) ValidateWithSyncPath(syncPath *SyncPath) error 
 	syncRemotePath := cleanRemotePath(syncPath.RemotePath)
 	if remoteRootPath == "" {
 		return errors.New("远端上传根目录不能为空")
+	}
+	if strings.TrimSpace(rule.RemoteRootId) == "" {
+		return errors.New("远端上传根目录 ID 不能为空")
 	}
 	if syncRemotePath == "" {
 		return errors.New("同步远端目录不能为空")

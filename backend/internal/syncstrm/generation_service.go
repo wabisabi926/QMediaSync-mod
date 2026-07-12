@@ -27,8 +27,15 @@ const (
 	strmGenerationWorkerBatch    = 5
 )
 
-var strmGenerationWorkerOnce sync.Once
 var cleanupSourceAfterStrmSuccess = directoryupload.CleanupSourceAfterStrmSuccess
+
+var strmGenerationWorkerState = struct {
+	mu       sync.RWMutex
+	cancel   context.CancelFunc
+	running  bool
+	stopping bool
+	wg       sync.WaitGroup
+}{}
 
 // StrmGenerationInput 是单文件 STRM 生成输入。
 type StrmGenerationInput struct {
@@ -51,7 +58,9 @@ type StrmGenerationService struct {
 	requestEmbyRefreshBySyncFile func(*models.SyncFile) error
 	resolveRefreshTarget         func(*models.SyncFile) (models.EmbyRefreshTarget, error)
 	requestEmbyRefreshTargets    func(uint, []models.EmbyRefreshTarget) error
+	acquireRefreshSubmission     func(context.Context) (func(), error)
 	detailByFileID               func(context.Context, *SyncStrm, string) (*SyncFileCache, error)
+	resolveStrmOwner             func(context.Context, *SyncStrm, *SyncFileCache) (bool, error)
 }
 
 // NewStrmGenerationService 创建 STRM 生成服务。
@@ -73,12 +82,14 @@ func NewStrmGenerationService() *StrmGenerationService {
 	service.requestEmbyRefreshBySyncFile = models.RequestEmbyRefreshBySyncFile
 	service.resolveRefreshTarget = models.ResolveEmbyRefreshTarget
 	service.requestEmbyRefreshTargets = models.RequestEmbyRefreshTargets
+	service.acquireRefreshSubmission = acquireStrmGenerationRefreshSubmission
 	service.detailByFileID = func(ctx context.Context, syncer *SyncStrm, fileID string) (*SyncFileCache, error) {
 		if syncer == nil || syncer.SyncDriver == nil {
 			return nil, errors.New("STRM 同步器未初始化远端驱动")
 		}
 		return syncer.SyncDriver.DetailByFileId(ctx, fileID)
 	}
+	service.resolveStrmOwner = resolveLatest115StrmOwner
 	return service
 }
 
@@ -121,6 +132,14 @@ func (service *StrmGenerationService) Generate(ctx context.Context, input StrmGe
 	if err != nil {
 		return nil, err
 	}
+	if file.IsVideo {
+		unlock := lockStrmTarget(file.GetLocalFilePath(syncer.TargetPath, syncer.SourcePath))
+		defer unlock()
+	}
+	isStrmOwner, err := service.resolveStrmOwner(ctx, syncer, file)
+	if err != nil {
+		return nil, err
+	}
 	existing, err := findExistingGeneratedSyncFile(task.SyncPathId, file.GetFileId(), file.PickCode)
 	if err != nil {
 		return nil, err
@@ -136,13 +155,10 @@ func (service *StrmGenerationService) Generate(ctx context.Context, input StrmGe
 	}
 	newLocalPath := syncFile.LocalFilePath
 
-	changed := file.IsVideo && service.compareStrm(syncer, file) != 1
+	changed := file.IsVideo && isStrmOwner && service.compareStrm(syncer, file) != 1
 	if changed {
 		if err := service.processStrmFile(syncer, file); err != nil {
 			return nil, fmt.Errorf("生成 STRM 文件失败：%w", err)
-		}
-		if err := cleanupOldGeneratedStrm(oldLocalPath, newLocalPath); err != nil {
-			return nil, err
 		}
 	}
 	if err := copyDirectoryUploadMetadata(syncer, task, file); err != nil {
@@ -151,6 +167,11 @@ func (service *StrmGenerationService) Generate(ctx context.Context, input StrmGe
 
 	if err := db.Db.Save(syncFile).Error; err != nil {
 		return nil, fmt.Errorf("保存 SyncFile 失败：%w", err)
+	}
+	if changed {
+		if err := cleanupOldGeneratedStrm(syncer.TargetPath, oldLocalPath, newLocalPath); err != nil {
+			helpers.AppLogger.Warnf("清理旧 STRM 文件失败：%v", err)
+		}
 	}
 	isWebhookFile := task.Source == models.StrmGenerationSourceWebhook && task.TaskType == models.StrmGenerationTaskTypeFile
 	newMeta := 0
@@ -170,12 +191,12 @@ func (service *StrmGenerationService) Generate(ctx context.Context, input StrmGe
 		}
 		result.RefreshTargets = []models.EmbyRefreshTarget{target}
 		if task.ParentTaskId == 0 {
-			if err := service.requestEmbyRefreshTargets(syncFile.SyncPathId, result.RefreshTargets); err != nil {
+			if err := service.submitEmbyRefreshTargets(ctx, syncFile.SyncPathId, result.RefreshTargets); err != nil {
 				return nil, fmt.Errorf("提交 Emby 刷新任务失败：%w", err)
 			}
 		}
 	case changed && !isWebhookFile:
-		if err := service.requestEmbyRefreshBySyncFile(syncFile); err != nil {
+		if err := service.submitEmbyRefreshBySyncFile(ctx, syncFile); err != nil {
 			return nil, fmt.Errorf("提交 Emby 刷新任务失败：%w", err)
 		}
 	}
@@ -472,6 +493,7 @@ func (service *StrmGenerationService) expandDirectoryScanChildren(ctx context.Co
 		return 0, fmt.Errorf("获取远端目录文件列表失败：%w", err)
 	}
 	totalItems := 0
+	videoFiles := make([]*SyncFileCache, 0, len(fileItems))
 	for _, file := range fileItems {
 		if file == nil {
 			continue
@@ -500,6 +522,19 @@ func (service *StrmGenerationService) expandDirectoryScanChildren(ctx context.Co
 		}
 		if !syncer.IsValidVideoExt(file.FileName) {
 			continue
+		}
+		file.IsVideo = true
+		file.GetLocalFilePath(syncer.TargetPath, syncer.SourcePath)
+		videoFiles = append(videoFiles, file)
+	}
+
+	owners := selectLatest115StrmOwners(videoFiles)
+	for _, file := range videoFiles {
+		if file.SourceType == models.SourceType115 {
+			targetPath := filepath.ToSlash(filepath.Clean(file.LocalFilePath))
+			if owners[targetPath] != file {
+				continue
+			}
 		}
 		childTask := buildDirectoryScanChildTask(task, syncPath, file)
 		if _, err := models.EnqueueStrmGenerationTaskWithLegacyHashes(
@@ -686,17 +721,38 @@ func findExistingGeneratedSyncFile(syncPathID uint, fileID string, pickCode stri
 	return &existing, nil
 }
 
-func cleanupOldGeneratedStrm(oldLocalPath string, newLocalPath string) error {
+func cleanupOldGeneratedStrm(targetRoot string, oldLocalPath string, newLocalPath string) error {
 	if oldLocalPath == "" || newLocalPath == "" {
 		return nil
 	}
+	targetRoot = filepath.Clean(targetRoot)
 	oldLocalPath = filepath.Clean(oldLocalPath)
 	newLocalPath = filepath.Clean(newLocalPath)
 	if oldLocalPath == newLocalPath {
 		return nil
 	}
+	if !strings.EqualFold(filepath.Ext(oldLocalPath), ".strm") {
+		return fmt.Errorf("%w: 旧路径不是 .strm 文件：%s", errOldStrmCleanupFailed, oldLocalPath)
+	}
+	if err := ensureGeneratedStrmPathWithinRoot(targetRoot, oldLocalPath); err != nil {
+		return fmt.Errorf("%w: %v", errOldStrmCleanupFailed, err)
+	}
 	if err := os.Remove(oldLocalPath); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("%w: %v", errOldStrmCleanupFailed, err)
+	}
+	return nil
+}
+
+func ensureGeneratedStrmPathWithinRoot(rootPath string, targetPath string) error {
+	if rootPath == "" || targetPath == "" {
+		return errors.New("STRM 目标根路径或待清理路径为空")
+	}
+	rel, err := filepath.Rel(rootPath, targetPath)
+	if err != nil {
+		return fmt.Errorf("计算 STRM 清理路径边界失败：%w", err)
+	}
+	if rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return fmt.Errorf("旧 STRM 路径越界：%s", targetPath)
 	}
 	return nil
 }
@@ -706,9 +762,63 @@ func InitStrmGenerationWorker() {
 	if err := models.ResetRunningStrmGenerationTasks(); err != nil {
 		helpers.AppLogger.Errorf("恢复 STRM 生成任务失败：%v", err)
 	}
-	strmGenerationWorkerOnce.Do(func() {
-		go runStrmGenerationWorker(context.Background(), NewStrmGenerationService())
-	})
+	startStrmGenerationWorker(context.Background(), NewStrmGenerationService())
+}
+
+func startStrmGenerationWorker(ctx context.Context, service *StrmGenerationService) {
+	workerCtx, cancel := context.WithCancel(ctx)
+	strmGenerationWorkerState.mu.Lock()
+	if strmGenerationWorkerState.running {
+		strmGenerationWorkerState.mu.Unlock()
+		cancel()
+		return
+	}
+	strmGenerationWorkerState.cancel = cancel
+	strmGenerationWorkerState.running = true
+	strmGenerationWorkerState.stopping = false
+	strmGenerationWorkerState.wg.Add(1)
+	strmGenerationWorkerState.mu.Unlock()
+
+	go func() {
+		defer strmGenerationWorkerState.wg.Done()
+		defer func() {
+			strmGenerationWorkerState.mu.Lock()
+			strmGenerationWorkerState.cancel = nil
+			strmGenerationWorkerState.running = false
+			strmGenerationWorkerState.mu.Unlock()
+		}()
+		runStrmGenerationWorker(workerCtx, service)
+	}()
+}
+
+// StopStrmGenerationWorker 停止 STRM 生成队列 worker 并等待退出。
+func StopStrmGenerationWorker() {
+	strmGenerationWorkerState.mu.Lock()
+	strmGenerationWorkerState.stopping = true
+	cancel := strmGenerationWorkerState.cancel
+	strmGenerationWorkerState.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	strmGenerationWorkerState.wg.Wait()
+}
+
+// acquireStrmGenerationRefreshSubmission 在停止开始前获取一次刷新提交许可。
+func acquireStrmGenerationRefreshSubmission(ctx context.Context) (func(), error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	strmGenerationWorkerState.mu.Lock()
+	if strmGenerationWorkerState.stopping {
+		strmGenerationWorkerState.mu.Unlock()
+		return nil, context.Canceled
+	}
+	if err := ctx.Err(); err != nil {
+		strmGenerationWorkerState.mu.Unlock()
+		return nil, err
+	}
+	strmGenerationWorkerState.mu.Unlock()
+	return func() {}, nil
 }
 
 func runStrmGenerationWorker(ctx context.Context, service *StrmGenerationService) {
@@ -742,23 +852,35 @@ func ProcessPendingStrmGenerationTasks(ctx context.Context, service *StrmGenerat
 			return processed, ctx.Err()
 		default:
 		}
+		if task.Status == models.StrmGenerationStatusFinalizing {
+			processed++
+			if err := completeStrmGenerationTaskAfterSideEffects(ctx, service, task); err != nil {
+				return processed, err
+			}
+			continue
+		}
 		if err := task.MarkRunning(); err != nil {
 			continue
 		}
 		processed++
 		result, err := processStrmGenerationTask(ctx, service, task)
 		if err != nil {
-			if markErr := task.MarkFailed(err.Error()); markErr != nil {
-				return processed, markErr
+			if ctx.Err() != nil {
+				return processed, ctx.Err()
+			}
+			if errors.Is(err, context.Canceled) {
+				return processed, err
 			}
 			if task.ParentTaskId > 0 {
-				parent, progressErr := completeStrmGenerationChild(task.ParentTaskId, nil, true)
+				parent, progressErr := models.MarkStrmGenerationChildFailed(task.ID, task.ParentTaskId, err.Error())
 				if progressErr != nil {
 					return processed, progressErr
 				}
-				if submitErr := submitStrmGenerationParentRefreshIfReady(service, parent); submitErr != nil {
+				if submitErr := submitStrmGenerationParentRefreshIfReady(ctx, service, parent); submitErr != nil {
 					return processed, submitErr
 				}
+			} else if markErr := task.MarkFailed(err.Error()); markErr != nil {
+				return processed, markErr
 			}
 			continue
 		}
@@ -768,22 +890,17 @@ func ProcessPendingStrmGenerationTasks(ctx context.Context, service *StrmGenerat
 			}
 			continue
 		}
-		if err := task.MarkCompleted(); err != nil {
-			return processed, err
-		}
-		if task.UploadTaskId > 0 {
-			if err := cleanupSourceAfterStrmSuccess(task.UploadTaskId); err != nil {
-				helpers.AppLogger.Warnf("STRM 生成完成后清理目录上传源文件失败：%v", err)
-			}
-		}
 		if task.ParentTaskId > 0 {
-			parent, progressErr := completeStrmGenerationChild(task.ParentTaskId, result, false)
+			parent, progressErr := markStrmGenerationChildFinalizing(task, result)
 			if progressErr != nil {
 				return processed, progressErr
 			}
-			if submitErr := submitStrmGenerationParentRefreshIfReady(service, parent); submitErr != nil {
+			if submitErr := submitStrmGenerationParentRefreshIfReady(ctx, service, parent); submitErr != nil {
 				return processed, submitErr
 			}
+		}
+		if err := completeStrmGenerationTaskAfterSideEffects(ctx, service, task); err != nil {
+			return processed, err
 		}
 	}
 	return processed, nil
@@ -801,6 +918,23 @@ func completeStrmGenerationChild(parentTaskID uint, result *StrmGenerationResult
 	if parentTaskID == 0 {
 		return nil, nil
 	}
+	return models.UpdateStrmGenerationParentProgress(parentTaskID, strmGenerationParentProgress(result, failed))
+}
+
+func markStrmGenerationChildFinalizing(task *models.StrmGenerationTask, result *StrmGenerationResult) (*models.StrmGenerationTask, error) {
+	if task == nil || task.ParentTaskId == 0 {
+		return nil, nil
+	}
+	parent, err := models.MarkStrmGenerationChildFinalizing(task.ID, task.ParentTaskId, strmGenerationParentProgress(result, false))
+	if err != nil {
+		return nil, err
+	}
+	task.Status = models.StrmGenerationStatusFinalizing
+	task.LastError = ""
+	return parent, nil
+}
+
+func strmGenerationParentProgress(result *StrmGenerationResult, failed bool) models.StrmGenerationParentProgress {
 	progress := models.StrmGenerationParentProgress{
 		Accepted:       boolToInt(!failed),
 		Failed:         boolToInt(failed),
@@ -808,17 +942,93 @@ func completeStrmGenerationChild(parentTaskID uint, result *StrmGenerationResult
 		NewMeta:        resultNewMeta(result),
 		RefreshTargets: resultRefreshTargets(result),
 	}
-	return models.UpdateStrmGenerationParentProgress(parentTaskID, progress)
+	return progress
 }
 
-func submitStrmGenerationParentRefreshIfReady(service *StrmGenerationService, parent *models.StrmGenerationTask) error {
+func completeStrmGenerationTaskAfterSideEffects(ctx context.Context, service *StrmGenerationService, task *models.StrmGenerationTask) error {
+	if task == nil {
+		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if task.ParentTaskId > 0 {
+		parent, err := models.GetStrmGenerationTaskByID(task.ParentTaskId)
+		if err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := submitStrmGenerationParentRefreshIfReady(ctx, service, parent); err != nil {
+			return err
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := task.MarkCompleted(); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	cleanupDirectoryUploadSourcesAfterStrmSuccess(task)
+	return nil
+}
+
+func cleanupDirectoryUploadSourcesAfterStrmSuccess(task *models.StrmGenerationTask) {
+	if task == nil {
+		return
+	}
+	if task.UploadTaskId == 0 {
+		return
+	}
+	if err := cleanupSourceAfterStrmSuccess(task.UploadTaskId); err != nil {
+		helpers.AppLogger.Warnf("STRM 生成完成后清理目录上传源文件失败：upload_task_id=%d err=%v", task.UploadTaskId, err)
+	}
+}
+
+func submitStrmGenerationParentRefreshIfReady(ctx context.Context, service *StrmGenerationService, parent *models.StrmGenerationTask) error {
 	if parent == nil || !parent.IsReadyToSubmitRefresh() {
 		return nil
 	}
-	if err := service.requestEmbyRefreshTargets(parent.SyncPathId, parent.GetRefreshTargets()); err != nil {
+	if err := service.submitEmbyRefreshTargets(ctx, parent.SyncPathId, parent.GetRefreshTargets()); err != nil {
 		return err
 	}
 	return models.MarkStrmGenerationRefreshSubmitted(parent.ID)
+}
+
+func (service *StrmGenerationService) submitEmbyRefreshTargets(ctx context.Context, syncPathID uint, targets []models.EmbyRefreshTarget) error {
+	if service == nil || service.requestEmbyRefreshTargets == nil {
+		return errors.New("Emby 刷新任务提交器未初始化")
+	}
+	acquire := service.acquireRefreshSubmission
+	if acquire == nil {
+		acquire = acquireStrmGenerationRefreshSubmission
+	}
+	release, err := acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
+	return service.requestEmbyRefreshTargets(syncPathID, targets)
+}
+
+func (service *StrmGenerationService) submitEmbyRefreshBySyncFile(ctx context.Context, syncFile *models.SyncFile) error {
+	if service == nil || service.requestEmbyRefreshBySyncFile == nil {
+		return errors.New("Emby 刷新任务提交器未初始化")
+	}
+	acquire := service.acquireRefreshSubmission
+	if acquire == nil {
+		acquire = acquireStrmGenerationRefreshSubmission
+	}
+	release, err := acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
+	return service.requestEmbyRefreshBySyncFile(syncFile)
 }
 
 func boolToInt(value bool) int {

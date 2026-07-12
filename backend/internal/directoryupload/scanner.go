@@ -388,6 +388,13 @@ func (service *Service) startProcessedCleanup(ctx context.Context) {
 func (service *Service) cleanupProcessedOnce() {
 	now := service.now()
 	service.cleanupExpiredMemoryCaches(now)
+	cleaned, cleanupErr := CleanupCompletedStrmDependencies(200)
+	if cleanupErr != nil {
+		helpers.AppLogger.Warnf("[目录上传] 补偿已完成 STRM 源文件清理失败：%v", cleanupErr)
+	}
+	if cleaned > 0 {
+		helpers.AppLogger.Infof("[目录上传] 补偿清理已完成 STRM 源文件 %d 个", cleaned)
+	}
 
 	deleted, err := models.CleanupDirectoryUploadProcessedFiles(now, service.processedMissingSourceTTL())
 	if err != nil {
@@ -435,20 +442,27 @@ var globalService struct {
 
 // InitDirectoryUploadService 初始化目录监控上传服务。
 func InitDirectoryUploadService() {
+	if err := InitDirectoryUploadServiceWithError(); err != nil {
+		helpers.AppLogger.Errorf("[目录上传] 初始化失败：%v", err)
+	}
+}
+
+// InitDirectoryUploadServiceWithError 初始化目录监控上传服务并返回启动错误。
+func InitDirectoryUploadServiceWithError() error {
 	globalService.Lock()
 	defer globalService.Unlock()
 	if globalService.service != nil {
-		return
+		return nil
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	service := NewService(ServiceOptions{})
 	if err := service.Start(ctx); err != nil {
-		helpers.AppLogger.Errorf("[目录上传] 初始化失败：%v", err)
 		cancel()
-		return
+		return err
 	}
 	globalService.service = service
 	globalService.cancel = cancel
+	return nil
 }
 
 // StopDirectoryUploadService 停止目录监控上传服务。
@@ -469,14 +483,21 @@ func StopDirectoryUploadService() {
 
 // ReloadDirectoryUploadService 重载运行中的目录监控上传服务。
 func ReloadDirectoryUploadService() {
+	if err := ReloadDirectoryUploadServiceWithError(); err != nil {
+		helpers.AppLogger.Errorf("[目录上传] 重载失败：%v", err)
+	}
+}
+
+// ReloadDirectoryUploadServiceWithError 重载目录监控上传服务并返回启动错误。
+func ReloadDirectoryUploadServiceWithError() error {
 	globalService.Lock()
 	running := globalService.service != nil
 	globalService.Unlock()
 	if !running {
-		return
+		return nil
 	}
 	StopDirectoryUploadService()
-	InitDirectoryUploadService()
+	return InitDirectoryUploadServiceWithError()
 }
 
 // ScanRuleNow 使用运行中的目录上传服务执行一次补偿扫描。

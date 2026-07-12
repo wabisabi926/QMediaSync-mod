@@ -119,6 +119,15 @@ func (q *StabilityQueue) Check(rule *models.DirectoryUploadRule) ([]StableFile, 
 			}
 			return nil, err
 		}
+		if rule.MonitorPath != "" {
+			if _, err := ensurePathResolvesWithinMonitor(rule.MonitorPath, path); err != nil {
+				if shouldSkipMonitorBoundaryError(err) {
+					delete(ruleCandidates, path)
+					continue
+				}
+				return nil, err
+			}
+		}
 		if info.IsDir() {
 			delete(ruleCandidates, path)
 			continue

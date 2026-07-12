@@ -17,7 +17,11 @@ func TestAddMetaDownloadTaskCountsNewMeta(t *testing.T) {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
 	db.Db = testDb
-	if err := db.Db.AutoMigrate(&models.DbDownloadTask{}); err != nil {
+	if err := db.Db.AutoMigrate(
+		&models.DbDownloadTask{},
+		&models.EmbyMediaSyncFile{},
+		&models.EmbyLibrarySyncPath{},
+	); err != nil {
 		t.Fatalf("迁移测试表失败: %v", err)
 	}
 

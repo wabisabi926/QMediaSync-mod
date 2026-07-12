@@ -26,16 +26,16 @@ func buildQueueStatusSnapshot(running bool, rows []queueStatusCount) QueueStatus
 	for _, row := range rows {
 		snapshot.Total += row.Count
 		switch row.Status {
-		case 0:
-			snapshot.Pending = row.Count
-		case 1:
-			snapshot.Processing = row.Count
-		case 2:
-			snapshot.Completed = row.Count
-		case 3:
-			snapshot.Failed = row.Count
-		case 4:
-			snapshot.Cancelled = row.Count
+		case int(UploadStatusPending):
+			snapshot.Pending += row.Count
+		case int(UploadStatusUploading), int(UploadStatusRemoteCompletedPendingFinalize):
+			snapshot.Processing += row.Count
+		case int(UploadStatusCompleted):
+			snapshot.Completed += row.Count
+		case int(UploadStatusFailed):
+			snapshot.Failed += row.Count
+		case int(UploadStatusCancelled):
+			snapshot.Cancelled += row.Count
 		}
 	}
 	return snapshot

@@ -607,6 +607,74 @@ func TestMigrateVersion52AddsEmbyTargetedRefreshFields(t *testing.T) {
 	}
 }
 
+func TestMigrateVersion59SeparatesEmbyRefreshTaskKeyFromLibraryID(t *testing.T) {
+	if helpers.AppLogger == nil {
+		helpers.AppLogger = &helpers.QLogger{Logger: log.New(io.Discard, "", 0)}
+	}
+	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	db.Db = testDb
+
+	createMigratorTestTable(t)
+	if err := db.Db.Create(&Migrator{VersionCode: 59}).Error; err != nil {
+		t.Fatalf("创建迁移版本记录失败: %v", err)
+	}
+	if err := db.Db.Exec(`
+		CREATE TABLE emby_library_refresh_tasks (
+			id integer primary key autoincrement,
+			created_at integer,
+			updated_at integer,
+			library_id varchar(128),
+			library_name varchar(255),
+			sync_path_ids_str text,
+			target_type varchar(32),
+			item_ids_str text,
+			item_recursive boolean,
+			fallback_library_id varchar(128),
+			fallback_library_name varchar(255),
+			status varchar(32),
+			last_event_at integer,
+			refresh_after_at integer,
+			deadline_at integer,
+			last_checked_at integer,
+			last_refresh_at integer,
+			error text
+		)
+	`).Error; err != nil {
+		t.Fatalf("创建版本 59 Emby 刷新任务表失败: %v", err)
+	}
+	if err := db.Db.Exec(`
+		INSERT INTO emby_library_refresh_tasks (
+			library_id, library_name, sync_path_ids_str, target_type, item_ids_str,
+			fallback_library_id, fallback_library_name, status
+		) VALUES ('item:301', '第一季', '[10]', 'item', '["301"]', 'lib-tv', '剧集', 'pending')
+	`).Error; err != nil {
+		t.Fatalf("创建旧 item 刷新任务失败: %v", err)
+	}
+	if err := db.Db.Exec("CREATE UNIQUE INDEX idx_emby_library_refresh_tasks_library_id ON emby_library_refresh_tasks(library_id)").Error; err != nil {
+		t.Fatalf("创建旧 library_id 唯一索引失败: %v", err)
+	}
+
+	Migrate()
+	var migrated Migrator
+	if err := db.Db.First(&migrated).Error; err != nil {
+		t.Fatalf("读取迁移版本失败: %v", err)
+	}
+	if migrated.VersionCode != MaxVersionCode {
+		t.Fatalf("迁移版本 = %d，期望 %d", migrated.VersionCode, MaxVersionCode)
+	}
+
+	var task EmbyLibraryRefreshTask
+	if err := db.Db.Where("task_key = ?", embyItemRefreshTaskKey("301")).First(&task).Error; err != nil {
+		t.Fatalf("查询迁移后的 item 刷新任务失败: %v", err)
+	}
+	if task.LibraryId != "lib-tv" {
+		t.Fatalf("迁移后 library_id = %s，期望真实媒体库 lib-tv", task.LibraryId)
+	}
+}
+
 func TestMigrateVersion56AddsDirectoryUploadProcessedFiles(t *testing.T) {
 	if helpers.AppLogger == nil {
 		helpers.AppLogger = &helpers.QLogger{
@@ -822,6 +890,72 @@ func TestMigrateVersion58AddsURLValidityCheckSettings(t *testing.T) {
 	if settings.URLValidityCheckTimeoutSeconds != 3 {
 		t.Fatalf("URLValidityCheckTimeoutSeconds = %d，期望 3", settings.URLValidityCheckTimeoutSeconds)
 	}
+}
+
+func TestMigrateVersion59AddsSyncPathIdempotencyTableAndEmbyTaskKey(t *testing.T) {
+	if helpers.AppLogger == nil {
+		helpers.AppLogger = &helpers.QLogger{
+			Logger: log.New(io.Discard, "", 0),
+		}
+	}
+	testDb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	db.Db = testDb
+
+	createMigratorTestTable(t)
+	if err := db.Db.Create(&Migrator{VersionCode: 59}).Error; err != nil {
+		t.Fatalf("创建迁移版本记录失败: %v", err)
+	}
+	if err := db.Db.Exec(`
+		CREATE TABLE directory_upload_processed_files (
+			id integer primary key autoincrement,
+			created_at integer,
+			updated_at integer,
+			source_key text,
+			upload_task_id integer,
+			result text
+		)
+	`).Error; err != nil {
+		t.Fatalf("创建版本 59 目录监控处理记录表失败: %v", err)
+	}
+
+	Migrate()
+
+	var migrator Migrator
+	if err := db.Db.First(&migrator).Error; err != nil {
+		t.Fatalf("读取迁移版本失败: %v", err)
+	}
+	if migrator.VersionCode != MaxVersionCode {
+		t.Fatalf("迁移版本 = %d，期望 %d", migrator.VersionCode, MaxVersionCode)
+	}
+	if !db.Db.Migrator().HasTable(&SyncPathIdempotencyRecord{}) {
+		t.Fatal("迁移应创建 sync_path_idempotency_records 表")
+	}
+	idempotencyColumns := syncPathIdempotencyColumnNames(t)
+	if _, ok := idempotencyColumns["key_hash"]; !ok {
+		t.Fatalf("同步目录幂等表字段 = %v，期望持久化 key_hash 字段", idempotencyColumns)
+	}
+	if _, ok := idempotencyColumns["key"]; ok {
+		t.Fatalf("同步目录幂等表字段 = %v，不应持久化明文 key 字段", idempotencyColumns)
+	}
+	if _, ok := idempotencyColumns["request_hash"]; ok {
+		t.Fatalf("同步目录幂等表字段 = %v，不应持久化 request_hash 字段", idempotencyColumns)
+	}
+}
+
+func syncPathIdempotencyColumnNames(t *testing.T) map[string]struct{} {
+	t.Helper()
+	columns, err := db.Db.Migrator().ColumnTypes(&SyncPathIdempotencyRecord{})
+	if err != nil {
+		t.Fatalf("读取同步目录幂等表字段失败: %v", err)
+	}
+	names := make(map[string]struct{}, len(columns))
+	for _, column := range columns {
+		names[column.Name()] = struct{}{}
+	}
+	return names
 }
 
 func assertDownloadTaskSource(t *testing.T, remoteFileId string, wantSource string, wantSourceType string) {

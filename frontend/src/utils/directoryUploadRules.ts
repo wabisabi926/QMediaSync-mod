@@ -20,7 +20,11 @@ export const getEnabledDirectoryUploadRules = <T extends DirectoryUploadRule>(ru
 export const formatDirectoryUploadStatus = (
   rules: DirectoryUploadRule[],
   masterEnabled = true,
+  loadFailed = false,
 ): string => {
+  if (loadFailed) {
+    return '加载失败'
+  }
   if (rules.length === 0) {
     return '未配置'
   }

@@ -45,6 +45,7 @@ type RemoteClient interface {
 }
 
 var errStableFileNoRetry = errors.New("稳定文件不再重试")
+var errPathResolvedOutsideMonitor = errors.New("文件真实路径越界")
 
 var defaultIgnoredFileSuffixes = []string{
 	".part",
@@ -191,9 +192,12 @@ func (service *Service) trackCandidatePath(ctx context.Context, rule *models.Dir
 	if syncPath == nil {
 		return false, fmt.Errorf("同步目录不存在：%d", rule.SyncPathId)
 	}
-	info, err := os.Stat(path)
+	info, err := statFileWithinMonitor(rule.MonitorPath, path)
 	if err != nil {
 		if os.IsNotExist(err) {
+			return false, nil
+		}
+		if shouldSkipMonitorBoundaryError(err) {
 			return false, nil
 		}
 		return false, err
@@ -530,9 +534,12 @@ func (service *Service) scanRootWithSnapshotAndTrack(
 			return nil
 		}
 		// 使用 os.Stat 跟随 symlink，保持 snapshot fingerprint 与稳定性处理语义一致。
-		info, err := os.Stat(path)
+		info, err := statFileWithinMonitor(monitorPath, path)
 		if err != nil {
 			if os.IsNotExist(err) {
+				return nil
+			}
+			if shouldSkipMonitorBoundaryError(err) {
 				return nil
 			}
 			return err
@@ -586,6 +593,9 @@ func (service *Service) validateScanRoot(ctx context.Context, rule *models.Direc
 	if !info.IsDir() {
 		return nil, "", "", fmt.Errorf("监控路径不是目录：%s", root)
 	}
+	if _, err := ensurePathResolvesWithinMonitor(monitorPath, root); err != nil {
+		return nil, "", "", err
+	}
 	return syncPath, monitorPath, root, nil
 }
 
@@ -605,8 +615,11 @@ func (service *Service) handleStableFile(ctx context.Context, rule *models.Direc
 		return errors.New("目录监控规则为空")
 	}
 	filePath = filepath.Clean(filePath)
-	info, err := os.Stat(filePath)
+	info, err := statFileWithinMonitor(rule.MonitorPath, filePath)
 	if err != nil {
+		if errors.Is(err, errPathResolvedOutsideMonitor) {
+			return fmt.Errorf("%w：%w", errStableFileNoRetry, err)
+		}
 		return fmt.Errorf("读取稳定文件失败：%w", err)
 	}
 	if info.IsDir() {
@@ -623,16 +636,14 @@ func (service *Service) handleStableFile(ctx context.Context, rule *models.Direc
 	if err != nil {
 		return err
 	}
-	skipProcessed, sourceState, err := service.shouldSkipProcessedSource(rule, rel, filePath, info, options)
+	plan, err := service.buildTriggerPlan(ctx, rule, rel, filePath, info, options)
 	if err != nil {
 		return err
 	}
-	if skipProcessed {
+	if plan.skip {
 		return nil
 	}
-	if !models.CheckCanUploadByLocalPath(models.UploadSourceDirectoryMonitor, filePath) {
-		return nil
-	}
+	sourceState := plan.sourceState
 
 	relativeDir := filepath.ToSlash(filepath.Dir(rel))
 	if relativeDir == "." {
@@ -671,6 +682,9 @@ func (service *Service) handleStableFile(ctx context.Context, rule *models.Direc
 	if err != nil {
 		return fmt.Errorf("检查远端同名文件失败：%w", err)
 	}
+	if err := ensureStableFileStillWithinMonitor(rule.MonitorPath, filePath); err != nil {
+		return err
+	}
 	if remoteFile != nil && remoteFile.ID != "" {
 		if isSameRemoteFile(remoteFile, filePath, info.Size()) {
 			task.Status = models.UploadStatusCompleted
@@ -707,6 +721,9 @@ func (service *Service) handleStableFile(ctx context.Context, rule *models.Direc
 			}
 			return fmt.Errorf("%w：远端已存在同名文件且大小或 SHA1 不一致：%s", errStableFileNoRetry, remoteFilePath)
 		case models.DirectoryUploadOverwriteReplaceConflict:
+			if err := service.writePendingReplaceProcessed(rule, rel, filePath, sourceState); err != nil {
+				return fmt.Errorf("记录待覆盖远端文件失败：%w", err)
+			}
 			if err := remoteClient.DeleteFile(ctx, remoteDir.ID, remoteFile.ID); err != nil {
 				return fmt.Errorf("删除远端同名文件失败：%w", err)
 			}
@@ -715,6 +732,9 @@ func (service *Service) handleStableFile(ctx context.Context, rule *models.Direc
 		}
 	}
 
+	if err := ensureStableFileStillWithinMonitor(rule.MonitorPath, filePath); err != nil {
+		return err
+	}
 	created, err := service.createDirectoryUploadTaskWithProcessedClaim(task, rule, rel, filePath, sourceState, options)
 	if err != nil {
 		return err
@@ -723,63 +743,6 @@ func (service *Service) handleStableFile(ctx context.Context, rule *models.Direc
 		return nil
 	}
 	return nil
-}
-
-func (service *Service) shouldSkipProcessedSource(rule *models.DirectoryUploadRule, rel string, filePath string, info os.FileInfo, options handleStableFileOptions) (bool, processedSourceState, error) {
-	state := buildProcessedSourceState(rule, rel, info)
-	if options.Force {
-		return false, state, nil
-	}
-	if service.isProcessed(rule, rel, state.sourceFingerprint) {
-		return true, state, nil
-	}
-
-	record, err := models.FindDirectoryUploadProcessedBySourceKey(state.sourceKey)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return false, state, nil
-		}
-		return false, state, fmt.Errorf("查询目录监控源文件处理记录失败：%w", err)
-	}
-	if record.SourceFingerprint != state.sourceFingerprint {
-		return false, state, nil
-	}
-
-	now := service.now().Unix()
-	switch {
-	case models.IsDirectoryUploadProcessedTerminal(record.Result):
-		if err := updateDirectoryUploadProcessedLastSeen(record.SourceKey, now); err != nil {
-			return false, state, fmt.Errorf("更新目录监控源文件最后发现时间失败：%w", err)
-		}
-		service.markProcessed(rule, rel, state.sourceFingerprint)
-		return true, state, nil
-	case models.IsDirectoryUploadProcessedAwaitingStrm(record.Result):
-		if err := service.retryDirectoryUploadStrmEnqueue(record.UploadTaskId); err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				deleted, deleteErr := deleteDirectoryUploadProcessedIfUnchanged(record)
-				if deleteErr != nil {
-					return false, state, fmt.Errorf("清理缺失上传任务的 STRM 等待记录失败：%w", deleteErr)
-				}
-				return !deleted, state, nil
-			}
-			return false, state, fmt.Errorf("重试 STRM 入队失败：%w", err)
-		}
-		service.markProcessed(rule, rel, state.sourceFingerprint)
-		return true, state, nil
-	case record.Result == models.DirectoryUploadProcessedResultQueued:
-		active, err := hasActiveDirectoryUploadTask(record.UploadTaskId, filePath)
-		if err != nil {
-			return false, state, fmt.Errorf("检查目录监控源文件上传任务状态失败：%w", err)
-		}
-		if active {
-			if err := updateDirectoryUploadProcessedLastSeen(record.SourceKey, now); err != nil {
-				return false, state, fmt.Errorf("更新目录监控源文件最后发现时间失败：%w", err)
-			}
-			return true, state, nil
-		}
-	}
-
-	return false, state, nil
 }
 
 func (service *Service) retryDirectoryUploadStrmEnqueue(uploadTaskID uint) error {
@@ -847,7 +810,11 @@ func hasActiveDirectoryUploadTaskWithDB(tx *gorm.DB, uploadTaskID uint, filePath
 		handle = db.Db
 	}
 	query := handle.Model(&models.DbUploadTask{}).
-		Where("status IN ?", []models.UploadStatus{models.UploadStatusPending, models.UploadStatusUploading})
+		Where("status IN ?", []models.UploadStatus{
+			models.UploadStatusPending,
+			models.UploadStatusUploading,
+			models.UploadStatusRemoteCompletedPendingFinalize,
+		})
 	if uploadTaskID > 0 {
 		query = query.Where("id = ?", uploadTaskID)
 	} else {
@@ -914,7 +881,7 @@ func logDirectoryUploadRemoteExistsStrmTask(rule *models.DirectoryUploadRule, ta
 		return
 	}
 	helpers.AppLogger.Infof(
-		"[目录上传] 远端已存在同内容文件，已创建 STRM 后处理任务：rule_id=%d upload_task_id=%d strm_task_id=%d path=%s remote_path=%s remote_file_id=%s",
+		"[目录上传] 远端已存在同内容文件，已创建 STRM 后处理任务：rule_id=%d upload_task_id=%d strm_generation_task_id=%d path=%s remote_path=%s remote_file_id=%s",
 		rule.ID,
 		task.ID,
 		strmTaskID,
@@ -954,6 +921,13 @@ func (service *Service) claimDirectoryUploadProcessedWithDB(tx *gorm.DB, rule *m
 	}
 	if existing.SourceFingerprint != state.sourceFingerprint ||
 		existing.Result == models.DirectoryUploadProcessedResultFailed {
+		claimed, err := service.updateDirectoryUploadProcessedClaimWithDB(tx, &existing, claim)
+		if err != nil || claimed {
+			return claimed, existing.UploadTaskId, err
+		}
+		return false, 0, nil
+	}
+	if existing.Result == models.DirectoryUploadProcessedResultPendingReplace {
 		claimed, err := service.updateDirectoryUploadProcessedClaimWithDB(tx, &existing, claim)
 		if err != nil || claimed {
 			return claimed, existing.UploadTaskId, err
@@ -1033,6 +1007,12 @@ func (service *Service) updateDirectoryUploadProcessedClaimWithDB(tx *gorm.DB, e
 
 func (service *Service) upsertDirectoryUploadProcessed(rule *models.DirectoryUploadRule, rel string, filePath string, state processedSourceState, result models.DirectoryUploadProcessedResult, uploadTaskID uint) error {
 	return service.upsertDirectoryUploadProcessedWithDB(db.Db, rule, rel, filePath, state, result, uploadTaskID)
+}
+
+func (service *Service) writePendingReplaceProcessed(rule *models.DirectoryUploadRule, rel string, filePath string, state processedSourceState) error {
+	return db.Db.Transaction(func(tx *gorm.DB) error {
+		return service.upsertDirectoryUploadProcessedWithDB(tx, rule, rel, filePath, state, models.DirectoryUploadProcessedResultPendingReplace, 0)
+	})
 }
 
 func (service *Service) upsertDirectoryUploadProcessedWithDB(tx *gorm.DB, rule *models.DirectoryUploadRule, rel string, filePath string, state processedSourceState, result models.DirectoryUploadProcessedResult, uploadTaskID uint) error {
@@ -1193,6 +1173,63 @@ func safeRelativePath(basePath string, path string) (string, error) {
 		return "", fmt.Errorf("文件路径越界：%s", path)
 	}
 	return filepath.ToSlash(rel), nil
+}
+
+func statFileWithinMonitor(monitorPath string, path string) (os.FileInfo, error) {
+	if _, err := ensurePathResolvesWithinMonitor(monitorPath, path); err != nil {
+		return nil, err
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := ensurePathResolvesWithinMonitor(monitorPath, path); err != nil {
+		return nil, err
+	}
+	return info, nil
+}
+
+func ensureStableFileStillWithinMonitor(monitorPath string, path string) error {
+	if _, err := ensurePathResolvesWithinMonitor(monitorPath, path); err != nil {
+		if errors.Is(err, errPathResolvedOutsideMonitor) {
+			return fmt.Errorf("%w：%w", errStableFileNoRetry, err)
+		}
+		return fmt.Errorf("校验稳定文件真实路径失败：%w", err)
+	}
+	return nil
+}
+
+func ensurePathResolvesWithinMonitor(monitorPath string, path string) (string, error) {
+	monitorPath = filepath.Clean(monitorPath)
+	path = filepath.Clean(path)
+	if strings.TrimSpace(monitorPath) == "" {
+		return "", errors.New("监控目录不能为空")
+	}
+	if _, err := relativePathInMonitor(monitorPath, path); err != nil {
+		return "", err
+	}
+	realMonitorPath, err := filepath.EvalSymlinks(monitorPath)
+	if err != nil {
+		return "", fmt.Errorf("解析监控目录真实路径失败：%w", err)
+	}
+	realPath, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", fmt.Errorf("解析源文件真实路径失败：%w", err)
+	}
+	realMonitorPath = filepath.Clean(realMonitorPath)
+	realPath = filepath.Clean(realPath)
+	rel, err := filepath.Rel(realMonitorPath, realPath)
+	if err != nil {
+		return "", fmt.Errorf("计算真实路径边界失败：%w", err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return "", fmt.Errorf("%w：%s -> %s", errPathResolvedOutsideMonitor, path, realPath)
+	}
+	return realPath, nil
+}
+
+func shouldSkipMonitorBoundaryError(err error) bool {
+	return errors.Is(err, errPathResolvedOutsideMonitor) || errors.Is(err, os.ErrNotExist)
 }
 
 func ensurePathInMonitor(monitorPath string, path string) error {

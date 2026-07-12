@@ -78,6 +78,9 @@ type SyncStrm struct {
 	sync115 *Sync115
 
 	memSyncCache *MemorySyncCache // 同步缓存
+
+	embyRefreshTargetsMu sync.Mutex
+	embyRefreshTargets   []models.EmbyRefreshTarget
 }
 
 type pathQueueItem struct {
@@ -448,7 +451,11 @@ func (s *SyncStrm) Start() error {
 		go func() {
 			if shouldRequestEmbyLibraryRefresh(s.NewMeta, s.NewStrm) {
 				s.Sync.Logger.Info("有新的元数据文件或 STRM 文件，提交 Emby 媒体库刷新任务")
-				if err := models.RequestEmbyLibraryRefreshBySyncPathId(s.SyncPathId); err != nil {
+				targets := s.drainEmbyRefreshTargets()
+				if len(targets) == 0 {
+					targets = []models.EmbyRefreshTarget{{TargetType: models.EmbyRefreshTargetTypeLibrary}}
+				}
+				if err := models.RequestEmbyRefreshTargets(s.SyncPathId, targets); err != nil {
 					s.Sync.Logger.Errorf("提交 Emby 媒体库刷新任务失败：%v", err)
 				}
 			}
@@ -474,6 +481,38 @@ func (s *SyncStrm) Start() error {
 		}()
 	}
 	return nil
+}
+
+func (s *SyncStrm) recordEmbyRefreshTarget(syncFile *models.SyncFile) {
+	if s == nil || syncFile == nil {
+		return
+	}
+	target, err := models.ResolveEmbyRefreshTarget(syncFile)
+	if err != nil {
+		s.Sync.Logger.Warnf("解析 Emby 刷新目标失败: sync_file_id=%d err=%v", syncFile.ID, err)
+		target = models.EmbyRefreshTarget{TargetType: models.EmbyRefreshTargetTypeLibrary}
+	}
+	s.appendEmbyRefreshTarget(target)
+}
+
+func (s *SyncStrm) appendEmbyRefreshTarget(target models.EmbyRefreshTarget) {
+	if s == nil {
+		return
+	}
+	s.embyRefreshTargetsMu.Lock()
+	defer s.embyRefreshTargetsMu.Unlock()
+	s.embyRefreshTargets = append(s.embyRefreshTargets, target)
+}
+
+func (s *SyncStrm) drainEmbyRefreshTargets() []models.EmbyRefreshTarget {
+	if s == nil {
+		return nil
+	}
+	s.embyRefreshTargetsMu.Lock()
+	defer s.embyRefreshTargetsMu.Unlock()
+	targets := append([]models.EmbyRefreshTarget(nil), s.embyRefreshTargets...)
+	s.embyRefreshTargets = nil
+	return targets
 }
 
 func shouldRequestEmbyLibraryRefresh(newMeta, newStrm int64) bool {
@@ -544,6 +583,7 @@ func (s *SyncStrm) addMetaDownloadTask(file *models.SyncFile) error {
 	if err := models.AddDownloadTaskFromSyncFile(file); err != nil {
 		return err
 	}
+	s.recordEmbyRefreshTarget(file)
 	atomic.AddInt64(&s.NewMeta, 1)
 	s.PublishProgress(false)
 	return nil

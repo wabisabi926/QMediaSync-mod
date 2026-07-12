@@ -894,6 +894,8 @@ func uploadPhaseFromTask(task *DbUploadTask) string {
 		return uploadPhasePending
 	case UploadStatusUploading:
 		return "uploading"
+	case UploadStatusRemoteCompletedPendingFinalize:
+		return "remote_completed_pending_finalize"
 	case UploadStatusCompleted:
 		switch task.UploadResult {
 		case UploadResultRapidUpload:
@@ -949,14 +951,17 @@ func (task *DbUploadTask) enqueueStrmGenerationAfterUpload() error {
 
 func (task *DbUploadTask) enqueueStrmGenerationAfterUploadAndMarkDirectoryProcessed() error {
 	err := db.Db.Transaction(func(tx *gorm.DB) error {
-		created, err := task.enqueueStrmGenerationAfterUploadWithDB(tx)
+		strmTask, err := task.enqueueStrmGenerationAfterUploadWithDB(tx)
 		if err != nil {
 			return err
 		}
-		if !created {
+		if strmTask == nil {
 			return nil
 		}
-		return task.markDirectoryUploadProcessedAfterStrmWithDB(tx)
+		if err := task.markDirectoryUploadProcessedAfterStrmWithDB(tx); err != nil {
+			return err
+		}
+		return nil
 	})
 	if err != nil {
 		if markErr := task.markDirectoryUploadProcessedStrmEnqueueFailed(); markErr != nil {
@@ -980,26 +985,26 @@ func (task *DbUploadTask) markDirectoryUploadProcessedStrmEnqueueFailed() error 
 	return MarkDirectoryUploadProcessedStrmEnqueueFailed(task.ID)
 }
 
-func (task *DbUploadTask) enqueueStrmGenerationAfterUploadWithDB(tx *gorm.DB) (bool, error) {
+func (task *DbUploadTask) enqueueStrmGenerationAfterUploadWithDB(tx *gorm.DB) (*StrmGenerationTask, error) {
 	if tx == nil {
-		return false, errors.New("数据库连接为空")
+		return nil, errors.New("数据库连接为空")
 	}
 	if task == nil {
-		return false, nil
+		return nil, nil
 	}
 	if task.Source != UploadSourceDirectoryMonitor && task.Source != UploadSourceStrm {
-		return false, nil
+		return nil, nil
 	}
 	if task.UploadResult == UploadResultSkippedAfterRapidWait {
-		return false, nil
+		return nil, nil
 	}
 	if task.CompletedRemoteFileId == "" && task.CompletedPickCode == "" {
 		if task.Source == UploadSourceDirectoryMonitor {
 			if _, ok := directoryUploadProcessedPendingStrmResultForUploadResult(task.UploadResult); ok {
-				return false, errors.New("目录监控上传任务缺少远端完成信息")
+				return nil, errors.New("目录监控上传任务缺少远端完成信息")
 			}
 		}
-		return false, nil
+		return nil, nil
 	}
 
 	syncPathID := task.SyncPathId
@@ -1050,16 +1055,22 @@ func (task *DbUploadTask) enqueueStrmGenerationAfterUploadWithDB(tx *gorm.DB) (b
 	}
 	if syncPathID == 0 {
 		if task.Source == UploadSourceDirectoryMonitor {
-			return false, errors.New("目录监控上传任务缺少同步目录 ID")
+			return nil, errors.New("目录监控上传任务缺少同步目录 ID")
 		}
-		return false, nil
+		return nil, nil
 	}
 
 	source := StrmGenerationSourceUploadCompleted
 	if task.UploadResult == UploadResultRemoteExists {
 		source = StrmGenerationSourceRemoteExists
 	}
-	requestHash := fmt.Sprintf("%s:%d:%s:%s", source, syncPathID, task.CompletedRemoteFileId, task.CompletedPickCode)
+	requestHash := BuildStrmRequestHash(
+		string(source),
+		fmt.Sprint(syncPathID),
+		fmt.Sprint(task.ID),
+		task.CompletedRemoteFileId,
+		task.CompletedPickCode,
+	)
 	strmTask, err := EnqueueStrmGenerationTaskWithDB(tx, &StrmGenerationTask{
 		Source:       source,
 		TaskType:     StrmGenerationTaskTypeFile,
@@ -1077,9 +1088,9 @@ func (task *DbUploadTask) enqueueStrmGenerationAfterUploadWithDB(tx *gorm.DB) (b
 		RequestHash:  requestHash,
 	})
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	return strmTask != nil, nil
+	return strmTask, nil
 }
 
 func remoteParentPathForStrmTask(remoteFilePath string, fileName string) string {

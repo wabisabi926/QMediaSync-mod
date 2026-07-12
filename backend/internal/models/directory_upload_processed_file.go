@@ -22,6 +22,7 @@ type DirectoryUploadProcessedResult string
 
 const (
 	DirectoryUploadProcessedResultQueued                  DirectoryUploadProcessedResult = "queued"
+	DirectoryUploadProcessedResultPendingReplace          DirectoryUploadProcessedResult = "pending_replace"
 	DirectoryUploadProcessedResultUploadedPendingStrm     DirectoryUploadProcessedResult = "uploaded_pending_strm"
 	DirectoryUploadProcessedResultRemoteExistsPendingStrm DirectoryUploadProcessedResult = "remote_exists_pending_strm"
 	DirectoryUploadProcessedResultStrmEnqueueFailed       DirectoryUploadProcessedResult = "strm_enqueue_failed"
@@ -175,14 +176,15 @@ func MarkDirectoryUploadProcessedUploadedWithDB(tx *gorm.DB, uploadTaskID uint, 
 		return errors.New("上传任务 ID 为空")
 	}
 	now := time.Now().Unix()
+	updates := map[string]any{
+		"result":       result,
+		"processed_at": now,
+		"last_seen_at": now,
+		"updated_at":   now,
+	}
 	return tx.Model(&DirectoryUploadProcessedFile{}).
 		Where("upload_task_id = ?", uploadTaskID).
-		Updates(map[string]any{
-			"result":       result,
-			"processed_at": now,
-			"last_seen_at": now,
-			"updated_at":   now,
-		}).Error
+		Updates(updates).Error
 }
 
 // MarkDirectoryUploadProcessedStrmEnqueueFailed 标记目录监控上传任务关联源文件 STRM 入队失败。
@@ -383,7 +385,9 @@ func shouldDeleteQueuedDirectoryUploadProcessed(record DirectoryUploadProcessedF
 	if err := db.Db.Select("id", "status").First(&task, record.UploadTaskId).Error; err != nil {
 		return errors.Is(err, gorm.ErrRecordNotFound)
 	}
-	return task.Status != UploadStatusPending && task.Status != UploadStatusUploading
+	return task.Status != UploadStatusPending &&
+		task.Status != UploadStatusUploading &&
+		task.Status != UploadStatusRemoteCompletedPendingFinalize
 }
 
 func deleteDirectoryUploadProcessedBatch(records []DirectoryUploadProcessedFile) (int64, error) {

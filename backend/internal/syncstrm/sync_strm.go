@@ -26,6 +26,9 @@ type StrmData struct {
 // 生成 STRM 文件
 // st 只能是来源路径，所以需要生成 STRM 文件的路径
 func (s *SyncStrm) ProcessStrmFile(sf *SyncFileCache) error {
+	unlock := lockStrmTarget(sf.GetLocalFilePath(s.TargetPath, s.SourcePath))
+	defer unlock()
+
 	rs := s.CompareStrm(sf)
 	if rs == 1 {
 		// s.Sync.Logger.Infof("文件 %s 已存在且无需更新 STRM 文件，跳过", filepath.Join(sf.Path, sf.FileName))
@@ -58,6 +61,7 @@ func (s *SyncStrm) writeStrmFile(sf *SyncFileCache) error {
 		}
 	}
 	s.Sync.Logger.Infof("[生成 STRM] %s => %s", strmFullPath, strmContent)
+	s.recordEmbyRefreshTarget(sf.GetSyncFile(s, s.Account.BaseUrl))
 	atomic.AddInt64(&s.NewStrm, 1)
 	s.PublishProgress(false)
 	return nil

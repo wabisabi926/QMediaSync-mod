@@ -77,6 +77,11 @@ func (s *SyncStrm) Start115Sync() {
 		s.PathErrChan <- patherr
 		return
 	}
+	if err := s.process115CollectedFiles(); err != nil {
+		s.Sync.Logger.Errorf("处理 115 文件失败：%v", err)
+		s.PathErrChan <- err
+		return
+	}
 	s.Sync.Logger.Infof("115 文件和路径同步完成")
 }
 

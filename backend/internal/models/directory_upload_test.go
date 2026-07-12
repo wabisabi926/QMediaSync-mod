@@ -23,8 +23,109 @@ func setupDirectoryUploadRuleTestDB(t *testing.T) {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
 	db.Db = testDb
-	if err := db.Db.AutoMigrate(&SyncPath{}, &SyncFile{}, &EmbyLibrarySyncPath{}, &EmbyMediaSyncFile{}, &DirectoryUploadRule{}, &DirectoryUploadProcessedFile{}); err != nil {
+	if err := db.Db.AutoMigrate(&SyncPath{}, &SyncFile{}, &EmbyLibrarySyncPath{}, &EmbyMediaSyncFile{}, &DirectoryUploadRule{}, &DirectoryUploadProcessedFile{}, &DbUploadTask{}); err != nil {
 		t.Fatalf("迁移测试表失败: %v", err)
+	}
+}
+
+func TestSaveDirectoryUploadRulesCancelsPendingCleanupBeforeDeletingRule(t *testing.T) {
+	setupDirectoryUploadRuleTestDB(t)
+	syncPath := &SyncPath{AccountId: 3, SourceType: SourceType115, LocalPath: t.TempDir(), RemotePath: "/remote", BaseCid: "root", DirectoryUploadEnabled: true}
+	if err := db.Db.Create(syncPath).Error; err != nil {
+		t.Fatalf("创建同步目录失败: %v", err)
+	}
+	rule := &DirectoryUploadRule{
+		SyncPathId:               syncPath.ID,
+		AccountId:                syncPath.AccountId,
+		Enabled:                  true,
+		MonitorPath:              filepath.Join(t.TempDir(), "watch"),
+		RemoteRootPath:           "/remote/uploads",
+		RemoteRootId:             "uploads",
+		Recursive:                true,
+		DeleteSourceAfterSuccess: true,
+	}
+	if err := db.Db.Create(rule).Error; err != nil {
+		t.Fatalf("创建目录上传规则失败: %v", err)
+	}
+	uploadTask := &DbUploadTask{Source: UploadSourceDirectoryMonitor, Status: UploadStatusCompleted, SourceCleanupStatus: UploadSourceCleanupStatusPending}
+	if err := db.Db.Create(uploadTask).Error; err != nil {
+		t.Fatalf("创建待清理上传任务失败: %v", err)
+	}
+	if err := db.Db.Create(&DirectoryUploadProcessedFile{RuleId: rule.ID, SyncPathId: syncPath.ID, SourceKey: "pending-cleanup", UploadTaskId: uploadTask.ID}).Error; err != nil {
+		t.Fatalf("创建 processed 记录失败: %v", err)
+	}
+
+	if _, err := SaveDirectoryUploadRulesForSyncPath(syncPath.ID, false, []*DirectoryUploadRule{}); err != nil {
+		t.Fatalf("删除规则失败: %v", err)
+	}
+	var updated DbUploadTask
+	if err := db.Db.First(&updated, uploadTask.ID).Error; err != nil {
+		t.Fatalf("读取上传任务失败: %v", err)
+	}
+	if updated.SourceCleanupStatus != UploadSourceCleanupStatusNone || updated.SourceCleanupError == "" {
+		t.Fatalf("取消后 cleanup=%s error=%q，期望 none 并记录原因", updated.SourceCleanupStatus, updated.SourceCleanupError)
+	}
+}
+
+func TestSaveDirectoryUploadRulesCancelsPendingCleanupWhenRemoteBoundaryChanges(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(rule *DirectoryUploadRule)
+	}{
+		{
+			name: "修改远端根目录路径",
+			mutate: func(rule *DirectoryUploadRule) {
+				rule.RemoteRootPath = "/remote/other"
+			},
+		},
+		{
+			name: "修改远端根目录 ID",
+			mutate: func(rule *DirectoryUploadRule) {
+				rule.RemoteRootId = "other-root"
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupDirectoryUploadRuleTestDB(t)
+			syncPath := &SyncPath{AccountId: 3, SourceType: SourceType115, LocalPath: t.TempDir(), RemotePath: "/remote", BaseCid: "root", DirectoryUploadEnabled: true}
+			if err := db.Db.Create(syncPath).Error; err != nil {
+				t.Fatalf("创建同步目录失败: %v", err)
+			}
+			rule := &DirectoryUploadRule{
+				SyncPathId:               syncPath.ID,
+				AccountId:                syncPath.AccountId,
+				Enabled:                  true,
+				MonitorPath:              filepath.Join(t.TempDir(), "watch"),
+				RemoteRootPath:           "/remote/uploads",
+				RemoteRootId:             "uploads",
+				Recursive:                true,
+				DeleteSourceAfterSuccess: true,
+			}
+			if err := db.Db.Create(rule).Error; err != nil {
+				t.Fatalf("创建目录上传规则失败: %v", err)
+			}
+			uploadTask := &DbUploadTask{Source: UploadSourceDirectoryMonitor, Status: UploadStatusCompleted, SourceCleanupStatus: UploadSourceCleanupStatusPending}
+			if err := db.Db.Create(uploadTask).Error; err != nil {
+				t.Fatalf("创建待清理上传任务失败: %v", err)
+			}
+			if err := db.Db.Create(&DirectoryUploadProcessedFile{RuleId: rule.ID, SyncPathId: syncPath.ID, SourceKey: "pending-cleanup", UploadTaskId: uploadTask.ID}).Error; err != nil {
+				t.Fatalf("创建 processed 记录失败: %v", err)
+			}
+
+			updatedRule := *rule
+			tt.mutate(&updatedRule)
+			if _, err := SaveDirectoryUploadRulesForSyncPath(syncPath.ID, true, []*DirectoryUploadRule{&updatedRule}); err != nil {
+				t.Fatalf("更新规则失败: %v", err)
+			}
+			var updatedTask DbUploadTask
+			if err := db.Db.First(&updatedTask, uploadTask.ID).Error; err != nil {
+				t.Fatalf("读取上传任务失败: %v", err)
+			}
+			if updatedTask.SourceCleanupStatus != UploadSourceCleanupStatusNone || updatedTask.SourceCleanupError == "" {
+				t.Fatalf("清理边界变化后 cleanup=%s error=%q，期望 none 并记录原因", updatedTask.SourceCleanupStatus, updatedTask.SourceCleanupError)
+			}
+		})
 	}
 }
 
@@ -420,6 +521,7 @@ func TestDirectoryUploadRuleValidateWithSyncPath(t *testing.T) {
 			rule: DirectoryUploadRule{
 				MonitorPath:    "/watch",
 				RemoteRootPath: "/remote/uploads",
+				RemoteRootId:   "uploads",
 			},
 			syncPath: SyncPath{
 				LocalPath:  "/strm",
@@ -443,6 +545,18 @@ func TestDirectoryUploadRuleValidateWithSyncPath(t *testing.T) {
 			rule: DirectoryUploadRule{
 				MonitorPath:    "/watch",
 				RemoteRootPath: "/other/uploads",
+			},
+			syncPath: SyncPath{
+				LocalPath:  "/strm",
+				RemotePath: "/remote",
+			},
+			wantErr: true,
+		},
+		{
+			name: "远端上传根目录 ID 为空时拒绝",
+			rule: DirectoryUploadRule{
+				MonitorPath:    "/watch",
+				RemoteRootPath: "/remote/uploads",
 			},
 			syncPath: SyncPath{
 				LocalPath:  "/strm",

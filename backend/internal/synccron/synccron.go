@@ -358,6 +358,13 @@ func InitCron() {
 
 // 初始化 STRM 同步目录的定时任务
 func InitSyncCron() {
+	if err := InitSyncCronWithError(); err != nil {
+		helpers.AppLogger.Errorf("初始化同步目录定时任务失败：%v", err)
+	}
+}
+
+// InitSyncCronWithError 初始化 STRM 同步目录定时任务并返回配置错误。
+func InitSyncCronWithError() error {
 	if SyncCron != nil {
 		helpers.AppLogger.Info("已存在同步目录的定时任务，先停止")
 		SyncCron.Stop()
@@ -367,7 +374,7 @@ func InitSyncCron() {
 	syncPaths, _ := models.GetSyncPathList(1, 10000000, true, "")
 	if len(syncPaths) == 0 {
 		helpers.AppLogger.Info("没有启用定时任务的同步目录")
-		return
+		return nil
 	}
 	for _, syncPath := range syncPaths {
 		if syncPath.Cron == "" {
@@ -375,7 +382,7 @@ func InitSyncCron() {
 			continue
 		}
 		helpers.AppLogger.Infof("已添加同步目录 %d 的定时任务，Cron 表达式：%s", syncPath.ID, syncPath.Cron)
-		SyncCron.AddFunc(syncPath.Cron, func() {
+		if _, err := SyncCron.AddFunc(syncPath.Cron, func() {
 			// 将同步目录 ID 添加到处理队列，而不是直接执行
 			taskObj := &NewSyncTask{
 				ID:           syncPath.ID,
@@ -391,9 +398,12 @@ func InitSyncCron() {
 				helpers.AppLogger.Errorf("将同步任务添加到队列失败：%s", err.Error())
 				return
 			}
-		})
+		}); err != nil {
+			return fmt.Errorf("添加同步目录 %d 定时任务失败：%w", syncPath.ID, err)
+		}
 	}
 	SyncCron.Start()
+	return nil
 }
 
 // 初始化刮削目录的自定义定时任务

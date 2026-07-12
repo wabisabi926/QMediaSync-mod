@@ -12,6 +12,8 @@ import (
 
 	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
+
+	"gorm.io/gorm"
 )
 
 type SourceType string
@@ -59,6 +61,19 @@ type SyncPath struct {
 	AccountName            string     `json:"account_name" gorm:"-"`                         // 115 账号名或 123 账号名，不参与数据库操作，仅供前端使用
 	IsFullSync             bool       `json:"is_full_sync"`                                  // 是否全量同步，默认 false
 	IsRunning              int        `json:"is_running" gorm:"-"`                           // 是否正在运行：0 未运行，1 已在队列，2 正在运行
+}
+
+// SyncPathWriteInput 描述同步目录事务写入字段。
+type SyncPathWriteInput struct {
+	SourceType             SourceType
+	AccountID              uint
+	BaseCid                string
+	LocalPath              string
+	RemotePath             string
+	EnableCron             bool
+	DirectoryUploadEnabled bool
+	CustomConfig           bool
+	Setting                SettingStrm
 }
 
 type SyncPathScrapePath struct {
@@ -241,6 +256,70 @@ func (sp *SyncPath) Update(sourceType SourceType, accountId uint, baseCid, local
 	// 更新同步路径
 	// helpers.AppLogger.Debugf("更新同步路径：%s", fullPath)
 	return result.Error
+}
+
+// CreateSyncPathWithDB 在指定事务中创建同步目录并通过实体获得回填 ID。
+func CreateSyncPathWithDB(tx *gorm.DB, input SyncPathWriteInput) (*SyncPath, error) {
+	if tx == nil {
+		return nil, errors.New("数据库连接为空")
+	}
+	syncPath := &SyncPath{}
+	if err := applySyncPathWriteInput(syncPath, input); err != nil {
+		return nil, err
+	}
+	if err := tx.Select("*").Create(syncPath).Error; err != nil {
+		return nil, err
+	}
+	return syncPath, nil
+}
+
+// UpdateSyncPathWithDB 在指定事务中更新同步目录。
+func UpdateSyncPathWithDB(tx *gorm.DB, syncPath *SyncPath, input SyncPathWriteInput) error {
+	if tx == nil {
+		return errors.New("数据库连接为空")
+	}
+	if syncPath == nil || syncPath.ID == 0 {
+		return errors.New("同步目录为空")
+	}
+	if err := applySyncPathWriteInput(syncPath, input); err != nil {
+		return err
+	}
+	return tx.Select("*").Save(syncPath).Error
+}
+
+func applySyncPathWriteInput(syncPath *SyncPath, input SyncPathWriteInput) error {
+	if syncPath == nil {
+		return errors.New("同步目录为空")
+	}
+	localPath := input.LocalPath
+	remotePath := input.RemotePath
+	if runtime.GOOS != "windows" {
+		localPath = strings.TrimRight(localPath, "/")
+		remotePath = strings.Trim(remotePath, "/")
+	} else {
+		localPath = strings.TrimRight(localPath, "\\")
+		remotePath = strings.TrimRight(remotePath, "\\")
+	}
+	setting := input.Setting
+	if input.CustomConfig {
+		encoded := setting.EncodeArr()
+		if encoded == nil {
+			return errors.New("将同步路径设置编码为 JSON 字符串失败")
+		}
+		setting = *encoded
+	} else {
+		setting = GetStrmSettingDefault()
+	}
+	syncPath.SourceType = input.SourceType
+	syncPath.AccountId = input.AccountID
+	syncPath.BaseCid = input.BaseCid
+	syncPath.LocalPath = localPath
+	syncPath.RemotePath = remotePath
+	syncPath.EnableCron = input.EnableCron
+	syncPath.DirectoryUploadEnabled = input.DirectoryUploadEnabled
+	syncPath.CustomConfig = input.CustomConfig
+	syncPath.SettingStrm = setting
+	return nil
 }
 
 func (sp *SyncPath) SetIsFullSync(isFullSync bool) {

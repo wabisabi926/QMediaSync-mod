@@ -16,7 +16,12 @@
         label-width="160px"
         label-position="top"
       >
-        <el-form-item label="同步源类型" prop="source_type" v-if="!isEditMode">
+        <el-form-item
+          label="同步源类型"
+          prop="source_type"
+          :error="getSyncPathFieldError('source_type')"
+          v-if="!isEditMode"
+        >
           <el-select
             v-model="form.source_type"
             placeholder="请选择同步源类型"
@@ -41,6 +46,7 @@
         <el-form-item
           label="网盘账号"
           prop="account_id"
+          :error="getSyncPathFieldError('account_id')"
           v-if="form.source_type !== 'local' && !isEditMode"
         >
           <el-select
@@ -61,6 +67,7 @@
         <el-form-item
           label="来源路径"
           prop="base_cid"
+          :error="getSyncPathFieldError('base_cid')"
           v-if="
             (form.source_type !== 'local' && form.account_id) ||
             form.source_type === 'local' ||
@@ -87,6 +94,7 @@
         <el-form-item
           label="目标路径"
           prop="local_path"
+          :error="getSyncPathFieldError('local_path')"
           v-if="
             (form.source_type !== 'local' && form.account_id) ||
             form.source_type === 'local' ||
@@ -381,6 +389,15 @@
                   </div>
                 </div>
 
+                <el-alert
+                  v-if="getDirectoryUploadRuleGeneralError(rule)"
+                  :title="getDirectoryUploadRuleGeneralError(rule)"
+                  type="error"
+                  show-icon
+                  :closable="false"
+                  class="directory-upload-rule__error"
+                />
+
                 <el-form-item
                   :label="`监控目录 ${index + 1}`"
                   :error="getDirectoryUploadRuleFieldError(rule, 'monitor_path')"
@@ -429,9 +446,18 @@
                     </p>
                     <p>不要选 <code>/电视剧</code> 这类不在当前同步目录里的位置。</p>
                   </div>
+                  <div
+                    v-if="getDirectoryUploadRuleFieldError(rule, 'remote_root_id')"
+                    class="form-tip form-error"
+                  >
+                    {{ getDirectoryUploadRuleFieldError(rule, 'remote_root_id') }}
+                  </div>
                 </el-form-item>
 
-                <el-form-item label="监控模式">
+                <el-form-item
+                  label="监控模式"
+                  :error="getDirectoryUploadRuleFieldError(rule, 'watch_mode')"
+                >
                   <el-select
                     v-model="rule.watch_mode"
                     :disabled="loading || directoryUploadLoading || !rule.enabled"
@@ -455,7 +481,10 @@
                   <div class="form-tip">开启后会同时上传当前同步目录配置中的元数据扩展名文件</div>
                 </el-form-item>
 
-                <el-form-item label="遇到同名文件时">
+                <el-form-item
+                  label="遇到同名文件时"
+                  :error="getDirectoryUploadRuleFieldError(rule, 'overwrite_mode')"
+                >
                   <el-radio-group
                     v-model="rule.overwrite_mode"
                     :disabled="loading || directoryUploadLoading || !rule.enabled"
@@ -521,7 +550,12 @@
         label-width="160px"
         :label-position="checkIsMobile ? 'top' : 'left'"
       >
-        <el-form-item label="同步源类型" prop="source_type" v-if="!isEditMode">
+        <el-form-item
+          label="同步源类型"
+          prop="source_type"
+          :error="getSyncPathFieldError('source_type')"
+          v-if="!isEditMode"
+        >
           <el-select
             v-model="form.source_type"
             placeholder="请选择同步源类型"
@@ -546,6 +580,7 @@
         <el-form-item
           label="网盘账号"
           prop="account_id"
+          :error="getSyncPathFieldError('account_id')"
           v-if="form.source_type !== 'local' && !isEditMode"
         >
           <el-select
@@ -566,6 +601,7 @@
         <el-form-item
           label="来源路径"
           prop="base_cid"
+          :error="getSyncPathFieldError('base_cid')"
           v-if="
             (form.source_type !== 'local' && form.account_id) ||
             form.source_type === 'local' ||
@@ -592,6 +628,7 @@
         <el-form-item
           label="目标路径"
           prop="local_path"
+          :error="getSyncPathFieldError('local_path')"
           v-if="
             (form.source_type !== 'local' && form.account_id) ||
             form.source_type === 'local' ||
@@ -886,6 +923,15 @@
                   </div>
                 </div>
 
+                <el-alert
+                  v-if="getDirectoryUploadRuleGeneralError(rule)"
+                  :title="getDirectoryUploadRuleGeneralError(rule)"
+                  type="error"
+                  show-icon
+                  :closable="false"
+                  class="directory-upload-rule__error"
+                />
+
                 <el-form-item
                   :label="`监控目录 ${index + 1}`"
                   :error="getDirectoryUploadRuleFieldError(rule, 'monitor_path')"
@@ -934,9 +980,18 @@
                     </p>
                     <p>不要选 <code>/电视剧</code> 这类不在当前同步目录里的位置。</p>
                   </div>
+                  <div
+                    v-if="getDirectoryUploadRuleFieldError(rule, 'remote_root_id')"
+                    class="form-tip form-error"
+                  >
+                    {{ getDirectoryUploadRuleFieldError(rule, 'remote_root_id') }}
+                  </div>
                 </el-form-item>
 
-                <el-form-item label="监控模式">
+                <el-form-item
+                  label="监控模式"
+                  :error="getDirectoryUploadRuleFieldError(rule, 'watch_mode')"
+                >
                   <el-select
                     v-model="rule.watch_mode"
                     :disabled="loading || directoryUploadLoading || !rule.enabled"
@@ -960,7 +1015,10 @@
                   <div class="form-tip">开启后会同时上传当前同步目录配置中的元数据扩展名文件</div>
                 </el-form-item>
 
-                <el-form-item label="遇到同名文件时">
+                <el-form-item
+                  label="遇到同名文件时"
+                  :error="getDirectoryUploadRuleFieldError(rule, 'overwrite_mode')"
+                >
                   <el-radio-group
                     v-model="rule.overwrite_mode"
                     :disabled="loading || directoryUploadLoading || !rule.enabled"
@@ -1056,6 +1114,8 @@ import { ArrowLeft, Delete, Plus } from '@element-plus/icons-vue'
 import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 import { navigateBackOrReplace } from '@/utils/navigation'
 import { sourceTypeOptions } from '@/utils/sourceTypeUtils'
+import type { SaveSyncPathPayload } from '@/api/syncPaths'
+import { useSyncDirectorySave } from '@/composables/useSyncDirectorySave'
 import MetadataExtInput from './MetadataExtInput.vue'
 import DirectorySelector from './DirectorySelector.vue'
 import type {
@@ -1106,16 +1166,25 @@ type DirectoryUploadRuleFormSeed = Partial<DirectoryUploadRule> & {
   clientId?: number
   autoCreated?: boolean
 }
-type DirectoryUploadRuleRequiredField = 'monitor_path' | 'remote_root_path'
-type DirectoryUploadRuleFieldErrors = Partial<Record<DirectoryUploadRuleRequiredField, string>>
+type DirectoryUploadRuleField =
+  | 'id'
+  | 'monitor_path'
+  | 'remote_root_path'
+  | 'remote_root_id'
+  | 'watch_mode'
+  | 'overwrite_mode'
+  | 'rules'
+type DirectoryUploadRuleFieldErrors = Partial<Record<DirectoryUploadRuleField, string>>
 
 const http: AxiosStatic | undefined = inject('$http')
+const syncDirectorySave = useSyncDirectorySave(http)
 const route = useRoute()
 const router = useRouter()
 
 const checkIsMobile = ref(isMobile())
 const isEditMode = ref(false)
 const loading = ref(false)
+const createIdempotencyKey = ref(generateCreateIdempotencyKey())
 
 const formRef = useTemplateRef<FormInstance>('formRef')
 const form = reactive({
@@ -1142,6 +1211,10 @@ const form = reactive({
   directory_upload_enabled: false,
   strm_base_url: '',
 })
+
+function generateCreateIdempotencyKey() {
+  return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`
+}
 
 const formRules: FormRules = {
   local_path: [
@@ -1177,6 +1250,7 @@ const directoryUploadLoading = ref(false)
 const directoryUploadRulesLoadFailed = ref(false)
 const directoryUploadRules = ref<DirectoryUploadRuleForm[]>([])
 const directoryUploadRuleFieldErrors = ref<Record<number, DirectoryUploadRuleFieldErrors>>({})
+const syncPathFieldErrors = ref<Partial<Record<keyof typeof form, string>>>({})
 let nextDirectoryUploadRuleClientId = 1
 
 const canConfigureDirectoryUpload = computed(
@@ -1188,6 +1262,16 @@ const directoryUploadEnabled = computed({
     form.directory_upload_enabled = enabled
   },
 })
+
+const getSyncPathFieldError = (field: keyof typeof form): string =>
+  syncPathFieldErrors.value[field] || ''
+
+const setSyncPathFieldError = (field: string, message: string) => {
+  const normalizedField = field === 'remote_path' ? 'base_cid' : field
+  if (normalizedField in form) {
+    syncPathFieldErrors.value[normalizedField as keyof typeof form] = message
+  }
+}
 
 const formatTooltip = (value: number) => {
   if (value === STRM_CUSTOM_OPTIONS.downloadMeta[0]) {
@@ -1264,14 +1348,48 @@ const loadDirectoryUploadRules = async (syncPathId: number) => {
   }
 }
 
-const normalizePathForCompare = (value: string): string => {
-  return value.trim().replace(/\\/g, '/').replace(/\/+$/, '')
+const trimTrailingSlash = (value: string): string => {
+  if (value === '/') {
+    return value
+  }
+  return value.replace(/\/+$/, '')
 }
 
-const isPathInside = (path: string, parent: string): boolean => {
-  const normalizedPath = normalizePathForCompare(path)
-  const normalizedParent = normalizePathForCompare(parent)
-  return normalizedPath !== normalizedParent && normalizedPath.startsWith(`${normalizedParent}/`)
+const normalizeLocalPathForCompare = (value: string): string => {
+  let normalized = trimTrailingSlash(value.trim().replace(/\\/g, '/').replace(/\/+/g, '/'))
+  if (versionInfo.value?.isWindows) {
+    normalized = normalized.toLowerCase()
+  }
+  return normalized
+}
+
+const normalizeRemotePathForCompare = (value: string): string => {
+  let normalized = value.trim().replace(/\\/g, '/').replace(/\/+/g, '/')
+  if (!normalized) {
+    return ''
+  }
+  if (!normalized.startsWith('/')) {
+    normalized = `/${normalized}`
+  }
+  return trimTrailingSlash(normalized) || '/'
+}
+
+const isNormalizedPathInside = (path: string, parent: string): boolean => {
+  if (!path || !parent || path === parent) {
+    return false
+  }
+  if (parent === '/') {
+    return path.startsWith('/')
+  }
+  return path.startsWith(`${parent}/`)
+}
+
+const isRemotePathWithin = (path: string, parent: string): boolean => {
+  const normalizedPath = normalizeRemotePathForCompare(path)
+  const normalizedParent = normalizeRemotePathForCompare(parent)
+  return (
+    normalizedPath === normalizedParent || isNormalizedPathInside(normalizedPath, normalizedParent)
+  )
 }
 
 const hasDirectoryUploadRuleContent = (rule: DirectoryUploadRuleForm): boolean => {
@@ -1315,8 +1433,13 @@ const removeCanceledDirectoryUploadDraftRules = () => {
 
 const getDirectoryUploadRuleFieldError = (
   rule: DirectoryUploadRuleForm,
-  field: DirectoryUploadRuleRequiredField,
+  field: DirectoryUploadRuleField,
 ): string => directoryUploadRuleFieldErrors.value[rule.clientId]?.[field] || ''
+
+const getDirectoryUploadRuleGeneralError = (rule: DirectoryUploadRuleForm): string =>
+  directoryUploadRuleFieldErrors.value[rule.clientId]?.rules ||
+  directoryUploadRuleFieldErrors.value[rule.clientId]?.id ||
+  ''
 
 const clearDirectoryUploadRuleFieldErrors = (clientId: number) => {
   if (!directoryUploadRuleFieldErrors.value[clientId]) {
@@ -1327,10 +1450,7 @@ const clearDirectoryUploadRuleFieldErrors = (clientId: number) => {
   directoryUploadRuleFieldErrors.value = nextErrors
 }
 
-const clearDirectoryUploadRuleFieldError = (
-  clientId: number,
-  field: DirectoryUploadRuleRequiredField,
-) => {
+const clearDirectoryUploadRuleFieldError = (clientId: number, field: DirectoryUploadRuleField) => {
   const currentRuleErrors = directoryUploadRuleFieldErrors.value[clientId]
   if (!currentRuleErrors?.[field]) {
     return
@@ -1347,11 +1467,25 @@ const clearDirectoryUploadRuleFieldError = (
   directoryUploadRuleFieldErrors.value = nextErrors
 }
 
+const setDirectoryUploadRuleFieldError = (
+  clientId: number,
+  field: DirectoryUploadRuleField,
+  message: string,
+) => {
+  directoryUploadRuleFieldErrors.value = {
+    ...directoryUploadRuleFieldErrors.value,
+    [clientId]: {
+      ...directoryUploadRuleFieldErrors.value[clientId],
+      [field]: message,
+    },
+  }
+}
+
 const isIncompleteDirectoryUploadRule = (rule: DirectoryUploadRuleForm): boolean => {
   if (!hasDirectoryUploadRuleContent(rule)) {
     return false
   }
-  return !rule.monitor_path.trim() || !rule.remote_root_path.trim()
+  return !rule.monitor_path.trim() || !rule.remote_root_path.trim() || !rule.remote_root_id.trim()
 }
 
 const markDirectoryUploadRuleRequiredFieldErrors = (rules: DirectoryUploadRuleForm[]): boolean => {
@@ -1363,6 +1497,9 @@ const markDirectoryUploadRuleRequiredFieldErrors = (rules: DirectoryUploadRuleFo
     }
     if (!rule.remote_root_path.trim()) {
       ruleErrors.remote_root_path = '请选择目录监控上传的目标目录'
+    }
+    if (!rule.remote_root_id.trim()) {
+      ruleErrors.remote_root_id = '请选择目录监控上传的目标目录'
     }
     if (Object.keys(ruleErrors).length > 0) {
       nextErrors[rule.clientId] = ruleErrors
@@ -1418,8 +1555,8 @@ const getDirectoryUploadRuleByClientId = (
 const validateDirectoryUploadRuleConflicts = (rules: DirectoryUploadRuleForm[]): boolean => {
   const scopeKeys = new Set<string>()
   for (const rule of rules) {
-    const monitorPath = normalizePathForCompare(rule.monitor_path)
-    const remoteRootPath = normalizePathForCompare(rule.remote_root_path)
+    const monitorPath = normalizeLocalPathForCompare(rule.monitor_path)
+    const remoteRootPath = normalizeRemotePathForCompare(rule.remote_root_path)
     const scopeKey = `${monitorPath}\n${remoteRootPath}\n${rule.remote_root_id.trim()}`
     if (scopeKeys.has(scopeKey)) {
       ElMessage.error('目录监控上传存在重复规则，请检查监控目录和目标目录')
@@ -1431,21 +1568,68 @@ const validateDirectoryUploadRuleConflicts = (rules: DirectoryUploadRuleForm[]):
   const enabledRules = rules.filter((rule) => rule.enabled)
   for (let i = 0; i < enabledRules.length; i++) {
     const current = enabledRules[i]
-    const currentPath = normalizePathForCompare(current.monitor_path)
+    const currentPath = normalizeLocalPathForCompare(current.monitor_path)
     for (const other of enabledRules.slice(i + 1)) {
-      const otherPath = normalizePathForCompare(other.monitor_path)
+      const otherPath = normalizeLocalPathForCompare(other.monitor_path)
       if (currentPath === otherPath) {
         ElMessage.error('目录监控上传的监控目录不能重复')
         return false
       }
-      if (current.recursive && isPathInside(otherPath, currentPath)) {
+      if (current.recursive && isNormalizedPathInside(otherPath, currentPath)) {
         ElMessage.error('目录监控上传的监控目录不能位于另一个递归监控目录下')
         return false
       }
-      if (other.recursive && isPathInside(currentPath, otherPath)) {
+      if (other.recursive && isNormalizedPathInside(currentPath, otherPath)) {
         ElMessage.error('目录监控上传的监控目录不能位于另一个递归监控目录下')
         return false
       }
+    }
+  }
+  return true
+}
+
+const validateDirectoryUploadRulePathBoundaries = (rules: DirectoryUploadRuleForm[]): boolean => {
+  const syncRemotePath = selectedDirPath.value || form.remote_path
+  const localPath = normalizeLocalPathForCompare(form.local_path)
+  const strmPath = normalizeLocalPathForCompare(form.strm_path)
+
+  for (const rule of rules) {
+    const monitorPath = normalizeLocalPathForCompare(rule.monitor_path)
+    if (localPath && monitorPath === localPath) {
+      setDirectoryUploadRuleFieldError(
+        rule.clientId,
+        'monitor_path',
+        '监控目录不能等于 STRM 本地目录',
+      )
+      ElMessage.error('目录监控上传的监控目录不能等于 STRM 本地目录')
+      return false
+    }
+    if (strmPath && (monitorPath === strmPath || isNormalizedPathInside(monitorPath, strmPath))) {
+      setDirectoryUploadRuleFieldError(
+        rule.clientId,
+        'monitor_path',
+        '监控目录不能位于 STRM 存放目录下',
+      )
+      ElMessage.error('目录监控上传的监控目录不能位于 STRM 存放目录下')
+      return false
+    }
+    if (strmPath && rule.recursive && isNormalizedPathInside(strmPath, monitorPath)) {
+      setDirectoryUploadRuleFieldError(
+        rule.clientId,
+        'monitor_path',
+        '递归监控目录不能包含 STRM 存放目录',
+      )
+      ElMessage.error('目录监控上传的递归监控目录不能包含 STRM 存放目录')
+      return false
+    }
+    if (!isRemotePathWithin(rule.remote_root_path, syncRemotePath)) {
+      setDirectoryUploadRuleFieldError(
+        rule.clientId,
+        'remote_root_path',
+        '目标目录必须位于当前同步来源目录下',
+      )
+      ElMessage.error('目录监控上传的目标目录必须位于当前同步来源目录下')
+      return false
     }
   }
   return true
@@ -1472,19 +1656,15 @@ const validateDirectoryUploadRules = (): boolean => {
     }
     return false
   }
-  for (const rule of rulesToSave) {
-    if (normalizePathForCompare(rule.monitor_path) === normalizePathForCompare(form.local_path)) {
-      ElMessage.error('目录监控上传的监控目录不能等于 STRM 存放目录')
-      return false
-    }
+  if (!validateDirectoryUploadRulePathBoundaries(rulesToSave)) {
+    return false
   }
   return validateDirectoryUploadRuleConflicts(rulesToSave)
 }
 
-const buildDirectoryUploadPayload = (syncPathId: number, rule: DirectoryUploadRuleForm) => ({
+const buildDirectoryUploadPayload = (rule: DirectoryUploadRuleForm) => ({
+  client_id: String(rule.clientId),
   id: rule.id,
-  sync_path_id: syncPathId,
-  account_id: Number(form.account_id) || 0,
   enabled: rule.enabled,
   monitor_path: rule.monitor_path.trim(),
   remote_root_path: rule.remote_root_path.trim(),
@@ -1499,40 +1679,39 @@ const buildDirectoryUploadPayload = (syncPathId: number, rule: DirectoryUploadRu
   overwrite_mode: rule.overwrite_mode,
 })
 
-const saveDirectoryUploadRules = async (syncPathId: number): Promise<boolean> => {
-  if (!canConfigureDirectoryUpload.value) {
-    return true
-  }
-  if (directoryUploadRulesLoadFailed.value) {
-    ElMessage.error('目录监控上传规则加载失败，请刷新或重试后再保存')
-    return false
-  }
-  if (!syncPathId) {
-    return !form.directory_upload_enabled && getDirectoryUploadRulesToSave().length === 0
-  }
-  if (!validateDirectoryUploadRules()) {
-    return false
-  }
-
+const buildSaveSyncPathPayload = (): SaveSyncPathPayload => {
   const rulesToSave = getDirectoryUploadRulesToSave()
-  const response = await http?.put(
-    `${SERVER_URL}/directory-upload/sync-paths/${syncPathId}/rules`,
-    {
-      enabled: form.directory_upload_enabled,
-      rules: rulesToSave.map((rule) => buildDirectoryUploadPayload(syncPathId, rule)),
+  return {
+    sync_path: {
+      source_type: form.source_type.trim(),
+      account_id: Number(form.account_id) || 0,
+      base_cid: form.base_cid.trim(),
+      local_path: form.local_path.trim(),
+      remote_path: selectedDirPath.value,
+      enable_cron: form.enable_cron,
+      custom_config: form.custom_config,
+      setting: {
+        local_proxy: 0,
+        strm_base_url: form.strm_base_url.trim(),
+        cron: form.cron.trim(),
+        min_video_size: form.min_video_size,
+        video_ext_arr: form.video_ext,
+        meta_ext_arr: form.meta_ext,
+        exclude_name_arr: form.exclude_name,
+        upload_meta: form.upload_meta,
+        download_meta: form.download_meta,
+        delete_dir: form.delete_dir,
+        add_path: form.add_path,
+        check_meta_mtime: form.check_meta_mtime,
+      },
     },
-  )
-  if (response?.data.code !== 200) {
-    ElMessage.error(response?.data.message || '保存目录监控上传配置失败')
-    return false
+    directory_upload: canConfigureDirectoryUpload.value
+      ? {
+          enabled: form.directory_upload_enabled,
+          rules: rulesToSave.map(buildDirectoryUploadPayload),
+        }
+      : null,
   }
-  if (typeof response.data.data?.enabled === 'boolean') {
-    form.directory_upload_enabled = response.data.data.enabled
-  }
-  if (Array.isArray(response.data.data?.list)) {
-    fillDirectoryUploadRules(response.data.data.list)
-  }
-  return true
 }
 
 const loadCronTimes = async () => {
@@ -1775,6 +1954,7 @@ const confirmSelectDir = async () => {
       rule.remote_root_id = selectedDir.id
       rule.remote_root_path = selectedDir.path
       clearDirectoryUploadRuleFieldError(rule.clientId, 'remote_root_path')
+      clearDirectoryUploadRuleFieldError(rule.clientId, 'remote_root_id')
     }
   } else {
     form.base_cid = selectedDir.id
@@ -1784,6 +1964,7 @@ const confirmSelectDir = async () => {
         rule.remote_root_id = selectedDir.id
         rule.remote_root_path = selectedDir.path
         clearDirectoryUploadRuleFieldError(rule.clientId, 'remote_root_path')
+        clearDirectoryUploadRuleFieldError(rule.clientId, 'remote_root_id')
       }
     })
     updateStrmPath()
@@ -1804,102 +1985,46 @@ const handleSubmit = async () => {
       ElMessage.error('目录监控上传规则加载失败，请刷新或重试后再保存')
       return
     }
+    updateStrmPath()
     if (!validateDirectoryUploadRules()) {
       return
     }
     loading.value = true
 
-    if (isEditMode.value) {
-      const formData = {
-        id: form.id,
-        account_id: form.account_id,
-        local_path: form.local_path.trim(),
-        base_cid: form.base_cid.trim(),
-        strm_path: form.strm_path.trim(),
-        custom_config: form.custom_config,
-        video_ext_arr: form.video_ext,
-        meta_ext_arr: form.meta_ext,
-        exclude_name_arr: form.exclude_name,
-        source_type: form.source_type.trim(),
-        remote_path: selectedDirPath.value,
-        min_video_size: form.min_video_size,
-        upload_meta: form.upload_meta,
-        download_meta: form.download_meta,
-        delete_dir: form.delete_dir,
-        add_path: form.add_path,
-        check_meta_mtime: form.check_meta_mtime,
-        baidu_sync_method: form.baidu_sync_method,
-        cron: form.cron.trim(),
-        enable_cron: form.enable_cron,
-        directory_upload_enabled: canConfigureDirectoryUpload.value
-          ? form.directory_upload_enabled
-          : false,
-        strm_base_url: form.strm_base_url.trim(),
-      }
-
-      const response = await http?.post(`${SERVER_URL}/sync/path-update`, formData, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (response?.data.code === 200) {
-        const directoryUploadSaved = await saveDirectoryUploadRules(form.id)
-        if (!directoryUploadSaved) {
-          ElMessage.warning('同步目录已保存，目录监控上传配置保存失败，请重新编辑该目录')
-          returnToDirectoryList()
-          return
+    const result = await syncDirectorySave.saveAndRun(
+      isEditMode.value ? form.id : 0,
+      buildSaveSyncPathPayload(),
+      createIdempotencyKey.value,
+      (saved) => {
+        for (const warning of saved.warnings || []) {
+          ElMessage.warning(warning)
         }
-        ElMessage.success('编辑同步目录成功')
+        ElMessage.success(isEditMode.value ? '编辑同步目录成功' : '添加同步目录成功')
         returnToDirectoryList()
-      } else {
-        ElMessage.error(response?.data.message || '编辑同步目录失败')
+      },
+    )
+    if (!result) {
+      if (!isEditMode.value && syncDirectorySave.errorCode.value === 'IDEMPOTENCY_CONFLICT') {
+        createIdempotencyKey.value = generateCreateIdempotencyKey()
       }
-    } else {
-      const formData = {
-        local_path: form.local_path.trim(),
-        base_cid: form.base_cid.trim(),
-        remote_path: selectedDirPath.value,
-        source_type: form.source_type.trim(),
-        account_id: form.account_id ? form.account_id : 0,
-        custom_config: form.custom_config,
-        video_ext_arr: form.video_ext,
-        meta_ext_arr: form.meta_ext,
-        exclude_name_arr: form.exclude_name,
-        min_video_size: form.min_video_size,
-        upload_meta: form.upload_meta,
-        download_meta: form.download_meta,
-        delete_dir: form.delete_dir,
-        add_path: form.add_path,
-        check_meta_mtime: form.check_meta_mtime,
-        baidu_sync_method: form.baidu_sync_method,
-        cron: form.cron.trim(),
-        enable_cron: form.enable_cron,
-        directory_upload_enabled: canConfigureDirectoryUpload.value
-          ? form.directory_upload_enabled
-          : false,
-        strm_base_url: form.strm_base_url.trim(),
-      }
-
-      const response = await http?.post(`${SERVER_URL}/sync/path-add`, formData, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (response?.data.code === 200) {
-        const syncPathId = Number(response.data.data?.id || 0)
-        const directoryUploadSaved = await saveDirectoryUploadRules(syncPathId)
-        if (!directoryUploadSaved) {
-          ElMessage.warning('同步目录已添加，目录监控上传配置保存失败，请进入编辑页重试')
-          returnToDirectoryList()
-          return
+      directoryUploadRuleFieldErrors.value = {}
+      syncPathFieldErrors.value = {}
+      for (const fieldError of syncDirectorySave.fieldErrors.value) {
+        if (!fieldError.client_id) {
+          setSyncPathFieldError(fieldError.field, fieldError.message)
+          continue
         }
-        ElMessage.success('添加同步目录成功')
-        returnToDirectoryList()
-      } else {
-        ElMessage.error(response?.data.message || '添加同步目录失败')
+        const clientId = Number(fieldError.client_id)
+        if (Number.isFinite(clientId) && clientId > 0) {
+          setDirectoryUploadRuleFieldError(
+            clientId,
+            fieldError.field as DirectoryUploadRuleField,
+            fieldError.message,
+          )
+        }
       }
+      ElMessage.error(syncDirectorySave.errorMessage.value || '保存同步目录失败')
+      return
     }
   } catch {
     console.error('提交同步目录错误')
@@ -1985,6 +2110,10 @@ onUnmounted(() => {
   margin-top: 4px;
 }
 
+.form-error {
+  color: #f56c6c;
+}
+
 .form-help {
   font-size: 12px;
   color: #606266;
@@ -2027,6 +2156,10 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.directory-upload-rule__error {
+  margin-bottom: 12px;
 }
 
 .pan-dir-input {

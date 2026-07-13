@@ -355,7 +355,10 @@ async function saveSettings() {
       upload_rapid_wait_skip_upload: formData.uploadRapidWaitSkipUpload ? 1 : 0,
     }
 
-    await http?.post(`${SERVER_URL}/setting/threads`, payload)
+    const response = await http?.post(`${SERVER_URL}/setting/threads`, payload)
+    if (response?.data.code !== 200) {
+      throw new Error(response?.data.message || '保存线程设置失败')
+    }
 
     saveStatus.value = {
       title: '保存成功',
@@ -372,7 +375,7 @@ async function saveSettings() {
     saveStatus.value = {
       title: '保存失败',
       type: 'error',
-      description: '保存线程设置失败，请稍后重试',
+      description: error instanceof Error ? error.message : '保存线程设置失败，请稍后重试',
     }
   } finally {
     loading.value = false

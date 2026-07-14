@@ -199,7 +199,7 @@ func TestResolveEmbyRefreshTargetUsesSiblingLibraryEvidenceFromSameEpisode(t *te
 	withLibrary := createEmbyRefreshSyncFile(t, 10, "/remote/show/Season 01", "episode01.mkv", "same-sibling-lib")
 	if err := db.Db.Create(&EmbyMediaItem{
 		ItemId:     "201",
-		ItemIdInt: 201,
+		ItemIdInt:  201,
 		Name:       "第 1 集",
 		Type:       "Episode",
 		SeasonId:   "301",
@@ -217,7 +217,7 @@ func TestResolveEmbyRefreshTargetUsesSiblingLibraryEvidenceFromSameEpisode(t *te
 	withoutLibrary := createEmbyRefreshSyncFile(t, 10, "/remote/show/Season 01", "episode02.mkv", "same-sibling-empty")
 	if err := db.Db.Create(&EmbyMediaItem{
 		ItemId:     "202",
-		ItemIdInt: 202,
+		ItemIdInt:  202,
 		Name:       "第 2 集",
 		Type:       "Episode",
 		SeasonId:   "301",
@@ -694,6 +694,32 @@ func TestRequestEmbyRefreshTargetsDedupesItemsAndLibraries(t *testing.T) {
 	}
 	if len(tasks) != 1 || tasks[0].TargetType != EmbyLibraryRefreshTargetTypeLibrary || tasks[0].LibraryId != "lib-movie" {
 		t.Fatalf("刷新任务 = %+v，期望只提交 lib-movie 媒体库刷新", tasks)
+	}
+}
+
+func TestRequestEmbyRefreshTargetsGenericLibraryFallbackCoversSameLibraryItems(t *testing.T) {
+	setupEmbyRefreshTestDB(t)
+	db.Db.Create(&EmbyLibrarySyncPath{LibraryId: "lib-movie", LibraryName: "电影", SyncPathId: 10})
+
+	if err := RequestEmbyRefreshTargets(10, []EmbyRefreshTarget{
+		{TargetType: EmbyRefreshTargetTypeLibrary},
+		{
+			TargetType:          EmbyRefreshTargetTypeItem,
+			ItemID:              "101",
+			ItemName:            "电影 1",
+			FallbackLibraryId:   "lib-movie",
+			FallbackLibraryName: "电影",
+		},
+	}); err != nil {
+		t.Fatalf("批量提交刷新失败: %v", err)
+	}
+
+	var tasks []EmbyLibraryRefreshTask
+	if err := db.Db.Find(&tasks).Error; err != nil {
+		t.Fatalf("查询刷新任务失败: %v", err)
+	}
+	if len(tasks) != 1 || tasks[0].TargetType != EmbyLibraryRefreshTargetTypeLibrary || tasks[0].LibraryId != "lib-movie" {
+		t.Fatalf("刷新任务 = %+v，期望 generic library fallback 覆盖 item", tasks)
 	}
 }
 

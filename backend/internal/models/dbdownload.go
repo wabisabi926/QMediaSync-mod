@@ -534,26 +534,28 @@ func getPendingDownloadTaskSyncPathIds() ([]uint, error) {
 }
 
 func ClearDownloadPendingTasks() error {
-	err := db.Db.Transaction(func(tx *gorm.DB) error {
-		syncPathIds, err := getPendingDownloadTaskSyncPathIdsWithDB(tx)
-		if err != nil {
-			helpers.AppLogger.Errorf("查询待清空下载任务关联同步目录失败：%v", err)
-			return err
-		}
+	err := withEmbyRefreshTaskMutationLock(db.Db, func() error {
+		return db.Db.Transaction(func(tx *gorm.DB) error {
+			syncPathIds, err := getPendingDownloadTaskSyncPathIdsWithDB(tx)
+			if err != nil {
+				helpers.AppLogger.Errorf("查询待清空下载任务关联同步目录失败：%v", err)
+				return err
+			}
 
-		if err := tx.Model(&DbDownloadTask{}).
-			Where("status = ?", DownloadStatusPending).
-			Delete(&DbDownloadTask{}).Error; err != nil {
-			helpers.AppLogger.Errorf("清除待下载任务失败：%v", err)
-			return err
-		}
+			if err := tx.Model(&DbDownloadTask{}).
+				Where("status = ?", DownloadStatusPending).
+				Delete(&DbDownloadTask{}).Error; err != nil {
+				helpers.AppLogger.Errorf("清除待下载任务失败：%v", err)
+				return err
+			}
 
-		if err := cancelPendingEmbyLibraryRefreshTasksBySyncPathIdsWithDB(tx, syncPathIds, "用户清空等待下载任务，取消同步后的媒体库刷新"); err != nil {
-			helpers.AppLogger.Errorf("取消待刷新媒体库任务失败：%v", err)
-			return err
-		}
+			if err := cancelPendingEmbyLibraryRefreshTasksBySyncPathIdsWithDB(tx, syncPathIds, "用户清空等待下载任务，取消同步后的媒体库刷新"); err != nil {
+				helpers.AppLogger.Errorf("取消待刷新媒体库任务失败：%v", err)
+				return err
+			}
 
-		return nil
+			return nil
+		})
 	})
 	if err != nil {
 		return err

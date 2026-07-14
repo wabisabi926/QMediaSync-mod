@@ -1,13 +1,17 @@
 package controllers
 
 import (
+	"sync"
 	"testing"
 
 	"qmediasync/internal/db"
+	"qmediasync/internal/directoryupload"
 
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
+
+var controllerTestDBMu sync.Mutex
 
 func setupControllerTestDB(t *testing.T, models ...any) *gorm.DB {
 	t.Helper()
@@ -23,6 +27,7 @@ func setupControllerTestDB(t *testing.T, models ...any) *gorm.DB {
 	sqlDB.SetMaxOpenConns(1)
 	sqlDB.SetMaxIdleConns(1)
 
+	controllerTestDBMu.Lock()
 	originalDB := db.Db
 	originalRunner := runAuthBackgroundTask
 	db.Db = testDB
@@ -30,8 +35,10 @@ func setupControllerTestDB(t *testing.T, models ...any) *gorm.DB {
 		fn()
 	}
 	t.Cleanup(func() {
+		directoryupload.StopDirectoryUploadService()
 		db.Db = originalDB
 		runAuthBackgroundTask = originalRunner
+		controllerTestDBMu.Unlock()
 	})
 
 	if len(models) > 0 {

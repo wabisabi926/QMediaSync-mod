@@ -117,7 +117,7 @@ OAuth 回调参数收集：
 - `getUploadProgressPercent(task)`
 - `getUploadedSizeLabel(task)`
 - `getUploadTaskDetailRows(task)`
-- `applyUploadQueuePatch(rows, patch)`
+- `applyUploadQueuePatch(rows, patch)`：合并上传进度、分片、断点续传和目录监控源文件清理状态 patch。`source_cleanup_error` 可能是空字符串，用于清空前端已有的失败原因，不要用 truthy 判断跳过。
 
 后端返回的 `upload_phase`、`upload_result` 和 `source_cleanup_status` 保持机器值，前端在这里统一映射为用户可读文案；例如上传状态 `5` 对应的 `remote_completed_pending_finalize` 显示为“等待收尾”。不要把展示文案回写到接口字段或数据库字段。
 

@@ -45,11 +45,14 @@ func TestBroadcastQueueChanged(t *testing.T) {
 	oldHub := GlobalEventHub
 	t.Cleanup(func() { GlobalEventHub = oldHub })
 	GlobalEventHub = NewEventHub()
+	cleanupError := ""
 
 	BroadcastQueueChanged(EventDownloadQueueChanged, QueueChangedPayload{
-		TaskID: 88,
-		Status: 1,
-		Source: "strm_sync",
+		TaskID:              88,
+		Status:              1,
+		Source:              "strm_sync",
+		SourceCleanupStatus: "completed",
+		SourceCleanupError:  &cleanupError,
 	})
 	event := readBroadcastEvent(t, GlobalEventHub)
 
@@ -65,6 +68,12 @@ func TestBroadcastQueueChanged(t *testing.T) {
 	}
 	if data["status"] != float64(1) {
 		t.Fatalf("status = %v，期望 1", data["status"])
+	}
+	if data["source_cleanup_status"] != "completed" {
+		t.Fatalf("source_cleanup_status = %v，期望 completed", data["source_cleanup_status"])
+	}
+	if value, exists := data["source_cleanup_error"]; !exists || value != "" {
+		t.Fatalf("source_cleanup_error = %v exists=%v，期望发送空字符串用于清空旧错误", value, exists)
 	}
 }
 

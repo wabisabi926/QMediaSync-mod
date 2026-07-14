@@ -939,10 +939,14 @@ const progressPatchFields = [
   'rapid_wait_until',
   'total_parts',
   'uploaded_parts',
+  'source_cleanup_status',
+  'source_cleanup_error',
 ] as const
 
-const isUploadProgressPatch = (data: Record<string, unknown>): boolean => {
-  if (data.reason !== 'progress') {
+const uploadQueuePatchReasons = ['progress', 'source_cleanup_changed'] as const
+
+const isUploadQueuePatch = (data: Record<string, unknown>): boolean => {
+  if (!uploadQueuePatchReasons.includes(data.reason as (typeof uploadQueuePatchReasons)[number])) {
     return false
   }
   if (data.task_id === undefined && data.id === undefined) {
@@ -951,7 +955,7 @@ const isUploadProgressPatch = (data: Record<string, unknown>): boolean => {
   return progressPatchFields.some((field) => data[field] !== undefined)
 }
 
-const applyUploadProgressPatchForCurrentFilter = (patch: UploadQueuePatch): boolean => {
+const applyUploadQueuePatchForCurrentFilter = (patch: UploadQueuePatch): boolean => {
   const taskId = patch.task_id ?? patch.id
   if (!applyUploadQueuePatch(queueData.value, patch)) {
     return false
@@ -979,10 +983,7 @@ useWSEvent('upload_queue_changed', (data) => {
   if (!isPageActive || document.hidden) {
     return
   }
-  if (
-    isUploadProgressPatch(data) &&
-    applyUploadProgressPatchForCurrentFilter(data as UploadQueuePatch)
-  ) {
+  if (isUploadQueuePatch(data) && applyUploadQueuePatchForCurrentFilter(data as UploadQueuePatch)) {
     if (hasActiveQueueWork.value) {
       startAutoRefresh()
     } else {

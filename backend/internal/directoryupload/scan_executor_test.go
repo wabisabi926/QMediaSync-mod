@@ -398,6 +398,43 @@ func TestScanExecutorLimitsConcurrentScans(t *testing.T) {
 	}
 }
 
+func TestScanExecutorWaitBlocksUntilRunningScanFinishes(t *testing.T) {
+	rule := &models.DirectoryUploadRule{BaseModel: models.BaseModel{ID: 17}}
+	started := make(chan struct{})
+	release := make(chan struct{})
+	finished := make(chan struct{})
+
+	executor := newScanExecutorWithScanFunc(1, func(ctx context.Context, _ *models.DirectoryUploadRule, _ string) (int, error) {
+		close(started)
+		select {
+		case <-release:
+		case <-ctx.Done():
+			return 0, ctx.Err()
+		}
+		close(finished)
+		return 0, nil
+	})
+
+	executor.Enqueue(context.Background(), scanRequest{rule: rule, root: t.TempDir()})
+	waitForSignal(t, started, "等待扫描启动")
+
+	waitReturned := make(chan struct{})
+	go func() {
+		executor.Wait()
+		close(waitReturned)
+	}()
+
+	select {
+	case <-waitReturned:
+		t.Fatal("扫描仍在运行时 Wait 不应返回")
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	close(release)
+	waitForSignal(t, finished, "等待扫描结束")
+	waitForSignal(t, waitReturned, "等待 Wait 返回")
+}
+
 func waitForInflightToClear(t *testing.T, executor *scanExecutor, rule *models.DirectoryUploadRule, root string) {
 	t.Helper()
 	key, _, ok := (scanRequest{rule: rule, root: root}).scanKey()

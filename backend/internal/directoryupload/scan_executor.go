@@ -30,6 +30,7 @@ type scanEntry struct {
 
 type scanExecutor struct {
 	sem      chan struct{}
+	wg       sync.WaitGroup
 	mu       sync.Mutex
 	inflight map[string]*scanEntry
 	queue    []*scanEntry
@@ -85,6 +86,7 @@ func (executor *scanExecutor) Enqueue(ctx context.Context, request scanRequest) 
 	shouldStart := !executor.running
 	if shouldStart {
 		executor.running = true
+		executor.wg.Add(1)
 	}
 	executor.mu.Unlock()
 	if shouldStart {
@@ -93,6 +95,7 @@ func (executor *scanExecutor) Enqueue(ctx context.Context, request scanRequest) 
 }
 
 func (executor *scanExecutor) run() {
+	defer executor.wg.Done()
 	for {
 		request, ok := executor.next()
 		if !ok {
@@ -134,7 +137,9 @@ func (executor *scanExecutor) start(entry *scanEntry) {
 		return
 	}
 
+	executor.wg.Add(1)
 	go func() {
+		defer executor.wg.Done()
 		defer executor.releaseSemaphore()
 		defer executor.releaseInflight(entry)
 		scan := entry.request.scan
@@ -147,6 +152,13 @@ func (executor *scanExecutor) start(entry *scanEntry) {
 			helpers.AppLogger.Warnf("[目录上传] 规则 %d 扫描目录 %s 失败：%v", entry.request.rule.ID, entry.request.root, err)
 		}
 	}()
+}
+
+func (executor *scanExecutor) Wait() {
+	if executor == nil {
+		return
+	}
+	executor.wg.Wait()
 }
 
 func (executor *scanExecutor) markRunning(entry *scanEntry) bool {

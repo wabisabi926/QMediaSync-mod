@@ -87,6 +87,7 @@ func cleanupSourceAfterStrmSuccess(uploadTaskID uint) (bool, error) {
 	if err := db.Db.Save(&task).Error; err != nil {
 		return false, err
 	}
+	models.PublishUploadTaskChanged(&task, "source_cleanup_changed")
 	return true, nil
 }
 
@@ -320,7 +321,11 @@ func markCleanupNone(task *models.DbUploadTask) error {
 	}
 	task.SourceCleanupStatus = models.UploadSourceCleanupStatusNone
 	task.SourceCleanupError = ""
-	return db.Db.Save(task).Error
+	if err := db.Db.Save(task).Error; err != nil {
+		return err
+	}
+	models.PublishUploadTaskChanged(task, "source_cleanup_changed")
+	return nil
 }
 
 func markCleanupFailed(task *models.DbUploadTask, err error) error {
@@ -332,6 +337,7 @@ func markCleanupFailed(task *models.DbUploadTask, err error) error {
 	if saveErr := db.Db.Save(task).Error; saveErr != nil {
 		return saveErr
 	}
+	models.PublishUploadTaskChanged(task, "source_cleanup_changed")
 	return err
 }
 
@@ -345,5 +351,6 @@ func markCleanupPending(task *models.DbUploadTask, err error) error {
 	if saveErr := db.Db.Save(task).Error; saveErr != nil {
 		return saveErr
 	}
+	models.PublishUploadTaskChanged(task, "source_cleanup_changed")
 	return err
 }

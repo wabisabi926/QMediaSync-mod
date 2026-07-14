@@ -59,6 +59,12 @@ const (
 	UploadSourceCleanupStatusFailed    UploadSourceCleanupStatus = "failed"
 )
 
+const (
+	uploadProgressBroadcastInterval        = time.Second
+	uploadProgressBroadcastThrottleTTL     = 30 * time.Minute
+	uploadProgressBroadcastCleanupInterval = 5 * time.Minute
+)
+
 type DbUploadTask struct {
 	BaseModel
 	Source                UploadSource              `json:"source"` // 上传来源存储值，展示文案由前端映射
@@ -130,7 +136,8 @@ func (task *DbUploadTask) CanRetry(maxRetry int) bool {
 
 var uploadQueueProgressBroadcast = struct {
 	sync.Mutex
-	lastAt map[uint]time.Time
+	lastAt      map[uint]time.Time
+	lastCleanup time.Time
 }{
 	lastAt: make(map[uint]time.Time),
 }
@@ -155,6 +162,11 @@ func publishUploadQueueChanged(task *DbUploadTask, reason string) {
 		payload.RapidWaitUntil = task.RapidWaitUntil
 		payload.TotalParts = task.TotalParts
 		payload.UploadedParts = task.UploadedParts
+		if task.Source == UploadSourceDirectoryMonitor {
+			payload.SourceCleanupStatus = string(task.SourceCleanupStatus)
+			cleanupError := task.SourceCleanupError
+			payload.SourceCleanupError = &cleanupError
+		}
 	}
 	if reason == "progress" {
 		ws.TryBroadcastEvent(ws.EventUploadQueueChanged, payload)
@@ -170,12 +182,43 @@ func shouldThrottleUploadProgressBroadcast(taskID uint) bool {
 	now := time.Now()
 	uploadQueueProgressBroadcast.Lock()
 	defer uploadQueueProgressBroadcast.Unlock()
+	pruneUploadProgressThrottleLocked(now)
 	lastAt := uploadQueueProgressBroadcast.lastAt[taskID]
-	if !lastAt.IsZero() && now.Sub(lastAt) < time.Second {
+	if !lastAt.IsZero() && now.Sub(lastAt) < uploadProgressBroadcastInterval {
 		return true
 	}
 	uploadQueueProgressBroadcast.lastAt[taskID] = now
 	return false
+}
+
+func pruneUploadProgressThrottleLocked(now time.Time) {
+	if !uploadQueueProgressBroadcast.lastCleanup.IsZero() &&
+		now.Sub(uploadQueueProgressBroadcast.lastCleanup) < uploadProgressBroadcastCleanupInterval {
+		return
+	}
+	cutoff := now.Add(-uploadProgressBroadcastThrottleTTL)
+	for taskID, lastAt := range uploadQueueProgressBroadcast.lastAt {
+		if lastAt.Before(cutoff) {
+			delete(uploadQueueProgressBroadcast.lastAt, taskID)
+		}
+	}
+	uploadQueueProgressBroadcast.lastCleanup = now
+}
+
+func clearUploadProgressThrottle(taskID uint) {
+	if taskID == 0 {
+		return
+	}
+	uploadQueueProgressBroadcast.Lock()
+	delete(uploadQueueProgressBroadcast.lastAt, taskID)
+	uploadQueueProgressBroadcast.Unlock()
+}
+
+func clearAllUploadProgressThrottle() {
+	uploadQueueProgressBroadcast.Lock()
+	uploadQueueProgressBroadcast.lastAt = make(map[uint]time.Time)
+	uploadQueueProgressBroadcast.lastCleanup = time.Time{}
+	uploadQueueProgressBroadcast.Unlock()
 }
 
 // PrepareUploadRetry 将上传失败任务重新放回等待中
@@ -203,6 +246,7 @@ func (task *DbUploadTask) complete() error {
 	if err != nil {
 		return err
 	}
+	clearUploadProgressThrottle(task.ID)
 	publishUploadQueueChanged(task, "status_changed")
 	return nil
 }
@@ -231,6 +275,7 @@ func (task *DbUploadTask) Fail(err error) {
 		helpers.AppLogger.Warnf("[上传] 标记为失败失败：%s", err.Error())
 		return
 	}
+	clearUploadProgressThrottle(task.ID)
 	publishUploadQueueChanged(task, "status_changed")
 }
 
@@ -243,6 +288,7 @@ func (task *DbUploadTask) Cancel() {
 		helpers.AppLogger.Warnf("[上传] 标记为已取消失败：%s", err.Error())
 		return
 	}
+	clearUploadProgressThrottle(task.ID)
 	publishUploadQueueChanged(task, "status_changed")
 }
 
@@ -258,6 +304,7 @@ func (task *DbUploadTask) cancelWithError(err error) {
 		helpers.AppLogger.Warnf("[上传] 标记为已取消失败：%s", saveErr.Error())
 		return
 	}
+	clearUploadProgressThrottle(task.ID)
 	publishUploadQueueChanged(task, "status_changed")
 }
 
@@ -631,6 +678,14 @@ func PublishUploadTaskCreated(task *DbUploadTask) {
 	publishUploadQueueChanged(task, "created")
 }
 
+// PublishUploadTaskChanged 发布上传任务局部变更事件。
+func PublishUploadTaskChanged(task *DbUploadTask, reason string) {
+	if strings.TrimSpace(reason) == "" {
+		reason = "updated"
+	}
+	publishUploadQueueChanged(task, reason)
+}
+
 // 添加 STRM 同步产生的上传任务
 func AddUploadTaskFromSyncFile(file *SyncFile) error {
 	// 先检查是否存在
@@ -760,6 +815,7 @@ func ClearPendingUploadTasks() error {
 		helpers.AppLogger.Errorf("清除待上传任务失败：%v", err)
 		return err
 	}
+	clearAllUploadProgressThrottle()
 	publishUploadQueueChanged(nil, "clear_pending")
 	return err
 }
@@ -774,6 +830,7 @@ func ClearExpireUploadTasks() error {
 	} else {
 		helpers.AppLogger.Infof("已清除 3 天前的上传任务")
 	}
+	clearAllUploadProgressThrottle()
 	return err
 }
 
@@ -787,6 +844,7 @@ func ClearUploadSuccessAndFailed() error {
 	} else {
 		helpers.AppLogger.Infof("清除上传成功和失败任务成功")
 	}
+	clearAllUploadProgressThrottle()
 	publishUploadQueueChanged(nil, "clear_success_failed")
 	return err
 }

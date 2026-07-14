@@ -1,9 +1,11 @@
 package models
 
 import (
+	"errors"
 	"io"
 	"log"
 	"testing"
+	"time"
 
 	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
@@ -114,4 +116,102 @@ func TestUpdateUploadingToPendingPreservesUploadSession(t *testing.T) {
 	if gotSession.UploadId != "upload-1" || gotSession.UploadedBytes != 1024 {
 		t.Fatalf("上传会话 = %+v，期望保留 upload_id 和进度", gotSession)
 	}
+}
+
+func TestUploadProgressThrottleClearedWhenTaskLeavesActiveState(t *testing.T) {
+	setupQueueStatusTestDB(t)
+	resetUploadProgressThrottleForTest(t)
+
+	tests := []struct {
+		name       string
+		transition func(task *DbUploadTask)
+	}{
+		{
+			name: "完成",
+			transition: func(task *DbUploadTask) {
+				task.Complete()
+			},
+		},
+		{
+			name: "失败",
+			transition: func(task *DbUploadTask) {
+				task.Fail(errors.New("upload failed"))
+			},
+		},
+		{
+			name: "取消",
+			transition: func(task *DbUploadTask) {
+				task.Cancel()
+			},
+		},
+		{
+			name: "带错误取消",
+			transition: func(task *DbUploadTask) {
+				task.cancelWithError(errors.New("fingerprint mismatch"))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			task := &DbUploadTask{Status: UploadStatusUploading}
+			if err := db.Db.Create(task).Error; err != nil {
+				t.Fatalf("创建上传任务失败: %v", err)
+			}
+			if shouldThrottleUploadProgressBroadcast(task.ID) {
+				t.Fatal("首次进度广播不应被节流")
+			}
+
+			tt.transition(task)
+
+			uploadQueueProgressBroadcast.Lock()
+			_, exists := uploadQueueProgressBroadcast.lastAt[task.ID]
+			uploadQueueProgressBroadcast.Unlock()
+			if exists {
+				t.Fatalf("任务进入终态后仍保留进度节流记录: task_id=%d", task.ID)
+			}
+		})
+	}
+}
+
+func TestUploadProgressThrottlePrunesExpiredEntries(t *testing.T) {
+	resetUploadProgressThrottleForTest(t)
+
+	uploadQueueProgressBroadcast.Lock()
+	uploadQueueProgressBroadcast.lastAt[101] = time.Now().Add(-31 * time.Minute)
+	uploadQueueProgressBroadcast.lastAt[102] = time.Now().Add(-29 * time.Minute)
+	uploadQueueProgressBroadcast.Unlock()
+
+	if shouldThrottleUploadProgressBroadcast(103) {
+		t.Fatal("新任务首次进度广播不应被节流")
+	}
+
+	uploadQueueProgressBroadcast.Lock()
+	_, expiredExists := uploadQueueProgressBroadcast.lastAt[101]
+	_, freshExists := uploadQueueProgressBroadcast.lastAt[102]
+	_, newExists := uploadQueueProgressBroadcast.lastAt[103]
+	uploadQueueProgressBroadcast.Unlock()
+
+	if expiredExists {
+		t.Fatal("超过 TTL 的进度节流记录应被清理")
+	}
+	if !freshExists || !newExists {
+		t.Fatalf("未过期记录和新记录应保留: fresh=%v new=%v", freshExists, newExists)
+	}
+}
+
+func resetUploadProgressThrottleForTest(t *testing.T) {
+	t.Helper()
+	uploadQueueProgressBroadcast.Lock()
+	originalLastAt := uploadQueueProgressBroadcast.lastAt
+	originalLastCleanup := uploadQueueProgressBroadcast.lastCleanup
+	uploadQueueProgressBroadcast.lastAt = make(map[uint]time.Time)
+	uploadQueueProgressBroadcast.lastCleanup = time.Time{}
+	uploadQueueProgressBroadcast.Unlock()
+	t.Cleanup(func() {
+		uploadQueueProgressBroadcast.Lock()
+		uploadQueueProgressBroadcast.lastAt = originalLastAt
+		uploadQueueProgressBroadcast.lastCleanup = originalLastCleanup
+		uploadQueueProgressBroadcast.Unlock()
+	})
 }

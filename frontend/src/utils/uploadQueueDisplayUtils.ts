@@ -32,6 +32,8 @@ export interface UploadQueuePatch {
   rapid_wait_until?: number
   total_parts?: number
   uploaded_parts?: number
+  source_cleanup_status?: string
+  source_cleanup_error?: string
 }
 
 export interface UploadTaskDetailRow {
@@ -234,6 +236,12 @@ export const applyUploadQueuePatch = <T extends UploadQueueDisplayTask>(
   }
   if (patch.uploaded_parts !== undefined) {
     row.uploaded_parts = patch.uploaded_parts
+  }
+  if (patch.source_cleanup_status !== undefined) {
+    row.source_cleanup_status = patch.source_cleanup_status
+  }
+  if (patch.source_cleanup_error !== undefined) {
+    row.source_cleanup_error = patch.source_cleanup_error
   }
   return true
 }

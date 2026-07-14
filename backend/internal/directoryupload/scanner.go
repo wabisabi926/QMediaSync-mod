@@ -136,6 +136,7 @@ func (service *Service) Stop() {
 	service.runtimes = nil
 	cleanupCancel := service.cleanupCancel
 	cleanupDone := service.cleanupDone
+	scanExecutor := service.scanExecutor
 	service.cleanupCancel = nil
 	service.cleanupDone = nil
 	service.mutex.Unlock()
@@ -147,6 +148,9 @@ func (service *Service) Stop() {
 	}
 	for _, runtime := range runtimes {
 		runtime.Stop()
+	}
+	if scanExecutor != nil {
+		scanExecutor.Wait()
 	}
 }
 

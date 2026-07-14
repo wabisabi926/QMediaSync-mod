@@ -59,6 +59,7 @@ func TestUploadQueueStatusSnapshot(t *testing.T) {
 	GlobalUploadQueue = NewUq(1)
 	GlobalUploadQueue.running = false
 	db.Db.Create(&DbUploadTask{Status: UploadStatusPending})
+	db.Db.Create(&DbUploadTask{Status: UploadStatusRemoteCompletedFinalizing})
 	db.Db.Create(&DbUploadTask{Status: UploadStatusFailed})
 	db.Db.Create(&DbUploadTask{Status: UploadStatusCancelled})
 
@@ -67,11 +68,11 @@ func TestUploadQueueStatusSnapshot(t *testing.T) {
 	if snapshot.Running {
 		t.Fatal("上传队列快照应显示已停止")
 	}
-	if snapshot.Pending != 1 || snapshot.Failed != 1 || snapshot.Cancelled != 1 {
-		t.Fatalf("上传队列状态统计 = %+v，期望 pending=1 failed=1 cancelled=1", snapshot)
+	if snapshot.Pending != 1 || snapshot.Processing != 1 || snapshot.Failed != 1 || snapshot.Cancelled != 1 {
+		t.Fatalf("上传队列状态统计 = %+v，期望 pending=1 processing=1 failed=1 cancelled=1", snapshot)
 	}
-	if snapshot.Total != 3 {
-		t.Fatalf("上传队列总数 = %d，期望 3", snapshot.Total)
+	if snapshot.Total != 4 {
+		t.Fatalf("上传队列总数 = %d，期望 4", snapshot.Total)
 	}
 }
 
@@ -115,6 +116,97 @@ func TestUpdateUploadingToPendingPreservesUploadSession(t *testing.T) {
 	}
 	if gotSession.UploadId != "upload-1" || gotSession.UploadedBytes != 1024 {
 		t.Fatalf("上传会话 = %+v，期望保留 upload_id 和进度", gotSession)
+	}
+}
+
+func TestUpdateUploadingToPendingResetsInterruptedFinalizeToPendingFinalize(t *testing.T) {
+	setupQueueStatusTestDB(t)
+
+	task := &DbUploadTask{
+		Status: UploadStatusRemoteCompletedFinalizing,
+		Source: UploadSourceDirectoryMonitor,
+	}
+	if err := db.Db.Create(task).Error; err != nil {
+		t.Fatalf("创建收尾中上传任务失败: %v", err)
+	}
+
+	if err := UpdateUploadingToPending(); err != nil {
+		t.Fatalf("恢复中断上传任务失败: %v", err)
+	}
+
+	var gotTask DbUploadTask
+	if err := db.Db.First(&gotTask, task.ID).Error; err != nil {
+		t.Fatalf("读取上传任务失败: %v", err)
+	}
+	if gotTask.Status != UploadStatusRemoteCompletedPendingFinalize {
+		t.Fatalf("收尾中任务重置后 status = %s，期望 remote_completed_pending_finalize", gotTask.Status.String())
+	}
+}
+
+func TestRemoteCompletedFinalizeClaimAllowsSingleOwner(t *testing.T) {
+	setupQueueStatusTestDB(t)
+
+	task := &DbUploadTask{
+		Status: UploadStatusRemoteCompletedPendingFinalize,
+		Source: UploadSourceDirectoryMonitor,
+	}
+	if err := db.Db.Create(task).Error; err != nil {
+		t.Fatalf("创建待收尾上传任务失败: %v", err)
+	}
+
+	claimed, err := task.claimRemoteCompletedFinalize()
+	if err != nil {
+		t.Fatalf("首次抢占待收尾任务失败: %v", err)
+	}
+	if !claimed {
+		t.Fatal("首次抢占待收尾任务应成功")
+	}
+	duplicate := &DbUploadTask{BaseModel: BaseModel{ID: task.ID}}
+	claimedAgain, err := duplicate.claimRemoteCompletedFinalize()
+	if err != nil {
+		t.Fatalf("重复抢占待收尾任务失败: %v", err)
+	}
+	if claimedAgain {
+		t.Fatal("重复抢占同一待收尾任务不应成功")
+	}
+
+	var gotTask DbUploadTask
+	if err := db.Db.First(&gotTask, task.ID).Error; err != nil {
+		t.Fatalf("读取上传任务失败: %v", err)
+	}
+	if gotTask.Status != UploadStatusRemoteCompletedFinalizing {
+		t.Fatalf("抢占后任务状态 = %s，期望 remote_completed_finalizing", gotTask.Status.String())
+	}
+}
+
+func TestRemoteCompletedFinalizeClaimClearsPreviousError(t *testing.T) {
+	setupQueueStatusTestDB(t)
+
+	task := &DbUploadTask{
+		Status: UploadStatusRemoteCompletedPendingFinalize,
+		Error:  "temporary finalize error",
+	}
+	if err := db.Db.Create(task).Error; err != nil {
+		t.Fatalf("创建待收尾上传任务失败: %v", err)
+	}
+
+	claimed, err := task.claimRemoteCompletedFinalize()
+	if err != nil {
+		t.Fatalf("抢占待收尾任务失败: %v", err)
+	}
+	if !claimed {
+		t.Fatal("待收尾任务应成功被抢占")
+	}
+	if task.Error != "" {
+		t.Fatalf("抢占后内存错误 = %q，期望为空", task.Error)
+	}
+
+	var gotTask DbUploadTask
+	if err := db.Db.First(&gotTask, task.ID).Error; err != nil {
+		t.Fatalf("读取收尾任务失败: %v", err)
+	}
+	if gotTask.Error != "" {
+		t.Fatalf("抢占后数据库错误 = %q，期望为空", gotTask.Error)
 	}
 }
 

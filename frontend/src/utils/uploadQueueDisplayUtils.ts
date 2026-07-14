@@ -48,11 +48,12 @@ const phaseLabelMap: Record<string, string> = {
   rapid_init: '等待秒传',
   resume_uploading: '恢复上传',
   resumed_uploading: '恢复上传',
-  multipart_uploading: '上传中',
-  uploading: '上传中',
-  completing: '完成处理中',
-  remote_completed_pending_finalize: '等待收尾',
-  complete_callback: '完成处理中',
+  multipart_uploading: '正在上传',
+  uploading: '正在上传',
+  completing: '正在完成处理',
+  remote_completed_pending_finalize: '等待完成处理',
+  remote_completed_finalizing: '正在完成处理',
+  complete_callback: '正在完成处理',
   completed: '上传完成',
   rapid_uploaded: '秒传成功',
   remote_exists: '远端已存在',
@@ -100,7 +101,7 @@ export const getUploadProgressPercent = (task: UploadQueueDisplayTask): number =
   if (task.file_size && task.file_size > 0 && typeof task.uploaded_bytes === 'number') {
     return Math.min(100, Math.max(0, roundPercent((task.uploaded_bytes / task.file_size) * 100)))
   }
-  if (task.status === 2 || task.status === 5) {
+  if (task.status === 2 || task.status === 5 || task.status === 6) {
     return 100
   }
   return 0
@@ -128,7 +129,10 @@ export const getUploadResultLabel = (
       return '上传完成'
     }
     if (task.status === 5) {
-      return '等待收尾'
+      return '等待完成处理'
+    }
+    if (task.status === 6) {
+      return '正在完成处理'
     }
     return '-'
   }
@@ -136,8 +140,11 @@ export const getUploadResultLabel = (
 }
 
 export const getUploadStageOrResultLabel = (task: UploadQueueDisplayTask): string => {
-  if (task.status === 5) {
-    return task.upload_phase ? getUploadPhaseLabel(task) : '等待收尾'
+  if (task.status === 5 || task.status === 6) {
+    if (task.upload_phase) {
+      return getUploadPhaseLabel(task)
+    }
+    return task.status === 6 ? '正在完成处理' : '等待完成处理'
   }
   if (task.status === 2 || (task.upload_result && task.upload_result !== 'unknown')) {
     return getUploadResultLabel(task)

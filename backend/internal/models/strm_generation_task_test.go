@@ -1,11 +1,16 @@
 package models
 
 import (
+	"errors"
+	"fmt"
 	"io"
 	"log"
+	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
@@ -23,6 +28,28 @@ func setupStrmGenerationTaskTestDB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
+	db.Db = testDb
+	if err := db.Db.AutoMigrate(&StrmGenerationTask{}); err != nil {
+		t.Fatalf("迁移测试表失败: %v", err)
+	}
+}
+
+func setupConcurrentStrmGenerationTaskTestDB(t *testing.T) {
+	t.Helper()
+	if helpers.AppLogger == nil {
+		helpers.AppLogger = &helpers.QLogger{Logger: log.New(io.Discard, "", 0)}
+	}
+	testDb, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "strm-generation.db")), &gorm.Config{
+		SkipDefaultTransaction: true,
+	})
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	sqlDb, err := testDb.DB()
+	if err != nil {
+		t.Fatalf("读取底层测试数据库失败: %v", err)
+	}
+	sqlDb.SetMaxOpenConns(16)
 	db.Db = testDb
 	if err := db.Db.AutoMigrate(&StrmGenerationTask{}); err != nil {
 		t.Fatalf("迁移测试表失败: %v", err)
@@ -92,6 +119,113 @@ func TestEnqueueStrmGenerationTaskDedupesRequestHash(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("任务数量 = %d，期望 1", count)
+	}
+}
+
+func TestEnqueueStrmGenerationTaskConcurrentSameRequestHashReusesExisting(t *testing.T) {
+	setupConcurrentStrmGenerationTaskTestDB(t)
+
+	const workers = 8
+	requestHash := "webhook:file:concurrent-same-request"
+	ready := make(chan struct{}, workers)
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	callbackName := "qms:test_block_strm_concurrent_create"
+	if err := db.Db.Callback().Create().Before("gorm:create").Register(callbackName, func(tx *gorm.DB) {
+		task, ok := tx.Statement.Dest.(*StrmGenerationTask)
+		if !ok || task.RequestHash != requestHash {
+			return
+		}
+		ready <- struct{}{}
+		<-release
+	}); err != nil {
+		t.Fatalf("注册测试 callback 失败: %v", err)
+	}
+	t.Cleanup(func() {
+		releaseOnce.Do(func() {
+			close(release)
+		})
+		_ = db.Db.Callback().Create().Remove(callbackName)
+	})
+
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	ids := make(chan uint, workers)
+	errs := make(chan error, workers)
+	for i := 0; i < workers; i++ {
+		i := i
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			task, err := EnqueueStrmGenerationTask(&StrmGenerationTask{
+				Source:      StrmGenerationSourceWebhook,
+				TaskType:    StrmGenerationTaskTypeFile,
+				SyncPathId:  10,
+				AccountId:   2,
+				FileId:      "file-concurrent",
+				PickCode:    "pick-concurrent",
+				FileName:    "movie.mkv",
+				RequestHash: requestHash,
+			})
+			if err != nil {
+				errs <- err
+				return
+			}
+			if task == nil {
+				errs <- errors.New("入队返回空 STRM 任务")
+				return
+			}
+			if task.RequestHash != requestHash {
+				errs <- fmt.Errorf("worker %d 返回 request_hash = %s，期望 %s", i, task.RequestHash, requestHash)
+				return
+			}
+			ids <- task.ID
+		}()
+	}
+	close(start)
+	for i := 0; i < workers; i++ {
+		select {
+		case <-ready:
+		case <-time.After(3 * time.Second):
+			releaseOnce.Do(func() {
+				close(release)
+			})
+			t.Fatalf("等待第 %d 个并发创建进入 callback 超时", i+1)
+		}
+	}
+	releaseOnce.Do(func() {
+		close(release)
+	})
+	wg.Wait()
+	close(ids)
+	close(errs)
+
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("并发重复入队返回错误: %v", err)
+		}
+	}
+	var firstID uint
+	for id := range ids {
+		if id == 0 {
+			t.Fatal("并发重复入队返回空任务 ID")
+		}
+		if firstID == 0 {
+			firstID = id
+			continue
+		}
+		if id != firstID {
+			t.Fatalf("并发重复入队返回不同任务 ID: got %d want %d", id, firstID)
+		}
+	}
+
+	var count int64
+	if err := db.Db.Model(&StrmGenerationTask{}).Where("request_hash = ?", requestHash).Count(&count).Error; err != nil {
+		t.Fatalf("统计 request_hash 任务失败: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("request_hash=%s 的任务数量 = %d，期望 1", requestHash, count)
 	}
 }
 

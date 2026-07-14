@@ -180,11 +180,12 @@ API Key 在 Web 页面「系统设置 - API Key」中创建。完整密钥只会
 Webhook 入队会为请求生成短格式 `request_hash`，形如 `webhook:file:v2:<sha256>`。请求动作、远端定位信息和请求级开关会参与摘要计算，但远端路径、文件名和目录路径不会明文拼进唯一键；完整值仍保存在 `strm_generation_tasks.path`、`file_name` 或 `directory_path` 等任务字段中。
 
 - `pending`、`running`、`finalizing` 或 `waiting_children` 状态的相同请求会复用已有任务，不重复创建。
+- 两个相同请求并发到达时，数据库唯一键冲突会被入队逻辑吸收并复查已有活跃任务；调用方应拿到同一个任务 ID，而不是偶发唯一键错误。
 - 升级后再次提交相同请求时，会优先生成短格式哈希；如果数据库中仍有旧格式活跃任务，会复用旧任务，不重复创建。
 - 历史任务如果已经 `failed`、`completed` 或 `cancelled`，再次提交相同请求会归档旧请求哈希并创建新的待处理任务。
 - worker 自动领取 `pending` 和 `finalizing` 任务；执行失败会把任务标记为 `failed`，递增 `retry_count` 并写入 `last_error`。
 - `batch_files` 父任务不由 worker 执行；创建后状态为 `waiting_children`，所有子任务进入终态后才转为 `completed` 或 `failed`。相同批量请求重试时会按合法 item 的原始 `items[]` index 匹配子任务，已存在的子任务复用，缺失的子任务补建，非法项仍按原始 index 返回失败结果。
-- `batch_files` 父任务和合法子任务在同一个数据库事务内创建；任一子任务写入失败时整个请求返回错误并回滚父任务，后续相同请求会重新创建完整父子任务集合。
+- `batch_files` 父任务和合法子任务在同一个数据库事务内创建；SQLite 遇到并发写入锁冲突时会回滚并有限重试整个父子任务事务，确保相同请求最终复用同一组任务；任一非幂等冲突类子任务写入失败时整个请求返回错误并回滚父任务，后续相同请求会重新创建完整父子任务集合。
 - `directory_scan` 父任务展开完成后记录 `total_items`；子任务后续完成或失败时累计 `accepted_items`、`failed_items`、`changed_items` 和 `new_meta_items`。
 
 ## 示例

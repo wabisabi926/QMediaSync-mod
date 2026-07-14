@@ -14,6 +14,7 @@ import (
 	"qmediasync/internal/helpers"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // StrmGenerationSource 是 STRM 生成任务来源。
@@ -125,46 +126,74 @@ func EnqueueStrmGenerationTaskWithDBAndLegacyHashes(tx *gorm.DB, task *StrmGener
 	if task == nil {
 		return nil, errors.New("STRM 生成任务为空")
 	}
-	if task.RequestHash != "" {
-		existing, found, err := findStrmGenerationTaskByRequestHash(tx, task.RequestHash)
-		if err != nil {
-			return nil, err
-		}
-		if found {
-			if !isActiveStrmGenerationStatus(existing.Status) {
-				archivedHash := archivedStrmGenerationRequestHash(task.RequestHash, existing.ID)
-				if err := tx.Model(&StrmGenerationTask{}).
-					Where("id = ? AND request_hash = ?", existing.ID, task.RequestHash).
-					Update("request_hash", archivedHash).Error; err != nil {
-					return nil, err
-				}
-			} else {
-				return existing, nil
-			}
-		}
-	}
-	for _, legacyHash := range legacyRequestHashes {
-		if legacyHash == "" || legacyHash == task.RequestHash {
-			continue
-		}
-		existing, found, err := findStrmGenerationTaskByRequestHash(tx, legacyHash)
-		if err != nil {
-			return nil, err
-		}
-		if found && isActiveStrmGenerationStatus(existing.Status) {
-			return existing, nil
-		}
-	}
 	if task.Status == "" {
 		task.Status = StrmGenerationStatusPending
 	}
 	if task.TaskType == "" {
 		task.TaskType = StrmGenerationTaskTypeFile
 	}
-	if err := tx.Create(task).Error; err != nil {
-		return nil, err
+	if task.RequestHash == "" {
+		if err := tx.Create(task).Error; err != nil {
+			return nil, err
+		}
+		return task, nil
 	}
-	return task, nil
+	for attempts := 0; attempts < 4; attempts++ {
+		existing, found, err := findStrmGenerationTaskByRequestHash(tx, task.RequestHash)
+		if err != nil {
+			return nil, err
+		}
+		if found {
+			if isActiveStrmGenerationStatus(existing.Status) {
+				return existing, nil
+			}
+			archived, err := archiveStrmGenerationTaskRequestHash(tx, existing.ID, task.RequestHash)
+			if err != nil {
+				return nil, err
+			}
+			if archived {
+				continue
+			}
+			continue
+		}
+		for _, legacyHash := range legacyRequestHashes {
+			if legacyHash == "" || legacyHash == task.RequestHash {
+				continue
+			}
+			existing, found, err := findStrmGenerationTaskByRequestHash(tx, legacyHash)
+			if err != nil {
+				return nil, err
+			}
+			if found && isActiveStrmGenerationStatus(existing.Status) {
+				return existing, nil
+			}
+		}
+		result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(task)
+		if result.Error != nil {
+			return nil, result.Error
+		}
+		if result.RowsAffected > 0 {
+			return task, nil
+		}
+		task.ID = 0
+		existing, found, err = findStrmGenerationTaskByRequestHash(tx, task.RequestHash)
+		if err != nil {
+			return nil, err
+		}
+		if found && isActiveStrmGenerationStatus(existing.Status) {
+			return existing, nil
+		}
+		if found {
+			archived, err := archiveStrmGenerationTaskRequestHash(tx, existing.ID, task.RequestHash)
+			if err != nil {
+				return nil, err
+			}
+			if archived {
+				continue
+			}
+		}
+	}
+	return nil, errors.New("STRM 生成任务 request_hash 并发入队失败")
 }
 
 func findStrmGenerationTaskByRequestHash(tx *gorm.DB, requestHash string) (*StrmGenerationTask, bool, error) {
@@ -177,6 +206,28 @@ func findStrmGenerationTaskByRequestHash(tx *gorm.DB, requestHash string) (*Strm
 		return nil, false, nil
 	}
 	return nil, false, err
+}
+
+func archiveStrmGenerationTaskRequestHash(tx *gorm.DB, taskID uint, requestHash string) (bool, error) {
+	if tx == nil {
+		return false, errors.New("数据库连接为空")
+	}
+	if taskID == 0 || requestHash == "" {
+		return false, nil
+	}
+	archivedHash := archivedStrmGenerationRequestHash(requestHash, taskID)
+	result := tx.Model(&StrmGenerationTask{}).
+		Where("id = ? AND request_hash = ? AND status NOT IN ?", taskID, requestHash, []StrmGenerationStatus{
+			StrmGenerationStatusPending,
+			StrmGenerationStatusRunning,
+			StrmGenerationStatusFinalizing,
+			StrmGenerationStatusWaitingChildren,
+		}).
+		Update("request_hash", archivedHash)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
 }
 
 // StrmGenerationParentProgress 描述父任务需要累计的子任务结果。

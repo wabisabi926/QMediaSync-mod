@@ -896,6 +896,8 @@ func uploadPhaseFromTask(task *DbUploadTask) string {
 		return "uploading"
 	case UploadStatusRemoteCompletedPendingFinalize:
 		return "remote_completed_pending_finalize"
+	case UploadStatusRemoteCompletedFinalizing:
+		return "remote_completed_finalizing"
 	case UploadStatusCompleted:
 		switch task.UploadResult {
 		case UploadResultRapidUpload:

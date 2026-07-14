@@ -11,7 +11,10 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
@@ -542,6 +545,110 @@ func TestStrmWebhookBatchFilesRetryReusesActiveParentAndChildren(t *testing.T) {
 	}
 	if childCount != 2 {
 		t.Fatalf("批量子任务数量 = %d，期望 2", childCount)
+	}
+}
+
+func TestEnqueueStrmWebhookBatchConcurrentDuplicateRetriesSQLiteLock(t *testing.T) {
+	if helpers.AppLogger == nil {
+		helpers.AppLogger = &helpers.QLogger{Logger: log.New(io.Discard, "", 0)}
+	}
+	setupConcurrentControllerTestDB(t, &models.StrmGenerationTask{})
+
+	const callers = 2
+	syncPath := &models.SyncPath{BaseModel: models.BaseModel{ID: 10}, AccountId: 2}
+	options := strmWebhookOptions{}
+	preparedFiles := []strmWebhookPreparedFile{
+		{index: 0, item: strmWebhookFileItem{FileID: "file-concurrent-1", FileName: "one.mkv", Path: "/remote"}},
+		{index: 1, item: strmWebhookFileItem{FileID: "file-concurrent-2", FileName: "two.mkv", Path: "/remote"}},
+	}
+
+	ready := make(chan struct{}, callers)
+	release := make(chan struct{})
+	var createCount atomic.Int32
+	callbackName := "qms:test_block_concurrent_batch_parent_create"
+	if err := db.Db.Callback().Create().Before("gorm:create").Register(callbackName, func(tx *gorm.DB) {
+		task, ok := tx.Statement.Dest.(*models.StrmGenerationTask)
+		if !ok || task.TaskType != models.StrmGenerationTaskTypeBatchFiles || createCount.Add(1) > callers {
+			return
+		}
+		ready <- struct{}{}
+		<-release
+	}); err != nil {
+		t.Fatalf("注册并发测试 callback 失败: %v", err)
+	}
+	t.Cleanup(func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+		_ = db.Db.Callback().Create().Remove(callbackName)
+	})
+
+	type outcome struct {
+		results []strmWebhookItemResult
+		err     error
+	}
+	outcomes := make(chan outcome, callers)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < callers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			results := make([]strmWebhookItemResult, len(preparedFiles))
+			err := enqueueStrmWebhookBatch(syncPath, options, preparedFiles, results)
+			outcomes <- outcome{results: results, err: err}
+		}()
+	}
+	close(start)
+	for i := 0; i < callers; i++ {
+		select {
+		case <-ready:
+		case <-time.After(3 * time.Second):
+			close(release)
+			t.Fatalf("等待第 %d 个并发父任务创建进入 callback 超时", i+1)
+		}
+	}
+	close(release)
+	wg.Wait()
+	close(outcomes)
+
+	var firstResults []strmWebhookItemResult
+	for result := range outcomes {
+		if result.err != nil {
+			t.Fatalf("并发批量入队失败: %v", result.err)
+		}
+		if len(result.results) != len(preparedFiles) {
+			t.Fatalf("批量结果数量 = %d，期望 %d", len(result.results), len(preparedFiles))
+		}
+		if firstResults == nil {
+			firstResults = result.results
+			continue
+		}
+		if !reflect.DeepEqual(result.results, firstResults) {
+			t.Fatalf("并发批量结果不一致: got %+v want %+v", result.results, firstResults)
+		}
+	}
+
+	var parentCount int64
+	if err := db.Db.Model(&models.StrmGenerationTask{}).
+		Where("task_type = ?", models.StrmGenerationTaskTypeBatchFiles).
+		Count(&parentCount).Error; err != nil {
+		t.Fatalf("统计批量父任务失败: %v", err)
+	}
+	if parentCount != 1 {
+		t.Fatalf("批量父任务数量 = %d，期望 1", parentCount)
+	}
+	var childCount int64
+	if err := db.Db.Model(&models.StrmGenerationTask{}).
+		Where("parent_task_id > ?", 0).
+		Count(&childCount).Error; err != nil {
+		t.Fatalf("统计批量子任务失败: %v", err)
+	}
+	if childCount != int64(len(preparedFiles)) {
+		t.Fatalf("批量子任务数量 = %d，期望 %d", childCount, len(preparedFiles))
 	}
 }
 

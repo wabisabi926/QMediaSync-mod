@@ -28,7 +28,7 @@ func buildQueueStatusSnapshot(running bool, rows []queueStatusCount) QueueStatus
 		switch row.Status {
 		case int(UploadStatusPending):
 			snapshot.Pending += row.Count
-		case int(UploadStatusUploading), int(UploadStatusRemoteCompletedPendingFinalize):
+		case int(UploadStatusUploading), int(UploadStatusRemoteCompletedPendingFinalize), int(UploadStatusRemoteCompletedFinalizing):
 			snapshot.Processing += row.Count
 		case int(UploadStatusCompleted):
 			snapshot.Completed += row.Count

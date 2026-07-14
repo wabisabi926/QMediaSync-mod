@@ -55,12 +55,13 @@
           @change="handleStatusChange"
         >
           <el-option label="全部状态" :value="-1"></el-option>
-          <el-option label="等待中" :value="0"></el-option>
-          <el-option label="上传中" :value="1"></el-option>
-          <el-option label="已完成" :value="2"></el-option>
-          <el-option label="失败" :value="3"></el-option>
+          <el-option label="等待上传" :value="0"></el-option>
+          <el-option label="正在上传" :value="1"></el-option>
+          <el-option label="上传完成" :value="2"></el-option>
+          <el-option label="上传失败" :value="3"></el-option>
           <el-option label="已取消" :value="4"></el-option>
-          <el-option label="待收尾" :value="5"></el-option>
+          <el-option label="等待完成处理" :value="5"></el-option>
+          <el-option label="正在完成处理" :value="6"></el-option>
         </el-select>
       </div>
 
@@ -329,7 +330,7 @@ interface UploadTask {
   file_name: string
   local_full_path: string
   remote_path: string
-  status: 0 | 1 | 2 | 3 | 4 | 5
+  status: 0 | 1 | 2 | 3 | 4 | 5 | 6
   file_size: number
   start_time: number
   end_time: number
@@ -393,7 +394,9 @@ const hasActiveQueueWork = computed(
   () =>
     queueStatus.value === 1 ||
     uploading.value > 0 ||
-    queueData.value.some((task) => task.status === 0 || task.status === 1 || task.status === 5),
+    queueData.value.some(
+      (task) => task.status === 0 || task.status === 1 || task.status === 5 || task.status === 6,
+    ),
 )
 
 const taskMatchesCurrentStatusFilter = (task: UploadTask): boolean => {
@@ -471,17 +474,19 @@ const isMessageBoxCancelError = (error: unknown): boolean => {
 const getStatusText = (status: number): string => {
   switch (status) {
     case 0:
-      return '等待中'
+      return '等待上传'
     case 1:
-      return '上传中'
+      return '正在上传'
     case 2:
-      return '已完成'
+      return '上传完成'
     case 3:
-      return '失败'
+      return '上传失败'
     case 4:
       return '已取消'
     case 5:
-      return '待收尾'
+      return '等待完成处理'
+    case 6:
+      return '正在完成处理'
     default:
       return '未知'
   }
@@ -503,6 +508,7 @@ const getStatusTagType = (
     case 4:
       return 'warning'
     case 5:
+    case 6:
       return 'primary'
     default:
       return 'info'
@@ -524,7 +530,12 @@ const getStageResultTagType = (
   if (task.upload_phase === 'rapid_waiting') {
     return 'warning'
   }
-  if (task.status === 5 || task.upload_phase === 'remote_completed_pending_finalize') {
+  if (
+    task.status === 5 ||
+    task.status === 6 ||
+    task.upload_phase === 'remote_completed_pending_finalize' ||
+    task.upload_phase === 'remote_completed_finalizing'
+  ) {
     return 'primary'
   }
   if (task.status === 2) {
@@ -641,7 +652,7 @@ const clearQueue = async () => {
   const operationContext = startQueueMutationContext()
 
   try {
-    await ElMessageBox.confirm('只能清空等待中的记录，是否继续？此操作不可恢复。', '提示', {
+    await ElMessageBox.confirm('只能清空等待上传的记录，是否继续？此操作不可恢复。', '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning',

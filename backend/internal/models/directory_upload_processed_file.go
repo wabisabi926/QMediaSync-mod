@@ -387,7 +387,8 @@ func shouldDeleteQueuedDirectoryUploadProcessed(record DirectoryUploadProcessedF
 	}
 	return task.Status != UploadStatusPending &&
 		task.Status != UploadStatusUploading &&
-		task.Status != UploadStatusRemoteCompletedPendingFinalize
+		task.Status != UploadStatusRemoteCompletedPendingFinalize &&
+		task.Status != UploadStatusRemoteCompletedFinalizing
 }
 
 func deleteDirectoryUploadProcessedBatch(records []DirectoryUploadProcessedFile) (int64, error) {

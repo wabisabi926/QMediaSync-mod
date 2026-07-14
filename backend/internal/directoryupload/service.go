@@ -814,6 +814,7 @@ func hasActiveDirectoryUploadTaskWithDB(tx *gorm.DB, uploadTaskID uint, filePath
 			models.UploadStatusPending,
 			models.UploadStatusUploading,
 			models.UploadStatusRemoteCompletedPendingFinalize,
+			models.UploadStatusRemoteCompletedFinalizing,
 		})
 	if uploadTaskID > 0 {
 		query = query.Where("id = ?", uploadTaskID)

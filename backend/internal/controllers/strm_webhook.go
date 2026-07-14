@@ -7,6 +7,7 @@ import (
 	"net/http"
 	pathpkg "path"
 	"strings"
+	"time"
 
 	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
@@ -27,6 +28,9 @@ const (
 	strmWebhookActionFile          = "file"
 	strmWebhookActionBatchFiles    = "batch_files"
 	strmWebhookActionDirectoryScan = "directory_scan"
+
+	strmWebhookBatchTransactionMaxAttempts = 4
+	strmWebhookBatchTransactionRetryDelay  = 10 * time.Millisecond
 )
 
 type strmWebhookRequest struct {
@@ -387,13 +391,43 @@ func newStrmWebhookFileTask(syncPath *models.SyncPath, parentTaskID uint, option
 }
 
 func enqueueStrmWebhookBatch(syncPath *models.SyncPath, options strmWebhookOptions, preparedFiles []strmWebhookPreparedFile, results []strmWebhookItemResult) error {
-	return db.Db.Transaction(func(tx *gorm.DB) error {
-		parent, err := enqueueStrmWebhookBatchParentWithDB(tx, syncPath, options, preparedFiles)
-		if err != nil {
+	var err error
+	for attempt := 0; attempt < strmWebhookBatchTransactionMaxAttempts; attempt++ {
+		err = db.Db.Transaction(func(tx *gorm.DB) error {
+			parent, err := enqueueStrmWebhookBatchParentWithDB(tx, syncPath, options, preparedFiles)
+			if err != nil {
+				return err
+			}
+			return fillStrmWebhookBatchResultsWithDB(tx, syncPath, parent.ID, options, preparedFiles, results)
+		})
+		if err == nil {
+			return nil
+		}
+		if !isRetryableSQLiteLockError(err) || attempt == strmWebhookBatchTransactionMaxAttempts-1 {
 			return err
 		}
-		return fillStrmWebhookBatchResultsWithDB(tx, syncPath, parent.ID, options, preparedFiles, results)
-	})
+		time.Sleep(time.Duration(attempt+1) * strmWebhookBatchTransactionRetryDelay)
+	}
+	return err
+}
+
+func isRetryableSQLiteLockError(err error) bool {
+	if err == nil {
+		return false
+	}
+	type sqliteError interface {
+		Code() int
+	}
+	var sqliteErr sqliteError
+	if !errors.As(err, &sqliteErr) {
+		return false
+	}
+	switch sqliteErr.Code() & 0xff {
+	case 5, 6: // SQLITE_BUSY、SQLITE_LOCKED
+		return true
+	default:
+		return false
+	}
 }
 
 func enqueueStrmWebhookBatchParentWithDB(tx *gorm.DB, syncPath *models.SyncPath, options strmWebhookOptions, preparedFiles []strmWebhookPreparedFile) (*models.StrmGenerationTask, error) {
@@ -467,16 +501,11 @@ func takeStrmWebhookBatchChildByRequestHash(children map[string][]models.StrmGen
 func ensureStrmWebhookBatchChildTaskWithDB(tx *gorm.DB, syncPath *models.SyncPath, parentID uint, options strmWebhookOptions, index int, item strmWebhookFileItem) (strmWebhookItemResult, error) {
 	requestHash := strmWebhookBatchChildRequestHash(syncPath.ID, parentID, options, index, item)
 	task := newStrmWebhookFileTask(syncPath, parentID, options, item, requestHash)
-	if err := tx.Create(task).Error; err != nil {
-		var existing models.StrmGenerationTask
-		if lookupErr := tx.Where("request_hash = ?", requestHash).First(&existing).Error; lookupErr == nil {
-			if existing.ParentTaskId == parentID {
-				return strmWebhookItemResult{Index: index, Accepted: true, TaskID: existing.ID}, nil
-			}
-		}
+	created, err := models.EnqueueStrmGenerationTaskWithDB(tx, task)
+	if err != nil {
 		return strmWebhookItemResult{}, fmt.Errorf("创建批量 STRM 子任务失败: %w", err)
 	}
-	return strmWebhookItemResult{Index: index, Accepted: true, TaskID: task.ID}, nil
+	return strmWebhookItemResult{Index: index, Accepted: true, TaskID: created.ID}, nil
 }
 
 func getStrmWebhookBatchChildrenWithDB(tx *gorm.DB, parentID uint) ([]models.StrmGenerationTask, error) {

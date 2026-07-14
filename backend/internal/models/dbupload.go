@@ -27,6 +27,7 @@ const (
 	UploadStatusFailed                                             // 失败
 	UploadStatusCancelled                                          // 已取消
 	UploadStatusRemoteCompletedPendingFinalize UploadStatus = 5    // 远端已完成，等待本地收尾
+	UploadStatusRemoteCompletedFinalizing      UploadStatus = 6    // 远端已完成，正在本地收尾
 	UploadStatusAll                                         = -1   // 所有状态
 )
 
@@ -124,8 +125,19 @@ func (s UploadStatus) String() string {
 		return "cancelled"
 	case UploadStatusRemoteCompletedPendingFinalize:
 		return "remote_completed_pending_finalize"
+	case UploadStatusRemoteCompletedFinalizing:
+		return "remote_completed_finalizing"
 	default:
 		return "unknown"
+	}
+}
+
+func activeUploadTaskStatuses() []UploadStatus {
+	return []UploadStatus{
+		UploadStatusPending,
+		UploadStatusUploading,
+		UploadStatusRemoteCompletedPendingFinalize,
+		UploadStatusRemoteCompletedFinalizing,
 	}
 }
 
@@ -265,6 +277,55 @@ func (task *DbUploadTask) MarkRemoteCompletedPendingFinalize() error {
 	return nil
 }
 
+func (task *DbUploadTask) claimRemoteCompletedFinalize() (bool, error) {
+	if task == nil {
+		return false, errors.New("上传任务为空")
+	}
+	result := db.Db.Model(&DbUploadTask{}).
+		Where("id = ? AND status = ?", task.ID, UploadStatusRemoteCompletedPendingFinalize).
+		Updates(map[string]interface{}{
+			"status": UploadStatusRemoteCompletedFinalizing,
+			"error":  "",
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return false, nil
+	}
+	task.Status = UploadStatusRemoteCompletedFinalizing
+	task.Error = ""
+	publishUploadQueueChanged(task, "status_changed")
+	return true, nil
+}
+
+func (task *DbUploadTask) revertRemoteCompletedFinalizing(err error) error {
+	if task == nil {
+		return errors.New("上传任务为空")
+	}
+	updateData := map[string]interface{}{
+		"status": UploadStatusRemoteCompletedPendingFinalize,
+	}
+	if err != nil {
+		updateData["error"] = err.Error()
+	}
+	result := db.Db.Model(&DbUploadTask{}).
+		Where("id = ? AND status = ?", task.ID, UploadStatusRemoteCompletedFinalizing).
+		Updates(updateData)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil
+	}
+	task.Status = UploadStatusRemoteCompletedPendingFinalize
+	if err != nil {
+		task.Error = err.Error()
+	}
+	publishUploadQueueChanged(task, "status_changed")
+	return nil
+}
+
 func (task *DbUploadTask) Fail(err error) {
 	// 标记为失败
 	task.Status = UploadStatusFailed
@@ -336,7 +397,7 @@ func (task *DbUploadTask) GetAccount() *Account {
 // 执行上传
 func (task *DbUploadTask) Upload() {
 	if task.Status == UploadStatusRemoteCompletedPendingFinalize {
-		if err := task.finalizeRemoteCompletedUpload(); err != nil {
+		if err := task.finalizeRemoteCompletedUploadWithClaim(); err != nil {
 			helpers.AppLogger.Warnf("[上传] 远端完成任务收尾失败：task_id=%d err=%v", task.ID, err)
 		}
 		return
@@ -373,9 +434,26 @@ func (task *DbUploadTask) Upload() {
 	if err := task.MarkRemoteCompletedPendingFinalize(); err != nil {
 		return
 	}
-	if err := task.finalizeRemoteCompletedUpload(); err != nil {
+	if err := task.finalizeRemoteCompletedUploadWithClaim(); err != nil {
 		helpers.AppLogger.Warnf("[上传] 远端完成任务收尾失败：task_id=%d err=%v", task.ID, err)
 	}
+}
+
+func (task *DbUploadTask) finalizeRemoteCompletedUploadWithClaim() error {
+	claimed, err := task.claimRemoteCompletedFinalize()
+	if err != nil {
+		return fmt.Errorf("抢占待收尾任务失败：%w", err)
+	}
+	if !claimed {
+		return nil
+	}
+	if err := task.finalizeRemoteCompletedUpload(); err != nil {
+		if revertErr := task.revertRemoteCompletedFinalizing(err); revertErr != nil {
+			return errors.Join(err, fmt.Errorf("恢复待收尾状态失败：%w", revertErr))
+		}
+		return err
+	}
+	return nil
 }
 
 func (task *DbUploadTask) finalizeRemoteCompletedUpload() error {
@@ -622,7 +700,7 @@ func (task *DbUploadTask) UploadLocalFile() bool {
 func CheckCanUploadByLocalPath(source UploadSource, localPath string) bool {
 	var total int64
 	err := db.Db.Model(&DbUploadTask{}).
-		Where("source = ? AND local_full_path = ? AND status IN ?", source, localPath, []UploadStatus{UploadStatusPending, UploadStatusUploading, UploadStatusRemoteCompletedPendingFinalize}).
+		Where("source = ? AND local_full_path = ? AND status IN ?", source, localPath, activeUploadTaskStatuses()).
 		Count(&total).Error
 	if err != nil {
 		helpers.AppLogger.Warnf("检查本地路径上传任务失败：source=%s, local_path=%s, err=%v", source, localPath, err)
@@ -699,6 +777,9 @@ func AddUploadTaskFromSyncFile(file *SyncFile) error {
 		if task.Status == UploadStatusRemoteCompletedPendingFinalize {
 			return errors.New("任务已存在，状态为远端已完成待收尾")
 		}
+		if task.Status == UploadStatusRemoteCompletedFinalizing {
+			return errors.New("任务已存在，状态为远端已完成收尾中")
+		}
 	}
 	// if file.SyncPath == nil {
 	// 	file.SyncPath = GetSyncPathById(file.SyncPathId)
@@ -750,6 +831,9 @@ func AddUploadTaskFromMediaFile(mediaFile *ScrapeMediaFile, scrapePath *ScrapePa
 		if task.Status == UploadStatusRemoteCompletedPendingFinalize {
 			return errors.New("任务已存在，状态为远端已完成待收尾")
 		}
+		if task.Status == UploadStatusRemoteCompletedFinalizing {
+			return errors.New("任务已存在，状态为远端已完成收尾中")
+		}
 	}
 	// 插入新纪录
 	task := &DbUploadTask{
@@ -785,7 +869,7 @@ func GetPendingUploadTasks(limit int) []*DbUploadTask {
 func GetUploadingCount() int64 {
 	var count int64
 	db.Db.Model(&DbUploadTask{}).
-		Where("status = ?", UploadStatusUploading).
+		Where("status IN ?", []UploadStatus{UploadStatusUploading, UploadStatusRemoteCompletedFinalizing}).
 		Count(&count)
 	return count
 }
@@ -850,16 +934,20 @@ func ClearUploadSuccessAndFailed() error {
 }
 
 func UpdateUploadingToPending() error {
-	err := db.Db.Model(&DbUploadTask{}).
+	if err := db.Db.Model(&DbUploadTask{}).
 		Where("status = ?", UploadStatusUploading).
-		Update("status", UploadStatusPending).Error
-	if err != nil {
+		Update("status", UploadStatusPending).Error; err != nil {
 		helpers.AppLogger.Errorf("更新上传中的任务为待上传失败：%v", err)
 		return err
-	} else {
-		helpers.AppLogger.Infof("更新上传中的任务为待上传成功")
 	}
-	return err
+	if err := db.Db.Model(&DbUploadTask{}).
+		Where("status = ?", UploadStatusRemoteCompletedFinalizing).
+		Update("status", UploadStatusRemoteCompletedPendingFinalize).Error; err != nil {
+		helpers.AppLogger.Errorf("更新收尾中的上传任务为待收尾失败：%v", err)
+		return err
+	}
+	helpers.AppLogger.Infof("更新上传中的任务为待上传成功")
+	return nil
 }
 
 func RetryFailedUploadTasks(maxRetry int) error {
@@ -884,7 +972,7 @@ func RetryFailedUploadTasks(maxRetry int) error {
 func GetUnFinishUploadTaskCountByScrapeMediaId(scrapeMediaFileId uint) int64 {
 	var count int64
 	db.Db.Model(&DbUploadTask{}).
-		Where("scrape_media_file_id = ? AND status IN ?", scrapeMediaFileId, []UploadStatus{UploadStatusPending, UploadStatusUploading, UploadStatusRemoteCompletedPendingFinalize}).
+		Where("scrape_media_file_id = ? AND status IN ?", scrapeMediaFileId, activeUploadTaskStatuses()).
 		Count(&count)
 	return count
 }

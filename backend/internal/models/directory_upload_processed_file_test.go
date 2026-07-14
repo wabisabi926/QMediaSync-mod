@@ -295,6 +295,8 @@ func TestCleanupDirectoryUploadProcessedFilesDeletesQueuedWithoutActiveTaskBefor
 		{name: "关联任务已完成", task: &DbUploadTask{Status: UploadStatusCompleted}, wantDeleted: 1},
 		{name: "关联任务等待中", task: &DbUploadTask{Status: UploadStatusPending}, wantDeleted: 0},
 		{name: "关联任务上传中", task: &DbUploadTask{Status: UploadStatusUploading}, wantDeleted: 0},
+		{name: "关联任务待收尾", task: &DbUploadTask{Status: UploadStatusRemoteCompletedPendingFinalize}, wantDeleted: 0},
+		{name: "关联任务收尾中", task: &DbUploadTask{Status: UploadStatusRemoteCompletedFinalizing}, wantDeleted: 0},
 	}
 
 	for _, tt := range tests {

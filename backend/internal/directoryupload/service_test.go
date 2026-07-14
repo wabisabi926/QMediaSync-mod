@@ -1647,6 +1647,8 @@ func TestServiceSkipsStableFileWhenActiveUploadTaskExists(t *testing.T) {
 	}{
 		{name: "已有等待任务", status: models.UploadStatusPending},
 		{name: "已有上传中任务", status: models.UploadStatusUploading},
+		{name: "已有待收尾任务", status: models.UploadStatusRemoteCompletedPendingFinalize},
+		{name: "已有收尾中任务", status: models.UploadStatusRemoteCompletedFinalizing},
 	}
 
 	for _, tt := range cases {
@@ -1766,6 +1768,8 @@ func TestHandleStableFileForceKeepsActiveTaskDedup(t *testing.T) {
 	}{
 		{name: "已有等待任务", status: models.UploadStatusPending},
 		{name: "已有上传中任务", status: models.UploadStatusUploading},
+		{name: "已有待收尾任务", status: models.UploadStatusRemoteCompletedPendingFinalize},
+		{name: "已有收尾中任务", status: models.UploadStatusRemoteCompletedFinalizing},
 	}
 
 	for _, tt := range cases {

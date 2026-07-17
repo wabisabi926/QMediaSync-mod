@@ -19,7 +19,7 @@ db:
     maxOpenConns: 25
     maxIdleConns: 25
 cacheSize: 20971520
-jwtSecret: QMediaSync-JWT-TOKEN-250706
+jwtSecret: Q115-STRM-JWT-TOKEN-250706
 httpHost: :12333
 httpsHost: :12332
 strm:
@@ -29,3 +29,5 @@ strm:
   cron: ""
 authServer: https://api.mqfamily.top
 baiDuPanAppId: QMediaSync
+adminUsername: admin
+adminPassword: admin123

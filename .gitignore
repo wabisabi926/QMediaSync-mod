@@ -36,6 +36,8 @@ lerna-debug.log*
 config/
 data/
 dist/
+!FNOS/qmediasync-amd64/config/
+!FNOS/qmediasync-arm64/config/
 docker-context/
 linux-binaries/
 release-assets/

@@ -79,9 +79,6 @@ func TestSyncPathAggregateWriteRoutesReplaceLegacyRoutes(t *testing.T) {
 	}
 	for _, retained := range []string{
 		"GET /api/sync/path/:id",
-		"GET /api/directory-upload/rules",
-		"POST /api/directory-upload/sync-paths/:sync_path_id/scan",
-		"GET /api/directory-upload/runtime-status",
 	} {
 		if _, ok := routes[retained]; !ok {
 			t.Fatalf("应保留的查询或运行接口缺失：%s", retained)
@@ -91,7 +88,7 @@ func TestSyncPathAggregateWriteRoutesReplaceLegacyRoutes(t *testing.T) {
 
 func TestLegacySyncWriteHandlersRemovedFromControllerSources(t *testing.T) {
 	files := []struct {
-		path     string
+		path    string
 		removed []string
 	}{
 		{
@@ -101,12 +98,6 @@ func TestLegacySyncWriteHandlersRemovedFromControllerSources(t *testing.T) {
 				"func UpdateSyncPath(",
 				"@Router /sync/path-add [post]",
 				"@Router /sync/path-update [post]",
-			},
-		},
-		{
-			path: "internal/controllers/directory_upload.go",
-			removed: []string{
-				"func SaveDirectoryUploadSyncPathRules(",
 			},
 		},
 	}

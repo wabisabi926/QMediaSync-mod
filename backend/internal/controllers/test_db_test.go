@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"qmediasync/internal/db"
-	"qmediasync/internal/directoryupload"
 
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
@@ -36,7 +35,6 @@ func setupControllerTestDB(t *testing.T, models ...any) *gorm.DB {
 		fn()
 	}
 	t.Cleanup(func() {
-		directoryupload.StopDirectoryUploadService()
 		db.Db = originalDB
 		runAuthBackgroundTask = originalRunner
 		controllerTestDBMu.Unlock()
@@ -74,7 +72,6 @@ func setupConcurrentControllerTestDB(t *testing.T, models ...any) *gorm.DB {
 		fn()
 	}
 	t.Cleanup(func() {
-		directoryupload.StopDirectoryUploadService()
 		_ = sqlDB.Close()
 		db.Db = originalDB
 		runAuthBackgroundTask = originalRunner

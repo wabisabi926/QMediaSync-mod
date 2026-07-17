@@ -192,27 +192,6 @@ func (s *MigrateServer) performMigrateBackup() error {
 		return err
 	}
 
-	if err := backupToJsonFile(backupRecordDir, "ScrapePathCategories", totalTable, &count, models.ScrapePathCategory{}); err != nil {
-		return err
-	}
-	if err := backupToJsonFile(backupRecordDir, "MovieCategories", totalTable, &count, models.MovieCategory{}); err != nil {
-		return err
-	}
-	if err := backupToJsonFile(backupRecordDir, "TvShowCategories", totalTable, &count, models.TvShowCategory{}); err != nil {
-		return err
-	}
-	if err := backupToJsonFile(backupRecordDir, "Media", totalTable, &count, models.Media{}); err != nil {
-		return err
-	}
-	if err := backupToJsonFile(backupRecordDir, "MediaSeason", totalTable, &count, models.MediaSeason{}); err != nil {
-		return err
-	}
-	if err := backupToJsonFile(backupRecordDir, "MediaEpisode", totalTable, &count, models.MediaEpisode{}); err != nil {
-		return err
-	}
-	if err := backupToJsonFile(backupRecordDir, "ScrapeStrmPath", totalTable, &count, models.ScrapeStrmPath{}); err != nil {
-		return err
-	}
 	if err := backupToJsonFile(backupRecordDir, "EmbyConfig", totalTable, &count, models.EmbyConfig{}); err != nil {
 		return err
 	}
@@ -258,19 +237,7 @@ func (s *MigrateServer) performMigrateBackup() error {
 	if err := backupToJsonFile(backupRecordDir, "NotificationRule", totalTable, &count, models.NotificationRule{}); err != nil {
 		return err
 	}
-	if err := backupToJsonFile(backupRecordDir, "SyncPathScrapePath", totalTable, &count, models.SyncPathScrapePath{}); err != nil {
-		return err
-	}
-	if err := backupToJsonFile(backupRecordDir, "ScrapePath", totalTable, &count, models.ScrapePath{}); err != nil {
-		return err
-	}
 	if err := backupToJsonFile(backupRecordDir, "SyncFile", totalTable, &count, models.SyncFile{}); err != nil {
-		return err
-	}
-	if err := backupToJsonFile(backupRecordDir, "ScrapeSettings", totalTable, &count, models.ScrapeSettings{}); err != nil {
-		return err
-	}
-	if err := backupToJsonFile(backupRecordDir, "ScrapeMediaFile", totalTable, &count, models.ScrapeMediaFile{}); err != nil {
 		return err
 	}
 

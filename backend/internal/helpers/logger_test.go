@@ -346,7 +346,6 @@ func TestRotateLogIncludesBaiduPanLog(t *testing.T) {
 	oldAppLogger := AppLogger
 	oldV115Log := V115Log
 	oldOpenListLog := OpenListLog
-	oldTMDBLog := TMDBLog
 	oldBaiduPanLog := BaiduPanLog
 	t.Cleanup(func() {
 		ConfigDir = oldConfigDir
@@ -355,7 +354,6 @@ func TestRotateLogIncludesBaiduPanLog(t *testing.T) {
 		AppLogger = oldAppLogger
 		V115Log = oldV115Log
 		OpenListLog = oldOpenListLog
-		TMDBLog = oldTMDBLog
 		BaiduPanLog = oldBaiduPanLog
 	})
 
@@ -369,7 +367,6 @@ func TestRotateLogIncludesBaiduPanLog(t *testing.T) {
 	AppLogger = nil
 	V115Log = nil
 	OpenListLog = nil
-	TMDBLog = nil
 	if err := os.MkdirAll(filepath.Join(ConfigDir, "logs"), 0755); err != nil {
 		t.Fatalf("创建日志目录失败: %v", err)
 	}
@@ -405,7 +402,6 @@ func TestCloseLoggerIncludesBaiduPanLog(t *testing.T) {
 	oldAppLogger := AppLogger
 	oldV115Log := V115Log
 	oldOpenListLog := OpenListLog
-	oldTMDBLog := TMDBLog
 	oldBaiduPanLog := BaiduPanLog
 	t.Cleanup(func() {
 		ConfigDir = oldConfigDir
@@ -413,7 +409,6 @@ func TestCloseLoggerIncludesBaiduPanLog(t *testing.T) {
 		AppLogger = oldAppLogger
 		V115Log = oldV115Log
 		OpenListLog = oldOpenListLog
-		TMDBLog = oldTMDBLog
 		BaiduPanLog = oldBaiduPanLog
 	})
 
@@ -422,7 +417,6 @@ func TestCloseLoggerIncludesBaiduPanLog(t *testing.T) {
 	AppLogger = nil
 	V115Log = nil
 	OpenListLog = nil
-	TMDBLog = nil
 	if err := os.MkdirAll(filepath.Join(ConfigDir, "logs"), 0755); err != nil {
 		t.Fatalf("创建日志目录失败: %v", err)
 	}

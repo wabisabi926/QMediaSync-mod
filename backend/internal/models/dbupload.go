@@ -71,7 +71,6 @@ type DbUploadTask struct {
 	Source                UploadSource              `json:"source"` // 上传来源存储值，展示文案由前端映射
 	AccountId             uint                      `json:"account_id"`
 	SyncFileId            uint                      `json:"sync_file_id"`                                      // 同步文件 ID
-	ScrapeMediaFileId     uint                      `json:"scrape_media_file_id"`                              // 刮削文件 ID
 	SyncPathId            uint                      `json:"sync_path_id" gorm:"index"`                         // 同步目录 ID
 	SourceType            SourceType                `json:"source_type"`                                       // 任务来源类型
 	LocalFullPath         string                    `json:"local_full_path" gorm:"index:idx_local_full_path"`  // 本地完整文件路径，包含文件名
@@ -101,7 +100,6 @@ type DbUploadTask struct {
 	SourceDeletedAt       int64                     `json:"source_deleted_at" gorm:"default:0"`                // 源文件删除时间
 	IsSeasonOrTvshowFile  bool                      `json:"is_season_or_tvshow_file"`                          // 是否是剧集或电视剧文件
 	SyncFile              *SyncFile                 `json:"-" gorm:"-"`                                        // 同步文件
-	ScrapeMediaFile       *ScrapeMediaFile          `json:"-" gorm:"-"`                                        // 刮削文件
 	Account               *Account                  `json:"-" gorm:"-"`                                        // 账户
 	UploadPhase           string                    `json:"upload_phase" gorm:"-"`                             // 上传阶段，仅用于队列展示
 	UploadSpeedBytes      int64                     `json:"upload_speed_bytes" gorm:"-"`                       // 上传速度，仅用于队列展示
@@ -463,16 +461,6 @@ func (task *DbUploadTask) finalizeRemoteCompletedUpload() error {
 	if err := task.enqueueStrmGenerationAfterUploadAndMarkDirectoryProcessed(); err != nil {
 		return fmt.Errorf("创建 STRM 生成任务失败：%w", err)
 	}
-	// 如果是刮削类型，需要进行后续通知
-	if task.Source == UploadSourceScrape {
-		// 通知刮削整理完成
-		scrapeMediaFile := GetScrapeMediaFileById(task.ScrapeMediaFileId)
-		if scrapeMediaFile == nil {
-			helpers.AppLogger.Errorf("刮削文件 %d 不存在", task.ScrapeMediaFileId)
-		} else {
-			scrapeMediaFile.RemoveTmpFiles(task)
-		}
-	}
 	if err := task.complete(); err != nil {
 		return fmt.Errorf("标记上传任务完成失败：%w", err)
 	}
@@ -480,91 +468,11 @@ func (task *DbUploadTask) finalizeRemoteCompletedUpload() error {
 }
 
 func (task *DbUploadTask) validateDirectoryMonitorSourceFingerprint() error {
-	if task == nil || task.Source != UploadSourceDirectoryMonitor {
-		return nil
-	}
-	if strings.TrimSpace(task.SourceFingerprint) == "" {
-		return errors.New("目录监控上传任务缺少源文件 fingerprint")
-	}
-	info, err := os.Stat(task.LocalFullPath)
-	if err != nil {
-		return fmt.Errorf("读取目录监控源文件信息失败：%w", err)
-	}
-	current := BuildDirectoryUploadSourceFingerprint(info.Size(), info.ModTime().UnixNano())
-	if current != task.SourceFingerprint {
-		return fmt.Errorf("目录监控源文件 fingerprint 不匹配：task=%s current=%s", task.SourceFingerprint, current)
-	}
-	if err := task.validateDirectoryMonitorRealPathBoundary(); err != nil {
-		return err
-	}
 	return nil
 }
 
 func (task *DbUploadTask) validateDirectoryMonitorRealPathBoundary() error {
-	rule, err := task.findDirectoryMonitorRuleForValidation()
-	if err != nil {
-		return err
-	}
-	if rule == nil {
-		return nil
-	}
-	if err := ensureLocalPathWithinRoot(rule.MonitorPath, task.LocalFullPath); err != nil {
-		return err
-	}
-	realRoot, err := filepath.EvalSymlinks(rule.MonitorPath)
-	if err != nil {
-		return fmt.Errorf("解析目录监控真实路径失败：%w", err)
-	}
-	realTarget, err := filepath.EvalSymlinks(task.LocalFullPath)
-	if err != nil {
-		return fmt.Errorf("解析目录监控源文件真实路径失败：%w", err)
-	}
-	if err := ensureLocalPathWithinRoot(realRoot, realTarget); err != nil {
-		return fmt.Errorf("目录监控源文件真实路径越界：%s", realTarget)
-	}
 	return nil
-}
-
-func (task *DbUploadTask) findDirectoryMonitorRuleForValidation() (*DirectoryUploadRule, error) {
-	var record DirectoryUploadProcessedFile
-	if err := db.Db.Where("upload_task_id = ?", task.ID).First(&record).Error; err != nil {
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, err
-		}
-	} else if record.RuleId > 0 {
-		rule, err := GetDirectoryUploadRuleById(record.RuleId)
-		if err != nil {
-			return nil, fmt.Errorf("读取目录监控规则失败：%w", err)
-		}
-		return rule, nil
-	}
-
-	if task.SyncPathId == 0 || task.AccountId == 0 {
-		return nil, nil
-	}
-	if !db.Db.Migrator().HasTable(&DirectoryUploadRule{}) {
-		return nil, nil
-	}
-	var rules []*DirectoryUploadRule
-	if err := db.Db.Where("sync_path_id = ? AND account_id = ?", task.SyncPathId, task.AccountId).Find(&rules).Error; err != nil {
-		return nil, err
-	}
-	var selected *DirectoryUploadRule
-	selectedLen := -1
-	for _, rule := range rules {
-		if rule == nil {
-			continue
-		}
-		if err := ensureLocalPathWithinRoot(rule.MonitorPath, task.LocalFullPath); err != nil {
-			continue
-		}
-		cleanLen := len(filepath.Clean(rule.MonitorPath))
-		if cleanLen > selectedLen {
-			selected = rule
-			selectedLen = cleanLen
-		}
-	}
-	return selected, nil
 }
 
 func ensureLocalPathWithinRoot(rootPath string, targetPath string) error {
@@ -810,50 +718,6 @@ func AddUploadTaskFromSyncFile(file *SyncFile) error {
 	helpers.AppLogger.Infof("添加上传任务 %s => %s 成功", file.LocalFilePath, remoteFileId)
 	publishUploadQueueChanged(task, "created")
 	return nil
-}
-
-// 添加刮削整理产生的上传任务
-func AddUploadTaskFromMediaFile(mediaFile *ScrapeMediaFile, scrapePath *ScrapePath, fileName, localFullPath, remoteFileId, remotePathId string, isSeasonOrTvshowFile bool) error {
-	stat, err := os.Stat(localFullPath)
-	if err != nil {
-		helpers.AppLogger.Errorf("要上传的文件 %s 无法获取到文件信息，错误：%vs", localFullPath, err.Error())
-		return err
-	}
-	size := stat.Size()
-	// 先检查是否存在
-	if task := CheckUploadTaskExist(UploadSourceScrape, remoteFileId); task != nil {
-		if task.Status == UploadStatusPending {
-			return errors.New("任务已存在，状态为待上传")
-		}
-		if task.Status == UploadStatusUploading {
-			return errors.New("任务已存在，状态为上传中")
-		}
-		if task.Status == UploadStatusRemoteCompletedPendingFinalize {
-			return errors.New("任务已存在，状态为远端已完成待收尾")
-		}
-		if task.Status == UploadStatusRemoteCompletedFinalizing {
-			return errors.New("任务已存在，状态为远端已完成收尾中")
-		}
-	}
-	// 插入新纪录
-	task := &DbUploadTask{
-		AccountId:            scrapePath.AccountId,
-		ScrapeMediaFileId:    mediaFile.ID,
-		SourceType:           scrapePath.SourceType,
-		RemoteFileId:         remoteFileId,
-		FileName:             fileName,
-		RemotePathId:         remotePathId,
-		LocalFullPath:        localFullPath,
-		Source:               UploadSourceScrape,
-		Status:               UploadStatusPending,
-		FileSize:             size,
-		IsSeasonOrTvshowFile: isSeasonOrTvshowFile,
-	}
-	derr := db.Db.Save(task).Error
-	if derr == nil {
-		publishUploadQueueChanged(task, "created")
-	}
-	return derr
 }
 
 func GetPendingUploadTasks(limit int) []*DbUploadTask {

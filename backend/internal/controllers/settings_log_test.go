@@ -28,7 +28,6 @@ func setupLogSettingControllerTest(t *testing.T) (*gin.Engine, *bytes.Buffer) {
 	oldV115Log := helpers.V115Log
 	oldOpenListLog := helpers.OpenListLog
 	oldBaiduPanLog := helpers.BaiduPanLog
-	oldTMDBLog := helpers.TMDBLog
 	t.Cleanup(func() {
 		helpers.ConfigDir = oldConfigDir
 		helpers.GlobalConfig = oldGlobalConfig
@@ -37,7 +36,6 @@ func setupLogSettingControllerTest(t *testing.T) (*gin.Engine, *bytes.Buffer) {
 		helpers.V115Log = oldV115Log
 		helpers.OpenListLog = oldOpenListLog
 		helpers.BaiduPanLog = oldBaiduPanLog
-		helpers.TMDBLog = oldTMDBLog
 	})
 
 	helpers.ConfigDir = t.TempDir()
@@ -52,7 +50,6 @@ func setupLogSettingControllerTest(t *testing.T) (*gin.Engine, *bytes.Buffer) {
 	helpers.V115Log = &helpers.QLogger{Logger: log.New(&bytes.Buffer{}, "", 0)}
 	helpers.OpenListLog = &helpers.QLogger{Logger: log.New(&bytes.Buffer{}, "", 0)}
 	helpers.BaiduPanLog = &helpers.QLogger{Logger: log.New(&bytes.Buffer{}, "", 0)}
-	helpers.TMDBLog = &helpers.QLogger{Logger: log.New(&bytes.Buffer{}, "", 0)}
 
 	r := gin.New()
 	r.GET("/setting/log", GetLogSetting)

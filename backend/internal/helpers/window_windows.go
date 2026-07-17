@@ -71,18 +71,29 @@ var (
 
 func setupFullFeaturedTray(parent walk.Form, stopFunc func()) error {
 	var err error
-	// 加载图标
-	icon, _ := walk.NewIconFromFile(filepath.Join(RootDir, "icon.ico"))
+	var icon *walk.Icon
 
-	// 创建托盘图标
+	iconPath := filepath.Join(RootDir, "icon.ico")
+	if _, err := os.Stat(iconPath); err == nil {
+		icon, err = walk.NewIconFromFile(iconPath)
+		if err != nil {
+			AppLogger.Warnf("加载图标失败：%v", err)
+			icon = nil
+		}
+	} else {
+		AppLogger.Warnf("图标文件不存在：%s", iconPath)
+		icon = nil
+	}
+
 	notifyIcon, err = walk.NewNotifyIcon(parent)
 	if err != nil {
 		return err
 	}
 
-	// 设置托盘属性
-	if err = notifyIcon.SetIcon(icon); err != nil {
-		return err
+	if icon != nil {
+		if err = notifyIcon.SetIcon(icon); err != nil {
+			AppLogger.Warnf("设置托盘图标失败：%v", err)
+		}
 	}
 	if err = notifyIcon.SetToolTip("QMediaSync 正在后台运行中"); err != nil {
 		return err

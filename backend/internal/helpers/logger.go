@@ -18,7 +18,6 @@ var AppLogger *QLogger
 var V115Log *QLogger
 var OpenListLog *QLogger
 var BaiduPanLog *QLogger
-var TMDBLog *QLogger
 var runtimeLogLevel atomic.Int32
 
 type LogLevel int32
@@ -354,7 +353,6 @@ func ApplyGlobalLogRotationConfig() {
 	applyLogRotationConfig(AppLogger)
 	applyLogRotationConfig(V115Log)
 	applyLogRotationConfig(OpenListLog)
-	applyLogRotationConfig(TMDBLog)
 	applyLogRotationConfig(BaiduPanLog)
 }
 
@@ -428,9 +426,6 @@ func CloseLogger() {
 	if OpenListLog != nil {
 		OpenListLog.Close()
 	}
-	if TMDBLog != nil {
-		TMDBLog.Close()
-	}
 	if BaiduPanLog != nil {
 		BaiduPanLog.Close()
 	}
@@ -446,9 +441,6 @@ func RotateLog() {
 	}
 	if OpenListLog != nil && OpenListLog.rotate && OpenListLog.rotation != nil {
 		_ = OpenListLog.rotation.rotate()
-	}
-	if TMDBLog != nil && TMDBLog.rotate && TMDBLog.rotation != nil {
-		_ = TMDBLog.rotation.rotate()
 	}
 	if BaiduPanLog != nil && BaiduPanLog.rotate && BaiduPanLog.rotation != nil {
 		_ = BaiduPanLog.rotation.rotate()

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"path/filepath"
 
 	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
@@ -23,9 +22,7 @@ var AllTables = []any{
 	Migrator{},
 	BackupConfig{}, BackupRecord{},
 	ApiKey{}, UserSession{}, Settings{}, Sync{}, User{}, Account{},
-	SyncPath{}, SyncFile{}, SyncPathScrapePath{}, DirectoryUploadRule{}, DirectoryUploadProcessedFile{}, SyncPathIdempotencyRecord{},
-	ScrapeSettings{}, ScrapePath{}, MovieCategory{}, TvShowCategory{}, ScrapePathCategory{},
-	ScrapeMediaFile{}, Media{}, MediaSeason{}, MediaEpisode{}, ScrapeStrmPath{},
+	SyncPath{}, SyncFile{}, SyncPathIdempotencyRecord{},
 	RequestStat{}, EmbyConfig{}, EmbyMediaItem{}, EmbyMediaSyncFile{}, EmbyLibrary{}, EmbyLibrarySyncPath{}, EmbyLibraryRefreshTask{},
 	DbDownloadTask{}, DbUploadTask{}, UploadSession{}, StrmGenerationTask{}, NotificationChannel{}, TelegramChannelConfig{}, MeoWChannelConfig{}, BarkChannelConfig{},
 	ServerChanChannelConfig{}, CustomWebhookChannelConfig{}, NotificationRule{},
@@ -65,109 +62,6 @@ func Migrate() {
 	if migrator.VersionCode == 3 {
 		// 数据库版本低于最大版本，需要升级
 		db.Db.AutoMigrate(Account{})
-		migrator.UpdateVersionCode(db.Db)
-	}
-	if migrator.VersionCode == 4 {
-		db.Db.AutoMigrate(ScrapeMediaFile{}, Media{}, MediaSeason{}, MediaEpisode{})
-		// 给所有 ScrapeMediaFile 补充新增字段的值
-		scrapePathMap := make(map[uint]*ScrapePath)
-		scrapePathes := GetScrapePathes("")
-		for _, scrapePath := range scrapePathes {
-			scrapePathMap[scrapePath.ID] = scrapePath
-		}
-		limit := 100
-		offset := 0
-		for {
-			var scrapeMediaFiles []*ScrapeMediaFile
-			db.Db.Model(&ScrapeMediaFile{}).Limit(limit).Offset(offset).Find(&scrapeMediaFiles)
-			if len(scrapeMediaFiles) == 0 {
-				break
-			}
-			for _, sm := range scrapeMediaFiles {
-				sm.QueryRelation()
-				sourcePath, exists := scrapePathMap[sm.ScrapePathId]
-				if !exists {
-					continue
-				}
-				sm.MediaType = sourcePath.MediaType
-				sm.SourceType = sourcePath.SourceType
-				sm.ScrapeType = sourcePath.ScrapeType
-				sm.RenameType = sourcePath.RenameType
-				sm.EnableCategory = sourcePath.EnableCategory
-				sm.SourcePath = sourcePath.SourcePath
-				sm.SourcePathId = sourcePath.SourcePathId
-				sm.DestPath = sourcePath.DestPath
-				sm.DestPathId = sourcePath.DestPathId
-				helpers.AppLogger.Infof("刮削记录的所有新增字段已更新 %d", sm.ID)
-				if sm.MediaType == MediaTypeOther {
-					continue
-				}
-				if sm.Media == nil {
-					continue
-				}
-				if sm.MediaType == MediaTypeMovie {
-					sm.Media.VideoFileName = sm.NewVideoBaseName + sm.VideoExt
-					if sm.SourceType != SourceType115 {
-						sm.Media.VideoFileId = filepath.Join(sm.NewPathId, sm.NewVideoBaseName+sm.VideoExt)
-					}
-				} else {
-					if sm.MediaEpisode == nil {
-						continue
-					}
-					sm.MediaEpisode.VideoFileName = sm.NewVideoBaseName + sm.VideoExt
-					if sm.SourceType != SourceType115 {
-						sm.MediaEpisode.VideoFileId = filepath.Join(sm.NewPathId, sm.NewVideoBaseName+sm.VideoExt)
-					}
-				}
-
-				sm.Media.PathId = sm.NewPathId
-				if sm.SourceType != SourceType115 {
-					sm.Media.Path = sm.NewPathId
-					if sm.MediaType == MediaTypeTvShow {
-						if sm.MediaEpisode == nil || sm.MediaSeason == nil {
-							continue
-						}
-						sm.MediaSeason.Path = sm.NewSeasonPathId
-						sm.MediaSeason.PathId = sm.NewSeasonPathId
-					}
-				} else {
-					sm.Media.Path = filepath.Join(sm.DestPath, sm.CategoryName, sm.NewPathName)
-					if sm.MediaType == MediaTypeTvShow {
-						if sm.MediaEpisode == nil || sm.MediaSeason == nil {
-							continue
-						}
-						sm.MediaSeason.Path = filepath.Join(sm.Media.Path, sm.NewSeasonPathName)
-						sm.MediaSeason.PathId = sm.NewSeasonPathId
-					}
-				}
-				sm.Media.ScrapePathId = sm.ScrapePathId
-				sm.Media.Save()
-				if sm.MediaType == MediaTypeTvShow {
-					if sm.MediaEpisode == nil || sm.MediaSeason == nil {
-						continue
-					}
-					sm.MediaSeason.ScrapePathId = sm.ScrapePathId
-					sm.MediaEpisode.ScrapePathId = sm.ScrapePathId
-					sm.MediaSeason.Save()
-					sm.MediaEpisode.Save()
-				}
-			}
-			db.Db.Save(&scrapeMediaFiles)
-			offset += limit
-		}
-		err := db.Db.Model(&Media{}).Where("status = ?", "unscraped").Update("status", "scanned").Error
-		if err != nil {
-			helpers.AppLogger.Errorf("所有刮削结果表的状态更新失败，错误：%v", err)
-		} else {
-			helpers.AppLogger.Infof("所有刮削结果表的未刮削状态已从 unscraped 更新为 scanned")
-		}
-		err = db.Db.Model(&Media{}).Where("status = ?", "scraped").Update("status", "renamed").Error
-		if err != nil {
-			helpers.AppLogger.Errorf("所有刮削结果表的状态更新失败，错误：%v", err)
-		} else {
-			helpers.AppLogger.Infof("所有刮削结果表的已刮削状态已从 scraped 更新为 renamed")
-		}
-
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 5 {
@@ -350,18 +244,6 @@ func Migrate() {
 		db.Db.AutoMigrate(SyncPath{})
 		migrator.UpdateVersionCode(db.Db)
 	}
-	if migrator.VersionCode == 26 {
-		db.Db.AutoMigrate(BackupConfig{}, BackupRecord{}, MediaEpisode{})
-		migrator.UpdateVersionCode(db.Db)
-	}
-	if migrator.VersionCode == 27 {
-		db.Db.AutoMigrate(ScrapeStrmPath{})
-		migrator.UpdateVersionCode(db.Db)
-	}
-	if migrator.VersionCode == 28 {
-		db.Db.AutoMigrate(Media{}, MediaEpisode{})
-		migrator.UpdateVersionCode(db.Db)
-	}
 	if migrator.VersionCode == 29 {
 		db.Db.AutoMigrate(EmbyLibrarySyncPath{})
 		migrator.UpdateVersionCode(db.Db)
@@ -372,15 +254,6 @@ func Migrate() {
 		if err != nil {
 			helpers.AppLogger.Errorf("更新 EmbyMediaItem 的 EmbyData 字段为空失败：%v", err)
 		}
-		migrator.UpdateVersionCode(db.Db)
-	}
-	if migrator.VersionCode == 31 {
-		db.Db.AutoMigrate(SyncPathScrapePath{}, ScrapeStrmPath{})
-		migrator.UpdateVersionCode(db.Db)
-	}
-	if migrator.VersionCode == 32 {
-		// 添加刮削目录自定义定时任务字段
-		db.Db.AutoMigrate(ScrapePath{})
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 33 {
@@ -425,30 +298,7 @@ func Migrate() {
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 35 {
-
-		// 添加 Emby 媒体库选择字段到 EmbyConfig 表
 		db.Db.AutoMigrate(EmbyConfig{})
-
-		// 清理重复的 ScrapeSettings 记录
-		var count int64
-		db.Db.Model(&ScrapeSettings{}).Count(&count)
-		if count > 1 {
-			helpers.AppLogger.Infof("发现 %d 条刮削设置记录，清理重复记录", count)
-			var allSettings []*ScrapeSettings
-			db.Db.Order("id asc").Find(&allSettings)
-			// 保留第一条，删除其余的
-			for i := 1; i < len(allSettings); i++ {
-				if err := db.Db.Delete(allSettings[i]).Error; err != nil {
-					helpers.AppLogger.Errorf("删除重复的刮削设置记录失败，ID=%d：%v", allSettings[i].ID, err)
-				} else {
-					helpers.AppLogger.Infof("删除重复的刮削设置记录，ID=%d", allSettings[i].ID)
-				}
-			}
-		} else if count == 0 {
-			helpers.AppLogger.Warnf("数据库中没有刮削设置记录，将创建默认记录")
-			InitScrapeSetting()
-		}
-
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 36 {
@@ -588,11 +438,11 @@ func Migrate() {
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 51 {
-		if err := db.Db.AutoMigrate(UploadSession{}, DirectoryUploadRule{}, StrmGenerationTask{}, DbUploadTask{}, Settings{}); err != nil {
+		if err := db.Db.AutoMigrate(UploadSession{}, StrmGenerationTask{}, DbUploadTask{}, Settings{}); err != nil {
 			helpers.AppLogger.Errorf("迁移上传会话和 STRM 生成任务模型失败：%v", err)
 			return
 		}
-		helpers.AppLogger.Info("已添加上传会话、目录监控上传规则和 STRM 生成任务模型")
+		helpers.AppLogger.Info("已添加上传会话和 STRM 生成任务模型")
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 52 {
@@ -612,11 +462,6 @@ func Migrate() {
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 54 {
-		if err := db.Db.AutoMigrate(DirectoryUploadRule{}); err != nil {
-			helpers.AppLogger.Errorf("迁移目录监控上传元数据开关失败：%v", err)
-			return
-		}
-		helpers.AppLogger.Info("已添加目录监控上传元数据开关")
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 55 {
@@ -628,11 +473,10 @@ func Migrate() {
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 56 {
-		if err := db.Db.AutoMigrate(DirectoryUploadProcessedFile{}, DbUploadTask{}); err != nil {
-			helpers.AppLogger.Errorf("迁移目录监控源文件处理记录失败：%v", err)
+		if err := db.Db.AutoMigrate(DbUploadTask{}); err != nil {
+			helpers.AppLogger.Errorf("迁移上传任务失败：%v", err)
 			return
 		}
-		helpers.AppLogger.Info("已添加目录监控源文件处理记录表")
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 57 {
@@ -768,8 +612,6 @@ func InitDB() bool {
 	InitMigrationTable(MaxVersionCode)
 	// 初始化默认配置
 	InitSettings()
-	// 初始化刮削配置
-	InitScrapeSetting()
 	// 初始化 Emby 配置
 	InitEmbyConfig()
 	helpers.AppLogger.Info("已完成数据库初始化")
@@ -834,22 +676,7 @@ func backfillEmbyLastSuccessSyncMode(dbConn *gorm.DB, fallbackMode string) error
 }
 
 func backfillDirectoryUploadEnabled(dbConn *gorm.DB) error {
-	if !dbConn.Migrator().HasTable(&DirectoryUploadRule{}) {
-		return nil
-	}
-	var syncPathIDs []uint
-	if err := dbConn.Model(&DirectoryUploadRule{}).
-		Where("enabled = ?", true).
-		Distinct().
-		Pluck("sync_path_id", &syncPathIDs).Error; err != nil {
-		return err
-	}
-	if len(syncPathIDs) == 0 {
-		return nil
-	}
-	return dbConn.Model(&SyncPath{}).
-		Where("id IN ?", syncPathIDs).
-		Update("directory_upload_enabled", true).Error
+	return nil
 }
 
 func InitSettings() {
@@ -899,150 +726,6 @@ func InitSettings() {
 	}
 	db.Db.Save(&defaultSettings)
 	helpers.AppLogger.Info("已默认添加配置")
-}
-
-func InitScrapeSetting() {
-	// 先检查是否已存在记录
-	var count int64
-	db.Db.Model(&ScrapeSettings{}).Count(&count)
-	if count > 0 {
-		helpers.AppLogger.Info("刮削设置已存在，跳过初始化")
-		return
-	}
-
-	// 添加默认值
-	scrapeSettings := ScrapeSettings{
-		TmdbApiKey:      "",
-		TmdbAccessToken: "",
-		TmdbUrl:         "",
-		TmdbImageUrl:    "",
-		TmdbLanguage:    helpers.DEFAULT_TMDB_LANGUAGE,
-		TmdbEnableProxy: true,
-		EnableAi:        AiActionAssist,
-	}
-	db.Db.Save(&scrapeSettings)
-	helpers.AppLogger.Info("已默认添加刮削设置")
-	// 外语电影分类（ID 为 1，不可删除）
-	waiyuDianying := MovieCategory{
-		Name:     "外语电影",
-		GenreIds: "[]",
-		Language: "[]",
-	}
-	if err := db.Db.Save(&waiyuDianying).Error; err != nil {
-		helpers.AppLogger.Errorf("添加外语电影分类失败：%v", err)
-	} else {
-		helpers.AppLogger.Info("已默认添加外语电影分类")
-	}
-	// 华语电影
-	huayuiDianying := MovieCategory{
-		Name:     "华语电影",
-		GenreIds: "[]",
-		Language: "[\"zh\", \"cn\", \"bo\",\"za\"]",
-	}
-	if err := db.Db.Save(&huayuiDianying).Error; err != nil {
-		helpers.AppLogger.Errorf("添加华语电影分类失败：%v", err)
-	} else {
-		helpers.AppLogger.Info("已默认添加华语电影分类")
-	}
-	// 动画电影
-	donghuaDianying := MovieCategory{
-		Name:     "动画电影",
-		GenreIds: "[16]",
-		Language: "",
-	}
-	if err := db.Db.Save(&donghuaDianying).Error; err != nil {
-		helpers.AppLogger.Errorf("添加动画电影分类失败：%v", err)
-	} else {
-		helpers.AppLogger.Info("已默认添加动画电影分类")
-	}
-	// 其他剧（ID 为 1，不可删除）
-	qitaJu := TvShowCategory{
-		Name:      "其他剧",
-		GenreIds:  "",
-		Countries: "",
-	}
-	if err := db.Db.Save(&qitaJu).Error; err != nil {
-		helpers.AppLogger.Errorf("添加其他剧分类失败：%v", err)
-	} else {
-		helpers.AppLogger.Info("已默认添加其他剧分类")
-	}
-	// 国产剧
-	guochanJU := TvShowCategory{
-		Name:      "国产剧",
-		GenreIds:  "",
-		Countries: "[\"CN\",\"TW\", \"HK\", \"MO\"]",
-	}
-	if err := db.Db.Save(&guochanJU).Error; err != nil {
-		helpers.AppLogger.Errorf("添加国产剧分类失败：%v", err)
-	} else {
-		helpers.AppLogger.Info("已默认添加国产剧分类")
-	}
-	// 欧美剧
-	oumeiJu := TvShowCategory{
-		Name:      "欧美剧",
-		GenreIds:  "",
-		Countries: "[\"US\",\"GB\", \"DE\", \"FR\", \"ES\", \"IT\", \"PT\", \"RU\", \"UA\"]",
-	}
-	if err := db.Db.Save(&oumeiJu).Error; err != nil {
-		helpers.AppLogger.Errorf("添加欧美剧分类失败：%v", err)
-	} else {
-		helpers.AppLogger.Info("已默认添加欧美剧分类")
-	}
-	// 日韩剧
-	rihanJU := TvShowCategory{
-		Name:      "日韩泰剧",
-		GenreIds:  "",
-		Countries: "[\"JP\",\"KR\", \"KP\", \"TH\", \"IN\", \"SG\"]",
-	}
-	if err := db.Db.Save(&rihanJU).Error; err != nil {
-		helpers.AppLogger.Errorf("添加日韩泰剧分类失败：%v", err)
-	} else {
-		helpers.AppLogger.Info("已默认添加日韩泰剧分类")
-	}
-	// 国漫
-	guoman := TvShowCategory{
-		Name:      "国漫",
-		GenreIds:  "[16]",
-		Countries: "[\"CN\",\"TW\", \"HK\",\"MO\"]",
-	}
-	if err := db.Db.Save(&guoman).Error; err != nil {
-		helpers.AppLogger.Errorf("添加国漫分类失败：%v", err)
-	} else {
-		helpers.AppLogger.Info("已默认添加国漫分类")
-	}
-	// 日番
-	rifan := TvShowCategory{
-		Name:      "日番",
-		GenreIds:  "[16]",
-		Countries: "[\"JP\"]",
-	}
-	if err := db.Db.Save(&rifan).Error; err != nil {
-		helpers.AppLogger.Errorf("添加日番分类失败：%v", err)
-	} else {
-		helpers.AppLogger.Info("已默认添加日番分类")
-	}
-	// 综艺
-	zongyi := TvShowCategory{
-		Name:      "综艺",
-		GenreIds:  "[10764, 10767]",
-		Countries: "",
-	}
-	if err := db.Db.Save(&zongyi).Error; err != nil {
-		helpers.AppLogger.Errorf("添加综艺分类失败：%v", err)
-	} else {
-		helpers.AppLogger.Info("已默认添加综艺分类")
-	}
-	// 纪录片
-	jilu := TvShowCategory{
-		Name:      "纪录片",
-		GenreIds:  "[99]",
-		Countries: "",
-	}
-	if err := db.Db.Save(&jilu).Error; err != nil {
-		helpers.AppLogger.Errorf("添加纪录片分类失败：%v", err)
-	} else {
-		helpers.AppLogger.Info("已默认添加纪录片分类")
-	}
 }
 
 func InitEmbyConfig() {

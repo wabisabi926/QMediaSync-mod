@@ -258,18 +258,6 @@ func TestUpdateRequestValidate(t *testing.T) {
 	}
 }
 
-func TestTmpImageRequestValidate(t *testing.T) {
-	req := TmpImageRequest{Path: "poster.jpg", MediaType: models.MediaTypeMovie}
-	if err := req.Validate(); err != nil {
-		t.Fatalf("Validate() error = %v", err)
-	}
-
-	req = TmpImageRequest{Path: "/etc/passwd", MediaType: models.MediaTypeMovie}
-	if err := req.Validate(); err == nil {
-		t.Fatal("Validate() error = nil, want error")
-	}
-}
-
 func TestQueueStatsRequestValidate(t *testing.T) {
 	req := QueueStatsRequest{TimeWindow: 3600, StartDate: "2026-06-01", EndDate: "2026-06-15"}
 	if err := req.Validate(); err != nil {

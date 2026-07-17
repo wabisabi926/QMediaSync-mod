@@ -3,8 +3,8 @@ import { createRouter } from 'vue-router'
 import { createQMediaSyncHashHistory } from './history'
 import { useAuthStore } from '@/stores/auth'
 
+import AppLogin from '@/components/AppLogin.vue'
 const AppHome = () => import('@/components/AppHome.vue')
-const AppLogin = () => import('@/components/AppLogin.vue')
 const AppUserSettings = () => import('@/components/AppUserSettings.vue')
 const AppStrmSettings = () => import('@/components/AppStrmSettings.vue')
 const AppEmbySettings = () => import('@/components/AppEmbySettings.vue')
@@ -355,9 +355,7 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   const authStore = useAuthStore()
 
-  if (!authStore.hasInitialized && authStore.authStatus === 'checking') {
-    await authStore.bootstrapAuth(axios)
-  }
+  await authStore.bootstrapAuth(axios)
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     return {

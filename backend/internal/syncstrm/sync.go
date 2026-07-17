@@ -459,19 +459,7 @@ func (s *SyncStrm) Start() error {
 					s.Sync.Logger.Errorf("提交 Emby 媒体库刷新任务失败：%v", err)
 				}
 			}
-			if s.NewStrm > 0 {
-				s.Sync.Logger.Info("准备触发关联的刮削任务")
-				syncPath := models.GetSyncPathById(s.SyncPathId)
-				scrapePathIds := syncPath.GetScrapePathIds()
-				if len(scrapePathIds) > 0 {
-					// 发送异步消息，防止循环引用
-					helpers.Publish(helpers.StrmSyncCompleteEvent, scrapePathIds)
-				} else {
-					s.Sync.Logger.Info("关联的刮削目录为空，跳过触发刮削任务")
-				}
-			} else {
-				s.Sync.Logger.Info("没有新的 STRM 生成，跳过关联的刮削任务")
-			}
+
 		}()
 		// 处理差异
 		go func() {

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"qmediasync/internal/db"
-	"qmediasync/internal/directoryupload"
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
 	"qmediasync/internal/v115open"
@@ -27,7 +26,7 @@ const (
 	strmGenerationWorkerBatch    = 5
 )
 
-var cleanupSourceAfterStrmSuccess = directoryupload.CleanupSourceAfterStrmSuccess
+var cleanupSourceAfterStrmSuccess = func(uploadTaskID uint) error { return nil }
 
 var strmGenerationWorkerState = struct {
 	mu       sync.RWMutex

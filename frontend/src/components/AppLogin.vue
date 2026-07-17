@@ -1,24 +1,16 @@
 <script setup lang="ts">
-import { computed, inject, onMounted, shallowRef } from 'vue'
+import { inject, onMounted, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import type { AxiosStatic } from 'axios'
 import { SERVER_URL } from '@/const'
 import LoginForm, { type LoginSubmitPayload } from '@/components/auth/LoginForm.vue'
-import InitialAdminSetupForm, {
-  type InitialAdminSubmitPayload,
-} from '@/components/auth/InitialAdminSetupForm.vue'
-import { createInitialAdmin, fetchSetupStatus } from '@/composables/useInitialAdminSetup'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const http: AxiosStatic | undefined = inject('$http')
 const loading = shallowRef(false)
-const setupRequired = shallowRef(false)
-const setupStatusLoaded = shallowRef(false)
-
-const subtitle = computed(() => (setupRequired.value ? '创建管理员' : '系统登录'))
 
 const getErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof Error && error.message) {
@@ -33,43 +25,11 @@ const getErrorMessage = (error: unknown, fallback: string) => {
   return fallback
 }
 
-const loadSetupStatus = async () => {
-  if (!http) {
-    setupStatusLoaded.value = true
-    return
-  }
-  try {
-    const status = await fetchSetupStatus(http)
-    setupRequired.value = status.required
-  } catch (error) {
-    console.error('查询初始化状态失败：', error)
-    setupRequired.value = false
-  } finally {
-    setupStatusLoaded.value = true
-  }
-}
-
-const handleCreateInitialAdmin = async (payload: InitialAdminSubmitPayload) => {
-  if (loading.value || !http) return
-  loading.value = true
-  try {
-    await createInitialAdmin(http, payload)
-    ElMessage.success('管理员创建成功，请登录')
-    setupRequired.value = false
-  } catch (error: unknown) {
-    console.error('创建管理员失败：', error)
-    ElMessage.error(getErrorMessage(error, '创建管理员失败，请检查网络连接'))
-  } finally {
-    loading.value = false
-  }
-}
-
 const handleLogin = async (payload: LoginSubmitPayload) => {
   if (loading.value || !http) return
 
   try {
     loading.value = true
-    // 使用 JSON 格式发送请求，以支持 rememberMe 参数
     const response = await http?.post(
       `${SERVER_URL}/login`,
       {
@@ -94,7 +54,6 @@ const handleLogin = async (payload: LoginSubmitPayload) => {
 
       ElMessage.success('登录成功')
 
-      // 跳转到首页或原本要访问的页面
       const redirect = router.currentRoute.value.query.redirect as string
       router.replace(redirect || '/')
     } else {
@@ -108,13 +67,10 @@ const handleLogin = async (payload: LoginSubmitPayload) => {
   }
 }
 
-// 检查是否已经登录
 onMounted(() => {
   if (authStore.isAuthenticated) {
     router.replace('/')
-    return
   }
-  void loadSetupStatus()
 })
 </script>
 
@@ -123,15 +79,9 @@ onMounted(() => {
     <div class="login-box">
       <div class="login-header">
         <h1 class="login-title">QMediaSync</h1>
-        <p class="login-subtitle">{{ subtitle }}</p>
+        <p class="login-subtitle">系统登录</p>
       </div>
-
-      <InitialAdminSetupForm
-        v-if="setupStatusLoaded && setupRequired"
-        :loading="loading"
-        @submit="handleCreateInitialAdmin"
-      />
-      <LoginForm v-else-if="setupStatusLoaded" :loading="loading" @submit="handleLogin" />
+      <LoginForm :loading="loading" @submit="handleLogin" />
     </div>
   </div>
 </template>
@@ -173,7 +123,6 @@ onMounted(() => {
   margin: 0;
 }
 
-/* 移动端适配 */
 @media (max-width: 768px) {
   .login-container {
     padding: 15px;

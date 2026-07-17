@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	"qmediasync/internal/models"
 	"qmediasync/internal/requests"
 	"qmediasync/internal/syncconfig"
 	"qmediasync/internal/validation"
@@ -16,8 +15,7 @@ import (
 )
 
 type saveSyncPathAggregateRequest struct {
-	SyncPath        requests.SyncPathRequest         `json:"sync_path"`
-	DirectoryUpload *directoryUploadRulesSaveRequest `json:"directory_upload"`
+	SyncPath requests.SyncPathRequest `json:"sync_path"`
 }
 
 var newSyncPathConfigService = syncconfig.NewDefaultService
@@ -90,11 +88,6 @@ func saveSyncPathAggregate(c *gin.Context, syncPathID uint) {
 		writeSyncPathSaveError(c, http.StatusBadRequest, syncconfig.ErrorCodeInvalidRequest, err.Error(), syncPathRequestFieldErrors(err))
 		return
 	}
-	directoryInput, err := buildDirectoryUploadCommandInput(req.DirectoryUpload)
-	if err != nil {
-		writeSyncPathSaveError(c, http.StatusBadRequest, syncconfig.ErrorCodeInvalidRequest, err.Error(), nil)
-		return
-	}
 	result, err := newSyncPathConfigService().Save(c.Request.Context(), syncconfig.SaveSyncPathCommand{
 		ID:             syncPathID,
 		IdempotencyKey: strings.TrimSpace(c.GetHeader("Idempotency-Key")),
@@ -108,7 +101,6 @@ func saveSyncPathAggregate(c *gin.Context, syncPathID uint) {
 			CustomConfig: req.SyncPath.CustomConfig,
 			Setting:      req.SyncPath.StrmSettingModel(),
 		},
-		DirectoryUpload: directoryInput,
 	})
 	if err != nil {
 		var saveErr *syncconfig.SaveError
@@ -165,67 +157,6 @@ func syncPathRequestFieldErrors(err error) []syncconfig.FieldError {
 		fieldErrors = append(fieldErrors, syncconfig.FieldError{Field: field, Message: message})
 	}
 	return fieldErrors
-}
-
-func buildDirectoryUploadCommandInput(req *directoryUploadRulesSaveRequest) (*syncconfig.DirectoryUploadInput, error) {
-	if req == nil {
-		return nil, nil
-	}
-	if req.Enabled == nil || req.Rules == nil {
-		return nil, errors.New("目录监控上传配置格式错误")
-	}
-	result := &syncconfig.DirectoryUploadInput{Enabled: *req.Enabled, Rules: make([]syncconfig.DirectoryUploadRuleInput, 0, len(*req.Rules))}
-	for _, item := range *req.Rules {
-		enabled := true
-		if item.Enabled != nil {
-			enabled = *item.Enabled
-		}
-		recursive := true
-		if item.Recursive != nil {
-			recursive = *item.Recursive
-		}
-		startupScanEnabled := true
-		if item.StartupScanEnabled != nil {
-			startupScanEnabled = *item.StartupScanEnabled
-		}
-		watchMode := item.WatchMode
-		if watchMode == "" {
-			watchMode = models.DirectoryUploadWatchModeAuto
-		}
-		processedTTL := item.ProcessedCacheTTLSeconds
-		if processedTTL <= 0 {
-			processedTTL = 600
-		}
-		overwriteMode := item.OverwriteMode
-		if overwriteMode == "" {
-			overwriteMode = models.DirectoryUploadOverwriteSkipSame
-		}
-		deleteSource := false
-		if item.DeleteSourceAfterSuccess != nil {
-			deleteSource = *item.DeleteSourceAfterSuccess
-		}
-		uploadMetadata := false
-		if item.UploadMetadata != nil {
-			uploadMetadata = *item.UploadMetadata
-		}
-		result.Rules = append(result.Rules, syncconfig.DirectoryUploadRuleInput{
-			ClientID:                 item.ClientID,
-			ID:                       item.ID,
-			Enabled:                  enabled,
-			MonitorPath:              item.MonitorPath,
-			RemoteRootPath:           item.RemoteRootPath,
-			RemoteRootID:             item.RemoteRootID,
-			Recursive:                recursive,
-			UploadMetadata:           uploadMetadata,
-			WatchMode:                watchMode,
-			StartupScanEnabled:       startupScanEnabled,
-			ProcessedCacheTTLSeconds: processedTTL,
-			DeleteSourceAfterSuccess: deleteSource,
-			IgnorePatterns:           item.IgnorePatterns,
-			OverwriteMode:            overwriteMode,
-		})
-	}
-	return result, nil
 }
 
 func writeSyncPathSaveError(c *gin.Context, status int, errorCode string, message string, fieldErrors []syncconfig.FieldError) {

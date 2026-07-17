@@ -410,23 +410,6 @@ func (r LogFileRequest) Validate() error {
 	return validateLogPath(r.Path)
 }
 
-// TmpImageRequest 临时图片请求。
-type TmpImageRequest struct {
-	Path      string           `json:"path" form:"path"`
-	MediaType models.MediaType `json:"type" form:"type"`
-}
-
-// Validate 校验临时图片请求。
-func (r TmpImageRequest) Validate() error {
-	if err := validateRelativePath("path", r.Path); err != nil {
-		return err
-	}
-	return validation.OneOfString("type", string(r.MediaType), []string{
-		string(models.MediaTypeMovie),
-		string(models.MediaTypeTvShow),
-	})
-}
-
 // UpdateVersionRequest 更新版本请求。
 type UpdateVersionRequest struct {
 	Version string `json:"version"`

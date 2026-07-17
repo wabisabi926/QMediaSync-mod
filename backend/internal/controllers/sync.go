@@ -4,9 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 
-	"qmediasync/internal/directoryupload"
 	"qmediasync/internal/models"
 	"qmediasync/internal/requests"
 	"qmediasync/internal/synccron"
@@ -192,7 +190,6 @@ func DeleteSyncPath(c *gin.Context) {
 	}
 	synccron.InitSyncCron()
 	synccron.InitCron()
-	directoryupload.ReloadDirectoryUploadService()
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "删除同步路径成功", Data: nil})
 }
 
@@ -480,50 +477,6 @@ func FullStart115Sync(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "同步任务已添加到队列", Data: nil})
-}
-
-func SaveRelScrapePath(c *gin.Context) {
-	var req requests.SaveRelScrapePathRequest
-	if err := c.ShouldBind(&req); err != nil {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误", Data: nil})
-		return
-	}
-	if err := req.Validate(); err != nil {
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
-		return
-	}
-	syncPath := models.GetSyncPathById(req.SyncPathID)
-	if syncPath == nil {
-		c.JSON(http.StatusNotFound, APIResponse[any]{Code: BadRequest, Message: "同步路径不存在", Data: nil})
-		return
-	}
-	// 保存关联的刮削路径
-	if err := syncPath.SaveScrapePaths(req.ScrapePathIDs); err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "保存关联的刮削路径失败：" + err.Error(), Data: nil})
-		return
-	}
-	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "关联刮削路径已保存", Data: nil})
-}
-
-func GetRelScrapePath(c *gin.Context) {
-	idStr := c.Param("id")
-	idReq, err := requests.ParsePositiveIDRequest(idStr)
-	if err != nil {
-		message := "ID 参数格式错误"
-		if strings.TrimSpace(idStr) == "" {
-			message = "ID 参数不能为空"
-		}
-		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: message, Data: nil})
-		return
-	}
-	syncPath := models.GetSyncPathById(idReq.ID)
-	if syncPath == nil {
-		c.JSON(http.StatusNotFound, APIResponse[any]{Code: BadRequest, Message: "同步路径不存在", Data: nil})
-		return
-	}
-	// 获取关联的刮削路径
-	scrapePathIds := syncPath.GetScrapePathIds()
-	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取关联刮削路径成功", Data: scrapePathIds})
 }
 
 // 从网盘文件管理器手动触发同步

@@ -56,9 +56,18 @@ func LoginAction(c *gin.Context) {
 
 	user, userErr := models.CheckLogin(username, password)
 	if userErr != nil || user.ID == 0 {
-		defaultLoginRateLimiter.RecordFailure(clientIP, username, "password_or_user_invalid")
-		writeLoginFailure(c)
-		return
+		hasUser, err := models.HasAnyUser()
+		if err == nil && !hasUser {
+			user, err = models.CreateInitialAdmin(username, password)
+			if err != nil {
+				writeLoginFailure(c)
+				return
+			}
+		} else {
+			defaultLoginRateLimiter.RecordFailure(clientIP, username, "password_or_user_invalid")
+			writeLoginFailure(c)
+			return
+		}
 	}
 
 	if user.IsTwoFactorEnabled() {
@@ -124,22 +133,22 @@ func LoginAction(c *gin.Context) {
 func SessionAction(c *gin.Context) {
 	cookie, err := c.Request.Cookie(authCookieName)
 	if err != nil || cookie.Value == "" {
-		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "登录凭证不存在", Data: nil})
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "登录凭证不存在", Data: nil})
 		return
 	}
 	loginUser, err := ValidateJWT(cookie.Value)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "登录凭证无效", Data: nil})
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "登录凭证无效", Data: nil})
 		return
 	}
 	session, err := models.GetActiveUserSession(loginUser.SessionID, time.Now().Unix())
 	if err != nil || session.UserID != loginUser.ID {
-		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "登录会话已失效", Data: nil})
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "登录会话已失效", Data: nil})
 		return
 	}
 	user, err := models.GetUserById(session.UserID)
 	if err != nil || user.ID == 0 {
-		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "登录用户不存在", Data: nil})
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "登录用户不存在", Data: nil})
 		return
 	}
 	csrfCookie, err := c.Request.Cookie(csrfCookieName)

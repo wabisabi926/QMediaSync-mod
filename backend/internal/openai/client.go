@@ -217,7 +217,7 @@ func (c *Client) CreateChatCompletion(message []Message, options *RequestConfig)
 	}
 
 	// 检查响应是否成功
-	if !response.IsSuccess() {
+	if !response.IsStatusSuccess() {
 		fmt.Printf("OpenAI API 错误：状态码 %d，响应体：%s", response.StatusCode(), response.String())
 		var openAIError OpenAIError
 		if err := json.Unmarshal(response.Bytes(), &openAIError); err != nil {

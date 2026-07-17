@@ -1096,12 +1096,10 @@ const loadRules = async (channelId: number) => {
     )
 
     if (response?.data.code === 0) {
-      currentRules.value = response.data.data.map(
-        (rule: NotificationRule): RuleWithStatus => ({
-          ...rule,
-          _updating: false,
-        }),
-      )
+      currentRules.value = response.data.data.map((rule: NotificationRule): RuleWithStatus => ({
+        ...rule,
+        _updating: false,
+      }))
     } else {
       ElMessage.error(response?.data.message || '加载规则失败')
     }

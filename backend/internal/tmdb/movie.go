@@ -156,7 +156,7 @@ func (c *Client) SearchMovie(movieName string, year int, language string, switch
 		helpers.TMDBLog.Errorf("搜索电影失败：%+v", err)
 		return nil, err
 	}
-	if !resp.IsSuccess() {
+	if !resp.IsStatusSuccess() {
 		helpers.TMDBLog.Errorf("搜索电影失败：%s", resp.String())
 		return nil, fmt.Errorf("搜索电影失败：%s", resp.String())
 	}
@@ -183,7 +183,7 @@ func (c *Client) GetMovieDetail(movieID int64, language string) (*MovieDetail, e
 		helpers.TMDBLog.Errorf("获取电影详情失败：%+v", err)
 		return nil, err
 	}
-	if !resp.IsSuccess() {
+	if !resp.IsStatusSuccess() {
 		helpers.TMDBLog.Errorf("获取电影详情失败：%s", resp.String())
 		return nil, fmt.Errorf("获取电影详情失败：%s", resp.String())
 	}
@@ -199,7 +199,7 @@ func (c *Client) GetMoviePepoles(movieID int64, language string) (*PepolesRes, e
 		return nil, err
 	}
 
-	if !resp.IsSuccess() {
+	if !resp.IsStatusSuccess() {
 		helpers.TMDBLog.Errorf("获取电影演员失败：%s", resp.String())
 		return nil, fmt.Errorf("获取电影演员失败：%s", resp.String())
 	}
@@ -217,7 +217,7 @@ func (c *Client) GetMovieImages(movieID int64, language string) (*Images, error)
 		helpers.TMDBLog.Errorf("获取电影图片失败：%+v", err)
 		return nil, err
 	}
-	if !resp.IsSuccess() {
+	if !resp.IsStatusSuccess() {
 		helpers.TMDBLog.Errorf("获取电影图片失败：%s", resp.String())
 		return nil, fmt.Errorf("获取电影图片失败：%s", resp.String())
 	}
@@ -231,7 +231,7 @@ func (c *Client) GetMovieImages(movieID int64, language string) (*Images, error)
 			helpers.TMDBLog.Errorf("获取电影图片失败：%+v", err)
 			return nil, err
 		}
-		if !resp.IsSuccess() {
+		if !resp.IsStatusSuccess() {
 			helpers.TMDBLog.Errorf("获取电影图片失败：%s", resp.String())
 			return nil, fmt.Errorf("获取电影图片失败：%s", resp.String())
 		}
@@ -250,7 +250,7 @@ func (c *Client) GetMovieKeywords(movieID int64) (*MovieKeywords, error) {
 		helpers.TMDBLog.Errorf("获取电影关键词失败：%+v", err)
 		return nil, err
 	}
-	if !resp.IsSuccess() {
+	if !resp.IsStatusSuccess() {
 		helpers.TMDBLog.Errorf("获取电影关键词失败：%s", resp.String())
 		return nil, fmt.Errorf("获取电影关键词失败：%s", resp.String())
 	}
@@ -269,7 +269,7 @@ func (c *Client) GetReleasesDate(movieID int64) (*ReleasesDateResp, error) {
 		helpers.TMDBLog.Errorf("获取电影发布日期失败：%+v", err)
 		return nil, err
 	}
-	if !resp.IsSuccess() {
+	if !resp.IsStatusSuccess() {
 		helpers.TMDBLog.Errorf("获取电影发布日期失败：%s", resp.String())
 		return nil, fmt.Errorf("获取电影发布日期失败：%s", resp.String())
 	}

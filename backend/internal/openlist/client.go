@@ -95,7 +95,7 @@ func (c *Client) doRequest(url string, req *resty.Request, options *RequestConfi
 }
 
 func (c *Client) request(url string, req *resty.Request) (*resty.Response, error) {
-	// req.SetForceResponseContentType("application/json")
+	// req.SetResponseForceContentType("application/json")
 	var response *resty.Response
 	var err error
 	if c.AccessToken != "" {

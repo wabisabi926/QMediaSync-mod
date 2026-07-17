@@ -119,7 +119,7 @@ func (c *Client) SearchTv(tvName string, year int, language string, switchLangua
 		helpers.TMDBLog.Errorf("搜索电视剧失败：%+v", err)
 		return nil, err
 	}
-	if !resp.IsSuccess() {
+	if !resp.IsStatusSuccess() {
 		helpers.TMDBLog.Errorf("搜索电视剧失败：%s", resp.String())
 		return nil, fmt.Errorf("搜索电视剧失败：%s", resp.String())
 	}
@@ -144,7 +144,7 @@ func (c *Client) GetTvDetail(tvID int64, language string) (*TvDetail, error) {
 		helpers.TMDBLog.Errorf("获取电视剧详情失败：%+v", err)
 		return nil, err
 	}
-	if !resp.IsSuccess() {
+	if !resp.IsStatusSuccess() {
 		helpers.TMDBLog.Errorf("获取电视剧详情失败：%s", resp.String())
 		return nil, fmt.Errorf("获取电视剧详情失败：%s", resp.String())
 	}
@@ -162,7 +162,7 @@ func (c *Client) GetTvImages(tvId int64, langauge string) (*Images, error) {
 		helpers.TMDBLog.Errorf("获取电视剧图片失败：%+v", err)
 		return nil, err
 	}
-	if !resp.IsSuccess() {
+	if !resp.IsStatusSuccess() {
 		helpers.TMDBLog.Errorf("获取电视剧图片失败：%s", resp.String())
 		return nil, fmt.Errorf("获取电视剧图片失败：%s", resp.String())
 	}
@@ -176,7 +176,7 @@ func (c *Client) GetTvImages(tvId int64, langauge string) (*Images, error) {
 			helpers.TMDBLog.Errorf("获取电视剧图片失败：%+v", err)
 			return nil, err
 		}
-		if !resp.IsSuccess() {
+		if !resp.IsStatusSuccess() {
 			helpers.TMDBLog.Errorf("获取电视剧图片失败：%s", resp.String())
 			return nil, fmt.Errorf("获取电视剧图片失败：%s", resp.String())
 		}
@@ -195,7 +195,7 @@ func (c *Client) GetTvCredits(tvId int64, langauge string) (*PepolesRes, error) 
 		helpers.TMDBLog.Errorf("获取电视剧演职人员失败：%+v", err)
 		return nil, err
 	}
-	if !resp.IsSuccess() {
+	if !resp.IsStatusSuccess() {
 		helpers.TMDBLog.Errorf("获取电视剧演职人员失败：%s", resp.String())
 		return nil, fmt.Errorf("获取电视剧演职人员失败：%s", resp.String())
 	}
@@ -213,7 +213,7 @@ func (c *Client) GetTvKeywords(tvId int64) (*TvKeywords, error) {
 		helpers.TMDBLog.Errorf("获取电视剧关键词失败：%+v", err)
 		return nil, err
 	}
-	if !resp.IsSuccess() {
+	if !resp.IsStatusSuccess() {
 		helpers.TMDBLog.Errorf("获取电视剧关键词失败：%s", resp.String())
 		return nil, fmt.Errorf("获取电视剧关键词失败：%s", resp.String())
 	}
@@ -229,7 +229,7 @@ func (c *Client) GetTvSeasonDetail(tvId int64, seasonNumber int, langauge string
 		helpers.TMDBLog.Errorf("获取电视剧季详情失败：%+v", err)
 		return nil, err
 	}
-	if !resp.IsSuccess() {
+	if !resp.IsStatusSuccess() {
 		helpers.TMDBLog.Errorf("获取电视剧季详情失败：%s", resp.String())
 		return nil, fmt.Errorf("获取电视剧季详情失败：%s", resp.String())
 	}
@@ -247,7 +247,7 @@ func (c *Client) GetTvSeasonCredits(tvId int64, seasonNumber int, langauge strin
 		helpers.TMDBLog.Errorf("获取电视剧季演职人员失败：%+v", err)
 		return nil, err
 	}
-	if !resp.IsSuccess() {
+	if !resp.IsStatusSuccess() {
 		helpers.TMDBLog.Errorf("获取电视剧季演职人员失败：%s", resp.String())
 		return nil, fmt.Errorf("获取电视剧季演职人员失败：%s", resp.String())
 	}
@@ -265,7 +265,7 @@ func (c *Client) GetTvSeasonImages(tvId int64, seasonNumber int, langauge string
 		helpers.TMDBLog.Errorf("获取电视剧季图片失败：%+v", err)
 		return nil, err
 	}
-	if !resp.IsSuccess() {
+	if !resp.IsStatusSuccess() {
 		helpers.TMDBLog.Errorf("获取电视剧季图片失败：%s", resp.String())
 		return nil, fmt.Errorf("获取电视剧季图片失败：%s", resp.String())
 	}
@@ -280,7 +280,7 @@ func (c *Client) GetTvEpisodeDetail(tvId int64, seasonNumber int, episodeNumber 
 		helpers.TMDBLog.Errorf("获取电视剧集详情失败：%+v", err)
 		return nil, err
 	}
-	if !resp.IsSuccess() {
+	if !resp.IsStatusSuccess() {
 		helpers.TMDBLog.Errorf("获取电视剧集详情失败：%s", resp.String())
 		return nil, fmt.Errorf("获取电视剧集详情失败：%s", resp.String())
 	}
@@ -300,7 +300,7 @@ func (c *Client) GetTvEpisodeCredits(tvId int64, seasonNumber int, episodeNumber
 		helpers.TMDBLog.Errorf("获取电视剧集演职人员失败：%+v", err)
 		return nil, err
 	}
-	if !resp.IsSuccess() {
+	if !resp.IsStatusSuccess() {
 		helpers.TMDBLog.Errorf("获取电视剧集演职人员失败：%s", resp.String())
 		return nil, fmt.Errorf("获取电视剧集演职人员失败：%s", resp.String())
 	}

@@ -47,7 +47,7 @@ func (c *Client) performTokenRefresh() error {
 	}
 	defer resp.Body.Close()
 
-	if !resp.IsSuccess() {
+	if !resp.IsStatusSuccess() {
 		return fmt.Errorf("token request failed with status: %s", resp.Status())
 	}
 

@@ -25,7 +25,7 @@ func (c *Client) GetFileDownloadInfo(ctx context.Context, fileID int64) (*FileDo
 	}
 	defer resp.Body.Close()
 
-	if !resp.IsSuccess() {
+	if !resp.IsStatusSuccess() {
 		return nil, fmt.Errorf("get download info failed with status: %s", resp.Status())
 	}
 

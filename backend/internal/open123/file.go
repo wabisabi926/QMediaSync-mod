@@ -15,7 +15,7 @@ func (c *Client) ListFiles(ctx context.Context, parentFileID int64, page, pageSi
 	}
 	defer resp.Body.Close()
 
-	if !resp.IsSuccess() {
+	if !resp.IsStatusSuccess() {
 		return nil, fmt.Errorf("list files failed with status: %s", resp.Status())
 	}
 
@@ -51,7 +51,7 @@ func (c *Client) CreateFolder(ctx context.Context, name string, parentFileID int
 	}
 	defer resp.Body.Close()
 
-	if !resp.IsSuccess() {
+	if !resp.IsStatusSuccess() {
 		return nil, fmt.Errorf("create folder failed with status: %s", resp.Status())
 	}
 
@@ -86,7 +86,7 @@ func (c *Client) DeleteFile(ctx context.Context, fileID int64) error {
 	}
 	defer resp.Body.Close()
 
-	if !resp.IsSuccess() {
+	if !resp.IsStatusSuccess() {
 		return fmt.Errorf("delete file failed with status: %s", resp.Status())
 	}
 
@@ -121,7 +121,7 @@ func (c *Client) DeleteFolder(ctx context.Context, dirID int64) error {
 	}
 	defer resp.Body.Close()
 
-	if !resp.IsSuccess() {
+	if !resp.IsStatusSuccess() {
 		return fmt.Errorf("delete folder failed with status: %s", resp.Status())
 	}
 

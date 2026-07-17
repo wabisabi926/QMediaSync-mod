@@ -314,7 +314,7 @@ func (qe *QueueExecutor) handleRequest(req *QueuedRequest) {
 
 // executeRequest 执行 HTTP 请求
 func (qe *QueueExecutor) executeRequest(req *QueuedRequest) (*resty.Response, *RespBaseBool[json.RawMessage], []byte, error) {
-	req.Request.SetForceResponseContentType("application/json")
+	req.Request.SetResponseForceContentType("application/json")
 
 	var response *resty.Response
 	var err error

@@ -1,17 +1,10 @@
 export type V115AuthMode = 'qr' | 'oauth'
 
 export type V115AuthSourceType =
-  | 'built_in_appid'
-  | 'built_in_relay'
-  | 'third_party_service'
-  | 'custom_appid'
+  'built_in_appid' | 'built_in_relay' | 'third_party_service' | 'custom_appid'
 
 export type V115AuthProvider =
-  | 'official_pkce'
-  | 'mqfamily'
-  | 'qmediasync'
-  | 'moviepilot'
-  | 'clouddrive'
+  'official_pkce' | 'mqfamily' | 'qmediasync' | 'moviepilot' | 'clouddrive'
 
 type V115WebRelayProvider = Extract<V115AuthProvider, 'mqfamily' | 'qmediasync'>
 type V115WebThirdPartyProvider = Extract<V115AuthProvider, 'moviepilot' | 'clouddrive'>

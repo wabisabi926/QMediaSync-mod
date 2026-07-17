@@ -100,7 +100,7 @@ func (c *Client) TestToken() bool {
 		helpers.TMDBLog.Errorf("测试 Token 失败：%+v", err)
 		return false
 	}
-	if !resp.IsSuccess() {
+	if !resp.IsStatusSuccess() {
 		helpers.TMDBLog.Errorf("测试 Token 失败：%s", resp.String())
 		return false
 	}
@@ -126,7 +126,7 @@ func (c *Client) GetConfiguration() (*Configuration, error) {
 		helpers.TMDBLog.Errorf("获取配置失败：%+v", err)
 		return nil, err
 	}
-	if !resp.IsSuccess() {
+	if !resp.IsStatusSuccess() {
 		helpers.TMDBLog.Errorf("获取配置失败：%s", resp.String())
 		return nil, fmt.Errorf("获取配置失败：%s", resp.String())
 	}

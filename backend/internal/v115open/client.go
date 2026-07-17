@@ -171,7 +171,7 @@ func (c *OpenClient) doAuthRequest(ctx context.Context, url string, req *resty.R
 	if req.Header.Get("User-Agent") == "" {
 		req.Header.Set("User-Agent", DEFAULTUA)
 	}
-	req.SetAuthToken(c.AccessToken).SetDoNotParseResponse(true)
+	req.SetAuthToken(c.AccessToken).SetResponseDoNotParse(true)
 
 	var lastErr error
 	var lastRespBytes []byte

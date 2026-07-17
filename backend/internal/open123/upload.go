@@ -20,7 +20,7 @@ func (c *Client) GetUploadDomain(ctx context.Context) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	if !resp.IsSuccess() {
+	if !resp.IsStatusSuccess() {
 		return "", fmt.Errorf("get upload domain failed with status: %s", resp.Status())
 	}
 
@@ -95,7 +95,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string, parentFileID i
 	}
 	defer resp.Body.Close()
 
-	if !resp.IsSuccess() {
+	if !resp.IsStatusSuccess() {
 		return nil, fmt.Errorf("upload file failed with status: %s", resp.Status())
 	}
 

@@ -169,8 +169,7 @@
                   max-height: 100px;
                   overflow: auto;
                 "
-                >{{ selectedRecord.path }}</pre
-              >
+                >{{ selectedRecord.path }}</pre>
             </el-tooltip>
           </el-descriptions-item>
           <el-descriptions-item label="原始文件名">
@@ -183,8 +182,7 @@
                   max-height: 100px;
                   overflow: auto;
                 "
-                >{{ selectedRecord.file_name }}</pre
-              >
+                >{{ selectedRecord.file_name }}</pre>
             </el-tooltip>
           </el-descriptions-item>
           <el-descriptions-item label="识别名称">{{
@@ -251,8 +249,7 @@
                 max-height: 100px;
                 overflow: auto;
               "
-              >{{ selectedRecord.failed_reason }}</pre
-            >
+              >{{ selectedRecord.failed_reason }}</pre>
             <span v-else>-</span>
           </el-descriptions-item>
         </el-descriptions>
@@ -466,13 +463,7 @@ interface ScrapeRecord {
   episode_number: number
   episode_name?: string
   status:
-    | 'scanned'
-    | 'scraping'
-    | 'scraped'
-    | 'scrape_failed'
-    | 'renaming'
-    | 'renamed'
-    | 'rename_failed'
+    'scanned' | 'scraping' | 'scraped' | 'scrape_failed' | 'renaming' | 'renamed' | 'rename_failed'
   failed_reason: string
   created_at: number
   updated_at: number

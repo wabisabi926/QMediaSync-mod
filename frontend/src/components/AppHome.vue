@@ -3,7 +3,6 @@ import { defineAsyncComponent, ref, useTemplateRef } from 'vue'
 import { Document } from '@element-plus/icons-vue'
 import VersionManager from './VersionManager.vue'
 import QueueStatsCard from './QueueStatsCard.vue'
-import AnnouncementCard from './AnnouncementCard.vue'
 
 const HourlyStatsChart = defineAsyncComponent(() => import('./HourlyStatsChart.vue'))
 const AppLogViewer = defineAsyncComponent(() => import('./AppLogViewer.vue'))
@@ -29,7 +28,6 @@ const handleLogDialogClose = () => {
         </el-button>
       </div>
     </div>
-    <AnnouncementCard />
 
     <div class="stats-section">
       <div class="stats-row">

@@ -1,10 +1,6 @@
-import { ref, onActivated, onBeforeUnmount, onDeactivated } from 'vue'
+import { ref, onBeforeUnmount } from 'vue'
 
-// WebSocket 事件类型
 export type WSEventType =
-  | 'scraper_task_start'
-  | 'scraper_task_complete'
-  | 'scraper_item_complete'
   | 'strm_sync_task_start'
   | 'strm_sync_task_queued'
   | 'strm_sync_task_complete'
@@ -16,7 +12,6 @@ export type WSEventType =
   | 'upload_queue_changed'
   | 'download_queue_changed'
 
-// WebSocket 事件结构
 export interface WSEvent {
   event_type: WSEventType
   timestamp: string
@@ -25,7 +20,6 @@ export interface WSEvent {
 
 type EventCallback = (data: Record<string, unknown>) => void
 
-// 全局单例状态
 let wsInstance: WebSocket | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let reconnectAttempts = 0
@@ -41,10 +35,7 @@ function getWsUrl(): string {
 }
 
 function connect() {
-  if (
-    wsInstance &&
-    (wsInstance.readyState === WebSocket.OPEN || wsInstance.readyState === WebSocket.CONNECTING)
-  ) {
+  if (wsInstance && (wsInstance.readyState === WebSocket.OPEN || wsInstance.readyState === WebSocket.CONNECTING)) {
     return
   }
 
@@ -68,10 +59,9 @@ function connect() {
       const eventType = wsEvent.event_type as WSEventType
       const callbacks = listeners.get(eventType)
       if (callbacks) {
-        callbacks.forEach((cb) => cb(wsEvent.data))
+        callbacks.forEach(cb => cb(wsEvent.data))
       }
     } catch {
-      // 忽略解析失败的消息
     }
   }
 
@@ -106,19 +96,12 @@ function ensureConnection() {
   }
 }
 
-/**
- * 注册 WebSocket 事件监听
- * @param eventType 事件类型
- * @param callback 回调函数
- * @returns 注销函数
- */
 export function on(eventType: WSEventType, callback: EventCallback): () => void {
   ensureConnection()
   if (!listeners.has(eventType)) {
     listeners.set(eventType, new Set())
   }
   listeners.get(eventType)!.add(callback)
-  // 返回注销函数
   return () => {
     const set = listeners.get(eventType)
     if (set) {
@@ -130,9 +113,6 @@ export function on(eventType: WSEventType, callback: EventCallback): () => void 
   }
 }
 
-/**
- * 注销 WebSocket 事件监听
- */
 export function off(eventType: WSEventType, callback: EventCallback) {
   const set = listeners.get(eventType)
   if (set) {
@@ -143,40 +123,12 @@ export function off(eventType: WSEventType, callback: EventCallback) {
   }
 }
 
-/**
- * Vue composable：自动管理 WebSocket 事件监听的生命周期
- * @param eventType 事件类型
- * @param callback 回调函数
- */
 export function useWSEvent(eventType: WSEventType, callback: EventCallback) {
-  let unsubscribe: (() => void) | null = null
-  let stopped = false
+  const unsubscribe = on(eventType, callback)
 
-  const subscribe = () => {
-    if (stopped || unsubscribe) {
-      return
-    }
-    unsubscribe = on(eventType, callback)
-  }
-
-  const unsubscribeCurrent = () => {
-    if (!unsubscribe) {
-      return
-    }
+  onBeforeUnmount(() => {
     unsubscribe()
-    unsubscribe = null
-  }
+  })
 
-  const stop = () => {
-    stopped = true
-    unsubscribeCurrent()
-  }
-
-  subscribe()
-
-  onActivated(subscribe)
-  onDeactivated(unsubscribeCurrent)
-  onBeforeUnmount(stop)
-
-  return { unsubscribe: stop }
+  return { unsubscribe }
 }

@@ -15,21 +15,12 @@ const AppSyncDirectoryForm = () => import('@/components/AppSyncDirectoryForm.vue
 const AppCloudAccounts = () => import('@/components/AppCloudAccounts.vue')
 const AppThreadSettings = () => import('@/components/AppThreadSettings.vue')
 const AppLogSettings = () => import('@/components/AppLogSettings.vue')
-const AppTmdbSettings = () => import('@/components/AppTmdbSettings.vue')
-const AppAiSettings = () => import('@/components/AppAiSettings.vue')
-const AppCategoryStrategy = () => import('@/components/AppCategoryStrategy.vue')
-const AppScrapePathes = () => import('@/components/AppScrapePathes.vue')
-const AppScrapePathForm = () => import('@/components/AppScrapePathForm.vue')
-const AppScrapeRecords = () => import('@/components/AppScrapeRecords.vue')
 const AppUploadQueue = () => import('@/components/AppUploadQueue.vue')
 const AppDownloadQueue = () => import('@/components/AppDownloadQueue.vue')
 const AppNotificationChannels = () => import('@/components/AppNotificationChannels.vue')
 const AppApiKeys = () => import('@/components/AppApiKeys.vue')
 const AppLoginSessions = () => import('@/components/user-settings/LoginSessions.vue')
-const AppFileManager = () => import('@/components/AppFileManager.vue')
-const AppUpdate = () => import('@/components/AppUpdate.vue')
 
-// 定义路由元信息类型
 declare module 'vue-router' {
   interface RouteMeta {
     title: string
@@ -78,7 +69,7 @@ const routes = [
     name: 'sync',
     redirect: '/sync-directories',
     meta: {
-      title: 'STRM 同步',
+      title: 'STRM同步',
       requiresAuth: true,
       icon: 'DocumentCopy',
       showInMenu: true,
@@ -89,7 +80,7 @@ const routes = [
     name: 'sync-directories',
     component: AppSyncDirectories,
     meta: {
-      title: 'STRM 同步目录',
+      title: 'STRM同步目录',
       requiresAuth: true,
       parent: 'sync',
       icon: 'FolderOpened',
@@ -123,7 +114,7 @@ const routes = [
     name: 'sync-records',
     component: AppSyncRecords,
     meta: {
-      title: 'STRM 同步记录',
+      title: 'STRM同步记录',
       requiresAuth: true,
       parent: 'sync',
       icon: 'List',
@@ -135,7 +126,7 @@ const routes = [
     name: 'settings-strm',
     component: AppStrmSettings,
     meta: {
-      title: 'STRM 设置',
+      title: 'STRM设置',
       requiresAuth: true,
       parent: 'sync',
       icon: 'Setting',
@@ -152,104 +143,11 @@ const routes = [
       showInMenu: false,
     },
   },
-  {
-    path: '/scrape',
-    name: 'scrape',
-    redirect: '/scrape-pathes',
-    meta: {
-      title: '刮削 & 整理',
-      requiresAuth: true,
-      icon: 'Film',
-      showInMenu: true,
-    },
-  },
-  {
-    path: '/scrape-pathes',
-    name: 'scrape-pathes',
-    component: AppScrapePathes,
-    meta: {
-      title: '刮削目录',
-      requiresAuth: true,
-      parent: 'scrape',
-      icon: 'FolderOpened',
-      showInMenu: true,
-    },
-  },
-  {
-    path: '/scrape-path/add',
-    name: 'scrape-path-add',
-    component: AppScrapePathForm,
-    meta: {
-      title: '添加刮削目录',
-      requiresAuth: true,
-      parent: 'scrape',
-      showInMenu: false,
-    },
-  },
-  {
-    path: '/scrape-path/edit/:id',
-    name: 'scrape-path-edit',
-    component: AppScrapePathForm,
-    meta: {
-      title: '编辑刮削目录',
-      requiresAuth: true,
-      parent: 'scrape',
-      showInMenu: false,
-    },
-  },
-  {
-    path: '/scrape-records',
-    name: 'scrape-records',
-    component: AppScrapeRecords,
-    meta: {
-      title: '刮削记录',
-      requiresAuth: true,
-      parent: 'scrape',
-      icon: 'List',
-      showInMenu: true,
-    },
-  },
-  {
-    path: '/settings/tmdb',
-    name: 'settings-tmdb',
-    component: AppTmdbSettings,
-    meta: {
-      title: '刮削设置',
-      requiresAuth: true,
-      parent: 'scrape',
-      icon: 'Film',
-      showInMenu: true,
-    },
-  },
-  {
-    path: '/settings/ai',
-    name: 'settings-ai',
-    component: AppAiSettings,
-    meta: {
-      title: 'AI 识别设置',
-      requiresAuth: true,
-      parent: 'scrape',
-      icon: 'View',
-      showInMenu: true,
-    },
-  },
-  {
-    path: '/settings/category-strategy',
-    name: 'settings-category-strategy',
-    component: AppCategoryStrategy,
-    meta: {
-      title: '二级分类设置',
-      requiresAuth: true,
-      parent: 'scrape',
-      icon: 'Operation',
-      showInMenu: true,
-    },
-  },
 
   {
-    path: '/transfer',
-    name: 'transfer',
-    redirect: '/upload-queue',
+    path: '/upload-queue',
+    name: 'upload-queue',
+    component: AppUploadQueue,
     meta: {
       title: '上传下载',
       requiresAuth: true,
@@ -264,7 +162,7 @@ const routes = [
     meta: {
       title: '上传队列',
       requiresAuth: true,
-      parent: 'transfer',
+      parent: 'upload-queue',
       icon: 'Upload',
       showInMenu: true,
     },
@@ -276,19 +174,8 @@ const routes = [
     meta: {
       title: '下载队列',
       requiresAuth: true,
-      parent: 'transfer',
+      parent: 'upload-queue',
       icon: 'Download',
-      showInMenu: true,
-    },
-  },
-  {
-    path: '/file-manager',
-    name: 'file-manager',
-    component: AppFileManager,
-    meta: {
-      title: '网盘文件管理',
-      requiresAuth: true,
-      icon: 'Folder',
       showInMenu: true,
     },
   },
@@ -445,18 +332,7 @@ const routes = [
       showInMenu: true,
     },
   },
-  {
-    path: '/settings/update',
-    name: 'settings-update',
-    component: AppUpdate,
-    meta: {
-      title: '版本更新',
-      requiresAuth: true,
-      parent: 'settings',
-      icon: 'Upload',
-      showInMenu: true,
-    },
-  },
+
   {
     path: '/settings/database-repair',
     name: 'settings-database-repair',
@@ -476,7 +352,6 @@ const router = createRouter({
   routes,
 })
 
-// 路由守卫
 router.beforeEach(async (to) => {
   const authStore = useAuthStore()
 

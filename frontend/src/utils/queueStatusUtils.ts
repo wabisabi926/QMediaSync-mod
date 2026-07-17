@@ -47,6 +47,9 @@ export const canPauseQueue = (snapshot: QueueStatusSnapshot): boolean => snapsho
 
 export const canResumeQueue = (snapshot: QueueStatusSnapshot): boolean => !snapshot.running
 
+export const hasActiveQueueTasks = (snapshot: QueueStatusSnapshot): boolean =>
+  snapshot.pending > 0 || snapshot.processing > 0
+
 export interface QueueRowWithStatus {
   status: number
 }

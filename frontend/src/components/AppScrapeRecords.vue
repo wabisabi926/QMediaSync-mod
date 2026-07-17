@@ -1,7 +1,7 @@
 <template>
   <div class="scrape-records-container" ref="pageContainerRef">
     <div class="header-section">
-      <h2 class="page-title hidden-md-and-down">刮削记录</h2>
+      <h2 class="page-title hide-on-mobile">刮削记录</h2>
 
       <div class="top-actions">
         <div class="action-group">
@@ -449,7 +449,6 @@ import {
 import type { AxiosStatic } from 'axios'
 import { Film, Finished, Picture, Refresh, Search, View } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import 'element-plus/theme-chalk/display.css'
 
 const http: AxiosStatic | undefined = inject('$http')
 

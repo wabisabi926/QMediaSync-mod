@@ -1,5 +1,24 @@
 /* 组件共享样式 */
 
+/* 与项目 768px 移动端断点一致，避免 Element Plus md（992px）断点混用。 */
+.hide-on-mobile {
+  display: block;
+}
+
+.show-on-mobile {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  .hide-on-mobile {
+    display: none !important;
+  }
+
+  .show-on-mobile {
+    display: initial !important;
+  }
+}
+
 /* 容器样式 */
 .main-content-container {
   width: 100%;

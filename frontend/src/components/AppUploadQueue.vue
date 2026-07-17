@@ -2,7 +2,7 @@
   <div class="upload-queue-container">
     <div class="card-header">
       <div>
-        <h2 class="hidden-md-and-down">上传队列</h2>
+        <h2 class="hide-on-mobile">上传队列</h2>
         <p class="queue-description">
           上传队列包含 STRM
           同步和刮削流程产生的元数据上传任务，可在这里查看进度、重试失败任务或清理记录。
@@ -77,16 +77,17 @@
     </div>
 
     <el-table
+      v-if="isMobileView"
       :data="queueData"
       style="width: 100%"
-      v-loading="initialLoading"
+      v-loading="initialLoading || queryLoading"
       empty-text="暂无上传任务"
       :row-key="(row: UploadTask) => String(row.id)"
       :expand-row-keys="pageState.expandedRowKeys"
       @expand-change="handleExpandChange"
       :row-class-name="tableRowClassName"
       :height="tableHeight"
-      class="hidden-md-and-up queue-table-mobile"
+      class="queue-table-mobile"
     >
       <el-table-column type="expand" width="30">
         <template #default="scope">
@@ -169,16 +170,16 @@
       </el-table-column>
     </el-table>
     <el-table
+      v-else
       :data="queueData"
       style="width: 100%"
-      v-loading="initialLoading"
+      v-loading="initialLoading || queryLoading"
       empty-text="暂无上传任务"
       :row-key="(row: UploadTask) => String(row.id)"
       :expand-row-keys="pageState.expandedRowKeys"
       @expand-change="handleExpandChange"
       :row-class-name="tableRowClassName"
       :height="tableHeight"
-      class="hidden-md-and-down"
     >
       <el-table-column prop="id" label="ID" width="64" />
       <el-table-column prop="source" label="来源" width="128" show-overflow-tooltip>
@@ -317,11 +318,11 @@ import {
   canPauseQueue,
   canResumeQueue,
   emptyQueueStatusSnapshot,
+  hasActiveQueueTasks,
   normalizeQueueStatusSnapshot,
   removePendingQueueRows,
   type QueueStatusSnapshot,
 } from '@/utils/queueStatusUtils'
-import 'element-plus/theme-chalk/display.css'
 
 interface UploadTask {
   id: string
@@ -367,10 +368,10 @@ const pageState = pageStateStore.getPageState('upload-queue', {
 })
 const { initialLoading, backgroundRefreshing, isRefreshing, runRefresh } = useBackgroundRefresh()
 const queueData = ref<UploadTask[]>([])
+const queryLoading = ref(false)
 const total = ref(0)
 const uploading = ref(0)
 const queueStatusSnapshot = ref<QueueStatusSnapshot>(emptyQueueStatusSnapshot())
-const queueStatus = computed<0 | 1>(() => (queueStatusSnapshot.value.running ? 1 : 0))
 const canPauseAllTasks = computed(() => canPauseQueue(queueStatusSnapshot.value))
 const canResumeAllTasks = computed(() => canResumeQueue(queueStatusSnapshot.value))
 const isMobileView = ref(checkIsMobile())
@@ -392,7 +393,7 @@ const statusFilter = computed({
 })
 const hasActiveQueueWork = computed(
   () =>
-    queueStatus.value === 1 ||
+    hasActiveQueueTasks(queueStatusSnapshot.value) ||
     uploading.value > 0 ||
     queueData.value.some(
       (task) => task.status === 0 || task.status === 1 || task.status === 5 || task.status === 6,
@@ -639,6 +640,7 @@ const loadQueueData = async () => {
       pendingQueueDataRefresh.value = false
       await loadQueueData()
     }
+    queryLoading.value = false
   }
 }
 
@@ -877,12 +879,14 @@ const loadQueueStatus = async () => {
 const handleSizeChange = (val: number) => {
   pageSize.value = val
   currentPage.value = 1
+  queryLoading.value = true
   loadQueueData()
 }
 
 // 处理当前页变更
 const handleCurrentChange = (val: number) => {
   currentPage.value = val
+  queryLoading.value = true
   loadQueueData()
 }
 
@@ -925,6 +929,7 @@ const deactivateQueuePage = () => {
     return
   }
   isPageActive = false
+  queryLoading.value = false
   pendingQueueDataRefresh.value = false
   queueDataRequestGate.invalidate()
   queueStatusRequestGate.invalidate()
@@ -936,6 +941,7 @@ const deactivateQueuePage = () => {
 const handleStatusChange = (val: number) => {
   statusFilter.value = val
   currentPage.value = 1
+  queryLoading.value = true
   loadQueueData()
 }
 
@@ -1036,6 +1042,7 @@ onUnmounted(() => {
     removeDeviceTypeListener()
   }
   isPageActive = false
+  queryLoading.value = false
   pendingQueueDataRefresh.value = false
   queueDataRequestGate.invalidate()
   queueStatusRequestGate.invalidate()
@@ -1205,7 +1212,6 @@ onUnmounted(() => {
 
   .card-header {
     flex-direction: column;
-    gap: 8px;
     align-items: flex-start;
   }
 

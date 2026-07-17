@@ -3,7 +3,7 @@
     <!-- 同步记录卡片 -->
     <div class="sync-records-card">
       <div class="header-left">
-        <h2 class="card-title hidden-md-and-down">同步记录</h2>
+        <h2 class="card-title hide-on-mobile">同步记录</h2>
         <p class="card-subtitle">只会保留 7 天的记录，每天 0 点会删除 7 天前的所有记录</p>
       </div>
       <div class="header-right">
@@ -71,7 +71,7 @@
         </template>
         <template #cell-local_path="{ row }">
           <div class="sync-path-cell">
-            <el-text type="primary" class="sync-path-cell__id hidden-md-and-up"
+            <el-text type="primary" class="sync-path-cell__id show-on-mobile"
               >#{{ row.id }}</el-text
             >
             <span class="sync-path-cell__route">
@@ -774,8 +774,8 @@ watch(batchMode, (val) => {
   max-width: none;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  padding: 0;
+  padding: 20px;
+  box-sizing: border-box;
 }
 
 .sync-records-card {
@@ -801,7 +801,7 @@ watch(batchMode, (val) => {
 }
 
 .card-title {
-  margin: 0 0 8px 0;
+  margin: 0;
   font-size: 24px;
   font-weight: 600;
   color: #303133;
@@ -844,6 +844,10 @@ watch(batchMode, (val) => {
 
 /* 移动端适配 */
 @media (max-width: 768px) {
+  .sync-records-container {
+    padding: 12px;
+  }
+
   .card-header {
     flex-direction: column;
     align-items: stretch;

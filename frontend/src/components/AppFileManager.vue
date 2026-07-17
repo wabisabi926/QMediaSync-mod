@@ -7,7 +7,7 @@
       <template #header>
         <div class="card-header">
           <div class="header-left">
-            <h2 class="card-title hidden-md-and-down">
+            <h2 class="card-title hide-on-mobile">
               网盘文件浏览器（已支持：查看列表、创建文件夹、删除）
             </h2>
             <p class="card-subtitle">
@@ -35,7 +35,7 @@
                 </p>
                 <template #reference>
                   <el-button
-                    class="mobile-file-manager-info hidden-md-and-up"
+                    class="mobile-file-manager-info show-on-mobile"
                     link
                     :icon="InfoFilled"
                     aria-label="页面说明"
@@ -139,7 +139,7 @@
 
             <!-- 桌面端表格 -->
             <el-table
-              class="hidden-md-and-down"
+              v-if="!isMobile"
               v-loading="initialLoading"
               :data="fileList"
               :row-key="(row: FileSystemItem) => String(row.id || row.path)"
@@ -201,7 +201,7 @@
 
             <!-- 移动端表格 -->
             <el-table
-              class="hidden-md-and-up"
+              v-else
               v-loading="initialLoading"
               :data="fileList"
               :row-key="(row: FileSystemItem) => String(row.id || row.path)"

@@ -38,7 +38,7 @@ const pagerCount = computed(() => (props.isMobile ? 5 : 7))
       v-model:page-size="pageSize"
       :page-sizes="pageSizes"
       :pager-count="pagerCount"
-      :small="isMobile"
+      :size="isMobile ? 'small' : 'default'"
       :background="background"
       :layout="layout"
       :total="total"

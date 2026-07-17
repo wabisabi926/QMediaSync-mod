@@ -1,1 +1,0 @@
-var e=[{label:`115 网盘`,value:`115`},{label:`百度网盘`,value:`baidupan`},{label:`OpenList`,value:`openlist`},{label:`本地目录`,value:`local`}],t={115:`success`,baidupan:`danger`,openlist:`warning`,local:`info`},n={115:`115 网盘`,baidupan:`百度网盘`,openlist:`OpenList`,local:`本地目录`};export{e as n,t as r,n as t};

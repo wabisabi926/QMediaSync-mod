@@ -1,1 +1,0 @@
-var e=(e,t)=>Object.prototype.hasOwnProperty.call(e,t),t=()=>{try{return globalThis.history?.state??null}catch{return null}},n=e=>typeof e==`object`&&!!e,r=(e=t())=>n(e)&&typeof e.back==`string`&&e.back!==``,i=async(n,i,a={})=>{if(r(e(a,`historyState`)?a.historyState:t())){n.back();return}await n.replace(i)};export{i as t};

@@ -1,1 +1,0 @@
-function e(e){if(e==null||isNaN(e)||e<0)return`N/A`;if(e===0)return`0 Bytes`;let t=1024,n=[`Bytes`,`KB`,`MB`,`GB`,`TB`],r=Math.floor(Math.log(e)/Math.log(t)),i=Math.min(r,n.length-1);return parseFloat((e/t**i).toFixed(2))+` `+n[i]}export{e as t};

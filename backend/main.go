@@ -694,6 +694,24 @@ func setRouter(r *gin.Engine) {
 		api.PUT("/api-keys/:id/status", controllers.UpdateAPIKeyStatus) // 更新 API Key 状态
 		api.DELETE("/api-keys/:id", controllers.DeleteAPIKey)           // 删除 API Key
 
+		// 上传队列相关路由
+		api.GET("/upload/queue", controllers.UploadList)                                             // 获取上传队列列表
+		api.POST("/upload/queue/clear-pending", controllers.ClearPendingUploadTasks)                 // 清除上传队列中未开始的任务
+		api.POST("/upload/queue/start", controllers.StartUploadQueue)                                // 启动上传队列
+		api.POST("/upload/queue/stop", controllers.StopUploadQueue)                                  // 停止上传队列
+		api.GET("/upload/queue/status", controllers.UploadQueueStatus)                               // 查询上传队列状态
+		api.POST("/upload/queue/clear-success-failed", controllers.ClearUploadSuccessAndFailedTasks) // 清除上传队列中已完成和失败的任务
+		api.POST("/upload/queue/retry-failed", controllers.RetryFailedUploadTasks)                   // 重试所有失败的上传任务
+
+		// 下载队列相关路由
+		api.GET("/download/queue", controllers.DownloadList)                                             // 获取下载队列列表
+		api.POST("/download/queue/clear-pending", controllers.ClearPendingDownloadTasks)                 // 清除下载队列中未开始的任务
+		api.POST("/download/queue/start", controllers.StartDownloadQueue)                                // 启动下载队列
+		api.POST("/download/queue/stop", controllers.StopDownloadQueue)                                  // 停止下载队列
+		api.GET("/download/queue/status", controllers.DownloadQueueStatus)                               // 查询下载队列状态
+		api.POST("/download/queue/clear-success-failed", controllers.ClearDownloadSuccessAndFailedTasks) // 清除下载队列中已完成和失败的任务
+		api.POST("/download/queue/retry-failed", controllers.RetryFailedDownloadTasks)                   // 重试所有失败的下载任务
+
 		// 备份与恢复相关路由
 		api.GET("/backup/list", controllers.GetBackupList)               // 获取备份列表
 		api.GET("/backup/records/:id", controllers.GetBackupRecord)      // 获取备份记录详情

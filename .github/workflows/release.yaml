@@ -278,15 +278,9 @@ jobs:
           name: linux-binary-arm64
           path: temp_build
 
-      - name: Install fnpack from URL
-        env:
-          FNPACK_DOWNLOAD_URL: ${{ secrets.FNPACK_DOWNLOAD_URL }}
+      - name: Install fnpack
         run: |
-          if [ -z "$FNPACK_DOWNLOAD_URL" ]; then
-            echo "FNPACK_DOWNLOAD_URL is not set, fnpack installation skipped"
-            exit 0
-          fi
-          curl -fsSL "$FNPACK_DOWNLOAD_URL" -o /tmp/fnpack
+          curl -fsSL https://static2.fnnas.com/fnpack/fnpack-1.2.1-linux-amd64 -o /tmp/fnpack
           chmod +x /tmp/fnpack
           sudo mv /tmp/fnpack /usr/local/bin/fnpack
 

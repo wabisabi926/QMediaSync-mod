@@ -43,7 +43,7 @@ if [ ! -d "$WEB_STATICS_DIR" ]; then
   exit 1
 fi
 
-FNOS_DIR="backend/FNOS/qmediasync-${TARGET_ARCH}"
+FNOS_DIR="FNOS/qmediasync-${TARGET_ARCH}"
 APP_DIR="$FNOS_DIR/app"
 MANIFEST="$FNOS_DIR/manifest"
 FNOS_VERSION="${TAG#v}"

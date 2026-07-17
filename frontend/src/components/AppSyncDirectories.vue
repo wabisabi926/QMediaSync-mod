@@ -246,51 +246,6 @@
         <span>加载中…</span>
       </div>
 
-      <el-dialog
-        v-model="showScrapePathDialog"
-        title="关联刮削目录"
-        width="500px"
-        :close-on-click-modal="false"
-      >
-        <div class="scrape-path-dialog-content">
-          <p class="dialog-tip">请选择要关联的本地类型刮削目录：</p>
-          <el-alert
-            title="STRM 同步完成 30 秒后，会自动触发已关联的刮削目录执行刮削"
-            type="info"
-            :closable="false"
-            show-icon
-            style="margin-bottom: 16px"
-          />
-          <el-select
-            v-model="selectedScrapePathIds"
-            multiple
-            filterable
-            placeholder="请选择刮削目录"
-            style="width: 100%"
-            :loading="scrapePathsLoading"
-          >
-            <el-option
-              v-for="item in scrapePathOptions"
-              :key="item.id"
-              :label="item.label"
-              :value="item.id"
-            />
-          </el-select>
-        </div>
-        <template #footer>
-          <span class="dialog-footer">
-            <el-button @click="showScrapePathDialog = false">取消</el-button>
-            <el-button
-              type="primary"
-              @click="saveScrapePathRelation"
-              :loading="saveScrapePathLoading"
-            >
-              确定
-            </el-button>
-          </span>
-        </template>
-      </el-dialog>
-
       <div class="page-footer-tips">
         <div class="tips-header">
           <el-icon class="tips-icon"><InfoFilled /></el-icon>
@@ -373,7 +328,6 @@ import {
   Folder,
   FolderOpened,
   InfoFilled,
-  Link,
   Loading,
   Plus,
   QuestionFilled,
@@ -458,12 +412,6 @@ const pageSize = ref(9999)
 
 const checkIsMobile = ref(isMobile())
 
-const showScrapePathDialog = ref(false)
-const selectedScrapePathIds = ref<number[]>([])
-const scrapePathOptions = ref<{ id: number; label: string }[]>([])
-const scrapePathsLoading = ref(false)
-const saveScrapePathLoading = ref(false)
-const currentSyncDirectory = ref<SyncDirectory | null>(null)
 const lastSyncPathEventSequence = new Map<number, number>()
 const lastSyncPathEventTime = new Map<number, number>()
 
@@ -604,16 +552,6 @@ const getSecondaryActions = (row: SyncDirectory, index: number): SyncDirectoryAc
       loading: row.deleting,
       ariaLabel: '删除同步目录',
       onClick: () => handleDelete(row, index),
-    },
-    {
-      key: 'scrape-relation',
-      label: '',
-      type: 'warning',
-      icon: Link,
-      plain: true,
-      circle: true,
-      ariaLabel: '关联刮削目录',
-      onClick: () => openScrapePathDialog(row),
     },
   )
 
@@ -960,75 +898,6 @@ const toggleCron = async (row: SyncDirectory) => {
     console.error('切换定时同步状态错误')
     row.enable_cron = !row.enable_cron
     ElMessage.error('切换定时同步状态失败')
-  }
-}
-
-const loadScrapePaths = async () => {
-  try {
-    scrapePathsLoading.value = true
-    const response = await http?.get(`${SERVER_URL}/scrape/pathes`, {
-      params: { source_type: 'local' },
-    })
-
-    if (response?.data.code === 200) {
-      scrapePathOptions.value = (response.data.data || []).map(
-        (item: { id: number; source_path: string }) => ({
-          id: item.id,
-          label: `#${item.id} - ${item.source_path}`,
-        }),
-      )
-    } else {
-      ElMessage.error(response?.data.message || '加载刮削目录失败')
-    }
-  } catch {
-    console.error('加载刮削目录错误')
-    ElMessage.error('加载刮削目录失败')
-  } finally {
-    scrapePathsLoading.value = false
-  }
-}
-
-const openScrapePathDialog = async (row: SyncDirectory) => {
-  currentSyncDirectory.value = row
-  selectedScrapePathIds.value = []
-  showScrapePathDialog.value = true
-  await loadScrapePaths()
-  if (row.id) {
-    try {
-      const response = await http?.get(`${SERVER_URL}/sync/path/${row.id}/scrape-paths`)
-      if (response?.data.code === 200) {
-        selectedScrapePathIds.value = response.data.data || []
-      }
-    } catch {
-      console.error('加载已关联刮削目录错误')
-    }
-  }
-}
-
-const saveScrapePathRelation = async () => {
-  if (!currentSyncDirectory.value?.id) {
-    ElMessage.error('同步目录 ID 不存在')
-    return
-  }
-
-  try {
-    saveScrapePathLoading.value = true
-    const response = await http?.post(`${SERVER_URL}/sync/path/scrape-paths`, {
-      id: currentSyncDirectory.value.id,
-      scrape_path_id: selectedScrapePathIds.value,
-    })
-
-    if (response?.data.code === 200) {
-      ElMessage.success('关联刮削目录成功')
-      showScrapePathDialog.value = false
-    } else {
-      ElMessage.error(response?.data.message || '关联刮削目录失败')
-    }
-  } catch {
-    console.error('关联刮削目录错误')
-    ElMessage.error('关联刮削目录失败')
-  } finally {
-    saveScrapePathLoading.value = false
   }
 }
 
@@ -1842,15 +1711,5 @@ onUnmounted(() => {
     align-items: center;
     width: 100%;
   }
-}
-
-.scrape-path-dialog-content {
-  padding: 10px 0;
-}
-
-.dialog-tip {
-  margin: 0 0 12px 0;
-  font-size: 14px;
-  color: #606266;
 }
 </style>

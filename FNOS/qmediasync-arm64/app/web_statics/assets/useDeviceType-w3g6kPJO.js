@@ -1,0 +1,1 @@
+import{Et as e,K as t,St as n,q as r}from"./vendor-charts-EIdb7AG_.js";import{d as i,f as a}from"./index-Demsc3t1.js";function o(){let o=e(i()),s=null,c=()=>{s||=(o.value=i(),a(e=>{o.value=e}))},l=()=>{s&&=(s(),null)};return t(c),r(l),{isMobile:n(o),start:c,stop:l}}export{o as t};

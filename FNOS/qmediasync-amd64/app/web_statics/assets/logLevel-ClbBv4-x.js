@@ -1,0 +1,1 @@
+var e=[{value:`debug`,label:`Debug`},{value:`info`,label:`Info`},{value:`warn`,label:`Warn`},{value:`error`,label:`Error`}],t=e.map(e=>e.value);function n(t){return e.some(e=>e.value===t)}function r(e,t){if(t.length===0)return[];let n=new Set(t);return e.filter(e=>n.has(e.level))}export{n as i,e as n,r,t};

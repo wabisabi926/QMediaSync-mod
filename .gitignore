@@ -84,9 +84,7 @@ backend/postgres/
 
 # FNOS packaging outputs
 FNOS/qmediasync-arm64/app/QMediaSync
-FNOS/qmediasync-arm64/app/web_statics/
 FNOS/qmediasync-amd64/app/QMediaSync
-FNOS/qmediasync-amd64/app/web_statics/
 backend/FNOS/qmediasync-arm64/app/QMediaSync
 backend/FNOS/qmediasync-arm64/app/web_statics/
 backend/FNOS/qmediasync-amd64/app/QMediaSync

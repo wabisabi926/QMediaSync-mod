@@ -20,6 +20,7 @@
 - [请求校验约定](validation.md)：后端 Request DTO、`Validate()` 方法和前端校验边界约定。
 - [任务来源枚举](task-source-enums.md)：下载 / 上传队列来源字段、同步队列任务类型的存储值和展示文案边界。
 - [同步任务实时刷新机制](realtime-sync-task-refresh.md)：同步任务结构化事件、详情 stream、日志 tailer 和兼容边界。
+- [WebSocket 实现维护说明](websocket-known-issues.md)：SSE 迁移前 WebSocket 通道的现状、已确认风险和维护边界。
 - [Emby 同步维护说明](emby-sync.md)：Emby 刷新 / 同步链路边界、全量同步、增量同步、Webhook 单条同步和状态字段维护说明。
 - [发布流程](release.md)：版本发布脚本、changelog 生成、GitHub Actions 发布流程和飞牛 FPK 打包说明。
 

@@ -12,7 +12,6 @@ import (
 	"qmediasync/emby302/util/encrypts"
 	"qmediasync/emby302/util/https"
 	"qmediasync/emby302/util/logs"
-	"qmediasync/emby302/util/logs/colors"
 
 	"qmediasync/emby302/util/strs"
 	"qmediasync/emby302/util/urls"
@@ -173,7 +172,7 @@ func calcCacheKey(c *gin.Context) (string, error) {
 	headerStr := header.String()
 	preEnc := strs.Sort(c.Request.URL.RawQuery + body + headerStr)
 	if headerStr != "" {
-		logs.Tip("参与 cache key 计算的请求头: %s", colors.ToYellow(headerStr))
+		logs.Tip("参与 cache key 计算的请求头: %s", headerStr)
 	}
 
 	// 为防止字典排序后不同 URI 冲突, 这里在排序完的字符串前再加上原始 URI。

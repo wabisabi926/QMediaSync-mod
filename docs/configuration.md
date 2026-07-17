@@ -138,7 +138,9 @@ emby302:
 
 可以在 Web 页面「系统设置 - 日志设置」调整日志等级和全局日志轮转参数，后端会保存到 `config/config.yaml` 并立即更新运行中的全局日志器，无需重启。日志查看页和同步任务详情页的日志等级筛选只影响当前页面显示，不影响日志文件写入。
 
-运行日志默认会在写入前完全脱敏常见敏感字段，包括 `api_key`、`X-Emby-Token`、`Authorization`、`X-Emby-Authorization`、`X-API-Key`、`password`、`access_token`、`refresh_token`、`AccessKeySecret`、`SecurityToken`、`Cookie` 等。普通 `Info`、`Warn`、`Error` 和 `Debug` 日志都会执行脱敏，不保留敏感值开头或结尾字符。脱敏后的敏感值统一显示为 `******`。
+运行日志默认会在写入前完全脱敏常见敏感字段，包括 `api_key`、`X-Emby-Token`、`Authorization`、`X-Emby-Authorization`、`X-API-Key`、`password`、`access_token`、`refresh_token`、`AccessKeySecret`、`SecurityToken`、`Cookie` 等。普通 `Info`、`Warn`、`Error` 和 `Debug` 日志都会执行脱敏，不保留敏感值开头或结尾字符。脱敏后的敏感值统一显示为 `******`。Emby 302 的 `Tip`、`Progress` 等日志也会写入同一 `QLogger` 管道；请求头保持 `名称=值` 的排查格式，敏感值脱敏后非敏感字段仍会保留。
+
+Emby 302 的嵌入配置默认设置 `log.disable-color: true`，避免 ANSI 彩色控制字符进入控制台重定向、日志文件或日志采集系统。若仅在支持颜色的交互式终端中查看，可以在 `backend/emby302.yaml` 中改为 `false` 后重新构建。
 
 需要临时排查 Emby 302 等链路的完整请求信息时，可以在本地调试环境设置 `QMS_UNSAFE_SENSITIVE_LOG=1`。该开关只影响显式标记为敏感的 `SensitiveDebug` 日志；启用后这类 Debug 日志可能包含 API Key、Token、Cookie 或密码，程序启动时会写入风险提示。不应在生产环境长期打开，也不应分享对应日志文件。
 

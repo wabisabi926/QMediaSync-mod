@@ -39,7 +39,7 @@ var (
 	sensitiveLogQuotedRegexp           = regexp.MustCompile(`(?i)(["']?(?:api_key|apikey|x-emby-token|authorization|x-emby-authorization|x-api-key|password|access_token|refresh_token|accesskeysecret|securitytoken|cookie|set-cookie)["']?\s*:\s*["'])([^"']*)(["'])`)
 	sensitiveLogMediaBrowserAuthRegexp = regexp.MustCompile(`(?i)(\b(?:authorization|x-emby-authorization)\b\s*[:=]\s*MediaBrowser\s+Token=")([^"]*)(")`)
 	sensitiveLogAuthRegexp             = regexp.MustCompile(`(?i)(\b(?:authorization|x-emby-authorization)\b\s*[:=]\s*)((?:Bearer|Basic|Token)\s+)?(\[[^\]]*\]|"[^"]*"|'[^']*'|[^\s&,;\]\}]+)`)
-	sensitiveLogCookieRegexp           = regexp.MustCompile(`(?i)(\b(?:cookie|set-cookie)\b\s*[:=]\s*)(\[[^\]]*\]|"[^"]*"|'[^']*'|[^,\]\}\n]+)`)
+	sensitiveLogCookieRegexp           = regexp.MustCompile(`(?i)(\b(?:cookie|set-cookie)\b\s*[:=]\s*)(\[[^\]]*\]|"[^"]*"|'[^']*'|[^,;\]\}\n]+)`)
 	sensitiveLogSpaceKeyValueRegexp    = regexp.MustCompile(`(?i)(^|[\s,])(\b(?:password)\b\s*[:=]\s*)(\[[^\]]*\]|"[^"]*"|'[^']*'|[^\s,\]\}]+)`)
 	sensitiveLogKeyValueRegexp         = regexp.MustCompile(`(?i)(\b(?:api_key|apikey|x-emby-token|x-api-key|password|access_token|refresh_token|accesskeysecret|securitytoken)\b\s*[:=]\s*)(\[[^\]]*\]|"[^"]*"|'[^']*'|[^&\s,\]\}]+)`)
 )

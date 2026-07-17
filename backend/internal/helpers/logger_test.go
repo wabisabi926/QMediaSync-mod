@@ -61,6 +61,20 @@ func TestRedactSensitiveLog(t *testing.T) {
 	}
 }
 
+func TestRedactSensitiveLog保留非敏感请求头(t *testing.T) {
+	input := "Authorization=Bearer auth-secret; X-Emby-Token=emby-token; Cookie=session-secret; User-Agent=QMediaSync/1.0"
+
+	got := RedactSensitiveLog(input)
+	for _, secret := range []string{"auth-secret", "emby-token", "session-secret"} {
+		if strings.Contains(got, secret) {
+			t.Fatalf("脱敏结果仍包含敏感值 %q: %s", secret, got)
+		}
+	}
+	if !strings.Contains(got, "User-Agent=QMediaSync/1.0") {
+		t.Fatalf("脱敏结果应保留非敏感请求头: %s", got)
+	}
+}
+
 func TestQLogger默认脱敏日志(t *testing.T) {
 	useTestLogLevel(t, LogLevelInfo)
 

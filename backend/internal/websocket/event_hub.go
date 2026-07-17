@@ -10,9 +10,6 @@ import (
 
 // 事件类型常量
 const (
-	EventScraperTaskStart     = "scraper_task_start"
-	EventScraperTaskComplete  = "scraper_task_complete"
-	EventScraperItemComplete  = "scraper_item_complete"
 	EventStrmSyncTaskStart    = "strm_sync_task_start"
 	EventStrmSyncTaskQueued   = "strm_sync_task_queued"
 	EventStrmSyncTaskComplete = "strm_sync_task_complete"

@@ -38,7 +38,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var Version string = "v0.0.1"
+var Version string = "v0.15.11"
 var PublishDate string = "2025-08-08"
 var OAuthRelayEncryptionKey = ""
 

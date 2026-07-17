@@ -39,7 +39,7 @@ import (
 )
 
 var Version string = "v0.15.11"
-var PublishDate string = "2025-08-08"
+var PublishDate string = "2026-07-18"
 var OAuthRelayEncryptionKey = ""
 
 var AppName string = "QMediaSync"

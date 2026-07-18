@@ -9,6 +9,9 @@ import (
 	"time"
 
 	"qmediasync/internal/db"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type UserSession struct {
@@ -97,16 +100,33 @@ func GetActiveUserSession(sessionID string, now int64) (*UserSession, error) {
 	return &session, nil
 }
 
-func ListActiveUserSessions(userID uint, now int64) ([]UserSession, error) {
+func ListActiveUserSessions(userID uint, currentSessionID string, now int64) ([]UserSession, error) {
 	var sessions []UserSession
-	err := db.Db.Where("user_id = ? AND revoked_at = 0 AND expires_at > ?", userID, now).
-		Order("last_seen_at DESC").
-		Find(&sessions).Error
+	query := db.Db.Where("user_id = ? AND revoked_at = 0 AND expires_at > ?", userID, now)
+	if currentSessionID != "" {
+		query = query.Order(clause.OrderBy{Expression: clause.Expr{
+			SQL:  "CASE WHEN session_id = ? THEN 0 ELSE 1 END, last_seen_at DESC",
+			Vars: []any{currentSessionID},
+		}})
+	} else {
+		query = query.Order("last_seen_at DESC")
+	}
+	err := query.Find(&sessions).Error
 	return sessions, err
 }
 
-func SaveUserSession(session *UserSession) error {
-	return db.Db.Save(session).Error
+// UpdateUserSessionCSRFHash 更新活动会话的 CSRF Token 哈希。
+func UpdateUserSessionCSRFHash(session *UserSession) error {
+	result := db.Db.Model(&UserSession{}).
+		Where("id = ? AND revoked_at = 0", session.ID).
+		Update("csrf_token_hash", session.CSRFTokenHash)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 func RevokeUserSession(userID uint, sessionID string, reason string) error {
@@ -122,7 +142,11 @@ func RevokeOtherUserSessions(userID uint, keepSessionID string, reason string) e
 }
 
 func RevokeAllUserSessions(userID uint, reason string) error {
-	return db.Db.Model(&UserSession{}).
+	return revokeAllUserSessions(db.Db, userID, reason)
+}
+
+func revokeAllUserSessions(tx *gorm.DB, userID uint, reason string) error {
+	return tx.Model(&UserSession{}).
 		Where("user_id = ? AND revoked_at = 0", userID).
 		Updates(map[string]any{"revoked_at": time.Now().Unix(), "revoke_reason": reason}).Error
 }

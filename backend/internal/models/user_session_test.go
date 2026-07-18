@@ -1,6 +1,7 @@
 package models
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -86,11 +87,66 @@ func TestListActiveUserSessionsFiltersRevokedAndExpired(t *testing.T) {
 		t.Fatalf("撤销 session 失败: %v", err)
 	}
 
-	sessions, err := ListActiveUserSessions(user.ID, now)
+	sessions, err := ListActiveUserSessions(user.ID, "", now)
 	if err != nil {
 		t.Fatalf("ListActiveUserSessions() error = %v", err)
 	}
 	if len(sessions) != 1 || sessions[0].SessionID != active.SessionID {
 		t.Fatalf("sessions = %#v, want only %s; expired=%s", sessions, active.SessionID, expired.SessionID)
+	}
+}
+
+func TestListActiveUserSessionsSortsCurrentSessionFirst(t *testing.T) {
+	user := setupUserSessionTestDB(t)
+	now := time.Now().Unix()
+	current, _, err := CreateUserSession(CreateUserSessionInput{UserID: user.ID, Username: user.Username, ExpiresAt: now + 3600})
+	if err != nil {
+		t.Fatalf("创建当前 session 失败: %v", err)
+	}
+	other, _, err := CreateUserSession(CreateUserSessionInput{UserID: user.ID, Username: user.Username, ExpiresAt: now + 3600})
+	if err != nil {
+		t.Fatalf("创建其他 session 失败: %v", err)
+	}
+	if err := db.Db.Model(other).Update("last_seen_at", now+60).Error; err != nil {
+		t.Fatalf("设置其他 session 最后活跃时间失败: %v", err)
+	}
+
+	withCurrent, err := ListActiveUserSessions(user.ID, current.SessionID, now)
+	if err != nil {
+		t.Fatalf("查询带当前 session 的活动会话失败: %v", err)
+	}
+	if len(withCurrent) != 2 || withCurrent[0].SessionID != current.SessionID {
+		t.Fatalf("带当前 session 的列表 = %#v，期望当前会话 %s 置顶", withCurrent, current.SessionID)
+	}
+
+	withoutCurrent, err := ListActiveUserSessions(user.ID, "", now)
+	if err != nil {
+		t.Fatalf("查询不带当前 session 的活动会话失败: %v", err)
+	}
+	if len(withoutCurrent) != 2 || withoutCurrent[0].SessionID != other.SessionID {
+		t.Fatalf("不带当前 session 的列表 = %#v，期望最后活跃的会话 %s 置顶", withoutCurrent, other.SessionID)
+	}
+}
+
+func TestUpdateUserSessionCSRFHashDoesNotReactivateRevokedSession(t *testing.T) {
+	user := setupUserSessionTestDB(t)
+	session, _, err := CreateUserSession(CreateUserSessionInput{
+		UserID:    user.ID,
+		Username:  user.Username,
+		ExpiresAt: time.Now().Add(time.Hour).Unix(),
+	})
+	if err != nil {
+		t.Fatalf("创建会话失败: %v", err)
+	}
+	staleSession := *session
+	if err := RevokeAllUserSessions(user.ID, "credential_changed"); err != nil {
+		t.Fatalf("撤销会话失败: %v", err)
+	}
+	staleSession.CSRFTokenHash = HashSessionSecret("replacement-token")
+	if err := UpdateUserSessionCSRFHash(&staleSession); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("保存陈旧会话 error = %v，期望 gorm.ErrRecordNotFound", err)
+	}
+	if _, err := GetActiveUserSession(session.SessionID, time.Now().Unix()); err == nil {
+		t.Fatal("保存陈旧会话不应重新激活已撤销会话")
 	}
 }

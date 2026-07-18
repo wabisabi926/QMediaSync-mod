@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"qmediasync/internal/helpers"
@@ -22,6 +23,9 @@ func loginFailureMessage() string {
 func writeLoginFailure(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: loginFailureMessage(), Data: nil})
 }
+
+// credentialSessionMu 在单进程部署中串行化登录会话创建和凭据修改，避免旧凭据并发创建存活会话。
+var credentialSessionMu sync.Mutex
 
 // LoginAction 用户登录
 // @Summary 用户登录
@@ -55,6 +59,9 @@ func LoginAction(c *gin.Context) {
 		writeLoginRateLimited(c, wait)
 		return
 	}
+
+	credentialSessionMu.Lock()
+	defer credentialSessionMu.Unlock()
 
 	user, userErr := models.CheckLogin(username, password)
 	if userErr != nil || user.ID == 0 {
@@ -203,7 +210,12 @@ func SessionAction(c *gin.Context) {
 			return
 		}
 		session.CSRFTokenHash = models.HashSessionSecret(csrfToken)
-		if err := models.SaveUserSession(session); err != nil {
+		if err := models.UpdateUserSessionCSRFHash(session); err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				clearSessionCookies(c)
+				writeAnonymousSession(c)
+				return
+			}
 			writeSessionInternalError(c, "刷新登录会话失败", err)
 			return
 		}
@@ -283,25 +295,64 @@ func ChangePassword(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "用户未登录", Data: nil})
 		return
 	}
-	isChange := false
-	isChange2 := false
-	var err error
-	if req.Username != currentUser.Username {
-		isChange = true
+
+	credentialSessionMu.Lock()
+	defer credentialSessionMu.Unlock()
+
+	if currentSession, ok := CurrentSession(c); ok {
+		if _, err := models.GetActiveUserSession(currentSession.SessionID, time.Now().Unix()); err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				clearSessionCookies(c)
+				c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "登录会话已失效", Data: nil})
+				return
+			}
+			if helpers.AppLogger != nil {
+				helpers.AppLogger.Errorf("重新校验登录会话失败：%v", err)
+			}
+			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "修改失败，请稍后重试", Data: nil})
+			return
+		}
 	}
-	isChange2, err = currentUser.ChangeUsernameAndPassword(req.Username, req.NewPassword)
+
+	freshUser, err := models.GetUserById(currentUser.ID)
 	if err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "修改失败：" + err.Error(), Data: nil})
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			if _, ok := CurrentSession(c); ok {
+				clearSessionCookies(c)
+			}
+			c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "用户未登录", Data: nil})
+			return
+		}
+		if helpers.AppLogger != nil {
+			helpers.AppLogger.Errorf("重新读取修改凭据用户失败：%v", err)
+		}
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "修改失败，请稍后重试", Data: nil})
 		return
 	}
-	if isChange || isChange2 {
-		currentSessionID := ""
-		if session, ok := CurrentSession(c); ok {
-			currentSessionID = session.SessionID
+	if freshUser == nil || freshUser.ID == 0 {
+		if _, ok := CurrentSession(c); ok {
+			clearSessionCookies(c)
 		}
-		_ = models.RevokeOtherUserSessions(currentUser.ID, currentSessionID, "credential_changed")
+		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "用户未登录", Data: nil})
+		return
 	}
-	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "修改成功", Data: isChange || isChange2})
+
+	isChange, err := freshUser.ChangeUsernameAndPasswordAndRevokeSessions(req.Username, req.NewPassword)
+	if err != nil {
+		if errors.Is(err, models.ErrNewPasswordMatchesCurrent) || errors.Is(err, models.ErrUserCredentialsUnchanged) {
+			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+			return
+		}
+		if helpers.AppLogger != nil {
+			helpers.AppLogger.Errorf("修改用户凭据失败：%v", err)
+		}
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "修改失败，请稍后重试", Data: nil})
+		return
+	}
+	if isChange {
+		clearSessionCookies(c)
+	}
+	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "修改成功", Data: isChange})
 }
 
 // GetTwoFactorStatus 获取两步验证状态
@@ -344,7 +395,7 @@ func SetupTwoFactor(c *gin.Context) {
 		return
 	}
 	user.TwoFactorPendingSecret = encryptedSecret
-	if err := models.SaveUser(user); err != nil {
+	if err := models.SaveUserTwoFactor(user); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "保存两步验证配置失败，请检查数据库状态", Data: nil})
 		return
 	}
@@ -381,7 +432,7 @@ func EnableTwoFactor(c *gin.Context) {
 		return
 	}
 	user.EnableTwoFactor(user.TwoFactorPendingSecret)
-	if err := models.SaveUser(user); err != nil {
+	if err := models.SaveUserTwoFactor(user); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "启用两步验证失败", Data: nil})
 		return
 	}
@@ -424,7 +475,7 @@ func DisableTwoFactor(c *gin.Context) {
 		return
 	}
 	user.DisableTwoFactor()
-	if err := models.SaveUser(user); err != nil {
+	if err := models.SaveUserTwoFactor(user); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "关闭两步验证失败", Data: nil})
 		return
 	}

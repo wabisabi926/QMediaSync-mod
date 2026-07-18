@@ -19,7 +19,7 @@ func ListUserSessions(c *gin.Context) {
 	if session, ok := CurrentSession(c); ok {
 		currentSessionID = session.SessionID
 	}
-	sessions, err := models.ListActiveUserSessions(user.ID, time.Now().Unix())
+	sessions, err := models.ListActiveUserSessions(user.ID, currentSessionID, time.Now().Unix())
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取登录设备失败", Data: nil})
 		return

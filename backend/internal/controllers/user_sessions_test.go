@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -42,7 +43,12 @@ func setupUserSessionsRouter(t *testing.T) (*gin.Engine, *models.User, *models.U
 }
 
 func TestListUserSessionsMarksCurrentSession(t *testing.T) {
-	r, _, current, _, csrf := setupUserSessionsRouter(t)
+	r, _, current, otherSessionID, csrf := setupUserSessionsRouter(t)
+	if err := db.Db.Model(&models.UserSession{}).
+		Where("session_id = ?", otherSessionID).
+		Update("last_seen_at", time.Now().Add(time.Hour).Unix()).Error; err != nil {
+		t.Fatalf("设置其他会话最后活跃时间失败: %v", err)
+	}
 	tokenString := buildSessionCookieTokenForTest(t, current)
 	req := httptest.NewRequest(http.MethodGet, "/sessions", nil)
 	req.AddCookie(&http.Cookie{Name: authCookieName, Value: tokenString})
@@ -56,6 +62,21 @@ func TestListUserSessionsMarksCurrentSession(t *testing.T) {
 	body := w.Body.String()
 	if !strings.Contains(body, `"current":true`) || !strings.Contains(body, `"current":false`) {
 		t.Fatalf("响应应标记当前和其他 session: %s", body)
+	}
+	var response struct {
+		Data []struct {
+			SessionID string `json:"session_id"`
+			Current   bool   `json:"current"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("解析会话列表响应失败: %v", err)
+	}
+	if len(response.Data) != 2 {
+		t.Fatalf("会话数量 = %d，期望 2，body=%s", len(response.Data), body)
+	}
+	if !response.Data[0].Current || response.Data[0].SessionID != current.SessionID {
+		t.Fatalf("第一项 = %#v，期望当前会话 %s", response.Data[0], current.SessionID)
 	}
 }
 
@@ -74,7 +95,7 @@ func TestRevokeOtherSession(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("HTTP = %d, body=%s", w.Code, w.Body.String())
 	}
-	sessions, err := models.ListActiveUserSessions(user.ID, time.Now().Unix())
+	sessions, err := models.ListActiveUserSessions(user.ID, current.SessionID, time.Now().Unix())
 	if err != nil {
 		t.Fatalf("查询 session 失败: %v", err)
 	}

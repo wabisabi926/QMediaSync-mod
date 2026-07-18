@@ -2,6 +2,7 @@ package models
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"qmediasync/internal/db"
@@ -50,9 +51,13 @@ func (user *User) DisableTwoFactor() {
 	user.TwoFactorPendingSecret = ""
 }
 
-// SaveUser 保存用户
-func SaveUser(user *User) error {
-	if err := db.Db.Save(user).Error; err != nil {
+// SaveUserTwoFactor 保存用户的两步验证状态。
+func SaveUserTwoFactor(user *User) error {
+	if err := db.Db.Model(&User{}).Where("id = ?", user.ID).Updates(map[string]any{
+		"two_factor_enabled":        user.TwoFactorEnabled,
+		"two_factor_secret":         user.TwoFactorSecret,
+		"two_factor_pending_secret": user.TwoFactorPendingSecret,
+	}).Error; err != nil {
 		helpers.AppLogger.Errorf("保存用户失败：%v", err)
 		return err
 	}
@@ -67,7 +72,11 @@ func HashUserPassword(password string) (string, error) {
 	return string(hash), nil
 }
 
-var ErrInitialAdminAlreadyExists = errors.New("初始管理员已创建")
+var (
+	ErrInitialAdminAlreadyExists = errors.New("初始管理员已创建")
+	ErrNewPasswordMatchesCurrent = errors.New("新密码不能与当前密码相同")
+	ErrUserCredentialsUnchanged  = errors.New("用户名和密码未发生变化")
+)
 
 // HasAnyUser 判断用户表中是否已有用户。
 func HasAnyUser() (bool, error) {
@@ -107,35 +116,54 @@ func CreateInitialAdmin(username string, password string) (*User, error) {
 	return &created, nil
 }
 
-// 修改用户密码
-// 传入用户 ID 和新密码，更新用户的密码
-func (user *User) ChangeUsernameAndPassword(username, newPassword string) (bool, error) {
+// ChangeUsernameAndPasswordAndRevokeSessions 修改用户凭据并撤销全部浏览器会话。
+func (user *User) ChangeUsernameAndPasswordAndRevokeSessions(username, newPassword string) (bool, error) {
 	username = strings.TrimSpace(username)
 	if username == user.Username && newPassword == "" {
-		return false, nil
+		return false, ErrUserCredentialsUnchanged
 	}
 	if err := ValidateUserUsername(username); err != nil {
 		return false, err
 	}
-	isChange := false
+	updates := map[string]any{
+		"username": username,
+	}
 	if newPassword != "" {
 		if err := ValidateUserPassword(newPassword); err != nil {
 			return false, err
+		}
+		if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(newPassword)); err == nil {
+			return false, ErrNewPasswordMatchesCurrent
+		} else if !errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
+			return false, fmt.Errorf("比较新旧密码: %w", err)
 		}
 		hash, err := HashUserPassword(newPassword)
 		if err != nil {
 			helpers.AppLogger.Warnf("生成用户新密码失败：%v", err)
 			return false, err
 		}
-		user.Password = hash
-		isChange = true
+		updates["password"] = hash
 	}
-	user.Username = username
-	if err := db.Db.Save(user).Error; err != nil {
-		helpers.AppLogger.Errorf("修改用户名和密码失败：%v", err)
+	if err := db.Db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&User{}).Where("id = ?", user.ID).Updates(updates)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		if err := revokeAllUserSessions(tx, user.ID, "credential_changed"); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
 		return false, err
 	}
-	return isChange, nil
+	user.Username = username
+	if password, ok := updates["password"].(string); ok {
+		user.Password = password
+	}
+	return true, nil
 }
 
 // 根据用户 ID 查询用户
@@ -193,10 +221,16 @@ func (user *User) ensurePasswordHashCost(password string) {
 		}
 		return
 	}
-	if err := db.Db.Model(user).Update("password", nextHash).Error; err != nil {
+	result := db.Db.Model(&User{}).
+		Where("id = ? AND password = ?", user.ID, user.Password).
+		Update("password", nextHash)
+	if result.Error != nil {
 		if helpers.AppLogger != nil {
-			helpers.AppLogger.Warnf("保存升级后的用户密码哈希失败：%v", err)
+			helpers.AppLogger.Warnf("保存升级后的用户密码哈希失败：%v", result.Error)
 		}
+		return
+	}
+	if result.RowsAffected == 0 {
 		return
 	}
 	user.Password = nextHash

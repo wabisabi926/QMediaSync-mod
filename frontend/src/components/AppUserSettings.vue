@@ -44,6 +44,7 @@
         <el-button
           type="success"
           @click="saveSettings"
+          :disabled="!hasCredentialChanges"
           :loading="loading"
           size="large"
           :icon="Check"
@@ -63,21 +64,21 @@
       show-icon
       class="save-status"
     />
-    <TwoFactorSettings />
     <div class="security-content">
       <div class="warning-section">
         <el-alert title="重要提醒" type="warning" :closable="false" show-icon>
           <template #default>
-            修改用户名或密码后需要重新登录系统，请妥善保存新的登录凭据。
+            用户名或密码修改后，你需要重新登录。请记好新的用户名和密码。
           </template>
         </el-alert>
       </div>
     </div>
+    <TwoFactorSettings />
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, shallowRef, inject, onMounted } from 'vue'
+import { computed, inject, onMounted, reactive, shallowRef } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Check } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
@@ -104,12 +105,17 @@ const checkIsMobile = shallowRef(isMobile())
 const http: AxiosStatic | undefined = inject('$http')
 const loading = shallowRef(false)
 const saveStatus = shallowRef<SaveStatus | null>(null)
+const originalUsername = shallowRef('')
 
 const formData = reactive<UserSettings>({
   username: '',
   password: '',
   confirmPassword: '',
 })
+
+const hasCredentialChanges = computed(
+  () => formData.username.trim() !== originalUsername.value || formData.password !== '',
+)
 
 // 表单验证
 const validateForm = (): boolean => {
@@ -142,6 +148,9 @@ const validateForm = (): boolean => {
 
 // 保存设置
 const saveSettings = async () => {
+  if (!hasCredentialChanges.value) {
+    return
+  }
   if (!validateForm()) {
     return
   }
@@ -171,7 +180,7 @@ const saveSettings = async () => {
       formData.password = ''
       if (response?.data.data) {
         // 如果为 true 则需要重新登录
-        authStore.logout()
+        authStore.clearAuth()
         ElMessage.success('已退出登录')
         router.replace('/login')
       }
@@ -216,6 +225,7 @@ const loadCurrentUsername = async () => {
       console.error('加载当前用户名失败：', error)
     }
   }
+  originalUsername.value = formData.username.trim()
 }
 </script>
 

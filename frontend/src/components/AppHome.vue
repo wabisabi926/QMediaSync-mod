@@ -23,7 +23,7 @@ const handleLogDialogClose = () => {
         <h1>控制台</h1>
         <p>系统运行状态监控与管理</p>
       </div>
-      <div class="header-actions">
+      <div class="home-header__actions">
         <el-button type="primary" @click="showLogDialog = true" :icon="Document" round>
           运行日志
         </el-button>
@@ -140,8 +140,9 @@ const handleLogDialogClose = () => {
   opacity: 0.9;
 }
 
-.header-actions {
+.home-header__actions {
   display: flex;
+  align-items: center;
   gap: 12px;
 }
 

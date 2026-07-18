@@ -32,6 +32,7 @@ const statusType = computed(() => {
   if (status.value === 'confirmed') return 'success' as const
   if (status.value === 'expired' || status.value === 'failed') return 'danger' as const
   if (status.value === 'scanned') return 'warning' as const
+  if (status.value === 'waiting') return 'primary' as const
   return 'info' as const
 })
 
@@ -74,7 +75,11 @@ const handleClosed = () => {
       <div class="v115-auth-dialog__name">{{ accountName }}</div>
       <V115QrCode v-if="qrCode" :content="qrCode.qrcode" />
       <el-skeleton v-else :rows="4" animated />
-      <el-tag :type="statusType" class="v115-auth-dialog__status">
+      <el-tag
+        :type="statusType"
+        class="v115-auth-dialog__status"
+        :class="{ 'v115-auth-dialog__status--failed': status === 'failed' }"
+      >
         {{ tip || '等待授权' }}
       </el-tag>
       <el-button
@@ -104,6 +109,27 @@ const handleClosed = () => {
 }
 
 .v115-auth-dialog__status {
+  width: 100%;
   max-width: 100%;
+  min-width: 0;
+  height: auto;
+  max-height: 96px;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 9px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.v115-auth-dialog__status--failed {
+  align-items: flex-start;
+  justify-content: flex-start;
+  text-align: left;
 }
 </style>

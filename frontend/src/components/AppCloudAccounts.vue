@@ -410,8 +410,18 @@
     </div>
   </div>
 
-  <el-dialog v-model="showAddAccountDialog" title="添加账号" :width="isMobile ? '90%' : '500px'">
-    <el-form :model="newAccountForm" label-width="120px">
+  <el-dialog
+    v-model="showAddAccountDialog"
+    title="添加账号"
+    class="account-dialog"
+    :width="isMobile ? 'min(500px, calc(100vw - 32px))' : '500px'"
+    :align-center="isMobile"
+  >
+    <el-form
+      :model="newAccountForm"
+      :label-position="isMobile ? 'top' : 'right'"
+      :label-width="isMobile ? 'auto' : '100px'"
+    >
       <el-form-item label="网盘类型">
         <el-select v-model="newAccountForm.type" placeholder="请选择网盘类型">
           <template v-for="typeItem in sourceTypeOptions" :key="typeItem.value">
@@ -476,9 +486,15 @@
   <el-dialog
     v-model="showEditAccountDialog"
     :title="editDialogTitle"
-    :width="isMobile ? '90%' : '500px'"
+    class="account-dialog"
+    :width="isMobile ? 'min(500px, calc(100vw - 32px))' : '500px'"
+    :align-center="isMobile"
   >
-    <el-form :model="editAccountForm" label-width="100px">
+    <el-form
+      :model="editAccountForm"
+      :label-position="isMobile ? 'top' : 'right'"
+      :label-width="isMobile ? 'auto' : '100px'"
+    >
       <el-form-item label="账号备注">
         <el-input v-model="editAccountForm.name" placeholder="请输入账号备注" />
       </el-form-item>
@@ -1878,6 +1894,24 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
+  .account-dialog {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100dvh - 32px);
+  }
+
+  .account-dialog :deep(.el-dialog__body) {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .account-dialog :deep(.el-dialog__header),
+  .account-dialog :deep(.el-dialog__footer) {
+    flex-shrink: 0;
+  }
+
   .page-header {
     padding: 12px;
     background: #fff;

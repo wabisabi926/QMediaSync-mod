@@ -143,9 +143,9 @@ func GetUserById(userId uint) (*User, error) {
 	user := &User{}
 	result := db.Db.First(user, userId)
 	if result.Error != nil {
-		helpers.AppLogger.Errorf("查询用户失败：%v", db.Db.Error)
-		// 如果没有，则返回 nil
-		return user, db.Db.Error
+		helpers.AppLogger.Errorf("查询用户失败：%v", result.Error)
+		// 返回查询错误，由调用方区分记录不存在和内部故障。
+		return user, result.Error
 	}
 	return user, nil
 }

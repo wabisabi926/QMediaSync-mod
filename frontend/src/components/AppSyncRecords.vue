@@ -112,7 +112,10 @@ import {
   type SyncRecordEventType,
   type SyncTaskRecordEventPayload,
 } from '@/utils/syncRecordEvents'
-import { resetSyncTaskEventSequences, shouldApplySyncTaskEvent } from '@/utils/syncTaskEventSequence'
+import {
+  resetSyncTaskEventSequences,
+  shouldApplySyncTaskEvent,
+} from '@/utils/syncTaskEventSequence'
 import { getEmbyRefreshDecision } from '@/utils/syncRefreshDecision'
 import { formatDateTime } from '@/utils/timeUtils'
 import type { AxiosStatic } from 'axios'

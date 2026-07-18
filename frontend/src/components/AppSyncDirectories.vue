@@ -392,7 +392,10 @@ import { computed, inject, onMounted, onUnmounted, ref, type Component } from 'v
 import { useRouter } from 'vue-router'
 import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 import { sourceTypeTagMap, sourceTypeMap } from '@/utils/sourceTypeUtils'
-import { resetSyncTaskEventSequences, shouldApplySyncTaskEvent } from '@/utils/syncTaskEventSequence'
+import {
+  resetSyncTaskEventSequences,
+  shouldApplySyncTaskEvent,
+} from '@/utils/syncTaskEventSequence'
 import { formatTime } from '@/utils/timeUtils'
 import {
   formatDirectoryUploadPathSummary,

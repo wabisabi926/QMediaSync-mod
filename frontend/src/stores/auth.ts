@@ -29,7 +29,14 @@ export interface LoginPayload {
 
 type AuthStatus = 'checking' | 'authenticated' | 'anonymous'
 
+export type SessionRefreshState = 'authenticated' | 'anonymous' | 'unavailable'
+
+export type SessionRefreshResult = {
+  state: SessionRefreshState
+}
+
 type SessionResponseData = {
+  authenticated: boolean
   user?: User
   csrf_token?: string
   session?: UserSession
@@ -75,7 +82,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const applySessionResponse = (data?: SessionResponseData) => {
-    if (!data?.user || !data.csrf_token) return false
+    if (!data?.authenticated || !data.user || !data.csrf_token) return false
     applySession({
       user: data.user,
       csrfToken: data.csrf_token,
@@ -84,27 +91,35 @@ export const useAuthStore = defineStore('auth', () => {
     return true
   }
 
-  const refreshSession = async (http: AxiosStatic) => {
+  const refreshSession = async (http: AxiosStatic): Promise<SessionRefreshResult> => {
     authStatus.value = 'checking'
     try {
-      const response = await http.get(`${SERVER_URL}/session`, { withCredentials: true })
+      const response = await http.get(`${SERVER_URL}/session`, {
+        withCredentials: true,
+        skipAuthInvalidation: true,
+      })
       if (response.data?.code === 200 && applySessionResponse(response.data.data)) {
-        return true
+        return { state: 'authenticated' }
       }
+      if (response.data?.code === 200 && response.data?.data?.authenticated === false) {
+        clearAuth()
+        return { state: 'anonymous' }
+      }
+      console.error('恢复登录会话失败：', response.data)
     } catch (error) {
       console.error('恢复登录会话失败：', error)
     }
     clearAuth()
-    return false
+    return { state: 'unavailable' }
   }
 
   const bootstrapAuth = async (http: AxiosStatic) => {
     if (bootstrapPromise) return bootstrapPromise
 
     bootstrapPromise = (async () => {
-      const ok = await refreshSession(http)
+      const result = await refreshSession(http)
       bootstrapPromise = null
-      return ok
+      return result.state === 'authenticated'
     })()
 
     return bootstrapPromise
@@ -136,9 +151,14 @@ export const useAuthStore = defineStore('auth', () => {
     if (isLoggingOut.value) return
     isLoggingOut.value = true
     try {
-      await http.post(`${SERVER_URL}/logout`, undefined, { withCredentials: true })
+      await http.post(`${SERVER_URL}/logout`, undefined, {
+        withCredentials: true,
+        skipAuthInvalidation: true,
+      })
     } catch (error) {
-      console.error('服务端退出登录失败：', error)
+      if (!http.isAxiosError(error) || error.response?.status !== 401) {
+        console.error('服务端退出登录失败：', error)
+      }
     } finally {
       clearAuth()
       setTimeout(() => {

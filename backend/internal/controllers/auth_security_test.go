@@ -178,6 +178,17 @@ func TestCookieSessionRequiresCSRFForUnsafeMethod(t *testing.T) {
 	}
 }
 
+func TestCookieSessionWithoutCredentialsReturnsUnauthorized(t *testing.T) {
+	r, _, _, _ := setupAuthSecurityTest(t)
+	req := httptest.NewRequest(http.MethodPost, "/protected", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("未认证业务请求 HTTP = %d, want 401", w.Code)
+	}
+}
+
 func TestCookieSessionAllowsDefaultViteOrigin(t *testing.T) {
 	r, _, session, csrfToken := setupAuthSecurityTest(t)
 	tokenString := buildSessionCookieTokenForTest(t, session)

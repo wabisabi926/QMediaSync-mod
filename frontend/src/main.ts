@@ -12,6 +12,7 @@ import App from './App.vue'
 import router from './router/index'
 import { useAuthStore } from '@/stores/auth'
 import { SERVER_URL } from '@/const'
+import { installAuthResponseInterceptor } from '@/http/authInterceptor'
 import { getCSRFTokenFromCookie, shouldAttachCSRFToken } from '@/utils/csrf'
 
 // 配置 axios
@@ -39,42 +40,13 @@ axios.interceptors.request.use(
   },
 )
 
-// 响应拦截器
-axios.interceptors.response.use(
-  (response) => {
-    // 检查响应数据中的 code 字段
-    if (response.data && response.data.code === 401) {
-      const authStore = useAuthStore()
-      if (!authStore.isLoggingOut) {
-        ElMessage.error('登录已失效，请重新登录')
-        void authStore.logoutWithServer(axios)
-        void router.replace('/login')
-      }
-      return Promise.reject(new Error('登录已失效，请重新登录'))
-    }
-    return response
+installAuthResponseInterceptor(axios, {
+  getAuthStore: useAuthStore,
+  onAuthenticationInvalidated: async () => {
+    ElMessage.error('登录已失效，请重新登录')
+    await router.replace('/login')
   },
-  (error) => {
-    const authStore = useAuthStore()
-    // 检查 HTTP 状态码 401
-    if (error.response?.status === 401) {
-      if (!authStore.isLoggingOut) {
-        ElMessage.error('登录已失效，请重新登录')
-        void authStore.logoutWithServer(axios)
-        void router.replace('/login')
-      }
-    }
-    // 检查响应数据中的 code 字段
-    else if (error.response?.data?.code === 401) {
-      if (!authStore.isLoggingOut) {
-        ElMessage.error('登录已失效，请重新登录')
-        void authStore.logoutWithServer(axios)
-        void router.replace('/login')
-      }
-    }
-    return Promise.reject(error)
-  },
-)
+})
 
 const pinia = createPinia()
 const app = createApp(App)

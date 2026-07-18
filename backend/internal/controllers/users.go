@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"qmediasync/internal/requests"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func loginFailureMessage() string {
@@ -120,50 +122,102 @@ func LoginAction(c *gin.Context) {
 	})
 }
 
-// SessionAction 返回当前登录会话
+type sessionResponseData struct {
+	Authenticated bool              `json:"authenticated"`
+	User          map[string]string `json:"user,omitempty"`
+	Session       gin.H             `json:"session,omitempty"`
+	CSRFToken     string            `json:"csrf_token,omitempty"`
+}
+
+func writeAnonymousSession(c *gin.Context) {
+	c.JSON(http.StatusOK, APIResponse[sessionResponseData]{
+		Code:    Success,
+		Message: "未登录",
+		Data: sessionResponseData{
+			Authenticated: false,
+		},
+	})
+}
+
+func writeSessionInternalError(c *gin.Context, message string, err error) {
+	if helpers.AppLogger != nil {
+		helpers.AppLogger.Errorf("%s：%v", message, err)
+	}
+	c.JSON(http.StatusInternalServerError, APIResponse[any]{
+		Code:    BadRequest,
+		Message: "获取会话失败",
+		Data:    nil,
+	})
+}
+
+// SessionAction 查询当前浏览器会话状态。
 func SessionAction(c *gin.Context) {
+	c.Header("Cache-Control", "no-store, private")
+
 	cookie, err := c.Request.Cookie(authCookieName)
 	if err != nil || cookie.Value == "" {
-		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "登录凭证不存在", Data: nil})
+		writeAnonymousSession(c)
 		return
 	}
 	loginUser, err := ValidateJWT(cookie.Value)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "登录凭证无效", Data: nil})
+		clearSessionCookies(c)
+		writeAnonymousSession(c)
 		return
 	}
 	session, err := models.GetActiveUserSession(loginUser.SessionID, time.Now().Unix())
-	if err != nil || session.UserID != loginUser.ID {
-		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "登录会话已失效", Data: nil})
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			clearSessionCookies(c)
+			writeAnonymousSession(c)
+			return
+		}
+		writeSessionInternalError(c, "查询登录会话失败", err)
+		return
+	}
+	if session.UserID != loginUser.ID {
+		clearSessionCookies(c)
+		writeAnonymousSession(c)
 		return
 	}
 	user, err := models.GetUserById(session.UserID)
-	if err != nil || user.ID == 0 {
-		c.JSON(http.StatusUnauthorized, APIResponse[any]{Code: BadRequest, Message: "登录用户不存在", Data: nil})
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			clearSessionCookies(c)
+			writeAnonymousSession(c)
+			return
+		}
+		writeSessionInternalError(c, "查询登录用户失败", err)
+		return
+	}
+	if user == nil || user.ID == 0 {
+		clearSessionCookies(c)
+		writeAnonymousSession(c)
 		return
 	}
 	csrfCookie, err := c.Request.Cookie(csrfCookieName)
 	if err != nil || csrfCookie.Value == "" || !session.ValidateCSRFToken(csrfCookie.Value) {
 		csrfToken, csrfErr := models.GenerateSessionSecret(32)
 		if csrfErr != nil {
-			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "刷新 CSRF Token 失败", Data: nil})
+			writeSessionInternalError(c, "生成 CSRF Token 失败", csrfErr)
 			return
 		}
 		session.CSRFTokenHash = models.HashSessionSecret(csrfToken)
 		if err := models.SaveUserSession(session); err != nil {
-			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "刷新会话失败", Data: nil})
+			writeSessionInternalError(c, "刷新登录会话失败", err)
 			return
 		}
 		setCSRFCookie(c, csrfToken, 0)
 		csrfCookie = &http.Cookie{Name: csrfCookieName, Value: csrfToken}
 	}
-	c.JSON(http.StatusOK, APIResponse[any]{
+	c.JSON(http.StatusOK, APIResponse[sessionResponseData]{
 		Code:    Success,
 		Message: "获取会话成功",
-		Data: gin.H{
-			"user":       buildLoginUserResponse(user),
-			"session":    buildSessionResponse(session, session.SessionID),
-			"csrf_token": csrfCookie.Value,
+		Data: sessionResponseData{
+			Authenticated: true,
+			User:          buildLoginUserResponse(user),
+			Session:       buildSessionResponse(session, session.SessionID),
+			CSRFToken:     csrfCookie.Value,
 		},
 	})
 }

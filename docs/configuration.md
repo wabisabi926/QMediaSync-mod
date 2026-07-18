@@ -15,9 +15,10 @@
 
 ## 浏览器登录会话
 
-- 浏览器登录使用 `auth_token` HttpOnly Cookie，不在 Web Storage 保存 JWT。
-- 服务端通过 `user_sessions` 表控制会话有效性，退出登录、修改密码、两步验证变更和登录设备撤销都会更新该表。
-- `csrf_token` Cookie 可被前端读取，前端会在 `POST`、`PUT`、`PATCH`、`DELETE` 请求中通过 `X-CSRF-Token` 发送，服务端同时校验请求来源和 session 中的 CSRF 哈希。
+- 浏览器登录使用 `auth_token` HttpOnly Cookie，不在 Web Storage 保存 JWT。Cookie 使用 `Path=/`、`SameSite=Lax` 和 Host-only 范围（不设置 `Domain`）；HTTPS 请求使用 `Secure` 属性。`csrf_token` Cookie 可被前端读取，前端会在 `POST`、`PUT`、`PATCH`、`DELETE` 请求中通过 `X-CSRF-Token` 发送，服务端同时校验请求来源和 session 中的 CSRF 哈希。
+- 服务端通过 `user_sessions` 表控制会话有效性，退出登录、修改密码、两步验证变更和登录设备撤销都会更新该表。用户主动退出会请求 `POST /api/logout` 撤销服务端会话；已登录业务请求收到 `401` 时，前端只清理本地状态、关闭实时连接并跳转登录页，不会再请求 `/api/logout`。CSRF 校验失败仍返回 `403`。
+- `GET /api/session` 是当前浏览器的会话状态查询，不是必须认证的用户资料接口。没有 Cookie、JWT 无效或过期、会话已撤销时均返回 `200` 和 `data.authenticated=false`，这是正常匿名状态，不应产生控制台错误；有效会话返回 `data.authenticated=true` 以及用户、会话和 CSRF 数据。响应始终设置 `Cache-Control: no-store, private`，数据库或其他内部故障返回 `5xx`，不会伪装成匿名状态或清理 Cookie。
+- 登录接口返回成功后，前端会先调用 `/api/session` 验证浏览器已保存并回传 Cookie，再进入首页。仅当会话查询明确返回 `authenticated=false` 时，前端才会停留在登录页并提示检查 Cookie 设置，避免首页的受保护请求连续返回 `401`；网络错误、`5xx` 或异常响应会提示会话验证暂不可用，不会误导为 Cookie 问题。
 - CORS 和 CSRF 共享可信来源判断：同源请求自动允许，默认允许 Vite 开发来源 `http://localhost:5173`、`http://127.0.0.1:5173` 和 `http://[::1]:5173`。自定义前后端跨源部署时，在 `config/config.yaml` 中配置精确来源：
 
   ```yaml
@@ -26,7 +27,8 @@
   ```
 
   `trustedOrigins` 按 `scheme://host[:port]` 精确匹配，显式默认端口 `http:80`、`https:443` 会按无端口来源处理。前端和 API 使用同一个域名访问时不需要配置；旧配置缺少该字段会按空列表处理。
-  通过 Nginx / Caddy 等反向代理绑定域名时，应保留原始 `Host` 并传递 `X-Forwarded-Proto`，这样同源判断可以按用户访问的域名生效。
+  通过 Nginx / Caddy 等反向代理绑定域名时，应保留原始 `Host` 并由可信代理传递 `X-Forwarded-Proto: https`，这样同源判断可以按用户访问的域名生效，并能正确签发 Secure Cookie。后端 HTTP 监听地址不得直接暴露给客户端；应使用防火墙、内网监听或代理网络隔离，防止客户端伪造 `X-Forwarded-Proto`。
+- 登录后仍回到登录页，或普通窗口失败、无痕窗口正常时，请始终使用同一个协议和主机名访问服务，避免在 IP、域名、HTTP、HTTPS 之间切换；检查浏览器是否禁止本站 Cookie，清除本站点数据后重试；临时停用隐私、防跟踪、广告或脚本拦截扩展；最后在浏览器 Network 面板检查登录响应的 `Set-Cookie` 是否被标记为阻止及其原因。
 - API Key 调用支持 `X-API-Key` header 和 `?api_key=` 查询参数，不需要 CSRF。`/emby/webhook` 配置默认启用鉴权，优先读取 `X-API-Key`，并保留 `?api_key=` 兼容只能配置 URL 的 Emby Webhook 场景。
 - 在「系统设置 - API Key」创建密钥后，后端会生成 `qms_` 前缀加 24 位随机字符的完整密钥。完整密钥只在创建响应中返回一次；数据库 `api_keys` 表保存 `user_id`、`name`、`key_hash`、前 8 位 `key_prefix`、`is_active`、时间戳和 `last_used_at`，不保存完整明文。校验时对请求中的 Key 再做同样 SHA256，用 `key_hash` + `is_active=true` 查表。
 - 本地下载反代 `/proxy-115` 仅允许访问 115 CDN 和百度网盘下载域名，用于 115 / 百度网盘播放代理和媒体信息提取；初始目标和每次重定向目标都会执行同一白名单校验，其他目标地址会被拒绝。

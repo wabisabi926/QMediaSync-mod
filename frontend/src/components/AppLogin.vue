@@ -82,15 +82,22 @@ const handleLogin = async (payload: LoginSubmitPayload) => {
         headers: {
           'Content-Type': 'application/json',
         },
+        skipAuthInvalidation: true,
       },
     )
 
     if (response?.data.code === 200) {
-      authStore.login({
-        user: response.data.data.user,
-        csrfToken: response.data.data.csrf_token,
-        session: response.data.data.session,
-      })
+      const sessionResult = await authStore.refreshSession(http)
+      if (sessionResult.state === 'anonymous') {
+        ElMessage.error(
+          '登录会话未能建立，请允许本站 Cookie 后重试；若问题持续，请清除本站点数据或停用拦截扩展',
+        )
+        return
+      }
+      if (sessionResult.state === 'unavailable') {
+        ElMessage.error('登录会话验证失败，请检查网络连接或稍后重试')
+        return
+      }
 
       ElMessage.success('登录成功')
 

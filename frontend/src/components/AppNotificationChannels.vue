@@ -503,7 +503,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted, inject, computed, useTemplateRef, type Component } from 'vue'
+import { reactive, ref, onMounted, computed, useTemplateRef, type Component } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import {
   Plus,
@@ -522,7 +522,7 @@ import {
   Link,
 } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
-import type { AxiosStatic } from 'axios'
+import { useHttpClient } from '@/http/client'
 import ResponsiveIconButton from '@/components/common/ResponsiveIconButton.vue'
 import WebhookHeadersEditor from '@/components/notification/WebhookHeadersEditor.vue'
 import { useDeviceType } from '@/composables/useDeviceType'
@@ -582,7 +582,7 @@ interface RuleWithStatus extends NotificationRule {
 }
 
 const { isMobile: checkIsMobile } = useDeviceType()
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 
 const loading = ref(false)
 const creating = ref(false)
@@ -677,7 +677,7 @@ const channelForm = reactive<ChannelFormData>({
 const loadChannels = async () => {
   loading.value = true
   try {
-    const response = await http?.get(`${SERVER_URL}/setting/notification/channels`)
+    const response = await http.get(`${SERVER_URL}/setting/notification/channels`)
     if (response?.data.code === 0) {
       channels.value = response.data.data.map(
         (channel: NotificationChannel): ChannelWithStatus => ({
@@ -737,7 +737,7 @@ const showEditDialog = async (channel: NotificationChannel) => {
 
   try {
     // 根据渠道类型调用对应的查询接口获取详细配置
-    const response = await http?.get(
+    const response = await http.get(
       `${SERVER_URL}/setting/notification/channels/${channel.channel_type}/${channel.id}`,
     )
 
@@ -904,7 +904,7 @@ const createChannel = async () => {
       }
     }
 
-    const response = await http?.post(
+    const response = await http.post(
       `${SERVER_URL}/setting/notification/channels/${selectedChannelType.value}`,
       requestData,
     )
@@ -928,7 +928,7 @@ const createChannel = async () => {
 const toggleChannelStatus = async (channel: ChannelWithStatus) => {
   channel._switching = true
   try {
-    const response = await http?.post(`${SERVER_URL}/setting/notification/channels/status`, {
+    const response = await http.post(`${SERVER_URL}/setting/notification/channels/status`, {
       channel_id: channel.id,
       is_enabled: channel.is_enabled,
     })
@@ -1010,7 +1010,7 @@ const updateChannel = async () => {
       if (channelForm.description) requestData.description = channelForm.description
     }
 
-    const response = await http?.put(
+    const response = await http.put(
       `${SERVER_URL}/setting/notification/channels/${channelType}`,
       requestData,
     )
@@ -1034,7 +1034,7 @@ const updateChannel = async () => {
 const testChannel = async (channel: ChannelWithStatus) => {
   channel._testing = true
   try {
-    const response = await http?.post(`${SERVER_URL}/setting/notification/channels/test`, {
+    const response = await http.post(`${SERVER_URL}/setting/notification/channels/test`, {
       channel_id: channel.id,
     })
 
@@ -1064,7 +1064,7 @@ const deleteChannel = async (channel: NotificationChannel) => {
       },
     )
 
-    const response = await http?.delete(`${SERVER_URL}/setting/notification/channels/${channel.id}`)
+    const response = await http.delete(`${SERVER_URL}/setting/notification/channels/${channel.id}`)
 
     if (response?.data.code === 0) {
       ElMessage.success('删除成功')
@@ -1091,7 +1091,7 @@ const showRulesDialog = async (channel: NotificationChannel) => {
 const loadRules = async (channelId: number) => {
   rulesLoading.value = true
   try {
-    const response = await http?.get(
+    const response = await http.get(
       `${SERVER_URL}/setting/notification/rules?channel_id=${channelId}`,
     )
 
@@ -1115,7 +1115,7 @@ const loadRules = async (channelId: number) => {
 const updateRule = async (rule: RuleWithStatus) => {
   rule._updating = true
   try {
-    const response = await http?.put(`${SERVER_URL}/setting/notification/rules`, {
+    const response = await http.put(`${SERVER_URL}/setting/notification/rules`, {
       channel_id: rule.channel_id,
       event_type: rule.event_type,
       is_enabled: rule.is_enabled,

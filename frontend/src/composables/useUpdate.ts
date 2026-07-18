@@ -1,6 +1,6 @@
-import { inject, onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { SERVER_URL } from '@/const'
-import type { AxiosStatic } from 'axios'
+import { useHttpClient } from '@/http/client'
 import { ElMessage } from 'element-plus'
 
 export interface UpdateInfo {
@@ -38,7 +38,7 @@ export function isUpdateRunningStatus(
 }
 
 export function useUpdate() {
-  const http = inject<AxiosStatic>('$http')
+  const http = useHttpClient()
 
   const updateList = ref<UpdateInfo[]>([])
   const updateLoading = ref(false)
@@ -66,7 +66,7 @@ export function useUpdate() {
         params.push('force=1')
       }
       const url = `${SERVER_URL}/update/last?${params.join('&')}`
-      const response = await http?.get(url)
+      const response = await http.get(url)
       if (response && response.data && response.data.data) {
         updateList.value = response.data.data.map((item: UpdateInfo) => {
           return {
@@ -87,7 +87,7 @@ export function useUpdate() {
 
   const checkUpdateStatusOnLoad = async () => {
     try {
-      const response = await http?.get(`${SERVER_URL}/update/progress`)
+      const response = await http.get(`${SERVER_URL}/update/progress`)
 
       if (response && response.data && response.data.code === 200) {
         const progressData = response.data.data
@@ -137,7 +137,7 @@ export function useUpdate() {
     }
 
     try {
-      const response = await http?.post(`${SERVER_URL}/update/to-version`, {
+      const response = await http.post(`${SERVER_URL}/update/to-version`, {
         version: version,
         channel: updateChannel.value,
       })
@@ -204,7 +204,7 @@ export function useUpdate() {
 
   const checkUpdateProgress = async () => {
     try {
-      const response = await http?.get(`${SERVER_URL}/update/progress`)
+      const response = await http.get(`${SERVER_URL}/update/progress`)
 
       if (response && response.data) {
         if (response.data.code !== 200) {
@@ -278,7 +278,7 @@ export function useUpdate() {
 
   const cancelUpdate = async () => {
     try {
-      await http?.post(`${SERVER_URL}/update/cancel`)
+      await http.post(`${SERVER_URL}/update/cancel`)
 
       stopProgressPolling()
       resetUpdateState()

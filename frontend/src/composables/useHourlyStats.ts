@@ -1,6 +1,6 @@
-import { computed, inject, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { SERVER_URL } from '@/const'
-import type { AxiosStatic } from 'axios'
+import { useHttpClient } from '@/http/client'
 import { formatDateTime } from '@/utils/timeUtils'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -41,7 +41,7 @@ export interface HourlyStatsData {
 }
 
 export function useHourlyStats() {
-  const http = inject<AxiosStatic>('$http')
+  const http = useHttpClient()
   const hourlyStats = ref<HourlyStatsData | null>(null)
   const hourlyStatsLoading = ref(false)
   const hasLoaded = ref(false)
@@ -49,7 +49,7 @@ export function useHourlyStats() {
   const loadHourlyStats = async () => {
     try {
       hourlyStatsLoading.value = !hasLoaded.value
-      const response = await http?.get(`${SERVER_URL}/115/stats/hourly`)
+      const response = await http.get(`${SERVER_URL}/115/stats/hourly`)
       if (response && response.data && response.data.code === 200) {
         hourlyStats.value = response.data.data
         hasLoaded.value = true

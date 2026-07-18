@@ -711,7 +711,7 @@
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
 import { CRON_DEFAULTS, HTTP_URL_PATTERN } from '@/constants/validation'
-import type { AxiosStatic } from 'axios'
+import { useHttpClient } from '@/http/client'
 import {
   Check,
   Refresh,
@@ -730,13 +730,13 @@ import {
   Calendar,
 } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { computed, inject, onMounted, ref, reactive, onBeforeUnmount, useTemplateRef } from 'vue'
+import { computed, onMounted, ref, reactive, onBeforeUnmount, useTemplateRef } from 'vue'
 import ResponsiveActionBar from '@/components/common/ResponsiveActionBar.vue'
 import { useDeviceType } from '@/composables/useDeviceType'
 import { copyText } from '@/utils/clipboard'
 import { formatMaybeUnixDateTime, formatRelativeTime } from '@/utils/timeUtils'
 
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 
 const formRef = useTemplateRef<FormInstance>('formRef')
 
@@ -883,7 +883,7 @@ const defaultConfig = {
 const loadEmbyConfig = async () => {
   try {
     embyLoading.value = true
-    const response = await http?.get(`${SERVER_URL}/setting/emby-config`)
+    const response = await http.get(`${SERVER_URL}/setting/emby-config`)
 
     if (response?.data.code === 200) {
       if (response.data.data?.exists && response.data.data?.config) {
@@ -930,7 +930,7 @@ const loadEmbyConfig = async () => {
 // 加载 Emby 媒体库列表
 const loadEmbyLibraries = async () => {
   try {
-    const response = await http?.get(`${SERVER_URL}/emby/libraries`)
+    const response = await http.get(`${SERVER_URL}/emby/libraries`)
     if (response?.data.code === 200 && response?.data.data) {
       availableLibraries.value = (response.data.data as EmbyLibraryOption[]).map((lib) => ({
         library_id: lib.library_id,
@@ -957,7 +957,7 @@ const saveEmbyConfig = async () => {
     await formRef.value.validate()
     embyLoading.value = true
 
-    const response = await http?.post(
+    const response = await http.post(
       `${SERVER_URL}/setting/emby-config`,
       {
         emby_url: embyData.emby_url.trim(),
@@ -1016,7 +1016,7 @@ const saveEmbyConfig = async () => {
 const praseEmby = async () => {
   try {
     embyLoading.value = true
-    const response = await http?.post(
+    const response = await http.post(
       `${SERVER_URL}/setting/emby/parse`,
       {
         emby_url: embyData.emby_url.trim(),
@@ -1074,7 +1074,7 @@ const fetchCronNextTimes = async () => {
   }
 
   try {
-    const response = await http?.get(`${SERVER_URL}/setting/cron`, {
+    const response = await http.get(`${SERVER_URL}/setting/cron`, {
       params: { cron: embyData.sync_cron.trim() },
     })
 
@@ -1098,7 +1098,7 @@ const fetchCronNextTimes = async () => {
 const startSync = async () => {
   try {
     syncStartLoading.value = true
-    const response = await http?.post(`${SERVER_URL}/emby/sync/start`)
+    const response = await http.post(`${SERVER_URL}/emby/sync/start`)
 
     if (response?.data.code === 200) {
       ElMessage.success('同步已启动')
@@ -1117,7 +1117,7 @@ const startSync = async () => {
 
 const querySyncStatus = async () => {
   try {
-    const response = await http?.get(`${SERVER_URL}/emby/sync/status`)
+    const response = await http.get(`${SERVER_URL}/emby/sync/status`)
 
     if (response?.data.code === 200) {
       syncInfo.value = response.data.data
@@ -1139,7 +1139,7 @@ const startSyncPolling = () => {
   }
   syncPollTimer = window.setInterval(async () => {
     try {
-      const response = await http?.get(`${SERVER_URL}/emby/sync/status`)
+      const response = await http.get(`${SERVER_URL}/emby/sync/status`)
 
       if (response?.data.code === 200) {
         syncInfo.value = response.data.data

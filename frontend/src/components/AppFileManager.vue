@@ -345,7 +345,6 @@ import {
   onActivated,
   onDeactivated,
   onUnmounted,
-  inject,
   nextTick,
   useTemplateRef,
 } from 'vue'
@@ -355,13 +354,13 @@ import type { FileSystemItem, FileOperationType, DirInfo } from '@/typing'
 import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
 import { useBackgroundRefresh } from '@/composables/useBackgroundRefresh'
 import { useDeviceType } from '@/composables/useDeviceType'
+import { useHttpClient } from '@/http/client'
 import { mergeStableList, retainExistingKeys } from '@/composables/useStableList'
 import { usePageStateStore } from '@/stores/pageState'
 import { getFileType, getFileIconByName } from '@/utils/fileIconUtils'
 import { formatFileSize } from '@/utils/fileSizeUtils'
 import { formatDateTime } from '@/utils/timeUtils'
 import { SERVER_URL } from '@/const'
-import type { AxiosStatic } from 'axios'
 import ResponsivePagination from '@/components/common/ResponsivePagination.vue'
 import DirectorySelector from './DirectorySelector.vue'
 
@@ -524,7 +523,7 @@ const total = ref(0)
 const fileList = ref<FileSystemItem[]>([])
 const { isMobile } = useDeviceType()
 
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 const accountList = ref<NetdiskAccount[]>([])
 const selectedAccountId = computed<number | null>({
   get: () => {
@@ -1089,7 +1088,7 @@ async function handleDeleteItem(item: FileSystemItem) {
       return
     }
 
-    const response = await http?.delete(`${SERVER_URL}/path`, {
+    const response = await http.delete(`${SERVER_URL}/path`, {
       params: {
         parent_id: operationContext.parentId,
         file_id: item.id,
@@ -1155,7 +1154,7 @@ async function handleCreateDirectory() {
 
     createLoading.value = true
 
-    const response = await http?.post(`${SERVER_URL}/path/create`, {
+    const response = await http.post(`${SERVER_URL}/path/create`, {
       parent_id: operationContext.parentId,
       parent_path: operationContext.parentPath,
       name: createForm.value.name.trim(),
@@ -1210,7 +1209,7 @@ async function confirmStrmGenerate() {
     // const currentPathStr = pathItems.value.map(p => p.name).join('/')
     // const itemPath = currentPathStr ? `${currentPathStr}/${strmSourceItem.value.name}` : strmSourceItem.value.name
 
-    const response = await http?.post(`${SERVER_URL}/sync/manual`, {
+    const response = await http.post(`${SERVER_URL}/sync/manual`, {
       path_id: strmSourceItem.value.id,
       // path: itemPath,
       target_path: strmTargetDir.value.path,

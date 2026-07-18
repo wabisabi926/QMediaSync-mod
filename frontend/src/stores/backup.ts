@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import type { AxiosStatic } from 'axios'
+import type { AxiosInstance } from 'axios'
 import type { BackupTaskType, BackupProgress } from '@/typing'
 import { SERVER_URL } from '@/const'
 
@@ -20,7 +20,7 @@ export const useBackupStore = defineStore('backup', () => {
     () => taskType.value === 'backup' && progress.value?.status === 'running',
   )
 
-  // const checkBackupStatus = async (http?: AxiosStatic) => {
+  // const checkBackupStatus = async (http: AxiosInstance) => {
   //   if (!http) return
 
   //   try {
@@ -37,9 +37,11 @@ export const useBackupStore = defineStore('backup', () => {
   //   }
   // }
 
-  const startProgressPolling = (type: 'backup' | 'restore', id?: number, http?: AxiosStatic) => {
-    if (!http) return
-
+  const startProgressPolling = (
+    type: 'backup' | 'restore',
+    id: number | undefined,
+    http: AxiosInstance,
+  ) => {
     taskType.value = type
     showProgressDialog.value = true
     errorRetryCount.value = 0
@@ -57,7 +59,7 @@ export const useBackupStore = defineStore('backup', () => {
     }, 3000)
   }
 
-  const pollProgress = async (http: AxiosStatic) => {
+  const pollProgress = async (http: AxiosInstance) => {
     try {
       if (taskType.value === 'backup') {
         const res = await http.get(`${SERVER_URL}/backup/status`)
@@ -149,7 +151,7 @@ export const useBackupStore = defineStore('backup', () => {
     }
   }
 
-  // const cancelBackupTask = async (http: AxiosStatic) => {
+  // const cancelBackupTask = async (http: AxiosInstance) => {
   //   try {
   //     const res = await http.post(`${SERVER_URL}/backup/cancel`)
 

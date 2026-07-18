@@ -102,11 +102,12 @@ import ResponsiveRecordTable from '@/components/records/ResponsiveRecordTable.vu
 import { SERVER_URL } from '@/const'
 import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
 import { useBackgroundRefresh } from '@/composables/useBackgroundRefresh'
+import { useDeviceType } from '@/composables/useDeviceType'
+import { useHttpClient } from '@/http/client'
 import { mergeStableList, retainExistingKeys } from '@/composables/useStableList'
 import { useRealtimeEvent } from '@/composables/useRealtimeEvents'
 import { usePageStateStore } from '@/stores/pageState'
 import type { RecordAction, RecordActionPayload, RecordColumn } from '@/types/recordTable'
-import { isMobile as checkIsMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 import {
   applySyncRecordEventPatch,
   type SyncRecordEventType,
@@ -118,12 +119,10 @@ import {
 } from '@/utils/syncTaskEventSequence'
 import { getEmbyRefreshDecision } from '@/utils/syncRefreshDecision'
 import { formatDateTime } from '@/utils/timeUtils'
-import type { AxiosStatic } from 'axios'
 import { Delete, View } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   computed,
-  inject,
   nextTick,
   onActivated,
   onDeactivated,
@@ -170,7 +169,7 @@ interface SyncRecordDeleteContextSnapshot {
   mode: 'single' | 'batch'
 }
 
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 const router = useRouter()
 
 // 数据状态
@@ -185,7 +184,7 @@ const getPageScrollContainer = () =>
   pageContainerRef.value?.closest<HTMLElement>('.main-content') ?? pageContainerRef.value
 const syncRecords = ref<SyncRecord[]>([])
 const queryLoading = ref(false)
-const isMobileView = ref(checkIsMobile())
+const { isMobile: isMobileView } = useDeviceType()
 
 // 批量删除相关状态
 const batchMode = ref(false)
@@ -211,7 +210,6 @@ const total = ref(0)
 const pendingSyncRecordsRefresh = ref(false)
 let isPageActive = false
 const syncRecordsRequestGate = createActiveRequestGate(() => isPageActive)
-let stopDeviceTypeChange: (() => void) | null = null
 const lastSyncRecordEventSequence = new Map<number, number>()
 
 const patchSyncRecordFromEvent = (raw: Record<string, unknown>, eventType: SyncRecordEventType) => {
@@ -467,7 +465,7 @@ const loadSyncRecords = async () => {
   try {
     await runRefresh(async () => {
       try {
-        const response = await http?.get(`${SERVER_URL}/sync/records`, {
+        const response = await http.get(`${SERVER_URL}/sync/records`, {
           params: {
             page: currentPage.value,
             page_size: pageSize.value,
@@ -523,7 +521,7 @@ const loadSyncRecords = async () => {
 //     syncLoading.value = true
 //     syncStatus.value = null
 
-//     const response = await http?.post(`${SERVER_URL}/sync/start`)
+//     const response = await http.post(`${SERVER_URL}/sync/start`)
 
 //     if (response?.data.code === 200) {
 //       syncStatus.value = {
@@ -600,12 +598,6 @@ const deactivateSyncRecordsPage = () => {
 // 页面生命周期
 onMounted(activateSyncRecordsPage)
 
-onMounted(() => {
-  stopDeviceTypeChange = onDeviceTypeChange((nextIsMobile) => {
-    isMobileView.value = nextIsMobile
-  })
-})
-
 onActivated(activateSyncRecordsPage)
 
 onActivated(() => {
@@ -628,8 +620,6 @@ onUnmounted(() => {
   isPageActive = false
   pendingSyncRecordsRefresh.value = false
   queryLoading.value = false
-  stopDeviceTypeChange?.()
-  stopDeviceTypeChange = null
   syncRecordsRequestGate.invalidate()
   invalidateDeleteOperationContext()
 })
@@ -669,7 +659,7 @@ const deleteRecord = async (id: number) => {
     }
 
     deleteLoading.value = true
-    const response = await http?.post(
+    const response = await http.post(
       `${SERVER_URL}/sync/delete-records`,
       {
         ids: [id],
@@ -735,7 +725,7 @@ const batchDeleteRecords = async () => {
     }
 
     batchDeleteLoading.value = true
-    const response = await http?.post(
+    const response = await http.post(
       `${SERVER_URL}/sync/delete-records`,
       {
         ids,

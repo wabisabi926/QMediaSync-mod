@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { ref, inject } from 'vue'
+import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { SERVER_URL } from '@/const'
-import type { AxiosStatic } from 'axios'
+import { useHttpClient } from '@/http/client'
 
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 const loading = ref(false)
 
 const repairDatabase = async () => {
   try {
     loading.value = true
-    const response = await http?.post(`${SERVER_URL}/database/repair`)
+    const response = await http.post(`${SERVER_URL}/database/repair`)
     if (response?.data.code === 200) {
       ElMessage.success('数据库修复成功')
     } else {

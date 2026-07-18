@@ -122,10 +122,10 @@
 </template>
 
 <script setup lang="ts">
-import { inject, onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, Delete, CopyDocument } from '@element-plus/icons-vue'
-import type { AxiosStatic } from 'axios'
+import { useHttpClient } from '@/http/client'
 import { SERVER_URL } from '@/const'
 import { copyText } from '@/utils/clipboard'
 import { formatDateTime } from '@/utils/timeUtils'
@@ -146,7 +146,7 @@ interface CreatedApiKey extends ApiKey {
 
 type ApiKeyItem = ApiKey & { _updating?: boolean }
 
-const http = inject<AxiosStatic>('$http')
+const http = useHttpClient()
 const apiKeys = ref<ApiKeyItem[]>([])
 const loading = ref(false)
 const createDialogVisible = ref(false)
@@ -163,7 +163,7 @@ const formatDateSafe = (value?: number | null) => {
 const loadKeys = async () => {
   try {
     loading.value = true
-    const response = await http?.get(`${SERVER_URL}/api-keys`)
+    const response = await http.get(`${SERVER_URL}/api-keys`)
     if (response?.data.code === 200) {
       apiKeys.value = (response.data.data || []).map((item: ApiKey) => ({
         ...item,
@@ -194,7 +194,7 @@ const createKey = async () => {
   }
   try {
     creating.value = true
-    const response = await http?.post(`${SERVER_URL}/api-keys`, {
+    const response = await http.post(`${SERVER_URL}/api-keys`, {
       name: createForm.name.trim(),
     })
 
@@ -219,7 +219,7 @@ const toggleStatus = async (row: ApiKeyItem) => {
   const original = row.is_active
   row._updating = true
   try {
-    const response = await http?.put(`${SERVER_URL}/api-keys/${row.id}/status`, {
+    const response = await http.put(`${SERVER_URL}/api-keys/${row.id}/status`, {
       is_active: row.is_active,
     })
 
@@ -252,7 +252,7 @@ const confirmDelete = async (row: ApiKey) => {
       },
     )
 
-    const response = await http?.delete(`${SERVER_URL}/api-keys/${row.id}`)
+    const response = await http.delete(`${SERVER_URL}/api-keys/${row.id}`)
     if (response?.data.code === 200) {
       ElMessage.success('删除成功')
       loadKeys()

@@ -1,12 +1,12 @@
 import { SERVER_URL } from '@/const'
 import type { V115AuthStatus, V115QrCodePayload, V115QrCodeStatusPayload } from '@/types/v115Auth'
-import type { AxiosStatic } from 'axios'
+import type { AxiosInstance } from 'axios'
 import { computed, onScopeDispose, shallowRef } from 'vue'
 
 export const V115_QR_STATUS_TIMEOUT_MS = 70_000
 const V115_QR_STATUS_POLL_DELAY_MS = 1_000
 
-export function useV115DeviceAuthorization(http: AxiosStatic | undefined) {
+export function useV115DeviceAuthorization(http: AxiosInstance) {
   const qrCode = shallowRef<V115QrCodePayload | null>(null)
   const status = shallowRef<V115AuthStatus>('idle')
   const tip = shallowRef('')
@@ -33,7 +33,7 @@ export function useV115DeviceAuthorization(http: AxiosStatic | undefined) {
   }
 
   const pollStatus = async (runId: number) => {
-    if (!http || !accountId.value || !qrCode.value || runId !== authorizationRunId.value) return
+    if (!accountId.value || !qrCode.value || runId !== authorizationRunId.value) return
     pollTimer.value = null
 
     try {
@@ -72,7 +72,6 @@ export function useV115DeviceAuthorization(http: AxiosStatic | undefined) {
   }
 
   const startAuthorization = async (nextAccountId: number) => {
-    if (!http) return
     stopPolling()
     loading.value = true
     accountId.value = nextAccountId

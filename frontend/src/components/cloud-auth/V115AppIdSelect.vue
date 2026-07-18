@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { AxiosStatic } from 'axios'
-import { computed, inject, shallowRef, watch } from 'vue'
+import { computed, shallowRef, watch } from 'vue'
 
 import { useV115AppIdSearch } from '@/composables/useV115AppIdSearch'
+import { useHttpClient } from '@/http/client'
 import {
   featuredBuiltInAppIDs,
   pinnedBuiltInAppIDs,
@@ -19,7 +19,7 @@ interface V115AppSelectOption {
   appName: string
 }
 
-const http = inject<AxiosStatic | undefined>('$http')
+const http = useHttpClient()
 const { keyword, items, total, loading, hasMore, search, loadMore, reset } = useV115AppIdSearch({
   http,
 })

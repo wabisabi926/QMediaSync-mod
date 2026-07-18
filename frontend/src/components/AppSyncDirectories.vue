@@ -363,6 +363,7 @@
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
 import { useRealtimeEvent } from '@/composables/useRealtimeEvents'
+import { useHttpClient } from '@/http/client'
 import {
   Calendar,
   CircleCheck,
@@ -387,10 +388,8 @@ import {
   Warning,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { AxiosStatic } from 'axios'
-import { computed, inject, onMounted, onUnmounted, ref, type Component } from 'vue'
+import { computed, onMounted, ref, type Component } from 'vue'
 import { useRouter } from 'vue-router'
-import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 import { sourceTypeTagMap, sourceTypeMap } from '@/utils/sourceTypeUtils'
 import {
   resetSyncTaskEventSequences,
@@ -449,7 +448,7 @@ interface SyncTaskEventPayload {
   deleted?: boolean
 }
 
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 const router = useRouter()
 
 const directories = ref<SyncDirectory[]>([])
@@ -459,8 +458,6 @@ const loading = ref(false)
 const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(9999)
-
-const checkIsMobile = ref(isMobile())
 
 const showScrapePathDialog = ref(false)
 const selectedScrapePathIds = ref<number[]>([])
@@ -624,10 +621,6 @@ const getSecondaryActions = (row: SyncDirectory, index: number): SyncDirectoryAc
   return actions
 }
 
-const checkMobile = () => {
-  checkIsMobile.value = isMobile()
-}
-
 const GetFullPath = (row: SyncDirectory) => {
   // const pathSeparator = row.local_path.startsWith('/') ? '/' : '\\'
   if (row.source_type === 'local') {
@@ -645,7 +638,7 @@ const GetFullPath = (row: SyncDirectory) => {
 const loadDirectories = async () => {
   try {
     loading.value = true
-    const response = await http?.get(`${SERVER_URL}/sync/path-list`, {
+    const response = await http.get(`${SERVER_URL}/sync/path-list`, {
       timeout: 5000,
       params: {
         page: currentPage.value,
@@ -679,7 +672,7 @@ const loadDirectories = async () => {
 const loadDirectoryUploadRules = async () => {
   directoryUploadRulesLoadFailed.value = false
   try {
-    const response = await http?.get(`${SERVER_URL}/directory-upload/rules`)
+    const response = await http.get(`${SERVER_URL}/directory-upload/rules`)
     if (response?.data.code !== 200) {
       directoryUploadRules.value = {}
       directoryUploadRulesLoadFailed.value = true
@@ -693,7 +686,7 @@ const loadDirectoryUploadRules = async () => {
 }
 
 const updatePathesStatus = async () => {
-  const response = await http?.get(`${SERVER_URL}/sync/path-list`)
+  const response = await http.get(`${SERVER_URL}/sync/path-list`)
 
   if (response?.data.code === 200) {
     for (const p of response.data.data.list || []) {
@@ -790,7 +783,7 @@ const handleDelete = async (row: SyncDirectory, index: number) => {
       id: row.id || '',
     }
 
-    const response = await http?.post(`${SERVER_URL}/sync/path-delete`, formData, {
+    const response = await http.post(`${SERVER_URL}/sync/path-delete`, formData, {
       headers: {
         'Content-Type': 'application/json',
       },
@@ -822,7 +815,7 @@ const handleFullStart = async (row: SyncDirectory, index: number) => {
       id: row.id || '',
     }
 
-    const response = await http?.post(`${SERVER_URL}/sync/path/full-start`, formData, {
+    const response = await http.post(`${SERVER_URL}/sync/path/full-start`, formData, {
       headers: {
         'Content-Type': 'application/json',
       },
@@ -853,7 +846,7 @@ const handleStart = async (row: SyncDirectory, index: number) => {
       id: row.id || '',
     }
 
-    const response = await http?.post(`${SERVER_URL}/sync/path/start`, formData, {
+    const response = await http.post(`${SERVER_URL}/sync/path/start`, formData, {
       headers: {
         'Content-Type': 'application/json',
       },
@@ -884,7 +877,7 @@ const handleStop = async (row: SyncDirectory, index: number) => {
       id: row.id || '',
     }
 
-    const response = await http?.post(`${SERVER_URL}/sync/path/stop`, formData, {
+    const response = await http.post(`${SERVER_URL}/sync/path/stop`, formData, {
       headers: {
         'Content-Type': 'application/json',
       },
@@ -929,7 +922,7 @@ const scanDirectoryUploadRule = async (row: SyncDirectory) => {
     enabledRules.forEach((rule) => {
       rule.scanning = true
     })
-    const response = await http?.post(`${SERVER_URL}/directory-upload/sync-paths/${row.id}/scan`)
+    const response = await http.post(`${SERVER_URL}/directory-upload/sync-paths/${row.id}/scan`)
     if (response?.data.code === 200) {
       const accepted = response.data.data?.accepted
       ElMessage.success(
@@ -953,7 +946,7 @@ const toggleCron = async (row: SyncDirectory) => {
       id: row.id || '',
     }
 
-    const response = await http?.post(`${SERVER_URL}/sync/path/toggle-cron`, formData, {
+    const response = await http.post(`${SERVER_URL}/sync/path/toggle-cron`, formData, {
       headers: {
         'Content-Type': 'application/json',
       },
@@ -975,7 +968,7 @@ const toggleCron = async (row: SyncDirectory) => {
 const loadScrapePaths = async () => {
   try {
     scrapePathsLoading.value = true
-    const response = await http?.get(`${SERVER_URL}/scrape/pathes`, {
+    const response = await http.get(`${SERVER_URL}/scrape/pathes`, {
       params: { source_type: 'local' },
     })
 
@@ -1004,7 +997,7 @@ const openScrapePathDialog = async (row: SyncDirectory) => {
   await loadScrapePaths()
   if (row.id) {
     try {
-      const response = await http?.get(`${SERVER_URL}/sync/path/${row.id}/scrape-paths`)
+      const response = await http.get(`${SERVER_URL}/sync/path/${row.id}/scrape-paths`)
       if (response?.data.code === 200) {
         selectedScrapePathIds.value = response.data.data || []
       }
@@ -1022,7 +1015,7 @@ const saveScrapePathRelation = async () => {
 
   try {
     saveScrapePathLoading.value = true
-    const response = await http?.post(`${SERVER_URL}/sync/path/scrape-paths`, {
+    const response = await http.post(`${SERVER_URL}/sync/path/scrape-paths`, {
       id: currentSyncDirectory.value.id,
       scrape_path_id: selectedScrapePathIds.value,
     })
@@ -1057,20 +1050,8 @@ useRealtimeEvent('strm_sync_task_queued', patchSyncPathStatus)
 useRealtimeEvent('strm_sync_task_start', onLegacySyncEvent)
 useRealtimeEvent('strm_sync_task_complete', onLegacySyncEvent)
 
-let removeDeviceTypeListener: (() => void) | null = null
-
 onMounted(() => {
-  checkMobile()
-  removeDeviceTypeListener = onDeviceTypeChange((newIsMobile) => {
-    checkIsMobile.value = newIsMobile
-  })
   loadDirectories()
-})
-
-onUnmounted(() => {
-  if (removeDeviceTypeListener) {
-    removeDeviceTypeListener()
-  }
 })
 </script>
 

@@ -107,19 +107,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, inject } from 'vue'
+import { ref, onMounted } from 'vue'
 import ResponsivePagination from '@/components/common/ResponsivePagination.vue'
 import { useDeviceType } from '@/composables/useDeviceType'
 import { Upload } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { AxiosStatic } from 'axios'
+import { useHttpClient } from '@/http/client'
 import { SERVER_URL } from '@/const'
 import { useBackupStore } from '@/stores/backup'
 import type { BackupRecordListItem, BackupRecordsResponse, BackupStatus } from '@/typing'
 import { formatFileSize } from '@/utils/fileSizeUtils'
 import { formatTimestamp, formatDuration } from '@/utils/timeUtils'
 
-const http = inject<AxiosStatic>('$http')
+const http = useHttpClient()
 const backupStore = useBackupStore()
 const { isMobile } = useDeviceType()
 const API_SUCCESS_CODE = 200

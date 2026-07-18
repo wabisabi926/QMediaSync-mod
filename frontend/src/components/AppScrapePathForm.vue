@@ -779,12 +779,12 @@
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
 import { SCRAPE_THREAD_LIMITS } from '@/constants/validation'
-import type { AxiosStatic } from 'axios'
-import { inject, onMounted, onUnmounted, ref, reactive, watch, useTemplateRef } from 'vue'
+import { useHttpClient } from '@/http/client'
+import { onMounted, ref, reactive, watch, useTemplateRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
-import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
+import { useDeviceType } from '@/composables/useDeviceType'
 import { navigateBackOrReplace } from '@/utils/navigation'
 import { sourceTypeOptions } from '@/utils/sourceTypeUtils'
 import MetadataExtInput from './MetadataExtInput.vue'
@@ -831,7 +831,7 @@ interface ScrapePath {
   max_threads: number
 }
 
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 const route = useRoute()
 const router = useRouter()
 
@@ -845,7 +845,7 @@ const defaultAiPrompSuffix = [
   '现在请处理文件名：{{filename}}',
 ].join('\n')
 
-const checkIsMobile = ref(isMobile())
+const { isMobile: checkIsMobile } = useDeviceType()
 const isEditMode = ref(false)
 const loading = ref(false)
 
@@ -946,7 +946,7 @@ const loadAccounts = async () => {
   accounts.value = []
   try {
     accountsLoading.value = true
-    const response = await http?.get(`${SERVER_URL}/account/list`, {
+    const response = await http.get(`${SERVER_URL}/account/list`, {
       params: { source_type: form.source_type },
     })
     if (response?.data.code === 200) {
@@ -966,7 +966,7 @@ const loadAccounts = async () => {
 const loadDirectoryData = async (id: number) => {
   try {
     loading.value = true
-    const response = await http?.get(`${SERVER_URL}/scrape/pathes/${id}`)
+    const response = await http.get(`${SERVER_URL}/scrape/pathes/${id}`)
 
     if (response?.data.code === 200) {
       // const directory = response.data.data?.find((d: ScrapePath) => d.id === id)
@@ -1045,7 +1045,7 @@ const validateCronExpression = async () => {
   }
 
   try {
-    const response = await http?.post(`${SERVER_URL}/cron/validate`, {
+    const response = await http.post(`${SERVER_URL}/cron/validate`, {
       cron_expression: form.cron_expression.trim(),
     })
 
@@ -1084,7 +1084,7 @@ const handleSubmit = async () => {
     loading.value = true
 
     if (isEditMode.value) {
-      const response = await http?.post(`${SERVER_URL}/scrape/pathes`, {
+      const response = await http.post(`${SERVER_URL}/scrape/pathes`, {
         id: form.id,
         source_path: form.source_path,
         source_path_id: form.source_path_id,
@@ -1116,7 +1116,7 @@ const handleSubmit = async () => {
         ElMessage.error(response?.data.message || '编辑刮削目录失败')
       }
     } else {
-      const response = await http?.post(`${SERVER_URL}/scrape/pathes`, {
+      const response = await http.post(`${SERVER_URL}/scrape/pathes`, {
         id: 0,
         source_type: form.source_type,
         account_id: form.source_type !== 'local' ? form.account_id : 0,
@@ -1190,25 +1190,13 @@ watch(
   },
 )
 
-let removeDeviceTypeListener: (() => void) | null = null
-
 onMounted(async () => {
-  removeDeviceTypeListener = onDeviceTypeChange((newIsMobile) => {
-    checkIsMobile.value = newIsMobile
-  })
-
   const id = route.params.id as string
   if (id) {
     isEditMode.value = true
     await loadDirectoryData(Number(id))
   } else {
     await loadAccounts()
-  }
-})
-
-onUnmounted(() => {
-  if (removeDeviceTypeListener) {
-    removeDeviceTypeListener()
   }
 })
 </script>

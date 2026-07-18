@@ -275,26 +275,17 @@
 </template>
 
 <script setup lang="ts">
-import {
-  computed,
-  inject,
-  nextTick,
-  onActivated,
-  onDeactivated,
-  onMounted,
-  onUnmounted,
-  ref,
-} from 'vue'
+import { computed, nextTick, onActivated, onDeactivated, onMounted, onUnmounted, ref } from 'vue'
 import ResponsivePagination from '@/components/common/ResponsivePagination.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { WarningFilled } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
 import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
 import { useBackgroundRefresh } from '@/composables/useBackgroundRefresh'
+import { useHttpClient } from '@/http/client'
 import { mergeStableList, retainExistingKeys } from '@/composables/useStableList'
 import { useRealtimeEvent } from '@/composables/useRealtimeEvents'
 import { usePageStateStore } from '@/stores/pageState'
-import type { AxiosStatic } from 'axios'
 import { formatFileSize } from '@/utils/fileSizeUtils'
 import {
   getTaskSourceTypeName,
@@ -313,7 +304,7 @@ import {
   getUploadTaskDetailRows,
   type UploadQueuePatch,
 } from '@/utils/uploadQueueDisplayUtils'
-import { isMobile as checkIsMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
+import { useDeviceType } from '@/composables/useDeviceType'
 import {
   canPauseQueue,
   canResumeQueue,
@@ -357,7 +348,7 @@ interface QueueMutationContextSnapshot {
   contextVersion: number
 }
 
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 
 // 数据状态
 const pageStateStore = usePageStateStore()
@@ -374,7 +365,7 @@ const uploading = ref(0)
 const queueStatusSnapshot = ref<QueueStatusSnapshot>(emptyQueueStatusSnapshot())
 const canPauseAllTasks = computed(() => canPauseQueue(queueStatusSnapshot.value))
 const canResumeAllTasks = computed(() => canResumeQueue(queueStatusSnapshot.value))
-const isMobileView = ref(checkIsMobile())
+const { isMobile: isMobileView } = useDeviceType()
 const tableHeight = computed(() => (isMobileView.value ? undefined : 'calc(100vh - 300px)'))
 const queueControlSize = computed<'small' | 'default'>(() =>
   isMobileView.value ? 'small' : 'default',
@@ -426,7 +417,6 @@ const removeQueueRowByTaskId = (taskId: string | number | undefined): boolean =>
 const refreshTimer = ref<number | null>(null)
 const pendingQueueDataRefresh = ref(false)
 let isPageActive = false
-let removeDeviceTypeListener: (() => void) | null = null
 const queueDataRequestGate = createActiveRequestGate(() => isPageActive)
 const queueStatusRequestGate = createActiveRequestGate(() => isPageActive)
 const queueMutationContextVersion = ref(0)
@@ -594,7 +584,7 @@ const loadQueueData = async () => {
   try {
     await runRefresh(async () => {
       try {
-        const response = await http?.get(`${SERVER_URL}/upload/queue`, {
+        const response = await http.get(`${SERVER_URL}/upload/queue`, {
           params: {
             page: currentPage.value,
             page_size: pageSize.value,
@@ -664,7 +654,7 @@ const clearQueue = async () => {
       return
     }
 
-    const response = await http?.post(`${SERVER_URL}/upload/queue/clear-pending`)
+    const response = await http.post(`${SERVER_URL}/upload/queue/clear-pending`)
 
     if (!isQueueMutationContextCurrent(operationContext)) {
       return
@@ -719,7 +709,7 @@ const clearSuccessAndFailedTasks = async () => {
       return
     }
 
-    const response = await http?.post(`${SERVER_URL}/upload/queue/clear-success-failed`)
+    const response = await http.post(`${SERVER_URL}/upload/queue/clear-success-failed`)
 
     if (!isQueueMutationContextCurrent(operationContext)) {
       return
@@ -761,7 +751,7 @@ const retryAllFailedTasks = async () => {
       return
     }
 
-    const response = await http?.post(`${SERVER_URL}/upload/queue/retry-failed`)
+    const response = await http.post(`${SERVER_URL}/upload/queue/retry-failed`)
 
     if (!isQueueMutationContextCurrent(operationContext)) {
       return
@@ -793,7 +783,7 @@ const pauseAllTasks = async () => {
   const operationContext = startQueueMutationContext()
 
   try {
-    const response = await http?.post(`${SERVER_URL}/upload/queue/stop`)
+    const response = await http.post(`${SERVER_URL}/upload/queue/stop`)
 
     if (!isQueueMutationContextCurrent(operationContext)) {
       return
@@ -823,7 +813,7 @@ const resumeAllTasks = async () => {
   const operationContext = startQueueMutationContext()
 
   try {
-    const response = await http?.post(`${SERVER_URL}/upload/queue/start`)
+    const response = await http.post(`${SERVER_URL}/upload/queue/start`)
 
     if (!isQueueMutationContextCurrent(operationContext)) {
       return
@@ -853,7 +843,7 @@ const loadQueueStatus = async () => {
   const requestId = queueStatusRequestGate.next()
 
   try {
-    const response = await http?.get(`${SERVER_URL}/upload/queue/status`)
+    const response = await http.get(`${SERVER_URL}/upload/queue/status`)
 
     if (!queueStatusRequestGate.isCurrent(requestId)) {
       return
@@ -1022,9 +1012,6 @@ useRealtimeEvent('upload_queue_changed', (data) => {
 // 页面生命周期
 onMounted(() => {
   activateQueuePage()
-  removeDeviceTypeListener = onDeviceTypeChange((newIsMobile) => {
-    isMobileView.value = newIsMobile
-  })
 })
 
 onActivated(activateQueuePage)
@@ -1044,9 +1031,6 @@ onActivated(() => {
 onDeactivated(deactivateQueuePage)
 
 onUnmounted(() => {
-  if (removeDeviceTypeListener) {
-    removeDeviceTypeListener()
-  }
   isPageActive = false
   queryLoading.value = false
   pendingQueueDataRefresh.value = false

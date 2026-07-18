@@ -4,7 +4,7 @@ import {
   type SaveSyncPathResponseData,
   type SyncPathFieldError,
 } from '@/api/syncPaths'
-import type { AxiosError, AxiosStatic } from 'axios'
+import type { AxiosError, AxiosInstance } from 'axios'
 import { readonly, ref } from 'vue'
 
 interface APIEnvelope<T> {
@@ -18,7 +18,7 @@ interface SaveErrorData {
   field_errors?: SyncPathFieldError[]
 }
 
-export function useSyncDirectorySave(http: AxiosStatic | undefined) {
+export function useSyncDirectorySave(http: AxiosInstance) {
   const saving = ref(false)
   const errorMessage = ref('')
   const errorCode = ref('')
@@ -34,10 +34,6 @@ export function useSyncDirectorySave(http: AxiosStatic | undefined) {
     errorCode.value = ''
     fieldErrors.value = []
     warnings.value = []
-    if (!http) {
-      errorMessage.value = '网络客户端未初始化'
-      return null
-    }
     saving.value = true
     try {
       const response = await saveSyncPathAggregate(http, id, payload, idempotencyKey)

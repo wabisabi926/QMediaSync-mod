@@ -225,12 +225,12 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, inject, onMounted } from 'vue'
+import { reactive, ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Check } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
 import { THREAD_LIMITS } from '@/constants/validation'
-import type { AxiosStatic } from 'axios'
+import { useHttpClient } from '@/http/client'
 import { isMobile } from '@/utils/deviceUtils'
 
 interface ThreadSettings {
@@ -255,7 +255,7 @@ interface SaveStatus {
   type: 'success' | 'warning' | 'error' | 'info'
   description: string
 }
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 const checkIsMobile = ref(isMobile())
 const loading = ref(false)
 const saveStatus = ref<SaveStatus | null>(null)
@@ -301,7 +301,7 @@ onMounted(async () => {
 async function fetchThreadSettings() {
   try {
     loading.value = true
-    const response = await http?.get(`${SERVER_URL}/setting/threads`)
+    const response = await http.get(`${SERVER_URL}/setting/threads`)
 
     formData.downloadThreads = response?.data.data.download_threads
     formData.fileDetailThreads = response?.data.data.file_detail_threads
@@ -355,7 +355,7 @@ async function saveSettings() {
       upload_rapid_wait_skip_upload: formData.uploadRapidWaitSkipUpload ? 1 : 0,
     }
 
-    const response = await http?.post(`${SERVER_URL}/setting/threads`, payload)
+    const response = await http.post(`${SERVER_URL}/setting/threads`, payload)
     if (response?.data.code !== 200) {
       throw new Error(response?.data.message || '保存线程设置失败')
     }

@@ -345,8 +345,8 @@
 
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
-import type { AxiosStatic } from 'axios'
-import { inject, onMounted, ref, onUnmounted, computed } from 'vue'
+import { useHttpClient } from '@/http/client'
+import { onMounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -373,7 +373,6 @@ import {
   Link,
 } from '@element-plus/icons-vue'
 import { formatTime } from '@/utils/timeUtils'
-import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 import { sourceTypeTagMap, sourceTypeMap } from '@/utils/sourceTypeUtils'
 
 interface ScrapePath {
@@ -400,15 +399,13 @@ interface CloudAccount {
   source_type: string
 }
 
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 const router = useRouter()
 
 const pathes = ref<ScrapePath[]>([])
 const loading = ref(false)
 const accounts = ref<CloudAccount[]>([])
 const accountsLoading = ref(false)
-const checkIsMobile = ref(isMobile())
-
 const showSyncPathDialog = ref(false)
 const selectedSyncPathIds = ref<number[]>([])
 const syncPathOptions = ref<{ id: number; label: string }[]>([])
@@ -478,7 +475,7 @@ const getRenameTypeText = (renameType: string): string => {
 const loadPathes = async () => {
   try {
     loading.value = true
-    const response = await http?.get(`${SERVER_URL}/scrape/pathes`)
+    const response = await http.get(`${SERVER_URL}/scrape/pathes`)
 
     if (response?.data.code === 200) {
       pathes.value = response.data.data || []
@@ -496,7 +493,7 @@ const loadPathes = async () => {
 }
 
 const updatePathesStatus = async () => {
-  const response = await http?.get(`${SERVER_URL}/scrape/pathes`)
+  const response = await http.get(`${SERVER_URL}/scrape/pathes`)
 
   if (response?.data.code === 200) {
     for (const p of response?.data?.data || []) {
@@ -511,7 +508,7 @@ const updatePathesStatus = async () => {
 const loadAccounts = async (sourceType?: string) => {
   try {
     accountsLoading.value = true
-    const response = await http?.get(`${SERVER_URL}/account/list`, {
+    const response = await http.get(`${SERVER_URL}/account/list`, {
       params: { source_type: sourceType },
     })
 
@@ -542,7 +539,7 @@ const handleDelete = async (row: ScrapePath, index: number) => {
       pathes.value[index].deleting = true
     }
 
-    const response = await http?.delete(`${SERVER_URL}/scrape/pathes/${row.id}`)
+    const response = await http.delete(`${SERVER_URL}/scrape/pathes/${row.id}`)
 
     if (response?.data.code === 200) {
       ElMessage.success('删除刮削目录成功')
@@ -598,7 +595,7 @@ const toggleCron = async (row: ScrapePath) => {
       id: row.id || 0,
     }
 
-    const response = await http?.post(`${SERVER_URL}/scrape/pathes/toggle-cron`, formData, {
+    const response = await http.post(`${SERVER_URL}/scrape/pathes/toggle-cron`, formData, {
       headers: {
         'Content-Type': 'application/json',
       },
@@ -620,7 +617,7 @@ const toggleCron = async (row: ScrapePath) => {
 const loadSyncPaths = async (sourceType?: string) => {
   try {
     syncPathsLoading.value = true
-    const response = await http?.get(`${SERVER_URL}/sync/path-list`, {
+    const response = await http.get(`${SERVER_URL}/sync/path-list`, {
       params: { page: 1, page_size: 9999, source_type: sourceType },
     })
 
@@ -649,7 +646,7 @@ const openSyncPathDialog = async (row: ScrapePath) => {
   await loadSyncPaths(row.source_type)
   if (row.id) {
     try {
-      const response = await http?.get(`${SERVER_URL}/scrape/sync-pathes`, {
+      const response = await http.get(`${SERVER_URL}/scrape/sync-pathes`, {
         params: { scrape_path_id: row.id },
       })
       if (response?.data.code === 200) {
@@ -669,7 +666,7 @@ const saveSyncPathRelation = async () => {
 
   try {
     saveSyncPathLoading.value = true
-    const response = await http?.post(`${SERVER_URL}/scrape/sync-pathes`, {
+    const response = await http.post(`${SERVER_URL}/scrape/sync-pathes`, {
       scrape_path_id: currentScrapePath.value.id,
       sync_path_ids: selectedSyncPathIds.value,
     })
@@ -699,21 +696,9 @@ useRealtimeEvent('scraper_task_start', onScraperEvent, () => void loadPathes())
 useRealtimeEvent('scraper_task_complete', onScraperEvent)
 useRealtimeEvent('scraper_item_complete', onScraperEvent)
 
-let removeDeviceTypeListener: (() => void) | null = null
-
 onMounted(async () => {
-  checkIsMobile.value = isMobile()
-  removeDeviceTypeListener = onDeviceTypeChange((newIsMobile) => {
-    checkIsMobile.value = newIsMobile
-  })
   await loadPathes()
   await loadAccounts()
-})
-
-onUnmounted(() => {
-  if (removeDeviceTypeListener) {
-    removeDeviceTypeListener()
-  }
 })
 </script>
 

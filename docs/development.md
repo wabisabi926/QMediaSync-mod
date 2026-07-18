@@ -23,6 +23,12 @@ pnpm run dev
 
 前端开发页面使用相对 `/api`，Vite 会把它代理到 `http://localhost:12333`；HTTP API 和 SSE 都经过该同源代理。
 
+### 前端 HTTP 客户端
+
+`frontend/src/http/client.ts` 创建并统一配置专用 Axios 实例的超时、Cookie 凭据、CSRF 请求头和认证失效响应处理；`main.ts` 只负责把认证状态和跳转回调传入该模块、通过类型化 `httpKey` 提供实例并完成应用启动。组件和 composable 通过 `useHttpClient()` 获取实例，不要使用 Axios 静态对象、字符串注入键或可选链跳过请求。不要为该实例设置全局 `Content-Type: application/json`；Axios 会为对象请求自动序列化 JSON，文件上传保留其 `multipart/form-data` 请求配置。业务领域接口封装放在 `frontend/src/api/`，不要将 Axios 拦截器或全局客户端配置放入该目录。
+
+需要响应屏幕尺寸变化的组件统一使用 `frontend/src/composables/useDeviceType.ts`，由 composable 管理窗口订阅和组件卸载清理；不要在页面组件中直接调用 `onDeviceTypeChange()`。
+
 后端默认允许 Vite 开发来源 `http://localhost:5173`、`http://127.0.0.1:5173` 和 `http://[::1]:5173` 携带浏览器登录 Cookie。若修改 Vite 端口、使用自定义开发域名，或让前端跨源访问后端，需要把前端来源加入 `config/config.yaml`：
 
 ```yaml

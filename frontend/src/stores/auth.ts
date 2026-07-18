@@ -1,6 +1,6 @@
 import { SERVER_URL } from '@/const'
 import { closeAllRealtimeSources } from '@/composables/realtimeSources'
-import type { AxiosStatic } from 'axios'
+import { isAxiosError, type AxiosInstance } from 'axios'
 import { defineStore } from 'pinia'
 import { computed, shallowRef } from 'vue'
 
@@ -91,7 +91,7 @@ export const useAuthStore = defineStore('auth', () => {
     return true
   }
 
-  const refreshSession = async (http: AxiosStatic): Promise<SessionRefreshResult> => {
+  const refreshSession = async (http: AxiosInstance): Promise<SessionRefreshResult> => {
     authStatus.value = 'checking'
     try {
       const response = await http.get(`${SERVER_URL}/session`, {
@@ -113,7 +113,7 @@ export const useAuthStore = defineStore('auth', () => {
     return { state: 'unavailable' }
   }
 
-  const bootstrapAuth = async (http: AxiosStatic) => {
+  const bootstrapAuth = async (http: AxiosInstance) => {
     if (bootstrapPromise) return bootstrapPromise
 
     bootstrapPromise = (async () => {
@@ -125,7 +125,7 @@ export const useAuthStore = defineStore('auth', () => {
     return bootstrapPromise
   }
 
-  const restoreSession = async (http: AxiosStatic) => {
+  const restoreSession = async (http: AxiosInstance) => {
     return bootstrapAuth(http)
   }
 
@@ -147,7 +147,7 @@ export const useAuthStore = defineStore('auth', () => {
     }, 1000)
   }
 
-  const logoutWithServer = async (http: AxiosStatic) => {
+  const logoutWithServer = async (http: AxiosInstance) => {
     if (isLoggingOut.value) return
     isLoggingOut.value = true
     try {
@@ -156,7 +156,7 @@ export const useAuthStore = defineStore('auth', () => {
         skipAuthInvalidation: true,
       })
     } catch (error) {
-      if (!http.isAxiosError(error) || error.response?.status !== 401) {
+      if (!isAxiosError(error) || error.response?.status !== 401) {
         console.error('服务端退出登录失败：', error)
       }
     } finally {

@@ -176,12 +176,6 @@ export default defineConfig(({ mode }) => ({
             return 'vendor-element'
           }
           if (
-            normalizedId.includes('/node_modules/echarts/') ||
-            normalizedId.includes('/node_modules/vue-echarts/')
-          ) {
-            return 'vendor-charts'
-          }
-          if (
             normalizedId.includes('/node_modules/markdown-it/') ||
             normalizedId.includes('/node_modules/@wooorm/') ||
             normalizedId.includes('/node_modules/github-markdown-css/') ||

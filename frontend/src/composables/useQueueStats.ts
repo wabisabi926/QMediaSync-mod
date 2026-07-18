@@ -1,6 +1,6 @@
-import { inject, onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { SERVER_URL } from '@/const'
-import type { AxiosStatic } from 'axios'
+import { useHttpClient } from '@/http/client'
 
 export interface QueueStats {
   avg_response_time_ms: number
@@ -19,7 +19,7 @@ export interface QueueStats {
 }
 
 export function useQueueStats(pollingInterval = 3000) {
-  const http = inject<AxiosStatic>('$http')
+  const http = useHttpClient()
   const queueStats = ref<QueueStats | null>(null)
   const queueStatsLoading = ref(false)
   const hasLoaded = ref(false)
@@ -36,7 +36,7 @@ export function useQueueStats(pollingInterval = 3000) {
 
     try {
       queueStatsLoading.value = !hasLoaded.value
-      const response = await http?.get(`${SERVER_URL}/115/queue/stats`)
+      const response = await http.get(`${SERVER_URL}/115/queue/stats`)
       if (response && response.data && response.data.code === 200) {
         queueStats.value = response.data.data
         hasLoaded.value = true

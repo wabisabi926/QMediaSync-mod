@@ -127,11 +127,11 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, inject, onMounted, computed, useTemplateRef } from 'vue'
+import { reactive, ref, onMounted, computed, useTemplateRef } from 'vue'
 import { ElMessage, type FormInstance } from 'element-plus'
 import { Check, Refresh } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
-import type { AxiosStatic } from 'axios'
+import { useHttpClient } from '@/http/client'
 import { isMobile } from '@/utils/deviceUtils'
 
 interface AiSettings {
@@ -146,7 +146,7 @@ interface SaveStatus {
   type: 'success' | 'warning' | 'error' | 'info'
   description: string
 }
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 const checkIsMobile = ref(isMobile())
 const loading = ref(false)
 const testing = ref(false)
@@ -195,7 +195,7 @@ onMounted(async () => {
 async function fetchAiSettings() {
   try {
     loading.value = true
-    const response = await http?.get(`${SERVER_URL}/scrape/ai-settings`)
+    const response = await http.get(`${SERVER_URL}/scrape/ai-settings`)
     formData.aiBaseUrl = response?.data.data.ai_base_url || ''
     formData.aiApiKey = response?.data.data.ai_api_key || ''
     formData.aiModelName = response?.data.data.ai_model_name || ''
@@ -230,7 +230,7 @@ async function saveSettings() {
       ai_timeout: formData.ai_timeout,
     }
 
-    await http?.post(`${SERVER_URL}/scrape/ai-settings`, payload)
+    await http.post(`${SERVER_URL}/scrape/ai-settings`, payload)
 
     saveStatus.value = {
       title: '保存成功',
@@ -272,7 +272,7 @@ async function testConnection() {
       ai_model_name: formData.aiModelName,
     }
 
-    const response = await http?.post(`${SERVER_URL}/scrape/ai-test`, payload, {
+    const response = await http.post(`${SERVER_URL}/scrape/ai-test`, payload, {
       timeout: 120000,
     })
 

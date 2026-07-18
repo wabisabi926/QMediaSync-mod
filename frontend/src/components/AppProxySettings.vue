@@ -63,9 +63,9 @@
 
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
-import type { AxiosStatic } from 'axios'
+import { useHttpClient } from '@/http/client'
 import { Connection, Check } from '@element-plus/icons-vue'
-import { inject, onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { isMobile } from '@/utils/deviceUtils'
 const checkIsMobile = ref(isMobile())
@@ -79,7 +79,7 @@ interface ProxyStatus {
   description: string
 }
 
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 
 // 代理相关状态
 const proxyLoading = ref(false)
@@ -105,7 +105,7 @@ const testProxy = async () => {
       http_proxy: proxyData.proxy_url,
     }
 
-    const response = await http?.post(`${SERVER_URL}/setting/test-http-proxy`, requestData, {
+    const response = await http.post(`${SERVER_URL}/setting/test-http-proxy`, requestData, {
       headers: {
         'Content-Type': 'application/json',
       },
@@ -146,7 +146,7 @@ const saveProxy = async () => {
       http_proxy: proxyData.proxy_url,
     }
 
-    const response = await http?.post(`${SERVER_URL}/setting/http-proxy`, requestData, {
+    const response = await http.post(`${SERVER_URL}/setting/http-proxy`, requestData, {
       headers: {
         'Content-Type': 'application/json',
       },
@@ -182,7 +182,7 @@ const saveProxy = async () => {
 // 加载代理设置
 const loadProxy = async () => {
   try {
-    const response = await http?.get(`${SERVER_URL}/setting/http-proxy`)
+    const response = await http.get(`${SERVER_URL}/setting/http-proxy`)
 
     if (response?.data.code === 200 && response.data.data) {
       proxyData.proxy_url = response.data.data.http_proxy || ''

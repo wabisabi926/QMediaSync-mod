@@ -245,9 +245,9 @@
 
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
-import type { AxiosStatic } from 'axios'
+import { useHttpClient } from '@/http/client'
 import { Check } from '@element-plus/icons-vue'
-import { inject, onMounted, reactive, ref, watch, useTemplateRef } from 'vue'
+import { onMounted, reactive, ref, watch, useTemplateRef } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { isMobile } from '@/utils/deviceUtils'
 import MetadataExtInput from './MetadataExtInput.vue'
@@ -272,7 +272,7 @@ interface StrmStatus {
   description: string
 }
 const checkIsMobile = ref(isMobile())
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 
 // 表单引用
 const formRef = useTemplateRef<FormInstance>('formRef')
@@ -388,7 +388,7 @@ const saveStrmConfig = async () => {
     strmLoading.value = true
     strmStatus.value = null
 
-    const response = await http?.post(`${SERVER_URL}/setting/strm-config`, strmData, {
+    const response = await http.post(`${SERVER_URL}/setting/strm-config`, strmData, {
       headers: {
         'Content-Type': 'application/json',
       },
@@ -422,7 +422,7 @@ const saveStrmConfig = async () => {
 // 加载 STRM 配置
 const loadStrmConfig = async () => {
   try {
-    const response = await http?.get(`${SERVER_URL}/setting/strm-config`)
+    const response = await http.get(`${SERVER_URL}/setting/strm-config`)
 
     if (response?.data.code === 200 && response.data.data) {
       const config = response.data.data
@@ -459,7 +459,7 @@ const loadCronTimes = async () => {
 
   try {
     cronTimesLoading.value = true
-    const response = await http?.get(`${SERVER_URL}/setting/cron`, {
+    const response = await http.get(`${SERVER_URL}/setting/cron`, {
       params: { cron: strmData.cron },
     })
 

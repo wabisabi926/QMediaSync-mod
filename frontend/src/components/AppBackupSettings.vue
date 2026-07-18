@@ -60,16 +60,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, inject, watch, shallowRef } from 'vue'
+import { ref, reactive, onMounted, watch, shallowRef } from 'vue'
 import { Check, Setting } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import type { AxiosStatic } from 'axios'
+import { useHttpClient } from '@/http/client'
 import { SERVER_URL } from '@/const'
 import type { BackupConfig } from '@/typing'
 import { isMobile as checkIsMobile } from '@/utils/deviceUtils'
 import CronSelector from './CronSelector.vue'
 
-const http = inject<AxiosStatic>('$http')
+const http = useHttpClient()
 const isMobile = checkIsMobile()
 const API_SUCCESS_CODE = 200
 

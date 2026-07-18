@@ -18,12 +18,12 @@
 - `isMobile()`
 - `onDeviceTypeChange(callback)`
 
-在组件中按需导入这两个函数即可；`onDeviceTypeChange` 会返回一个取消监听的函数。
+`deviceUtils.ts` 是底层工具。Vue 组件需要响应屏幕尺寸变化时，应使用
+`frontend/src/composables/useDeviceType.ts`，由 composable 统一管理监听和卸载清理；
+不要在组件中直接调用 `onDeviceTypeChange()`。
 
 ```typescript
-const removeListener = onDeviceTypeChange((nextIsMobile) => {
-  console.log(nextIsMobile)
-})
+const { isMobile } = useDeviceType()
 ```
 
 ## fileIconUtils.ts

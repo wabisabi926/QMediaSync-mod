@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import DOMPurify from 'dompurify'
-import { ref, onMounted, inject, watch } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useUpdate } from '@/composables/useUpdate'
 import { useVersion } from '@/composables/useVersion'
 import { formatFileSize } from '@/utils/fileSizeUtils'
@@ -9,9 +9,9 @@ import MarkdownIt from 'markdown-it'
 import 'github-markdown-css/github-markdown.css'
 import { CircleCheck, Refresh } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
-import type { AxiosStatic } from 'axios'
+import { useHttpClient } from '@/http/client'
 
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 
 const activeNames = ref<string[]>([])
 const hasInitializedActiveNames = ref(false)
@@ -54,7 +54,7 @@ const isFnOSLoading = ref(false)
 const checkIsFnOS = async () => {
   try {
     isFnOSLoading.value = true
-    const response = await http?.get(`${SERVER_URL}/path/is-fn-os`)
+    const response = await http.get(`${SERVER_URL}/path/is-fn-os`)
     if (response?.data.code === 200) {
       isFnOS.value = response.data.data === true
     }

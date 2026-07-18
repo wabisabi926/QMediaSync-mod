@@ -426,15 +426,15 @@ import ResponsiveRecordTable from '@/components/records/ResponsiveRecordTable.vu
 import { SERVER_URL } from '@/const'
 import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
 import { useBackgroundRefresh } from '@/composables/useBackgroundRefresh'
+import { useDeviceType } from '@/composables/useDeviceType'
+import { useHttpClient } from '@/http/client'
 import { mergeStableList, retainExistingKeys } from '@/composables/useStableList'
 import { useRealtimeEvent } from '@/composables/useRealtimeEvents'
 import { usePageStateStore } from '@/stores/pageState'
 import type { RecordAction, RecordActionPayload, RecordColumn } from '@/types/recordTable'
-import { isMobile as checkIsMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 import { formatTimestamp } from '@/utils/timeUtils'
 import {
   computed,
-  inject,
   nextTick,
   onActivated,
   onDeactivated,
@@ -443,11 +443,10 @@ import {
   ref,
   useTemplateRef,
 } from 'vue'
-import type { AxiosStatic } from 'axios'
 import { Film, Finished, Picture, Refresh, Search, View } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 
 // 定义刮削记录接口
 interface ScrapeRecord {
@@ -539,7 +538,7 @@ const originalRecords = ref<ScrapeRecord[]>([])
 const isMerged = ref(false)
 const selectedRecords = ref<ScrapeRecord[]>([])
 const queryLoading = ref(false)
-const isMobileView = ref(checkIsMobile())
+const { isMobile: isMobileView } = useDeviceType()
 const statusFilter = computed({
   get: () => String(pageState.filters.status ?? ''),
   set: (value) => pageStateStore.setFilter('scrape-records', 'status', value),
@@ -562,7 +561,6 @@ const activeScrapeRecordsMutationContext = ref<ScrapeRecordsMutationContextSnaps
 const pendingScrapeRecordsRefresh = ref(false)
 let isPageActive = false
 const scrapeRecordsRequestGate = createActiveRequestGate(() => isPageActive)
-let stopDeviceTypeChange: (() => void) | null = null
 
 // 分页相关
 const currentPage = computed({
@@ -893,7 +891,7 @@ const loadRecords = async () => {
           params.name = nameFilter.value
         }
 
-        const response = await http?.get(`${SERVER_URL}/scrape/records`, { params })
+        const response = await http.get(`${SERVER_URL}/scrape/records`, { params })
 
         if (!scrapeRecordsRequestGate.isCurrent(requestId)) {
           return
@@ -1066,7 +1064,7 @@ const handleDeleteSelectedRecords = async () => {
     // 发送 DELETE 请求，参数与导出识别错误文件接口一致
     // 构造 URL，将 ids 作为 GET 参数传递
     const idsQuery = ids.join(',')
-    const response = await http?.delete(`${SERVER_URL}/scrape/records?ids=${idsQuery}`)
+    const response = await http.delete(`${SERVER_URL}/scrape/records?ids=${idsQuery}`)
 
     if (!isScrapeRecordsMutationContextCurrent(operationContext)) {
       return
@@ -1129,7 +1127,7 @@ const handleRename = async () => {
     // 发送 DELETE 请求，参数与导出识别错误文件接口一致
     // 构造 URL，将 ids 作为 GET 参数传递
     const idsQuery = ids.join(',')
-    const response = await http?.post(`${SERVER_URL}/scrape/rename-failed?ids=${idsQuery}`)
+    const response = await http.post(`${SERVER_URL}/scrape/rename-failed?ids=${idsQuery}`)
 
     if (!isScrapeRecordsMutationContextCurrent(operationContext)) {
       return
@@ -1234,7 +1232,7 @@ const searchTmdb = async () => {
       params.tmdb_id = reScrapeForm.value.tmdb_id
     }
 
-    const response = await http?.get(`${SERVER_URL}/scrape/tmdb-search`, { params, timeout: 30000 })
+    const response = await http.get(`${SERVER_URL}/scrape/tmdb-search`, { params, timeout: 30000 })
 
     if (!isRecordActionContextCurrent(operationContext, recordId)) {
       return
@@ -1283,7 +1281,7 @@ const selectSearchResult = async (item: TmdbSearchResult) => {
       return
     }
 
-    const response = await http?.post(`${SERVER_URL}/scrape/re-scrape`, params, { timeout: 60000 })
+    const response = await http.post(`${SERVER_URL}/scrape/re-scrape`, params, { timeout: 60000 })
 
     if (!isRecordActionContextCurrent(operationContext, recordId)) {
       return
@@ -1350,7 +1348,7 @@ const handleDeleteFailedRecords = async () => {
       return
     }
 
-    const response = await http?.post(`${SERVER_URL}/scrape/clear-failed`)
+    const response = await http.post(`${SERVER_URL}/scrape/clear-failed`)
 
     if (!isScrapeRecordsMutationContextCurrent(operationContext)) {
       return
@@ -1406,7 +1404,7 @@ const handleTruncateAll = async () => {
     }
 
     // 发送请求
-    const response = await http?.post(`${SERVER_URL}/scrape/truncate-all`)
+    const response = await http.post(`${SERVER_URL}/scrape/truncate-all`)
 
     if (!isScrapeRecordsMutationContextCurrent(operationContext)) {
       return
@@ -1466,7 +1464,7 @@ const markAsFinished = async (record: ScrapeRecord) => {
     }
 
     // 发送 POST 请求到/scrape/finish 接口
-    const response = await http?.post(`${SERVER_URL}/scrape/finish`, { id: record.id })
+    const response = await http.post(`${SERVER_URL}/scrape/finish`, { id: record.id })
 
     if (!isRecordActionContextCurrent(operationContext, record.id)) {
       return
@@ -1695,12 +1693,6 @@ const deactivateScrapeRecordsPage = () => {
 // 页面生命周期
 onMounted(activateScrapeRecordsPage)
 
-onMounted(() => {
-  stopDeviceTypeChange = onDeviceTypeChange((nextIsMobile) => {
-    isMobileView.value = nextIsMobile
-  })
-})
-
 onActivated(activateScrapeRecordsPage)
 
 onActivated(() => {
@@ -1723,8 +1715,6 @@ onUnmounted(() => {
   isPageActive = false
   pendingScrapeRecordsRefresh.value = false
   queryLoading.value = false
-  stopDeviceTypeChange?.()
-  stopDeviceTypeChange = null
   scrapeRecordsRequestGate.invalidate()
   invalidateRecordActionContext()
   invalidateScrapeRecordsMutationContext()

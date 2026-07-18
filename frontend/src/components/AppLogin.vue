@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, inject, onMounted, shallowRef } from 'vue'
+import { computed, onMounted, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
-import type { AxiosStatic } from 'axios'
+import { useHttpClient } from '@/http/client'
 import { SERVER_URL } from '@/const'
 import LoginForm, { type LoginSubmitPayload } from '@/components/auth/LoginForm.vue'
 import InitialAdminSetupForm, {
@@ -13,7 +13,7 @@ import { createInitialAdmin, fetchSetupStatus } from '@/composables/useInitialAd
 
 const router = useRouter()
 const authStore = useAuthStore()
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 const loading = shallowRef(false)
 const setupRequired = shallowRef(false)
 const setupStatusLoaded = shallowRef(false)
@@ -70,7 +70,7 @@ const handleLogin = async (payload: LoginSubmitPayload) => {
   try {
     loading.value = true
     // 使用 JSON 格式发送请求，以支持 rememberMe 参数
-    const response = await http?.post(
+    const response = await http.post(
       `${SERVER_URL}/login`,
       {
         username: payload.username,

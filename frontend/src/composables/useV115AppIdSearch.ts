@@ -1,5 +1,5 @@
 import { SERVER_URL } from '@/const'
-import type { AxiosStatic } from 'axios'
+import type { AxiosInstance } from 'axios'
 import {
   computed,
   readonly,
@@ -20,7 +20,7 @@ export interface V115AppIDOption {
 }
 
 export interface UseV115AppIdSearchOptions {
-  http: MaybeRef<AxiosStatic | undefined>
+  http: MaybeRef<AxiosInstance>
   pageSize?: MaybeRefOrGetter<number>
 }
 
@@ -48,7 +48,6 @@ export function useV115AppIdSearch(options: UseV115AppIdSearchOptions) {
 
   const search = async () => {
     const http = unref(options.http)
-    if (!http) return
     const runId = requestRunId.value + 1
     requestRunId.value = runId
     loading.value = true
@@ -67,7 +66,7 @@ export function useV115AppIdSearch(options: UseV115AppIdSearchOptions) {
 
   const loadMore = async () => {
     const http = unref(options.http)
-    if (!http || !hasMore.value) return
+    if (!hasMore.value) return
     const runId = requestRunId.value + 1
     requestRunId.value = runId
     loading.value = true

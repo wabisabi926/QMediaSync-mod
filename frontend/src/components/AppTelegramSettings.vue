@@ -85,11 +85,11 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted, inject } from 'vue'
+import { reactive, ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Message, Check } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
-import type { AxiosStatic } from 'axios'
+import { useHttpClient } from '@/http/client'
 import { isMobile } from '@/utils/deviceUtils'
 
 interface TelegramSettings {
@@ -104,7 +104,7 @@ interface TestStatus {
   description: string
 }
 const checkIsMobile = ref(isMobile())
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 const loading = ref(false)
 const testing = ref(false)
 const testStatus = ref<TestStatus | null>(null)
@@ -137,7 +137,7 @@ const testBot = async () => {
       chat_id: formData.telegram_user_id,
     }
 
-    const response = await http?.post(`${SERVER_URL}/telegram/test`, requestData, {
+    const response = await http.post(`${SERVER_URL}/telegram/test`, requestData, {
       headers: {
         'Content-Type': 'application/json',
       },
@@ -182,7 +182,7 @@ const saveSettings = async () => {
       chat_id: formData.telegram_user_id,
     }
 
-    const response = await http?.post(`${SERVER_URL}/setting/telegram`, requestData, {
+    const response = await http.post(`${SERVER_URL}/setting/telegram`, requestData, {
       headers: {
         'Content-Type': 'application/json',
       },
@@ -214,7 +214,7 @@ const loadSettings = async () => {
   try {
     loading.value = true
 
-    const response = await http?.get(`${SERVER_URL}/setting/telegram`)
+    const response = await http.get(`${SERVER_URL}/setting/telegram`)
 
     if (response?.data.code === 200 && response.data.data) {
       formData.enabled = response.data.data.enabled === '1'

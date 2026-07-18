@@ -83,17 +83,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, inject, useTemplateRef } from 'vue'
+import { ref, useTemplateRef } from 'vue'
 import { UploadFilled, CircleCheck } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox, type UploadFile, type UploadInstance } from 'element-plus'
-import type { AxiosStatic } from 'axios'
+import { useHttpClient } from '@/http/client'
 import { SERVER_URL } from '@/const'
 import { useBackupStore } from '@/stores/backup'
 import { formatFileSize } from '@/utils/fileSizeUtils'
 import { formatTimestamp } from '@/utils/timeUtils'
 import { isMobile as checkIsMobile } from '@/utils/deviceUtils'
 
-const http = inject<AxiosStatic>('$http')
+const http = useHttpClient()
 const backupStore = useBackupStore()
 const isMobile = checkIsMobile()
 const API_SUCCESS_CODE = 200

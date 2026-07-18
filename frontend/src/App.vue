@@ -206,25 +206,25 @@ import {
   VideoPlay,
   View,
 } from '@element-plus/icons-vue'
-import axios from 'axios'
-import { ref, onMounted, onUnmounted, computed, markRaw, type Component as VueComponent } from 'vue'
+import { ref, onUnmounted, computed, markRaw, watch, type Component as VueComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useBackupStore } from '@/stores/backup'
+import { http } from '@/http/client'
+import { useDeviceType } from '@/composables/useDeviceType'
 import {
   realtimeActive,
   realtimeConnected,
   realtimeSupported,
 } from '@/composables/useRealtimeEvents'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { isMobile as checkIsMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 import { formatDuration } from '@/utils/timeUtils'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const backupStore = useBackupStore()
-const isMobile = ref(false)
+const { isMobile } = useDeviceType()
 const isMenuOpen = ref(false)
 
 // KeepAlive include 匹配组件名，不匹配路由名
@@ -381,14 +381,6 @@ const menuItems = computed(() => {
   return rootMenus
 })
 
-// 检测是否为移动设备
-const checkMobile = () => {
-  isMobile.value = checkIsMobile()
-  if (!isMobile.value) {
-    isMenuOpen.value = false
-  }
-}
-
 // 切换菜单显示状态
 const toggleMenu = () => {
   isMenuOpen.value = !isMenuOpen.value
@@ -410,7 +402,7 @@ const handleLogout = async () => {
       type: 'warning',
     })
 
-    await authStore.logoutWithServer(axios)
+    await authStore.logoutWithServer(http)
     ElMessage.success('已退出登录')
     router.replace('/login')
   } catch {
@@ -457,23 +449,13 @@ const openHelp = () => {
   window.open('https://gitee.com/qicfan/qmediasync/wikis/Home', '_blank')
 }
 
-// 组件挂载时加载数据
-let removeDeviceTypeListener: (() => void) | null = null
-
-onMounted(() => {
-  checkMobile()
-  removeDeviceTypeListener = onDeviceTypeChange((newIsMobile) => {
-    isMobile.value = newIsMobile
-    if (!newIsMobile) {
-      isMenuOpen.value = false
-    }
-  })
+watch(isMobile, (nextIsMobile) => {
+  if (!nextIsMobile) {
+    isMenuOpen.value = false
+  }
 })
 
 onUnmounted(() => {
-  if (removeDeviceTypeListener) {
-    removeDeviceTypeListener()
-  }
   // 清理轮询定时器
   backupStore.stopProgressPolling()
 })

@@ -138,11 +138,11 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, inject, onMounted } from 'vue'
+import { reactive, ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Check, Refresh } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
-import type { AxiosStatic } from 'axios'
+import { useHttpClient } from '@/http/client'
 import { isMobile } from '@/utils/deviceUtils'
 
 interface TmdbSettings {
@@ -162,7 +162,7 @@ interface SaveStatus {
   type: 'success' | 'warning' | 'error' | 'info'
   description: string
 }
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 const checkIsMobile = ref(isMobile())
 const loading = ref(false)
 const testing = ref(false)
@@ -191,7 +191,7 @@ onMounted(async () => {
 async function fetchTmdbSettings() {
   try {
     loading.value = true
-    const response = await http?.get(`${SERVER_URL}/scrape/tmdb`)
+    const response = await http.get(`${SERVER_URL}/scrape/tmdb`)
 
     formData.tmdbUrl = response?.data.data.tmdb_url || ''
     formData.tmdbImageUrl = response?.data.data.tmdb_image_url || ''
@@ -230,7 +230,7 @@ async function saveSettings() {
       payload.local_max_threads = 5
     }
 
-    await http?.post(`${SERVER_URL}/scrape/tmdb`, payload)
+    await http.post(`${SERVER_URL}/scrape/tmdb`, payload)
 
     saveStatus.value = {
       title: '保存成功',
@@ -270,7 +270,7 @@ async function testConnection() {
       tmdb_image_language: formData.tmdbImageLanguage,
     }
 
-    const response = await http?.post(`${SERVER_URL}/scrape/tmdb-test`, payload, {
+    const response = await http.post(`${SERVER_URL}/scrape/tmdb-test`, payload, {
       timeout: 20000,
     })
 

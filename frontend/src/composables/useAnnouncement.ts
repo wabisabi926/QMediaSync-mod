@@ -1,6 +1,6 @@
-import { inject, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { SERVER_URL } from '@/const'
-import type { AxiosStatic } from 'axios'
+import { useHttpClient } from '@/http/client'
 
 export interface Announcement {
   id?: number | string
@@ -10,14 +10,14 @@ export interface Announcement {
 }
 
 export function useAnnouncement() {
-  const http = inject<AxiosStatic>('$http')
+  const http = useHttpClient()
   const announcementList = ref<Announcement[]>([])
   const announcementLoading = ref(false)
 
   const loadAnnouncements = async () => {
     try {
       announcementLoading.value = true
-      const response = await http?.get(`${SERVER_URL}/announce`)
+      const response = await http.get(`${SERVER_URL}/announce`)
       if (response && response.data) {
         if (response.data.code === 200 && response.data.data) {
           announcementList.value = response.data.data

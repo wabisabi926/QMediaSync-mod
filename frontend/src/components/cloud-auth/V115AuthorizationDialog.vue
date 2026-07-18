@@ -2,8 +2,8 @@
 import { useV115DeviceAuthorization } from '@/composables/useV115DeviceAuthorization'
 import V115QrCode from './V115QrCode.vue'
 import { Refresh } from '@element-plus/icons-vue'
-import type { AxiosStatic } from 'axios'
-import { computed, inject, watch } from 'vue'
+import { computed, watch } from 'vue'
+import { useHttpClient } from '@/http/client'
 
 const visible = defineModel<boolean>('visible', { required: true })
 
@@ -16,7 +16,7 @@ const emit = defineEmits<{
   confirmed: []
 }>()
 
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 const {
   qrCode,
   status,

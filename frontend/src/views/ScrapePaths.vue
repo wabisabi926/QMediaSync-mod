@@ -483,17 +483,7 @@
 </template>
 
 <script setup lang="ts">
-import {
-  ref,
-  reactive,
-  onMounted,
-  onUnmounted,
-  watch,
-  h,
-  computed,
-  inject,
-  useTemplateRef,
-} from 'vue'
+import { ref, reactive, onMounted, onUnmounted, watch, h, computed, useTemplateRef } from 'vue'
 import {
   ElMessage,
   ElMessageBox,
@@ -505,10 +495,10 @@ import {
 import { isMobile } from '@/utils/deviceUtils'
 import DirectorySelector from '@/components/DirectorySelector.vue'
 import { SERVER_URL } from '@/const'
+import { useHttpClient } from '@/http/client'
 
-import type { AxiosStatic } from 'axios'
 import type { CloudAccount, DirInfo } from '@/typing'
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 
 // 接口定义
 interface ScrapePath {
@@ -813,7 +803,7 @@ const removeVideoExt = (index: number, formType: string) => {
 const loadPathes = async () => {
   try {
     loading.value = true
-    const response = await http?.get(`${SERVER_URL}/scrape/pathes`)
+    const response = await http.get(`${SERVER_URL}/scrape/pathes`)
 
     if (response?.data.code === 200) {
       pathes.value = response.data.data || []
@@ -835,7 +825,7 @@ const loadPathes = async () => {
 // 优化：只更新状态，不全量更新
 const updatePathesStatus = async () => {
   loading.value = true
-  const response = await http?.get(`${SERVER_URL}/scrape/pathes`)
+  const response = await http.get(`${SERVER_URL}/scrape/pathes`)
 
   if (response?.data.code === 200) {
     for (const p of response?.data?.data || []) {
@@ -858,7 +848,7 @@ const updatePathesStatus = async () => {
 const loadAccounts = async (sourceType?: string) => {
   try {
     accountsLoading.value = true
-    const response = await http?.get(`${SERVER_URL}/account/list`, {
+    const response = await http.get(`${SERVER_URL}/account/list`, {
       params: { source_type: sourceType },
     })
 
@@ -888,7 +878,7 @@ const handleAdd = async () => {
     await addFormRef.value.validate()
     addLoading.value = true
 
-    const response = await http?.post(`${SERVER_URL}/scrape/pathes`, {
+    const response = await http.post(`${SERVER_URL}/scrape/pathes`, {
       id: 0,
       source_type: addForm.source_type,
       account_id: addForm.source_type !== 'local' ? addForm.account_id : undefined,
@@ -1011,7 +1001,7 @@ const handleEditSave = async () => {
     await editFormRef.value.validate()
     editLoading.value = true
 
-    const response = await http?.post(`${SERVER_URL}/scrape/pathes`, {
+    const response = await http.post(`${SERVER_URL}/scrape/pathes`, {
       id: editForm.id,
       source_path: editForm.source_path,
       source_path_id: editForm.source_path_id,
@@ -1061,7 +1051,7 @@ const handleDelete = async (row: ScrapePath, index: number) => {
       pathes.value[index].deleting = true
     }
 
-    const response = await http?.delete(`${SERVER_URL}/scrape/pathes/${row.id}`)
+    const response = await http.delete(`${SERVER_URL}/scrape/pathes/${row.id}`)
 
     if (response?.data.code === 200) {
       ElMessage.success('删除刮削目录成功')

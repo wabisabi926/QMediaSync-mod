@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { inject, onMounted, shallowRef } from 'vue'
+import { onMounted, shallowRef } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, Refresh } from '@element-plus/icons-vue'
-import type { AxiosStatic } from 'axios'
+import { useHttpClient } from '@/http/client'
 import { SERVER_URL } from '@/const'
 import { formatDateTime } from '@/utils/timeUtils'
 
@@ -16,14 +16,14 @@ interface LoginSession {
   expires_at: number
 }
 
-const http = inject<AxiosStatic>('$http')
+const http = useHttpClient()
 const sessions = shallowRef<LoginSession[]>([])
 const loading = shallowRef(false)
 
 const loadSessions = async () => {
   loading.value = true
   try {
-    const response = await http?.get(`${SERVER_URL}/user/sessions`)
+    const response = await http.get(`${SERVER_URL}/user/sessions`)
     if (response?.data.code === 200) {
       sessions.value = response.data.data || []
     } else {
@@ -45,7 +45,7 @@ const revokeSession = async (session: LoginSession) => {
     confirmButtonText: '撤销',
     cancelButtonText: '取消',
   })
-  const response = await http?.delete(`${SERVER_URL}/user/sessions/${session.session_id}`)
+  const response = await http.delete(`${SERVER_URL}/user/sessions/${session.session_id}`)
   if (response?.data.code === 200) {
     ElMessage.success('登录设备已撤销')
     await loadSessions()
@@ -60,7 +60,7 @@ const revokeOthers = async () => {
     confirmButtonText: '撤销',
     cancelButtonText: '取消',
   })
-  const response = await http?.post(`${SERVER_URL}/user/sessions/revoke-others`)
+  const response = await http.post(`${SERVER_URL}/user/sessions/revoke-others`)
   if (response?.data.code === 200) {
     ElMessage.success('其他登录设备已撤销')
     await loadSessions()

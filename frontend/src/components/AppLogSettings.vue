@@ -3,10 +3,10 @@ import { SERVER_URL } from '@/const'
 import type { LogLevel } from '@/types/log'
 import { isLogLevel, LOG_LEVEL_OPTIONS } from '@/utils/logLevel'
 import { isMobile } from '@/utils/deviceUtils'
-import type { AxiosStatic } from 'axios'
+import { useHttpClient } from '@/http/client'
 import { ElMessage } from 'element-plus'
 import { Check } from '@element-plus/icons-vue'
-import { inject, onMounted, reactive, shallowRef } from 'vue'
+import { onMounted, reactive, shallowRef } from 'vue'
 
 interface APIResponse<T> {
   code: number
@@ -28,7 +28,7 @@ interface SaveStatus {
   description: string
 }
 
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 const checkIsMobile = shallowRef(isMobile())
 const loading = shallowRef(false)
 const saveStatus = shallowRef<SaveStatus | null>(null)
@@ -100,7 +100,7 @@ function validateLogSettingForm(): string | null {
 async function fetchLogSetting() {
   try {
     loading.value = true
-    const response = await http?.get<APIResponse<LogSettingResponse>>(`${SERVER_URL}/setting/log`)
+    const response = await http.get<APIResponse<LogSettingResponse>>(`${SERVER_URL}/setting/log`)
     if (!response || response.data.code !== 200) {
       throw new Error(response?.data.message || '获取日志设置失败')
     }
@@ -130,15 +130,12 @@ async function saveLogSetting() {
   try {
     loading.value = true
     saveStatus.value = null
-    const response = await http?.post<APIResponse<LogSettingResponse>>(
-      `${SERVER_URL}/setting/log`,
-      {
-        level: formData.level,
-        maxSizeMB: formData.maxSizeMB,
-        maxBackups: formData.maxBackups,
-        maxAgeDays: formData.maxAgeDays,
-      },
-    )
+    const response = await http.post<APIResponse<LogSettingResponse>>(`${SERVER_URL}/setting/log`, {
+      level: formData.level,
+      maxSizeMB: formData.maxSizeMB,
+      maxBackups: formData.maxBackups,
+      maxAgeDays: formData.maxAgeDays,
+    })
     if (!response || response.data.code !== 200) {
       throw new Error(response?.data.message || '保存日志设置失败')
     }

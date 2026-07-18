@@ -78,11 +78,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, onMounted, reactive, shallowRef } from 'vue'
+import { computed, onMounted, reactive, shallowRef } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Check } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
-import type { AxiosStatic } from 'axios'
+import { useHttpClient } from '@/http/client'
 import { isMobile } from '@/utils/deviceUtils'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
@@ -102,7 +102,7 @@ interface SaveStatus {
 const authStore = useAuthStore()
 const router = useRouter()
 const checkIsMobile = shallowRef(isMobile())
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 const loading = shallowRef(false)
 const saveStatus = shallowRef<SaveStatus | null>(null)
 const originalUsername = shallowRef('')
@@ -163,7 +163,7 @@ const saveSettings = async () => {
     requestData.username = formData.username.trim()
     requestData.new_password = formData.password
 
-    const response = await http?.post(`${SERVER_URL}/user/change`, requestData, {
+    const response = await http.post(`${SERVER_URL}/user/change`, requestData, {
       headers: {
         'Content-Type': 'application/json',
       },
@@ -217,7 +217,7 @@ const loadCurrentUsername = async () => {
   formData.username = authStore.user?.username || ''
   if (formData.username === '') {
     try {
-      const response = await http?.get(`${SERVER_URL}/user/info`)
+      const response = await http.get(`${SERVER_URL}/user/info`)
       if (response?.data.code === 200 && response.data.data?.username) {
         formData.username = response.data.data.username
       }

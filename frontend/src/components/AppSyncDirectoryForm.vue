@@ -1096,22 +1096,12 @@
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
 import { STRM_CUSTOM_OPTIONS } from '@/constants/validation'
-import type { AxiosStatic } from 'axios'
-import {
-  computed,
-  inject,
-  onMounted,
-  onUnmounted,
-  ref,
-  reactive,
-  watch,
-  useTemplateRef,
-  type Ref,
-} from 'vue'
+import { useHttpClient } from '@/http/client'
+import { computed, onMounted, ref, reactive, watch, useTemplateRef, type Ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { ArrowLeft, Delete, Plus } from '@element-plus/icons-vue'
-import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
+import { useDeviceType } from '@/composables/useDeviceType'
 import { navigateBackOrReplace } from '@/utils/navigation'
 import { sourceTypeOptions } from '@/utils/sourceTypeUtils'
 import type { SaveSyncPathPayload } from '@/api/syncPaths'
@@ -1176,12 +1166,12 @@ type DirectoryUploadRuleField =
   | 'rules'
 type DirectoryUploadRuleFieldErrors = Partial<Record<DirectoryUploadRuleField, string>>
 
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 const syncDirectorySave = useSyncDirectorySave(http)
 const route = useRoute()
 const router = useRouter()
 
-const checkIsMobile = ref(isMobile())
+const { isMobile: checkIsMobile } = useDeviceType()
 const isEditMode = ref(false)
 const loading = ref(false)
 const createIdempotencyKey = ref(generateCreateIdempotencyKey())
@@ -1323,7 +1313,7 @@ const loadDirectoryUploadRules = async (syncPathId: number) => {
   try {
     directoryUploadLoading.value = true
     directoryUploadRulesLoadFailed.value = false
-    const response = await http?.get(`${SERVER_URL}/directory-upload/rules`, {
+    const response = await http.get(`${SERVER_URL}/directory-upload/rules`, {
       params: { sync_path_id: syncPathId },
     })
 
@@ -1722,7 +1712,7 @@ const loadCronTimes = async () => {
 
   try {
     cronTimesLoading.value = true
-    const response = await http?.get(`${SERVER_URL}/setting/cron`, {
+    const response = await http.get(`${SERVER_URL}/setting/cron`, {
       params: { cron: form.cron },
     })
 
@@ -1742,7 +1732,7 @@ const importStrmSettingsLoading = ref(false)
 const importFromStrmSettings = async (field: 'video_ext' | 'meta_ext') => {
   try {
     importStrmSettingsLoading.value = true
-    const response = await http?.get(`${SERVER_URL}/setting/strm-config`)
+    const response = await http.get(`${SERVER_URL}/setting/strm-config`)
 
     if (response?.data.code === 200 && response.data.data) {
       const config = response.data.data
@@ -1798,7 +1788,7 @@ const loadAccounts = async () => {
   accounts.value = []
   try {
     accountsLoading.value = true
-    const response = await http?.get(`${SERVER_URL}/account/list`)
+    const response = await http.get(`${SERVER_URL}/account/list`)
     if (response?.data.code === 200) {
       const data = response.data.data || []
       for (const account of data) {
@@ -1819,7 +1809,7 @@ const loadAccounts = async () => {
 
 const loadVersionInfo = async () => {
   try {
-    const response = await http?.get(`${SERVER_URL}/version`)
+    const response = await http.get(`${SERVER_URL}/version`)
     if (response && response.data) {
       versionInfo.value = response.data
     } else {
@@ -1834,7 +1824,7 @@ const loadVersionInfo = async () => {
 const loadDirectoryData = async (id: number) => {
   try {
     loading.value = true
-    const response = await http?.get(`${SERVER_URL}/sync/path/${id}`)
+    const response = await http.get(`${SERVER_URL}/sync/path/${id}`)
 
     if (response?.data.code === 200) {
       const directory = response.data.data
@@ -2050,25 +2040,13 @@ watch(
   },
 )
 
-let removeDeviceTypeListener: (() => void) | null = null
-
 onMounted(async () => {
-  removeDeviceTypeListener = onDeviceTypeChange((newIsMobile) => {
-    checkIsMobile.value = newIsMobile
-  })
-
   await loadVersionInfo()
 
   const id = route.params.id as string
   if (id) {
     isEditMode.value = true
     await loadDirectoryData(Number(id))
-  }
-})
-
-onUnmounted(() => {
-  if (removeDeviceTypeListener) {
-    removeDeviceTypeListener()
   }
 })
 </script>

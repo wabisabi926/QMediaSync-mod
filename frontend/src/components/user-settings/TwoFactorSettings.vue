@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { inject, onMounted, reactive, shallowRef } from 'vue'
+import { onMounted, reactive, shallowRef } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Key, CircleCheck, Lock } from '@element-plus/icons-vue'
 import QRCode from 'qrcode'
-import type { AxiosStatic } from 'axios'
+import { useHttpClient } from '@/http/client'
 import { SERVER_URL } from '@/const'
 
 interface TwoFactorStatus {
@@ -15,7 +15,7 @@ interface TwoFactorSetupData {
   otpauth_url: string
 }
 
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 
 const twoFactorStatus = reactive<TwoFactorStatus>({
   enabled: false,
@@ -33,7 +33,7 @@ const twoFactorLoading = shallowRef(false)
 const twoFactorQrCode = shallowRef('')
 
 const loadTwoFactorStatus = async () => {
-  const response = await http?.get(`${SERVER_URL}/user/two-factor/status`)
+  const response = await http.get(`${SERVER_URL}/user/two-factor/status`)
   if (response?.data.code === 200) {
     twoFactorStatus.enabled = !!response.data.data.enabled
   }
@@ -42,7 +42,7 @@ const loadTwoFactorStatus = async () => {
 const setupTwoFactor = async () => {
   twoFactorLoading.value = true
   try {
-    const response = await http?.post(`${SERVER_URL}/user/two-factor/setup`)
+    const response = await http.post(`${SERVER_URL}/user/two-factor/setup`)
     if (response?.data.code !== 200) {
       ElMessage.error(response?.data.message || '生成两步验证密钥失败')
       return
@@ -60,7 +60,7 @@ const enableTwoFactor = async () => {
     ElMessage.error('请输入动态验证码')
     return
   }
-  const response = await http?.post(`${SERVER_URL}/user/two-factor/enable`, {
+  const response = await http.post(`${SERVER_URL}/user/two-factor/enable`, {
     totp_code: twoFactorEnableCode.value,
   })
   if (response?.data.code === 200) {
@@ -80,7 +80,7 @@ const disableTwoFactor = async () => {
     ElMessage.error('请输入当前密码和当前动态验证码')
     return
   }
-  const response = await http?.post(`${SERVER_URL}/user/two-factor/disable`, {
+  const response = await http.post(`${SERVER_URL}/user/two-factor/disable`, {
     password: twoFactorDisableForm.password,
     totp_code: twoFactorDisableForm.totpCode,
   })

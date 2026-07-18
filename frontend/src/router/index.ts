@@ -1,7 +1,7 @@
-import axios from 'axios'
 import { createRouter } from 'vue-router'
 import { createQMediaSyncHashHistory } from './history'
 import { useAuthStore } from '@/stores/auth'
+import { http } from '@/http/client'
 
 const AppHome = () => import('@/components/AppHome.vue')
 const AppLogin = () => import('@/components/AppLogin.vue')
@@ -481,7 +481,7 @@ router.beforeEach(async (to) => {
   const authStore = useAuthStore()
 
   if (!authStore.hasInitialized && authStore.authStatus === 'checking') {
-    await authStore.bootstrapAuth(axios)
+    await authStore.bootstrapAuth(http)
   }
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {

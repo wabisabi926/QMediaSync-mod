@@ -50,9 +50,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, inject, watch, useTemplateRef } from 'vue'
+import { ref, onMounted, watch, useTemplateRef } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import type { AxiosStatic } from 'axios'
+import { useHttpClient } from '@/http/client'
 import type { DirInfo } from '@/typing'
 import TreeNode from './TreeNode.vue'
 import { SERVER_URL } from '@/const'
@@ -77,7 +77,7 @@ const emit = defineEmits<{
   reset: []
 }>()
 
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 
 const showCreateDialog = ref(false)
 const createLoading = ref(false)
@@ -103,7 +103,7 @@ const loading = ref(false)
 
 const loadSubdirectories = async (parentNode: TreeNodeData): Promise<TreeNodeData[]> => {
   try {
-    const response = await http?.get(`${SERVER_URL}/path/list`, {
+    const response = await http.get(`${SERVER_URL}/path/list`, {
       timeout: 60000,
       params: {
         parent_id: parentNode.id || '',
@@ -176,7 +176,7 @@ const resetState = () => {
 const loadRootDirectories = async () => {
   loading.value = true
   try {
-    const response = await http?.get(`${SERVER_URL}/path/list`, {
+    const response = await http.get(`${SERVER_URL}/path/list`, {
       timeout: 60000,
       params: {
         parent_id: '',
@@ -261,7 +261,7 @@ const handleCreateDirectory = async () => {
     await createFormRef.value.validate()
     createLoading.value = true
 
-    const response = await http?.post(`${SERVER_URL}/path/create`, {
+    const response = await http.post(`${SERVER_URL}/path/create`, {
       parent_id: selectedDir.value.id,
       parent_path: selectedDir.value.path,
       name: createForm.value.name.trim(),

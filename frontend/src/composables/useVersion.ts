@@ -1,6 +1,6 @@
-import { inject, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { SERVER_URL } from '@/const'
-import type { AxiosStatic } from 'axios'
+import { useHttpClient } from '@/http/client'
 
 export interface VersionInfo {
   version: string
@@ -9,14 +9,14 @@ export interface VersionInfo {
 }
 
 export function useVersion() {
-  const http = inject<AxiosStatic>('$http')
+  const http = useHttpClient()
   const versionInfo = ref<VersionInfo | null>(null)
   const versionLoading = ref(true)
 
   const loadVersionInfo = async () => {
     try {
       versionLoading.value = true
-      const response = await http?.get(`${SERVER_URL}/version`)
+      const response = await http.get(`${SERVER_URL}/version`)
       if (response && response.data) {
         versionInfo.value = response.data
       } else {

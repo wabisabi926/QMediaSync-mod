@@ -544,8 +544,8 @@
 import { SERVER_URL } from '@/const'
 import V115AuthorizationDialog from '@/components/cloud-auth/V115AuthorizationDialog.vue'
 import V115AppSelector from '@/components/cloud-auth/V115AppSelector.vue'
-import type { AxiosError, AxiosStatic } from 'axios'
-import { inject, ref, computed, onMounted, onUnmounted } from 'vue'
+import type { AxiosError } from 'axios'
+import { ref, computed, onMounted } from 'vue'
 
 import {
   WarningFilled,
@@ -568,7 +568,8 @@ import {
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { formatTimestamp } from '@/utils/timeUtils'
 import { sourceTypeMap, sourceTypeOptions, sourceTypeTagMap } from '@/utils/sourceTypeUtils'
-import { isMobile as checkIsMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
+import { useDeviceType } from '@/composables/useDeviceType'
+import { useHttpClient } from '@/http/client'
 import { getV115AppInfoRows, isCustomV115App } from '@/utils/cloudAccountUtils'
 import { collectOAuthCallbackParams } from '@/utils/oauthCallback'
 import {
@@ -582,7 +583,7 @@ import {
   type V115WebAuthProviderValue,
 } from '@/components/cloud-auth/v115AuthSources'
 
-const isMobile = ref(checkIsMobile())
+const { isMobile } = useDeviceType()
 
 interface CloudDiskStatus {
   user_id: string
@@ -622,7 +623,7 @@ interface V115OAuthURLData {
   polling?: boolean
 }
 
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 
 const accounts = ref<CloudAccount[]>([])
 const loading = ref(false)
@@ -684,8 +685,6 @@ const canEditCustomAppName = computed(() =>
   }),
 )
 
-let removeDeviceTypeListener: (() => void) | null = null
-
 const getStatusClass = (account: CloudAccount) => {
   if (account.token_failed_reason && !account.token) return 'status-failed'
   if (account.token) return 'status-authorized'
@@ -707,7 +706,7 @@ const getCardStatusClass = (account: CloudAccount) => {
 const loadAccounts = async () => {
   try {
     loading.value = true
-    const response = await http?.get(`${SERVER_URL}/account/list`)
+    const response = await http.get(`${SERVER_URL}/account/list`)
 
     if (response?.data.code === 200) {
       const data = response.data.data
@@ -769,7 +768,7 @@ const loadAccountStatus = async (account: CloudAccount) => {
       return
     }
 
-    const response = await http?.get(url, {
+    const response = await http.get(url, {
       params: { account_id: account.id },
     })
 
@@ -837,7 +836,7 @@ const handleDelete = async (row: CloudAccount) => {
       type: 'warning',
     })
 
-    const response = await http?.post(
+    const response = await http.post(
       `${SERVER_URL}/account/delete`,
       { id: row.id },
       {
@@ -912,7 +911,7 @@ const handleUpdateAccount = async () => {
             }),
       }
 
-      const openListResponse = await http?.post(
+      const openListResponse = await http.post(
         `${SERVER_URL}/account/openlist`,
         openListRequestData,
         {
@@ -929,7 +928,7 @@ const handleUpdateAccount = async () => {
       }
     }
 
-    const response = await http?.post(
+    const response = await http.post(
       `${SERVER_URL}/account/update`,
       {
         id: editAccountForm.value.id,
@@ -995,7 +994,7 @@ const handle115OAuth = async (accountId?: number) => {
     )
 
     const redirectUrl = window.location.href.split('?')[0]
-    const response = await http?.get(`${SERVER_URL}/115/oauth-url`, {
+    const response = await http.get(`${SERVER_URL}/115/oauth-url`, {
       params: {
         account_id: accountId,
         redirect_url: redirectUrl,
@@ -1038,7 +1037,7 @@ const poll115OAuthStatus = (accountId: number | undefined, state: string) => {
   const timer = window.setInterval(async () => {
     retries += 1
     try {
-      const response = await http?.get(`${SERVER_URL}/115/oauth-status`, {
+      const response = await http.get(`${SERVER_URL}/115/oauth-status`, {
         params: { account_id: accountId, state },
       })
       if (response?.data.code === 200 && response.data.data?.done) {
@@ -1077,7 +1076,7 @@ const handleBaiduOAuth = async (accountId?: number) => {
     )
 
     const redirectUrl = window.location.href.split('?')[0]
-    const response = await http?.get(`${SERVER_URL}/baidupan/oauth-url`, {
+    const response = await http.get(`${SERVER_URL}/baidupan/oauth-url`, {
       params: {
         account_id: accountId,
         redirect_url: redirectUrl,
@@ -1184,7 +1183,7 @@ const handleAddAccount = async () => {
       }
     }
 
-    const response = await http?.post(url, data)
+    const response = await http.post(url, data)
 
     if (response?.data.code === 200) {
       ElMessage.success('添加账号成功')
@@ -1222,7 +1221,7 @@ const confirmOAuth = async (
       return
     }
 
-    const response = await http?.post(
+    const response = await http.post(
       url,
       {
         account_id: accountId,
@@ -1266,15 +1265,6 @@ const checkOAuthCallback = async () => {
 onMounted(() => {
   checkOAuthCallback()
   loadAccounts()
-  removeDeviceTypeListener = onDeviceTypeChange((newIsMobile) => {
-    isMobile.value = newIsMobile
-  })
-})
-
-onUnmounted(() => {
-  if (removeDeviceTypeListener) {
-    removeDeviceTypeListener()
-  }
 })
 </script>
 

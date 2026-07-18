@@ -250,10 +250,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, inject, useTemplateRef } from 'vue'
+import { ref, reactive, computed, onMounted, useTemplateRef } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { SERVER_URL } from '@/const'
-import type { AxiosStatic } from 'axios'
+import { useHttpClient } from '@/http/client'
 import { Plus, Edit, Delete, Folder } from '@element-plus/icons-vue'
 
 // 响应式数据
@@ -263,7 +263,7 @@ const dialogType = ref<'add' | 'edit'>('add')
 const editingId = ref<number | null>(null)
 const editingType = ref<'movie' | 'tvshow'>('movie')
 const formRef = useTemplateRef<FormInstance>('formRef')
-const http: AxiosStatic | undefined = inject('$http')
+const http = useHttpClient()
 
 interface category {
   id: number
@@ -341,7 +341,7 @@ const handleTabChange = () => {
 
 const loadLanguages = async () => {
   try {
-    const response = await http?.get(`${SERVER_URL}/scrape/language`)
+    const response = await http.get(`${SERVER_URL}/scrape/language`)
     if (response?.data?.code === 200) {
       languages.value = response.data.data || []
     }
@@ -353,7 +353,7 @@ const loadLanguages = async () => {
 
 const loadCountries = async () => {
   try {
-    const response = await http?.get(`${SERVER_URL}/scrape/countries`)
+    const response = await http.get(`${SERVER_URL}/scrape/countries`)
     if (response?.data?.code === 200) {
       countries.value = response.data.data || []
     }
@@ -365,7 +365,7 @@ const loadCountries = async () => {
 
 const loadMovieGenres = async () => {
   try {
-    const response = await http?.get(`${SERVER_URL}/scrape/movie-genre`)
+    const response = await http.get(`${SERVER_URL}/scrape/movie-genre`)
     if (response?.data?.code === 200) {
       movieGenres.value = response.data.data || []
     }
@@ -377,7 +377,7 @@ const loadMovieGenres = async () => {
 
 const loadTvshowGenres = async () => {
   try {
-    const response = await http?.get(`${SERVER_URL}/scrape/tvshow-genre`)
+    const response = await http.get(`${SERVER_URL}/scrape/tvshow-genre`)
     if (response?.data?.code === 200) {
       tvshowGenres.value = response.data.data || []
     }
@@ -390,7 +390,7 @@ const loadTvshowGenres = async () => {
 const loadCategories = async () => {
   try {
     const type = activeTab.value
-    const response = await http?.get(`${SERVER_URL}/scrape/${type}-categories`)
+    const response = await http.get(`${SERVER_URL}/scrape/${type}-categories`)
     if (response?.data?.code === 200) {
       // 转换数据结构以匹配表格展示需求
       const categories = response.data.data.map((item: category) => ({
@@ -451,7 +451,7 @@ const handleDelete = async (type: 'movie' | 'tvshow', id: number) => {
       type: 'warning',
     })
 
-    const response = await http?.delete(`${SERVER_URL}/scrape/${type}-categories/${id}`)
+    const response = await http.delete(`${SERVER_URL}/scrape/${type}-categories/${id}`)
     if (response?.data?.code === 200) {
       ElMessage.success('删除成功')
       loadCategories()
@@ -501,10 +501,10 @@ const handleSubmit = async () => {
 
     let response
     if (dialogType.value === 'add') {
-      response = await http?.post(`${SERVER_URL}/scrape/${editingType.value}-categories`, payload)
+      response = await http.post(`${SERVER_URL}/scrape/${editingType.value}-categories`, payload)
     } else {
       payload.id = formData.id
-      response = await http?.post(`${SERVER_URL}/scrape/${editingType.value}-categories`, payload)
+      response = await http.post(`${SERVER_URL}/scrape/${editingType.value}-categories`, payload)
     }
 
     if (response?.data?.code === 200) {

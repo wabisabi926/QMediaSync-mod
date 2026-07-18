@@ -1,5 +1,5 @@
 import { SERVER_URL } from '@/const'
-import type { AxiosStatic } from 'axios'
+import type { AxiosInstance } from 'axios'
 
 export interface SyncPathSettingPayload {
   local_proxy: number
@@ -65,7 +65,7 @@ export interface SaveSyncPathResponseData {
 }
 
 export async function saveSyncPathAggregate(
-  http: AxiosStatic,
+  http: AxiosInstance,
   id: number,
   payload: SaveSyncPathPayload,
   idempotencyKey: string,

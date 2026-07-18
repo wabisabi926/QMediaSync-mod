@@ -2,16 +2,19 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
+	"qmediasync/internal/helpers"
 	"qmediasync/internal/logstream"
 	"qmediasync/internal/models"
+	"qmediasync/internal/realtime"
 	"qmediasync/internal/requests"
-	ws "qmediasync/internal/websocket"
 
+	"github.com/gin-contrib/sse"
 	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
+	"gorm.io/gorm"
 )
 
 const (
@@ -20,9 +23,9 @@ const (
 	syncTaskStreamTaskPatch      = "task_patch"
 	syncTaskStreamLogAppend      = "log_append"
 	syncTaskStreamComplete       = "complete"
-	syncTaskStreamHeartbeat      = "heartbeat"
 	syncTaskStreamError          = "error"
 	syncTaskStreamResyncRequired = "resync_required"
+	syncTaskFinalFlushDuration   = 2 * time.Second
 )
 
 type syncTaskStreamMessage struct {
@@ -57,12 +60,6 @@ func buildSyncTaskSnapshotMessage(task *models.Sync, logs []logstream.Entry, log
 	}
 }
 
-var syncTaskStreamUpgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-}
-
 // SyncTaskStream 推送同步任务详情快照、状态 patch 和日志增量。
 func SyncTaskStream(c *gin.Context) {
 	idReq, err := requests.ParsePositiveIDRequest(c.Param("id"))
@@ -71,44 +68,36 @@ func SyncTaskStream(c *gin.Context) {
 		return
 	}
 
-	task, err := models.GetSyncByID(idReq.ID)
-	if err != nil || task == nil {
-		writeMissingSyncTaskComplete(c, idReq.ID)
+	streamCtx, cleanup := realtime.GlobalLifecycle.StreamContext(c.Request.Context())
+	defer cleanup()
+	if isSSEStreamStopped(streamCtx) {
 		return
 	}
 
-	conn, err := syncTaskStreamUpgrader.Upgrade(c.Writer, c.Request, nil)
-	if err != nil {
+	task, responseWritten := loadSyncTaskForStream(c, idReq.ID)
+	if responseWritten {
 		return
 	}
-	defer conn.Close()
+	if task == nil {
+		writeMissingSyncTaskComplete(c, idReq.ID, streamCtx)
+		return
+	}
 
-	ctx, cancel := context.WithCancel(c.Request.Context())
-	defer cancel()
-
-	go func() {
-		for {
-			if _, _, err := conn.ReadMessage(); err != nil {
-				cancel()
-				return
-			}
-		}
-	}()
-
-	taskEvents, unsubscribeTask := ws.GlobalSyncTaskHub.Subscribe(task.ID, 128)
+	if isSSEStreamStopped(streamCtx) {
+		return
+	}
+	taskEvents, replay, snapshotSequence, replayed, unsubscribeTask := realtime.GlobalSyncTaskHub.SubscribeFrom(task.ID, c.GetHeader("Last-Event-ID"), 128)
 	defer unsubscribeTask()
+	if isSSEStreamStopped(streamCtx) {
+		return
+	}
 
-	latestTask, err := models.GetSyncByID(idReq.ID)
-	if err != nil || latestTask == nil {
-		payload := task.SyncTaskEventPayload()
-		payload.Deleted = true
-		_ = writeSyncTaskStreamMessage(conn, syncTaskStreamMessage{
-			Type:       syncTaskStreamComplete,
-			Version:    syncTaskStreamVersion,
-			SyncID:     payload.SyncID,
-			ServerTime: time.Now().Unix(),
-			Data:       payload,
-		})
+	latestTask, responseWritten := loadSyncTaskForStream(c, idReq.ID)
+	if responseWritten {
+		return
+	}
+	if latestTask == nil {
+		writeMissingSyncTaskComplete(c, idReq.ID, streamCtx)
 		return
 	}
 	task = latestTask
@@ -116,153 +105,263 @@ func SyncTaskStream(c *gin.Context) {
 	fullLogPath, logPath := models.ExistingSyncLogPath(task.ID)
 	logs, cursor, err := logstream.ReadTailEntries(fullLogPath, 1000)
 	if err != nil {
-		_ = writeSyncTaskStreamMessage(conn, syncTaskStreamMessage{
-			Type:       syncTaskStreamError,
-			Version:    syncTaskStreamVersion,
-			SyncID:     task.ID,
-			ServerTime: time.Now().Unix(),
-			Data:       map[string]string{"message": "读取同步日志失败"},
-		})
+		helpers.AppLogger.Errorf("读取同步任务日志快照失败: %v", err)
+		c.JSON(http.StatusInternalServerError, APIResponse[any]{Code: BadRequest, Message: "读取同步任务日志失败", Data: nil})
+		return
+	}
+	if isSSEStreamStopped(streamCtx) {
 		return
 	}
 
-	logEvents, unsubscribeLog, err := logstream.GlobalManager.Subscribe(ctx, fullLogPath, cursor, 512)
+	logEvents, unsubscribeLog, err := logstream.GlobalManager.Subscribe(streamCtx, fullLogPath, cursor, 512)
 	if err != nil {
-		_ = writeSyncTaskStreamMessage(conn, syncTaskStreamMessage{
-			Type:       syncTaskStreamError,
-			Version:    syncTaskStreamVersion,
-			SyncID:     task.ID,
-			ServerTime: time.Now().Unix(),
-			Data:       map[string]string{"message": err.Error()},
-		})
+		helpers.AppLogger.Errorf("订阅同步任务日志失败: %v", err)
+		c.JSON(http.StatusInternalServerError, APIResponse[any]{Code: BadRequest, Message: "订阅同步任务日志失败", Data: nil})
 		return
 	}
 	defer unsubscribeLog()
-
-	if err := writeSyncTaskStreamMessage(conn, buildSyncTaskSnapshotMessage(task, logs, cursor, 0, logPath)); err != nil {
+	if isSSEStreamStopped(streamCtx) {
 		return
 	}
 
-	if task.Status == models.SyncStatusCompleted || task.Status == models.SyncStatusFailed {
-		_ = writeSyncTaskStreamMessage(conn, syncTaskStreamMessage{
-			Type:       syncTaskStreamComplete,
-			Version:    syncTaskStreamVersion,
-			SyncID:     task.ID,
-			ServerTime: time.Now().Unix(),
-			Data:       task.SyncTaskEventPayload(),
-		})
+	setSSEHeaders(c)
+	if isSSEStreamStopped(streamCtx) {
+		return
+	}
+	if err := writeSSEComment(c, "connected"); err != nil {
+		if isSSEStreamStopError(err) {
+			return
+		}
+		helpers.AppLogger.Errorf("同步任务 SSE 建连失败: %v", err)
+		return
+	}
+	if isSSEStreamStopped(streamCtx) {
 		return
 	}
 
-	heartbeat := time.NewTicker(15 * time.Second)
-	defer heartbeat.Stop()
+	if replayed {
+		if err := replaySyncTaskEvents(streamCtx, replay, func(event realtime.TaskStreamEvent) error {
+			return writeSyncTaskStreamEvent(c, syncTaskStreamTaskPatch, taskStreamMessage(event), realtime.GlobalSyncTaskHub.EventID(event.Payload.Sequence))
+		}); err != nil {
+			if isSSEStreamStopError(err) {
+				return
+			}
+			helpers.AppLogger.Errorf("写入同步任务回放失败: %v", err)
+			return
+		}
+	} else {
+		message := buildSyncTaskSnapshotMessage(task, logs, cursor, snapshotSequence, logPath)
+		if err := writeSyncTaskStreamEvent(c, syncTaskStreamSnapshot, message, realtime.GlobalSyncTaskHub.EventID(snapshotSequence)); err != nil {
+			if isSSEStreamStopError(err) {
+				return
+			}
+			helpers.AppLogger.Errorf("写入同步任务快照失败: %v", err)
+			return
+		}
+	}
+
+	if isTerminalSyncTask(task) {
+		return
+	}
+
+	serveSyncTaskStream(c, streamCtx, task.ID, taskEvents, logEvents, snapshotSequence)
+}
+
+// loadSyncTaskForStream 读取同步任务，并将可判断的服务端错误作为普通 HTTP 响应返回。
+func loadSyncTaskForStream(c *gin.Context, syncID uint) (*models.Sync, bool) {
+	task, err := models.GetSyncByID(syncID)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, false
+	}
+	if err != nil {
+		helpers.AppLogger.Errorf("读取同步任务失败: %v", err)
+		c.JSON(http.StatusInternalServerError, APIResponse[any]{Code: BadRequest, Message: "读取同步任务失败", Data: nil})
+		return nil, true
+	}
+	if task == nil {
+		helpers.AppLogger.Error("读取同步任务失败: 返回空记录")
+		c.JSON(http.StatusInternalServerError, APIResponse[any]{Code: BadRequest, Message: "读取同步任务失败", Data: nil})
+		return nil, true
+	}
+	return task, false
+}
+
+func serveSyncTaskStream(
+	c *gin.Context,
+	streamCtx context.Context,
+	syncID uint,
+	taskEvents <-chan realtime.TaskStreamEvent,
+	logEvents <-chan logstream.Message,
+	snapshotSequence uint64,
+) {
+	keepalive := time.NewTicker(sseKeepaliveInterval)
+	defer keepalive.Stop()
 
 	var completeC <-chan time.Time
-	var terminalPayload ws.SyncTaskEventPayload
+	var terminalPayload realtime.SyncTaskEventPayload
 	for {
 		select {
-		case <-ctx.Done():
+		case <-streamCtx.Done():
 			return
-		case <-heartbeat.C:
-			if err := writeSyncTaskStreamMessage(conn, syncTaskStreamMessage{
-				Type:       syncTaskStreamHeartbeat,
-				Version:    syncTaskStreamVersion,
-				SyncID:     task.ID,
-				ServerTime: time.Now().Unix(),
-			}); err != nil {
+		case <-keepalive.C:
+			if isSSEStreamStopped(streamCtx) {
 				return
 			}
-		case payload, ok := <-taskEvents:
+			if err := writeSSEComment(c, "keepalive"); err != nil {
+				if isSSEStreamStopError(err) {
+					return
+				}
+				helpers.AppLogger.Errorf("写入同步任务 SSE 心跳失败: %v", err)
+				return
+			}
+		case event, ok := <-taskEvents:
 			if !ok {
 				return
 			}
-			msgType := syncTaskStreamTaskPatch
-			if payload.ResyncReason != "" {
-				msgType = syncTaskStreamResyncRequired
-			}
-			if payload.Deleted {
-				_ = writeSyncTaskStreamMessage(conn, syncTaskStreamMessage{
-					Type:       syncTaskStreamComplete,
-					Version:    syncTaskStreamVersion,
-					SyncID:     payload.SyncID,
-					Sequence:   payload.Sequence,
-					ServerTime: time.Now().Unix(),
-					Data:       payload,
-				})
+			if isSSEStreamStopped(streamCtx) {
 				return
 			}
-			if err := writeSyncTaskStreamMessage(conn, syncTaskStreamMessage{
-				Type:       msgType,
-				Version:    syncTaskStreamVersion,
-				SyncID:     payload.SyncID,
-				Sequence:   payload.Sequence,
-				ServerTime: time.Now().Unix(),
-				Data:       payload,
-			}); err != nil {
+			if event.Payload.Sequence <= snapshotSequence {
+				continue
+			}
+			if event.Terminal {
+				terminalPayload = event.Payload
+				taskEvents = nil
+				completeC = time.After(syncTaskFinalFlushDuration)
+				continue
+			}
+			eventType := syncTaskStreamTaskPatch
+			if event.Payload.ResyncReason != "" {
+				eventType = syncTaskStreamResyncRequired
+			}
+			if err := writeSyncTaskStreamEvent(c, eventType, taskStreamMessage(event), realtime.GlobalSyncTaskHub.EventID(event.Payload.Sequence)); err != nil {
+				if isSSEStreamStopError(err) {
+					return
+				}
+				helpers.AppLogger.Errorf("写入同步任务 patch 失败: %v", err)
 				return
 			}
-			if payload.Status == int(models.SyncStatusCompleted) || payload.Status == int(models.SyncStatusFailed) {
-				terminalPayload = payload
-				completeC = time.After(2 * time.Second)
-			}
-		case logMsg, ok := <-logEvents:
+		case logMessage, ok := <-logEvents:
 			if !ok {
 				return
 			}
-			msgType := syncTaskStreamLogAppend
-			data := any(logMsg)
-			if logMsg.Type == "resync_required" {
-				msgType = syncTaskStreamResyncRequired
+			if isSSEStreamStopped(streamCtx) {
+				return
 			}
-			if logMsg.Type == "error" {
-				msgType = syncTaskStreamError
+			eventType := syncTaskStreamLogAppend
+			if logMessage.Type == "resync_required" {
+				eventType = syncTaskStreamResyncRequired
 			}
-			if err := writeSyncTaskStreamMessage(conn, syncTaskStreamMessage{
-				Type:       msgType,
+			if logMessage.Type == "error" {
+				eventType = syncTaskStreamError
+			}
+			if err := writeSyncTaskStreamEvent(c, eventType, syncTaskStreamMessage{
+				Type:       eventType,
 				Version:    syncTaskStreamVersion,
-				SyncID:     task.ID,
+				SyncID:     syncID,
 				ServerTime: time.Now().Unix(),
-				Data:       data,
-			}); err != nil {
+				Data:       logMessage,
+			}, ""); err != nil {
+				if isSSEStreamStopError(err) {
+					return
+				}
+				helpers.AppLogger.Errorf("写入同步任务日志失败: %v", err)
 				return
 			}
 		case <-completeC:
-			_ = writeSyncTaskStreamMessage(conn, syncTaskStreamMessage{
-				Type:       syncTaskStreamComplete,
-				Version:    syncTaskStreamVersion,
-				SyncID:     terminalPayload.SyncID,
-				Sequence:   terminalPayload.Sequence,
-				ServerTime: time.Now().Unix(),
-				Data:       terminalPayload,
-			})
+			if isSSEStreamStopped(streamCtx) {
+				return
+			}
+			if err := writeSyncTaskStreamEvent(c, syncTaskStreamComplete, completeTaskMessage(terminalPayload), ""); err != nil {
+				if isSSEStreamStopError(err) {
+					return
+				}
+				helpers.AppLogger.Errorf("写入同步任务 final complete 失败: %v", err)
+			}
 			return
 		}
 	}
 }
 
-func writeSyncTaskStreamMessage(conn *websocket.Conn, msg syncTaskStreamMessage) error {
-	if msg.ServerTime == 0 {
-		msg.ServerTime = time.Now().Unix()
+func taskStreamMessage(event realtime.TaskStreamEvent) syncTaskStreamMessage {
+	eventType := syncTaskStreamTaskPatch
+	if event.Payload.ResyncReason != "" {
+		eventType = syncTaskStreamResyncRequired
 	}
-	return conn.WriteJSON(msg)
+	return syncTaskStreamMessage{
+		Type:       eventType,
+		Version:    syncTaskStreamVersion,
+		SyncID:     event.Payload.SyncID,
+		Sequence:   event.Payload.Sequence,
+		ServerTime: time.Now().Unix(),
+		Data:       event.Payload,
+	}
 }
 
-func writeMissingSyncTaskComplete(c *gin.Context, syncID uint) {
-	conn, err := syncTaskStreamUpgrader.Upgrade(c.Writer, c.Request, nil)
-	if err != nil {
-		return
-	}
-	defer conn.Close()
-
-	_ = writeSyncTaskStreamMessage(conn, syncTaskStreamMessage{
+func completeTaskMessage(payload realtime.SyncTaskEventPayload) syncTaskStreamMessage {
+	return syncTaskStreamMessage{
 		Type:       syncTaskStreamComplete,
 		Version:    syncTaskStreamVersion,
-		SyncID:     syncID,
+		SyncID:     payload.SyncID,
 		ServerTime: time.Now().Unix(),
-		Data: ws.SyncTaskEventPayload{
-			SyncID:    syncID,
-			Deleted:   true,
-			EventTime: time.Now().Unix(),
-		},
+		Data:       payload,
+	}
+}
+
+func isTerminalSyncTask(task *models.Sync) bool {
+	return task.Status == models.SyncStatusCompleted || task.Status == models.SyncStatusFailed
+}
+
+func replaySyncTaskEvents(streamCtx context.Context, replay []realtime.TaskStreamEvent, write func(realtime.TaskStreamEvent) error) error {
+	for _, event := range replay {
+		if isSSEStreamStopped(streamCtx) {
+			return errSSEStreamStopped
+		}
+		if err := write(event); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeSyncTaskStreamEvent(c *gin.Context, eventType string, message syncTaskStreamMessage, eventID string) error {
+	return writeSSEFrame(func() error {
+		if err := setSSEWriteDeadline(c); err != nil {
+			return err
+		}
+		if eventID != "" {
+			c.Render(-1, sse.Event{Event: eventType, Id: eventID, Data: message})
+		} else {
+			c.SSEvent(eventType, message)
+		}
+		c.Writer.Flush()
+		return nil
 	})
+}
+
+func writeMissingSyncTaskComplete(c *gin.Context, syncID uint, streamCtx context.Context) {
+	if isSSEStreamStopped(streamCtx) {
+		return
+	}
+	setSSEHeaders(c)
+	if isSSEStreamStopped(streamCtx) {
+		return
+	}
+	if err := writeSSEComment(c, "connected"); err != nil {
+		if isSSEStreamStopError(err) {
+			return
+		}
+		helpers.AppLogger.Errorf("缺失同步任务 SSE 建连失败: %v", err)
+		return
+	}
+	if err := writeSyncTaskStreamEvent(c, syncTaskStreamComplete, completeTaskMessage(realtime.SyncTaskEventPayload{
+		SyncID:    syncID,
+		Deleted:   true,
+		EventTime: time.Now().Unix(),
+	}), ""); err != nil {
+		if isSSEStreamStopError(err) {
+			return
+		}
+		helpers.AppLogger.Errorf("写入缺失同步任务 complete 失败: %v", err)
+	}
 }

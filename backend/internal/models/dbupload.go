@@ -12,7 +12,7 @@ import (
 
 	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
-	ws "qmediasync/internal/websocket"
+	"qmediasync/internal/realtime"
 
 	"gorm.io/gorm"
 )
@@ -155,7 +155,7 @@ var uploadQueueProgressBroadcast = struct {
 }
 
 func publishUploadQueueChanged(task *DbUploadTask, reason string) {
-	payload := ws.QueueChangedPayload{Reason: reason}
+	payload := realtime.QueueChangedPayload{Reason: reason}
 	if task != nil {
 		if reason == "progress" && shouldThrottleUploadProgressBroadcast(task.ID) {
 			return
@@ -181,10 +181,10 @@ func publishUploadQueueChanged(task *DbUploadTask, reason string) {
 		}
 	}
 	if reason == "progress" {
-		ws.TryBroadcastEvent(ws.EventUploadQueueChanged, payload)
+		realtime.TryBroadcastEvent(realtime.EventUploadQueueChanged, payload)
 		return
 	}
-	ws.BroadcastQueueChanged(ws.EventUploadQueueChanged, payload)
+	realtime.BroadcastQueueChanged(realtime.EventUploadQueueChanged, payload)
 }
 
 func shouldThrottleUploadProgressBroadcast(taskID uint) bool {

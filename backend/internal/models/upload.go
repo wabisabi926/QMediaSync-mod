@@ -6,7 +6,7 @@ import (
 
 	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
-	ws "qmediasync/internal/websocket"
+	"qmediasync/internal/realtime"
 )
 
 // UploadQueue 上传队列
@@ -53,7 +53,7 @@ func (uq *UQ) Start() {
 	// 重新创建 tasks 通道和 results 通道
 	uq.tasks = make(chan *DbUploadTask, uq.numWorkers)
 	uq.mutex.Unlock()
-	ws.BroadcastQueueStatusChanged(ws.EventUploadQueueStatusChanged, true)
+	realtime.BroadcastQueueStatusChanged(realtime.EventUploadQueueStatusChanged, true)
 	// 启动工作协程
 	for i := 0; i < uq.numWorkers; i++ {
 		go uq.worker()
@@ -195,7 +195,7 @@ func (uq *UQ) Stop() {
 	}
 	uq.running = false
 	uq.mutex.Unlock()
-	ws.BroadcastQueueStatusChanged(ws.EventUploadQueueStatusChanged, false)
+	realtime.BroadcastQueueStatusChanged(realtime.EventUploadQueueStatusChanged, false)
 
 	// 关闭 tasks 通道
 	close(uq.tasks)

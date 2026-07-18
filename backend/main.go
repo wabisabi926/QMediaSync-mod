@@ -30,10 +30,10 @@ import (
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/migrate"
 	"qmediasync/internal/models"
+	"qmediasync/internal/realtime"
 	"qmediasync/internal/synccron"
 	"qmediasync/internal/syncstrm"
 	"qmediasync/internal/v115open"
-	"qmediasync/internal/websocket"
 
 	"github.com/gin-gonic/gin"
 )
@@ -120,6 +120,7 @@ func (app *App) Start() {
 }
 
 func (app *App) Stop() {
+	realtime.GlobalLifecycle.Shutdown()
 	app.shutdownHTTPServers()
 	// 关闭同步任务执行队列
 	synccron.PauseAllNewSyncQueues()
@@ -529,10 +530,9 @@ func initOthers() {
 	models.InitEmbyLibraryRefreshCoordinator()
 	syncstrm.InitStrmGenerationWorker()
 	directoryupload.InitDirectoryUploadService()
-	// 初始化 WebSocket 事件中心
-	wsHub := websocket.NewEventHub()
-	websocket.GlobalEventHub = wsHub
-	go wsHub.Run()
+	// 初始化实时事件中心
+	realtime.GlobalEventHub = realtime.NewEventHub()
+	realtime.GlobalSyncTaskHub = realtime.NewSyncTaskHub()
 	synccron.InitCron()       // 初始化定时任务（包含备份定时任务）
 	synccron.InitSyncCron()   // 初始化同步目录的定时任务
 	synccron.InitScrapeCron() // 初始化刮削目录的自定义定时任务
@@ -588,17 +588,18 @@ func setRouter(r *gin.Engine) {
 	// 	webStatisPath = filepath.Join(helpers.RootDir, "www")
 	// }
 	r.LoadHTMLFiles(filepath.Join(webStatisPath, "index.html"))
-	r.StaticFile("/favicon.ico", filepath.Join(webStatisPath, "favicon.ico"))
-	r.StaticFS("/assets", http.Dir(filepath.Join(webStatisPath, "assets")))
+	r.StaticFile("/favicon.ico", filepath.Join(webStatisPath, "favicon.ico")) // 提供站点图标
+	r.StaticFS("/assets", http.Dir(filepath.Join(webStatisPath, "assets")))   // 提供前端静态资源
+	// 返回前端单页应用入口
 	r.GET("/", func(c *gin.Context) {
 		c.HTML(200, "index.html", gin.H{})
 	})
-	r.POST("/emby/webhook", controllers.Webhook)
-	r.POST("/api/login", controllers.LoginAction)
-	r.POST("/api/strm/webhook", controllers.StrmWebhook)
-	r.GET("/api/setup/status", controllers.SetupStatusAction)
-	r.POST("/api/setup/admin", controllers.CreateInitialAdminAction)
-	r.GET("/api/session", controllers.SessionAction)
+	r.POST("/emby/webhook", controllers.Webhook)                           // 接收 Emby 事件回调
+	r.POST("/api/login", controllers.LoginAction)                          // 用户登录
+	r.POST("/api/strm/webhook", controllers.StrmWebhook)                   // 接收外部 STRM 生成任务
+	r.GET("/api/setup/status", controllers.SetupStatusAction)              // 查询首个管理员初始化状态
+	r.POST("/api/setup/admin", controllers.CreateInitialAdminAction)       // 创建首个管理员
+	r.GET("/api/session", controllers.SessionAction)                       // 获取当前登录会话
 	r.GET("/115/url/*filename", controllers.Get115UrlByPickCode)           // 查询 115 直链，按 PickCode 查询，支持 ISO，路径最后一部分为 .扩展名格式
 	r.GET("/115/newurl", controllers.Get115UrlByPickCode)                  // 查询 115 直链，按 PickCode 查询
 	r.GET("/baidupan/url/*filename", controllers.GetBaiduPanUrlByPickCode) // 查询百度网盘直链，按 fs_id 查询，支持 ISO，路径最后一部分为 .扩展名格式
@@ -608,18 +609,20 @@ func setRouter(r *gin.Engine) {
 	r.GET("/proxy-115", controllers.Proxy115)                      // 115 CDN 反代路由
 	r.POST("/api/update-fn-access-path", controllers.UpdateFNPath) // 更新飞牛访问路径
 
+	// 需要 JWT 验证的 API 路由
 	api := r.Group("/api")
 	api.Use(controllers.JWTAuthMiddleware())
 	{
 		api.GET("/scrape/tmp-image", controllers.ScrapeTmpImage)           // 获取临时图片
 		api.GET("/scrape/records/export", controllers.ExportScrapeRecords) // 导出刮削记录
-		api.GET("/logs/ws", controllers.LogWebSocket)                      // WebSocket 日志查看
-		api.GET("/events/ws", controllers.EventWebSocket)                  // WebSocket 事件推送
+		api.GET("/logs/stream", controllers.LogStream)                     // SSE 日志查看
+		api.GET("/events/stream", controllers.EventStream)                 // SSE 事件推送
 		api.GET("/sync/tasks/:id/stream", controllers.SyncTaskStream)      // 同步任务详情实时流
 		api.GET("/logs/old", controllers.GetOldLogs)                       // 通过 HTTP 获取旧日志
 		api.GET("/logs/download", controllers.DownloadLogFile)             // 下载日志文件
 		api.GET("/path/is-fn-os", controllers.IsFnOS)                      // 查询是否是飞牛环境
 
+		// 获取应用版本与运行环境信息
 		api.GET("/version", func(c *gin.Context) {
 			c.JSON(http.StatusOK, map[string]interface{}{
 				"version":    Version,
@@ -654,20 +657,20 @@ func setRouter(r *gin.Engine) {
 		api.GET("/update/progress", controllers.UpdateProgress)     // 获取更新进度
 		api.POST("/update/cancel", controllers.CancelUpdate)        // 取消更新
 
-		api.GET("/user/info", controllers.GetUserInfo)
-		api.POST("/logout", controllers.LogoutAction)
-		api.GET("/user/sessions", controllers.ListUserSessions)
-		api.DELETE("/user/sessions/:session_id", controllers.RevokeUserSessionAction)
-		api.POST("/user/sessions/revoke-others", controllers.RevokeOtherUserSessionsAction)
-		api.GET("/user/two-factor/status", controllers.GetTwoFactorStatus)
-		api.POST("/user/two-factor/setup", controllers.SetupTwoFactor)
-		api.POST("/user/two-factor/enable", controllers.EnableTwoFactor)
-		api.POST("/user/two-factor/disable", controllers.DisableTwoFactor)
-		api.GET("/path/list", controllers.GetPathList)     // 目录列表
-		api.POST("/path/create", controllers.CreateDir)    // 创建目录接口
-		api.DELETE("/path", controllers.DeleteDir)         // 删除目录接口
-		api.GET("/path/files", controllers.GetNetFileList) // 查询网盘文件列表
-		api.POST("/user/change", controllers.ChangePassword)
+		api.GET("/user/info", controllers.GetUserInfo)                                      // 获取当前用户信息
+		api.POST("/logout", controllers.LogoutAction)                                       // 退出当前登录会话
+		api.GET("/user/sessions", controllers.ListUserSessions)                             // 获取当前用户登录设备
+		api.DELETE("/user/sessions/:session_id", controllers.RevokeUserSessionAction)       // 撤销指定登录设备
+		api.POST("/user/sessions/revoke-others", controllers.RevokeOtherUserSessionsAction) // 撤销其他登录设备
+		api.GET("/user/two-factor/status", controllers.GetTwoFactorStatus)                  // 获取两步验证状态
+		api.POST("/user/two-factor/setup", controllers.SetupTwoFactor)                      // 创建两步验证配置草稿
+		api.POST("/user/two-factor/enable", controllers.EnableTwoFactor)                    // 启用两步验证
+		api.POST("/user/two-factor/disable", controllers.DisableTwoFactor)                  // 关闭两步验证
+		api.GET("/path/list", controllers.GetPathList)                                      // 目录列表
+		api.POST("/path/create", controllers.CreateDir)                                     // 创建目录接口
+		api.DELETE("/path", controllers.DeleteDir)                                          // 删除目录接口
+		api.GET("/path/files", controllers.GetNetFileList)                                  // 查询网盘文件列表
+		api.POST("/user/change", controllers.ChangePassword)                                // 修改当前用户密码
 
 		api.POST("/setting/http-proxy", controllers.UpdateHttpProxy)    // 更改 HTTP 代理
 		api.GET("/setting/http-proxy", controllers.GetHttpProxy)        // 获取 HTTP 代理

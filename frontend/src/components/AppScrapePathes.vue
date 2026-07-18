@@ -688,16 +688,16 @@ const saveSyncPathRelation = async () => {
   }
 }
 
-// WebSocket 事件监听
-import { useWSEvent } from '@/composables/useWebSocket'
+// 全局实时事件监听
+import { useRealtimeEvent } from '@/composables/useRealtimeEvents'
 
 const onScraperEvent = () => {
   updatePathesStatus()
 }
 
-useWSEvent('scraper_task_start', onScraperEvent)
-useWSEvent('scraper_task_complete', onScraperEvent)
-useWSEvent('scraper_item_complete', onScraperEvent)
+useRealtimeEvent('scraper_task_start', onScraperEvent, () => void loadPathes())
+useRealtimeEvent('scraper_task_complete', onScraperEvent)
+useRealtimeEvent('scraper_item_complete', onScraperEvent)
 
 let removeDeviceTypeListener: (() => void) | null = null
 

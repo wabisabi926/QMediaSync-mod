@@ -47,6 +47,12 @@
             当前显示 {{ limitedLogLines.length }} / 已加载 {{ logLines.length }} 行日志
             <span v-if="isConnected" class="status-indicator connected">● 已连接</span>
             <span v-else class="status-indicator disconnected">● 已断开</span>
+            <span v-if="props.isRealTime && streamUnsupported" class="stream-status-message">
+              当前浏览器不支持实时日志，请手动刷新查看最新内容
+            </span>
+            <span v-else-if="props.isRealTime && !isConnected" class="stream-status-message">
+              实时日志暂时断开，正在重新连接…
+            </span>
           </el-text>
         </div>
       </div>
@@ -55,15 +61,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, useTemplateRef } from 'vue'
+import { ref, computed, onMounted, onUnmounted, shallowRef, watch, useTemplateRef } from 'vue'
 import LogActionToolbar from '@/components/log/LogActionToolbar.vue'
 import LogLevelFilter from '@/components/log/LogLevelFilter.vue'
 import { useLogFileActions } from '@/composables/useLogFileActions'
-import { SERVER_URL } from '@/const'
+import { registerRealtimeSource } from '@/composables/realtimeSources'
 import type { LogEntry, LogLevel } from '@/types/log'
 import { DEFAULT_VISIBLE_LOG_LEVELS, filterLogEntriesByLevels } from '@/utils/logLevel'
 import { formatDateTime } from '@/utils/timeUtils'
-import { buildApiWebSocketUrl } from '@/utils/wsUrl'
 
 // 定义组件属性
 interface Props {
@@ -87,10 +92,11 @@ const logViewerStyle = computed<Record<string, string>>(() => ({
 }))
 
 // 组件状态
-const ws = ref<WebSocket | null>(null)
+const stream = shallowRef<EventSource | null>(null)
 const logLines = ref<LogEntry[]>([])
 const selectedLogLevels = ref<LogLevel[]>([...DEFAULT_VISIBLE_LOG_LEVELS])
 const isConnected = ref(false)
+const streamUnsupported = ref(false)
 const loading = ref(false)
 const logsContainer = useTemplateRef<HTMLElement>('logsContainer')
 const { downloadLogFile } = useLogFileActions()
@@ -103,15 +109,16 @@ let cleanupTimer: ReturnType<typeof setTimeout> | null = null
 // 日志配置
 let isLoadingOldLogs = false
 let currentOffset = 0
-let isAtTop = true
-let lastScrollTop = 0
-let isManualDisconnect = false
 let hasReachedEnd = false
 let followLatest = true
+let unregisterStream: (() => void) | null = null
+let streamOpened = false
+let hasInitialSnapshot = false
+let snapshotRequestID = 0
+let snapshotController: AbortController | null = null
 
-// WebSocket URL 配置
-const WS_URL = buildApiWebSocketUrl(SERVER_URL, '/logs/ws')
-const HTTP_URL = `${SERVER_URL}/logs/old`
+const HTTP_URL = '/api/logs/old'
+const STREAM_URL = '/api/logs/stream'
 
 const readLogResponseError = async (response: Response) => {
   try {
@@ -129,12 +136,20 @@ const limitedLogLines = computed(() => {
 })
 
 const resetLogState = () => {
+  cancelSnapshotRequest()
   currentOffset = 0
   hasReachedEnd = false
-  isAtTop = true
-  lastScrollTop = 0
   followLatest = true
+  hasInitialSnapshot = false
   logLines.value = []
+}
+
+const cancelSnapshotRequest = () => {
+  snapshotRequestID++
+  snapshotController?.abort()
+  snapshotController = null
+  isLoadingOldLogs = false
+  loading.value = false
 }
 
 // 监听日志路径和实时模式变化，自动维护连接
@@ -144,17 +159,16 @@ watch(
     const oldLogPath = oldValue?.[0] ?? ''
     const normalizedLogPath = logPath.trim()
     if (logPath !== oldLogPath) {
-      disconnect({ silent: true })
+      disconnect()
       resetLogState()
-      if (normalizedLogPath) {
-        await loadInitialLogs()
-      }
     }
-    if (isRealTime && normalizedLogPath && !isWebSocketConnected()) {
-      connect()
+    if (!isRealTime) {
+      disconnect()
+      return
     }
-    if (!isRealTime && ws.value) {
-      disconnect({ silent: true })
+    if (normalizedLogPath) {
+      const loaded = await loadInitialLogs()
+      if (loaded) connect()
     }
   },
 )
@@ -165,20 +179,28 @@ onMounted(async () => {
   if (props.logPath) {
     resetLogState()
     // 加载历史日志，设置 limit 为 1000
-    await loadInitialLogs()
-    // 只有在实时日志模式下才建立 WebSocket 连接
-    if (props.isRealTime) {
+    const loaded = await loadInitialLogs()
+    if (props.isRealTime && loaded) {
       connect()
     }
   }
 })
 
 // 加载初始历史日志
-const loadInitialLogs = async () => {
+const loadInitialLogs = async (): Promise<boolean> => {
   const logPath = props.logPath.trim()
   if (!logPath) {
-    return
+    return false
   }
+
+  cancelSnapshotRequest()
+  const requestID = ++snapshotRequestID
+  const controller = new AbortController()
+  snapshotController = controller
+  const isCurrentSnapshotRequest = () =>
+    snapshotRequestID === requestID &&
+    snapshotController === controller &&
+    props.logPath.trim() === logPath
 
   isLoadingOldLogs = true
   loading.value = true
@@ -187,33 +209,43 @@ const loadInitialLogs = async () => {
   const apiUrl = `${HTTP_URL}?path=${encodeURIComponent(logPath)}&pos=-1&direction=forward&limit=1000`
 
   try {
-    const response = await fetch(apiUrl, { credentials: 'include' })
+    const response = await fetch(apiUrl, { credentials: 'include', signal: controller.signal })
+    if (!isCurrentSnapshotRequest()) return false
     if (!response.ok) {
       throw new Error(await readLogResponseError(response))
     }
     const rs = await response.json()
+    if (!isCurrentSnapshotRequest()) return false
     const entries = rs.entries || []
     currentOffset = rs.pos
     // 处理返回的旧日志条目
-    if (Array.isArray(entries) && entries.length > 0) {
-      // 添加到日志数组（旧日志在后面）
-      logLines.value = [...entries]
-    }
+    logLines.value = Array.isArray(entries) ? [...entries] : []
+    hasInitialSnapshot = true
+    return true
   } catch (error) {
+    if (controller.signal.aborted || !isCurrentSnapshotRequest()) {
+      return false
+    }
     console.error('加载初始日志失败：', error)
     addSystemLog(
       `加载初始日志失败：${error instanceof Error ? error.message : '未知错误'}`,
       'error',
     )
+    hasInitialSnapshot = false
+    return false
   } finally {
-    isLoadingOldLogs = false
-    loading.value = false
+    if (isCurrentSnapshotRequest()) {
+      isLoadingOldLogs = false
+      loading.value = false
+      snapshotController = null
+    }
   }
 }
 
 // 清理资源
 onUnmounted(() => {
-  disconnect({ silent: true })
+  disconnect()
+  cancelSnapshotRequest()
   if (cleanupTimer) {
     clearTimeout(cleanupTimer)
   }
@@ -227,21 +259,12 @@ const handleScroll = () => {
   const scrollHeight = logsContainer.value.scrollHeight
   const clientHeight = logsContainer.value.clientHeight
 
-  // 判断是否在顶部
-  isAtTop = scrollTop === 0
   followLatest = scrollTop <= 20
-
-  // 检查是否需要重新连接 WebSocket（当回到顶部时）
-  if (isAtTop && lastScrollTop > 0) {
-    reconnectWebSocket()
-  }
 
   // 检查是否滚动到底部，需要加载更多旧日志
   if (scrollHeight - scrollTop - clientHeight < 50 && !isLoadingOldLogs && !hasReachedEnd) {
     loadOldLogs()
   }
-
-  lastScrollTop = scrollTop
 }
 
 // 防抖清理函数
@@ -289,15 +312,8 @@ const addSystemLog = (message: string, level: LogEntry['level'] = 'info') => {
   })
 }
 
-// 检查 WebSocket 是否已连接
-const isWebSocketConnected = (): boolean => {
-  return ws.value !== null && ws.value.readyState === WebSocket.OPEN
-}
-
-// 连接 WebSocket
 const connect = () => {
-  // 如果已经连接，直接返回
-  if (isWebSocketConnected()) {
+  if (stream.value) {
     return
   }
 
@@ -306,82 +322,59 @@ const connect = () => {
     addSystemLog('请输入日志文件路径', 'error')
     return
   }
-
-  // 构建 WebSocket URL
-  if (ws.value) {
-    disconnect({ silent: true })
+  if (!hasInitialSnapshot) {
+    void loadInitialLogs().then((loaded) => {
+      if (loaded) connect()
+    })
+    return
   }
-  const wsUrl = `${WS_URL}?path=${encodeURIComponent(logPath)}`
 
-  try {
-    isManualDisconnect = false
-    ws.value = new WebSocket(wsUrl)
+  streamUnsupported.value = typeof EventSource === 'undefined'
+  if (streamUnsupported.value) return
 
-    ws.value.onopen = () => {
-      isConnected.value = true
-      addSystemLog('WebSocket 连接已建立', 'info')
-    }
-
-    ws.value.onmessage = (event) => {
-      try {
-        // 尝试解析 JSON 格式的日志条目
-        const entry = JSON.parse(event.data) as LogEntry
-        addLogEntry(entry)
-      } catch (error) {
-        // 如果不是 JSON 格式，作为纯文本处理
-        console.error('解析日志条目失败：', error)
-        addSystemLog(event.data, 'info')
-      }
-    }
-
-    ws.value.onclose = () => {
-      isConnected.value = false
-      // 只有在主动断开连接时才显示关闭信息
-      if (isManualDisconnect) {
-        addSystemLog('WebSocket 连接已关闭', 'info')
-        isManualDisconnect = false
-      }
-    }
-
-    ws.value.onerror = (event) => {
-      let errorMsg = 'WebSocket 错误：'
-      if (event instanceof ErrorEvent && event.message) {
-        errorMsg += event.message
-      } else {
-        errorMsg += JSON.stringify(event)
-      }
-      addSystemLog(errorMsg, 'error')
-    }
-  } catch (error) {
-    addSystemLog(`连接失败：${error instanceof Error ? error.message : '未知错误'}`, 'error')
+  const currentStream = new EventSource(`${STREAM_URL}?path=${encodeURIComponent(logPath)}`)
+  stream.value = currentStream
+  unregisterStream = registerRealtimeSource(() => disconnect(currentStream))
+  currentStream.onopen = () => {
+    if (stream.value !== currentStream) return
+    isConnected.value = true
+    if (streamOpened) void loadInitialLogs()
+    streamOpened = true
   }
+  currentStream.onerror = (event) => {
+    if ('data' in event) return
+    if (stream.value === currentStream) isConnected.value = false
+  }
+  currentStream.addEventListener('log_append', (event) => {
+    if (stream.value !== currentStream) return
+    try {
+      addLogEntry(JSON.parse((event as MessageEvent<string>).data) as LogEntry)
+    } catch {
+      addSystemLog('解析实时日志失败', 'error')
+    }
+  })
+  currentStream.addEventListener('resync_required', () => {
+    if (stream.value === currentStream) void loadInitialLogs()
+  })
+  currentStream.addEventListener('error', (event) => {
+    if (stream.value !== currentStream) return
+    try {
+      const { reason } = JSON.parse((event as MessageEvent<string>).data) as { reason?: string }
+      addSystemLog(`实时日志错误：${reason || '未知错误'}`, 'error')
+    } catch {
+      addSystemLog('解析实时日志错误失败', 'error')
+    }
+  })
 }
 
-// 断开 WebSocket 连接
-const disconnect = (options: { silent?: boolean } = {}) => {
-  if (ws.value) {
-    isManualDisconnect = !options.silent
-    ws.value.close()
-    ws.value = null
-  }
+const disconnect = (currentStream = stream.value) => {
+  if (!currentStream || stream.value !== currentStream) return
+  stream.value = null
+  unregisterStream?.()
+  unregisterStream = null
+  currentStream.close()
   isConnected.value = false
-}
-
-// 重新连接 WebSocket
-const reconnectWebSocket = () => {
-  // 如果已经连接，不需要重新连接
-  if (isWebSocketConnected()) {
-    return
-  }
-
-  disconnect({ silent: true })
-  if (!props.isRealTime) {
-    return
-  }
-  // 重新连接
-  setTimeout(() => {
-    connect()
-  }, 500)
+  streamOpened = false
 }
 
 // 通过 HTTP 接口加载旧日志
@@ -398,11 +391,6 @@ const loadOldLogs = () => {
 
   isLoadingOldLogs = true
   loading.value = true
-
-  // 加载旧日志时断开 WebSocket 连接，避免新日志干扰
-  if (isWebSocketConnected()) {
-    disconnect({ silent: true })
-  }
 
   // 构建 HTTP 请求 URL
   const apiUrl = `${HTTP_URL}?path=${encodeURIComponent(logPath)}&pos=${currentOffset}&direction=forward&limit=100`
@@ -616,6 +604,11 @@ defineExpose({
 
 .status-indicator.disconnected {
   color: #f56c6c;
+}
+
+.stream-status-message {
+  margin-left: 10px;
+  color: #e6a23c;
 }
 
 /* 滚动条样式 */

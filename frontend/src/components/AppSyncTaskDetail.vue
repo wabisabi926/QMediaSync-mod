@@ -71,7 +71,23 @@
         </div>
 
         <el-alert
-          v-if="errorMessage"
+          v-if="unsupported"
+          class="task-stream-alert"
+          type="warning"
+          title="当前浏览器不支持实时更新，任务状态会定期刷新"
+          :closable="false"
+          show-icon
+        />
+        <el-alert
+          v-else-if="!terminal && !connected"
+          class="task-stream-alert"
+          type="warning"
+          title="实时更新暂时断开，正在重新连接…"
+          :closable="false"
+          show-icon
+        />
+        <el-alert
+          v-else-if="errorMessage"
           class="task-stream-alert"
           type="warning"
           :title="errorMessage"
@@ -170,8 +186,19 @@ const router = useRouter()
 // 获取任务 ID
 const taskId = computed(() => Number(route.params.id))
 
-const { task, logs, loading, connected, errorMessage, logPath, reconnect, disconnect, clearLogs } =
-  useSyncTaskStream(taskId)
+const {
+  task,
+  logs,
+  loading,
+  connected,
+  terminal,
+  unsupported,
+  errorMessage,
+  logPath,
+  reconnect,
+  disconnect,
+  clearLogs,
+} = useSyncTaskStream(taskId)
 const { downloadLogFile } = useLogFileActions()
 
 const resolvedLogPath = computed(() => logPath.value || `sync/sync_${taskId.value}.log`)

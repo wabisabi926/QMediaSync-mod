@@ -1,95 +1,51 @@
-# 同步任务实时刷新机制
+# SSE 实时刷新机制
 
-同步任务详情使用 `/api/sync/tasks/:id/stream` 获取实时数据。该 stream 是详情页的唯一实时状态源，负责推送任务快照、状态 patch、运行日志、完成收尾和断线重同步信号。
+QMediaSync 使用 Server-Sent Events（SSE）提供只读实时更新。启动、暂停、重试、删除等操作仍通过既有受鉴权与 CSRF 保护的 HTTP API 执行；SSE 只负责服务端到浏览器的状态推送。
 
-## 总体流程
+## 路由和同源要求
 
-1. 后端创建、更新、完成、失败或删除同步记录后，发布同步任务结构化事件。
-2. 全局事件 WebSocket 收到 `sync_task_created`、`sync_task_updated`、`sync_task_deleted`，用于同步记录页和同步目录页的局部刷新。
-3. 同步任务详情打开 `/api/sync/tasks/:id/stream`，后端先订阅该任务事件，再重读数据库 snapshot，避免订阅前的状态变化丢失。
-4. stream 返回当前任务详情、最近日志和 `log_cursor`，之后继续推送状态 patch 和日志增量。
-5. 任务完成或失败后，stream 保留短暂 final flush 窗口，再发送 `complete` 并自然结束。
+所有实时路由位于 `/api` JWT 鉴权组，浏览器使用当前站点的 Cookie 会话或现有 API Key 查询参数鉴权。
 
-## 结构化事件
-
-后端事件由 `backend/internal/websocket/sync_task_events.go` 定义。事件序列 `sequence` 在单个 `sync_id` 内单调递增，前端用它丢弃同一任务的旧事件。跨任务或目录级排序不应只依赖 `sequence`，可结合 `event_time`。
-
-| 字段 | 含义 |
+| 路由 | 用途 |
 | --- | --- |
-| `sync_id` | 真实同步记录 ID |
-| `sync_path_id` | 同步目录 ID |
-| `status` / `sub_status` | 同步任务状态和子状态 |
-| `total` / `new_strm` / `new_meta` / `new_upload` | 运行统计 |
-| `finish_at` | 完成或失败时间 |
-| `net_file_start_at` / `net_file_finish_at` | 处理网盘文件阶段时间 |
-| `local_file_start_at` / `local_file_finish_at` | 处理本地文件列表阶段时间 |
-| `log_path` | 后端根据 `sync_id` 生成的日志相对路径 |
-| `sequence` | 单个 `sync_id` 内的事件序列 |
-| `event_time` | 后端事件产生时间 |
-| `created_at` / `updated_at` | 记录时间戳 |
-| `local_path` / `remote_path` | 同步路径展示字段 |
-| `fail_reason` | 失败原因 |
-| `deleted` | 记录删除标记 |
-| `resync_reason` | 要求前端重新同步的原因 |
+| `GET /api/events/stream` | 全局队列、刮削和同步记录事件 |
+| `GET /api/logs/stream?path=...` | 指定日志文件的新增日志与重新加载提示 |
+| `GET /api/sync/tasks/:id/stream` | 同步任务详情的 snapshot、状态 patch、日志和完成通知 |
 
-旧事件 `strm_sync_task_start` 和 `strm_sync_task_complete` 保留。迁移后的页面优先消费新结构化事件，旧事件只作为后台校准兜底。
+生产环境由后端在同一 origin 托管前端。Vite 开发服务器把相对 `/api` 代理到 `http://localhost:12333`，因此 axios 与 `EventSource` 都使用 `/api/...`，不需要跨 origin Cookie、`withCredentials` 或额外 URL 构造工具。本期不提供旧协议兼容路由或跨 origin SSE 专项支持。
 
-全局事件还包含：
+每条流响应为 `text/event-stream`，设置 `Cache-Control: no-cache` 与 `X-Accel-Buffering: no`。建立订阅后会立即写入注释帧，之后每 15 秒发送注释心跳；应用停机时会先取消实时流，再关闭 HTTP server。
 
-- `strm_sync_task_queued`：STRM 同步任务加入等待队列时尝试广播，数据包含 `sync_path_id`、`is_running=1` 和 `task_type`。该事件在任务交付给队列处理器前尝试发送，避免晚到的等待事件覆盖已经运行中的状态；当 WebSocket 广播缓冲区已满时会丢弃该即时提示，不阻塞同步队列。同步目录页收到后立即显示“等待中”，不需要等待页面刷新。
+## 全局业务事件
 
-## Stream 消息
+全局事件 payload 保留 `event_type`、`timestamp`、`data` 三个字段，事件类型包括队列状态、队列列表、刮削任务和同步任务事件。它的语义是“至多一次通知 + HTTP snapshot 最终收敛”：页面收到结构性事件或原生 EventSource 非首次 `open` 后，复用当前页的 HTTP 加载函数重新获取列表快照。
 
-详情 stream 位于鉴权路由组内，路径为 `GET /api/sync/tasks/:id/stream`。WebSocket 消息包含 `type`、`version`、`sync_id`、`server_time`，状态类消息还会带 `sequence`。
+浏览器首次 `open` 只更新连接状态。后台重连会等待页面重新可见后执行一次收敛，避免后台页无意义请求。同步记录和同步目录页面会在这次 HTTP snapshot 前清空本地 `sequence` 水位，避免后端进程重启后用旧水位丢弃重新计数的事件。最后一个全局监听器注销时关闭 source；登出或认证状态清理会关闭所有已登记的实时 source。
 
-| type | 说明 |
-| --- | --- |
-| `snapshot` | 当前任务详情、最近日志、`log_cursor`、`log_path` |
-| `task_patch` | 状态、子状态和统计字段变化 |
-| `log_append` | 日志增量，带日志 `cursor` |
-| `complete` | 完成、失败或记录删除的收尾消息 |
-| `heartbeat` | 连接保活 |
-| `error` | 服务端错误 |
-| `resync_required` | 前端应静默重连并重新获取 snapshot |
+不支持 `EventSource` 的浏览器不创建 source、不引入全局轮询，应用壳层会提示“当前浏览器不支持自动刷新，请手动刷新页面查看最新状态”。连接暂时断开时显示“实时更新暂时断开，正在重新连接…”，由浏览器原生重连处理。
 
-`snapshot.log_cursor` 和 `log_append.cursor` 是日志游标，不等同于任务事件 `sequence`。
+## 通用日志
 
-## 前端刷新边界
+日志查看器先成功请求 `GET /api/logs/old`，再创建 `/api/logs/stream`。日志路径切换或组件卸载会取消旧快照请求，并忽略已过期的响应，避免旧历史日志与新路径的实时增量混合。服务端 stream 自身会校验路径、普通文件类型和 EOF cursor；建立 tail 时只读取文件末尾位置，不扫描整个历史日志。
 
-- 同步任务详情使用 `useSyncTaskStream(syncId)`，不再拼接 `loadTaskInfo` 和通用 `AppLogViewer`。
-- 详情页首次进入可以显示 loading；收到 snapshot 后，任务状态和日志都在原位置更新，不重建日志组件。
-- `SyncTaskLogPanel` 只在用户处于“跟随最新”状态时自动跟随顶部，用户查看历史日志时不会抢滚动。
-- 同步记录页按 `sync_id` 和 `sequence` patch 当前行；只有 `sync_task_created` 可以在第一页插入新记录，缺失当前页的 `sync_task_updated` 不插入，避免进度事件污染分页排序和总数。
-- 同步记录和详情页根据 `new_strm`、`new_meta` 与任务状态派生媒体库刷新相关提示；前端只展示是否存在刷新相关变更，不声明后端已提交刷新任务。
-- 同步目录页按 `sync_path_id` 更新运行状态，并按 `sync_id` 去重事件；同一目录的新任务不会被上一任务的 sequence 压掉。
+`log_append` 传递新增日志条目，`resync_required` 表示截断、轮转或 tailer 无法继续时应重新请求 HTTP 日志快照。普通连接错误不关闭 source；下一次 `open` 会重新加载 HTTP 历史快照。日志流不承诺严格投递、持久回放或客户端 cursor 补偿。
 
-## 日志 tailer
+不支持 SSE 时，日志不轮询，界面提示“当前浏览器不支持实时日志，请手动刷新查看最新内容”。
 
-通用日志和同步任务日志都使用 `logstream.GlobalManager`。manager 按日志文件绝对路径复用共享 tailer，同一个文件的多个 WebSocket 客户端不会各自启动独立 tail goroutine。
+## 同步任务详情
 
-日志读取规则：
+同步任务详情 stream 先订阅任务事件，再读取数据库与最近 1000 行日志快照，避免订阅前的状态变化丢失。消息类型为 `snapshot`、`task_patch`、`log_append`、`complete`、`resync_required` 和 `error`；`complete` 不回放。任务不存在时返回带 `deleted=true` 的 `complete`；数据库读取、日志快照读取或日志订阅失败在 SSE 响应开始前返回普通 HTTP 500，不会伪装为已删除任务。
 
-- 日志文件不存在时，历史读取返回空日志和 cursor `0`。
-- 同步任务详情日志按“最新在上”展示；实时增量插入顶部，快照日志会按时间倒序显示。工具栏提供连接、断开、清空和下载日志，下载仍复用 `/api/logs/download`。
-- 通用实时日志 WebSocket 建连时只读取文件末尾 cursor，历史内容由 `/api/logs/old` 加载，避免大日志文件建连时全量扫描。
-- tailer 发现日志文件缺失、截断或订阅者缓冲满时，会发送 `resync_required`。
-- tailer 检测文件大小小于 cursor 时重置 cursor，并要求前端重新同步。
-- 半行日志会暂存在 tailer 中，直到收到换行后再发送完整日志；半行超过 1 MiB 时会清空缓存并发送 `resync_required`。
-- 按 cursor 补读最多读取有限行数，超过补读窗口时发送 `resync_required`。
+运行中任务会在单个进程 epoch 内缓存最近 64 条 `task_patch`。浏览器携带格式为 `<stream_epoch>:<sequence>` 的 `Last-Event-ID` 时，仅在 epoch 一致且缓存连续时回放后续 patch；空值、非法值、epoch 不同、缓存缺口或服务重启时均返回完整 snapshot。snapshot 带注册时的 sequence 水位线，后续只发送更大的 patch，避免旧事件回退快照。日志不参与回放，未命中时由 snapshot 中的最近日志恢复。
 
-## 兼容和暂不迁移范围
+任务完成、失败或删除后，服务端清理该任务的回放缓存和 sequence 状态。已订阅客户端继续接收最多 2 秒的最终日志增量，再收到唯一 `complete`；客户端关闭 source，避免终态任务自动重连。后续新建连接通过终态 snapshot（或缺失记录的 `deleted complete`）收敛，不会在终态 snapshot 后重复发送 `complete`。浏览器不支持 SSE 时，详情页仅对运行中任务每 5 秒请求 `GET /api/sync/task?sync_id=...`，终态后停止；日志仍由用户手动刷新。
 
-- 首页运行日志继续使用通用日志组件读取 `app.log`，不接入同步任务详情 stream。
-- 通用日志接口 `/api/logs/old`、`/api/logs/ws`、`/api/logs/download` 保留。
-- 刮削记录、上传队列、下载队列和备份记录继续使用各自现有刷新机制。
-- 旧同步事件保留，迁移期间可继续作为兜底校准信号。
+## 日志 tailer 与事件字段
 
-## 主要边界
+通用日志与同步任务日志共享 `logstream.GlobalManager`，按绝对路径复用 tailer。tailer 发现文件缺失、截断、半行过长或订阅者缓冲满时会通知 `resync_required` 或结束慢订阅；不会阻塞同步、上传、下载或刮削业务。
 
-- `task_id` 仍保持旧事件原语义，新事件必须使用 `sync_id` 表示真实同步记录 ID。
-- 断线、服务重启或 `resync_required` 后，前端重新建立 stream 并获取 snapshot，不假设事件连续。
-- WebSocket 鉴权依赖当前站点凭据；原生 WebSocket 不走 axios 拦截器。
-- 运行中任务完成后可能还有最后几行日志，stream 使用 final flush 窗口降低丢日志概率。
-- 只有已完成或失败的同步记录允许手动删除；删除同步记录会发布 `sync_task_deleted`。刷新后打开已删除记录时，stream 返回 `complete` + `deleted`，详情页展示删除状态并停止重连。
-- 删除同步目录不会级联删除同步历史；同步记录详情在关联同步目录不存在时仍以历史记录和日志为准。
-- 如果状态事件和日志写入顺序不完全一致，以 snapshot 和数据库状态作为恢复后的事实来源。
+同步任务结构化 payload 由 `backend/internal/realtime/sync_task_events.go` 定义。`sync_id` 是真实同步记录 ID；`sequence` 仍按任务递增，以兼容全局事件消费者。任务终态会清理该任务的 sequence 状态，因此后续 `deleted=true` 事件可能从新的 sequence 重新开始；全局列表不得因旧 sequence 忽略删除事件，并在处理后清除该任务的本地去重记录。`sync_path_id`、`status`、`sub_status`、统计字段、阶段时间、`log_path`、`event_time`、路径和失败原因保持既有含义。
+
+## 反向代理
+
+代理必须允许持续流式响应并关闭缓冲。Nginx 的 SSE location 至少应设置 `proxy_http_version 1.1`、`proxy_buffering off`、`proxy_cache off`、`gzip off` 和足够长的 `proxy_read_timeout`；Caddy 可使用 `flush_interval -1`。浏览器到代理建议使用 HTTP/2。

@@ -9,9 +9,9 @@ import (
 
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
+	"qmediasync/internal/realtime"
 	"qmediasync/internal/scrape"
 	"qmediasync/internal/syncstrm"
-	ws "qmediasync/internal/websocket"
 )
 
 type SyncTaskType string
@@ -48,7 +48,7 @@ func tryBroadcastStrmTaskQueued(task *NewSyncTask) {
 	if task == nil || task.TaskType != SyncTaskTypeStrm || task.ID == 0 {
 		return
 	}
-	ws.TryBroadcastEvent(ws.EventStrmSyncTaskQueued, map[string]any{
+	realtime.TryBroadcastEvent(realtime.EventStrmSyncTaskQueued, map[string]any{
 		"sync_path_id": task.ID,
 		"is_running":   TaskStatusWaiting,
 		"task_type":    string(task.TaskType),
@@ -322,7 +322,7 @@ func (q *NewSyncQueuePerType) executeStrmSync(task *NewSyncTask) {
 		startPayload["sync_path_id"] = q.strmSync.Sync.SyncPathId
 		startPayload["log_path"] = models.SyncLogRelativePath(q.strmSync.Sync.ID)
 	}
-	ws.BroadcastEvent(ws.EventStrmSyncTaskStart, startPayload)
+	realtime.BroadcastEvent(realtime.EventStrmSyncTaskStart, startPayload)
 
 	defer func() {
 		q.strmSync = nil
@@ -339,7 +339,7 @@ func (q *NewSyncQueuePerType) executeStrmSync(task *NewSyncTask) {
 			completePayload["sync_path_id"] = q.strmSync.Sync.SyncPathId
 			completePayload["log_path"] = models.SyncLogRelativePath(q.strmSync.Sync.ID)
 		}
-		ws.BroadcastEvent(ws.EventStrmSyncTaskComplete, completePayload)
+		realtime.BroadcastEvent(realtime.EventStrmSyncTaskComplete, completePayload)
 	} else {
 		logError("STRM 同步任务执行失败：ID=%d，错误=%v", task.ID, startErr)
 		// 触发 STRM 同步任务完成事件（失败）
@@ -353,7 +353,7 @@ func (q *NewSyncQueuePerType) executeStrmSync(task *NewSyncTask) {
 			completePayload["sync_path_id"] = q.strmSync.Sync.SyncPathId
 			completePayload["log_path"] = models.SyncLogRelativePath(q.strmSync.Sync.ID)
 		}
-		ws.BroadcastEvent(ws.EventStrmSyncTaskComplete, completePayload)
+		realtime.BroadcastEvent(realtime.EventStrmSyncTaskComplete, completePayload)
 	}
 }
 
@@ -372,7 +372,7 @@ func (q *NewSyncQueuePerType) executeScrape(task *NewSyncTask) {
 	logInfo("开始执行刮削任务：ID=%d", task.ID)
 
 	// 触发刮削任务开始事件
-	ws.BroadcastEvent(ws.EventScraperTaskStart, map[string]any{
+	realtime.BroadcastEvent(realtime.EventScraperTaskStart, map[string]any{
 		"task_id":   task.ID,
 		"path_name": scrapePath.SourcePath,
 	})
@@ -389,7 +389,7 @@ func (q *NewSyncQueuePerType) executeScrape(task *NewSyncTask) {
 	if success := q.scrapeInstance.Start(); success {
 		logInfo("刮削任务执行成功：ID=%d", task.ID)
 		// 触发刮削任务完成事件
-		ws.BroadcastEvent(ws.EventScraperTaskComplete, map[string]any{
+		realtime.BroadcastEvent(realtime.EventScraperTaskComplete, map[string]any{
 			"task_id":   task.ID,
 			"path_name": scrapePath.SourcePath,
 			"success":   true,
@@ -397,7 +397,7 @@ func (q *NewSyncQueuePerType) executeScrape(task *NewSyncTask) {
 	} else {
 		logError("刮削任务执行失败：ID=%d", task.ID)
 		// 触发刮削任务完成事件（失败）
-		ws.BroadcastEvent(ws.EventScraperTaskComplete, map[string]any{
+		realtime.BroadcastEvent(realtime.EventScraperTaskComplete, map[string]any{
 			"task_id":   task.ID,
 			"path_name": scrapePath.SourcePath,
 			"success":   false,

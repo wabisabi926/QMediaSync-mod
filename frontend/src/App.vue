@@ -92,6 +92,22 @@
             </template>
           </el-dropdown>
         </div>
+        <el-alert
+          v-if="realtimeActive && !realtimeSupported"
+          class="realtime-status-alert"
+          title="当前浏览器不支持自动刷新，请手动刷新页面查看最新状态"
+          type="warning"
+          :closable="false"
+          show-icon
+        />
+        <el-alert
+          v-else-if="realtimeActive && !realtimeConnected"
+          class="realtime-status-alert"
+          title="实时更新暂时断开，正在重新连接…"
+          type="warning"
+          :closable="false"
+          show-icon
+        />
         <router-view v-slot="{ Component, route: routeView }">
           <keep-alive :include="cachedComponentNames">
             <component :is="Component" :key="getRouteViewKey(routeView.name, routeView.fullPath)" />
@@ -195,6 +211,11 @@ import { ref, onMounted, onUnmounted, computed, markRaw, type Component as VueCo
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useBackupStore } from '@/stores/backup'
+import {
+  realtimeActive,
+  realtimeConnected,
+  realtimeSupported,
+} from '@/composables/useRealtimeEvents'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { isMobile as checkIsMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 import { formatDuration } from '@/utils/timeUtils'
@@ -543,6 +564,10 @@ onUnmounted(() => {
   padding: 20px;
   background-color: #ffffff;
   overflow-y: auto;
+}
+
+.realtime-status-alert {
+  margin-bottom: 16px;
 }
 
 /* 移动端样式 */

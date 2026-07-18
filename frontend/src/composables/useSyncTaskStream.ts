@@ -1,4 +1,4 @@
-import { SERVER_URL } from '@/const'
+import { registerRealtimeSource } from '@/composables/realtimeSources'
 import type {
   SyncTask,
   SyncTaskEventPayload,
@@ -6,7 +6,6 @@ import type {
   SyncTaskSnapshot,
   SyncTaskStreamMessage,
 } from '@/types/syncTaskStream'
-import { buildApiWebSocketUrl } from '@/utils/wsUrl'
 import {
   computed,
   onBeforeUnmount,
@@ -20,7 +19,6 @@ import {
 
 interface UseSyncTaskStreamOptions {
   immediate?: boolean
-  reconnect?: boolean
   maxLogs?: number
 }
 
@@ -28,111 +26,53 @@ export function useSyncTaskStream(
   syncId: MaybeRefOrGetter<number | string>,
   options: UseSyncTaskStreamOptions = {},
 ) {
-  const { immediate = true, reconnect = true, maxLogs = 2000 } = options
+  const { immediate = true, maxLogs = 2000 } = options
   const task = shallowRef<SyncTask | null>(null)
   const logs = shallowRef<SyncTaskLogEntry[]>([])
   const loading = shallowRef(false)
   const connected = shallowRef(false)
   const terminal = shallowRef(false)
+  const unsupported = shallowRef(false)
   const errorMessage = shallowRef('')
-  const lastSequence = shallowRef(0)
   const logCursor = shallowRef(0)
   const logPath = shallowRef('')
-  const reconnectAttempts = shallowRef(0)
-  const socket = shallowRef<WebSocket | null>(null)
-  let reconnectTimer: ReturnType<typeof setTimeout> | null = null
-  let intentionalClose = false
+  const source = shallowRef<EventSource | null>(null)
+  let unregisterSource: (() => void) | null = null
+  let pollTimer: ReturnType<typeof setInterval> | null = null
 
   const isRunning = computed(() => task.value?.status === 0 || task.value?.status === 1)
 
-  const connect = () => {
-    const currentId = Number(toValue(syncId))
-    if (!currentId || terminal.value) return
-    closeSocket({ intentional: true })
-    loading.value = !task.value
-    errorMessage.value = ''
-    intentionalClose = false
-    const url = buildApiWebSocketUrl(SERVER_URL, `/sync/tasks/${currentId}/stream`)
-    const ws = new WebSocket(url)
-    socket.value = ws
-    ws.onopen = () => {
-      connected.value = true
-      reconnectAttempts.value = 0
-    }
-    ws.onmessage = (event) => {
-      try {
-        handleMessage(JSON.parse(event.data) as SyncTaskStreamMessage)
-      } catch {
-        errorMessage.value = '同步任务实时数据解析失败'
-      }
-    }
-    ws.onclose = () => {
-      connected.value = false
-      socket.value = null
-      loading.value = false
-      if (!intentionalClose && reconnect && !terminal.value) scheduleReconnect()
-      intentionalClose = false
-    }
-    ws.onerror = () => {
-      errorMessage.value = '同步任务实时连接异常'
-    }
+  const clearPolling = () => {
+    if (!pollTimer) return
+    clearInterval(pollTimer)
+    pollTimer = null
   }
 
-  const disconnect = () => {
-    closeSocket({ intentional: true })
-  }
-
-  const closeSocket = (options: { intentional: boolean }) => {
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer)
-      reconnectTimer = null
-    }
-    if (socket.value) {
-      const currentSocket = socket.value
-      intentionalClose = options.intentional
-      currentSocket.onclose = null
-      currentSocket.onerror = null
-      currentSocket.onmessage = null
-      currentSocket.close()
-      socket.value = null
-    }
+  const closeSource = (currentSource = source.value) => {
+    if (!currentSource || source.value !== currentSource) return
+    source.value = null
+    unregisterSource?.()
+    unregisterSource = null
+    currentSource.close()
     connected.value = false
   }
 
-  const scheduleReconnect = () => {
-    if (reconnectAttempts.value >= 5) {
-      errorMessage.value = '同步任务实时连接已断开'
-      return
-    }
-    const delay = 1000 * Math.pow(2, reconnectAttempts.value)
-    reconnectAttempts.value += 1
-    reconnectTimer = setTimeout(connect, delay)
+  const closeRealtime = () => {
+    closeSource()
+    clearPolling()
   }
 
-  const handleMessage = (message: SyncTaskStreamMessage) => {
-    if (message.type === 'snapshot') {
-      applySnapshot(message.data as SyncTaskSnapshot)
-      return
-    }
-    if (message.type === 'task_patch' || message.type === 'complete') {
-      applyTaskPatch(message.data as SyncTaskEventPayload)
-      if (message.type === 'complete') terminal.value = true
-      return
-    }
-    if (message.type === 'log_append') {
-      const data = message.data as { entry?: SyncTaskLogEntry; cursor?: number }
-      if (data.entry) appendLog(data.entry)
-      if (typeof data.cursor === 'number') logCursor.value = data.cursor
-      return
-    }
-    if (message.type === 'resync_required') {
-      connect()
-      return
-    }
-    if (message.type === 'error') {
-      errorMessage.value = '同步任务实时流返回错误'
-    }
+  const appendLog = (entry: SyncTaskLogEntry) => {
+    logs.value = [withLogID(entry), ...logs.value].slice(0, maxLogs)
   }
+
+  const normalizeSnapshotLogs = (entries: SyncTaskLogEntry[]) =>
+    entries.map(withLogID).reverse().slice(0, maxLogs)
+
+  const withLogID = (entry: SyncTaskLogEntry): SyncTaskLogEntry => ({
+    ...entry,
+    id: entry.id || `${entry.cursor || Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+  })
 
   const applySnapshot = (snapshot: SyncTaskSnapshot) => {
     task.value = snapshot.task
@@ -144,56 +84,147 @@ export function useSyncTaskStream(
   }
 
   const applyTaskPatch = (payload: SyncTaskEventPayload) => {
-    if (payload.sequence && payload.sequence <= lastSequence.value) return
-    lastSequence.value = payload.sequence || lastSequence.value
     if (payload.deleted) {
       terminal.value = true
       errorMessage.value = '同步记录已删除'
       return
     }
     if (!task.value) return
-    task.value = {
-      ...task.value,
-      status: payload.status as SyncTask['status'],
-      sub_status: payload.sub_status as SyncTask['sub_status'],
-      total: payload.total,
-      new_strm: payload.new_strm,
-      new_meta: payload.new_meta,
-      new_upload: payload.new_upload,
-      finish_at: payload.finish_at,
-      net_file_start_at: payload.net_file_start_at,
-      net_file_finish_at: payload.net_file_finish_at,
-      local_file_start_at: payload.local_file_start_at,
-      local_file_finish_at: payload.local_file_finish_at,
-      updated_at: payload.updated_at || task.value.updated_at,
-      fail_reason: payload.fail_reason ?? task.value.fail_reason,
+
+    const next = { ...task.value }
+    if (typeof payload.status === 'number') next.status = payload.status as SyncTask['status']
+    if (typeof payload.sub_status === 'number')
+      next.sub_status = payload.sub_status as SyncTask['sub_status']
+    if (typeof payload.total === 'number') next.total = payload.total
+    if (typeof payload.new_strm === 'number') next.new_strm = payload.new_strm
+    if (typeof payload.new_meta === 'number') next.new_meta = payload.new_meta
+    if (typeof payload.new_upload === 'number') next.new_upload = payload.new_upload
+    if (typeof payload.finish_at === 'number') next.finish_at = payload.finish_at
+    if (typeof payload.net_file_start_at === 'number')
+      next.net_file_start_at = payload.net_file_start_at
+    if (typeof payload.net_file_finish_at === 'number')
+      next.net_file_finish_at = payload.net_file_finish_at
+    if (typeof payload.local_file_start_at === 'number')
+      next.local_file_start_at = payload.local_file_start_at
+    if (typeof payload.local_file_finish_at === 'number')
+      next.local_file_finish_at = payload.local_file_finish_at
+    if (typeof payload.updated_at === 'number') next.updated_at = payload.updated_at
+    if (typeof payload.fail_reason === 'string') next.fail_reason = payload.fail_reason
+    task.value = next
+  }
+
+  const handleMessage = (message: SyncTaskStreamMessage) => {
+    if (message.type === 'snapshot') {
+      applySnapshot(message.data as SyncTaskSnapshot)
+      if (terminal.value) closeSource()
+      return
+    }
+    if (message.type === 'task_patch') {
+      applyTaskPatch(message.data as SyncTaskEventPayload)
+      return
+    }
+    if (message.type === 'complete') {
+      applyTaskPatch(message.data as SyncTaskEventPayload)
+      terminal.value = true
+      closeSource()
+      return
+    }
+    if (message.type === 'log_append') {
+      const data = message.data as { entry?: SyncTaskLogEntry; cursor?: number }
+      if (data.entry) appendLog(data.entry)
+      if (typeof data.cursor === 'number') logCursor.value = data.cursor
+      return
+    }
+    if (message.type === 'resync_required') {
+      closeSource()
+      connect()
+      return
+    }
+    if (message.type === 'error') {
+      errorMessage.value = '同步任务实时流返回错误'
     }
   }
 
-  const appendLog = (entry: SyncTaskLogEntry) => {
-    logs.value = [withLogID(entry), ...logs.value].slice(0, maxLogs)
+  const loadFallbackTask = async (currentID: number) => {
+    try {
+      const response = await fetch(`/api/sync/task?sync_id=${currentID}`, {
+        credentials: 'include',
+      })
+      if (!response.ok) return
+      const body = await response.json()
+      const nextTask = (body?.data ?? body) as SyncTask
+      if (!nextTask || source.value || Number(toValue(syncId)) !== currentID) return
+      task.value = nextTask
+      terminal.value = nextTask.status === 2 || nextTask.status === 3
+      loading.value = false
+      if (terminal.value) clearPolling()
+    } catch {
+      // 降级轮询失败后保持既有快照，下一轮继续尝试。
+    }
   }
 
-  const normalizeSnapshotLogs = (entries: SyncTaskLogEntry[]) => {
-    return entries.map(withLogID).reverse().slice(0, maxLogs)
+  const startFallbackPolling = (currentID: number) => {
+    clearPolling()
+    void loadFallbackTask(currentID).then(() => {
+      if (!terminal.value && isRunning.value && Number(toValue(syncId)) === currentID) {
+        pollTimer = setInterval(() => void loadFallbackTask(currentID), 5000)
+      }
+    })
+  }
+
+  const connect = () => {
+    const currentID = Number(toValue(syncId))
+    if (!currentID || terminal.value) return
+
+    closeRealtime()
+    loading.value = !task.value
+    errorMessage.value = ''
+    unsupported.value = typeof EventSource === 'undefined'
+    if (unsupported.value) {
+      startFallbackPolling(currentID)
+      return
+    }
+
+    const currentSource = new EventSource(`/api/sync/tasks/${currentID}/stream`)
+    source.value = currentSource
+    unregisterSource = registerRealtimeSource(() => closeSource(currentSource))
+    currentSource.onopen = () => {
+      if (source.value === currentSource) connected.value = true
+    }
+    currentSource.onerror = (event) => {
+      if ('data' in event) return
+      if (source.value === currentSource) connected.value = false
+    }
+    const listen = (eventType: SyncTaskStreamMessage['type']) => {
+      currentSource.addEventListener(eventType, (event) => {
+        if (source.value !== currentSource) return
+        try {
+          handleMessage(JSON.parse((event as MessageEvent<string>).data) as SyncTaskStreamMessage)
+        } catch {
+          errorMessage.value = '同步任务实时数据解析失败'
+        }
+      })
+    }
+    ;(
+      ['snapshot', 'task_patch', 'log_append', 'complete', 'resync_required', 'error'] as const
+    ).forEach(listen)
+  }
+
+  const disconnect = () => {
+    closeRealtime()
   }
 
   const clearLogs = () => {
     logs.value = []
   }
 
-  const withLogID = (entry: SyncTaskLogEntry): SyncTaskLogEntry => ({
-    ...entry,
-    id: entry.id || `${entry.cursor || Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-  })
-
   watch(
     toRef(syncId),
     () => {
+      closeRealtime()
       task.value = null
       logs.value = []
       terminal.value = false
-      lastSequence.value = 0
       logCursor.value = 0
       logPath.value = ''
       if (immediate) connect()
@@ -209,6 +240,7 @@ export function useSyncTaskStream(
     loading: readonly(loading),
     connected: readonly(connected),
     terminal: readonly(terminal),
+    unsupported: readonly(unsupported),
     errorMessage: readonly(errorMessage),
     isRunning,
     logCursor: readonly(logCursor),

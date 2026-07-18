@@ -12,8 +12,8 @@ import (
 
 	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
+	"qmediasync/internal/realtime"
 	"qmediasync/internal/v115open"
-	ws "qmediasync/internal/websocket"
 )
 
 type DownloadSource string
@@ -65,13 +65,13 @@ func (task *DbDownloadTask) CanRetry(maxRetry int) bool {
 }
 
 func publishDownloadQueueChanged(task *DbDownloadTask, reason string) {
-	payload := ws.QueueChangedPayload{Reason: reason}
+	payload := realtime.QueueChangedPayload{Reason: reason}
 	if task != nil {
 		payload.TaskID = task.ID
 		payload.Status = int(task.Status)
 		payload.Source = string(task.Source)
 	}
-	ws.BroadcastQueueChanged(ws.EventDownloadQueueChanged, payload)
+	realtime.BroadcastQueueChanged(realtime.EventDownloadQueueChanged, payload)
 }
 
 // PrepareDownloadRetry 将下载失败任务重新放回等待中

@@ -362,7 +362,7 @@
 
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
-import { useWSEvent } from '@/composables/useWebSocket'
+import { useRealtimeEvent } from '@/composables/useRealtimeEvents'
 import {
   Calendar,
   CircleCheck,
@@ -392,6 +392,7 @@ import { computed, inject, onMounted, onUnmounted, ref, type Component } from 'v
 import { useRouter } from 'vue-router'
 import { isMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
 import { sourceTypeTagMap, sourceTypeMap } from '@/utils/sourceTypeUtils'
+import { resetSyncTaskEventSequences, shouldApplySyncTaskEvent } from '@/utils/syncTaskEventSequence'
 import { formatTime } from '@/utils/timeUtils'
 import {
   formatDirectoryUploadPathSummary,
@@ -725,11 +726,16 @@ const patchSyncPathStatus = (raw: Record<string, unknown>) => {
   }
 
   const sequenceKey = payload.sync_id || payload.sync_path_id
-  const lastSequence = lastSyncPathEventSequence.get(sequenceKey) || 0
-  if (payload.sequence && payload.sequence <= lastSequence) {
+  if (
+    !shouldApplySyncTaskEvent(
+      lastSyncPathEventSequence,
+      sequenceKey,
+      payload.sequence,
+      payload.deleted === true,
+    )
+  ) {
     return
   }
-  lastSyncPathEventSequence.set(sequenceKey, payload.sequence || lastSequence)
 
   if (typeof payload.is_running === 'number') {
     applySyncPathRunningStatus(payload.sync_path_id, payload.is_running)
@@ -1036,13 +1042,17 @@ const onLegacySyncEvent = () => {
   void updatePathesStatus()
 }
 
-// WebSocket 事件监听
-useWSEvent('sync_task_created', patchSyncPathStatus)
-useWSEvent('sync_task_updated', patchSyncPathStatus)
-useWSEvent('sync_task_deleted', patchSyncPathStatus)
-useWSEvent('strm_sync_task_queued', patchSyncPathStatus)
-useWSEvent('strm_sync_task_start', onLegacySyncEvent)
-useWSEvent('strm_sync_task_complete', onLegacySyncEvent)
+// 全局实时事件监听
+useRealtimeEvent('sync_task_created', patchSyncPathStatus, () => {
+  resetSyncTaskEventSequences(lastSyncPathEventSequence)
+  lastSyncPathEventTime.clear()
+  void loadDirectories()
+})
+useRealtimeEvent('sync_task_updated', patchSyncPathStatus)
+useRealtimeEvent('sync_task_deleted', patchSyncPathStatus)
+useRealtimeEvent('strm_sync_task_queued', patchSyncPathStatus)
+useRealtimeEvent('strm_sync_task_start', onLegacySyncEvent)
+useRealtimeEvent('strm_sync_task_complete', onLegacySyncEvent)
 
 let removeDeviceTypeListener: (() => void) | null = null
 

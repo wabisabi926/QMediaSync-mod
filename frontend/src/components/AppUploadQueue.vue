@@ -292,7 +292,7 @@ import { SERVER_URL } from '@/const'
 import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
 import { useBackgroundRefresh } from '@/composables/useBackgroundRefresh'
 import { mergeStableList, retainExistingKeys } from '@/composables/useStableList'
-import { useWSEvent } from '@/composables/useWebSocket'
+import { useRealtimeEvent } from '@/composables/useRealtimeEvents'
 import { usePageStateStore } from '@/stores/pageState'
 import type { AxiosStatic } from 'axios'
 import { formatFileSize } from '@/utils/fileSizeUtils'
@@ -984,19 +984,25 @@ const applyUploadQueuePatchForCurrentFilter = (patch: UploadQueuePatch): boolean
   return true
 }
 
-useWSEvent('upload_queue_status_changed', (data) => {
-  if (typeof data.running === 'boolean') {
-    queueStatusSnapshot.value = {
-      ...queueStatusSnapshot.value,
-      running: data.running,
+useRealtimeEvent(
+  'upload_queue_status_changed',
+  (data) => {
+    if (typeof data.running === 'boolean') {
+      queueStatusSnapshot.value = {
+        ...queueStatusSnapshot.value,
+        running: data.running,
+      }
     }
-  }
-  if (isPageActive) {
-    loadQueueData()
-  }
-})
+    if (isPageActive) {
+      loadQueueData()
+    }
+  },
+  () => {
+    if (isPageActive) void loadQueueData()
+  },
+)
 
-useWSEvent('upload_queue_changed', (data) => {
+useRealtimeEvent('upload_queue_changed', (data) => {
   if (!isPageActive || document.hidden) {
     return
   }

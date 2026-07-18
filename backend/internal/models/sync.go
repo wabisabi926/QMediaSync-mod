@@ -11,7 +11,7 @@ import (
 	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/notificationmanager"
-	"qmediasync/internal/websocket"
+	"qmediasync/internal/realtime"
 
 	"gorm.io/gorm"
 )
@@ -122,8 +122,8 @@ func ExistingSyncLogRelativePath(syncID uint) string {
 }
 
 // SyncTaskEventPayload 生成同步任务结构化事件数据。
-func (s *Sync) SyncTaskEventPayload() websocket.SyncTaskEventPayload {
-	return websocket.SyncTaskEventPayload{
+func (s *Sync) SyncTaskEventPayload() realtime.SyncTaskEventPayload {
+	return realtime.SyncTaskEventPayload{
 		SyncID:            s.ID,
 		SyncPathID:        s.SyncPathId,
 		Status:            int(s.Status),
@@ -150,7 +150,7 @@ func (s *Sync) broadcastSyncTaskEvent(eventType string) {
 	if s == nil || s.ID == 0 {
 		return
 	}
-	websocket.BroadcastSyncTaskEvent(eventType, s.SyncTaskEventPayload())
+	realtime.BroadcastSyncTaskEvent(eventType, s.SyncTaskEventPayload())
 }
 
 // 完成本地同步任务
@@ -163,7 +163,7 @@ func (s *Sync) Complete(sourceType SourceType) bool {
 		s.Logger.Errorf("完成同步失败：%v", err)
 		return false
 	}
-	s.broadcastSyncTaskEvent(websocket.EventSyncTaskUpdated)
+	s.broadcastSyncTaskEvent(realtime.EventSyncTaskUpdated)
 	// s.SyncPath.SetIsFullSync(false) // 改回默认值，下次非全量同步
 	s.Logger.Infof("同步任务已完成：%d", s.ID)
 	if s.NewUpload > 0 || s.NewMeta > 0 || s.NewStrm > 0 {
@@ -221,7 +221,7 @@ func (s *Sync) UpdateTotal() {
 		s.Logger.Errorf("更新文件总数失败：%v", err)
 		return
 	}
-	s.broadcastSyncTaskEvent(websocket.EventSyncTaskUpdated)
+	s.broadcastSyncTaskEvent(realtime.EventSyncTaskUpdated)
 	// s.Logger.Infof("更新文件总数：%d", s.Total)
 }
 
@@ -242,7 +242,7 @@ func (s *Sync) UpdateProgress(total, newStrm, newMeta, newUpload int) bool {
 		s.Logger.Errorf("更新同步进度失败：%v", err)
 		return false
 	}
-	s.broadcastSyncTaskEvent(websocket.EventSyncTaskUpdated)
+	s.broadcastSyncTaskEvent(realtime.EventSyncTaskUpdated)
 	return true
 }
 
@@ -262,7 +262,7 @@ func (s *Sync) UpdateStatus(status SyncStatus) bool {
 		s.Logger.Errorf("更新同步状态失败：%v", err)
 		return false
 	}
-	s.broadcastSyncTaskEvent(websocket.EventSyncTaskUpdated)
+	s.broadcastSyncTaskEvent(realtime.EventSyncTaskUpdated)
 	s.Logger.Infof("更新任务状态：%s => %s", SyncStatusText[oldStatus], SyncStatusText[status])
 	return true
 }
@@ -294,7 +294,7 @@ func (s *Sync) UpdateSubStatus(subStatus SyncSubStatus) bool {
 		s.Logger.Errorf("更新同步子状态失败：%v", err)
 		return false
 	}
-	s.broadcastSyncTaskEvent(websocket.EventSyncTaskUpdated)
+	s.broadcastSyncTaskEvent(realtime.EventSyncTaskUpdated)
 	s.Logger.Infof("更新任务子状态：%s => %s", SyncSubStatusText[oldSubStatus], SyncSubStatusText[subStatus])
 	return true
 }
@@ -415,7 +415,7 @@ func deleteSyncRecordById(id uint, requireFinished bool) error {
 
 	payload := existing.SyncTaskEventPayload()
 	payload.Deleted = true
-	websocket.BroadcastSyncTaskEvent(websocket.EventSyncTaskDeleted, payload)
+	realtime.BroadcastSyncTaskEvent(realtime.EventSyncTaskDeleted, payload)
 
 	// 删除相关的日志和同步结果文件
 	removeSyncLogFile(SyncLogFullPath(id))
@@ -485,7 +485,7 @@ func CreateSync(syncPathId uint, sourcePath, sourcePathId, targetPath string) *S
 		helpers.AppLogger.Errorf("创建同步任务失败：%v", err)
 		return nil
 	}
-	sync.broadcastSyncTaskEvent(websocket.EventSyncTaskCreated)
+	sync.broadcastSyncTaskEvent(realtime.EventSyncTaskCreated)
 	return sync
 }
 

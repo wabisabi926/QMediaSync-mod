@@ -56,8 +56,7 @@ const createElementPlusResolver = (importStyle: 'css' | false = 'css') => {
     type: resolver.type,
     async resolve(name: string) {
       const result = (await resolver.resolve(name)) as
-        | { name?: string; from?: string; sideEffects?: string | string[] }
-        | undefined
+        { name?: string; from?: string; sideEffects?: string | string[] } | undefined
 
       if (result && result.from === 'element-plus/es' && result.name?.startsWith('El')) {
         const moduleName = elementPlusComponentModules[result.name] ?? toKebab(result.name)
@@ -142,6 +141,15 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:12333',
+        changeOrigin: true,
+        ws: false,
+      },
     },
   },
   build: {

@@ -21,7 +21,7 @@ pnpm install
 pnpm run dev
 ```
 
-前端开发环境默认连接 `http://localhost:12333/api`。
+前端开发页面使用相对 `/api`，Vite 会把它代理到 `http://localhost:12333`；HTTP API 和 SSE 都经过该同源代理。
 
 后端默认允许 Vite 开发来源 `http://localhost:5173`、`http://127.0.0.1:5173` 和 `http://[::1]:5173` 携带浏览器登录 Cookie。若修改 Vite 端口、使用自定义开发域名，或让前端跨源访问后端，需要把前端来源加入 `config/config.yaml`：
 
@@ -30,18 +30,18 @@ trustedOrigins:
   - http://dev.example.local:5173
 ```
 
-### 前端状态刷新和 WebSocket 事件
+### 前端状态刷新和 SSE 事件
 
 - 分页列表接口保留 HTTP 快照语义，例如上传 / 下载队列列表仍通过 `/api/upload/queue` 和 `/api/download/queue` 拉取当前页。
 - 网盘文件浏览器使用 `/api/path/files` 拉取当前目录视图。前端传入 `account_id`、`path`、`page`、`page_size` 和 `refresh`；`page_size` 是 UI 每页数量，支持 `50`、`100`、`200`、`500`，默认 `50`。后端会按网盘来源能力批量请求上游并缓存批次，普通翻页优先从缓存切片返回。
 - `/api/path/files` 响应 `data` 保持 `{ list, total, page, page_size }` 兼容字段，并新增 `total_exact`、`has_more`、`sort_by`、`sort_order` 和 `cache`。115 和 OpenList 的 `total_exact=true`；百度网盘没有精确总数，`total_exact=false`，`total` 只用于让分页继续前进。
 - 手动刷新传 `refresh=1`，后端清当前目录、当前排序视图和筛选条件对应的缓存并重新请求上游；创建目录、删除文件或目录成功后会失效同一目录下所有排序视图缓存。OpenList 普通列表请求使用 `refresh=false`，只有手动刷新或写操作后的重新加载才让第一轮上游请求使用 `refresh=true`。
 - 文件管理器排序入口暂时整体隐藏，前端不提交 `sort_by` 和 `sort_order`。后端接口仍保留这两个查询参数作为兼容能力，但当前只使用上游支持的全局排序参数，不做当前页或单个缓存批次的本地排序。已知 115 Open API 在部分目录中返回顺序与请求排序参数不一致；OpenList 第一版也只使用默认顺序。后续应在后端实现完整目录排序视图缓存后，再恢复前端排序入口。
-- 上传 / 下载队列列表响应包含 `queue_status` 快照，前端批量按钮状态以该快照为准；`running` 只表示队列执行器是否启用，用于暂停 / 恢复按钮，不表示存在活跃任务。前端只在 `pending` 或 `processing` 大于 0，或当前快照仍包含等待 / 处理任务时每 5 秒轮询；空闲时由 WebSocket 结构变化事件和手动刷新拉取快照。WebSocket 状态事件只更新运行标记，最终仍以 HTTP 快照校准。上传队列、下载队列和文件管理器的移动端 / 桌面端表格按当前设备条件挂载，不同时创建两张 Element Plus 表格。
+- 上传 / 下载队列列表响应包含 `queue_status` 快照，前端批量按钮状态以该快照为准；`running` 只表示队列执行器是否启用，用于暂停 / 恢复按钮，不表示存在活跃任务。前端只在 `pending` 或 `processing` 大于 0，或当前快照仍包含等待 / 处理任务时每 5 秒轮询；空闲时由 SSE 结构变化事件和手动刷新拉取快照。SSE 状态事件只更新运行标记，最终仍以 HTTP 快照校准。上传队列、下载队列和文件管理器的移动端 / 桌面端表格按当前设备条件挂载，不同时创建两张 Element Plus 表格。
 - 上传队列列表会在 115 任务上补齐 `upload_phase`、`progress_percent`、`uploaded_bytes`、`total_parts`、`uploaded_parts`、`upload_result` 和 `resume_state` 等面向展示的字段。`upload_phase`、`upload_result` 和 `source_cleanup_status` 保持后端机器值，前端在上传队列“阶段 / 结果”和详情行映射为用户可理解的文案，例如 `pending` 显示为“等待上传”、`checking_remote` 显示为“检查远端文件”、`remote_completed_pending_finalize` 显示为“等待完成处理”、`remote_completed_finalizing` 显示为“正在完成处理”、`skipped_after_rapid_wait` 显示为“秒传等待超时，已跳过上传”。`upload_queue_changed` 事件在进度变化时也会带同名 patch 字段，进度事件按任务节流到约 1 秒；目录监控源文件清理状态变化会发送 `reason=source_cleanup_changed`，携带 `source_cleanup_status` 和 `source_cleanup_error`，其中空错误字符串也会显式发送以清空前端旧错误；创建、状态切换、完成和失败事件不按进度节流。
 - 上传完成、远端已存在跳过和后续 STRM Webhook 使用 `strm_generation_tasks` 作为统一 STRM 生成队列。后端启动时会把遗留的 `running` STRM 生成任务恢复为 `pending`，后台 worker 轮询处理；worker 停止时由 context 取消中断的任务保持 `running` 或 `finalizing`，不计为失败，下一次启动再恢复或继续收尾，且取消后不再提交 Emby 刷新或执行源文件清理。文件级任务生成或确认 STRM 后只更新 `SyncFile` 和 STRM / 元数据本地文件，不创建 `syncs` 同步记录。非 Webhook 文件任务在 STRM 发生变化时提交 Emby 刷新；Webhook 文件任务只有 `refresh_emby=true` 且 STRM 变更或新增元数据下载任务时才提交刷新，批量和目录扫描只在父任务所有子任务成功完成后统一提交。成功生成的子任务会先累计父任务进度并进入 `finalizing`，父任务刷新提交成功或父任务尚未满足提交条件后才标记 `completed`；`finalizing` 属于活跃状态，会参与 `request_hash` 去重并被 worker 继续扫描，避免刷新失败后子任务不可恢复或重试重复累计父进度。父任务只有 `status=completed`、计数满足且存在 STRM / 元数据变化时才提交批量刷新，`failed` 和 `waiting_children` 不提交。目录监控上传的元数据文件会在源文件清理前复制到 STRM 本地路径；复制失败时任务失败且不会触发源文件清理。单文件后处理只执行一次 STRM 内容比较；确认需要更新后直接写入文件，不重复输出差异 WARN，也不重复输出完整同步启动时的“生效 STRM 配置”INFO。
-- WebSocket 事件默认只用于通知状态或列表可能发生变化，前端收到结构性事件后按当前页、筛选条件重新拉取快照；上传队列的 `upload_queue_changed` 进度和源文件清理状态 patch 例外，当前页已有任务会优先局部合并 `uploaded_bytes`、`progress_percent`、`upload_speed_bytes`、`upload_phase`、`upload_result`、`resume_state`、分片字段、`source_cleanup_status` 和 `source_cleanup_error`，创建、清理、重试等结构性变化仍重新拉取快照。
-- 长任务进度优先使用事件推送；保留 HTTP 状态接口作为首次加载、刷新恢复和 WebSocket 断线兜底。
+- SSE 全局事件默认只用于通知状态或列表可能发生变化，前端收到结构性事件或原生重连后按当前页、筛选条件重新拉取快照；上传队列的 `upload_queue_changed` 进度和源文件清理状态 patch 例外，当前页已有任务会优先局部合并 `uploaded_bytes`、`progress_percent`、`upload_speed_bytes`、`upload_phase`、`upload_result`、`resume_state`、分片字段、`source_cleanup_status` 和 `source_cleanup_error`，创建、清理、重试等结构性变化仍重新拉取快照。
+- 长任务进度优先使用事件推送；保留 HTTP 状态接口作为首次加载、刷新恢复和 SSE 断线兜底。
 - 115 OAuth 和二维码授权属于短生命周期外部授权流程，继续使用现有轮询，不接入通用队列事件。
 - 新增轮询必须具备页面隐藏暂停、请求防重叠和卸载清理。
 

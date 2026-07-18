@@ -1300,12 +1300,12 @@ const checkAndSetAutoRefresh = () => {
       updatePathesStatus()
     }, 5000)
   } else {
-    // 没有任务：不轮询，依赖 WebSocket 事件
+    // 没有任务：不轮询，依赖全局实时事件
   }
 }
 
-// WebSocket 事件监听
-import { useWSEvent } from '@/composables/useWebSocket'
+// 全局实时事件监听
+import { useRealtimeEvent } from '@/composables/useRealtimeEvents'
 
 const onScraperStart = () => {
   updatePathesStatus()
@@ -1315,8 +1315,8 @@ const onScraperComplete = () => {
   checkAndSetAutoRefresh()
 }
 
-useWSEvent('scraper_task_start', onScraperStart)
-useWSEvent('scraper_task_complete', onScraperComplete)
+useRealtimeEvent('scraper_task_start', onScraperStart, () => void loadPathes())
+useRealtimeEvent('scraper_task_complete', onScraperComplete)
 
 // 组件挂载时加载数据
 onMounted(async () => {

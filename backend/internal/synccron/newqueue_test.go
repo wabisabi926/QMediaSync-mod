@@ -139,10 +139,10 @@ func TestStrmQueuedBroadcasterUsesNonBlockingBroadcast(t *testing.T) {
 		t.Fatal("未找到 STRM queued 广播实现结束位置")
 	}
 	body := source[broadcastStart : broadcastStart+nextConst]
-	if !strings.Contains(body, "ws.TryBroadcastEvent") {
+	if !strings.Contains(body, "realtime.TryBroadcastEvent") {
 		t.Fatal("STRM queued 广播必须使用非阻塞 TryBroadcastEvent")
 	}
-	if strings.Contains(body, "ws.BroadcastEvent") {
+	if strings.Contains(body, "realtime.BroadcastEvent") {
 		t.Fatal("STRM queued 广播不能使用阻塞 BroadcastEvent")
 	}
 }

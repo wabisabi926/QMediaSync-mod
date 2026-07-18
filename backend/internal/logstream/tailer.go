@@ -133,7 +133,10 @@ func (t *Tailer) sendCatchUp(sub *subscriber, startCursor int64) {
 			return
 		}
 	}
-	if nextCursor < t.cursor {
+	t.mu.Lock()
+	currentCursor := t.cursor
+	t.mu.Unlock()
+	if nextCursor < currentCursor {
 		sub.send(Message{Type: "resync_required", Reason: "catch_up_limit_reached"})
 	}
 }
@@ -191,12 +194,19 @@ func (t *Tailer) readAvailable() {
 		t.broadcast(Message{Type: "error", Reason: err.Error()})
 		return
 	}
-	if stat.Size() < t.cursor {
+	t.mu.Lock()
+	cursor := t.cursor
+	truncated := stat.Size() < cursor
+	if truncated {
 		t.cursor = 0
 		t.leftover = nil
+		cursor = 0
+	}
+	t.mu.Unlock()
+	if truncated {
 		t.broadcast(Message{Type: "resync_required", Reason: "log_file_truncated"})
 	}
-	if _, err := file.Seek(t.cursor, io.SeekStart); err != nil {
+	if _, err := file.Seek(cursor, io.SeekStart); err != nil {
 		t.broadcast(Message{Type: "error", Reason: err.Error()})
 		return
 	}
@@ -205,22 +215,29 @@ func (t *Tailer) readAvailable() {
 	for {
 		line, err := reader.ReadBytes('\n')
 		if len(line) > 0 {
+			t.mu.Lock()
 			t.cursor += int64(len(line))
+			cursor = t.cursor
 			if line[len(line)-1] == '\n' {
 				content := append(t.leftover, line[:len(line)-1]...)
 				t.leftover = nil
+				t.mu.Unlock()
 				if len(content) > maxScannerBytes {
-					t.broadcast(Message{Type: "resync_required", Reason: "partial_line_too_long", Cursor: t.cursor})
+					t.broadcast(Message{Type: "resync_required", Reason: "partial_line_too_long", Cursor: cursor})
 					continue
 				}
 				entry := ParseLine(string(content))
-				entry.Cursor = t.cursor
-				t.broadcast(Message{Type: "log_append", Entry: entry, Cursor: t.cursor})
+				entry.Cursor = cursor
+				t.broadcast(Message{Type: "log_append", Entry: entry, Cursor: cursor})
 			} else {
 				t.leftover = append(t.leftover, line...)
-				if len(t.leftover) > maxScannerBytes {
+				partialLineTooLong := len(t.leftover) > maxScannerBytes
+				if partialLineTooLong {
 					t.leftover = nil
-					t.broadcast(Message{Type: "resync_required", Reason: "partial_line_too_long", Cursor: t.cursor})
+				}
+				t.mu.Unlock()
+				if partialLineTooLong {
+					t.broadcast(Message{Type: "resync_required", Reason: "partial_line_too_long", Cursor: cursor})
 					return
 				}
 			}

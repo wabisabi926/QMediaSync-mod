@@ -7,7 +7,7 @@ import (
 
 	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
-	ws "qmediasync/internal/websocket"
+	"qmediasync/internal/realtime"
 
 	"golang.org/x/time/rate"
 )
@@ -82,7 +82,7 @@ func (dq *DQ) Start() {
 	}
 	dq.running = true
 	dq.mutex.Unlock()
-	ws.BroadcastQueueStatusChanged(ws.EventDownloadQueueStatusChanged, true)
+	realtime.BroadcastQueueStatusChanged(realtime.EventDownloadQueueStatusChanged, true)
 
 	// 启动工作协程
 	for i := 0; i < dq.numWorkers; i++ {
@@ -103,7 +103,7 @@ func (dq *DQ) Stop() {
 	}
 	dq.running = false
 	dq.mutex.Unlock()
-	ws.BroadcastQueueStatusChanged(ws.EventDownloadQueueStatusChanged, false)
+	realtime.BroadcastQueueStatusChanged(realtime.EventDownloadQueueStatusChanged, false)
 
 	// 关闭 tasks 通道
 	close(dq.tasks)

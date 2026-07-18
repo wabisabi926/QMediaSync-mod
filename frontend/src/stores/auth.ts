@@ -1,4 +1,5 @@
 import { SERVER_URL } from '@/const'
+import { closeAllRealtimeSources } from '@/composables/realtimeSources'
 import type { AxiosStatic } from 'axios'
 import { defineStore } from 'pinia'
 import { computed, shallowRef } from 'vue'
@@ -63,6 +64,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const clearAuth = () => {
+    closeAllRealtimeSources()
     user.value = null
     session.value = null
     csrfToken.value = null

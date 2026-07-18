@@ -427,7 +427,7 @@ import { SERVER_URL } from '@/const'
 import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
 import { useBackgroundRefresh } from '@/composables/useBackgroundRefresh'
 import { mergeStableList, retainExistingKeys } from '@/composables/useStableList'
-import { useWSEvent } from '@/composables/useWebSocket'
+import { useRealtimeEvent } from '@/composables/useRealtimeEvents'
 import { usePageStateStore } from '@/stores/pageState'
 import type { RecordAction, RecordActionPayload, RecordColumn } from '@/types/recordTable'
 import { isMobile as checkIsMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
@@ -1656,13 +1656,19 @@ const getStatusName = (status: string): string => {
   }
 }
 
-// WebSocket 事件监听：刮削单项完成时刷新记录列表
-useWSEvent('scraper_item_complete', () => {
-  loadRecords()
-})
+// 全局实时事件监听：刮削单项完成时刷新记录列表
+useRealtimeEvent(
+  'scraper_item_complete',
+  () => {
+    loadRecords()
+  },
+  () => {
+    if (isPageActive) void loadRecords()
+  },
+)
 
-// WebSocket 事件监听：刮削任务完成时刷新记录列表
-useWSEvent('scraper_task_complete', () => {
+// 全局实时事件监听：刮削任务完成时刷新记录列表
+useRealtimeEvent('scraper_task_complete', () => {
   loadRecords()
 })
 

@@ -230,7 +230,7 @@ import { SERVER_URL } from '@/const'
 import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
 import { useBackgroundRefresh } from '@/composables/useBackgroundRefresh'
 import { mergeStableList, retainExistingKeys } from '@/composables/useStableList'
-import { useWSEvent } from '@/composables/useWebSocket'
+import { useRealtimeEvent } from '@/composables/useRealtimeEvents'
 import { usePageStateStore } from '@/stores/pageState'
 import type { AxiosStatic } from 'axios'
 import { formatFileSize } from '@/utils/fileSizeUtils'
@@ -787,19 +787,25 @@ const deactivateQueuePage = () => {
   stopAutoRefresh()
 }
 
-useWSEvent('download_queue_status_changed', (data) => {
-  if (typeof data.running === 'boolean') {
-    queueStatusSnapshot.value = {
-      ...queueStatusSnapshot.value,
-      running: data.running,
+useRealtimeEvent(
+  'download_queue_status_changed',
+  (data) => {
+    if (typeof data.running === 'boolean') {
+      queueStatusSnapshot.value = {
+        ...queueStatusSnapshot.value,
+        running: data.running,
+      }
     }
-  }
-  if (isPageActive) {
-    loadQueueData()
-  }
-})
+    if (isPageActive) {
+      loadQueueData()
+    }
+  },
+  () => {
+    if (isPageActive) void loadQueueData()
+  },
+)
 
-useWSEvent('download_queue_changed', () => {
+useRealtimeEvent('download_queue_changed', () => {
   if (isPageActive && !document.hidden) {
     loadQueueData()
   }

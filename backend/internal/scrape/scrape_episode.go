@@ -14,10 +14,10 @@ import (
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
 	"qmediasync/internal/notificationmanager"
+	"qmediasync/internal/realtime"
 	"qmediasync/internal/syncstrm"
 	"qmediasync/internal/tmdb"
 	"qmediasync/internal/v115open"
-	ws "qmediasync/internal/websocket"
 )
 
 // 处理集的刮削任务，启动 N 个协程
@@ -49,7 +49,7 @@ mainloop:
 				helpers.AppLogger.Infof("集刮削整理任务队列 %d 处理电视剧 %s 季 %d 集 %d 成功", taskIndex, mediaFile.Name, mediaFile.SeasonNumber, mediaFile.EpisodeNumber)
 			}
 			// 触发单个刮削项完成事件
-			ws.BroadcastEvent(ws.EventScraperItemComplete, map[string]any{
+			realtime.BroadcastEvent(realtime.EventScraperItemComplete, map[string]any{
 				"item_id": mediaFile.ID,
 				"name":    mediaFile.VideoFilename,
 				"status":  string(mediaFile.Status),

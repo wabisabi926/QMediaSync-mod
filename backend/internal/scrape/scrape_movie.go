@@ -16,10 +16,10 @@ import (
 	"qmediasync/internal/models"
 	"qmediasync/internal/notificationmanager"
 	"qmediasync/internal/openlist"
+	"qmediasync/internal/realtime"
 	"qmediasync/internal/syncstrm"
 	"qmediasync/internal/tmdb"
 	"qmediasync/internal/v115open"
-	ws "qmediasync/internal/websocket"
 )
 
 type movieScrapeImpl struct {
@@ -103,7 +103,7 @@ mainloop:
 				helpers.AppLogger.Errorf("任务队列 %d 刮削文件 %s 失败：%v", taskIndex, mediaFile.VideoFilename, err)
 			}
 			// 触发单个刮削项完成事件
-			ws.BroadcastEvent(ws.EventScraperItemComplete, map[string]any{
+			realtime.BroadcastEvent(realtime.EventScraperItemComplete, map[string]any{
 				"item_id": mediaFile.ID,
 				"name":    mediaFile.VideoFilename,
 				"status":  string(mediaFile.Status),

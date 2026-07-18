@@ -54,14 +54,7 @@ export interface SyncTaskLogEntry {
 }
 
 export interface SyncTaskStreamMessage<T = unknown> {
-  type:
-    | 'snapshot'
-    | 'task_patch'
-    | 'log_append'
-    | 'complete'
-    | 'heartbeat'
-    | 'error'
-    | 'resync_required'
+  type: 'snapshot' | 'task_patch' | 'log_append' | 'complete' | 'error' | 'resync_required'
   version: number
   sync_id: number
   sequence?: number

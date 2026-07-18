@@ -103,7 +103,7 @@ import { SERVER_URL } from '@/const'
 import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
 import { useBackgroundRefresh } from '@/composables/useBackgroundRefresh'
 import { mergeStableList, retainExistingKeys } from '@/composables/useStableList'
-import { useWSEvent } from '@/composables/useWebSocket'
+import { useRealtimeEvent } from '@/composables/useRealtimeEvents'
 import { usePageStateStore } from '@/stores/pageState'
 import type { RecordAction, RecordActionPayload, RecordColumn } from '@/types/recordTable'
 import { isMobile as checkIsMobile, onDeviceTypeChange } from '@/utils/deviceUtils'
@@ -112,6 +112,7 @@ import {
   type SyncRecordEventType,
   type SyncTaskRecordEventPayload,
 } from '@/utils/syncRecordEvents'
+import { resetSyncTaskEventSequences, shouldApplySyncTaskEvent } from '@/utils/syncTaskEventSequence'
 import { getEmbyRefreshDecision } from '@/utils/syncRefreshDecision'
 import { formatDateTime } from '@/utils/timeUtils'
 import type { AxiosStatic } from 'axios'
@@ -216,11 +217,16 @@ const patchSyncRecordFromEvent = (raw: Record<string, unknown>, eventType: SyncR
     return
   }
 
-  const lastSequence = lastSyncRecordEventSequence.get(payload.sync_id) || 0
-  if (payload.sequence && payload.sequence <= lastSequence) {
+  if (
+    !shouldApplySyncTaskEvent(
+      lastSyncRecordEventSequence,
+      payload.sync_id,
+      payload.sequence,
+      payload.deleted === true,
+    )
+  ) {
     return
   }
-  lastSyncRecordEventSequence.set(payload.sync_id, payload.sequence || lastSequence)
 
   const result = applySyncRecordEventPatch({
     records: syncRecords.value,
@@ -239,12 +245,19 @@ const onLegacySyncEvent = () => {
   void loadSyncRecords()
 }
 
-// WebSocket 事件监听
-useWSEvent('sync_task_created', (data) => patchSyncRecordFromEvent(data, 'sync_task_created'))
-useWSEvent('sync_task_updated', (data) => patchSyncRecordFromEvent(data, 'sync_task_updated'))
-useWSEvent('sync_task_deleted', (data) => patchSyncRecordFromEvent(data, 'sync_task_deleted'))
-useWSEvent('strm_sync_task_start', onLegacySyncEvent)
-useWSEvent('strm_sync_task_complete', onLegacySyncEvent)
+// 全局实时事件监听
+useRealtimeEvent(
+  'sync_task_created',
+  (data) => patchSyncRecordFromEvent(data, 'sync_task_created'),
+  () => {
+    resetSyncTaskEventSequences(lastSyncRecordEventSequence)
+    if (isPageActive) void loadSyncRecords()
+  },
+)
+useRealtimeEvent('sync_task_updated', (data) => patchSyncRecordFromEvent(data, 'sync_task_updated'))
+useRealtimeEvent('sync_task_deleted', (data) => patchSyncRecordFromEvent(data, 'sync_task_deleted'))
+useRealtimeEvent('strm_sync_task_start', onLegacySyncEvent)
+useRealtimeEvent('strm_sync_task_complete', onLegacySyncEvent)
 
 // 获取状态标签类型
 const getStatusType = (status: number) => {

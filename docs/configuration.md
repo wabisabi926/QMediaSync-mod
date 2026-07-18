@@ -31,6 +31,12 @@
 - 在「系统设置 - API Key」创建密钥后，后端会生成 `qms_` 前缀加 24 位随机字符的完整密钥。完整密钥只在创建响应中返回一次；数据库 `api_keys` 表保存 `user_id`、`name`、`key_hash`、前 8 位 `key_prefix`、`is_active`、时间戳和 `last_used_at`，不保存完整明文。校验时对请求中的 Key 再做同样 SHA256，用 `key_hash` + `is_active=true` 查表。
 - 本地下载反代 `/proxy-115` 仅允许访问 115 CDN 和百度网盘下载域名，用于 115 / 百度网盘播放代理和媒体信息提取；初始目标和每次重定向目标都会执行同一白名单校验，其他目标地址会被拒绝。
 
+## SSE 反向代理
+
+前端与 API 应通过同一 origin 访问。生产环境由 QMediaSync 托管前端；开发环境由 Vite 将相对 `/api` 代理到后端。`/api/events/stream`、`/api/logs/stream` 和 `/api/sync/tasks/:id/stream` 是持续 SSE 响应，反向代理必须关闭缓冲并使用足够长的读取超时。
+
+Nginx 可在对应 location 设置 `proxy_http_version 1.1`、`proxy_buffering off`、`proxy_cache off`、`gzip off` 和较长的 `proxy_read_timeout`；Caddy 可使用 `flush_interval -1`。不要把 SSE 作为跨 origin Cookie 通道配置，本项目首期不提供该场景的专项支持。
+
 ## 数据库
 
 首次启动且不存在 `config/config.yaml` 时，后端会先启动配置向导。向导当前提供 SQLite 和外部 PostgreSQL 两种选择；保存后会生成 `config/config.yaml`，旧版 `config.yml` 仍可读取。

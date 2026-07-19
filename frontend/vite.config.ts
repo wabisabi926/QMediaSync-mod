@@ -125,6 +125,33 @@ const elementPlusRuntimeImportPlugin = (): Plugin => ({
   },
 })
 
+const isAppShellSource = (id: string) => id.includes('/src/App.vue') || id.endsWith('/src/main.ts')
+
+const isStaticallyImportedByAppShell = (
+  id: string,
+  getModuleInfo: (id: string) => { importers: string[] } | null,
+) => {
+  const pending = [id]
+  const visited = new Set<string>()
+
+  while (pending.length) {
+    const current = pending.pop()
+    if (!current || visited.has(current)) {
+      continue
+    }
+    visited.add(current)
+
+    for (const importer of getModuleInfo(current)?.importers ?? []) {
+      if (isAppShellSource(importer)) {
+        return true
+      }
+      pending.push(importer)
+    }
+  }
+
+  return false
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
   plugins: [
@@ -161,7 +188,7 @@ export default defineConfig(({ mode }) => ({
     chunkSizeWarningLimit: 700,
     rollupOptions: {
       output: {
-        manualChunks(id) {
+        manualChunks(id, { getModuleInfo }) {
           const normalizedId = id.split('\\').join('/')
 
           if (normalizedId.includes('/node_modules/vue-router/')) {
@@ -175,10 +202,11 @@ export default defineConfig(({ mode }) => ({
             return 'vendor-vue'
           }
           if (
-            normalizedId.includes('/node_modules/element-plus/') ||
-            normalizedId.includes('/node_modules/@element-plus/')
+            (normalizedId.includes('/node_modules/element-plus/') ||
+              normalizedId.includes('/node_modules/@element-plus/')) &&
+            isStaticallyImportedByAppShell(id, getModuleInfo)
           ) {
-            return 'vendor-element'
+            return 'vendor-element-core'
           }
           if (
             normalizedId.includes('/node_modules/markdown-it/') ||

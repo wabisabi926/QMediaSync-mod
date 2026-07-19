@@ -1,5 +1,13 @@
 # STRM Webhook
 
+> 职责：定义外部程序创建 STRM 生成任务的 API、字段、响应和幂等边界。
+>
+> 权威范围：本文档维护 Webhook API 契约；入队后的上传与 STRM worker 流程见 [上传与 STRM 处理](../architecture/upload-and-strm-processing.md)，API Key 规则见 [认证会话](../architecture/authentication-sessions.md)。
+>
+> 修改时机：修改路由、鉴权、请求字段、响应、幂等哈希、父子任务或 Webhook 刷新行为时必须更新本文档。
+>
+> 相关代码：`backend/internal/controllers/strm_webhook.go`、`backend/internal/syncstrm/`、`backend/internal/models/strm_generation_task.go`、`backend/internal/controllers/strm_webhook_test.go`。
+
 本文说明外部程序通过 Webhook 请求 QMediaSync 创建 STRM 生成任务的接口边界。Webhook 请求只负责入队，实际 STRM 写入、`SyncFile` 更新、同名元数据下载和 Emby 刷新提交都由后台 STRM worker 处理。
 
 ## 入口和鉴权
@@ -28,6 +36,7 @@ API Key 在 Web 页面「系统设置 - API Key」中创建。完整密钥只会
 - 禁止通过 `local_path` 指定本地写入位置；顶层请求和批量项中的 `local_path` 都会被拒绝。
 - 本地 STRM 输出路径只能由显式指定或自动匹配到的同步目录配置计算。
 - 文件级请求入队前会按 `file_id` 或 `path + file_name` 查询远端详情，并以解析后的真实远端路径再次校验同步目录边界。
+- `file` 动作应只传入实际文件；当前实现解析 115 详情后尚未额外校验对象类型，目录 ID 或目录路径可能被当作文件任务接收。调用方不得依赖接口拒绝目录，后续修改此处应补充文件类型校验和回归测试。
 - 目录级请求同时提供 `directory_id` 和 `directory_path` 时，会按 `directory_id` 查询 115 目录详情，并要求返回对象是目录、目录 ID 和远端路径都与请求一致。
 - 未提供 `sync_path_id` 时，`file` 和 `batch_files` 必须提供 `path + file_name`；仅提供 `file_id` 无法自动判断同步目录。
 - 未提供 `sync_path_id` 时，`directory_scan` 必须提供 `directory_path`；仅提供 `directory_id` 无法自动判断同步目录。
@@ -43,12 +52,12 @@ API Key 在 Web 页面「系统设置 - API Key」中创建。完整密钥只会
 | action | 说明 |
 | --- | --- |
 | `file` | 创建单文件 STRM 生成任务。 |
-| `batch_files` | 创建批量父任务，再为每个合法 `items[]` 项创建单文件子任务。单项失败不会影响其他合法项入队，重试会复用父任务并补齐缺失子任务。 |
-| `directory_scan` | 创建目录扫描父任务，后续由 STRM worker 异步枚举远端目录并为视频文件创建子任务。 |
+| `batch_files` | 至少有一个合法 `items[]` 项时，创建批量父任务，再为每个合法项创建单文件子任务。单项失败不会影响其他合法项入队，重试会复用父任务并补齐缺失子任务。 |
+| `directory_scan` | 创建目录扫描父任务，后续由 STRM worker 异步递归枚举远端目录及其子目录，并为视频文件创建子任务。 |
 
 `action` 为空时，后端按字段自动判断：
 
-- 有 `items` 时视为 `batch_files`。
+- `items` 为非空数组时视为 `batch_files`。
 - 有 `directory_id` 或 `directory_path` 时视为 `directory_scan`。
 - 其他情况视为 `file`。
 
@@ -125,7 +134,7 @@ API Key 在 Web 页面「系统设置 - API Key」中创建。完整密钥只会
 
 ## Emby 刷新
 
-`refresh_emby=true` 时，文件任务只有在 STRM 发生变更或新增元数据下载任务后才解析并提交刷新目标。
+`refresh_emby=true` 时，文件任务只有在 STRM 发生变更或新增元数据下载任务后才解析并向 Emby 刷新协调器提交刷新目标。
 
 - `file`：单文件任务完成后提交目标，但仍进入现有 Emby 刷新协调器防抖。
 - `batch_files`：所有子任务成功完成且存在 STRM / 元数据变化后，由批量父任务统一提交一次已收集目标集合；任一子任务失败则父任务失败且不提交刷新。
@@ -133,7 +142,7 @@ API Key 在 Web 页面「系统设置 - API Key」中创建。完整密钥只会
 
 刷新目标优先保持 item 精度。每个发生变化的文件会先解析为 Movie、Episode、Season、Series 等 item；解析不到可靠 item 时回退同步目录关联媒体库。目标集合会去重，同一媒体库内如果出现 library fallback，该媒体库内其他 item 目标会被覆盖，不再单独提交；不同媒体库互不影响。
 
-提交后只写入 `emby_library_refresh_tasks`，不在 STRM worker 内直接请求 Emby。刷新协调器会使用现有 `RefreshAfterAt = LastEventAt + 10s` 防抖窗口；如果同一 `sync_path_id` 仍有 `pending` 或 `downloading` 下载任务，协调器会继续等待下载完成后再刷新。
+提交不在 STRM worker 内直接请求 Emby。只有 Emby 已配置、已启用且刷新目标能映射到关联媒体库时，协调器才会创建或合并 `emby_library_refresh_tasks`；其他情况会跳过刷新。防抖、同媒体库关联同步目录的等待范围、可重试失败下载和最长等待后取消等规则由 [Emby 媒体库同步](../architecture/emby-library-sync.md) 统一维护。
 
 上传完成、远端已存在等非 Webhook STRM 任务保持原有行为：STRM 变更后可逐文件提交 Emby 刷新，不受 Webhook 默认开关影响。
 
@@ -149,7 +158,9 @@ API Key 在 Web 页面「系统设置 - API Key」中创建。完整密钥只会
 | `failed_count` | 批量请求中失败项数量。 |
 | `results` | 逐项结果，`index` 从 0 开始，包含 `accepted`、`task_id` 或 `error`。 |
 
-单文件和目录扫描请求如果校验失败，会返回 HTTP `400`。批量请求中单项失败不会导致整个请求失败，只会在对应 `results` 项中写入错误；但 `items[]` 内放入请求级开关属于整批请求错误，会直接返回 HTTP `400`。
+单文件和目录扫描请求如果校验失败，会返回 HTTP `400`。批量请求中单项失败不会导致整个请求失败，只会在对应 `results` 项中写入错误；如果所有 item 都不合法，仍返回 HTTP `200`、`accepted_count=0`、`failed_count=items.length`，且不会创建父任务或子任务。`items[]` 内放入请求级开关属于整批请求错误，会直接返回 HTTP `400`。
+
+所有 JSON 响应使用 `APIResponse` 包络。成功响应的 JSON `code` 为 `200`；当前错误响应虽然分别使用 HTTP `400` 或 `401`，但 JSON `code` 固定为 `500`，调用方必须以 HTTP 状态和 `message` 判断请求是否失败，不能把 JSON `code` 当作 HTTP 状态。
 
 请求完成入队统计后，会向 `app.log` 写入 `[STRM Webhook] 接收到 STRM 任务` INFO 日志，包含 `request_id`、`action`、`sync_path_id`、`download_meta`、`refresh_emby`、接收 / 拒绝数量和任务 ID 列表。日志不会记录 API Key、请求头或鉴权密钥。
 
@@ -183,8 +194,8 @@ Webhook 入队会为请求生成短格式 `request_hash`，形如 `webhook:file:
 - 两个相同请求并发到达时，数据库唯一键冲突会被入队逻辑吸收并复查已有活跃任务；调用方应拿到同一个任务 ID，而不是偶发唯一键错误。
 - 升级后再次提交相同请求时，会优先生成短格式哈希；如果数据库中仍有旧格式活跃任务，会复用旧任务，不重复创建。
 - 历史任务如果已经 `failed`、`completed` 或 `cancelled`，再次提交相同请求会归档旧请求哈希并创建新的待处理任务。
-- worker 自动领取 `pending` 和 `finalizing` 任务；执行失败会把任务标记为 `failed`，递增 `retry_count` 并写入 `last_error`。
-- `batch_files` 父任务不由 worker 执行；创建后状态为 `waiting_children`，所有子任务进入终态后才转为 `completed` 或 `failed`。相同批量请求重试时会按合法 item 的原始 `items[]` index 匹配子任务，已存在的子任务复用，缺失的子任务补建，非法项仍按原始 index 返回失败结果。
+- worker 自动领取 `pending` 和 `finalizing` 任务。文件生成阶段失败会标记为 `failed`、递增 `retry_count` 并写入 `last_error`；父任务刷新提交等 `finalizing` 阶段副作用失败会保留在 `finalizing`，由后续 worker 再次处理。
+- `batch_files` 父任务不由 worker 执行；创建后状态为 `waiting_children`。所有子任务的生成阶段完成后，父任务转为 `completed` 或 `failed`；最后一个成功子任务可能短暂处于 `finalizing`，随后完成副作用并收敛到终态。相同批量请求重试时会按合法 item 的原始 `items[]` index 匹配子任务，已存在的子任务复用，缺失的子任务补建，非法项仍按原始 index 返回失败结果。
 - `batch_files` 父任务和合法子任务在同一个数据库事务内创建；SQLite 遇到并发写入锁冲突时会回滚并有限重试整个父子任务事务，确保相同请求最终复用同一组任务；任一非幂等冲突类子任务写入失败时整个请求返回错误并回滚父任务，后续相同请求会重新创建完整父子任务集合。
 - `directory_scan` 父任务展开完成后记录 `total_items`；子任务后续完成或失败时累计 `accepted_items`、`failed_items`、`changed_items` 和 `new_meta_items`。
 
@@ -260,5 +271,18 @@ curl -X POST 'http://127.0.0.1:12333/api/strm/webhook' \
     "refresh_emby": true,
     "path": "/剧集/示例剧/S01",
     "file_name": "示例剧 - S01E01.mkv"
-  }'
+}'
 ```
+
+## 不变量
+
+- Webhook 只负责鉴权、校验和入队；STRM 写入、`SyncFile` 更新、元数据下载和 Emby 刷新由后台 worker 执行。
+- 鉴权只接受 API Key，不使用浏览器 Cookie 会话或 CSRF。
+- 相同活动请求必须复用任务；并发唯一键冲突对调用方表现为复用，而不是数据库错误。
+- `batch_files` 与 `directory_scan` 的父任务只在所有子任务成功且存在变化时提交 Emby 刷新；任何子任务失败时父任务失败且不提交。
+- 远端路径只用于 115 远端定位，本地 STRM 路径必须由同步目录计算，不能接受调用方的 `local_path`。
+
+## 验证方式
+
+- 运行 `(cd backend && go test ./internal/controllers/ -run TestStrmWebhook)` 和 `(cd backend && go test ./internal/syncstrm/)`。
+- 修改鉴权、响应或幂等规则时覆盖 header / 查询参数 API Key、重复请求、并发入队、父子任务和远端路径边界。

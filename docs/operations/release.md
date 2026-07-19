@@ -1,8 +1,24 @@
 # 发布流程
 
+> 职责：说明持续集成、预发布镜像、版本发布、changelog 生成、GitHub Actions 和 FPK 打包流程。
+>
+> 权威范围：本文档维护 CI/CD、镜像标签、发布操作和产物；运行时镜像挂载与启动参数见 [部署与持久化](deployment.md)，日常开发构建与验证见 [验证说明](../engineering/verification.md)。
+>
+> 修改时机：修改发布脚本、tag 规则、CI 工作流、镜像标签、changelog 或 FPK 打包时必须更新本文档。
+>
+> 相关代码：`scripts/release/`、`.github/workflows/release.yaml`、`cliff.toml`、`backend/FNOS/`。
+
 更新日志由 [git-cliff](https://git-cliff.org/) 从 git 提交记录自动生成，因此提交信息需遵循 [Conventional Commits](https://www.conventionalcommits.org/)。
 
 当前 `cliff.toml` 只把 `feat:`、`fix:`、`perf:`、`revert:` 写入 changelog；`docs:`、`chore:`、`ci:`、`test:` 等开发类提交不会进入发布说明，除非调整 `cliff.toml`。不规范的提交（如 `Merge`、自由文案）会被自动忽略。
+
+## 持续集成与预发布镜像
+
+`ci.yaml` 在 pull request，以及 `main`、`dev`、`feature/**` 分支推送时执行。它只执行前端 `pnpm run build`（包含类型检查）和后端 `go build -trimpath -tags=nomsgpack`，不运行 Go 测试、ESLint、Prettier 或前端本地测试；完整验证范围见 [验证说明](../engineering/verification.md)。
+
+推送 `dev` 还会触发 `beta.yaml`，发布多架构镜像 `ghcr.io/<owner>/qmediasync:beta`。推送 `feature/**` 还会触发 `feature.yaml`，发布 `ghcr.io/<owner>/qmediasync:<branch-tag>`：分支名会去掉 `feature/` 前缀、转为小写，斜杠和非法字符替换为连字符，最长 120 个字符。`dev` 的同一分支构建会取消仍在运行的旧 beta 构建。
+
+这些镜像使用 `docker/source.Dockerfile` 从源码构建，目标为 `linux/amd64` 和 `linux/arm64`。它们是预发布交付物；运行时挂载、端口和权限参数见 [部署与持久化](deployment.md)。
 
 ## 本地发版
 

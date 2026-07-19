@@ -1,27 +1,44 @@
 # 文档索引
 
-本目录存放面向使用、开发、配置和发布维护的项目文档。
+本目录存放面向维护者和 AI 的正式文档。先按改动职责定位权威文档，再阅读相关实现、调用方和测试。
 
-正式文档优先描述概念、边界、流程、表格和路径，不收录大段业务实现代码；必要的 shell 命令、安装步骤、验证命令和简短示例可以保留，具体实现以源码和对应链接为准。
+正式文档优先记录稳定概念、边界、流程、表格和路径；具体实现以源码和对应链接为准。文档职责、命名、契约和迁移规则见 [文档治理](engineering/documentation-governance.md)。
 
-## 使用和配置
+## 架构契约
 
-- [数据库](database.md)：数据库引擎、配置项、目录、迁移、修复和备份恢复说明。
-- [配置和密钥](configuration.md)：默认端口、数据库、第三方密钥和本地加密密钥说明。
-- [上传和 STRM 后处理流程](upload-strm-workflow.md)：115 上传增强、目录监控上传、STRM 生成后处理和源文件清理边界。
-- [STRM Webhook](strm-webhook.md)：外部程序通过 API Key 请求创建 STRM 生成任务的接口、字段、响应和幂等边界。
-- [完整配置示例](examples/config.yaml)：`config/config.yaml` 的所有主配置项和注释说明。
-- [变更日志](../CHANGELOG.md)：历史版本的功能、修复和性能变更记录。
+- [认证与浏览器会话](architecture/authentication-sessions.md)：首次管理员、Cookie、CSRF、API Key、可信来源和下载代理安全边界。
+- [实时事件（SSE）](architecture/realtime-events.md)：全局事件、日志流、任务详情快照和回放边界。
+- [上传与 STRM 处理](architecture/upload-and-strm-processing.md)：115 上传、目录监控、STRM 后处理、源文件清理和上传后刷新。
+- [STRM 同步调度与任务记录](architecture/sync-orchestration.md)：同步目录、Cron、按来源队列、`sync` 记录、取消和完成后的下游协作。
+- [Emby 媒体库同步](architecture/emby-library-sync.md)：Emby 刷新、条目同步、Webhook 同步和协调器边界。
 
-## 开发和维护
+## 工程维护
 
-- [开发调试](development.md)：本地后端、前端调试启动方式和常用验证命令。
-- [项目结构](project-structure.md)：仓库目录说明和前端构建产物位置。
-- [请求校验约定](validation.md)：后端 Request DTO、`Validate()` 方法和前端校验边界约定。
-- [任务来源枚举](task-source-enums.md)：下载 / 上传队列来源字段、同步队列任务类型的存储值和展示文案边界。
-- [SSE 实时刷新机制](realtime-sync-task-refresh.md)：全局事件、日志和同步任务详情的 SSE 路由、快照恢复与回放边界。
-- [Emby 同步维护说明](emby-sync.md)：Emby 刷新 / 同步链路边界、全量同步、增量同步、Webhook 单条同步和状态字段维护说明。
-- [发布流程](release.md)：版本发布脚本、changelog 生成、GitHub Actions 发布流程和飞牛 FPK 打包说明。
+- [AI 编码助手工作说明](engineering/ai-assistant.md)：完整 AI 协作规则、开发约定、验证入口和文档同步映射。
+- [文档治理](engineering/documentation-governance.md)：正式文档职责、命名、唯一权威来源和迁移规则。
+- [本地开发](engineering/local-development.md)：本地后端、前端启动和调试入口。
+- [前端开发约定](engineering/frontend-development.md)：HTTP 客户端、状态刷新、路由、响应式布局和交互反馈。
+- [仓库结构](engineering/repository-structure.md)：顶层目录和构建产物职责。
+- [请求校验约定](engineering/request-validation.md)：Request DTO、`Validate()`、绑定和前后端校验边界。
+- [注释规范](engineering/comment-guidelines.md)：Go、Vue、Swagger 和验证代码的注释边界。
+- [验证说明](engineering/verification.md)：改动类型到最小验证的映射与稳定验证规则。
+
+## 运行维护
+
+- [部署与持久化](operations/deployment.md)：Docker、发布二进制和飞牛运行方式，以及端口、挂载目录和数据保留边界。
+- [配置、密钥与日志](operations/configuration.md)：配置文件、端口、第三方密钥、日志和运行参数。
+- [反向代理与 SSE](operations/reverse-proxy.md)：同源部署、可信代理和 SSE 缓冲 / 超时配置。
+- [数据库运维](operations/database.md)：数据库初始化、修复、清库、备份和恢复。
+- [发布流程](operations/release.md)：版本发布、GitHub Actions、changelog 和 FPK 打包。
+
+## 参考资料
+
+- [数据库 schema 与迁移](reference/database-schema.md)：表、字段、索引、时间策略、稳定存储值和迁移版本。
+- [同步目录聚合 API](reference/sync-path-api.md)：同步目录和目录监控上传规则的原子写入、幂等与错误契约。
+- [STRM Webhook](reference/strm-webhook.md)：外部程序创建 STRM 任务的 API、字段、响应和幂等边界。
+- [任务来源](reference/task-sources.md)：下载、上传和同步队列的机器值与前端映射。
+- [完整配置示例](examples/config.yaml)：`config/config.yaml` 的主配置项和注释。
+- [变更日志](../CHANGELOG.md)：历史版本的功能、修复和性能变更。
 
 ## 代码内文档
 

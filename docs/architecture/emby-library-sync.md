@@ -1,6 +1,12 @@
-# Emby 同步维护说明
+# Emby 媒体库同步
 
-本文说明 QMediaSync 中 Emby 刷新目标和同步条目的职责边界、媒体库刷新的有效入口和协调器运行流程，以及全量同步、增量同步、Webhook 单条同步和运行状态字段。业务时间字段策略见 [数据库 - 时间字段策略](database.md#时间字段策略)，Cron 表达式边界见 [请求校验约定 - Cron 表达式边界](validation.md#cron-表达式边界)。
+> 职责：定义 Emby 刷新、条目同步、Webhook 单条同步和运行状态的边界。
+>
+> 权威范围：本文档维护 Emby 两条同步链路和刷新协调器；时间策略见 [数据库 schema 与迁移](../reference/database-schema.md#时间字段策略)，Cron 校验见 [请求校验约定](../engineering/request-validation.md#cron-表达式边界)。
+>
+> 修改时机：修改 Emby 刷新入口、条目同步、刷新任务状态、目标解析、去抖或 Webhook 行为时必须更新本文档。
+>
+> 相关代码：`backend/internal/emby/`、`backend/internal/models/emby_*.go`、`backend/internal/synccron/`、`backend/internal/controllers/emby*.go`、`frontend/src/components/AppEmbySettings.vue`。
 
 实现细节以 `backend/internal/emby`、`backend/internal/models`、`backend/internal/synccron` 和 `frontend/src/components/AppEmbySettings.vue` 为准。
 
@@ -449,3 +455,16 @@ Webhook 删除事件只删除本地索引和关联：
 (cd frontend && pnpm run type-check)
 (cd frontend && pnpm run build)
 ```
+
+## 不变量
+
+- 通知 Emby 刷新与同步 Emby 本地索引是两条独立链路，入口和状态不得混用。
+- 刷新统一写入 `emby_library_refresh_tasks` 并由协调器执行，生产链路不得直接调用旧的立即刷新函数。
+- 非 Webhook 任务仅在 STRM 实际变化后请求刷新；Webhook 默认不刷新，只有显式 `refresh_emby=true` 且满足变化条件时才提交。
+- 批量和目录扫描父任务只有在全部子任务成功并存在 STRM 或元数据变化时提交一次刷新；任一子任务失败时不得提交。
+- item 目标优先，可靠证据不足时才回退到关联媒体库；多库且无可靠证据时保持 unresolved，不任选媒体库。
+
+## 验证方式
+
+- 运行本节列出的后端、前端命令；改动刷新协调器时至少覆盖 item 目标、媒体库回退、去抖、下载等待和父子任务失败场景。
+- 修改迁移字段时运行 `(cd backend && go test ./internal/models/)`，并核对 [数据库 schema 与迁移](../reference/database-schema.md) 的版本和字段说明。

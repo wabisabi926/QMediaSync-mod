@@ -1,5 +1,13 @@
 # 请求校验约定
 
+> 职责：定义 HTTP Request DTO、通用校验、路径参数与控制器校验边界。
+>
+> 权威范围：本文档维护输入校验和控制器边界；接口字段和 Webhook 行为以 [STRM Webhook](../reference/strm-webhook.md) 等专题参考为准。
+>
+> 修改时机：修改 Request DTO、`Validate()` 规则、绑定方式、路径参数约定或前后端校验边界时必须更新本文档。
+>
+> 相关代码：`backend/internal/requests/`、`backend/internal/validation/`、`backend/internal/controllers/`、`frontend/src/constants/validation.ts`。
+
 本文档记录 QMediaSync 后端请求校验体系的当前实现和后续约定。已迁移的 HTTP 接口使用 `backend/internal/requests` 下的 Request DTO 绑定请求，复用 `backend/internal/validation` 下的通用规则；未迁移或特殊流程接口以实际代码为准。
 
 ## 适用边界
@@ -137,17 +145,16 @@ Emby 条目同步默认 Cron 为 `0 * * * *`，含义是每小时整点执行一
 
 OSS multipart 的 part size 必须由后端计算，不接受外部传入：默认 `32 MiB`，超过 `9999` 个 part 时动态放大并按 `1 MiB` 对齐，超过 OSS 单 part 上限时直接失败。初始化 multipart 必须带 `sequential=1`，相关单元测试会校验该请求参数。115 调度返回的 `callback` 可为单个对象或对象数组，数组只使用第一个回调配置。传给 OSS complete 前必须校验 `callback` / `callback_var` 是 JSON 对象，并将 115 返回的 JSON 字符串原样 Base64 编码；不得提前展开 `callbackBody`，不得向 `callback_var` 增加非 `x:` 字段，也不得把本地 SHA1 作为 OSS multipart 或 callback 的替代输入。`CompleteMultipartUpload` 后必须校验 115 callback 业务结果；`state=false`、`message` 非空、缺少 `file_id` 或缺少 `pick_code` 都不能视为上传成功。
 
-同步目录写入只使用 `POST /api/sync/paths` 和 `PUT /api/sync/paths/:id`。请求体包含 `sync_path` 与可空的 `directory_upload`；非 115 来源若提供目录上传配置，只允许 `enabled=false` 且规则为空。更新只认路径参数 ID，且请求中的 `source_type` 和 `account_id` 必须与旧记录一致。创建可携带 `Idempotency-Key`。同一 key 已完成时回放已创建聚合；该 key 仍处于处理中时返回 `IDEMPOTENCY_CONFLICT`。基础配置、总开关和最终规则集合在同一事务校验与保存；规则使用事务内更新后的 SyncPath 路径和账号校验，`remote_root_path` 和 `remote_root_id` 都不能为空。业务错误通过稳定 `error_code` 和 `field_errors` 返回：基础字段错误使用 `field` 定位，规则错误可使用不持久化的 `client_id` 定位；规则重复或重叠时，所有相关规则都会返回对应的 `client_id`。`watch_mode` 只允许 `auto`、`fsnotify`、`polling`，overwrite mode 只允许 `skip_same`、`fail_conflict`、`replace_conflict`。`/api/directory-upload/sync-paths/:sync_path_id/scan` 仍只扫描总开关和规则自身都启用的规则。
+同步目录聚合写入和目录监控规则的 DTO 仍遵循本文的绑定与校验边界；精确请求字段、幂等、结构化错误和最终集合语义由 [同步目录聚合 API](../reference/sync-path-api.md) 维护。`/api/directory-upload/sync-paths/:sync_path_id/scan` 只扫描总开关和规则自身都启用的规则。
 
-STRM Webhook 使用独立接口 `/api/strm/webhook`，鉴权沿用 API Key，支持 `X-API-Key` header 和 `?api_key=` 查询参数，当前仅支持 115 网盘来源。`sync_path_id` 可以显式提供，但必须指向 115 同步目录；未提供时会按 115 远端路径自动匹配同步目录。文件级请求至少提供 `path + file_name`；显式提供 `sync_path_id` 时也可以使用 `file_id` 定位，`pick_code` 可以作为辅助字段传入但不能单独定位文件。目录级请求至少提供 `directory_path`；显式提供 `sync_path_id` 时也可以使用 `directory_id`，且 `directory_id` 与 `directory_path` 同时提供时必须通过 115 目录详情校验为同一个目录。`download_meta` 和 `refresh_emby` 只能作为请求顶层字段传入，`items[]` 内出现这两个开关会拒绝整批请求。Webhook 请求中的 `path` / `directory_path` 只表示 115 远端路径，禁止接受或信任 `local_path` 来决定本地写入位置，本地 STRM 路径只能由显式指定或自动匹配到的同步目录计算。文件级请求会在入队前解析远端详情，并按解析后的真实路径再次校验同步目录边界。完整接口说明见 [STRM Webhook](strm-webhook.md)。
+STRM Webhook 的外部字段、鉴权、路径边界、批量规则和响应由 [STRM Webhook](../reference/strm-webhook.md) 维护；本文只约束其控制器使用的输入校验边界。
 
 ## 当前例外
 
 以下接口或参数仍是特殊实现，不应作为新增接口的默认写法：
 
 - 用户会话撤销使用 `session_id` 路径参数，当前直接从 `c.Param("session_id")` 读取。
-- 同步记录、同步任务详情 HTTP 查询、同步路径列表查询仍在 `controllers/sync.go` 使用控制器内局部 Request 结构；同步任务详情实时流在 `controllers/sync_task_stream.go` 使用 `ParsePositiveIDRequest` 解析路径 `id`，不新增 DTO。
-- Cron 预览和 Cron 验证工具接口仍在 `controllers/settings.go` 使用控制器内局部 Request 结构。
+- 同步记录、同步任务详情 HTTP 查询、同步路径列表查询仍在 `controllers/sync.go` 使用控制器内局部 Request 结构；同步任务详情实时流在 `controllers/event_stream.go` 使用 `ParsePositiveIDRequest` 解析路径 `id`，不新增 DTO。
 - 备份上传恢复使用 multipart 文件流，文件读取、扩展名和临时文件处理仍保留在控制器中。
 - 迁移临时服务 `internal/migrate/server.go` 使用独立的启动期接口和包内私有 DTO，不纳入常规 API DTO 目录。
 - 部分只读或触发型接口没有外部参数，或只做运行状态检查，不需要 DTO。
@@ -188,7 +195,15 @@ STRM Webhook 使用独立接口 `/api/strm/webhook`，鉴权沿用 API Key，支
 7. 补充 DTO 和通用规则测试。
 8. 如果改动字段范围、枚举或默认值，同步更新 `frontend/src/constants/validation.ts` 和本文档。
 
-## 后续可补充内容
+## 不变量
 
-- 按路由生成「接口 → DTO → 测试文件」映射表，便于审查覆盖率。
-- 为 Swagger 注解补充 DTO 字段说明，避免接口文档仍停留在旧的散字段描述。
+- 前端校验只用于即时反馈，不能代替后端 DTO、控制器或业务层校验。
+- DTO 负责可在 HTTP 边界判断的格式、范围、枚举和条件规则；数据库存在性、权限、任务状态和外部服务状态留在控制器或业务层。
+- 修改接口不得仅因迁移 DTO 改变既有控制器响应风格、HTTP 状态码或公开字段。
+- 外部字段名由 `form` 和 `json` 标签定义；新增 DTO 不得擅自改写存量字段名。
+
+## 验证方式
+
+- 修改通用规则或 DTO 后运行对应包的 `go test`；涉及控制器时运行相应控制器包测试。
+- 修改前端范围、枚举或表单时运行 `(cd frontend && pnpm run type-check)`；影响构建链路时运行 `(cd frontend && pnpm run build)`。
+- 修改 API 兼容边界时补充合法、必填缺失、格式 / 枚举错误和旧字段兼容场景的测试。

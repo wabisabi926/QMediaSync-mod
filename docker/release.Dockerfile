@@ -1,8 +1,8 @@
 # check=skip=SecretsUsedInArgOrEnv
 FROM alpine:3.20
 
-ARG TARGETARCH=amd64
-ARG TARGETOS=linux
+ARG TARGETARCH
+ARG TARGETOS
 
 ENV TZ=Asia/Shanghai \
     PATH=/app:$PATH \

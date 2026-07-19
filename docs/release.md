@@ -54,6 +54,8 @@ GitHub Release 的正文取自上一步提交的 `.changes/v0.xx.xx.md`；releas
 
 发布流程还会使用 `GITHUB_TOKEN` 推送 GHCR 镜像 `ghcr.io/<owner>/qmediasync:<tag>` 和 `ghcr.io/<owner>/qmediasync:latest`。
 
+GHCR 镜像同时构建 `linux/amd64` 和 `linux/arm64`。Dockerfile 中的 `TARGETOS`、`TARGETARCH` 由 Buildx 自动注入，声明时不得设置平台默认值；否则 ARM64 镜像可能错误打包 AMD64 二进制。
+
 也可以在 GitHub Actions 中手动触发 `release` workflow，并输入要发布的 Git tag（同样要求该 tag 对应的 `.changes/<tag>.md` 已提交）。
 
 后端更新流程解压 `.zip`、`.tar.gz` / `.tgz` 发布包时，会拒绝绝对路径、`..` 路径逃逸、指向解压目录外的符号链接，以及经过已有符号链接组件写入文件。发布包内文件应使用相对路径，并保持符号链接目标位于包内目录。

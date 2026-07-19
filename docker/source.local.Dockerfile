@@ -30,8 +30,8 @@ COPY backend/go.mod backend/go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 COPY backend ./
-ARG TARGETOS=linux
-ARG TARGETARCH=amd64
+ARG TARGETOS
+ARG TARGETARCH
 ARG VERSION=v0.0.0
 ARG BUILD_DATE=0000-00-00T00:00:00
 ARG FANART_API_KEY

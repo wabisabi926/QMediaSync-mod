@@ -26,6 +26,7 @@ export function useQueueStats(pollingInterval = 3000) {
   const maxPollingInterval = 30000
   let queueStatsTimer: ReturnType<typeof setTimeout> | null = null
   let inFlight = false
+  let isPollingActive = false
   let currentPollingInterval = pollingInterval
 
   const loadQueueStats = async () => {
@@ -60,7 +61,7 @@ export function useQueueStats(pollingInterval = 3000) {
   }
 
   const scheduleNextPolling = () => {
-    if (queueStatsTimer || document.hidden) {
+    if (!isPollingActive || queueStatsTimer || document.hidden) {
       return
     }
     queueStatsTimer = setTimeout(async () => {
@@ -83,6 +84,9 @@ export function useQueueStats(pollingInterval = 3000) {
   }
 
   const handleVisibilityChange = () => {
+    if (!isPollingActive) {
+      return
+    }
     if (document.hidden) {
       stopPolling()
       return
@@ -92,12 +96,14 @@ export function useQueueStats(pollingInterval = 3000) {
   }
 
   onMounted(() => {
-    loadQueueStats()
+    isPollingActive = true
+    void loadQueueStats()
     document.addEventListener('visibilitychange', handleVisibilityChange)
     startPolling()
   })
 
   onUnmounted(() => {
+    isPollingActive = false
     stopPolling()
     document.removeEventListener('visibilitychange', handleVisibilityChange)
   })

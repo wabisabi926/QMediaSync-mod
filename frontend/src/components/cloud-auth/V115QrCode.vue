@@ -60,9 +60,6 @@ watch(
   position: relative;
   width: 220px;
   height: 220px;
-  border: 1px solid #dcdfe6;
-  border-radius: 6px;
-  background: #ffffff;
 }
 
 .v115-qr-code__canvas {

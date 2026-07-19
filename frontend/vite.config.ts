@@ -24,6 +24,7 @@ const elementPlusComponentModules: Record<string, string> = {
   ElOption: 'select',
   ElRadioButton: 'radio',
   ElRadioGroup: 'radio',
+  ElSkeletonItem: 'skeleton',
   ElSubMenu: 'menu',
   ElTabPane: 'tabs',
   ElTableColumn: 'table',

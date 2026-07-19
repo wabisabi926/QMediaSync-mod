@@ -74,7 +74,13 @@ const handleClosed = () => {
     <div class="v115-auth-dialog">
       <div class="v115-auth-dialog__name">{{ accountName }}</div>
       <V115QrCode v-if="qrCode" :content="qrCode.qrcode" />
-      <el-skeleton v-else :rows="4" animated />
+      <el-skeleton v-else class="v115-auth-dialog__skeleton" animated>
+        <template #template>
+          <el-skeleton-item class="v115-auth-dialog__skeleton-item" variant="text" />
+          <el-skeleton-item class="v115-auth-dialog__skeleton-item" variant="text" />
+          <el-skeleton-item class="v115-auth-dialog__skeleton-item" variant="text" />
+        </template>
+      </el-skeleton>
       <el-tag
         :type="statusType"
         class="v115-auth-dialog__status"
@@ -98,7 +104,7 @@ const handleClosed = () => {
 .v115-auth-dialog {
   display: grid;
   justify-items: center;
-  gap: 14px;
+  gap: 12px;
   min-width: 0;
 }
 
@@ -106,6 +112,17 @@ const handleClosed = () => {
   max-width: 100%;
   overflow-wrap: anywhere;
   color: #606266;
+}
+
+.v115-auth-dialog__skeleton {
+  display: grid;
+  width: 100%;
+  gap: 12px;
+}
+
+.v115-auth-dialog__skeleton-item {
+  width: 100%;
+  height: 15px;
 }
 
 .v115-auth-dialog__status {

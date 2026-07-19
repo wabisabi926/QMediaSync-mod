@@ -108,6 +108,42 @@ describe('115 二维码授权长错误保护', () => {
       expect(failedBlock).toContain(declaration)
     }
   })
+
+  test('账号信息和加载骨架使用紧凑的原风格层级', () => {
+    expect(authorizationSource).toContain(
+      '<el-skeleton v-else class="v115-auth-dialog__skeleton" animated>',
+    )
+    expect(authorizationSource.match(/<el-skeleton-item\b/g) ?? []).toHaveLength(3)
+    expect(authorizationSource).not.toContain('v115-auth-dialog__skeleton-item--short')
+
+    expect(extractBlock(authorizationSource, '.v115-auth-dialog')).toContain('gap: 12px;')
+
+    const nameBlock = extractBlock(authorizationSource, '.v115-auth-dialog__name')
+    for (const declaration of ['padding:', 'border-radius:', 'background:']) {
+      expect(nameBlock).not.toContain(declaration)
+    }
+
+    const skeletonBlock = extractBlock(authorizationSource, '.v115-auth-dialog__skeleton')
+    for (const declaration of ['display: grid;', 'width: 100%;', 'gap: 12px;']) {
+      expect(skeletonBlock).toContain(declaration)
+    }
+
+    const skeletonItemBlock = extractBlock(authorizationSource, '.v115-auth-dialog__skeleton-item')
+    expect(skeletonItemBlock).toContain('width: 100%;')
+    expect(skeletonItemBlock).toContain('height: 15px;')
+  })
+})
+
+describe('115 二维码授权画布边框', () => {
+  const qrCodeSource = readSource('src/components/cloud-auth/V115QrCode.vue')
+
+  test('二维码容器不额外绘制边框或圆角', () => {
+    const qrCodeBlock = extractBlock(qrCodeSource, '.v115-qr-code')
+
+    for (const declaration of ['border:', 'border-radius:', 'background:']) {
+      expect(qrCodeBlock).not.toContain(declaration)
+    }
+  })
 })
 
 describe('首页操作区样式隔离', () => {

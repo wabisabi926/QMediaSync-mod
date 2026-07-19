@@ -5,7 +5,7 @@ import skipFormatting from '@vue/eslint-config-prettier/skip-formatting'
 export default [
   {
     name: 'app/files-to-lint',
-    files: ['**/*.{ts,mts,tsx,vue}'],
+    files: ['**/*.{mjs,ts,mts,tsx,vue}'],
   },
 
   {
@@ -17,7 +17,7 @@ export default [
   ...vueTsEslintConfig(),
   {
     name: 'app/project-rules',
-    files: ['**/*.{ts,mts,tsx,vue}'],
+    files: ['**/*.{mjs,ts,mts,tsx,vue}'],
     rules: {
       'no-alert': 'warn',
       'no-console': ['warn', { allow: ['warn', 'error'] }],

@@ -103,12 +103,10 @@ frontend/dist/
 frontend/dist-ssr/
 frontend/coverage/
 
-# Frontend local-only tests and Playwright artifacts
-frontend/test/
+# Frontend local artifacts
 frontend/*.tsbuildinfo
 frontend/cypress/videos/
 frontend/cypress/screenshots/
 
 # Frontend editor files
 frontend/.vscode/*
-!frontend/.vscode/extensions.json

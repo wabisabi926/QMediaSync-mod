@@ -14,7 +14,7 @@
 
 ## 持续集成与预发布镜像
 
-`ci.yaml` 在 pull request，以及 `main`、`dev`、`feature/**` 分支推送时执行。它只执行前端 `pnpm run build`（包含类型检查）和后端 `go build -trimpath -tags=nomsgpack`，不运行 Go 测试、ESLint、Prettier 或前端本地测试；完整验证范围见 [验证说明](../engineering/verification.md)。
+`ci.yaml` 在 pull request，以及 `main`、`dev`、`feature/**` 分支推送时执行。前端依次运行 `pnpm run test`、`pnpm run build`（包含类型检查）和 `pnpm run check:build`；后端依次运行 `go vet ./...`、`go test ./...` 和 `go build -trimpath -tags=nomsgpack`。CI 不运行前端 ESLint 或 Prettier；完整验证范围见 [验证说明](../engineering/verification.md)。
 
 推送 `dev` 还会触发 `beta.yaml`，发布多架构镜像 `ghcr.io/<owner>/qmediasync:beta`。推送 `feature/**` 还会触发 `feature.yaml`，发布 `ghcr.io/<owner>/qmediasync:<branch-tag>`：分支名会去掉 `feature/` 前缀、转为小写，斜杠和非法字符替换为连字符，最长 120 个字符。`dev` 的同一分支构建会取消仍在运行的旧 beta 构建。
 

@@ -18,6 +18,7 @@ backend/             Go 后端
   web_statics/        运行时 Web UI 静态资源（生成且忽略）
 docker/              Dockerfile、容器入口脚本和在线更新监视脚本
 frontend/            Vue / Vite 前端源码
+  test/               受版本管理的 Vitest 测试和构建后检查
   dist/               前端生产构建输出（生成且忽略）
 docs/                面向维护者和 AI 的正式文档，索引为 docs/README.md
 scripts/release/     GitHub Actions 发布打包辅助脚本、changelog 生成脚本和发布脚本共享函数

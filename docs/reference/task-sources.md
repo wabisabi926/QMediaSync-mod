@@ -79,5 +79,5 @@
 ## 验证方式
 
 - 运行涉及来源变更的 `models`、`synccron` 或队列包测试，覆盖存储值、去重 key 和状态输出。
-- 运行 `(cd frontend && pnpm run type-check)`，并在存在相关本地 suite 时按 [验证说明](../engineering/verification.md) 运行指定路径。
+- 前端映射改动按 [验证说明](../engineering/verification.md) 选择相应验证。
 - 修改已持久化值时核对 [数据库 schema 与迁移](database-schema.md) 中的迁移版本和历史值说明。

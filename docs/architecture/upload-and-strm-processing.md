@@ -117,4 +117,4 @@ STRM 入队成功后，目录上传账本会更新为上传终态；后续清理
 
 - 运行 `(cd backend && go test ./internal/directoryupload/)`、`(cd backend && go test ./internal/syncstrm/)` 和相关 `models` 测试。
 - 修改外部上传协议时使用 mock 覆盖 callback、part size、checkpoint 和幂等行为；真实 115 / OSS 上传仅在获得沙箱账号和远端写入授权后执行。
-- 修改前端目录监控配置时运行 `(cd frontend && pnpm lint)`、`(cd frontend && pnpm run type-check)` 和指定本地 Vitest suite。
+- 修改前端目录监控配置时按 [验证说明](../engineering/verification.md) 选择相应验证。

@@ -46,5 +46,5 @@
 
 ## 验证方式
 
-- 修改 Vue 组件、composable、HTTP 客户端或路由后，按 [验证说明](verification.md) 运行 `pnpm lint`、`pnpm format:check`、`pnpm run type-check`，并在有对应本地 suite 时运行指定 Vitest 路径。
+- 修改 Vue 组件、composable、HTTP 客户端或路由后，按 [验证说明](verification.md) 选择相应的前端验证。
 - 改动接口字段、校验提示或状态枚举时，同时检查 [请求校验约定](request-validation.md)、相应架构契约和前端表单 / 展示映射。

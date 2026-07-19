@@ -24,8 +24,8 @@
 | 控制器、认证或 API 响应 | 对应控制器包测试；必要时 `go vet ./...` | 请求校验、认证会话、STRM Webhook |
 | 同步、队列、STRM、目录监控或 Emby | 对应 `synccron`、`syncstrm`、`directoryupload`、`emby` 或模型包测试 | 上传与 STRM、Emby 同步、实时事件 |
 | 配置、密钥或数据库迁移 | `helpers`、`models` 或相关控制器包测试 | 配置、数据库 schema 与运维 |
-| Vue 组件、组合式函数或 HTTP 客户端 | `pnpm lint`、`pnpm format:check`、`pnpm run type-check` | AI 协作说明、请求校验 |
-| 前端生产集成 | `pnpm run build` | 本地开发、发布流程 |
+| Vue 组件、组合式函数或 HTTP 客户端 | `pnpm run test`、`pnpm lint`、`pnpm format:check`、`pnpm run type-check` | AI 协作说明、请求校验 |
+| 前端生产集成 | `pnpm run test`、`pnpm run build`、`pnpm run check:build` | 本地开发、发布流程 |
 | 后端可执行文件或发布配置 | `go build` 或发布文档中的对应构建命令 | 发布流程 |
 | 正式 Markdown 文档 | `git diff --check`、相对链接检查；改动 AI 入口时确认兼容入口内容一致 | 文档治理 |
 
@@ -57,11 +57,14 @@
 ## 前端命令
 
 ```bash
-# 代码检查、格式、类型和生产构建
+# Vitest 测试、代码检查、格式、类型和生产构建
+(cd frontend && pnpm run test)
+(cd frontend && pnpm run test:watch)
 (cd frontend && pnpm lint)
 (cd frontend && pnpm format:check)
 (cd frontend && pnpm run type-check)
 (cd frontend && pnpm run build)
+(cd frontend && pnpm run check:build)
 ```
 
 ## 构建和发布命令
@@ -84,14 +87,16 @@ docker build -f docker/source.Dockerfile -t qmediasync .
 
 ## CI 覆盖边界
 
-当前 `.github/workflows/ci.yaml` 会在 `main`、`dev`、`feature/**` 推送和 Pull Request 上执行前端 `pnpm run build`（其中包含类型检查）与后端 `go build -trimpath -tags=nomsgpack`。它不会运行 `go test ./...`、前端 ESLint 或 Prettier。
+当前 `.github/workflows/ci.yaml` 会在 `main`、`dev`、`feature/**` 推送和 Pull Request 上依次执行前端 `pnpm run test`、`pnpm run build`（其中包含类型检查）和 `pnpm run check:build`，以及后端 `go vet ./...`、`go test ./...` 和 `go build -trimpath -tags=nomsgpack`。它不会运行前端 ESLint 或 Prettier。
 
 因此，涉及行为、校验或兼容性的改动不能只依赖 CI 构建通过；仍应按本文档的改动范围运行相关本地验证。`feature.yaml` 和 `beta.yaml` 负责分支镜像构建，不替代 CI 或测试。
 
 ## 稳定回归验证
 
 - 长期回归风险优先由相关 Go 包内测试保护；新增或修改测试时遵循 table-driven 模式。
-- 当包内 Go 测试、前端 lint、类型检查和生产构建都无法覆盖明确的长期风险时，优先补充对应包内测试；无法自动覆盖时，在对应契约文档中写明人工检查步骤和剩余风险。
+- 当前端行为或源码契约需要自动保护时，在 `frontend/test/` 下按 `components/`、`composables/`、`router/`、`unit/`、`utils/` 或 `regression/` 分类创建 `*.test.ts` / `*.test.mjs`，由 Vitest 统一运行；测试应断言公开行为或稳定契约，避免绑定组件内部实现细节。
+- 仅依赖构建产物的检查使用 `*.check.mjs`，通过独立脚本在 `pnpm run build` 后执行，不能使用 Vitest 测试文件后缀。
+- 当包内 Go 测试、前端测试、lint、类型检查和生产构建都无法覆盖明确的长期风险时，优先补充对应测试；无法自动覆盖时，在对应契约文档中写明人工检查步骤和剩余风险。
 
 ## 文档验证
 

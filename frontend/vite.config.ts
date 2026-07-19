@@ -1,6 +1,7 @@
 import { fileURLToPath, URL } from 'node:url'
 
-import { defineConfig, type Plugin } from 'vite'
+import type { Plugin } from 'vite'
+import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
@@ -151,6 +152,10 @@ export default defineConfig(({ mode }) => ({
         ws: false,
       },
     },
+  },
+  test: {
+    environment: 'happy-dom',
+    include: ['test/**/*.test.{ts,mjs}'],
   },
   build: {
     chunkSizeWarningLimit: 700,

@@ -17,7 +17,6 @@
     "vite.config.*",
     "vitest.config.*",
     "cypress.config.*",
-    "nightwatch.conf.*",
-    "playwright.config.*"
+    "nightwatch.conf.*"
   ]
 }

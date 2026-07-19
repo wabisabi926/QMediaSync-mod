@@ -1,33 +1,120 @@
 import { createRouter } from 'vue-router'
 import { createQMediaSyncHashHistory } from './history'
+import { createAsyncRouteComponent } from './asyncRoute'
 import { useAuthStore } from '@/stores/auth'
 import { http } from '@/http/client'
 
-const AppHome = () => import('@/components/AppHome.vue')
-const AppLogin = () => import('@/components/AppLogin.vue')
-const AppUserSettings = () => import('@/components/AppUserSettings.vue')
-const AppStrmSettings = () => import('@/components/AppStrmSettings.vue')
-const AppEmbySettings = () => import('@/components/AppEmbySettings.vue')
-const AppSyncRecords = () => import('@/components/AppSyncRecords.vue')
-const AppSyncTaskDetail = () => import('@/components/AppSyncTaskDetail.vue')
-const AppSyncDirectories = () => import('@/components/AppSyncDirectories.vue')
-const AppSyncDirectoryForm = () => import('@/components/AppSyncDirectoryForm.vue')
-const AppCloudAccounts = () => import('@/components/AppCloudAccounts.vue')
-const AppThreadSettings = () => import('@/components/AppThreadSettings.vue')
-const AppLogSettings = () => import('@/components/AppLogSettings.vue')
-const AppTmdbSettings = () => import('@/components/AppTmdbSettings.vue')
-const AppAiSettings = () => import('@/components/AppAiSettings.vue')
-const AppCategoryStrategy = () => import('@/components/AppCategoryStrategy.vue')
-const AppScrapePathes = () => import('@/components/AppScrapePathes.vue')
-const AppScrapePathForm = () => import('@/components/AppScrapePathForm.vue')
-const AppScrapeRecords = () => import('@/components/AppScrapeRecords.vue')
-const AppUploadQueue = () => import('@/components/AppUploadQueue.vue')
-const AppDownloadQueue = () => import('@/components/AppDownloadQueue.vue')
-const AppNotificationChannels = () => import('@/components/AppNotificationChannels.vue')
-const AppApiKeys = () => import('@/components/AppApiKeys.vue')
-const AppLoginSessions = () => import('@/components/user-settings/LoginSessions.vue')
-const AppFileManager = () => import('@/components/AppFileManager.vue')
-const AppUpdate = () => import('@/components/AppUpdate.vue')
+const AppHome = createAsyncRouteComponent('AppHome', () => import('@/components/AppHome.vue'))
+const AppLogin = createAsyncRouteComponent('AppLogin', () => import('@/components/AppLogin.vue'))
+const AppUserSettings = createAsyncRouteComponent(
+  'AppUserSettings',
+  () => import('@/components/AppUserSettings.vue'),
+)
+const AppStrmSettings = createAsyncRouteComponent(
+  'AppStrmSettings',
+  () => import('@/components/AppStrmSettings.vue'),
+)
+const AppEmbySettings = createAsyncRouteComponent(
+  'AppEmbySettings',
+  () => import('@/components/AppEmbySettings.vue'),
+)
+const AppSyncRecords = createAsyncRouteComponent(
+  'AppSyncRecords',
+  () => import('@/components/AppSyncRecords.vue'),
+)
+const AppSyncTaskDetail = createAsyncRouteComponent(
+  'AppSyncTaskDetail',
+  () => import('@/components/AppSyncTaskDetail.vue'),
+)
+const AppSyncDirectories = createAsyncRouteComponent(
+  'AppSyncDirectories',
+  () => import('@/components/AppSyncDirectories.vue'),
+)
+const AppSyncDirectoryForm = createAsyncRouteComponent(
+  'AppSyncDirectoryForm',
+  () => import('@/components/AppSyncDirectoryForm.vue'),
+)
+const AppCloudAccounts = createAsyncRouteComponent(
+  'AppCloudAccounts',
+  () => import('@/components/AppCloudAccounts.vue'),
+)
+const AppThreadSettings = createAsyncRouteComponent(
+  'AppThreadSettings',
+  () => import('@/components/AppThreadSettings.vue'),
+)
+const AppLogSettings = createAsyncRouteComponent(
+  'AppLogSettings',
+  () => import('@/components/AppLogSettings.vue'),
+)
+const AppTmdbSettings = createAsyncRouteComponent(
+  'AppTmdbSettings',
+  () => import('@/components/AppTmdbSettings.vue'),
+)
+const AppAiSettings = createAsyncRouteComponent(
+  'AppAiSettings',
+  () => import('@/components/AppAiSettings.vue'),
+)
+const AppCategoryStrategy = createAsyncRouteComponent(
+  'AppCategoryStrategy',
+  () => import('@/components/AppCategoryStrategy.vue'),
+)
+const AppScrapePathes = createAsyncRouteComponent(
+  'AppScrapePathes',
+  () => import('@/components/AppScrapePathes.vue'),
+)
+const AppScrapePathForm = createAsyncRouteComponent(
+  'AppScrapePathForm',
+  () => import('@/components/AppScrapePathForm.vue'),
+)
+const AppScrapeRecords = createAsyncRouteComponent(
+  'AppScrapeRecords',
+  () => import('@/components/AppScrapeRecords.vue'),
+)
+const AppUploadQueue = createAsyncRouteComponent(
+  'AppUploadQueue',
+  () => import('@/components/AppUploadQueue.vue'),
+)
+const AppDownloadQueue = createAsyncRouteComponent(
+  'AppDownloadQueue',
+  () => import('@/components/AppDownloadQueue.vue'),
+)
+const AppNotificationChannels = createAsyncRouteComponent(
+  'AppNotificationChannels',
+  () => import('@/components/AppNotificationChannels.vue'),
+)
+const AppApiKeys = createAsyncRouteComponent(
+  'AppApiKeys',
+  () => import('@/components/AppApiKeys.vue'),
+)
+const AppLoginSessions = createAsyncRouteComponent(
+  'AppLoginSessions',
+  () => import('@/components/user-settings/LoginSessions.vue'),
+)
+const AppFileManager = createAsyncRouteComponent(
+  'AppFileManager',
+  () => import('@/components/AppFileManager.vue'),
+)
+const AppUpdate = createAsyncRouteComponent('AppUpdate', () => import('@/components/AppUpdate.vue'))
+const AppBackupSettings = createAsyncRouteComponent(
+  'AppBackupSettings',
+  () => import('@/components/AppBackupSettings.vue'),
+)
+const AppBackupRecords = createAsyncRouteComponent(
+  'AppBackupRecords',
+  () => import('@/components/AppBackupRecords.vue'),
+)
+const AppBackupRestore = createAsyncRouteComponent(
+  'AppBackupRestore',
+  () => import('@/components/AppBackupRestore.vue'),
+)
+const AppProxySettings = createAsyncRouteComponent(
+  'AppProxySettings',
+  () => import('@/components/AppProxySettings.vue'),
+)
+const AppDatabaseRepair = createAsyncRouteComponent(
+  'AppDatabaseRepair',
+  () => import('@/components/AppDatabaseRepair.vue'),
+)
 
 // 定义路由元信息类型
 declare module 'vue-router' {
@@ -295,7 +382,7 @@ const routes = [
   {
     path: '/database',
     name: 'database',
-    component: () => import('@/components/AppBackupSettings.vue'),
+    component: AppBackupSettings,
     meta: {
       title: '备份恢复',
       requiresAuth: true,
@@ -306,7 +393,7 @@ const routes = [
   {
     path: '/database/backup/settings',
     name: 'database-backup-settings',
-    component: () => import('@/components/AppBackupSettings.vue'),
+    component: AppBackupSettings,
     meta: {
       title: '备份设置',
       requiresAuth: true,
@@ -317,7 +404,7 @@ const routes = [
   {
     path: '/database/backup/records',
     name: 'database-backup-records',
-    component: () => import('@/components/AppBackupRecords.vue'),
+    component: AppBackupRecords,
     meta: {
       title: '备份记录',
       requiresAuth: true,
@@ -329,7 +416,7 @@ const routes = [
   {
     path: '/database/backup/restore',
     name: 'database-backup-restore',
-    component: () => import('@/components/AppBackupRestore.vue'),
+    component: AppBackupRestore,
     meta: {
       title: '备份恢复',
       requiresAuth: true,
@@ -436,7 +523,7 @@ const routes = [
   {
     path: '/proxy',
     name: 'proxy',
-    component: () => import('@/components/AppProxySettings.vue'),
+    component: AppProxySettings,
     meta: {
       title: '网络代理',
       requiresAuth: true,
@@ -460,7 +547,7 @@ const routes = [
   {
     path: '/settings/database-repair',
     name: 'settings-database-repair',
-    component: () => import('@/components/AppDatabaseRepair.vue'),
+    component: AppDatabaseRepair,
     meta: {
       title: '数据库修复',
       requiresAuth: true,

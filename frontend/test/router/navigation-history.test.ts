@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
+import router from '@/router'
 import { hasAppBackHistory, navigateBackOrReplace } from '../../src/utils/navigation'
 
 const readSource = (path: string) => readFileSync(resolve(path), 'utf-8')
@@ -75,5 +76,14 @@ describe('router history behavior', () => {
     expect(syncDirectoryFormSource).toContain("router.replace({ name: 'sync-directories' })")
     expect(scrapePathFormSource).toContain('navigateBackOrReplace')
     expect(scrapePathFormSource).toContain("router.replace({ name: 'scrape-pathes' })")
+  })
+
+  it('业务路由注册同步路由壳，导航不等待动态导入', () => {
+    const pageRoutes = router.getRoutes().filter((route) => route.components?.default)
+
+    expect(pageRoutes.length).toBeGreaterThan(0)
+    for (const route of pageRoutes) {
+      expect(typeof route.components?.default, String(route.name)).toBe('object')
+    }
   })
 })

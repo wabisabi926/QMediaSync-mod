@@ -42,6 +42,7 @@ class MockEventSource {
 describe('AppLogViewer', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.restoreAllMocks()
     MockEventSource.instances = []
   })
 
@@ -78,6 +79,8 @@ describe('AppLogViewer', () => {
 
     expect(MockEventSource.instances).toHaveLength(1)
     expect(MockEventSource.instances[0].url).toBe('/api/logs/stream?path=app.log')
+    expect(wrapper.text()).toContain('● 正在连接')
+    expect(wrapper.text()).not.toContain('实时日志暂时断开，正在重新连接…')
   })
 
   it('keeps a successful stream connected when the server sends a business error', async () => {
@@ -119,6 +122,105 @@ describe('AppLogViewer', () => {
 
     expect(wrapper.text()).toContain('● 已连接')
     expect(wrapper.text()).not.toContain('实时日志暂时断开，正在重新连接…')
+  })
+
+  it('shows only unsupported feedback when EventSource is unavailable', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ entries: [], pos: 0 }),
+      }),
+    )
+    vi.stubGlobal('EventSource', undefined)
+
+    const wrapper = mount(AppLogViewer, {
+      props: {
+        logPath: 'app.log',
+        isRealTime: true,
+      },
+      global: {
+        directives: { loading: {} },
+        stubs: {
+          ElCard: { template: '<div><slot name="header" /><slot /></div>' },
+          ElButton: { template: '<button><slot /></button>' },
+          ElText: { template: '<span><slot /></span>' },
+        },
+      },
+    })
+
+    await flushPromises()
+
+    expect(MockEventSource.instances).toHaveLength(0)
+    expect(wrapper.text()).toContain('当前浏览器不支持实时日志，请手动刷新查看最新内容')
+    expect(wrapper.text()).not.toContain('● 正在连接')
+    expect(wrapper.text()).not.toContain('● 已断开')
+  })
+
+  it('stops the initial connection state when the log snapshot fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        json: vi.fn().mockResolvedValue({ error: '日志快照不可用' }),
+      }),
+    )
+    vi.stubGlobal('EventSource', MockEventSource)
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    const wrapper = mount(AppLogViewer, {
+      props: {
+        logPath: 'app.log',
+        isRealTime: true,
+      },
+      global: {
+        directives: { loading: {} },
+        stubs: {
+          ElCard: { template: '<div><slot name="header" /><slot /></div>' },
+          ElButton: { template: '<button><slot /></button>' },
+          ElText: { template: '<span><slot /></span>' },
+        },
+      },
+    })
+
+    await flushPromises()
+
+    expect(MockEventSource.instances).toHaveLength(0)
+    expect(wrapper.text()).toContain('加载初始日志失败：日志快照不可用')
+    expect(wrapper.text()).toContain('● 已断开')
+    expect(wrapper.text()).not.toContain('● 正在连接')
+  })
+
+  it('stops reporting an initial connection when realtime mode is disabled before the snapshot loads', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise(() => {})),
+    )
+    vi.stubGlobal('EventSource', MockEventSource)
+
+    const wrapper = mount(AppLogViewer, {
+      props: {
+        logPath: 'app.log',
+        isRealTime: true,
+      },
+      global: {
+        directives: { loading: {} },
+        stubs: {
+          ElCard: { template: '<div><slot name="header" /><slot /></div>' },
+          ElButton: { template: '<button><slot /></button>' },
+          ElText: { template: '<span><slot /></span>' },
+        },
+      },
+    })
+
+    await flushPromises()
+    expect(wrapper.text()).toContain('● 正在连接')
+
+    await wrapper.setProps({ isRealTime: false })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('● 已断开')
+    expect(wrapper.text()).not.toContain('● 正在连接')
   })
 
   it('aborts and ignores a stale snapshot after the log path changes', async () => {

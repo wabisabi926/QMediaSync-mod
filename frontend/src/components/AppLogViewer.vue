@@ -45,12 +45,28 @@
         <div class="log-info">
           <el-text size="small">
             当前显示 {{ limitedLogLines.length }} / 已加载 {{ logLines.length }} 行日志
-            <span v-if="isConnected" class="status-indicator connected">● 已连接</span>
-            <span v-else class="status-indicator disconnected">● 已断开</span>
-            <span v-if="props.isRealTime && streamUnsupported" class="stream-status-message">
+            <span v-if="streamConnectionState === 'connected'" class="status-indicator connected">
+              ● 已连接
+            </span>
+            <span v-else-if="streamConnectionState === 'connecting'" class="status-indicator">
+              ● 正在连接
+            </span>
+            <span
+              v-else-if="streamConnectionState !== 'unsupported'"
+              class="status-indicator disconnected"
+            >
+              ● 已断开
+            </span>
+            <span
+              v-if="props.isRealTime && streamConnectionState === 'unsupported'"
+              class="stream-status-message"
+            >
               当前浏览器不支持实时日志，请手动刷新查看最新内容
             </span>
-            <span v-else-if="props.isRealTime && !isConnected" class="stream-status-message">
+            <span
+              v-else-if="props.isRealTime && streamConnectionState === 'reconnecting'"
+              class="stream-status-message"
+            >
               实时日志暂时断开，正在重新连接…
             </span>
           </el-text>
@@ -79,6 +95,8 @@ interface Props {
   fullscreen?: boolean
 }
 
+type StreamConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'unsupported'
+
 const props = withDefaults(defineProps<Props>(), {
   isRealTime: true,
   height: '',
@@ -95,8 +113,8 @@ const logViewerStyle = computed<Record<string, string>>(() => ({
 const stream = shallowRef<EventSource | null>(null)
 const logLines = ref<LogEntry[]>([])
 const selectedLogLevels = ref<LogLevel[]>([...DEFAULT_VISIBLE_LOG_LEVELS])
-const isConnected = ref(false)
-const streamUnsupported = ref(false)
+const streamConnectionState = ref<StreamConnectionState>('idle')
+const isConnected = computed(() => streamConnectionState.value === 'connected')
 const loading = ref(false)
 const logsContainer = useTemplateRef<HTMLElement>('logsContainer')
 const { downloadLogFile } = useLogFileActions()
@@ -167,6 +185,7 @@ watch(
       return
     }
     if (normalizedLogPath) {
+      streamConnectionState.value = 'connecting'
       const loaded = await loadInitialLogs()
       if (loaded) connect()
     }
@@ -178,6 +197,7 @@ onMounted(async () => {
   // 如果提供了日志路径，先加载历史日志
   if (props.logPath) {
     resetLogState()
+    if (props.isRealTime) streamConnectionState.value = 'connecting'
     // 加载历史日志，设置 limit 为 1000
     const loaded = await loadInitialLogs()
     if (props.isRealTime && loaded) {
@@ -232,6 +252,9 @@ const loadInitialLogs = async (): Promise<boolean> => {
       'error',
     )
     hasInitialSnapshot = false
+    if (!stream.value && streamConnectionState.value === 'connecting') {
+      streamConnectionState.value = 'idle'
+    }
     return false
   } finally {
     if (isCurrentSnapshotRequest()) {
@@ -323,27 +346,33 @@ const connect = () => {
     return
   }
   if (!hasInitialSnapshot) {
+    streamConnectionState.value = 'connecting'
     void loadInitialLogs().then((loaded) => {
       if (loaded) connect()
     })
     return
   }
 
-  streamUnsupported.value = typeof EventSource === 'undefined'
-  if (streamUnsupported.value) return
+  if (typeof EventSource === 'undefined') {
+    streamConnectionState.value = 'unsupported'
+    return
+  }
 
+  streamConnectionState.value = 'connecting'
   const currentStream = new EventSource(`${STREAM_URL}?path=${encodeURIComponent(logPath)}`)
   stream.value = currentStream
   unregisterStream = registerRealtimeSource(() => disconnect(currentStream))
   currentStream.onopen = () => {
     if (stream.value !== currentStream) return
-    isConnected.value = true
+    streamConnectionState.value = 'connected'
     if (streamOpened) void loadInitialLogs()
     streamOpened = true
   }
   currentStream.onerror = (event) => {
     if ('data' in event) return
-    if (stream.value === currentStream) isConnected.value = false
+    if (stream.value === currentStream) {
+      streamConnectionState.value = 'reconnecting'
+    }
   }
   currentStream.addEventListener('log_append', (event) => {
     if (stream.value !== currentStream) return
@@ -368,12 +397,17 @@ const connect = () => {
 }
 
 const disconnect = (currentStream = stream.value) => {
-  if (!currentStream || stream.value !== currentStream) return
+  if (!currentStream) {
+    streamConnectionState.value = 'idle'
+    streamOpened = false
+    return
+  }
+  if (stream.value !== currentStream) return
   stream.value = null
   unregisterStream?.()
   unregisterStream = null
   currentStream.close()
-  isConnected.value = false
+  streamConnectionState.value = 'idle'
   streamOpened = false
 }
 

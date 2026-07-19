@@ -30,6 +30,8 @@ type Listener = {
   onReconnect?: ReconnectCallback
 }
 
+export type RealtimeConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting'
+
 const listeners = new Map<RealtimeEventType, Set<Listener>>()
 const sourceHandlers = new Map<RealtimeEventType, (event: MessageEvent<string>) => void>()
 let source: EventSource | null = null
@@ -38,7 +40,7 @@ let opened = false
 let pendingReconnect = false
 
 export const realtimeSupported = shallowRef(typeof EventSource !== 'undefined')
-export const realtimeConnected = shallowRef(false)
+export const realtimeConnectionState = shallowRef<RealtimeConnectionState>('idle')
 export const realtimeActive = shallowRef(false)
 
 function attachSourceHandlers(currentSource: EventSource) {
@@ -53,7 +55,7 @@ function closeSource() {
   opened = false
   pendingReconnect = false
   realtimeActive.value = false
-  realtimeConnected.value = false
+  realtimeConnectionState.value = 'idle'
   currentSource?.close()
 }
 
@@ -72,6 +74,7 @@ function onVisibilityChange() {
 function ensureSource() {
   if (!realtimeSupported.value || source || listeners.size === 0) return
 
+  realtimeConnectionState.value = 'connecting'
   try {
     const currentSource = new EventSource('/api/events/stream')
     source = currentSource
@@ -79,7 +82,7 @@ function ensureSource() {
     attachSourceHandlers(currentSource)
     currentSource.onopen = () => {
       if (source !== currentSource) return
-      realtimeConnected.value = true
+      realtimeConnectionState.value = 'connected'
       if (opened) {
         if (typeof document !== 'undefined' && document.hidden) {
           pendingReconnect = true
@@ -90,10 +93,10 @@ function ensureSource() {
       opened = true
     }
     currentSource.onerror = () => {
-      if (source === currentSource) realtimeConnected.value = false
+      if (source === currentSource) realtimeConnectionState.value = 'reconnecting'
     }
   } catch {
-    realtimeConnected.value = false
+    realtimeConnectionState.value = 'reconnecting'
   }
 }
 

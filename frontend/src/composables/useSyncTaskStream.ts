@@ -22,6 +22,8 @@ interface UseSyncTaskStreamOptions {
   maxLogs?: number
 }
 
+type SyncTaskConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting'
+
 export function useSyncTaskStream(
   syncId: MaybeRefOrGetter<number | string>,
   options: UseSyncTaskStreamOptions = {},
@@ -31,6 +33,7 @@ export function useSyncTaskStream(
   const logs = shallowRef<SyncTaskLogEntry[]>([])
   const loading = shallowRef(false)
   const connected = shallowRef(false)
+  const connectionState = shallowRef<SyncTaskConnectionState>('idle')
   const terminal = shallowRef(false)
   const unsupported = shallowRef(false)
   const errorMessage = shallowRef('')
@@ -55,6 +58,7 @@ export function useSyncTaskStream(
     unregisterSource = null
     currentSource.close()
     connected.value = false
+    connectionState.value = 'idle'
   }
 
   const closeRealtime = () => {
@@ -181,19 +185,27 @@ export function useSyncTaskStream(
     errorMessage.value = ''
     unsupported.value = typeof EventSource === 'undefined'
     if (unsupported.value) {
+      connectionState.value = 'idle'
       startFallbackPolling(currentID)
       return
     }
 
+    connectionState.value = 'connecting'
     const currentSource = new EventSource(`/api/sync/tasks/${currentID}/stream`)
     source.value = currentSource
     unregisterSource = registerRealtimeSource(() => closeSource(currentSource))
     currentSource.onopen = () => {
-      if (source.value === currentSource) connected.value = true
+      if (source.value === currentSource) {
+        connected.value = true
+        connectionState.value = 'connected'
+      }
     }
     currentSource.onerror = (event) => {
       if ('data' in event) return
-      if (source.value === currentSource) connected.value = false
+      if (source.value === currentSource) {
+        connected.value = false
+        connectionState.value = 'reconnecting'
+      }
     }
     const listen = (eventType: SyncTaskStreamMessage['type']) => {
       currentSource.addEventListener(eventType, (event) => {
@@ -239,6 +251,7 @@ export function useSyncTaskStream(
     logs: readonly(logs),
     loading: readonly(loading),
     connected: readonly(connected),
+    connectionState: readonly(connectionState),
     terminal: readonly(terminal),
     unsupported: readonly(unsupported),
     errorMessage: readonly(errorMessage),

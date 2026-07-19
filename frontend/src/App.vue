@@ -101,7 +101,7 @@
           show-icon
         />
         <el-alert
-          v-else-if="realtimeActive && !realtimeConnected"
+          v-else-if="realtimeActive && realtimeConnectionState === 'reconnecting'"
           class="realtime-status-alert"
           title="实时更新暂时断开，正在重新连接…"
           type="warning"
@@ -214,7 +214,7 @@ import { http } from '@/http/client'
 import { useDeviceType } from '@/composables/useDeviceType'
 import {
   realtimeActive,
-  realtimeConnected,
+  realtimeConnectionState,
   realtimeSupported,
 } from '@/composables/useRealtimeEvents'
 import { ElMessage, ElMessageBox } from 'element-plus'

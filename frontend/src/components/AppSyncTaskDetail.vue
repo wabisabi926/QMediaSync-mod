@@ -79,7 +79,7 @@
           show-icon
         />
         <el-alert
-          v-else-if="!terminal && !connected"
+          v-else-if="!terminal && connectionState === 'reconnecting'"
           class="task-stream-alert"
           type="warning"
           title="实时更新暂时断开，正在重新连接…"
@@ -191,6 +191,7 @@ const {
   logs,
   loading,
   connected,
+  connectionState,
   terminal,
   unsupported,
   errorMessage,

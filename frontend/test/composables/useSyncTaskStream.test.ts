@@ -99,7 +99,9 @@ describe('useSyncTaskStream', () => {
     const source = MockEventSource.instances[0]
 
     expect(source.url).toBe('/api/sync/tasks/8/stream')
+    expect(stream.connectionState.value).toBe('connecting')
     source.onopen?.()
+    expect(stream.connectionState.value).toBe('connected')
     source.emit('snapshot', { type: 'snapshot', version: 1, sync_id: 8, data: snapshot })
     source.emit('task_patch', {
       type: 'task_patch',
@@ -119,6 +121,19 @@ describe('useSyncTaskStream', () => {
     expect(stream.task.value?.net_file_start_at).toBe(101)
     expect(stream.logs.value.map((line) => line.message)).toEqual(['next', 'start'])
     expect(stream.connected.value).toBe(true)
+  })
+
+  it('enters reconnecting only after a native EventSource error', async () => {
+    vi.stubGlobal('EventSource', MockEventSource)
+    const stream = withSetup(() => useSyncTaskStream(8))
+    await nextTick()
+    const source = MockEventSource.instances[0]
+
+    expect(stream.connectionState.value).toBe('connecting')
+    source.onerror?.(new Event('error'))
+
+    expect(stream.connectionState.value).toBe('reconnecting')
+    expect(stream.connected.value).toBe(false)
   })
 
   it('closes terminal sources and ignores callbacks from a replaced source', async () => {

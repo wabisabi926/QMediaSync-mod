@@ -47,12 +47,15 @@ describe('global realtime EventSource', () => {
 
     expect(source.url).toBe('/api/events/stream')
     expect(realtime.realtimeActive.value).toBe(true)
+    expect(realtime.realtimeConnectionState.value).toBe('connecting')
     source.onopen?.()
+    expect(realtime.realtimeConnectionState.value).toBe('connected')
     expect(onReconnect).not.toHaveBeenCalled()
 
     source.onerror?.()
-    expect(realtime.realtimeConnected.value).toBe(false)
+    expect(realtime.realtimeConnectionState.value).toBe('reconnecting')
     source.onopen?.()
+    expect(realtime.realtimeConnectionState.value).toBe('connected')
     expect(onReconnect).toHaveBeenCalledTimes(1)
 
     unsubscribe()

@@ -375,28 +375,24 @@ func (bot *TelegramBot) StartListening(ctx context.Context, handleCommand map[st
 📊 /status - 查看系统运行状态
 🚀 /strm_sync - 执行全量 STRM 同步
 🔄 /strm_inc - 执行增量 STRM 同步
-🎬 /scrape - 执行刮削任务
 📋 /get_strm_path - 查看 STRM 同步路径
-🧹 /get_scrape_path - 查看刮削路径
 
 ⚡ <b>同步模式说明：</b>
 • <b>全量同步：</b>会删除所有缓存数据（不会删除本地文件），然后重新执行同步，适合处理大量网盘文件变更。
 • <b>增量同步：</b>只处理新增文件，无法感知文件夹重命名等变更。
 
-⚡ <b>同步/刮削命令：</b>
-• 不加参数时，会执行所有同步/刮削路径。
-• 可在命令后加序号指定目录，序号见同步/刮削目录设置。例如：/scrape #1
+⚡ <b>同步命令：</b>
+• 不加参数时，会执行所有同步路径。
+• 可在命令后加序号指定目录，序号见同步目录设置。例如：/strm_sync #1
 `
 				// 构建内联键盘
 				keyboard := tgbotapi.NewInlineKeyboardMarkup(
 					tgbotapi.NewInlineKeyboardRow(
 						tgbotapi.NewInlineKeyboardButtonData("🚀 全量同步", "strm_sync"),
 						tgbotapi.NewInlineKeyboardButtonData("🔄 增量同步", "strm_inc"),
-						tgbotapi.NewInlineKeyboardButtonData("🎬 刮削任务", "scrape"),
 					),
 					tgbotapi.NewInlineKeyboardRow(
 						tgbotapi.NewInlineKeyboardButtonData("📋 同步路径", "get_strm_path"),
-						tgbotapi.NewInlineKeyboardButtonData("🧹 刮削路径", "get_scrape_path"),
 						tgbotapi.NewInlineKeyboardButtonData("📊📊 系统状态", "status"),
 					),
 				)
@@ -432,13 +428,9 @@ func (bot *TelegramBot) SetMenuContent() {
 	}
 
 	menu := []menuItem{
-
 		{"strm_sync", "🚀 执行 STRM 全量同步"},
 		{"strm_inc", "🔄 执行 STRM 增量同步"},
-		{"scrape", "🎬 执行刮削任务"},
 		{"get_strm_path", "📋 查看 STRM 同步路径"},
-		{"get_scrape_path", "🧹 查看刮削路径"},
-		// {"strm_scrape", "🔄🎬 先同步后刮削"},
 		{"help", "📋 显示功能操作指南"},
 		{"status", "📊 查看系统运行状态"},
 	}

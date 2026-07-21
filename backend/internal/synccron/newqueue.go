@@ -10,23 +10,19 @@ import (
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
 	"qmediasync/internal/realtime"
-	"qmediasync/internal/scrape"
 	"qmediasync/internal/syncstrm"
 )
 
 type SyncTaskType string
 
 const (
-	SyncTaskTypeStrm   SyncTaskType = "strm_sync"
-	SyncTaskTypeScrape SyncTaskType = "scrape_organize"
+	SyncTaskTypeStrm SyncTaskType = "strm_sync"
 )
 
 func (t SyncTaskType) DisplayName() string {
 	switch t {
 	case SyncTaskTypeStrm:
 		return "STRM 同步"
-	case SyncTaskTypeScrape:
-		return "刮削整理"
 	default:
 		return string(t)
 	}
@@ -98,7 +94,6 @@ type NewSyncQueuePerType struct {
 	ctx              context.Context
 	cancelFunc       context.CancelFunc
 	runningFlag      int32
-	scrapeInstance   *scrape.Scrape
 	strmSync         *syncstrm.SyncStrm
 }
 
@@ -275,8 +270,6 @@ func (q *NewSyncQueuePerType) executeTask(task *NewSyncTask) {
 	switch task.TaskType {
 	case SyncTaskTypeStrm:
 		q.executeStrmSync(task)
-	case SyncTaskTypeScrape:
-		q.executeScrape(task)
 	}
 }
 
@@ -357,54 +350,6 @@ func (q *NewSyncQueuePerType) executeStrmSync(task *NewSyncTask) {
 	}
 }
 
-func (q *NewSyncQueuePerType) executeScrape(task *NewSyncTask) {
-	scrapePath := models.GetScrapePathByID(task.ID)
-	if scrapePath == nil {
-		logError("获取刮削目录失败，ID=%d", task.ID)
-		return
-	}
-
-	if scrapePath.SourceType != q.sourceType {
-		logError("刮削目录类型不匹配：预期=%s，实际=%s", q.sourceType, scrapePath.SourceType)
-		return
-	}
-
-	logInfo("开始执行刮削任务：ID=%d", task.ID)
-
-	// 触发刮削任务开始事件
-	realtime.BroadcastEvent(realtime.EventScraperTaskStart, map[string]any{
-		"task_id":   task.ID,
-		"path_name": scrapePath.SourcePath,
-	})
-
-	q.scrapeInstance = scrape.NewScrape(scrapePath)
-	if q.scrapeInstance == nil {
-		logError("创建刮削任务失败")
-		return
-	}
-	defer func() {
-		q.scrapeInstance = nil
-	}()
-
-	if success := q.scrapeInstance.Start(); success {
-		logInfo("刮削任务执行成功：ID=%d", task.ID)
-		// 触发刮削任务完成事件
-		realtime.BroadcastEvent(realtime.EventScraperTaskComplete, map[string]any{
-			"task_id":   task.ID,
-			"path_name": scrapePath.SourcePath,
-			"success":   true,
-		})
-	} else {
-		logError("刮削任务执行失败：ID=%d", task.ID)
-		// 触发刮削任务完成事件（失败）
-		realtime.BroadcastEvent(realtime.EventScraperTaskComplete, map[string]any{
-			"task_id":   task.ID,
-			"path_name": scrapePath.SourcePath,
-			"success":   false,
-		})
-	}
-}
-
 func (q *NewSyncQueuePerType) CancelTask(id uint, taskType SyncTaskType) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -422,9 +367,6 @@ func (q *NewSyncQueuePerType) CancelTask(id uint, taskType SyncTaskType) error {
 			q.strmSync.Stop()
 			q.strmSync = nil
 			logInfo("STRM 同步任务已取消：ID=%d", id)
-		} else if taskType == SyncTaskTypeScrape && q.scrapeInstance != nil {
-			q.scrapeInstance.Stop()
-			logInfo("刮削任务已取消：ID=%d", id)
 		}
 		q.currentTask = nil
 		return nil
@@ -580,21 +522,7 @@ func (m *NewSyncQueueManager) AddSyncTask(task *NewSyncTask) error {
 	// switch task.TaskType {
 	// case SyncTaskTypeStrm:
 	// 	syncPath := models.GetSyncPathById(task.ID)
-	// 	if syncPath == nil {
-	// 		return fmt.Errorf("获取同步目录失败：ID=%d", task.ID)
-	// 	}
-	// 	sourceType = syncPath.SourceType
 
-	// case SyncTaskTypeScrape:
-	// 	scrapePath := models.GetScrapePathByID(task.ID)
-	// 	if scrapePath == nil {
-	// 		return fmt.Errorf("获取刮削目录失败：ID=%d", task.ID)
-	// 	}
-	// 	sourceType = scrapePath.SourceType
-
-	// default:
-	// 	return fmt.Errorf("未知的任务类型：%s", task.TaskType)
-	// }
 
 	queue := m.getQueue(task.SourceType)
 	// task := &NewSyncTask{ID: id, TaskType: taskType}
@@ -617,13 +545,6 @@ func (m *NewSyncQueueManager) CancelTask(id uint, taskType SyncTaskType) error {
 		}
 		sourceType = syncPath.SourceType
 
-	case SyncTaskTypeScrape:
-		scrapePath := models.GetScrapePathByID(id)
-		if scrapePath == nil {
-			return fmt.Errorf("获取刮削目录失败：ID=%d", id)
-		}
-		sourceType = scrapePath.SourceType
-
 	default:
 		return fmt.Errorf("未知的任务类型：%s", taskType.DisplayName())
 	}
@@ -642,13 +563,6 @@ func (m *NewSyncQueueManager) CheckTaskStatus(id uint, taskType SyncTaskType) in
 			return TaskStatusNone
 		}
 		sourceType = syncPath.SourceType
-
-	case SyncTaskTypeScrape:
-		scrapePath := models.GetScrapePathByID(id)
-		if scrapePath == nil {
-			return TaskStatusNone
-		}
-		sourceType = scrapePath.SourceType
 
 	default:
 		return TaskStatusNone

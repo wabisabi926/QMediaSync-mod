@@ -517,13 +517,7 @@ func ValidateCron(c *gin.Context) {
 		return
 	}
 
-	// 解析 Cron 表达式为可读描述
-	scrapePath := &models.ScrapePath{}
-	description := scrapePath.ParseCronDescription(req.NormalizedCronExpression())
-
-	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "Cron 表达式有效", Data: map[string]string{
-		"description": description,
-	}})
+	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "Cron 表达式有效", Data: nil})
 }
 
 // GetThreads 获取线程配置

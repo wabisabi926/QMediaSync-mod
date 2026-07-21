@@ -232,16 +232,12 @@ const cachedComponentNames = [
   'AppUploadQueue',
   'AppDownloadQueue',
   'AppSyncRecords',
-  'AppScrapeRecords',
-  'AppFileManager',
 ]
 
 const cachedRouteNames = new Set([
   'upload-queue',
   'download-queue',
   'sync-records',
-  'scrape-records',
-  'file-manager',
 ])
 
 const getRouteViewKey = (routeName: unknown, fullPath: string) => {
@@ -422,7 +418,6 @@ const defaultOpeneds = computed(() => {
   if (route.path.startsWith('/instant-upload') || route.path.startsWith('/media-import'))
     openeds.push('/instant')
   if (route.path.startsWith('/sync')) openeds.push('/sync')
-  if (route.path.startsWith('/scrape')) openeds.push('/scrape')
   if (route.path.includes('upload-queue') || route.path.includes('download-queue'))
     openeds.push('/transfer')
   if (route.path.startsWith('/database/backup')) openeds.push('/database')
@@ -446,7 +441,7 @@ const getProgressStatus = () => {
 }
 
 const openHelp = () => {
-  window.open('https://gitee.com/qicfan/qmediasync/wikis/Home', '_blank')
+  window.open('https://qmediasync.cn/', '_blank')
 }
 
 watch(isMobile, (nextIsMobile) => {

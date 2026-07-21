@@ -2,12 +2,9 @@ package models
 
 import (
 	"encoding/json"
-	"fmt"
-	"strings"
 
 	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
-	"qmediasync/internal/tmdb"
 )
 
 type MediaStatus string
@@ -18,11 +15,27 @@ const (
 	MediaStatusRenamed   MediaStatus = "renamed" // 已重命名
 )
 
+type MediaType string
+
+const (
+	MediaTypeMovie   MediaType = "movie"
+	MediaTypeTvShow  MediaType = "tvshow"
+	MediaTypeUnknown MediaType = "unknown"
+)
+
+type MediaMetaFiles struct {
+	FileName     string `json:"file_name"`
+	FilePath     string `json:"file_path"`
+	IsDefault    bool   `json:"is_default"`
+	Language     string `json:"language"`
+	Forced       bool   `json:"forced"`
+	ProviderName string `json:"provider_name"`
+}
+
 // 电影或电视剧，刮削后的信息
 // 每一个刮削过的视频都对应一条 Media 记录
 type Media struct {
 	BaseModel
-	ScrapePathId        uint               `json:"scrape_path_id" gorm:"index:scrapepathid"` // 刮削路径 ID
 	TmdbId              int64              `json:"tmdb_id" gorm:"index:tmdbid"`              // TMDB ID
 	ImdbId              string             `json:"imdb_id"`                                  // IMDb ID
 	Name                string             `json:"name" gorm:"index:nameyear"`               // TMDB 名称
@@ -47,8 +60,6 @@ type Media struct {
 	OriginalLanguage    string             `json:"original_language"`                        // 原始语言
 	OriginCountry       []string           `json:"origin_country" gorm:"-"`                  // 原始国家
 	OriginalCountryJson string             `json:"-"`                                        // 原始国家 JSON 字符串
-	Genres              []tmdb.Genre       `json:"genres" gorm:"-"`                          // 流派
-	GenresJson          string             `json:"-"`                                        // 流派 JSON 字符串
 	Runtime             int64              `json:"runtime"`                                  // 运行时间，单位：分钟
 	LastAirDate         string             `json:"last_air_date"`                            // 最后一集播出时间
 	NumberOfEpisodes    int                `json:"number_of_episodes"`                       // 剧集总数
@@ -69,7 +80,6 @@ type Media struct {
 // 刮削好数据的集
 type MediaEpisode struct {
 	BaseModel
-	ScrapePathId      uint              `json:"scrape_path_id"`               // 刮削路径 ID
 	MediaId           uint              `gorm:"index" json:"media_id"`        // 媒体 ID
 	MediaSeasonId     uint              `gorm:"index" json:"media_season_id"` // 季 ID
 	EpisodeName       string            `json:"episode_name"`                 // 集名称
@@ -95,7 +105,6 @@ type MediaEpisode struct {
 // 刮削好数据的季
 type MediaSeason struct {
 	BaseModel
-	ScrapePathId     uint        `json:"scrape_path_id"`             // 刮削路径 ID
 	MediaId          uint        `gorm:"index" json:"media_id"`      // 媒体 ID
 	SeasonNumber     int         `gorm:"index" json:"season_number"` // 季编号，例如：S01 中的 S1
 	SeasonName       string      `json:"season_name"`                // 季名称，可能为空
@@ -115,7 +124,6 @@ func (m *Media) Save() error {
 	m.ActorsJson = helpers.JsonString(m.Actors)
 	m.DirectorJson = helpers.JsonString(m.Director)
 	m.OriginalCountryJson = helpers.JsonString(m.OriginCountry)
-	m.GenresJson = helpers.JsonString(m.Genres)
 	m.SubtitleFileJson = helpers.JsonString(m.SubtitleFiles)
 	// 保存到数据库
 	err := db.Db.Save(m).Error
@@ -139,10 +147,6 @@ func (m *Media) DecodeJson() {
 	if err := json.Unmarshal([]byte(m.OriginalCountryJson), &m.OriginCountry); err != nil {
 		helpers.AppLogger.Warnf("解码 OriginalCountryJson 失败：%v", err)
 		m.OriginCountry = []string{}
-	}
-	if err := json.Unmarshal([]byte(m.GenresJson), &m.Genres); err != nil {
-		helpers.AppLogger.Warnf("解码 GenresJson 失败：%v", err)
-		m.Genres = []tmdb.Genre{}
 	}
 	if err := json.Unmarshal([]byte(m.SubtitleFileJson), &m.SubtitleFiles); err != nil {
 		helpers.AppLogger.Warnf("解码 SubtitleFileJson 失败：%v", err)
@@ -200,159 +204,6 @@ func (me *MediaEpisode) DecodeJson() {
 	}
 }
 
-func (m *Media) FillInfoByTmdbInfo(tmdbInfo *TmdbInfo) {
-	if m.MediaType == MediaTypeTvShow {
-		m.TmdbId = tmdbInfo.TvShowDetail.ID
-		m.Name = tmdbInfo.TvShowDetail.Name
-		m.OriginalName = tmdbInfo.TvShowDetail.OriginalName
-		m.ReleaseDate = tmdbInfo.TvShowDetail.FirstAirDate
-		m.Overview = strings.TrimSpace(tmdbInfo.TvShowDetail.Overview)
-		m.OriginCountry = tmdbInfo.TvShowDetail.OriginCountry
-		m.Genres = tmdbInfo.TvShowDetail.Genres
-		m.VoteAverage = tmdbInfo.TvShowDetail.VoteAverage
-		m.VoteCount = tmdbInfo.TvShowDetail.VoteCount
-		m.NumberOfSeasons = tmdbInfo.TvShowDetail.NumberOfSeasons
-		m.NumberOfEpisodes = tmdbInfo.TvShowDetail.NumberOfEpisodes
-		m.OriginalLanguage = tmdbInfo.TvShowDetail.OriginalLanguage
-	} else {
-		m.TmdbId = tmdbInfo.MovieDetail.ID
-		m.Name = tmdbInfo.MovieDetail.Title
-		m.OriginalName = tmdbInfo.MovieDetail.OriginalTitle
-		m.ReleaseDate = tmdbInfo.MovieDetail.ReleaseDate
-		m.Overview = tmdbInfo.MovieDetail.Overview
-		m.OriginCountry = make([]string, 0)
-		m.Genres = tmdbInfo.MovieDetail.Genres
-		m.VoteAverage = tmdbInfo.MovieDetail.VoteAverage
-		m.VoteCount = tmdbInfo.MovieDetail.VoteCount
-		m.OriginalLanguage = tmdbInfo.MovieDetail.OriginalLanguage
-		m.ImdbId = tmdbInfo.MovieDetail.ImdbID
-		// 提取分级信息
-		for _, releaseDate := range tmdbInfo.ReleasesDate {
-			if releaseDate.ISO_3166_1 == "US" {
-				for _, date := range releaseDate.ReleaseDates {
-					if date.Type == 3 {
-						m.MpaaRating = date.Certification
-						break
-					}
-				}
-			}
-		}
-	}
-	// 解析演员
-	actors := make([]helpers.Actor, 0)
-	if tmdbInfo.Credits != nil && tmdbInfo.Credits.Cast != nil {
-		for _, actor := range tmdbInfo.Credits.Cast {
-			act := helpers.Actor{
-				Name:    actor.Name,
-				Role:    actor.Character,
-				TmdbId:  actor.ID,
-				Order:   actor.Order,
-				Thumb:   "",
-				Profile: fmt.Sprintf("https://www.themoviedb.org/person/%d", actor.ID),
-			}
-			if actor.ProfilePath != "" {
-				act.Thumb = fmt.Sprintf("%s/t/p/original%s", GlobalScrapeSettings.GetTmdbImageUrl(), actor.ProfilePath)
-			}
-			actors = append(actors, act)
-		}
-	}
-	m.Actors = actors
-	// 解析导演
-	directors := make([]helpers.Director, 0)
-	if tmdbInfo.Credits != nil && tmdbInfo.Credits.Crew != nil {
-		for _, director := range tmdbInfo.Credits.Crew {
-			if director.Job == "Director" {
-				directors = append(directors, helpers.Director{
-					Name:   director.Name,
-					TmdbId: director.ID,
-				})
-			}
-		}
-	}
-	m.Director = directors
-	// 解析图片
-	if tmdbInfo.Images != nil && len(tmdbInfo.Images.Posters) > 0 {
-		for _, poster := range tmdbInfo.Images.Posters {
-			if poster.FilePath != "" {
-				m.PosterPath = fmt.Sprintf("%s/t/p/original%s", GlobalScrapeSettings.GetTmdbImageUrl(), poster.FilePath)
-				break
-			}
-		}
-	}
-	if tmdbInfo.Images != nil && len(tmdbInfo.Images.Backdrops) > 0 {
-		for _, backdrop := range tmdbInfo.Images.Backdrops {
-			if backdrop.FilePath != "" {
-				m.BackdropPath = fmt.Sprintf("%s/t/p/original%s", GlobalScrapeSettings.GetTmdbImageUrl(), backdrop.FilePath)
-				break
-			}
-		}
-	}
-	if tmdbInfo.Images != nil && len(tmdbInfo.Images.Logos) > 0 {
-		for _, logo := range tmdbInfo.Images.Logos {
-			if logo.FilePath != "" {
-				m.LogoPath = fmt.Sprintf("%s/t/p/original%s", GlobalScrapeSettings.GetTmdbImageUrl(), logo.FilePath)
-				break
-			}
-		}
-	}
-	m.Status = MediaStatusScraped
-	m.Save()
-}
-
-func (ms *MediaSeason) FillInfoByTmdbInfo(seasonDetail *tmdb.SeasonDetail) {
-	if seasonDetail == nil {
-		ms.Save()
-		return
-	}
-	ms.SeasonName = seasonDetail.Name
-	ms.Overview = seasonDetail.Overview
-	ms.PosterPath = fmt.Sprintf("%s/t/p/original%s", GlobalScrapeSettings.GetTmdbImageUrl(), seasonDetail.PosterPath)
-	ms.ReleaseDate = seasonDetail.AirDate
-	ms.VoteAverage = seasonDetail.VoteAverage
-	ms.Year = helpers.ParseYearFromDate(ms.ReleaseDate)
-	ms.Status = MediaStatusScraped
-	ms.Save()
-}
-
-func (me *MediaEpisode) FillInfoByTmdbInfo(episodeDetail *tmdb.Episode) {
-	if episodeDetail == nil {
-		return
-	}
-	me.EpisodeName = episodeDetail.Name
-	me.Overview = episodeDetail.Overview
-	me.PosterPath = fmt.Sprintf("%s/t/p/original%s", GlobalScrapeSettings.GetTmdbImageUrl(), episodeDetail.StillPath)
-	me.ReleaseDate = episodeDetail.AirDate
-	me.VoteAverage = episodeDetail.VoteAverage
-	me.VoteCount = episodeDetail.VoteCount
-	me.Year = helpers.ParseYearFromDate(me.ReleaseDate)
-	// 解析演员
-	actors := make([]helpers.Actor, 0)
-	if len(episodeDetail.Cast) > 0 {
-		for _, actor := range episodeDetail.Cast {
-			act := helpers.Actor{
-				Name:    actor.Name,
-				Role:    actor.Character,
-				TmdbId:  actor.ID,
-				Order:   actor.Order,
-				Thumb:   "",
-				Profile: fmt.Sprintf("https://www.themoviedb.org/person/%d", actor.ID),
-			}
-			if actor.ProfilePath != "" {
-				act.Thumb = fmt.Sprintf("%s/t/p/original%s", GlobalScrapeSettings.GetTmdbImageUrl(), actor.ProfilePath)
-			}
-			actors = append(actors, act)
-		}
-		// 编码为 JSON 字符串
-		actorsJson, err := json.Marshal(actors)
-		if err != nil {
-			helpers.AppLogger.Errorf("编码演员列表为 JSON 字符串失败：%v", err)
-		}
-		me.ActorsJson = string(actorsJson)
-	}
-	me.Actors = actors
-	me.Status = MediaStatusScraped
-}
-
 func GetMediaById(id uint) (*Media, error) {
 	var media Media
 	if err := db.Db.Where("id = ?", id).First(&media).Error; err != nil {
@@ -406,15 +257,6 @@ func GetMediaByName(mediaType MediaType, name string, year int) (*Media, error) 
 	// 解码 JSON 字符串
 	media.DecodeJson()
 	return &media, nil
-}
-
-// 使用 TMDB 信息创建 Media
-func MakeMediaFromTMDB(mediaType MediaType, tmdbInfo *TmdbInfo) (*Media, error) {
-	media := &Media{
-		MediaType: mediaType,
-	}
-	media.FillInfoByTmdbInfo(tmdbInfo)
-	return media, nil
 }
 
 func MakeMovieMediaFromNfo(movie *helpers.Movie) (*Media, error) {

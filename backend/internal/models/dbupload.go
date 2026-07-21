@@ -35,7 +35,6 @@ type UploadSource string
 
 const (
 	UploadSourceStrm             UploadSource = "strm_sync"
-	UploadSourceScrape           UploadSource = "scrape_organize"
 	UploadSourceDirectoryMonitor UploadSource = "directory_monitor"
 )
 
@@ -71,7 +70,6 @@ type DbUploadTask struct {
 	Source                UploadSource              `json:"source"` // 上传来源存储值，展示文案由前端映射
 	AccountId             uint                      `json:"account_id"`
 	SyncFileId            uint                      `json:"sync_file_id"`                                      // 同步文件 ID
-	ScrapeMediaFileId     uint                      `json:"scrape_media_file_id"`                              // 刮削文件 ID
 	SyncPathId            uint                      `json:"sync_path_id" gorm:"index"`                         // 同步目录 ID
 	SourceType            SourceType                `json:"source_type"`                                       // 任务来源类型
 	LocalFullPath         string                    `json:"local_full_path" gorm:"index:idx_local_full_path"`  // 本地完整文件路径，包含文件名
@@ -101,7 +99,6 @@ type DbUploadTask struct {
 	SourceDeletedAt       int64                     `json:"source_deleted_at" gorm:"default:0"`                // 源文件删除时间
 	IsSeasonOrTvshowFile  bool                      `json:"is_season_or_tvshow_file"`                          // 是否是剧集或电视剧文件
 	SyncFile              *SyncFile                 `json:"-" gorm:"-"`                                        // 同步文件
-	ScrapeMediaFile       *ScrapeMediaFile          `json:"-" gorm:"-"`                                        // 刮削文件
 	Account               *Account                  `json:"-" gorm:"-"`                                        // 账户
 	UploadPhase           string                    `json:"upload_phase" gorm:"-"`                             // 上传阶段，仅用于队列展示
 	UploadSpeedBytes      int64                     `json:"upload_speed_bytes" gorm:"-"`                       // 上传速度，仅用于队列展示
@@ -463,16 +460,6 @@ func (task *DbUploadTask) finalizeRemoteCompletedUpload() error {
 	if err := task.enqueueStrmGenerationAfterUploadAndMarkDirectoryProcessed(); err != nil {
 		return fmt.Errorf("创建 STRM 生成任务失败：%w", err)
 	}
-	// 如果是刮削类型，需要进行后续通知
-	if task.Source == UploadSourceScrape {
-		// 通知刮削整理完成
-		scrapeMediaFile := GetScrapeMediaFileById(task.ScrapeMediaFileId)
-		if scrapeMediaFile == nil {
-			helpers.AppLogger.Errorf("刮削文件 %d 不存在", task.ScrapeMediaFileId)
-		} else {
-			scrapeMediaFile.RemoveTmpFiles(task)
-		}
-	}
 	if err := task.complete(); err != nil {
 		return fmt.Errorf("标记上传任务完成失败：%w", err)
 	}
@@ -810,50 +797,6 @@ func AddUploadTaskFromSyncFile(file *SyncFile) error {
 	helpers.AppLogger.Infof("添加上传任务 %s => %s 成功", file.LocalFilePath, remoteFileId)
 	publishUploadQueueChanged(task, "created")
 	return nil
-}
-
-// 添加刮削整理产生的上传任务
-func AddUploadTaskFromMediaFile(mediaFile *ScrapeMediaFile, scrapePath *ScrapePath, fileName, localFullPath, remoteFileId, remotePathId string, isSeasonOrTvshowFile bool) error {
-	stat, err := os.Stat(localFullPath)
-	if err != nil {
-		helpers.AppLogger.Errorf("要上传的文件 %s 无法获取到文件信息，错误：%vs", localFullPath, err.Error())
-		return err
-	}
-	size := stat.Size()
-	// 先检查是否存在
-	if task := CheckUploadTaskExist(UploadSourceScrape, remoteFileId); task != nil {
-		if task.Status == UploadStatusPending {
-			return errors.New("任务已存在，状态为待上传")
-		}
-		if task.Status == UploadStatusUploading {
-			return errors.New("任务已存在，状态为上传中")
-		}
-		if task.Status == UploadStatusRemoteCompletedPendingFinalize {
-			return errors.New("任务已存在，状态为远端已完成待收尾")
-		}
-		if task.Status == UploadStatusRemoteCompletedFinalizing {
-			return errors.New("任务已存在，状态为远端已完成收尾中")
-		}
-	}
-	// 插入新纪录
-	task := &DbUploadTask{
-		AccountId:            scrapePath.AccountId,
-		ScrapeMediaFileId:    mediaFile.ID,
-		SourceType:           scrapePath.SourceType,
-		RemoteFileId:         remoteFileId,
-		FileName:             fileName,
-		RemotePathId:         remotePathId,
-		LocalFullPath:        localFullPath,
-		Source:               UploadSourceScrape,
-		Status:               UploadStatusPending,
-		FileSize:             size,
-		IsSeasonOrTvshowFile: isSeasonOrTvshowFile,
-	}
-	derr := db.Db.Save(task).Error
-	if derr == nil {
-		publishUploadQueueChanged(task, "created")
-	}
-	return derr
 }
 
 func GetPendingUploadTasks(limit int) []*DbUploadTask {

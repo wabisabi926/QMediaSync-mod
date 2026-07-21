@@ -318,63 +318,6 @@ func (r ManualSyncRequest) Validate() error {
 	return validation.PositiveID("account_id", r.AccountID)
 }
 
-// SaveRelScrapePathRequest 保存同步路径和刮削路径关联请求。
-type SaveRelScrapePathRequest struct {
-	SyncPathID          uint   `json:"sync_path_id" form:"sync_path_id"`
-	LegacySyncPathID    uint   `json:"id" form:"id"`
-	ScrapePathIDs       []uint `json:"scrape_path_ids" form:"scrape_path_ids"`
-	LegacyScrapePathIDs []uint `json:"scrape_path_id" form:"scrape_path_id"`
-}
-
-// Validate 校验同步路径和刮削路径关联请求。
-func (r *SaveRelScrapePathRequest) Validate() error {
-	if r.SyncPathID == 0 {
-		r.SyncPathID = r.LegacySyncPathID
-	}
-	if r.ScrapePathIDs == nil {
-		r.ScrapePathIDs = r.LegacyScrapePathIDs
-	}
-	if err := validation.PositiveID("sync_path_id", r.SyncPathID); err != nil {
-		return err
-	}
-	return validateIDItems("scrape_path_ids", r.ScrapePathIDs)
-}
-
-// SaveScrapeStrmPathRequest 保存刮削路径关联的 STRM 路径请求。
-type SaveScrapeStrmPathRequest struct {
-	ScrapePathID uint   `json:"scrape_path_id" form:"scrape_path_id"`
-	SyncPathIDs  []uint `json:"sync_path_ids" form:"sync_path_ids"`
-}
-
-// Validate 校验刮削路径关联的 STRM 路径请求。
-func (r SaveScrapeStrmPathRequest) Validate() error {
-	if err := validation.PositiveID("scrape_path_id", r.ScrapePathID); err != nil {
-		return err
-	}
-	return validateIDItems("sync_path_ids", r.SyncPathIDs)
-}
-
-// RescrapeRequest 重新刮削请求。
-type RescrapeRequest struct {
-	ID      uint   `json:"id" form:"id"`
-	Name    string `json:"name" form:"name"`
-	Year    int    `json:"year" form:"year"`
-	TmdbID  int64  `json:"tmdb_id" form:"tmdb_id"`
-	Season  int    `json:"season" form:"season"`
-	Episode int    `json:"episode" form:"episode"`
-}
-
-// Validate 校验重新刮削请求。
-func (r RescrapeRequest) Validate() error {
-	if err := validation.PositiveID("id", r.ID); err != nil {
-		return err
-	}
-	if r.Year != 0 {
-		return validation.RangeInt("year", r.Year, 1900, 2100)
-	}
-	return nil
-}
-
 // OldLogsRequest 读取旧日志请求。
 type OldLogsRequest struct {
 	Path      string `json:"path" form:"path"`

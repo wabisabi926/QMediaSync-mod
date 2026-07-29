@@ -69,7 +69,6 @@ const handleLogin = async (payload: LoginSubmitPayload) => {
 
   try {
     loading.value = true
-    // 使用 JSON 格式发送请求，以支持 rememberMe 参数
     const response = await http.post(
       `${SERVER_URL}/login`,
       {
@@ -101,7 +100,6 @@ const handleLogin = async (payload: LoginSubmitPayload) => {
 
       ElMessage.success('登录成功')
 
-      // 跳转到首页或原本要访问的页面
       const redirect = router.currentRoute.value.query.redirect as string
       router.replace(redirect || '/')
     } else {
@@ -115,7 +113,6 @@ const handleLogin = async (payload: LoginSubmitPayload) => {
   }
 }
 
-// 检查是否已经登录
 onMounted(() => {
   if (authStore.isAuthenticated) {
     router.replace('/')
@@ -180,7 +177,6 @@ onMounted(() => {
   margin: 0;
 }
 
-/* 移动端适配 */
 @media (max-width: 768px) {
   .login-container {
     padding: 15px;

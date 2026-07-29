@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -256,30 +255,6 @@ func RepairDB(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "已补齐数据库表结构，并完成主键序列检查", Data: nil})
-}
-
-func GetAnnounce(c *gin.Context) {
-	// 从 https://api.mqfamily.top/desc.json 获取公告
-	bytes, err := helpers.ReadFromUrl("https://api.mqfamily.top/desc.json", v115open.DEFAULTUA)
-	if err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取公告失败：" + err.Error(), Data: nil})
-		return
-	}
-	// helpers.AppLogger.Infof("获取到的公告：%s", string(bytes))
-	// 解析 JSON
-	type announce struct {
-		ID      int    `json:"id"`
-		Title   string `json:"title"`
-		Content string `json:"content"`
-		Time    string `json:"time"`
-	}
-	var announces []announce
-	err = json.Unmarshal(bytes, &announces)
-	if err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "解析公告失败：" + err.Error(), Data: nil})
-		return
-	}
-	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取公告成功", Data: announces})
 }
 
 func DeleteAllTabble(c *gin.Context) {

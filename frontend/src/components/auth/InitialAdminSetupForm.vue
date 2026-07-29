@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { reactive, shallowRef, useTemplateRef } from 'vue'
-import { Key, Lock, User } from '@element-plus/icons-vue'
+import { Lock, User } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
   createElementCredentialRule,
@@ -9,7 +9,6 @@ import {
 } from '@/utils/userCredentials'
 
 export interface InitialAdminSubmitPayload {
-  setup_token: string
   username: string
   password: string
 }
@@ -25,14 +24,12 @@ const emit = defineEmits<{
 const formRef = useTemplateRef<FormInstance>('formRef')
 const validating = shallowRef(false)
 const form = reactive({
-  setupToken: '',
   username: 'admin',
   password: '',
   passwordConfirm: '',
 })
 
 const rules: FormRules = {
-  setupToken: [{ required: true, message: '请输入初始化码', trigger: 'blur' }],
   username: [createElementCredentialRule(createUsernameRule('管理员用户名'))],
   password: [createElementCredentialRule(createPasswordRule('管理员密码'))],
   passwordConfirm: [
@@ -57,7 +54,6 @@ const handleSubmit = async () => {
     const valid = await formRef.value.validate()
     if (!valid) return
     emit('submit', {
-      setup_token: form.setupToken,
       username: form.username,
       password: form.password,
     })
@@ -76,19 +72,7 @@ const handleSubmit = async () => {
     autocomplete="on"
     @submit.prevent="handleSubmit"
   >
-    <p class="setup-hint">初始化码请查看启动日志</p>
-
-    <el-form-item prop="setupToken">
-      <el-input
-        v-model="form.setupToken"
-        size="large"
-        name="setup-token"
-        autocomplete="one-time-code"
-        placeholder="初始化码"
-        :prefix-icon="Key"
-        :disabled="loading"
-      />
-    </el-form-item>
+    <p class="setup-hint">首次启动，请创建管理员账号</p>
 
     <el-form-item prop="username">
       <el-input

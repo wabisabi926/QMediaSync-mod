@@ -118,29 +118,6 @@ func TestParsePositiveIDRequest(t *testing.T) {
 	}
 }
 
-func TestAssociationRequestValidate(t *testing.T) {
-	t.Run("同步路径关联允许清空刮削路径", func(t *testing.T) {
-		req := SaveRelScrapePathRequest{SyncPathID: 1, ScrapePathIDs: []uint{}}
-		if err := req.Validate(); err != nil {
-			t.Fatalf("Validate() error = %v", err)
-		}
-	})
-
-	t.Run("刮削路径关联允许清空同步路径", func(t *testing.T) {
-		req := SaveScrapeStrmPathRequest{ScrapePathID: 1, SyncPathIDs: []uint{}}
-		if err := req.Validate(); err != nil {
-			t.Fatalf("Validate() error = %v", err)
-		}
-	})
-
-	t.Run("关联列表包含 0 失败", func(t *testing.T) {
-		req := SaveRelScrapePathRequest{SyncPathID: 1, ScrapePathIDs: []uint{1, 0}}
-		if err := req.Validate(); err == nil {
-			t.Fatal("Validate() error = nil, want error")
-		}
-	})
-}
-
 func TestIDCSVRequestValidate(t *testing.T) {
 	t.Run("逗号 ID 列表通过并去重", func(t *testing.T) {
 		req := IDCSVRequest{IDs: "2,1,2"}

@@ -13,6 +13,7 @@ Thumbs.db
 .agents/
 .claude/
 .codex/
+.trellis/
 skills-lock.json
 
 # Logs and temporary files
@@ -33,6 +34,9 @@ lerna-debug.log*
 
 # Go/backend dependency metadata kept consistent with the original repository
 
+
+# Local test and auxiliary scripts
+test/
 
 # Root build and release outputs
 config/

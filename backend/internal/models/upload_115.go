@@ -85,6 +85,7 @@ type upload115TaskResult struct {
 	CompletedPickCode     string
 	CompletedParentId     string
 	CompletedSha1         string
+	RemoteSha1            string
 	CompletedSize         int64
 	CompletedMtime        int64
 }
@@ -144,10 +145,10 @@ func (runner open115UploadRunner) findExistingRemoteFile(
 	client *v115open.OpenClient,
 	info upload115LocalFileInfo,
 ) (upload115TaskResult, bool) {
-	if strings.TrimSpace(task.RemoteFileId) == "" {
+	if strings.TrimSpace(task.RemoteFullPath) == "" {
 		return upload115TaskResult{}, false
 	}
-	detail, err := client.GetFsDetailByPath(ctx, task.RemoteFileId)
+	detail, err := client.GetFsDetailByPath(ctx, task.RemoteFullPath)
 	if err != nil || detail == nil || detail.FileId == "" {
 		return upload115TaskResult{}, false
 	}
@@ -156,10 +157,7 @@ func (runner open115UploadRunner) findExistingRemoteFile(
 	if !sameSHA1 || !sameSize {
 		return upload115TaskResult{}, false
 	}
-	mtime := helpers.StringToInt64(detail.Ptime)
-	if mtime == 0 {
-		mtime = helpers.StringToInt64(detail.Utime)
-	}
+	mtime := detail.ModifiedAt()
 	return upload115TaskResult{
 		UploadResult:          UploadResultRemoteExists,
 		ResumeState:           UploadResumeStateNone,
@@ -168,6 +166,7 @@ func (runner open115UploadRunner) findExistingRemoteFile(
 		CompletedPickCode:     detail.PickCode,
 		CompletedParentId:     task.RemotePathId,
 		CompletedSha1:         detail.Sha1,
+		RemoteSha1:            detail.Sha1,
 		CompletedSize:         detail.FileSizeByte,
 		CompletedMtime:        mtime,
 	}, true
@@ -257,6 +256,7 @@ func (runner open115UploadRunner) uploadByInit(
 			CompletedPickCode:     complete.PickCode,
 			CompletedParentId:     complete.ParentId,
 			CompletedSha1:         complete.Sha1,
+			RemoteSha1:            complete.RemoteSha1,
 			CompletedSize:         complete.Size,
 			CompletedMtime:        complete.Mtime,
 		}, nil
@@ -301,7 +301,8 @@ func build115RapidUploadCompleteResult(
 	if pickCode == "" {
 		pickCode = fallback.PickCode
 	}
-	sha1 := strings.TrimSpace(detail.Sha1)
+	remoteSha1 := strings.TrimSpace(detail.Sha1)
+	sha1 := remoteSha1
 	if sha1 == "" {
 		sha1 = fallback.Sha1
 	}
@@ -309,17 +310,15 @@ func build115RapidUploadCompleteResult(
 	if size == 0 {
 		size = fallback.Size
 	}
-	mtime := helpers.StringToInt64(detail.Ptime)
-	if mtime == 0 {
-		mtime = helpers.StringToInt64(detail.Utime)
-	}
+	mtime := detail.ModifiedAt()
 	return UploadSessionCompleteResult{
-		FileId:   strings.TrimSpace(detail.FileId),
-		PickCode: pickCode,
-		ParentId: fallback.ParentId,
-		Sha1:     sha1,
-		Size:     size,
-		Mtime:    mtime,
+		FileId:     strings.TrimSpace(detail.FileId),
+		PickCode:   pickCode,
+		ParentId:   fallback.ParentId,
+		Sha1:       sha1,
+		RemoteSha1: remoteSha1,
+		Size:       size,
+		Mtime:      mtime,
 	}, nil
 }
 
@@ -421,12 +420,13 @@ func (runner open115UploadRunner) uploadMultipart(
 		return upload115TaskResult{}, err
 	}
 	if err := session.MarkCompleted(UploadSessionCompleteResult{
-		FileId:   completeResult.FileId,
-		PickCode: completeResult.PickCode,
-		ParentId: completeResult.ParentId,
-		Sha1:     completeResult.Sha1,
-		Size:     completeResult.Size,
-		Mtime:    completeResult.Mtime,
+		FileId:     completeResult.FileId,
+		PickCode:   completeResult.PickCode,
+		ParentId:   completeResult.ParentId,
+		Sha1:       completeResult.Sha1,
+		RemoteSha1: completeResult.Sha1,
+		Size:       completeResult.Size,
+		Mtime:      completeResult.Mtime,
 	}); err != nil {
 		return upload115TaskResult{}, fmt.Errorf("保存上传完成状态失败：%w", err)
 	}
@@ -440,6 +440,7 @@ func (runner open115UploadRunner) uploadMultipart(
 		CompletedPickCode:     completeResult.PickCode,
 		CompletedParentId:     completeResult.ParentId,
 		CompletedSha1:         completeResult.Sha1,
+		RemoteSha1:            completeResult.Sha1,
 		CompletedSize:         completeResult.Size,
 		CompletedMtime:        completeResult.Mtime,
 	}, nil
@@ -501,16 +502,11 @@ func (task *DbUploadTask) prepare115UploadSession(info upload115LocalFileInfo) (
 	session, err := GetUploadSessionByUploadTaskId(task.ID)
 	if err == nil {
 		if validateErr := session.ValidateLocalFile(signature); validateErr != nil {
-			session.Status = UploadSessionStatusAborted
-			session.LastError = fmt.Sprintf("本地文件已变化，不能复用断点续传 session：%v", validateErr)
-			if saveErr := session.Save(); saveErr != nil {
-				return nil, fmt.Errorf("保存废弃上传会话失败：%w", saveErr)
+			helpers.V115Log.Warnf("本地文件签名变化，废弃 115 上传 checkpoint 并重新初始化：task_id=%d, reason=%v", task.ID, validateErr)
+			if err := task.restart115SessionForChangedLocalFile(session, info, validateErr); err != nil {
+				return nil, err
 			}
-			task.ResumeState = UploadResumeStateSessionExpiredRestarted
-			_ = db.Db.Model(task).Updates(map[string]any{
-				"resume_state": task.ResumeState,
-			}).Error
-			return nil, fmt.Errorf("本地文件已变化，不能复用断点续传 session：%w", validateErr)
+			return session, nil
 		}
 		if session.ResumeState == UploadResumeStateSessionExpiredRestarted &&
 			session.Status == UploadSessionStatusInit &&
@@ -576,6 +572,85 @@ func (task *DbUploadTask) prepare115UploadSession(info upload115LocalFileInfo) (
 		"file_name":      info.FileName,
 	}).Error
 	return session, nil
+}
+
+func (task *DbUploadTask) restart115SessionForChangedLocalFile(session *UploadSession, info upload115LocalFileInfo, cause error) error {
+	if task == nil || session == nil {
+		return errors.New("上传任务或会话为空")
+	}
+
+	now := time.Now().Unix()
+	session.AccountId = task.AccountId
+	session.LocalFullPath = task.LocalFullPath
+	session.FileName = info.FileName
+	session.FileSize = info.FileSize
+	session.LocalMtime = info.LocalMtime
+	session.LocalSignature = info.LocalSignature
+	session.FileSha1 = info.FileSha1
+	session.Preid = info.Preid
+	session.ParentFileId = task.RemotePathId
+	session.Target = fmt.Sprintf("U_1_%s", task.RemotePathId)
+	session.FileId = ""
+	session.PickCode = ""
+	session.SignKey = ""
+	session.SignRangeStart = 0
+	session.SignRangeEnd = 0
+	session.SignValSha1 = ""
+	session.LastInitAt = now
+	session.LastResumeAt = 0
+	session.Callback = ""
+	session.CallbackVar = ""
+	session.Bucket = ""
+	session.Object = ""
+	session.Endpoint = ""
+	session.Region = ""
+	session.UploadId = ""
+	session.PartSize = 0
+	session.TotalParts = 0
+	session.UploadedBytes = 0
+	session.UploadedParts = 0
+	session.LastPartNumber = 0
+	session.LastPartEtag = ""
+	session.Status = UploadSessionStatusInit
+	session.ResumeState = UploadResumeStateSessionExpiredRestarted
+	session.RapidWaitUntil = 0
+	session.RapidWaitAttempts = 0
+	session.RetryCount = 0
+	session.LastError = fmt.Sprintf("本地文件已变化，已废弃旧断点续传 checkpoint：%v", cause)
+	session.LastProgressAt = 0
+	session.UploadStartedAt = 0
+	session.CompletedAt = 0
+	session.CompleteCallbackState = ""
+	session.CompleteCallbackError = ""
+	session.CompletedFileId = ""
+	session.CompletedPickCode = ""
+	session.CompletedParentId = ""
+	session.CompletedSha1 = ""
+	session.CompletedSize = 0
+	session.CompletedMtime = 0
+	if err := session.Save(); err != nil {
+		return fmt.Errorf("重建上传会话失败：%w", err)
+	}
+
+	task.FileName = info.FileName
+	task.FileSize = info.FileSize
+	task.LocalMtime = info.LocalMtime
+	task.ResumeState = UploadResumeStateSessionExpiredRestarted
+	task.UploadedBytes = 0
+	task.RapidWaitAttempts = 0
+	task.RapidWaitUntil = 0
+	if err := db.Db.Model(task).Updates(map[string]any{
+		"file_name":           task.FileName,
+		"file_size":           task.FileSize,
+		"local_mtime":         task.LocalMtime,
+		"resume_state":        task.ResumeState,
+		"uploaded_bytes":      task.UploadedBytes,
+		"rapid_wait_attempts": task.RapidWaitAttempts,
+		"rapid_wait_until":    task.RapidWaitUntil,
+	}).Error; err != nil {
+		return fmt.Errorf("保存重建上传会话任务状态失败：%w", err)
+	}
+	return nil
 }
 
 func apply115InitResultToSession(session *UploadSession, result *v115open.UploadInitResult) {
@@ -718,8 +793,9 @@ func (task *DbUploadTask) applyUpload115TaskResult(result upload115TaskResult) {
 	}
 	task.TotalParts = result.TotalParts
 	task.UploadedParts = result.UploadedParts
-	task.CompletedRemoteFileId = result.CompletedRemoteFileId
-	task.CompletedPickCode = result.CompletedPickCode
+	task.RemoteFileId = result.CompletedRemoteFileId
+	task.RemotePickCode = result.CompletedPickCode
+	task.RemoteSha1 = result.RemoteSha1
 	if result.CompletedSize > 0 {
 		task.FileSize = result.CompletedSize
 	}
@@ -1000,7 +1076,7 @@ func (task *DbUploadTask) enqueueStrmGenerationAfterUploadWithDB(tx *gorm.DB) (*
 	if task.UploadResult == UploadResultSkippedAfterRapidWait {
 		return nil, nil
 	}
-	if task.CompletedRemoteFileId == "" && task.CompletedPickCode == "" {
+	if !task.hasStrmGenerationCompletionLocator() {
 		if task.Source == UploadSourceDirectoryMonitor {
 			if _, ok := directoryUploadProcessedPendingStrmResultForUploadResult(task.UploadResult); ok {
 				return nil, errors.New("目录监控上传任务缺少远端完成信息")
@@ -1013,9 +1089,10 @@ func (task *DbUploadTask) enqueueStrmGenerationAfterUploadWithDB(tx *gorm.DB) (*
 	accountID := task.AccountId
 	parentID := task.RemotePathId
 	fileName := task.FileName
-	remotePath := remoteParentPathForStrmTask(task.RemoteFileId, fileName)
+	remotePath := remoteParentPathForStrmTask(task.RemoteFullPath, fileName)
 	fileSize := task.FileSize
-	var sha1 string
+	sha1 := task.RemoteSha1
+	strmPickCode := task.RemotePickCode
 	var mtime int64
 	if session, err := GetUploadSessionByUploadTaskId(task.ID); err == nil && session != nil {
 		if parentID == "" {
@@ -1024,7 +1101,10 @@ func (task *DbUploadTask) enqueueStrmGenerationAfterUploadWithDB(tx *gorm.DB) (*
 		if fileSize == 0 {
 			fileSize = session.CompletedSize
 		}
-		sha1 = session.CompletedSha1
+		if sha1 == "" {
+			// 仅作为 STRM 收尾的内部恢复信息；队列公开字段不会从该 checkpoint 回填。
+			sha1 = session.CompletedSha1
+		}
 		mtime = session.CompletedMtime
 	}
 	if task.SyncFileId > 0 {
@@ -1055,6 +1135,20 @@ func (task *DbUploadTask) enqueueStrmGenerationAfterUploadWithDB(tx *gorm.DB) (*
 			}
 		}
 	}
+	if remotePath == "" {
+		var err error
+		remotePath, err = task.resolveHistoricalStrmRemotePath()
+		if err != nil {
+			return nil, err
+		}
+	}
+	if task.hasBaiduImmediateStrmMetadata(remotePath, fileName, fileSize) {
+		// 百度播放接口沿用 pickcode 参数名接收 fs_id。该值只属于内部 STRM
+		// 任务，不能写回上传队列的 remote_pick_code（后者严格只表示 115 PickCode）。
+		parentID = remotePath
+		strmPickCode = task.RemoteFileId
+		mtime = task.baiduUploadMtime
+	}
 	if syncPathID == 0 {
 		if task.Source == UploadSourceDirectoryMonitor {
 			return nil, errors.New("目录监控上传任务缺少同步目录 ID")
@@ -1070,8 +1164,8 @@ func (task *DbUploadTask) enqueueStrmGenerationAfterUploadWithDB(tx *gorm.DB) (*
 		string(source),
 		fmt.Sprint(syncPathID),
 		fmt.Sprint(task.ID),
-		task.CompletedRemoteFileId,
-		task.CompletedPickCode,
+		task.RemoteFileId,
+		strmPickCode,
 	)
 	strmTask, err := EnqueueStrmGenerationTaskWithDB(tx, &StrmGenerationTask{
 		Source:       source,
@@ -1079,9 +1173,9 @@ func (task *DbUploadTask) enqueueStrmGenerationAfterUploadWithDB(tx *gorm.DB) (*
 		UploadTaskId: task.ID,
 		SyncPathId:   syncPathID,
 		AccountId:    accountID,
-		FileId:       task.CompletedRemoteFileId,
+		FileId:       task.RemoteFileId,
 		ParentId:     parentID,
-		PickCode:     task.CompletedPickCode,
+		PickCode:     strmPickCode,
 		Path:         remotePath,
 		FileName:     fileName,
 		FileSize:     fileSize,
@@ -1093,6 +1187,68 @@ func (task *DbUploadTask) enqueueStrmGenerationAfterUploadWithDB(tx *gorm.DB) (*
 		return nil, err
 	}
 	return strmTask, nil
+}
+
+func (task *DbUploadTask) hasBaiduImmediateStrmMetadata(remotePath string, fileName string, fileSize int64) bool {
+	if task == nil || task.SourceType != SourceTypeBaiduPan || task.baiduUploadMtime <= 0 {
+		return false
+	}
+	return strings.TrimSpace(task.RemoteFileId) != "" &&
+		strings.TrimSpace(remotePath) != "" &&
+		strings.TrimSpace(fileName) != "" &&
+		fileSize > 0
+}
+
+func (task *DbUploadTask) hasStrmGenerationCompletionLocator() bool {
+	if task == nil {
+		return false
+	}
+	switch task.SourceType {
+	case SourceTypeBaiduPan, SourceTypeOpenList:
+		return strings.TrimSpace(task.RemoteFullPath) != "" ||
+			(task.Source == UploadSourceStrm && task.SyncFileId > 0)
+	default:
+		return strings.TrimSpace(task.RemoteFileId) != "" || strings.TrimSpace(task.RemotePickCode) != ""
+	}
+}
+
+// resolveHistoricalStrmRemotePath 只为缺少完整路径的历史 115 STRM 上传按新完成文件 ID 查询一次详情。
+// 查询结果仅用于构造 STRM 任务，不能反写历史上传任务的展示路径。
+func (task *DbUploadTask) resolveHistoricalStrmRemotePath() (string, error) {
+	if task == nil || task.Source != UploadSourceStrm || task.SourceType != SourceType115 {
+		return "", errors.New("上传任务缺少远端完整路径")
+	}
+	if strings.TrimSpace(task.RemoteFileId) == "" {
+		return "", errors.New("历史 STRM 上传任务缺少新远端文件 ID，无法确定远端路径")
+	}
+
+	account := task.Account
+	if account == nil {
+		var err error
+		account, err = GetAccountById(task.AccountId)
+		if err != nil {
+			return "", fmt.Errorf("查询历史 STRM 上传账户失败：%w", err)
+		}
+		task.Account = account
+	}
+	detail, err := get115FileDetailByCid(context.Background(), account.Get115Client(), task.RemoteFileId)
+	if err != nil {
+		return "", fmt.Errorf("查询历史 STRM 上传远端文件详情失败：%w", err)
+	}
+	if detail == nil {
+		return "", errors.New("查询历史 STRM 上传远端文件详情失败：返回空数据")
+	}
+
+	fileName := task.FileName
+	if fileName == "" {
+		fileName = detail.FileName
+	}
+	for _, candidate := range []string{detail.Path, detail.GetFullPath()} {
+		if remotePath := remoteParentPathForStrmTask(candidate, fileName); remotePath != "" {
+			return remotePath, nil
+		}
+	}
+	return "", errors.New("查询历史 STRM 上传远端文件详情失败：缺少可用目录路径")
 }
 
 func remoteParentPathForStrmTask(remoteFilePath string, fileName string) string {

@@ -46,30 +46,6 @@ const AppLogSettings = createAsyncRouteComponent(
   'AppLogSettings',
   () => import('@/components/AppLogSettings.vue'),
 )
-const AppTmdbSettings = createAsyncRouteComponent(
-  'AppTmdbSettings',
-  () => import('@/components/AppTmdbSettings.vue'),
-)
-const AppAiSettings = createAsyncRouteComponent(
-  'AppAiSettings',
-  () => import('@/components/AppAiSettings.vue'),
-)
-const AppCategoryStrategy = createAsyncRouteComponent(
-  'AppCategoryStrategy',
-  () => import('@/components/AppCategoryStrategy.vue'),
-)
-const AppScrapePathes = createAsyncRouteComponent(
-  'AppScrapePathes',
-  () => import('@/components/AppScrapePathes.vue'),
-)
-const AppScrapePathForm = createAsyncRouteComponent(
-  'AppScrapePathForm',
-  () => import('@/components/AppScrapePathForm.vue'),
-)
-const AppScrapeRecords = createAsyncRouteComponent(
-  'AppScrapeRecords',
-  () => import('@/components/AppScrapeRecords.vue'),
-)
 const AppUploadQueue = createAsyncRouteComponent(
   'AppUploadQueue',
   () => import('@/components/AppUploadQueue.vue'),
@@ -90,11 +66,6 @@ const AppLoginSessions = createAsyncRouteComponent(
   'AppLoginSessions',
   () => import('@/components/user-settings/LoginSessions.vue'),
 )
-const AppFileManager = createAsyncRouteComponent(
-  'AppFileManager',
-  () => import('@/components/AppFileManager.vue'),
-)
-const AppUpdate = createAsyncRouteComponent('AppUpdate', () => import('@/components/AppUpdate.vue'))
 const AppBackupSettings = createAsyncRouteComponent(
   'AppBackupSettings',
   () => import('@/components/AppBackupSettings.vue'),
@@ -240,100 +211,6 @@ const routes = [
     },
   },
   {
-    path: '/scrape',
-    name: 'scrape',
-    redirect: '/scrape-pathes',
-    meta: {
-      title: '刮削 & 整理',
-      requiresAuth: true,
-      icon: 'Film',
-      showInMenu: true,
-    },
-  },
-  {
-    path: '/scrape-pathes',
-    name: 'scrape-pathes',
-    component: AppScrapePathes,
-    meta: {
-      title: '刮削目录',
-      requiresAuth: true,
-      parent: 'scrape',
-      icon: 'FolderOpened',
-      showInMenu: true,
-    },
-  },
-  {
-    path: '/scrape-path/add',
-    name: 'scrape-path-add',
-    component: AppScrapePathForm,
-    meta: {
-      title: '添加刮削目录',
-      requiresAuth: true,
-      parent: 'scrape',
-      showInMenu: false,
-    },
-  },
-  {
-    path: '/scrape-path/edit/:id',
-    name: 'scrape-path-edit',
-    component: AppScrapePathForm,
-    meta: {
-      title: '编辑刮削目录',
-      requiresAuth: true,
-      parent: 'scrape',
-      showInMenu: false,
-    },
-  },
-  {
-    path: '/scrape-records',
-    name: 'scrape-records',
-    component: AppScrapeRecords,
-    meta: {
-      title: '刮削记录',
-      requiresAuth: true,
-      parent: 'scrape',
-      icon: 'List',
-      showInMenu: true,
-    },
-  },
-  {
-    path: '/settings/tmdb',
-    name: 'settings-tmdb',
-    component: AppTmdbSettings,
-    meta: {
-      title: '刮削设置',
-      requiresAuth: true,
-      parent: 'scrape',
-      icon: 'Film',
-      showInMenu: true,
-    },
-  },
-  {
-    path: '/settings/ai',
-    name: 'settings-ai',
-    component: AppAiSettings,
-    meta: {
-      title: 'AI 识别设置',
-      requiresAuth: true,
-      parent: 'scrape',
-      icon: 'View',
-      showInMenu: true,
-    },
-  },
-  {
-    path: '/settings/category-strategy',
-    name: 'settings-category-strategy',
-    component: AppCategoryStrategy,
-    meta: {
-      title: '二级分类设置',
-      requiresAuth: true,
-      parent: 'scrape',
-      icon: 'Operation',
-      showInMenu: true,
-    },
-  },
-
-  {
     path: '/transfer',
     name: 'transfer',
     redirect: '/upload-queue',
@@ -365,17 +242,6 @@ const routes = [
       requiresAuth: true,
       parent: 'transfer',
       icon: 'Download',
-      showInMenu: true,
-    },
-  },
-  {
-    path: '/file-manager',
-    name: 'file-manager',
-    component: AppFileManager,
-    meta: {
-      title: '网盘文件管理',
-      requiresAuth: true,
-      icon: 'Folder',
       showInMenu: true,
     },
   },
@@ -529,18 +395,6 @@ const routes = [
       requiresAuth: true,
       parent: 'settings',
       icon: 'Link',
-      showInMenu: true,
-    },
-  },
-  {
-    path: '/settings/update',
-    name: 'settings-update',
-    component: AppUpdate,
-    meta: {
-      title: '版本更新',
-      requiresAuth: true,
-      parent: 'settings',
-      icon: 'Upload',
       showInMenu: true,
     },
   },

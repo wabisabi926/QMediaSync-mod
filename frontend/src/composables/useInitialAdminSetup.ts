@@ -6,7 +6,6 @@ export interface SetupStatus {
 }
 
 export interface CreateInitialAdminPayload {
-  setup_token: string
   username: string
   password: string
 }

@@ -547,8 +547,7 @@ func setRouter(r *gin.Engine) {
 	// 	webStatisPath = filepath.Join(helpers.RootDir, "www")
 	// }
 	r.LoadHTMLFiles(filepath.Join(webStatisPath, "index.html"))
-	r.StaticFile("/favicon.ico", filepath.Join(webStatisPath, "favicon.ico")) // 提供站点图标
-	r.StaticFile("/icon.ico", filepath.Join(webStatisPath, "icon.ico"))   // 提供应用图标
+	r.StaticFile("/favicon.ico", filepath.Join(webStatisPath, "favicon.ico")) // 提供站点/头像图标
 	r.StaticFS("/assets", http.Dir(filepath.Join(webStatisPath, "assets")))   // 提供前端静态资源
 	// 返回前端单页应用入口
 	r.GET("/", func(c *gin.Context) {

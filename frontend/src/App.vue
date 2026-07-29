@@ -18,7 +18,7 @@
         <!-- 用户信息 -->
         <div class="user-info">
           <div class="user-avatar">
-            <img src="/icon.ico" alt="avatar" crossorigin="anonymous" />
+            <img src="/favicon.ico" alt="avatar" crossorigin="anonymous" />
           </div>
           <div class="user-details">
             <div class="username">{{ authStore.user?.username || '用户' }}</div>

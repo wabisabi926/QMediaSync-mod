@@ -42,14 +42,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ env.RELEASE_TAG }}
         run: |
-          git rev-parse --verify "refs/tags/${TAG}"
           if [ ! -f ".changes/${TAG}.md" ]; then
             echo "::error::.changes/${TAG}.md does not exist"
             exit 1
           fi
           if gh release view "${TAG}" >/dev/null 2>&1; then
-            echo "::error::GitHub Release ${TAG} already exists"
-            exit 1
+            echo "::warning::GitHub Release ${TAG} already exists — assets will be updated"
           fi
 
   frontend:
@@ -371,3 +369,4 @@ jobs:
           body_path: release_notes.md
           files: release-assets/*
           fail_on_unmatched_files: false
+          update_existing: true

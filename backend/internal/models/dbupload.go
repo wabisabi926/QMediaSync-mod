@@ -181,6 +181,7 @@ func publishUploadQueueChanged(task *DbUploadTask, reason string) {
 			payload.SourceCleanupStatus = string(task.SourceCleanupStatus)
 			cleanupError := task.SourceCleanupError
 			payload.SourceCleanupError = &cleanupError
+			payload.SourceDeletedAt = task.SourceDeletedAt
 		}
 	}
 	if reason == "progress" {
@@ -702,16 +703,89 @@ func CheckCanUploadByLocalPath(source UploadSource, localPath string) bool {
 	return total == 0
 }
 
-// 检查任务是否已经存在，通过 Source + RemoteFileId
-func CheckUploadTaskExist(source UploadSource, remoteFileId string) *DbUploadTask {
+// errActiveUploadTaskExists 表示活跃上传任务已存在，用于在事务内传递去重信号。
+var errActiveUploadTaskExists = errors.New("活跃上传任务已存在")
+
+// activeUploadTaskExistsError 根据已有任务状态返回可读的重复入队错误。
+func activeUploadTaskExistsError(task *DbUploadTask) error {
+	if task == nil {
+		return errActiveUploadTaskExists
+	}
+	switch task.Status {
+	case UploadStatusPending:
+		return errors.New("任务已存在，状态为待上传")
+	case UploadStatusUploading:
+		return errors.New("任务已存在，状态为上传中")
+	case UploadStatusRemoteCompletedPendingFinalize:
+		return errors.New("任务已存在，状态为远端已完成待收尾")
+	case UploadStatusRemoteCompletedFinalizing:
+		return errors.New("任务已存在，状态为远端已完成收尾中")
+	default:
+		return errActiveUploadTaskExists
+	}
+}
+
+// isActiveUploadTaskUniqueConstraintError 判断错误是否为活跃上传任务唯一索引冲突。
+func isActiveUploadTaskUniqueConstraintError(err error) bool {
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, activeUploadTaskUniqueIndexName) ||
+		strings.Contains(message, "unique constraint failed: db_upload_tasks.source, db_upload_tasks.source_type, db_upload_tasks.account_id, db_upload_tasks.remote_full_path")
+}
+
+// CheckUploadTaskExist 按存储范围检查活跃上传任务是否已存在。
+func CheckUploadTaskExist(source UploadSource, sourceType SourceType, accountID uint, remoteFullPath string) *DbUploadTask {
 	var task *DbUploadTask
 	err := db.Db.Model(&DbUploadTask{}).
-		Where("source = ? AND remote_file_id = ?", source, remoteFileId).
+		Where("source = ? AND source_type = ? AND account_id = ? AND remote_full_path = ? AND status IN ?", source, sourceType, accountID, remoteFullPath, activeUploadTaskStatuses()).
 		First(&task).Error
 	if err != nil {
 		return nil
 	}
 	return task
+}
+
+// uploadRemoteParentID 只保留当前来源可确认的稳定父目录 ID。
+// OpenList、百度和本地流程中的 ParentId 是路径型执行定位，不能写入 remote_path_id。
+func uploadRemoteParentID(sourceType SourceType, parentID string) string {
+	if sourceType != SourceType115 {
+		return ""
+	}
+	return parentID
+}
+
+// replacedRemoteFileIDFromSyncFile 仅返回可审计的稳定旧文件 ID。
+// SyncFile.FileId 在百度和 OpenList 中仍承担路径定位语义，不能直接写入上传任务。
+func replacedRemoteFileIDFromSyncFile(file *SyncFile) string {
+	if file == nil {
+		return ""
+	}
+	switch file.SourceType {
+	case SourceType115:
+		return file.FileId
+	case SourceTypeBaiduPan:
+		return file.PickCode
+	case SourceTypeOpenList:
+		return file.OpenlistObjectId
+	default:
+		return ""
+	}
+}
+
+// createUploadTaskWithDB 在指定事务中创建上传任务，并将唯一索引冲突归一化为去重信号。
+func createUploadTaskWithDB(tx *gorm.DB, task *DbUploadTask) error {
+	if err := tx.Create(task).Error; err != nil {
+		if isActiveUploadTaskUniqueConstraintError(err) {
+			return errActiveUploadTaskExists
+		}
+		return err
+	}
+	return nil
 }
 
 // AddDirectoryMonitorUploadTask 添加目录监控产生的上传任务。
@@ -759,48 +833,37 @@ func PublishUploadTaskChanged(task *DbUploadTask, reason string) {
 
 // 添加 STRM 同步产生的上传任务
 func AddUploadTaskFromSyncFile(file *SyncFile) error {
+	remoteFullPath := remoteFullPath(file.Path, file.FileName)
 	// 先检查是否存在
-	if task := CheckUploadTaskExist(UploadSourceStrm, file.FileId); task != nil {
-		if task.Status == UploadStatusPending {
-			return errors.New("任务已存在，状态为待上传")
-		}
-		if task.Status == UploadStatusUploading {
-			return errors.New("任务已存在，状态为上传中")
-		}
-		if task.Status == UploadStatusRemoteCompletedPendingFinalize {
-			return errors.New("任务已存在，状态为远端已完成待收尾")
-		}
-		if task.Status == UploadStatusRemoteCompletedFinalizing {
-			return errors.New("任务已存在，状态为远端已完成收尾中")
-		}
+	if task := CheckUploadTaskExist(UploadSourceStrm, file.SourceType, file.AccountId, remoteFullPath); task != nil {
+		return activeUploadTaskExistsError(task)
 	}
-	// if file.SyncPath == nil {
-	// 	file.SyncPath = GetSyncPathById(file.SyncPathId)
-	// }
-	remoteFileId := file.FileId
-	// if file.SourceType == SourceType115 {
-	// 	remoteFileId = filepath.Join(file.Path, file.FileName)
-	// }
 	// 插入新纪录
 	task := &DbUploadTask{
-		AccountId:     file.AccountId,
-		SourceType:    file.SourceType,
-		SyncFileId:    file.ID,
-		SyncPathId:    file.SyncPathId,
-		RemoteFileId:  remoteFileId,
-		FileName:      file.FileName,
-		RemotePathId:  file.ParentId,
-		LocalFullPath: file.LocalFilePath,
-		Source:        UploadSourceStrm,
-		Status:        UploadStatusPending,
-		FileSize:      file.FileSize,
+		AccountId:      file.AccountId,
+		SourceType:     file.SourceType,
+		SyncFileId:     file.ID,
+		SyncPathId:     file.SyncPathId,
+		RemoteFullPath: remoteFullPath,
+		FileName:       file.FileName,
+		RemotePathId:    uploadRemoteParentID(file.SourceType, file.ParentId),
+		LocalFullPath:  file.LocalFilePath,
+		Source:         UploadSourceStrm,
+		Status:         UploadStatusPending,
+		FileSize:       file.FileSize,
 	}
-	err := db.Db.Save(task).Error
+	if replacedRemoteFileID := replacedRemoteFileIDFromSyncFile(file); replacedRemoteFileID != "" {
+		task.ReplacedRemoteFileId = replacedRemoteFileID
+	}
+	err := createUploadTaskWithDB(db.Db, task)
 	if err != nil {
-		helpers.AppLogger.Errorf("添加上传任务 %s => %s 失败：%s", file.LocalFilePath, remoteFileId, err.Error())
+		if errors.Is(err, errActiveUploadTaskExists) {
+			return activeUploadTaskExistsError(CheckUploadTaskExist(UploadSourceStrm, file.SourceType, file.AccountId, remoteFullPath))
+		}
+		helpers.AppLogger.Errorf("添加上传任务 %s => %s 失败：%s", file.LocalFilePath, remoteFullPath, err.Error())
 		return err
 	}
-	helpers.AppLogger.Infof("添加上传任务 %s => %s 成功", file.LocalFilePath, remoteFileId)
+	helpers.AppLogger.Infof("添加上传任务 %s => %s 成功", file.LocalFilePath, remoteFullPath)
 	publishUploadQueueChanged(task, "created")
 	return nil
 }
@@ -900,20 +963,47 @@ func UpdateUploadingToPending() error {
 }
 
 func RetryFailedUploadTasks(maxRetry int) error {
+	var failedTasks []DbUploadTask
+	if err := db.Db.Model(&DbUploadTask{}).
+		Select("id, source, source_type, account_id, remote_full_path").
+		Where("status = ? AND retry_count < ?", UploadStatusFailed, maxRetry).
+		Find(&failedTasks).Error; err != nil {
+		helpers.AppLogger.Errorf("查询待重试上传任务失败：%v", err)
+		return err
+	}
+
 	updateData := map[string]interface{}{
 		"status":          UploadStatusPending,
 		"error":           "",
 		"retry_count":     gorm.Expr("retry_count + 1"),
 		"last_retry_time": time.Now().Unix(),
 	}
-	err := db.Db.Model(&DbUploadTask{}).
-		Where("status = ? AND retry_count < ?", UploadStatusFailed, maxRetry).
-		Updates(updateData).Error
-	if err != nil {
-		helpers.AppLogger.Errorf("重试失败的上传任务失败：%v", err)
-		return err
+	retried, skipped := 0, 0
+	for _, task := range failedTasks {
+		query := db.Db.Model(&DbUploadTask{}).
+			Where("id = ? AND status = ? AND retry_count < ?", task.ID, UploadStatusFailed, maxRetry)
+		if task.RemoteFullPath != "" {
+			query = query.Where(`NOT EXISTS (
+				SELECT 1 FROM db_upload_tasks
+				WHERE source = ? AND source_type = ? AND account_id = ? AND remote_full_path = ? AND status IN ?
+			)`, task.Source, task.SourceType, task.AccountId, task.RemoteFullPath, activeUploadTaskStatuses())
+		}
+		result := query.Updates(updateData)
+		if result.Error != nil {
+			if isActiveUploadTaskUniqueConstraintError(result.Error) {
+				skipped++
+				continue
+			}
+			helpers.AppLogger.Errorf("重试失败的上传任务 %d 失败：%v", task.ID, result.Error)
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			skipped++
+			continue
+		}
+		retried++
 	}
-	helpers.AppLogger.Infof("重试失败的上传任务成功")
+	helpers.AppLogger.Infof("重试失败的上传任务完成：成功 %d 个，因活跃同目标或状态变化跳过 %d 个", retried, skipped)
 	publishUploadQueueChanged(nil, "retry_failed")
 	return nil
 }

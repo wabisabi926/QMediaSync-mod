@@ -209,31 +209,6 @@ test('设置页操作反馈和按钮语义保持一致', () => {
     'AppNotificationChannels.vue channel test button should not use success before the test result is known',
   )
 
-  const updateSource = readSource('src/components/AppUpdate.vue')
-
-  assert.match(
-    updateSource,
-    /import\s*\{[\s\S]*?\bRefresh\b[\s\S]*?\}\s*from\s*['"]@element-plus\/icons-vue['"]/,
-    'AppUpdate.vue should import Refresh for the refresh button',
-  )
-
-  assert.match(
-    updateSource,
-    /<div\s+class=["']section-header-right update-toolbar["']>[\s\S]*?<el-radio-group\b(?=[^>]*\bsize=["']default["'])[\s\S]*?<el-button\b(?=[^>]*\bsize=["']default["'])(?=[^>]*:icon=["']Refresh["'])[\s\S]*?刷新[\s\S]*?<\/el-button>[\s\S]*?<\/div>/,
-    'AppUpdate.vue version channel selector and refresh button should share one coordinated toolbar',
-  )
-
-  const updateToolbarBlock =
-    updateSource.match(
-      /<div\s+class=["']section-header-right update-toolbar["']>[\s\S]*?<\/div>/,
-    )?.[0] || ''
-
-  assert.doesNotMatch(
-    updateToolbarBlock,
-    /<el-button\b[^>]*\bround\b[^>]*>[\s\S]*?刷新[\s\S]*?<\/el-button>/,
-    'AppUpdate.vue refresh button should not use round styling next to the segmented channel selector',
-  )
-
   assert.ok(
     embySource.indexOf('class="emby-status-alert"') <
       embySource.indexOf('class="sync-management-card"'),

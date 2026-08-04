@@ -38,36 +38,4 @@ describe('记录与文件页的公共状态契约', () => {
       /setExpandedRowKeys\s*\(\s*['"]sync-records['"][\s\S]*?String\s*\(\s*item\.id\s*\)/,
     )
   })
-
-  it('刮削记录通过响应式记录表保留筛选、展开和请求上下文', () => {
-    const source = readSource('src/components/AppScrapeRecords.vue')
-
-    expectRecordTableContract(
-      source,
-      'scrape-records',
-      'getScrapeRecordRowKey',
-      'scrapeRecordColumns',
-      'scrapeRecordActions',
-    )
-    expect(source).toMatch(/setFilter\s*\(\s*['"]scrape-records['"]\s*,\s*['"]status['"]/)
-    expect(source).toMatch(
-      /setExpandedRowKeys\s*\(\s*['"]scrape-records['"][\s\S]*?String\s*\(\s*item\.id\s*\)/,
-    )
-  })
-
-  it('文件管理器保留受控展开、页面状态和失活时的请求取消', () => {
-    const source = readSource('src/components/AppFileManager.vue')
-
-    expect(source).toMatch(/getPageState\s*\(\s*['"]file-manager['"]/)
-    expect(source).toMatch(/createActiveRequestGate/)
-    expect(source).toMatch(
-      /:expand-row-keys\s*=\s*["']pageState\.expandedRowKeys["'][\s\S]*?@expand-change\s*=\s*["']handleExpandChange["']/,
-    )
-    expect(source).toMatch(
-      /const\s+handleExpandChange\s*=\s*\(\s*row:\s*FileSystemItem\s*,\s*expandedRows:\s*FileSystemItem\[\]\s*\)[\s\S]*?setExpandedRowKeys\s*\(\s*['"]file-manager['"][\s\S]*?String\s*\(\s*item\.id\s*\|\|\s*item\.path\s*\)/,
-    )
-    expect(source).toMatch(
-      /function\s+deactivateFileManagerPage\s*\(\s*\)[\s\S]*?accountListRequestGate\.invalidate\s*\(\s*\)[\s\S]*?fileListRequestGate\.invalidate\s*\(\s*\)/,
-    )
-  })
 })

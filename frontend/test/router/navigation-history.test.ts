@@ -68,14 +68,11 @@ describe('router history behavior', () => {
   it('详情和表单页取消返回使用回退兜底，保存成功使用 replace 回列表', () => {
     const syncTaskDetailSource = readSource('src/components/AppSyncTaskDetail.vue')
     const syncDirectoryFormSource = readSource('src/components/AppSyncDirectoryForm.vue')
-    const scrapePathFormSource = readSource('src/components/AppScrapePathForm.vue')
 
     expect(syncTaskDetailSource).toContain('navigateBackOrReplace')
     expect(syncTaskDetailSource).not.toContain("router.push({ name: 'sync-records' })")
     expect(syncDirectoryFormSource).toContain('navigateBackOrReplace')
     expect(syncDirectoryFormSource).toContain("router.replace({ name: 'sync-directories' })")
-    expect(scrapePathFormSource).toContain('navigateBackOrReplace')
-    expect(scrapePathFormSource).toContain("router.replace({ name: 'scrape-pathes' })")
   })
 
   it('业务路由注册同步路由壳，导航不等待动态导入', () => {

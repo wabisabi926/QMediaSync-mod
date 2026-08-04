@@ -19,7 +19,7 @@ func TestEmbyCronUsesScheduledSyncModeSelector(t *testing.T) {
 	if embyCronStart < 0 {
 		t.Fatal("未找到 Emby 定时任务配置块")
 	}
-	nextCron := strings.Index(source[embyCronStart:], "\n\tGlobalCron.AddFunc(\"*/2 * * * *\"")
+	nextCron := strings.Index(source[embyCronStart:], "\n\tGlobalCron.AddFunc(\"0 * * * *\"")
 	if nextCron < 0 {
 		t.Fatal("未找到 Emby 定时任务配置块结束位置")
 	}

@@ -26,16 +26,14 @@ type NotificationRule = notification.NotificationRule
 type NotificationType = notification.NotificationType
 
 const (
-	SyncFinished   NotificationType = notification.SyncFinished
-	SyncError      NotificationType = notification.SyncError
-	ScrapeFinished NotificationType = notification.ScrapeFinished
-	ScrapeError    NotificationType = notification.ScrapeError
-	SystemAlert    NotificationType = notification.SystemAlert
-	MediaAdded     NotificationType = notification.MediaAdded
-	MediaRemoved   NotificationType = notification.MediaRemoved
-	PlaybackStart  NotificationType = notification.PlaybackStart
-	PlaybackPause  NotificationType = notification.PlaybackPause
-	PlaybackStop   NotificationType = notification.PlaybackStop
+	SyncFinished NotificationType = notification.SyncFinished
+	SyncError    NotificationType = notification.SyncError
+	SystemAlert  NotificationType = notification.SystemAlert
+	MediaAdded   NotificationType = notification.MediaAdded
+	MediaRemoved NotificationType = notification.MediaRemoved
+	PlaybackStart NotificationType = notification.PlaybackStart
+	PlaybackPause NotificationType = notification.PlaybackPause
+	PlaybackStop  NotificationType = notification.PlaybackStop
 )
 
 // NotificationPriority 通知优先级 - 从 internal/notification 导入

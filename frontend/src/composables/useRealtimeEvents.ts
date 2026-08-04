@@ -3,9 +3,6 @@ import { registerRealtimeSource } from '@/composables/realtimeSources'
 
 // 全局业务事件类型。
 export type RealtimeEventType =
-  | 'scraper_task_start'
-  | 'scraper_task_complete'
-  | 'scraper_item_complete'
   | 'strm_sync_task_start'
   | 'strm_sync_task_queued'
   | 'strm_sync_task_complete'

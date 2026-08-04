@@ -41,7 +41,6 @@ import (
 var Version string = "v0.0.1"
 var PublishDate string = "2025-08-08"
 var OAuthRelayEncryptionKey = ""
-var Update bool = false
 
 var AppName string = "QMediaSync"
 var QMSApp *App
@@ -526,9 +525,9 @@ func initOthers() {
 	// 初始化实时事件中心
 	realtime.GlobalEventHub = realtime.NewEventHub()
 	realtime.GlobalSyncTaskHub = realtime.NewSyncTaskHub()
-	synccron.InitCron()       // 初始化定时任务（包含备份定时任务）
-	synccron.InitSyncCron()   // 初始化同步目录的定时任务
-	synccron.InitTokenCron()  // 初始化定时刷新 115 的访问凭证
+	synccron.InitCron()      // 初始化定时任务（包含备份定时任务）
+	synccron.InitSyncCron()  // 初始化同步目录的定时任务
+	synccron.InitTokenCron() // 初始化定时刷新 115 的访问凭证
 	// 初始化备份服务
 	models.InitBackupService()
 	// 上传中的任务改为待上传
@@ -555,7 +554,7 @@ func setRouter(r *gin.Engine) {
 	})
 	r.POST("/emby/webhook", controllers.Webhook)                           // 接收 Emby 事件回调
 	r.POST("/api/login", controllers.LoginAction)                          // 用户登录
-	r.GET("/api/setup/status", controllers.SetupStatusAction)             // 查询是否需要创建首个管理员
+	r.GET("/api/setup/status", controllers.SetupStatusAction)              // 查询是否需要创建首个管理员
 	r.POST("/api/setup/admin", controllers.CreateInitialAdminAction)       // 创建首个管理员
 	r.POST("/api/strm/webhook", controllers.StrmWebhook)                   // 接收外部 STRM 生成任务
 	r.GET("/api/session", controllers.SessionAction)                       // 获取当前登录会话
@@ -572,12 +571,12 @@ func setRouter(r *gin.Engine) {
 	api := r.Group("/api")
 	api.Use(controllers.JWTAuthMiddleware())
 	{
-		api.GET("/logs/stream", controllers.LogStream)                     // SSE 日志查看
-		api.GET("/events/stream", controllers.EventStream)                 // SSE 事件推送
-		api.GET("/sync/tasks/:id/stream", controllers.SyncTaskStream)      // 同步任务详情实时流
-		api.GET("/logs/old", controllers.GetOldLogs)                       // 通过 HTTP 获取旧日志
-		api.GET("/logs/download", controllers.DownloadLogFile)             // 下载日志文件
-		api.GET("/path/is-fn-os", controllers.IsFnOS)                      // 查询是否是飞牛环境
+		api.GET("/logs/stream", controllers.LogStream)                // SSE 日志查看
+		api.GET("/events/stream", controllers.EventStream)            // SSE 事件推送
+		api.GET("/sync/tasks/:id/stream", controllers.SyncTaskStream) // 同步任务详情实时流
+		api.GET("/logs/old", controllers.GetOldLogs)                  // 通过 HTTP 获取旧日志
+		api.GET("/logs/download", controllers.DownloadLogFile)        // 下载日志文件
+		api.GET("/path/is-fn-os", controllers.IsFnOS)                 // 查询是否是飞牛环境
 
 		// 获取应用版本与运行环境信息
 		api.GET("/version", func(c *gin.Context) {
@@ -666,20 +665,20 @@ func setRouter(r *gin.Engine) {
 		api.GET("/emby/libraries", controllers.GetEmbyLibraries)    // 获取 Emby 媒体库列表
 		// 删除媒体库与同步目录关联
 
-		api.POST("/sync/start", controllers.StartSync)                       // 启动同步
-		api.GET("/sync/records", controllers.GetSyncRecords)                 // 同步列表
-		api.GET("/sync/task", controllers.GetSyncTask)                       // 获取同步任务详情
-		api.GET("/sync/path-list", controllers.GetSyncPathList)              // 获取同步路径列表
-		api.POST("/sync/paths", controllers.CreateSyncPathAggregate)         // 原子创建同步路径
-		api.PUT("/sync/paths/:id", controllers.UpdateSyncPathAggregate)      // 原子更新同步路径
-		api.POST("/sync/path-delete", controllers.DeleteSyncPath)            // 删除同步路径
-		api.POST("/sync/path/stop", controllers.StopSyncByPath)              // 停止同步路径的同步任务
-		api.POST("/sync/path/start", controllers.StartSyncByPath)            // 启动同步路径的同步任务
-		api.POST("/sync/path/full-start", controllers.FullStart115Sync)      // 启动 115 的全量同步任务
-		api.POST("/sync/delete-records", controllers.DelSyncRecords)         // 批量删除同步记录
-		api.POST("/sync/path/toggle-cron", controllers.ToggleSyncByPath)     // 关闭或开启同步目录的定时同步
-		api.GET("/sync/path/:id", controllers.GetSyncPathById)               // 获取同步路径详情
-		api.POST("/sync/manual", controllers.ManualSync)                     // 手动同步
+		api.POST("/sync/start", controllers.StartSync)                   // 启动同步
+		api.GET("/sync/records", controllers.GetSyncRecords)             // 同步列表
+		api.GET("/sync/task", controllers.GetSyncTask)                   // 获取同步任务详情
+		api.GET("/sync/path-list", controllers.GetSyncPathList)          // 获取同步路径列表
+		api.POST("/sync/paths", controllers.CreateSyncPathAggregate)     // 原子创建同步路径
+		api.PUT("/sync/paths/:id", controllers.UpdateSyncPathAggregate)  // 原子更新同步路径
+		api.POST("/sync/path-delete", controllers.DeleteSyncPath)        // 删除同步路径
+		api.POST("/sync/path/stop", controllers.StopSyncByPath)          // 停止同步路径的同步任务
+		api.POST("/sync/path/start", controllers.StartSyncByPath)        // 启动同步路径的同步任务
+		api.POST("/sync/path/full-start", controllers.FullStart115Sync)  // 启动 115 的全量同步任务
+		api.POST("/sync/delete-records", controllers.DelSyncRecords)     // 批量删除同步记录
+		api.POST("/sync/path/toggle-cron", controllers.ToggleSyncByPath) // 关闭或开启同步目录的定时同步
+		api.GET("/sync/path/:id", controllers.GetSyncPathById)           // 获取同步路径详情
+		api.POST("/sync/manual", controllers.ManualSync)                 // 手动同步
 
 		api.GET("/directory-upload/rules", controllers.ListDirectoryUploadRules)                                  // 获取目录监控上传规则
 		api.POST("/directory-upload/sync-paths/:sync_path_id/scan", controllers.ScanDirectoryUploadSyncPathRules) // 手动触发目录监控补偿扫描
@@ -836,10 +835,8 @@ func initEnv() bool {
 
 func parseParams() {
 	// 定义 GUID 参数
-	var update string
 	flag.StringVar(&helpers.Guid, "guid", "", "GUID 参数")
 	flag.BoolVar(&helpers.IsFnOS, "fnos", false, "是否是飞牛环境")
-	flag.StringVar(&update, "update", "", "更新参数")
 	// 解析命令行参数
 	flag.Parse()
 	// 使用参数
@@ -857,10 +854,6 @@ func parseParams() {
 			helpers.Guid = "0"
 		}
 	}
-	// 检查是否是更新模式
-	if update != "" && runtime.GOOS == "windows" {
-		Update = true
-	}
 }
 
 // @title QMediaSync API
@@ -877,10 +870,6 @@ func parseParams() {
 func main() {
 	parseParams()
 	getRootDir()
-	if Update {
-		runUpdateProcess()
-		return
-	}
 	if !initEnv() {
 		panic("初始化环境失败")
 	}
@@ -895,123 +884,6 @@ func main() {
 		}
 	} else {
 		QMSApp.Start()
-	}
-}
-
-func runUpdateProcess() {
-	if len(os.Args) < 3 {
-		fmt.Println("更新参数不足")
-		return
-	}
-
-	updateDir := os.Args[2]
-
-	fmt.Println("开始更新流程…")
-
-	parentPID := os.Getppid()
-	fmt.Printf("等待父进程退出（PID：%d）…\n", parentPID)
-
-	if err := waitForProcessExit(parentPID); err != nil {
-		fmt.Printf("等待父进程退出失败：%v\n", err)
-	}
-
-	fmt.Println("父进程已退出，开始更新…")
-
-	backupDir := filepath.Join(helpers.RootDir, "old")
-
-	if helpers.PathExists(backupDir) {
-		fmt.Println("删除旧的备份目录…")
-		os.RemoveAll(backupDir)
-	}
-
-	os.MkdirAll(backupDir, 0777)
-
-	appName := "QMediaSync.exe"
-	appPath := filepath.Join(helpers.RootDir, appName)
-	newAppPath := filepath.Join(updateDir, appName)
-	if helpers.PathExists(newAppPath) {
-		fmt.Printf("更新 %s…\n", appName)
-		// 将旧的可执行文件改名为 old.exe
-		oldAppPath := appPath + ".old.exe"
-		if helpers.PathExists(oldAppPath) {
-			if err := os.Remove(oldAppPath); err != nil {
-				fmt.Printf("删除旧 %s 失败：%v\n", appName, err)
-				os.Exit(1)
-			}
-		}
-		if err := os.Rename(appPath, oldAppPath); err != nil {
-			fmt.Printf("重命名旧 %s 失败：%v\n", appName, err)
-			os.Exit(1)
-		}
-		if err := helpers.CopyFile(newAppPath, appPath); err != nil {
-			fmt.Printf("更新主程序失败：%v\n", err)
-		}
-	} else {
-		fmt.Printf("更新目录中未找到 %s\n", appName)
-	}
-
-	replaceDir(filepath.Join(updateDir, "web_statics"), filepath.Join(helpers.RootDir, "web_statics"), backupDir)
-	replaceDir(filepath.Join(updateDir, "scripts"), filepath.Join(helpers.RootDir, "scripts"), backupDir)
-	// 删除临时 exe
-	tempExePath := newAppPath + ".temp.exe"
-	if helpers.PathExists(tempExePath) {
-		if err := os.Remove(tempExePath); err != nil {
-			fmt.Printf("删除临时 EXE 文件失败：%v\n", err)
-		}
-	}
-	fmt.Println("更新完成！")
-	fmt.Println("启动新版本…")
-	// 启动新进程
-	if !helpers.StartNewProcess(appPath, "") {
-		fmt.Printf("启动新版本失败\n")
-	}
-}
-
-func waitForProcessExit(pid int) error {
-	maxWait := 30 * time.Second
-	deadline := time.Now().Add(maxWait)
-
-	for time.Now().Before(deadline) {
-
-		alive, err := helpers.IsProcessAlive(pid)
-		if err != nil {
-			return nil
-		}
-		// 检查进程是否已经退出
-		if !alive {
-			fmt.Printf("父进程已退出，等待资源释放…\n")
-			time.Sleep(2 * time.Second)
-			return nil
-		}
-
-		time.Sleep(500 * time.Millisecond)
-	}
-
-	return nil
-}
-
-func replaceDir(srcDir, dstDir, backupDir string) {
-	if !helpers.PathExists(srcDir) {
-		return
-	}
-
-	dirName := filepath.Base(dstDir)
-	backupPath := filepath.Join(backupDir, dirName)
-
-	if helpers.PathExists(dstDir) {
-		fmt.Printf("备份 %s 目录…\n", dirName)
-		os.RemoveAll(backupPath)
-		if err := helpers.CopyDir(dstDir, backupPath); err != nil {
-			fmt.Printf("备份 %s 目录失败：%v\n", dirName, err)
-		}
-
-		fmt.Printf("删除旧 %s 目录…\n", dirName)
-		os.RemoveAll(dstDir)
-	}
-
-	fmt.Printf("更新 %s 目录…\n", dirName)
-	if err := helpers.CopyDir(srcDir, dstDir); err != nil {
-		fmt.Printf("更新 %s 目录失败：%v\n", dirName, err)
 	}
 }
 

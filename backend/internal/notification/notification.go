@@ -70,24 +70,20 @@ type NotificationRule struct {
 type NotificationType string
 
 const (
-	SyncFinished   NotificationType = "sync_finish"
-	SyncError      NotificationType = "sync_error"
-	ScrapeFinished NotificationType = "scrape_finish"
-	ScrapeError    NotificationType = "scrape_error"
-	SystemAlert    NotificationType = "system_alert"
-	MediaAdded     NotificationType = "media_added"
-	MediaRemoved   NotificationType = "media_removed"
-	PlaybackStart  NotificationType = "playback_start" // 播放开始
-	PlaybackPause  NotificationType = "playback_pause" // 播放暂停
-	PlaybackStop   NotificationType = "playback_stop"  // 播放停止
+	SyncFinished  NotificationType = "sync_finish"
+	SyncError     NotificationType = "sync_error"
+	SystemAlert   NotificationType = "system_alert"
+	MediaAdded    NotificationType = "media_added"
+	MediaRemoved  NotificationType = "media_removed"
+	PlaybackStart NotificationType = "playback_start" // 播放开始
+	PlaybackPause NotificationType = "playback_pause" // 播放暂停
+	PlaybackStop  NotificationType = "playback_stop"  // 播放停止
 )
 
 // AllNotificationTypes 所有通知类型，用于创建渠道时的默认规则
 var AllNotificationTypes = []NotificationType{
 	SyncFinished,
 	SyncError,
-	ScrapeFinished,
-	ScrapeError,
 	SystemAlert,
 	MediaAdded,
 	MediaRemoved,

@@ -1,7 +1,6 @@
 package models
 
 import (
-	"errors"
 	"testing"
 
 	"qmediasync/internal/db"

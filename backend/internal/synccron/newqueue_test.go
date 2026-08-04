@@ -289,7 +289,6 @@ func TestSyncTaskTypeFmtStringUsesMachineValue(t *testing.T) {
 		want     string
 	}{
 		{name: "STRM 同步", taskType: SyncTaskTypeStrm, want: "strm_sync"},
-		{name: "刮削整理", taskType: SyncTaskTypeScrape, want: "scrape_organize"},
 	}
 
 	for _, tt := range tests {
@@ -309,7 +308,6 @@ func TestSyncTaskTypeValuesAndDisplayNames(t *testing.T) {
 		wantDisplay string
 	}{
 		{name: "STRM 同步", taskType: SyncTaskTypeStrm, wantValue: "strm_sync", wantDisplay: "STRM 同步"},
-		{name: "刮削整理", taskType: SyncTaskTypeScrape, wantValue: "scrape_organize", wantDisplay: "刮削整理"},
 	}
 
 	for _, tt := range tests {
@@ -334,11 +332,6 @@ func TestNewSyncTaskKeyUsesMachineTaskTypeValue(t *testing.T) {
 			name: "ID 任务使用机器值",
 			task: NewSyncTask{ID: 7, TaskType: SyncTaskTypeStrm},
 			want: "7-strm_sync",
-		},
-		{
-			name: "路径任务使用机器值",
-			task: NewSyncTask{SourcePathId: "/movie", TaskType: SyncTaskTypeScrape},
-			want: "/movie-scrape_organize",
 		},
 	}
 

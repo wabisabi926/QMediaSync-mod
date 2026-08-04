@@ -1,4 +1,5 @@
 import { fileURLToPath, URL } from 'node:url'
+import { resolve } from 'node:path'
 
 import type { Plugin } from 'vite'
 import { defineConfig } from 'vitest/config'
@@ -184,6 +185,9 @@ export default defineConfig(({ mode }) => ({
   test: {
     environment: 'happy-dom',
     include: ['test/**/*.test.{ts,mjs}'],
+    environmentOptions: {
+      url: 'http://localhost/',
+    },
   },
   build: {
     chunkSizeWarningLimit: 700,

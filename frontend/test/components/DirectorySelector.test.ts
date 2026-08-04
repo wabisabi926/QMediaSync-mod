@@ -11,7 +11,7 @@ import { httpKey } from '@/http/client'
 const directorySelectorSource = readFileSync(
   resolve(__dirname, '../../src/components/DirectorySelector.vue'),
   'utf-8',
-)
+).replace(/\r\n/g, '\n')
 
 const emptyDirectory = {
   id: 'empty',

@@ -8,12 +8,6 @@ export const THREAD_LIMITS = {
   urlValidityCheckTimeout: { min: 1, max: 9 },
 } as const
 
-export const SCRAPE_THREAD_LIMITS = {
-  localMax: 20,
-  remoteMax: 5,
-  min: 1,
-} as const
-
 export const STRM_GLOBAL_OPTIONS = {
   localProxy: [0, 1],
   uploadMeta: [0, 1, 2],

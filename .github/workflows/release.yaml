@@ -274,21 +274,26 @@ jobs:
           name: linux-binary-arm64
           path: temp_build
 
-      - name: Install fnpack from URL
+      - name: Install fnpack
         env:
           FNPACK_DOWNLOAD_URL: ${{ secrets.FNPACK_DOWNLOAD_URL }}
         run: |
-          if [ -z "$FNPACK_DOWNLOAD_URL" ]; then
-            echo "FNPACK_DOWNLOAD_URL is not set, fnpack installation skipped"
-            exit 0
+          DEFAULT_FNPACK_URL="https://static2.fnnas.com/fnpack/fnpack-1.2.1-linux-amd64"
+          FNPACK_URL="${FNPACK_DOWNLOAD_URL:-$DEFAULT_FNPACK_URL}"
+          echo "Downloading fnpack from ${FNPACK_URL}"
+          curl -fsSL "$FNPACK_URL" -o /tmp/fnpack
+          if [ ! -s /tmp/fnpack ]; then
+            echo "::error::Failed to download fnpack from ${FNPACK_URL}"
+            exit 1
           fi
-          curl -fsSL "$FNPACK_DOWNLOAD_URL" -o /tmp/fnpack
           chmod +x /tmp/fnpack
           sudo mv /tmp/fnpack /usr/local/bin/fnpack
+          fnpack --help | head -5
 
       - name: Build FNOS packages
         env:
           TAG: ${{ needs.metadata.outputs.tag }}
+          REQUIRE_FNPACK: "1"
         run: |
           mkdir -p release-assets
           scripts/release/package-fnos.sh "$TAG" amd64 temp_build/QMediaSync_linux_amd64_exe backend/web_statics release-assets

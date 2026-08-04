@@ -56,6 +56,7 @@ fi
 mkdir -p "$APP_DIR" "$OUT_DIR"
 rm -f "$APP_DIR/QMediaSync"
 rm -rf "$APP_DIR/web_statics"
+mkdir -p "$APP_DIR/web_statics"
 
 if [ -f "$MANIFEST" ]; then
   sed -i "s/^version[[:space:]]*=.*/version = ${FNOS_VERSION}/g" "$MANIFEST"

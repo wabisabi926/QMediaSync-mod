@@ -69,6 +69,7 @@ if [ "$TARGET_OS" = "linux" ]; then
   chmod +x "$WORK_DIR/$ARCHIVE_NAME/$EXECUTABLE_NAME"
 fi
 
+rm -rf "$WORK_DIR/$ARCHIVE_NAME/web_statics"
 cp -R "$WEB_STATICS_DIR" "$WORK_DIR/$ARCHIVE_NAME/web_statics"
 
 mkdir -p "$WORK_DIR/$ARCHIVE_NAME/scripts"

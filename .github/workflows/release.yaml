@@ -124,6 +124,10 @@ jobs:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.mod
 
+      - name: Clean web_statics before download
+        run: |
+          rm -rf backend/web_statics
+
       - uses: actions/download-artifact@v8
         with:
           name: web-statics
@@ -190,6 +194,10 @@ jobs:
         with:
           ref: ${{ needs.metadata.outputs.tag }}
           fetch-depth: 0
+
+      - name: Clean web_statics before download
+        run: |
+          rm -rf docker-context/backend/web_statics
 
       - uses: actions/download-artifact@v8
         with:
@@ -258,6 +266,10 @@ jobs:
         with:
           ref: ${{ needs.metadata.outputs.tag }}
           fetch-depth: 0
+
+      - name: Clean web_statics before download
+        run: |
+          rm -rf backend/web_statics
 
       - uses: actions/download-artifact@v8
         with:

@@ -15,13 +15,12 @@ describe('taskSourceUtils', () => {
 
   it('formats upload source storage values', () => {
     expect(getUploadSourceName('strm_sync')).toBe('STRM 同步')
-    expect(getUploadSourceName('scrape_organize')).toBe('刮削整理')
     expect(getUploadSourceName('directory_monitor')).toBe('目录监控上传')
   })
 
   it('formats sync queue task type storage values', () => {
     expect(getSyncTaskTypeName('strm_sync')).toBe('STRM 同步')
-    expect(getSyncTaskTypeName('scrape_organize')).toBe('刮削整理')
+    expect(getSyncTaskTypeName('directory_monitor')).toBe('目录监控上传')
   })
 
   it('formats task source type storage values', () => {

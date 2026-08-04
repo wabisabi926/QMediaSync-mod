@@ -72,9 +72,11 @@ fi
 rm -rf "$WORK_DIR/$ARCHIVE_NAME/web_statics"
 cp -R "$WEB_STATICS_DIR" "$WORK_DIR/$ARCHIVE_NAME/web_statics"
 
-mkdir -p "$WORK_DIR/$ARCHIVE_NAME/scripts"
-cp "$DOCKER_ENTRYPOINT" "$WORK_DIR/$ARCHIVE_NAME/scripts/docker-entrypoint.sh"
-cp "$DOCKER_WATCH_UPDATE" "$WORK_DIR/$ARCHIVE_NAME/scripts/watch_update.sh"
+if [ "$TARGET_OS" = "linux" ]; then
+  mkdir -p "$WORK_DIR/$ARCHIVE_NAME/scripts"
+  cp "$DOCKER_ENTRYPOINT" "$WORK_DIR/$ARCHIVE_NAME/scripts/docker-entrypoint.sh"
+  cp "$DOCKER_WATCH_UPDATE" "$WORK_DIR/$ARCHIVE_NAME/scripts/watch_update.sh"
+fi
 
 if [ "$TARGET_OS" = "windows" ] && [ -f "$ICON_PATH" ]; then
   cp "$ICON_PATH" "$WORK_DIR/$ARCHIVE_NAME/icon.ico"

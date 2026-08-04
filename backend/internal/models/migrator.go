@@ -588,13 +588,15 @@ type legacyDownloadRemoteIdentity struct {
 }
 
 func migrateTransferRemoteIdentity(dbConn *gorm.DB) error {
+	// 在 AutoMigrate 之前记录旧列状态，避免 AutoMigrate 重新添加已删除的列导致误判
+	hasLegacyCompletedRemoteFileID := dbConn.Migrator().HasColumn("db_upload_tasks", "completed_remote_file_id")
 	if err := dbConn.AutoMigrate(SyncFile{}, DbDownloadTask{}, DbUploadTask{}); err != nil {
 		return fmt.Errorf("添加传输远端身份字段失败：%w", err)
 	}
 	if err := migrateLegacyDownloadRemoteIdentity(dbConn); err != nil {
 		return err
 	}
-	if err := migrateLegacyUploadRemoteIdentity(dbConn); err != nil {
+	if err := migrateLegacyUploadRemoteIdentity(dbConn, hasLegacyCompletedRemoteFileID); err != nil {
 		return err
 	}
 	for _, column := range []string{"completed_remote_file_id", "completed_pick_code"} {
@@ -943,8 +945,7 @@ func migrateLegacyDownloadRemoteIdentity(dbConn *gorm.DB) error {
 	return nil
 }
 
-func migrateLegacyUploadRemoteIdentity(dbConn *gorm.DB) error {
-	hasLegacyCompletedRemoteFileID := dbConn.Migrator().HasColumn("db_upload_tasks", "completed_remote_file_id")
+func migrateLegacyUploadRemoteIdentity(dbConn *gorm.DB, hasLegacyCompletedRemoteFileID bool) error {
 	var tasks []legacyUploadRemoteIdentity
 	if err := dbConn.Table("db_upload_tasks").Find(&tasks).Error; err != nil {
 		return fmt.Errorf("读取旧上传任务远端身份失败：%w", err)

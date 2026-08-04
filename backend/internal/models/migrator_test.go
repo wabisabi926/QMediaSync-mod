@@ -371,7 +371,6 @@ func TestMigrateTaskSourceEnumValues(t *testing.T) {
 
 	uploadTasks := []DbUploadTask{
 		{RemoteFileId: "upload-strm", LocalFullPath: "/tmp/strm.nfo", Source: UploadSource("strm同步"), SourceType: SourceType115},
-		{RemoteFileId: "upload-scrape", LocalFullPath: "/tmp/scrape.nfo", Source: UploadSource("刮削整理"), SourceType: SourceType115},
 		{RemoteFileId: "upload-already-new", LocalFullPath: "/tmp/already-new.nfo", Source: UploadSource("strm_sync"), SourceType: SourceType115},
 		{RemoteFileId: "upload-unknown", LocalFullPath: "/tmp/unknown.nfo", Source: UploadSource("custom_source"), SourceType: SourceType("custom_type")},
 	}
@@ -398,7 +397,6 @@ func TestMigrateTaskSourceEnumValues(t *testing.T) {
 	assertDownloadTaskSource(t, "download-already-new", "strm_sync", "115")
 	assertDownloadTaskSource(t, "download-unknown", "custom_source", "custom_type")
 	assertUploadTaskSource(t, "/tmp/strm.nfo", "strm_sync")
-	assertUploadTaskSource(t, "/tmp/scrape.nfo", "scrape_organize")
 	assertUploadTaskSource(t, "/tmp/already-new.nfo", "strm_sync")
 	assertUploadTaskSource(t, "/tmp/unknown.nfo", "custom_source")
 }

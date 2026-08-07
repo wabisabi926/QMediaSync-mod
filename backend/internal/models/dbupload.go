@@ -12,7 +12,9 @@ import (
 
 	"qmediasync/internal/db"
 	"qmediasync/internal/helpers"
+	"qmediasync/internal/openlist"
 	"qmediasync/internal/realtime"
+	openapiclient "qmediasync/openxpanapi"
 
 	"gorm.io/gorm"
 )
@@ -67,49 +69,47 @@ const (
 
 type DbUploadTask struct {
 	BaseModel
-	Source                UploadSource              `json:"source"` // 上传来源存储值，展示文案由前端映射
-	AccountId             uint                      `json:"account_id"`
-	SyncFileId            uint                      `json:"sync_file_id"`                                      // 同步文件 ID
-	SyncPathId            uint                      `json:"sync_path_id" gorm:"index"`                         // 同步目录 ID
-	SourceType            SourceType                `json:"source_type"`                                       // 任务来源类型
-	LocalFullPath         string                    `json:"local_full_path" gorm:"index:idx_local_full_path"`  // 本地完整文件路径，包含文件名
-	RelativePath          string                    `json:"relative_path" gorm:"type:text;size:1024"`          // 目录监控源文件相对路径
-	SourceFingerprint     string                    `json:"source_fingerprint" gorm:"size:128;index"`          // 目录监控源文件签名
-	RemoteFileId          string                    `json:"remote_file_id" gorm:"index:idx_remote_file_id"`    // 远程文件 ID，包含完整路径
-	RemotePathId          string                    `json:"remote_path_id"`                                    // 父目录 CID，如果是 115 则是文件夹 ID，如果是 OpenList 则是父文件夹路径
-	RemoteFullPath        string                    `json:"remote_full_path" gorm:"index:idx_remote_full_path"` // 创建任务时确定的远端完整目标路径
-	RemotePickCode        string                    `json:"remote_pick_code" gorm:"size:128"`                   // 115 上传完成后返回的 PickCode
-	RemoteSha1            string                    `json:"remote_sha1"`                                        // 远端明确返回的 SHA1
-	RemoteMd5             string                    `json:"remote_md5"`                                         // 远端明确返回的 MD5
-	ReplacedRemoteFileId  string                    `json:"replaced_remote_file_id" gorm:"size:128"`            // 覆盖上传成功删除的旧远端文件 ID
-	FileName              string                    `json:"file_name"`                                         // 要上传的文件名
-	Status                UploadStatus              `json:"status" gorm:"index:idx_status_new"`                // 任务状态
-	FileSize              int64                     `json:"file_size"`                                         // 文件大小
-	LocalMtime            int64                     `json:"local_mtime" gorm:"default:0"`                      // 本地源文件修改时间，用于源文件清理前校验
-	LocalMtimeNs          int64                     `json:"local_mtime_ns" gorm:"default:0"`                   // 本地源文件纳秒级修改时间
-	UploadedBytes         int64                     `json:"uploaded_bytes" gorm:"default:0"`                   // 已上传字节数
-	UploadResult          UploadResult              `json:"upload_result" gorm:"size:32;default:unknown"`      // 上传结果
-	ResumeState           UploadResumeState         `json:"resume_state" gorm:"size:32;default:none"`          // 断点续传状态
-	RapidWaitAttempts     int                       `json:"rapid_wait_attempts" gorm:"default:0"`              // 秒传等待已尝试次数
-	RapidWaitUntil        int64                     `json:"rapid_wait_until" gorm:"default:0"`                 // 秒传等待截止时间
-	CompletedRemoteFileId string                    `json:"completed_remote_file_id" gorm:"size:128"`          // 完成后的远端文件 ID
-	CompletedPickCode     string                    `json:"completed_pick_code" gorm:"size:128"`               // 完成后的 pickcode
-	Error                 string                    `json:"error"`                                             // 错误信息
-	StartTime             int64                     `json:"start_time"`                                        // 开始时间
-	EndTime               int64                     `json:"end_time"`                                          // 结束时间
-	RetryCount            int                       `json:"retry_count" gorm:"default:0"`                      // 已重试次数
-	LastRetryTime         int64                     `json:"last_retry_time" gorm:"default:0"`                  // 最近重试时间
-	SourceCleanupStatus   UploadSourceCleanupStatus `json:"source_cleanup_status" gorm:"size:32;default:none"` // 源文件清理状态
-	SourceCleanupError    string                    `json:"source_cleanup_error" gorm:"type:text"`             // 源文件清理错误
-	SourceDeletedAt       int64                     `json:"source_deleted_at" gorm:"default:0"`                // 源文件删除时间
-	IsSeasonOrTvshowFile  bool                      `json:"is_season_or_tvshow_file"`                          // 是否是剧集或电视剧文件
-	SyncFile              *SyncFile                 `json:"-" gorm:"-"`                                        // 同步文件
-	Account               *Account                  `json:"-" gorm:"-"`                                        // 账户
-	UploadPhase           string                    `json:"upload_phase" gorm:"-"`                             // 上传阶段，仅用于队列展示
-	UploadSpeedBytes      int64                     `json:"upload_speed_bytes" gorm:"-"`                       // 上传速度，仅用于队列展示
-	ProgressPercent       float64                   `json:"progress_percent" gorm:"-"`                         // 上传进度，仅用于队列展示
-	TotalParts            int                       `json:"total_parts" gorm:"-"`                              // 总分片数，仅用于队列展示
-	UploadedParts         int                       `json:"uploaded_parts" gorm:"-"`                           // 已上传分片数，仅用于队列展示
+	Source               UploadSource              `json:"source"` // 上传来源存储值，展示文案由前端映射
+	AccountId            uint                      `json:"account_id"`
+	SyncFileId           uint                      `json:"sync_file_id"`                                       // 同步文件 ID
+	SyncPathId           uint                      `json:"sync_path_id" gorm:"index"`                          // 同步目录 ID
+	SourceType           SourceType                `json:"source_type"`                                        // 任务来源类型
+	LocalFullPath        string                    `json:"local_full_path" gorm:"index:idx_local_full_path"`   // 本地完整文件路径，包含文件名
+	RelativePath         string                    `json:"relative_path" gorm:"type:text;size:1024"`           // 目录监控源文件相对路径
+	SourceFingerprint    string                    `json:"source_fingerprint" gorm:"size:128;index"`           // 目录监控源文件签名
+	RemoteFileId         string                    `json:"remote_file_id" gorm:"index:idx_remote_file_id"`     // 上传完成后远端返回的稳定文件 ID
+	RemoteFullPath       string                    `json:"remote_full_path" gorm:"index:idx_remote_full_path"` // 创建任务时确定的远端完整目标路径
+	RemotePathId         string                    `json:"remote_path_id"`                                     // 远端父目录 ID，仅来源实际提供时填写
+	RemotePickCode       string                    `json:"remote_pick_code" gorm:"size:128"`                   // 115 上传完成后返回的 PickCode
+	RemoteSha1           string                    `json:"remote_sha1"`                                        // 远端明确返回的 SHA1
+	RemoteMd5            string                    `json:"remote_md5"`                                         // 远端明确返回的 MD5
+	ReplacedRemoteFileId string                    `json:"replaced_remote_file_id" gorm:"size:128"`            // 覆盖上传成功删除的旧远端文件 ID
+	FileName             string                    `json:"file_name"`                                          // 要上传的文件名
+	Status               UploadStatus              `json:"status" gorm:"index:idx_status_new"`                 // 任务状态
+	FileSize             int64                     `json:"file_size"`                                          // 文件大小
+	LocalMtime           int64                     `json:"local_mtime" gorm:"default:0"`                       // 本地源文件修改时间，用于源文件清理前校验
+	LocalMtimeNs         int64                     `json:"local_mtime_ns" gorm:"default:0"`                    // 本地源文件纳秒级修改时间
+	UploadedBytes        int64                     `json:"uploaded_bytes" gorm:"default:0"`                    // 已上传字节数
+	UploadResult         UploadResult              `json:"upload_result" gorm:"size:32;default:unknown"`       // 上传结果
+	ResumeState          UploadResumeState         `json:"resume_state" gorm:"size:32;default:none"`           // 断点续传状态
+	RapidWaitAttempts    int                       `json:"rapid_wait_attempts" gorm:"default:0"`               // 秒传等待已尝试次数
+	RapidWaitUntil       int64                     `json:"rapid_wait_until" gorm:"default:0"`                  // 秒传等待截止时间
+	Error                string                    `json:"error"`                                              // 错误信息
+	StartTime            int64                     `json:"start_time"`                                         // 开始时间
+	EndTime              int64                     `json:"end_time"`                                           // 结束时间
+	RetryCount           int                       `json:"retry_count" gorm:"default:0"`                       // 已重试次数
+	LastRetryTime        int64                     `json:"last_retry_time" gorm:"default:0"`                   // 最近重试时间
+	SourceCleanupStatus  UploadSourceCleanupStatus `json:"source_cleanup_status" gorm:"size:32;default:none"`  // 源文件清理状态
+	SourceCleanupError   string                    `json:"source_cleanup_error" gorm:"type:text"`              // 源文件清理错误
+	SourceDeletedAt      int64                     `json:"source_deleted_at" gorm:"default:0"`                 // 源文件删除时间
+	IsSeasonOrTvshowFile bool                      `json:"is_season_or_tvshow_file"`                           // 是否是剧集或电视剧文件
+	SyncFile             *SyncFile                 `json:"-" gorm:"-"`                                         // 同步文件
+	Account              *Account                  `json:"-" gorm:"-"`                                         // 账户
+	UploadPhase          string                    `json:"upload_phase" gorm:"-"`                              // 上传阶段，仅用于队列展示
+	UploadSpeedBytes     int64                     `json:"upload_speed_bytes" gorm:"-"`                        // 上传速度，仅用于队列展示
+	ProgressPercent      float64                   `json:"progress_percent" gorm:"-"`                          // 上传进度，仅用于队列展示
+	TotalParts           int                       `json:"total_parts" gorm:"-"`                               // 总分片数，仅用于队列展示
+	UploadedParts        int                       `json:"uploaded_parts" gorm:"-"`                            // 已上传分片数，仅用于队列展示
 	baiduUploadMtime     int64                     // 本轮百度创建文件响应确认的远端修改时间，仅供即时 STRM 收尾
 }
 
@@ -142,6 +142,38 @@ func activeUploadTaskStatuses() []UploadStatus {
 		UploadStatusRemoteCompletedPendingFinalize,
 		UploadStatusRemoteCompletedFinalizing,
 	}
+}
+
+var errActiveUploadTaskExists = errors.New("存在相同目标的活跃上传任务")
+
+func activeUploadTaskExistsError(task *DbUploadTask) error {
+	if task == nil {
+		return errActiveUploadTaskExists
+	}
+	switch task.Status {
+	case UploadStatusPending:
+		return errors.New("任务已存在，状态为待上传")
+	case UploadStatusUploading:
+		return errors.New("任务已存在，状态为上传中")
+	case UploadStatusRemoteCompletedPendingFinalize:
+		return errors.New("任务已存在，状态为远端已完成待收尾")
+	case UploadStatusRemoteCompletedFinalizing:
+		return errors.New("任务已存在，状态为远端已完成收尾中")
+	default:
+		return errActiveUploadTaskExists
+	}
+}
+
+func isActiveUploadTaskUniqueConstraintError(err error) bool {
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, activeUploadTaskUniqueIndexName) ||
+		strings.Contains(message, "unique constraint failed: db_upload_tasks.source, db_upload_tasks.source_type, db_upload_tasks.account_id, db_upload_tasks.remote_full_path")
 }
 
 // CanRetry 判断上传任务是否还能重试
@@ -621,14 +653,26 @@ func (task *DbUploadTask) UploadBaiduPanFile() bool {
 		return false
 	}
 	task.Uploading()
+	task.baiduUploadMtime = 0
 	// 调用上传方法
-	resp, err := client.Upload(context.Background(), task.LocalFullPath, task.RemoteFileId)
+	resp, err := client.Upload(context.Background(), task.LocalFullPath, task.RemoteFullPath)
 	if err != nil {
 		task.Fail(fmt.Errorf("百度网盘上传文件 %s 失败：%v", task.FileName, err))
 		return false
 	}
-	if task.Source == UploadSourceStrm {
-		t := time.Unix(int64(*resp.Mtime), 0)
+	if resp == nil {
+		task.Fail(errors.New("百度网盘上传返回空响应"))
+		return false
+	}
+	mtime, hasUsableMtime := task.applyBaiduUploadResponse(resp)
+	if err := db.Db.Model(task).Updates(map[string]any{
+		"remote_file_id": task.RemoteFileId,
+		"remote_md5":     task.RemoteMd5,
+	}).Error; err != nil {
+		helpers.AppLogger.Warnf("[上传] 保存百度远端身份信息失败：%s", err.Error())
+	}
+	if task.Source == UploadSourceStrm && hasUsableMtime && mtime > 0 {
+		t := time.Unix(mtime, 0)
 		// 更新本地文件的修改时间
 		err = os.Chtimes(task.LocalFullPath, t, t)
 		if err != nil {
@@ -636,7 +680,29 @@ func (task *DbUploadTask) UploadBaiduPanFile() bool {
 			return false
 		}
 	}
+	if hasUsableMtime {
+		// 不持久化：收尾重试或进程重启时按完整路径补详情，避免把旧本地 mtime 当作远端值。
+		task.baiduUploadMtime = mtime
+	}
 	return true
+}
+
+// applyBaiduUploadResponse 只保存百度创建文件响应明确返回的远端身份与正数修改时间。
+// 响应字段均为可选值；缺失或零值时间保留已有身份，但不尝试同步本地修改时间。
+func (task *DbUploadTask) applyBaiduUploadResponse(response *openapiclient.Filecreateresponse) (mtime int64, hasUsableMtime bool) {
+	if task == nil || response == nil {
+		return 0, false
+	}
+	if response.FsId != nil {
+		task.RemoteFileId = fmt.Sprint(*response.FsId)
+	}
+	if response.Md5 != nil {
+		task.RemoteMd5 = *response.Md5
+	}
+	if response.Mtime == nil || *response.Mtime <= 0 {
+		return 0, false
+	}
+	return int64(*response.Mtime), true
 }
 
 func (task *DbUploadTask) UploadOpenListFile() bool {
@@ -653,18 +719,22 @@ func (task *DbUploadTask) UploadOpenListFile() bool {
 		return false
 	}
 	task.Uploading()
-	_, err := client.Upload(task.LocalFullPath, task.RemoteFileId)
+	_, err := client.Upload(task.LocalFullPath, task.RemoteFullPath)
 	if err != nil {
 		task.Fail(fmt.Errorf("OpenList 上传文件 %s 失败：%v", task.FileName, err))
 		return false
 	}
 	if task.Source == UploadSourceStrm {
 		// 查询文件详情
-		detail, err := client.FileDetail(task.RemoteFileId)
+		detail, err := client.FileDetail(task.RemoteFullPath)
 		if err != nil {
-			task.Fail(fmt.Errorf("OpenList 查询文件详情 %s 失败：%s", task.RemoteFileId, err.Error()))
+			task.Fail(fmt.Errorf("OpenList 查询文件详情 %s 失败：%s", task.RemoteFullPath, err.Error()))
 			return false
 		}
+		sha1, md5 := openlist.KnownHashes(detail.HashInfoMap)
+		task.RemoteFileId = detail.ID
+		task.RemoteSha1 = sha1
+		task.RemoteMd5 = md5
 		// 将 ISO 8601 格式的日期字符串转换为时间戳
 		t, err := time.Parse(time.RFC3339, detail.Modified)
 		if err != nil {
@@ -683,9 +753,9 @@ func (task *DbUploadTask) UploadOpenListFile() bool {
 
 func (task *DbUploadTask) UploadLocalFile() bool {
 	task.Uploading()
-	err := helpers.CopyFile(task.LocalFullPath, task.RemoteFileId)
+	err := helpers.CopyFile(task.LocalFullPath, task.RemoteFullPath)
 	if err != nil {
-		task.Fail(fmt.Errorf("本地文件 %s 复制到 %s 失败：%v", task.LocalFullPath, task.RemoteFileId, err))
+		task.Fail(fmt.Errorf("本地文件 %s 复制到 %s 失败：%v", task.LocalFullPath, task.RemoteFullPath, err))
 		return false
 	}
 	return true
@@ -703,42 +773,8 @@ func CheckCanUploadByLocalPath(source UploadSource, localPath string) bool {
 	return total == 0
 }
 
-// errActiveUploadTaskExists 表示活跃上传任务已存在，用于在事务内传递去重信号。
-var errActiveUploadTaskExists = errors.New("活跃上传任务已存在")
-
-// activeUploadTaskExistsError 根据已有任务状态返回可读的重复入队错误。
-func activeUploadTaskExistsError(task *DbUploadTask) error {
-	if task == nil {
-		return errActiveUploadTaskExists
-	}
-	switch task.Status {
-	case UploadStatusPending:
-		return errors.New("任务已存在，状态为待上传")
-	case UploadStatusUploading:
-		return errors.New("任务已存在，状态为上传中")
-	case UploadStatusRemoteCompletedPendingFinalize:
-		return errors.New("任务已存在，状态为远端已完成待收尾")
-	case UploadStatusRemoteCompletedFinalizing:
-		return errors.New("任务已存在，状态为远端已完成收尾中")
-	default:
-		return errActiveUploadTaskExists
-	}
-}
-
-// isActiveUploadTaskUniqueConstraintError 判断错误是否为活跃上传任务唯一索引冲突。
-func isActiveUploadTaskUniqueConstraintError(err error) bool {
-	if errors.Is(err, gorm.ErrDuplicatedKey) {
-		return true
-	}
-	if err == nil {
-		return false
-	}
-	message := strings.ToLower(err.Error())
-	return strings.Contains(message, activeUploadTaskUniqueIndexName) ||
-		strings.Contains(message, "unique constraint failed: db_upload_tasks.source, db_upload_tasks.source_type, db_upload_tasks.account_id, db_upload_tasks.remote_full_path")
-}
-
-// CheckUploadTaskExist 按存储范围检查活跃上传任务是否已存在。
+// 检查同一存储范围内是否存在活跃的上传任务。
+// 完整远端路径只在同一来源、存储类型和账号内唯一；同步目录不参与范围，因为路径已是实际上传目标。
 func CheckUploadTaskExist(source UploadSource, sourceType SourceType, accountID uint, remoteFullPath string) *DbUploadTask {
 	var task *DbUploadTask
 	err := db.Db.Model(&DbUploadTask{}).
@@ -777,17 +813,6 @@ func replacedRemoteFileIDFromSyncFile(file *SyncFile) string {
 	}
 }
 
-// createUploadTaskWithDB 在指定事务中创建上传任务，并将唯一索引冲突归一化为去重信号。
-func createUploadTaskWithDB(tx *gorm.DB, task *DbUploadTask) error {
-	if err := tx.Create(task).Error; err != nil {
-		if isActiveUploadTaskUniqueConstraintError(err) {
-			return errActiveUploadTaskExists
-		}
-		return err
-	}
-	return nil
-}
-
 // AddDirectoryMonitorUploadTask 添加目录监控产生的上传任务。
 func AddDirectoryMonitorUploadTask(task *DbUploadTask) error {
 	if err := SaveDirectoryMonitorUploadTaskWithDB(db.Db, task); err != nil {
@@ -815,7 +840,18 @@ func SaveDirectoryMonitorUploadTaskWithDB(tx *gorm.DB, task *DbUploadTask) error
 	if task.SourceCleanupStatus == "" {
 		task.SourceCleanupStatus = UploadSourceCleanupStatusNone
 	}
-	return tx.Save(task).Error
+	return createUploadTaskWithDB(tx, task)
+}
+
+// createUploadTaskWithDB 创建上传任务，并将数据库层的活跃目标唯一约束转换为业务错误。
+func createUploadTaskWithDB(tx *gorm.DB, task *DbUploadTask) error {
+	if err := tx.Create(task).Error; err != nil {
+		if isActiveUploadTaskUniqueConstraintError(err) {
+			return errActiveUploadTaskExists
+		}
+		return err
+	}
+	return nil
 }
 
 // PublishUploadTaskCreated 发布上传任务创建事件。
@@ -838,6 +874,9 @@ func AddUploadTaskFromSyncFile(file *SyncFile) error {
 	if task := CheckUploadTaskExist(UploadSourceStrm, file.SourceType, file.AccountId, remoteFullPath); task != nil {
 		return activeUploadTaskExistsError(task)
 	}
+	// if file.SyncPath == nil {
+	// 	file.SyncPath = GetSyncPathById(file.SyncPathId)
+	// }
 	// 插入新纪录
 	task := &DbUploadTask{
 		AccountId:      file.AccountId,
@@ -846,13 +885,14 @@ func AddUploadTaskFromSyncFile(file *SyncFile) error {
 		SyncPathId:     file.SyncPathId,
 		RemoteFullPath: remoteFullPath,
 		FileName:       file.FileName,
-		RemotePathId:    uploadRemoteParentID(file.SourceType, file.ParentId),
+		RemotePathId:   uploadRemoteParentID(file.SourceType, file.ParentId),
 		LocalFullPath:  file.LocalFilePath,
 		Source:         UploadSourceStrm,
 		Status:         UploadStatusPending,
 		FileSize:       file.FileSize,
 	}
 	if replacedRemoteFileID := replacedRemoteFileIDFromSyncFile(file); replacedRemoteFileID != "" {
+		// 只有覆盖已有 SyncFile 的流程才会传入已存在的远端文件 ID；新上传任务不复用它。
 		task.ReplacedRemoteFileId = replacedRemoteFileID
 	}
 	err := createUploadTaskWithDB(db.Db, task)
@@ -1006,12 +1046,4 @@ func RetryFailedUploadTasks(maxRetry int) error {
 	helpers.AppLogger.Infof("重试失败的上传任务完成：成功 %d 个，因活跃同目标或状态变化跳过 %d 个", retried, skipped)
 	publishUploadQueueChanged(nil, "retry_failed")
 	return nil
-}
-
-func GetUnFinishUploadTaskCountByScrapeMediaId(scrapeMediaFileId uint) int64 {
-	var count int64
-	db.Db.Model(&DbUploadTask{}).
-		Where("scrape_media_file_id = ? AND status IN ?", scrapeMediaFileId, activeUploadTaskStatuses()).
-		Count(&count)
-	return count
 }

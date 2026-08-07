@@ -1,10 +1,51 @@
 package models
 
 import (
+	"errors"
 	"testing"
 
 	"qmediasync/internal/db"
+	openapiclient "qmediasync/openxpanapi"
 )
+
+func TestApplyBaiduUploadResponseOnlyUsesAvailableRemoteFields(t *testing.T) {
+	fsID := int64(123456)
+	md5 := "remote-md5"
+	mtime := int32(1_700_000_000)
+	task := &DbUploadTask{}
+	gotMtime, hasMtime := task.applyBaiduUploadResponse(&openapiclient.Filecreateresponse{
+		FsId:  &fsID,
+		Md5:   &md5,
+		Mtime: &mtime,
+	})
+	if task.RemoteFileId != "123456" || task.RemoteMd5 != "remote-md5" || !hasMtime || gotMtime != int64(mtime) {
+		t.Fatalf("百度上传响应写入结果 = task=%+v mtime=%d hasMtime=%t", task, gotMtime, hasMtime)
+	}
+
+	zeroMtime := int32(0)
+	zeroFsID := int64(654321)
+	zeroMD5 := "zero-mtime-md5"
+	task = &DbUploadTask{}
+	gotMtime, hasMtime = task.applyBaiduUploadResponse(&openapiclient.Filecreateresponse{
+		FsId:  &zeroFsID,
+		Md5:   &zeroMD5,
+		Mtime: &zeroMtime,
+	})
+	if task.RemoteFileId != "654321" || task.RemoteMd5 != "zero-mtime-md5" || hasMtime || gotMtime != 0 {
+		t.Fatalf("零值修改时间响应 = task=%+v mtime=%d hasMtime=%t", task, gotMtime, hasMtime)
+	}
+
+	task = &DbUploadTask{RemoteFileId: "known-id", RemoteMd5: "known-md5"}
+	gotMtime, hasMtime = task.applyBaiduUploadResponse(&openapiclient.Filecreateresponse{})
+	if task.RemoteFileId != "known-id" || task.RemoteMd5 != "known-md5" || hasMtime || gotMtime != 0 {
+		t.Fatalf("缺少可选字段时不应覆盖已有身份或伪造修改时间: task=%+v mtime=%d hasMtime=%t", task, gotMtime, hasMtime)
+	}
+
+	gotMtime, hasMtime = task.applyBaiduUploadResponse(nil)
+	if hasMtime || gotMtime != 0 {
+		t.Fatalf("空响应不应提供修改时间: mtime=%d hasMtime=%t", gotMtime, hasMtime)
+	}
+}
 
 func TestAddUploadTaskFromSyncFileKeepsOnlyStableParentID(t *testing.T) {
 	tests := []struct {
@@ -170,6 +211,45 @@ func TestAddUploadTaskFromSyncFileDeduplicatesActiveTasksWithinStorageScope(t *t
 	}
 	if err := AddUploadTaskFromSyncFile(newFile(6, SourceType115, 1, 3)); err == nil {
 		t.Fatal("活跃上传任务不应被历史完成任务掩盖")
+	}
+}
+
+func TestCreateUploadTaskWithDBRejectsActiveDuplicateAtInsert(t *testing.T) {
+	setupQueueStatusTestDB(t)
+	if err := ensureActiveUploadTaskUniqueIndex(db.Db); err != nil {
+		t.Fatalf("创建活跃上传任务唯一索引失败: %v", err)
+	}
+
+	first := &DbUploadTask{
+		Source:         UploadSourceStrm,
+		SourceType:     SourceType115,
+		AccountId:      1,
+		RemoteFullPath: "/remote/target/movie.mkv",
+		Status:         UploadStatusPending,
+	}
+	if err := createUploadTaskWithDB(db.Db, first); err != nil {
+		t.Fatalf("创建基准上传任务失败: %v", err)
+	}
+
+	duplicate := &DbUploadTask{
+		Source:         UploadSourceStrm,
+		SourceType:     SourceType115,
+		AccountId:      1,
+		RemoteFullPath: "/remote/target/movie.mkv",
+		Status:         UploadStatusPending,
+	}
+	if err := createUploadTaskWithDB(db.Db, duplicate); !errors.Is(err, errActiveUploadTaskExists) {
+		t.Fatalf("活跃目标冲突错误 = %v，期望 errActiveUploadTaskExists", err)
+	}
+
+	if err := createUploadTaskWithDB(db.Db, &DbUploadTask{
+		Source:         UploadSourceStrm,
+		SourceType:     SourceType115,
+		AccountId:      1,
+		RemoteFullPath: "/remote/target/movie.mkv",
+		Status:         UploadStatusCompleted,
+	}); err != nil {
+		t.Fatalf("已完成任务应不受活跃唯一约束影响: %v", err)
 	}
 }
 

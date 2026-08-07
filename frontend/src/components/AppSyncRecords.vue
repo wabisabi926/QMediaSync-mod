@@ -44,6 +44,8 @@
         :loading="initialLoading || queryLoading"
         :is-mobile="isMobileView"
         :expanded-row-keys="pageState.expandedRowKeys"
+        show-all-details
+        :detail-columns="3"
         :show-selection="batchMode"
         :selectable="isDeletableRecord"
         :height="isMobileView ? 'calc(100vh - 250px)' : 'calc(100vh - 350px)'"
@@ -71,9 +73,6 @@
         </template>
         <template #cell-local_path="{ row }">
           <div class="sync-path-cell">
-            <el-text type="primary" class="sync-path-cell__id show-on-mobile"
-              >#{{ row.id }}</el-text
-            >
             <span class="sync-path-cell__route">
               {{ row.remote_path || '-' }} => {{ row.local_path || '-' }}
             </span>
@@ -308,7 +307,14 @@ const getSubStatusText = (subStatus: number) => {
 
 const syncRecordColumns: RecordColumn<SyncRecord>[] = [
   { key: 'id', label: '任务 ID', priority: 'primary', width: 88, align: 'center' },
-  { key: 'status', label: '状态', priority: 'primary', width: 96, align: 'center' },
+  {
+    key: 'status',
+    label: '状态',
+    priority: 'primary',
+    width: 96,
+    align: 'center',
+    detailField: { key: 'status', label: '状态', value: (row) => getStatusText(row.status) },
+  },
   { key: 'sub_status', label: '子状态', priority: 'secondary', minWidth: 112 },
   {
     key: 'start_time',
@@ -341,7 +347,7 @@ const syncRecordColumns: RecordColumn<SyncRecord>[] = [
       key: 'local_path',
       label: '本地路径',
       value: (row) => row.local_path,
-      span: 2,
+      span: 3,
       isLongText: true,
     },
   },
@@ -353,7 +359,7 @@ const syncRecordColumns: RecordColumn<SyncRecord>[] = [
       key: 'remote_path',
       label: '网盘路径',
       value: (row) => row.remote_path,
-      span: 2,
+      span: 3,
       isLongText: true,
     },
   },
@@ -366,7 +372,7 @@ const syncRecordColumns: RecordColumn<SyncRecord>[] = [
       label: '统计',
       value: (row) =>
         `总文件 ${row.processed_files}，STRM ${row.created_strm}，元数据：下载 ${row.downloaded_meta} / 上传 ${row.uploaded_meta}，媒体库：${getEmbyRefreshDecision({ createdStrm: row.created_strm, downloadedMeta: row.downloaded_meta, status: row.status }).label}`,
-      span: 2,
+      span: 3,
     },
   },
   {
@@ -377,7 +383,7 @@ const syncRecordColumns: RecordColumn<SyncRecord>[] = [
       key: 'fail_reason',
       label: '失败原因',
       value: (row) => row.fail_reason || '-',
-      span: 2,
+      span: 3,
       isLongText: true,
     },
   },
@@ -835,10 +841,6 @@ watch(batchMode, (val) => {
   min-width: 0;
 }
 
-.sync-path-cell__id {
-  flex: 0 0 auto;
-}
-
 .sync-path-cell__route {
   min-width: 0;
   overflow-wrap: anywhere;
@@ -876,7 +878,7 @@ watch(batchMode, (val) => {
     font-size: 13px;
   }
 
-  .sync-table {
+  .sync-table :deep(.record-table) {
     font-size: 12px;
   }
 }

@@ -274,23 +274,6 @@ func newApp() {
 	}
 }
 
-func configureInitialAdminSetup() error {
-	hasUser, err := models.HasAnyUser()
-	if err != nil {
-		return err
-	}
-	_, err = controllers.ConfigureInitialSetup(!hasUser)
-	if err != nil {
-		return err
-	}
-	if !hasUser {
-		helpers.AppLogger.RequiredWarnf(
-			"检测到系统尚未创建管理员，可通过 Web 页面创建首个管理员账号",
-		)
-	}
-	return nil
-}
-
 func initTimeZone() {
 	cstZone := time.FixedZone("CST", 8*3600)
 	time.Local = cstZone
@@ -554,8 +537,6 @@ func setRouter(r *gin.Engine) {
 	})
 	r.POST("/emby/webhook", controllers.Webhook)                           // 接收 Emby 事件回调
 	r.POST("/api/login", controllers.LoginAction)                          // 用户登录
-	r.GET("/api/setup/status", controllers.SetupStatusAction)              // 查询是否需要创建首个管理员
-	r.POST("/api/setup/admin", controllers.CreateInitialAdminAction)       // 创建首个管理员
 	r.POST("/api/strm/webhook", controllers.StrmWebhook)                   // 接收外部 STRM 生成任务
 	r.GET("/api/session", controllers.SessionAction)                       // 获取当前登录会话
 	r.GET("/115/url/*filename", controllers.Get115UrlByPickCode)           // 查询 115 直链，按 PickCode 查询，支持 ISO，路径最后一部分为 .扩展名格式
@@ -825,10 +806,6 @@ func initEnv() bool {
 	}
 
 	db.InitCache() // 初始化内存缓存
-	if err := configureInitialAdminSetup(); err != nil {
-		helpers.AppLogger.Errorf("初始化管理员创建状态失败：%v", err)
-		return false
-	}
 	initOthers()
 	return true
 }

@@ -13,12 +13,19 @@
       <!-- 侧边栏 -->
       <el-aside
         :width="isMobile ? '250px' : '200px'"
-        :class="{ 'mobile-aside': isMobile, 'mobile-aside-open': isMobile && isMenuOpen }"
+        :class="{
+          'mobile-aside': isMobile,
+          'mobile-aside-open': isMobile && isMenuOpen,
+          'is-menu-scrolling': isMenuScrolling,
+        }"
+        @wheel.passive="handleMenuWheel"
       >
         <!-- 用户信息 -->
         <div class="user-info">
           <div class="user-avatar">
-            <img src="/favicon.ico" alt="avatar" crossorigin="anonymous" />
+            <el-icon size="24">
+              <User />
+            </el-icon>
           </div>
           <div class="user-details">
             <div class="username">{{ authStore.user?.username || '用户' }}</div>
@@ -29,6 +36,7 @@
         </div>
 
         <el-menu
+          ref="menuRef"
           :default-active="$route.path"
           :default-openeds="defaultOpeneds"
           router
@@ -61,7 +69,6 @@
               <span>{{ menu.meta.title }}</span>
             </el-menu-item>
           </template>
-          <!-- 使用帮助 -->
           <!-- 使用帮助 -->
           <el-menu-item index="help" @click="openHelp">
             <el-icon>
@@ -198,13 +205,22 @@ import {
   QuestionFilled,
   RefreshLeft,
   Setting,
+  Tools,
   Upload,
   User,
   UserFilled,
   VideoPlay,
   View,
 } from '@element-plus/icons-vue'
-import { ref, onUnmounted, computed, markRaw, watch, type Component as VueComponent } from 'vue'
+import {
+  ref,
+  onUnmounted,
+  computed,
+  markRaw,
+  useTemplateRef,
+  watch,
+  type Component as VueComponent,
+} from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useBackupStore } from '@/stores/backup'
@@ -215,7 +231,7 @@ import {
   realtimeConnectionState,
   realtimeSupported,
 } from '@/composables/useRealtimeEvents'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, type MenuInstance } from 'element-plus'
 import { formatDuration } from '@/utils/timeUtils'
 
 const route = useRoute()
@@ -224,19 +240,12 @@ const authStore = useAuthStore()
 const backupStore = useBackupStore()
 const { isMobile } = useDeviceType()
 const isMenuOpen = ref(false)
+const menuRef = useTemplateRef<MenuInstance>('menuRef')
 
 // KeepAlive include 匹配组件名，不匹配路由名
-const cachedComponentNames = [
-  'AppUploadQueue',
-  'AppDownloadQueue',
-  'AppSyncRecords',
-]
+const cachedComponentNames = ['AppUploadQueue', 'AppDownloadQueue', 'AppSyncRecords']
 
-const cachedRouteNames = new Set([
-  'upload-queue',
-  'download-queue',
-  'sync-records',
-])
+const cachedRouteNames = new Set(['upload-queue', 'download-queue', 'sync-records'])
 
 const getRouteViewKey = (routeName: unknown, fullPath: string) => {
   if (typeof routeName === 'string' && cachedRouteNames.has(routeName)) {
@@ -262,6 +271,7 @@ const menuIconMap = {
   Promotion: markRaw(Promotion),
   RefreshLeft: markRaw(RefreshLeft),
   Setting: markRaw(Setting),
+  Tools: markRaw(Tools),
   Upload: markRaw(Upload),
   User: markRaw(User),
   UserFilled: markRaw(UserFilled),
@@ -380,6 +390,20 @@ const toggleMenu = () => {
   isMenuOpen.value = !isMenuOpen.value
 }
 
+// 滚轮滚动期间关闭菜单命中测试，避免每帧重算 hover 触发重绘；触摸和拖动滚动条不触发 wheel。
+// 空闲阈值要覆盖滚轮事件之间的间隔，又不能长到滚动停止后仍吞掉点击。
+const MENU_SCROLL_IDLE_MS = 120
+const isMenuScrolling = ref(false)
+let menuScrollIdleTimer: ReturnType<typeof setTimeout> | undefined
+
+const handleMenuWheel = () => {
+  isMenuScrolling.value = true
+  clearTimeout(menuScrollIdleTimer)
+  menuScrollIdleTimer = setTimeout(() => {
+    isMenuScrolling.value = false
+  }, MENU_SCROLL_IDLE_MS)
+}
+
 // 处理菜单选择，移动端选择后关闭菜单
 const handleMenuSelect = () => {
   if (isMobile.value) {
@@ -409,17 +433,29 @@ const getCurrentPageTitle = (): string => {
   return (route.meta.title as string) || '首页'
 }
 
+// 当前页所属一级菜单的 index（即父级路由 path）。以 route.meta.parent 为准，
+// 因为存在 /settings/strm 归属 sync 这类路径前缀与父菜单不一致的路由。
+// 只有真正渲染成 el-sub-menu 的一级菜单才可展开，因此要求父菜单存在子菜单。
+const activeParentMenuIndex = computed(() => {
+  const parentName = route.meta.parent
+  if (!parentName) return ''
+  const parentMenu = menuItems.value.find((menu) => menu.name === parentName)
+  if (!parentMenu?.children?.length) return ''
+  return parentMenu.path
+})
+
+// el-menu 只在初始化时读取一次 default-openeds，之后不再监听该 prop，
+// 因此它只决定首屏（硬刷新、登录后首次进入）的展开状态。
 const defaultOpeneds = computed(() => {
-  const openeds: string[] = []
-  if (route.path.startsWith('/settings') || route.path.startsWith('/proxy'))
-    openeds.push('/settings')
-  if (route.path.startsWith('/instant-upload') || route.path.startsWith('/media-import'))
-    openeds.push('/instant')
-  if (route.path.startsWith('/sync')) openeds.push('/sync')
-  if (route.path.includes('upload-queue') || route.path.includes('download-queue'))
-    openeds.push('/transfer')
-  if (route.path.startsWith('/database/backup')) openeds.push('/database')
-  return openeds
+  const index = activeParentMenuIndex.value
+  return index ? [index] : []
+})
+
+// SPA 内跳转时，Element Plus 只能根据 default-active 命中的 el-menu-item 自行展开其祖先子菜单；
+// 详情页和表单页这类 showInMenu 为 false 的路由没有对应菜单项，必须由这里补上展开。
+watch(activeParentMenuIndex, (index) => {
+  if (!index) return
+  menuRef.value?.open(index)
 })
 
 // 获取进度状态样式
@@ -451,14 +487,13 @@ watch(isMobile, (nextIsMobile) => {
 onUnmounted(() => {
   // 清理轮询定时器
   backupStore.stopProgressPolling()
+  clearTimeout(menuScrollIdleTimer)
 })
 </script>
 
 <style>
 #app {
   font-family: Avenir, Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
   color: #2c3e50;
   height: 100vh;
   overflow: hidden;
@@ -478,6 +513,9 @@ onUnmounted(() => {
 }
 
 .el-aside {
+  --submenu-fade-in: 0.3s;
+  --submenu-fade-out: 0.2s;
+
   background-color: rgb(244 244 245);
   z-index: 1000;
   display: flex;
@@ -496,19 +534,13 @@ onUnmounted(() => {
 .user-avatar {
   width: 40px;
   height: 40px;
-  border-radius: 8px;
-  overflow: hidden;
-  flex-shrink: 0;
-  background-color: transparent;
+  border-radius: 50%;
+  background-color: #409eff;
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.user-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+  color: white;
+  flex-shrink: 0;
 }
 
 .user-details {
@@ -539,6 +571,35 @@ onUnmounted(() => {
   background-color: rgb(244 244 245);
   /* border-right: none; */
   flex: 1;
+  /* 规避 Chromium 缺陷：菜单整体位移后图标 <path> 会被跳过绘制，提升为独立合成层修复 */
+  will-change: transform;
+}
+
+.el-aside .el-menu-item,
+.el-aside .el-sub-menu__title {
+  transition: none;
+}
+
+.el-aside.is-menu-scrolling .el-menu-vertical {
+  pointer-events: none;
+}
+
+.el-aside .el-collapse-transition-enter-active {
+  transition: none;
+  animation: submenu-fade var(--submenu-fade-in) ease-out;
+}
+
+.el-aside .el-collapse-transition-leave-active {
+  /* 只有 max-height 需要推迟：Element Plus 的内联子菜单没有上下内边距，padding 是 0 到 0 */
+  transition: max-height 0s var(--submenu-fade-out);
+  animation: submenu-fade var(--submenu-fade-out) ease-out reverse;
+}
+
+@keyframes submenu-fade {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
 }
 
 .main-content {
@@ -640,6 +701,12 @@ onUnmounted(() => {
 @media (prefers-reduced-motion: reduce) {
   .mobile-aside {
     transition: none;
+  }
+
+  .el-aside .el-collapse-transition-enter-active,
+  .el-aside .el-collapse-transition-leave-active {
+    transition: none;
+    animation: none;
   }
 }
 

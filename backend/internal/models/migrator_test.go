@@ -1019,7 +1019,7 @@ func TestMigrateVersion60SeparatesTransferRemoteIdentityFields(t *testing.T) {
 			(1, 'strm_sync', '115', 1, '/remote/upload/movie.mkv', '115-parent', 'movie.mkv', 'completed-115-id', 'completed-115-pick'),
 			(2, 'strm_sync', '115', 1, 'replaced-115-id', '115-parent', 'movie.mkv', 'new-115-id', 'new-115-pick'),
 			(3, 'directory_monitor', '115', 0, 'directory-old-id', '115-parent', 'directory.mkv', 'directory-new-id', 'directory-new-pick'),
-			(4, 'scrape_organize', 'baidupan', 2, '/remote/upload/baidu.mkv', '/remote/upload', 'baidu.mkv', '', 'legacy-baidu-pick-code'),
+			(4, 'strm_sync', 'baidupan', 2, '/remote/upload/baidu.mkv', '/remote/upload', 'baidu.mkv', '', 'legacy-baidu-pick-code'),
 			(5, 'strm_sync', '115', 1, 'pending-replaced-115-id', '115-parent', 'movie.mkv', '', '')
 	`).Error; err != nil {
 		t.Fatalf("写入旧上传任务失败: %v", err)

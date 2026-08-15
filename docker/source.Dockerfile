@@ -26,10 +26,11 @@ ARG TARGETOS
 ARG TARGETARCH
 ARG VERSION=v0.0.0
 ARG BUILD_DATE=0000-00-00T00:00:00
+ARG OAUTH_RELAY_ENCRYPTION_KEY
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -tags=nomsgpack -ldflags "-s -w -X main.Version=${VERSION} -X 'main.PublishDate=${BUILD_DATE}'" -o QMediaSync .
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -tags=nomsgpack -ldflags "-s -w -X main.Version=${VERSION} -X 'main.PublishDate=${BUILD_DATE}' -X main.OAuthRelayEncryptionKey=${OAUTH_RELAY_ENCRYPTION_KEY}" -o QMediaSync .
 
 FROM alpine:3.20
 ENV TZ=Asia/Shanghai \

@@ -72,6 +72,7 @@ fi
 rm -rf "$WORK_DIR/$ARCHIVE_NAME/web_statics"
 cp -R "$WEB_STATICS_DIR" "$WORK_DIR/$ARCHIVE_NAME/web_statics"
 
+# Docker 在线更新复用 Linux 发布包；Windows 使用原生 EXE 更新流程。
 if [ "$TARGET_OS" = "linux" ]; then
   mkdir -p "$WORK_DIR/$ARCHIVE_NAME/scripts"
   cp "$DOCKER_ENTRYPOINT" "$WORK_DIR/$ARCHIVE_NAME/scripts/docker-entrypoint.sh"

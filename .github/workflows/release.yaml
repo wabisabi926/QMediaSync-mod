@@ -139,6 +139,7 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           TAG: ${{ needs.metadata.outputs.tag }}
           BUILD_DATE: ${{ needs.metadata.outputs.build_date }}
+          OAUTH_RELAY_ENCRYPTION_KEY: ${{ secrets.OAUTH_RELAY_ENCRYPTION_KEY }}
         run: |
           mkdir -p dist release-assets linux-binaries
 
@@ -147,7 +148,7 @@ jobs:
             extra_ldflags="-H=windowsgui "
           fi
 
-          ldflags="${extra_ldflags}-s -w -X main.Version=${TAG} -X 'main.PublishDate=${BUILD_DATE}'"
+          ldflags="${extra_ldflags}-s -w -X main.Version=${TAG} -X 'main.PublishDate=${BUILD_DATE}' -X main.OAuthRelayEncryptionKey=${OAUTH_RELAY_ENCRYPTION_KEY}"
           output="dist/QMediaSync_${GOOS}_${GOARCH}"
           if [ "$GOOS" = "windows" ]; then
             output="${output}.exe"
@@ -365,7 +366,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.metadata.outputs.tag }}
-          name: Release ${{ needs.metadata.outputs.tag }}
+          name: ${{ needs.metadata.outputs.tag }}
           body_path: release_notes.md
           files: release-assets/*
           fail_on_unmatched_files: false

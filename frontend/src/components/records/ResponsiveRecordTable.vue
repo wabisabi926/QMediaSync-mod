@@ -74,6 +74,7 @@ const handleExpandChange = (row: TRow, expandedRows: TRow[]) => {
       :empty-text="emptyText"
       :class="['record-table', rowHeightClass]"
       :show-overflow-tooltip="true"
+      :tooltip-options="{ popperClass: 'qms-contained-tooltip', strategy: 'fixed' }"
       :style="{ width: isMobile ? 'max-content' : '100%' }"
       stripe
       @selection-change="emit('selectionChange', $event)"
@@ -103,7 +104,7 @@ const handleExpandChange = (row: TRow, expandedRows: TRow[]) => {
         :min-width="column.minWidth"
         :align="column.align"
         :class-name="column.className"
-        show-overflow-tooltip
+        :show-overflow-tooltip="column.showOverflowTooltip ?? true"
       >
         <template #default="{ row }">
           <slot :name="`cell-${column.key}`" :row="row">

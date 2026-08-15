@@ -57,5 +57,6 @@ jobs:
           build-args: |
             VERSION=${{ steps.meta.outputs.version }}
             BUILD_DATE=${{ steps.meta.outputs.build_date }}
+            OAUTH_RELAY_ENCRYPTION_KEY=${{ secrets.OAUTH_RELAY_ENCRYPTION_KEY }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

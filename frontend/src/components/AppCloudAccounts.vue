@@ -1,16 +1,7 @@
 <template>
   <div class="cloud-accounts-page">
-    <div class="page-header">
-      <div class="header-content">
-        <div class="header-title-section">
-          <h1 class="page-title">
-            <el-icon class="title-icon">
-              <Cloudy />
-            </el-icon>
-            网盘账号管理
-          </h1>
-          <p class="page-subtitle">管理网盘账号授权与绑定</p>
-        </div>
+    <PageHeader>
+      <template #actions>
         <div class="header-actions">
           <el-button
             type="primary"
@@ -21,54 +12,11 @@
             <span class="btn-text">添加账号</span>
           </el-button>
         </div>
-      </div>
-      <div class="stats-bar mobile-hidden">
-        <div class="stat-item">
-          <div class="stat-icon total">
-            <el-icon>
-              <User />
-            </el-icon>
-          </div>
-          <div class="stat-info">
-            <span class="stat-value">{{ accounts.length }}</span>
-            <span class="stat-label">总账号数</span>
-          </div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-icon authorized">
-            <el-icon>
-              <CircleCheck />
-            </el-icon>
-          </div>
-          <div class="stat-info">
-            <span class="stat-value">{{ authorizedCount }}</span>
-            <span class="stat-label">已授权</span>
-          </div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-icon unauthorized">
-            <el-icon>
-              <WarningFilled />
-            </el-icon>
-          </div>
-          <div class="stat-info">
-            <span class="stat-value">{{ unauthorizedCount }}</span>
-            <span class="stat-label">未授权</span>
-          </div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-icon failed">
-            <el-icon>
-              <CircleClose />
-            </el-icon>
-          </div>
-          <div class="stat-info">
-            <span class="stat-value">{{ failedCount }}</span>
-            <span class="stat-label">授权失败</span>
-          </div>
-        </div>
-      </div>
-    </div>
+      </template>
+      <template #stats>
+        <PageStats :items="stats" />
+      </template>
+    </PageHeader>
 
     <div class="accounts-content">
       <div class="accounts-grid" v-if="accounts.length > 0">
@@ -284,6 +232,8 @@
                   v-if="account.token_failed_reason && !account.token"
                   :content="account.token_failed_reason"
                   placement="top"
+                  popper-class="qms-contained-tooltip"
+                  append-to="body"
                 >
                   <el-icon class="error-help-icon">
                     <QuestionFilled />
@@ -558,6 +508,8 @@
 
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
+import PageHeader from '@/components/common/PageHeader.vue'
+import PageStats from '@/components/common/PageStats.vue'
 import V115AuthorizationDialog from '@/components/cloud-auth/V115AuthorizationDialog.vue'
 import V115AppSelector from '@/components/cloud-auth/V115AppSelector.vue'
 import type { AxiosError } from 'axios'
@@ -573,7 +525,6 @@ import {
   Calendar,
   Delete,
   Edit,
-  Cloudy,
   CircleCheck,
   CircleClose,
   InfoFilled,
@@ -691,6 +642,12 @@ const unauthorizedCount = computed(
 const failedCount = computed(
   () => accounts.value.filter((a) => a.token_failed_reason && !a.token).length,
 )
+const stats = computed(() => [
+  { icon: User, value: accounts.value.length, label: '总账号数', tone: 'total' },
+  { icon: CircleCheck, value: authorizedCount.value, label: '已授权', tone: 'authorized' },
+  { icon: WarningFilled, value: unauthorizedCount.value, label: '未授权', tone: 'unauthorized' },
+  { icon: CircleClose, value: failedCount.value, label: '授权失败', tone: 'failed' },
+])
 const editDialogTitle = computed(() =>
   editAccountForm.value.source_type === 'openlist' ? '编辑 OpenList 账号' : '编辑账号',
 )
@@ -1286,54 +1243,13 @@ onMounted(() => {
 
 <style scoped>
 .cloud-accounts-page {
+  position: relative;
   min-height: 100%;
-  background: #f5f7fa;
-  padding: 0;
-}
-
-.page-header {
-  background: #fff;
-  padding: 24px;
-  border-bottom: 1px solid #ebeef5;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.header-title-section {
-  flex: 1;
-}
-
-.page-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0 0 8px 0;
-  font-size: 24px;
-  font-weight: 600;
-  color: #303133;
-}
-
-.title-icon {
-  font-size: 28px;
-  color: #409eff;
-}
-
-.page-subtitle {
-  margin: 0;
-  font-size: 14px;
-  color: #909399;
+  padding: 0 24px 24px;
 }
 
 .header-actions {
   display: flex;
-  gap: 12px;
 }
 
 .add-btn {
@@ -1349,71 +1265,8 @@ onMounted(() => {
   border-color: #66b1ff !important;
 }
 
-.stats-bar {
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.stat-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: #f5f7fa;
-  padding: 12px 16px;
-  border-radius: 8px;
-  min-width: 140px;
-}
-
-.stat-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-}
-
-.stat-icon.total {
-  background: #ecf5ff;
-  color: #409eff;
-}
-
-.stat-icon.authorized {
-  background: #f0f9eb;
-  color: #67c23a;
-}
-
-.stat-icon.unauthorized {
-  background: #fdf6ec;
-  color: #e6a23c;
-}
-
-.stat-icon.failed {
-  background: #fef0f0;
-  color: #f56c6c;
-}
-
-.stat-info {
-  display: flex;
-  flex-direction: column;
-}
-
-.stat-value {
-  font-size: 20px;
-  font-weight: 600;
-  line-height: 1.2;
-  color: #303133;
-}
-
-.stat-label {
-  font-size: 12px;
-  color: #909399;
-}
-
 .accounts-content {
-  padding: 24px;
+  padding: 0;
 }
 
 .accounts-grid {
@@ -1427,6 +1280,7 @@ onMounted(() => {
   background: #fff;
   border-radius: 16px;
   overflow: hidden;
+  border: 1px solid #dcdfe6;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
   transition:
     transform 0.2s ease,
@@ -1440,6 +1294,7 @@ onMounted(() => {
 }
 
 .account-card.is-authorized {
+  border-color: #b3e19d;
   box-shadow: 0 2px 12px rgba(103, 194, 58, 0.2);
 }
 
@@ -1448,6 +1303,7 @@ onMounted(() => {
 }
 
 .account-card.is-unauthorized {
+  border-color: #f3d19e;
   box-shadow: 0 2px 12px rgba(230, 162, 60, 0.2);
 }
 
@@ -1456,6 +1312,7 @@ onMounted(() => {
 }
 
 .account-card.is-failed {
+  border-color: #f5b5b5;
   box-shadow: 0 2px 12px rgba(245, 108, 108, 0.2);
 }
 
@@ -1697,6 +1554,7 @@ onMounted(() => {
   padding: 60px 20px;
   background: #fff;
   border-radius: 16px;
+  border: 1px solid #dcdfe6;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
   margin-bottom: 24px;
 }
@@ -1894,6 +1752,10 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
+  .cloud-accounts-page {
+    padding: 0 8px 8px;
+  }
+
   .account-dialog {
     display: flex;
     flex-direction: column;
@@ -1912,25 +1774,13 @@ onMounted(() => {
     flex-shrink: 0;
   }
 
-  .page-header {
-    padding: 12px;
-    background: #fff;
-  }
-
-  .header-title-section {
-    display: none;
-  }
-
-  .header-content {
-    margin-bottom: 0;
-  }
-
   .header-actions {
+    width: max-content;
     justify-content: stretch;
   }
 
   .header-actions .add-btn {
-    width: 100%;
+    width: auto;
     background: #409eff !important;
     border-color: #409eff !important;
     color: #fff !important;
@@ -1942,12 +1792,8 @@ onMounted(() => {
     transform: none;
   }
 
-  .mobile-hidden {
-    display: none !important;
-  }
-
   .accounts-content {
-    padding: 12px;
+    padding: 0;
   }
 
   .accounts-grid {

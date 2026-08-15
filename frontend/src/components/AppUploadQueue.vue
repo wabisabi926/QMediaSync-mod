@@ -1,50 +1,45 @@
 <template>
   <div class="upload-queue-container">
-    <div class="card-header">
-      <div>
-        <h2 class="hide-on-mobile">上传队列</h2>
-        <p class="queue-description">
-          上传队列包含 STRM
-          同步和刮削流程产生的元数据上传任务，可在这里查看进度、重试失败任务或清理记录。
-        </p>
-      </div>
-      <div class="header-actions">
-        <div class="queue-control-actions">
-          <el-button
-            type="info"
-            :size="queueControlSize"
-            @click="refreshQueue"
-            :loading="backgroundRefreshing"
-            >刷新</el-button
-          >
-          <el-button
-            type="warning"
-            :size="queueControlSize"
-            @click="pauseAllTasks"
-            :disabled="!canPauseAllTasks"
-            >全部暂停</el-button
-          >
-          <el-button
-            type="success"
-            :size="queueControlSize"
-            @click="resumeAllTasks"
-            :disabled="!canResumeAllTasks"
-            >全部恢复</el-button
-          >
+    <PageHeader class="upload-queue-page-header">
+      <template #actions>
+        <div class="header-actions">
+          <div class="queue-control-actions">
+            <el-button
+              type="info"
+              :size="queueControlSize"
+              @click="refreshQueue"
+              :loading="backgroundRefreshing"
+              >刷新</el-button
+            >
+            <el-button
+              type="warning"
+              :size="queueControlSize"
+              @click="pauseAllTasks"
+              :disabled="!canPauseAllTasks"
+              >全部暂停</el-button
+            >
+            <el-button
+              type="success"
+              :size="queueControlSize"
+              @click="resumeAllTasks"
+              :disabled="!canResumeAllTasks"
+              >全部恢复</el-button
+            >
+          </div>
+          <div class="queue-cleanup-actions">
+            <el-button type="warning" :size="queueControlSize" @click="retryAllFailedTasks"
+              >重试失败</el-button
+            >
+            <el-button type="warning" :size="queueControlSize" @click="clearQueue"
+              >清空等待</el-button
+            >
+            <el-button type="danger" :size="queueControlSize" @click="clearSuccessAndFailedTasks"
+              >清空完成/失败</el-button
+            >
+          </div>
         </div>
-        <div class="queue-cleanup-actions">
-          <el-button type="warning" :size="queueControlSize" @click="retryAllFailedTasks"
-            >重试失败</el-button
-          >
-          <el-button type="warning" :size="queueControlSize" @click="clearQueue"
-            >清空等待</el-button
-          >
-          <el-button type="danger" :size="queueControlSize" @click="clearSuccessAndFailedTasks"
-            >清空完成/失败</el-button
-          >
-        </div>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <div class="queue-toolbar-row">
       <div class="filter-container">
@@ -82,6 +77,7 @@
       :data="queueData"
       style="width: 100%"
       v-loading="initialLoading || queryLoading"
+      :show-header="queueData.length > 0"
       empty-text="暂无上传任务"
       :row-key="(row: UploadTask) => String(row.id)"
       :expand-row-keys="pageState.expandedRowKeys"
@@ -213,7 +209,12 @@
       <el-table-column label="任务" width="320">
         <template #default="scope">
           <div class="desktop-task-summary">
-            <el-tooltip :content="getUploadTaskTooltipContent(scope.row)" placement="top">
+            <el-tooltip
+              :content="getUploadTaskTooltipContent(scope.row)"
+              placement="top"
+              popper-class="qms-contained-tooltip"
+              append-to="body"
+            >
               <div class="desktop-task-summary-text">
                 <span class="desktop-task-file-name">{{ getUploadTaskName(scope.row) }}</span>
                 <span class="desktop-task-meta">
@@ -238,7 +239,12 @@
       <el-table-column prop="status" label="状态" width="104">
         <template #default="scope">
           <div v-if="scope.row.error">
-            <el-tooltip :content="scope.row.error" placement="top">
+            <el-tooltip
+              :content="scope.row.error"
+              placement="top"
+              popper-class="qms-contained-tooltip"
+              append-to="body"
+            >
               <el-tag :type="getUploadStatusTagType(scope.row.status)">
                 <el-icon>
                   <WarningFilled />
@@ -285,6 +291,8 @@
               v-if="getUploadTransportDetailSummary(scope.row)"
               :content="getUploadTransportDetailSummary(scope.row)"
               placement="top"
+              popper-class="qms-contained-tooltip"
+              append-to="body"
             >
               <el-text class="stage-detail-link" type="info">详情</el-text>
             </el-tooltip>
@@ -297,6 +305,8 @@
             v-if="getUploadQueueLocationSummary(scope.row)"
             :content="getUploadQueueLocationSummary(scope.row)"
             placement="top"
+            popper-class="qms-contained-tooltip"
+            append-to="body"
           >
             <span class="desktop-location-summary">
               <template
@@ -353,6 +363,7 @@ import {
   useTemplateRef,
 } from 'vue'
 import ResponsivePagination from '@/components/common/ResponsivePagination.vue'
+import PageHeader from '@/components/common/PageHeader.vue'
 import QueueTaskExpandButton from '@/components/queue/QueueTaskExpandButton.vue'
 import QueueTaskDetails from '@/components/queue/QueueTaskDetails.vue'
 import { ElMessage, ElMessageBox, type TableInstance } from 'element-plus'
@@ -1081,9 +1092,14 @@ onUnmounted(() => {
 
 <style scoped>
 .upload-queue-container {
+  position: relative;
   width: 100%;
   padding: 20px;
   box-sizing: border-box;
+}
+
+.upload-queue-container :deep(.upload-queue-page-header) {
+  margin-bottom: 0;
 }
 
 .upload-queue-card {
@@ -1091,18 +1107,6 @@ onUnmounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.card-header h2 {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 600;
 }
 
 .header-actions {
@@ -1121,11 +1125,6 @@ onUnmounted(() => {
 
 .header-actions :deep(.el-button + .el-button) {
   margin-left: 0;
-}
-
-.queue-description {
-  margin: 0;
-  color: #606266;
 }
 
 .queue-toolbar-row {
@@ -1323,17 +1322,6 @@ onUnmounted(() => {
 @media (max-width: 768px) {
   .upload-queue-container {
     padding: 12px;
-  }
-
-  .card-header p {
-    margin: 0;
-    font-size: 12px;
-    line-height: 1.4;
-  }
-
-  .card-header {
-    flex-direction: column;
-    align-items: flex-start;
   }
 
   .header-actions {

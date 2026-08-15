@@ -6,13 +6,6 @@ export type V115AuthSourceType =
 export type V115AuthProvider =
   'official_pkce' | 'mqfamily' | 'qmediasync' | 'moviepilot' | 'clouddrive'
 
-type V115WebRelayProvider = Extract<V115AuthProvider, 'mqfamily' | 'qmediasync'>
-type V115WebThirdPartyProvider = Extract<V115AuthProvider, 'moviepilot' | 'clouddrive'>
-
-export type V115WebAuthProviderValue =
-  | `built_in_relay:${V115WebRelayProvider}:${string}`
-  | `third_party_service:${V115WebThirdPartyProvider}:${string}`
-
 export interface V115SelectedQrApp {
   appId: string
   appName: string
@@ -21,7 +14,7 @@ export interface V115SelectedQrApp {
 export interface V115CreateSelection {
   authMode: V115AuthMode
   selectedQrApp: V115SelectedQrApp
-  selectedWebProvider: V115WebAuthProviderValue
+  selectedWebProvider: V115AuthProvider
   customAppId: string
   customAppName: string
 }
@@ -42,10 +35,39 @@ export interface V115AccountAuthInfo {
   auth_provider?: V115AuthProvider
 }
 
+const webAuthorizationSourceTypes: V115AuthSourceType[] = ['built_in_relay', 'third_party_service']
+
+const legacyWebAuthorizationAppNames = ['QMediaSync', 'Q115-STRM', 'MQ的媒体库']
+
+const isV115WebAuthorizationSource = (sourceType?: V115AuthSourceType): boolean =>
+  sourceType !== undefined && webAuthorizationSourceTypes.includes(sourceType)
+
+const isLegacyV115WebAuthorizationAppName = (appName?: string, fallback = ''): boolean =>
+  legacyWebAuthorizationAppNames.includes(appName || fallback)
+
+export const getDefaultV115ChangeSelection = (
+  account: V115AccountAuthInfo,
+): V115CreateSelection => {
+  const currentProvider = account.auth_provider
+  const currentWebProvider = webAuthProviders.find(
+    (provider) => provider.provider === currentProvider,
+  )
+  const isWebAuthorization =
+    isV115WebAuthorizationSource(account.auth_source_type) ||
+    (!account.auth_source_type && isLegacyV115WebAuthorizationAppName(account.app_id_name))
+
+  return {
+    authMode: isWebAuthorization ? 'oauth' : 'qr',
+    selectedQrApp: { appId: '100197849', appName: 'QMediaSync' },
+    selectedWebProvider: currentWebProvider?.provider ?? defaultWebAuthProviderValue,
+    customAppId: '',
+    customAppName: '',
+  }
+}
+
 export type V115AuthAction = 'pkce' | 'oauth' | 'unsupported'
 
 export interface V115WebAuthProviderOption {
-  value: V115WebAuthProviderValue
   label: string
   sourceType: V115AuthSourceType
   provider: V115AuthProvider
@@ -56,8 +78,6 @@ export interface V115WebAuthProviderOption {
 
 export const pinnedBuiltInAppIDs = [
   { label: 'QMediaSync', value: '100197849', appName: 'QMediaSync' },
-  { label: 'Q115-STRM', value: '100197665', appName: 'Q115-STRM' },
-  { label: 'MQ的媒体库', value: '100197503', appName: 'MQ的媒体库' },
 ] as const
 
 export const featuredBuiltInAppIDs = [
@@ -69,28 +89,12 @@ export const featuredBuiltInAppIDs = [
 
 export const webAuthProviders: V115WebAuthProviderOption[] = [
   {
-    value: 'built_in_relay:qmediasync:QMediaSync',
     label: 'QMediaSync',
     sourceType: 'built_in_relay',
     provider: 'qmediasync',
     appName: 'QMediaSync',
   },
   {
-    value: 'built_in_relay:mqfamily:Q115-STRM',
-    label: 'Q115-STRM',
-    sourceType: 'built_in_relay',
-    provider: 'mqfamily',
-    appName: 'Q115-STRM',
-  },
-  {
-    value: 'built_in_relay:mqfamily:MQ的媒体库',
-    label: 'MQ的媒体库',
-    sourceType: 'built_in_relay',
-    provider: 'mqfamily',
-    appName: 'MQ的媒体库',
-  },
-  {
-    value: 'third_party_service:moviepilot:MoviePilot-115',
     label: 'MoviePilot',
     sourceType: 'third_party_service',
     provider: 'moviepilot',
@@ -98,7 +102,6 @@ export const webAuthProviders: V115WebAuthProviderOption[] = [
     appName: 'MoviePilot-115',
   },
   {
-    value: 'third_party_service:clouddrive:CloudDrive',
     label: 'CloudDrive',
     sourceType: 'third_party_service',
     provider: 'clouddrive',
@@ -107,11 +110,13 @@ export const webAuthProviders: V115WebAuthProviderOption[] = [
   },
 ]
 
-export const defaultWebAuthProviderValue = webAuthProviders[0].value
+export const defaultWebAuthProviderValue: V115AuthProvider = webAuthProviders[0].provider
 
 export const buildV115CreatePayload = (selection: V115CreateSelection): V115CreatePayload => {
   if (selection.authMode === 'oauth') {
-    const provider = webAuthProviders.find((item) => item.value === selection.selectedWebProvider)
+    const provider = webAuthProviders.find(
+      (item) => item.provider === selection.selectedWebProvider,
+    )
     return {
       auth_source_type: provider?.sourceType ?? 'built_in_relay',
       auth_provider: provider?.provider ?? 'qmediasync',
@@ -145,17 +150,14 @@ export const getV115AuthAction = (account: V115AccountAuthInfo): V115AuthAction 
   if (account.auth_provider === 'official_pkce') {
     return 'pkce'
   }
-  if (
-    account.auth_source_type === 'built_in_relay' ||
-    account.auth_source_type === 'third_party_service'
-  ) {
+  if (isV115WebAuthorizationSource(account.auth_source_type)) {
     return 'oauth'
   }
   if (!account.auth_source_type) {
     if (account.app_id) {
       return 'pkce'
     }
-    if (['QMediaSync', 'Q115-STRM', 'MQ的媒体库'].includes(account.app_id_name || 'QMediaSync')) {
+    if (isLegacyV115WebAuthorizationAppName(account.app_id_name, 'QMediaSync')) {
       return 'oauth'
     }
   }

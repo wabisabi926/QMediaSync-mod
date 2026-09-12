@@ -37,7 +37,6 @@
 | 字段 | 存储值 | 展示文案 | 用途 |
 | --- | --- | --- | --- |
 | `db_upload_tasks.source` | `strm_sync` | `STRM 同步` | STRM 同步产生的上传任务 |
-| `db_upload_tasks.source` | `scrape_organize` | `刮削整理` | 刮削整理产生的上传任务 |
 | `db_upload_tasks.source` | `directory_monitor` | `目录监控上传` | 目录监控发现本地文件后产生的上传任务 |
 
 ## 同步队列任务类型
@@ -45,7 +44,6 @@
 | 字段 | 存储值 | 展示文案 | 用途 |
 | --- | --- | --- | --- |
 | `SyncTaskTypeStrm` | `strm_sync` | `STRM 同步` | STRM 同步队列任务 |
-| `SyncTaskTypeScrape` | `scrape_organize` | `刮削整理` | 刮削整理队列任务 |
 
 ## STRM 生成任务
 
@@ -71,7 +69,7 @@
 - 不要把展示文案直接写入任务来源字段或同步队列任务类型。
 - 新增任务来源或队列任务类型时，同步更新后端常量、前端展示映射和本文档。
 - 版本 `60 → 61` 的队列身份迁移不补查远端服务：只能从已有任务和 `sync_files` 回填可靠字段，隐藏执行定位从旧字段迁入，两个旧上传完成字段会被删除。升级前备份数据库，且不得让依赖旧字段的二进制与新版本混合运行。
-- 当前兼容迁移仅在数据库版本 `43 → 44` 执行：下载 `source` 的 `strm同步`、`本地文件`、`emby媒体信息提取` 分别迁移为 `strm_sync`、`local_file`、`emby_media`；下载 `source_type` 的 `emby媒体信息提取` 迁移为 `emby_media`；上传 `source` 的 `strm同步`、`刮削整理` 分别迁移为 `strm_sync`、`scrape_organize`。未知或自定义值保持不变，不得在无明确迁移设计时擅自归一化。
+- 当前兼容迁移仅在数据库版本 `43 → 44` 执行：下载 `source` 的 `strm同步`、`本地文件`、`emby媒体信息提取` 分别迁移为 `strm_sync`、`local_file`、`emby_media`；下载 `source_type` 的 `emby媒体信息提取` 迁移为 `emby_media`；上传 `source` 的 `strm同步` 迁移为 `strm_sync`。未知或自定义值保持不变，不得在无明确迁移设计时擅自归一化。
 - 仅存在于内存队列的任务类型不需要数据库迁移，但需要测试队列 key 和状态输出是否使用机器值。
 - `frontend/src/utils/sourceTypeUtils.ts` 面向同步目录和账号来源；任务队列来源使用 `frontend/src/utils/taskSourceUtils.ts`，不要混用两套 `local` 文案。
 - `MQ的媒体库` 是 115 授权应用名，不属于任务来源枚举。

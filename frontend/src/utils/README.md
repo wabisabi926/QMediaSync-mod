@@ -260,7 +260,7 @@ STRM 正则输入的语法预检：
 
 稳定机器值、队列 API / SSE 暴露和迁移边界见 [任务来源枚举](../../../docs/reference/task-sources.md)。
 
-`syncTaskTypeNameMap` 保留 `directory_monitor` 的展示条目，但当前后端同步调度任务类型只有 `strm_sync` 和 `scrape_organize`；不要据此把 `directory_monitor` 当作同步调度器可入队的任务类型。
+`syncTaskTypeNameMap` 保留 `directory_monitor` 的展示条目，但当前后端同步调度任务类型只有 `strm_sync`；不要据此把 `directory_monitor` 当作同步调度器可入队的任务类型。
 
 ## uploadQueueDisplayUtils.ts
 

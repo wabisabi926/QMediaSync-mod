@@ -59,7 +59,6 @@ STRM Webhook 的具体规则：
 - `POST /api/emby/sync/start`、Emby 条目同步 Cron 和 `POST /emby/webhook` 属于链路 B，只维护 QMediaSync 本地 Emby 索引，不调用刷新接口。
 - 前端当前只有“同步后刷新媒体库”开关，没有“立即刷新媒体库”按钮，也没有独立的刷新 API。
 - `models.RefreshEmbyLibraryBySyncPathId(...)` 是直接请求 Emby 的旧函数，当前没有生产调用方；当前刷新统一经过任务协调器。
-- Telegram `strm_scrape` 对应的同步、刮削后刷新代码仍存在，但命令注册已注释，不属于当前有效入口。
 - `refresh_library` 状态值已经在后端常量和前端文案中定义，但刷新协调器当前不会设置 `emby_config.sync_mode`，因此 `/api/emby/sync/status` 不展示刷新任务的实际运行状态。
 
 #### 统一运行流程

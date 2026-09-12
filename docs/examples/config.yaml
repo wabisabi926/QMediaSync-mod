@@ -17,7 +17,7 @@ log:
   v115: logs/115.log
   # OpenList 相关日志。
   openList: logs/openList.log
-  # TMDB 刮削相关日志。
+  # TMDB 相关日志。
   tmdb: logs/tmdb.log
   # 百度网盘相关日志。
   baiduPan: logs/baidupan.log

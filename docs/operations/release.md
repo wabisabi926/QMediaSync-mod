@@ -72,9 +72,7 @@ scripts/release/release.sh major
 
 推送 `v*` 标签会触发 GitHub Actions 的 release 流程，生成 Windows / Linux 发布包、可选的飞牛 FPK，并创建 GitHub Release。
 
-后端发布二进制使用 `-trimpath -tags=nomsgpack -ldflags="-s -w"` 构建，默认关闭 Gin 的 MsgPack 绑定和渲染支持，以减少发布包体积。
-
-发布 Actions 从 GitHub Secrets 读取 `FANART_API_KEY`、`OAUTH_RELAY_ENCRYPTION_KEY`、`SC_API_KEY`、`TMDB_ACCESS_TOKEN` 和 `TMDB_API_KEY`，分别注入发布二进制的 `ldflags` 或源码 Docker 构建参数。它们只是编译期默认值；运行时 `config/.env` / 环境变量仍按现有规则覆盖编译期值，数据库中的 UI 配置优先级也不变。
+后端发布二进制使用 `-trimpath -tags=nomsgpack -ldflags="-s -w"` 构建，默认关闭 Gin 的 MsgPack 绑定和渲染支持，以减少发布包体积。发布 Actions 从 GitHub Secrets 读取 `OAUTH_RELAY_ENCRYPTION_KEY` 注入二进制的 `ldflags`，并使用 `FNPACK_DOWNLOAD_URL` 作为飞牛 FPK 下载源。它们只是编译期默认值或构建参数；运行时 `config/.env` / 环境变量仍按现有规则覆盖编译期值，数据库中的 UI 配置优先级也不变。
 
 GitHub Release 的标题直接使用 `v<major>.<minor>.<patch>` tag，不额外添加 `Release` 前缀；正文取自上一步提交的 `.changes/v0.xx.xx.md`。release workflow 会拒绝重复 GitHub Release 和缺失 `.changes/<tag>.md` 的发布。
 

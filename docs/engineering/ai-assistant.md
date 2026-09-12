@@ -31,7 +31,7 @@
 
 ## 项目快照
 
-QMediaSync 是媒体同步和刮削系统，用于管理 115 网盘、百度网盘、OpenList 等云存储与 Emby 媒体服务器之间的文件同步、STRM 生成和媒体刮削。
+QMediaSync 是媒体同步系统，用于管理 115 网盘、百度网盘、OpenList 等云存储与 Emby 媒体服务器之间的文件同步和 STRM 生成。
 
 - 语言：Go 1.25。
 - 后端：Gin、GORM，模块名为 `qmediasync`，位于 `backend/`。
@@ -56,7 +56,6 @@ QMediaSync 是媒体同步和刮削系统，用于管理 115 网盘、百度网�
 | 上传、目录监控、STRM 生成、源文件清理 | [上传与 STRM 处理](../architecture/upload-and-strm-processing.md) |
 | Emby 刷新、全量 / 增量同步、Webhook 同步 | [Emby 媒体库同步](../architecture/emby-library-sync.md) |
 | 任务来源、任务类型、展示映射或数据库机器值 | [任务来源](../reference/task-sources.md) |
-| 刮削命名模板、模板变量、NFO 解析或媒体类型为其他的信息来源 | [刮削命名模板与其他类型 NFO](../reference/scrape-rename-templates.md) |
 | 发布、CI、镜像标签或 FPK 打包 | [发布流程](../operations/release.md) |
 | 单个客户端或前端工具目录 | 对应代码目录内的 `README.md` |
 
@@ -74,7 +73,7 @@ QMediaSync 是媒体同步和刮削系统，用于管理 115 网盘、百度网�
 
 - Go 文件使用 `goimports` 维护 import，使用 `-local qmediasync` 识别本项目包；不要手工维护 import 分组。模块名不是域名式路径，分组以 `goimports -local qmediasync` 的实际输出为准。
 - 导出类型和函数使用 `PascalCase`，未导出标识符使用 `camelCase`。常见 initialism 使用 `ID`、`URL`、`API`、`HTTP`、`JSON`、`SQL`、`OAuth` 等 Go 约定形式。
-- 接口按行为或职责命名，例如 `Reader`、`Writer`、`EventHandler`、`Scraper`、`Driver`；不强制使用 `Impl` 后缀。
+- 接口按行为或职责命名，例如 `Reader`、`Writer`、`EventHandler`、`Driver`；不强制使用 `Impl` 后缀。
 - 布尔字段优先使用自然状态名，例如 `IsRunning`、`HasRemoteSeasonPath`、`CronEnabled`。存量 `EnableXxx` 命名不做无关批量修改。
 - 所有 Go 标识符使用英文，中文只出现在注释和字符串字面量中。注释默认使用中文；导出函数使用中文文档注释，Swagger 使用英文标签和中文描述。详细边界见 [注释规范](comment-guidelines.md)。
 
@@ -94,7 +93,7 @@ QMediaSync 是媒体同步和刮削系统，用于管理 115 网盘、百度网�
 ## 配置、密钥和日志
 
 - 主配置为 `config/config.yaml`，兼容旧 `config.yml`；敏感变量文件为 `config/.env`，加载后会覆盖真实环境变量。
-- 默认 API 密钥为 `FANART_API_KEY`、`TMDB_API_KEY`、`TMDB_ACCESS_TOKEN` 和 `SC_API_KEY`，可由 ldflags 或运行环境设置。取值优先级为 UI 配置（DB）> 环境变量 / `config/.env` > ldflags。
+- 默认 API 密钥为 `SC_API_KEY`，可由 ldflags 或运行环境设置。取值优先级为 UI 配置（DB）> 环境变量 / `config/.env` > ldflags。
 - 本机敏感数据密钥由 `helpers.InitEncryptionKey()` 每实例生成并保存到 `config/encryption.key`，不使用 `ENCRYPTION_KEY` 环境变量或 ldflags。
 - OAuth 中转共享密钥为 `OAUTH_RELAY_ENCRYPTION_KEY`；环境变量或 `config/.env` 优先于 `main.OAuthRelayEncryptionKey` ldflags。
 - 使用 `helpers.GlobalConfig` 读取全局配置。涉及优先级、密钥或浏览器安全时，同时更新配置与认证会话契约。

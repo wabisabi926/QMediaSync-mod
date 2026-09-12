@@ -16,7 +16,7 @@ QMediaSync 使用 Server-Sent Events（SSE）提供只读实时更新。启动�
 
 | 路由 | 用途 |
 | --- | --- |
-| `GET /api/events/stream` | 全局队列、刮削和同步记录事件 |
+| `GET /api/events/stream` | 全局队列和同步记录事件 |
 | `GET /api/logs/stream?path=...` | 指定日志文件的新增日志与重新加载提示 |
 | `GET /api/sync/tasks/:id/stream` | 同步任务详情的 snapshot、状态 patch、日志和完成通知 |
 
@@ -26,7 +26,7 @@ QMediaSync 使用 Server-Sent Events（SSE）提供只读实时更新。启动�
 
 ## 全局业务事件
 
-全局事件 payload 保留 `event_type`、`timestamp`、`data` 三个字段，事件类型包括队列状态、队列列表、刮削任务和同步任务事件。它的语义是“至多一次通知 + HTTP snapshot 最终收敛”：页面收到结构性事件或原生 EventSource 非首次 `open` 后，复用当前页的 HTTP 加载函数重新获取列表快照。
+全局事件 payload 保留 `event_type`、`timestamp`、`data` 三个字段，事件类型包括队列状态、队列列表和同步任务事件。它的语义是“至多一次通知 + HTTP snapshot 最终收敛”：页面收到结构性事件或原生 EventSource 非首次 `open` 后，复用当前页的 HTTP 加载函数重新获取列表快照。
 
 上传队列的 `upload_queue_changed` 中，`progress` 和 `source_cleanup_changed` 是当前页已有任务的局部 patch 例外。目录监控源文件清理更新会同时携带 `source_cleanup_status`、可为空的 `source_cleanup_error` 与正值 `source_deleted_at`；前端将这些字段合并到现有行。缺少目标行、其他变更原因或原生重连仍通过 HTTP snapshot 收敛。
 
@@ -52,7 +52,7 @@ QMediaSync 使用 Server-Sent Events（SSE）提供只读实时更新。启动�
 
 ## 日志 tailer 与事件字段
 
-通用日志与同步任务日志共享 `logstream.GlobalManager`，按绝对路径复用 tailer。tailer 发现文件缺失、截断、半行过长或订阅者缓冲满时会通知 `resync_required` 或结束慢订阅；不会阻塞同步、上传、下载或刮削业务。
+通用日志与同步任务日志共享 `logstream.GlobalManager`，按绝对路径复用 tailer。tailer 发现文件缺失、截断、半行过长或订阅者缓冲满时会通知 `resync_required` 或结束慢订阅；不会阻塞同步、上传或下载业务。
 
 同步任务结构化 payload 由 `backend/internal/realtime/sync_task_events.go` 定义。`sync_id` 是真实同步记录 ID；`sequence` 仍按任务递增，以兼容全局事件消费者。任务终态会清理该任务的 sequence 状态，因此后续 `deleted=true` 事件可能从新的 sequence 重新开始；全局列表不得因旧 sequence 忽略删除事件，并在处理后清除该任务的本地去重记录。`sync_path_id`、`status`、`sub_status`、统计字段、阶段时间、`log_path`、`event_time`、路径和失败原因保持既有含义。
 

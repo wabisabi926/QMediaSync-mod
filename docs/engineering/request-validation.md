@@ -113,15 +113,13 @@ Emby 条目同步默认 Cron 为 `0 * * * *`，含义是每小时整点执行一
 | --- | --- | --- |
 | `requests/settings.go` | 线程配置、全局 STRM 配置 | 线程范围、页面大小范围、115 URL 有效性检查开关和 1 到 9 秒总超时、STRM Base URL、Cron、扩展名、STRM 开关枚举。 |
 | `requests/sync.go` | 同步路径创建和更新、自定义 STRM 配置 | 来源类型、非本地来源账号 ID、路径必填、自定义配置、继承值 `-1`、远程路径规范化。 |
-| `requests/scrape_path.go` | 刮削路径保存 | 创建和更新分场景校验；更新时使用旧记录补齐不可编辑的来源类型、账号和媒体类型；刮削类型、整理方式、源路径、按场景要求的目标路径、扩展名、最小文件大小、线程上限、Cron；文件夹和文件命名模板拒绝绝对路径、反斜杠和 `..` 片段。 |
-| `requests/scrape_settings.go` | TMDB、AI、分类和 TMDB 搜索 | URL、语言代码、国家代码、AI 动作枚举、模型名长度、超时范围、分类名称必须是单层目录名、Genre ID、年份范围。 |
 | `requests/accounts.go` | 账号、账号授权更换/取消、OpenList 账号、API Key | 账号来源类型、名称长度、115 授权来源组合、更换授权的确认标志和来源字段、授权会话绑定、OpenList URL 规范化、用户名/密码或 Token、API Key 状态。 |
 | `requests/connections.go` | HTTP 代理、OAuth、二维码、远程直链、反代、请求队列限制和统计 | 代理 URL、`preserve_proxy_credentials` 的显式凭据保留意图、账号 ID、OAuth 回调 URL、`authorization_id` 长度、`data`/`payload` 条件必填、二维码 UID、PickCode、反代下载域名白名单、QPS/QPM/QPH、统计窗口和清理天数。 |
 | `requests/emby.go` | Emby 配置 | Emby URL、同步 Cron、布尔开关枚举、媒体库 JSON 字符串。 |
 | `requests/backup.go` | 备份创建、列表、记录 ID、恢复和配置 | 手动备份原因默认值、分页默认值、备份记录 ID、启用开关、Cron、保留天数、最大备份数、压缩开关。 |
 | `requests/notification.go` | Telegram、MeoW、Bark、ServerChan、自定义 Webhook 渠道 | 渠道名称、必填凭据、URL、Webhook 方法、格式、认证方式和模板格式。 |
 | `requests/users.go` | 登录、启用/关闭两步验证、当前用户用户名/密码修改 | 登录校验用户名和密码非空，用户名 20 个字符上限；创建和修改使用严格用户名 / 密码规则，用户名去除首尾空白后长度为 3 到 20 个字符且只能包含英文和数字，密码长度至少 6 个字符且不能是纯数字或纯字母；两步验证码必填。 |
-| `requests/operations.go` | 分页、ID、路径浏览、网盘文件、目录操作、队列、同步/刮削关联、日志、临时图片、版本更新 | 分页默认值和范围、HTTP path 正 ID、ID 列表、CSV ID、来源类型、文件夹名、路径穿越防护、日志文件名限制、版本号格式、日期范围。 |
+| `requests/operations.go` | 分页、ID、路径浏览、网盘文件、目录操作、队列、日志、临时图片、版本更新 | 分页默认值和范围、HTTP path 正 ID、ID 列表、CSV ID、来源类型、文件夹名、路径穿越防护、日志文件名限制、版本号格式、日期范围。 |
 
 首次数据库配置服务是启动期流程，不纳入公共 `backend/internal/requests` 目录；它只提供 SQLite 和PostgreSQL 配置，旧库迁移服务已移除。
 
@@ -130,15 +128,8 @@ Emby 条目同步默认 Cron 为 `0 * * * *`，含义是每小时整点执行一
 - `SyncPathRequest` 同时支持计划中的嵌套 `setting` 字段和旧前端使用的顶层 STRM 字段；存在非零嵌套配置时优先使用 `setting`。
 - 同步路径自定义 STRM 配置使用 `-1` 表示继承全局值；全局 STRM 配置不接受 `-1`。
 - 全局 STRM 和同步目录自定义配置的 `exclude_name_regex_arr` 在现有保存接口中逐项用 Go `regexp` 校验；空规则、非法语法及 Go 不支持的表达式会被拒绝，并指出字段和规则序号。空数组合法。正则原文直接传入模型，不套用原名称列表的转小写，也不裁剪首尾空格；仅包含正则字段的嵌套 `setting` 同样优先于顶层兼容字段。
-- `SaveScrapePathRequest` 新增请求要求提供来源类型、账号和媒体类型；更新请求沿用旧记录中的这些不可编辑字段，避免旧前端编辑请求被误拒。
-- 刮削路径 `only_scrape` 模式不要求目标路径，整理方式只能为 `same`；需要整理或重命名时才要求目标路径。
-- 刮削路径本地来源支持移动、复制、软链接和硬链接整理；115、百度网盘和 OpenList 支持移动和复制整理；其他远程来源只保守允许移动整理。
-- `SaveRelScrapePathRequest` 同时支持旧字段 `id`、`scrape_path_id` 和新字段 `sync_path_id`、`scrape_path_ids`。
-- 同步路径和刮削路径的关联保存允许空 ID 列表，用于清空关联；通用 `IDListRequest` 不允许空列表。
-- `IDCSVRequest` 保留 `ids=1,2` 的 Query 格式，用于刮削记录批量操作。
 - `ParsePositiveIDRequest` 用于解析 HTTP path 中的正整数 `id`，控制器仍按各自模块既有响应格式返回错误。
 - `QueueListRequest.Status` 当前只绑定为 `int`，不做枚举限制，继续兼容现有前端和模型状态值。
-- `AISettingsRequest.EnableAI` 允许空值，避免旧前端或局部保存请求被误拒。
 - `HTTPProxyRequest.PreserveProxyCredentials` 是可空布尔值：当前前端保存或测试脱敏代理地址时必须显式提交。`true` 仅在提交地址与当前存储地址的协议和 `host:port` 一致时保留用户名和密码；端点变化时忽略该标志，使用 `http_proxy` 中的凭据，避免将已存凭据转发给其他代理。`false` 表示将 `http_proxy` 中的凭据作为新值；字段缺失仅为兼容未升级前端，继续沿用历史的脱敏字符串匹配行为。
 - 账号添加页面会在提交前拦截空账号备注、OpenList 访问地址、用户名、密码或 Token 等轻量问题；后端 DTO 仍是最终校验来源，并在账号接口返回前把字段级校验错误转换为面向用户的提示。
 - `CreateOpenListAccountRequest` 会自动补全缺失的 `http://` 协议，并去掉末尾 `/`；新建 OpenList 账号必须提供 Token 或完整的用户名 / 密码。更新请求带有效 `id` 时，同认证方式且未提交新凭据可复用数据库中的已有凭据；切换为 Token 必须提交新 Token 并清空已保存的密码，切换为用户名密码必须提交用户名和密码并重新获取 Token，复用密码认证凭据校验时若触发自动刷新也会持久化最新 Token，实际凭据验证由模型层完成。
@@ -159,7 +150,6 @@ Emby 条目同步默认 Cron 为 `0 * * * *`，含义是每小时整点执行一
 - 同步任务详情实时流 `/api/sync/tasks/:id/stream` 不接受客户端传入日志路径，只使用 `ParsePositiveIDRequest` 校验路径 `id`，再由后端根据 `sync_id` 派生同步任务日志路径。
 - 临时图片读取请求只接受相对路径，并拒绝绝对路径和路径穿越。
 - 创建目录请求拒绝空名称、`.`、`..`、路径分隔符和控制字符。
-- 刮削路径的文件夹和文件命名模板拒绝绝对路径、反斜杠和 `..` 片段；二级分类名必须是单层目录名，拒绝路径分隔符、`.`、`..` 和纯空白。模板渲染结果和分类名在参与目标路径拼接前仍会统一清理，本地落盘前还会校验目标路径仍在根目录内，完整契约见 [刮削命名模板与其他类型 NFO](../reference/scrape-rename-templates.md)。
 - Webhook JSON 模板会先替换内置变量再做 JSON 解析；Form 模板必须符合 `key=value&key2=value2` 格式。
 - Webhook 额外请求头使用 `headers` 对象传递，Header 名称会去除首尾空白，且必须是合法 HTTP token；空 Header 名会被拒绝。
 
@@ -190,7 +180,6 @@ STRM Webhook 的外部字段、鉴权、路径边界、批量规则和响应由 
 前端校验用于即时反馈和减少误操作，不能替代后端校验，也不作为安全边界。与后端一致的范围和枚举常量放在 `frontend/src/constants/validation.ts`：
 
 - `THREAD_LIMITS`：下载线程、文件详情线程、OpenList QPS、重试次数、重试延迟、文件列表分页大小。
-- `SCRAPE_THREAD_LIMITS`：本地刮削最大线程 20、远程刮削最大线程 5、最小线程 1。
 - `STRM_GLOBAL_OPTIONS` 和 `STRM_CUSTOM_OPTIONS`：全局配置与自定义配置的 STRM 开关枚举；`add_path` 全局值为 `1` 添加完整路径、`2` 只添加文件名、`3` 不添加，同步目录自定义配置额外支持 `-1` 继承全局 STRM 设置。
 - `HTTP_URL_PATTERN`：前端 URL 输入提示使用，后端仍以 `validation.HTTPURL` 为准。
 - `CRON_DEFAULTS`：前端默认 Cron 值。

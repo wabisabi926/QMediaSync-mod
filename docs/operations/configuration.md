@@ -75,8 +75,7 @@ emby302:
 保存代理时必须维护以下不变量：
 
 - 只有写库成功后才更新内存全局值 `models.SettingsGlobal.HttpProxy`。写库失败必须还原旧值：GORM 的 `Updates(map)` 在生成 SQL 阶段就会把 map 里的值回写进模型字段，因此仅调整赋值顺序不够，`models.Settings.UpdateHttpProxy` 显式保存并回滚旧值。若不回滚，内存持新地址而数据库、GitHub 管理器和通知管理器仍持旧地址，接口却已报告保存失败，重启后又静默回退。
-- 保存成功后必须刷新所有直读生效值的下游客户端，由 `models.RefreshProxyConsumers` 统一完成：`helpers.HTTP_PROXY`（Fanart 客户端每次构造都直读）和 TMDB 全局单例 `tmdb.GlobalTmdbClient`。刮削设置里的「是否启用 TMDB 代理」开关同样是 `ScrapeSettings.GetProxyUrl` 的入参，改动后也要刷新。
-- 清空代理或关闭代理开关时，TMDB 单例必须调用 resty 的 `RemoveProxy()` 显式清除；只在地址非空时 `SetProxy` 会让"清空"变成空操作，请求会继续带 API Key 走用户已撤销的隧道。
+- 保存成功后必须刷新直读生效值的下游客户端，由 `InitNotificationManager()` 统一重建通知管理器（其内部通过 `getProxyURL` 直读代理地址），GitHub 管理器同样按需持新地址。
 
 `GET /setting/http-proxy` 一律回传脱敏地址，不回传明文凭据，任何 JWT 或 API Key 持有者都读不到代理密码。响应额外带 `credentials_masked`（`"1"` 表示地址里的凭据已被遮蔽），前端据此提示输入框里的 `xxxxx` 是占位串。
 
@@ -120,8 +119,8 @@ emby302:
 
 ## 第三方密钥与本机敏感数据
 
-- 115 开放平台 APP ID、TMDB API Key / Access Token、OpenAI 兼容 API Key 和 fanart.tv API Key 可以在 Web 设置中配置。
-- 默认密钥也可由 `backend/main.go` 的变量、ldflags 或环境变量 / `config/.env` 注入。`FANART_API_KEY`、`TMDB_API_KEY`、`TMDB_ACCESS_TOKEN` 和 `SC_API_KEY` 的优先级是 Web UI > 环境变量 / `config/.env` > ldflags；`config/.env` 覆盖真实环境变量。
+- 115 开放平台 APP ID 可以在 Web 设置中配置。
+- 默认密钥 `SC_API_KEY`（Server 酱）可由 `backend/main.go` 的变量、ldflags 或环境变量 / `config/.env` 注入。取值优先级是 Web UI > 环境变量 / `config/.env` > ldflags；`config/.env` 覆盖真实环境变量。
 - 两步验证等本机敏感数据使用首次启动自动生成的 `config/encryption.key`。`jwtSecret` 为空或仍为公开默认值时会生成 32 字节随机密钥并写回配置；修改它会使现有登录 Cookie 失效。
 - OAuth 中转使用 `OAUTH_RELAY_ENCRYPTION_KEY`，可由 `main.OAuthRelayEncryptionKey` ldflags 或环境变量 / `config/.env` 注入，环境变量优先。
 

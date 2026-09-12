@@ -51,8 +51,7 @@
 1. `BatchCreateTable()`：对 `AllTables` 逐表执行 `AutoMigrate`。
 2. `InitMigrationTable(MaxVersionCode)`：写入当前版本号，当前值是 `63`。
 3. `InitSettings()`：创建默认 `settings` 记录。
-4. `InitScrapeSetting()`：创建默认刮削配置和默认分类。
-5. `InitEmbyConfig()`：创建默认 `emby_config` 记录。
+4. `InitEmbyConfig()`：创建默认 `emby_config` 记录。
 
 这意味着空库首次启动时，不会逐个版本回放历史迁移，而是直接初始化到当前结构版本。首次启动不会创建默认管理员；管理员由 Web 登录页直接填写用户名和密码创建。
 
@@ -66,10 +65,10 @@
 
 | 起始版本 | 目标版本 | 变更 |
 | --- | --- | --- |
-| 35 | 36 | `emby_config` 补齐媒体库选择字段，并清理重复或缺失的 `scrape_settings` 记录。 |
+| 35 | 36 | `emby_config` 补齐媒体库选择字段。 |
 | 36 | 37 | `settings` 新增 `file_list_page_size`。 |
 | 37 | 38 | `emby_config` 新增播放剧情简介和播放进度开关。 |
-| 38 | 39 | 为已有通知渠道补齐 `playback_*` 和 `scrape_error` 规则。 |
+| 38 | 39 | 为已有通知渠道补齐缺失的通知规则。 |
 | 39 | 40 | `account` 新增 `app_id_name`。 |
 | 40 | 41 | `account` 新增 `auth_source_type` 和 `auth_provider`。 |
 | 41 | 42 | `users` 补齐两步验证字段，`db_download_tasks` 和 `db_upload_tasks` 补齐队列重试字段。 |
@@ -120,16 +119,12 @@
 | --- | --- |
 | `source_type` | `115`、`local`、`123`、`openlist`、`baidupan`、`emby_media` |
 | `media_type` | `movie`、`tvshow`、`other` |
-| `scrape_type` | `only_scrape`、`scrape_and_rename`、`only_rename` |
-| `rename_type` | `hard_symlink`、`soft_symlink`、`move`、`copy`、`same` |
-| `enable_ai` | `off`、`assist`、`enforce` |
 | `sync.status` | `0` 待处理、`1` 进行中、`2` 已完成、`3` 失败 |
 | `sync.sub_status` | `0` 无、`1` 正在处理网盘文件、`2` 正在处理本地文件列表 |
-| `scrape_media.status` | `unscanned`、`scanned`、`scraping`、`scraped`、`renaming`、`renamed`、`rename_failed`、`ignore`、`scrape_failed`、`rollbacking` |
 | `download.status` | `0` 待下载、`1` 下载中、`2` 已完成、`3` 失败、`4` 已取消 |
 | `download.source` | `strm_sync`、`local_file`、`emby_media` |
 | `upload.status` | `0` 等待上传、`1` 正在上传、`2` 上传完成、`3` 上传失败、`4` 已取消、`5` 等待完成处理（远端已完成待本地收尾）、`6` 正在完成处理（正在本地收尾） |
-| `upload.source` | `strm_sync`、`scrape_organize`、`directory_monitor` |
+| `upload.source` | `strm_sync`、`directory_monitor` |
 | `upload.result` | `unknown`、`rapid_upload`、`multipart_uploaded`、`remote_exists`、`skipped_after_rapid_wait` |
 | `upload.resume_state` | `none`、`new_session`、`resumed_session`、`session_expired_restarted` |
 | `upload.source_cleanup_status` | `none`、`pending`、`completed`、`failed` |
@@ -140,7 +135,7 @@
 | `emby_refresh.target_type` | `library`、`item` |
 | `backup.status` | `pending`、`running`、`completed`、`failed`、`cancelled`、`timeout` |
 | `backup.type` | `manual`、`auto` |
-| `notification.type` | `sync_finish`、`sync_error`、`scrape_finish`、`scrape_error`、`system_alert`、`media_added`、`media_removed`、`playback_start`、`playback_pause`、`playback_stop` |
+| `notification.type` | `sync_finish`、`sync_error`、`system_alert`、`media_added`、`media_removed`、`playback_start`、`playback_pause`、`playback_stop` |
 | `notification.priority` | `high`、`normal`、`low` |
 
 ### 关键约束与索引
@@ -150,8 +145,6 @@
 | 表 / 字段 | 约束或索引 | 语义 |
 | --- | --- | --- |
 | `sync_paths.base_cid` | 唯一 | 同一同步源目录 ID 只能创建一个同步目录。 |
-| `sync_path_scrape_paths(sync_path_id, scrape_path_id)` | 联合唯一 | 同一同步目录与刮削目录的关联不能重复。 |
-| `scrape_strm_paths(scrape_path_id, strm_path_id)` | 联合唯一 | 同一刮削目录与同步目录的关联不能重复。 |
 | `api_keys.key_hash` | 唯一；`user_id` 索引 | API Key 只保存哈希，且归属用户可查询。 |
 | `user_sessions.session_id`、`token_id` | 分别唯一；`user_id`、`expires_at`、`last_seen_at`、`revoked_at` 索引 | 浏览器会话票据和 JWT `jti` 不可重复，并支持有效会话查询。 |
 | `upload_sessions.upload_task_id` | 唯一；`account_id`、`status` 索引 | 每个上传任务最多保留一个恢复会话。 |
@@ -188,7 +181,7 @@
 
 网盘 / OpenList / 115 授权账号表。
 
-- `id`：本地账号稳定主键；同步目录、刮削目录、任务历史和同步文件通过该 ID 关联。
+- `id`：本地账号稳定主键；同步目录、任务历史和同步文件通过该 ID 关联。
 - `name`：账号备注，便于人工识别；非空值唯一，未完成授权的临时账号允许为空。
 - `source_type`：账号来源类型，`115`、`local`、`123`、`openlist`、`baidupan` 或 `emby_media`。
 - `app_id`：115 开放平台 APP ID。
@@ -318,13 +311,6 @@ STRM 相关字段：
 - `account_name`：账号显示名，不入库。
 - `is_running`：当前运行状态，不入库。
 
-### `sync_path_scrape_paths`
-
-同步目录与刮削目录的关联表。
-
-- `sync_path_id`：同步目录 ID。
-- `scrape_path_id`：刮削目录 ID。
-
 ### `sync_path_idempotency_records`
 
 同步目录创建请求的幂等记录表。
@@ -400,170 +386,12 @@ STRM 相关字段：
 
 115 同一目录下的不同扩展名视频可能映射到相同的 `local_file_path`。`sync_files` 会保留各远端文件记录，运行时按上传时间 `Ptime` 选择唯一 STRM owner；时间相同时使用 FileID 固定排序。non-owner 不参与 STRM 比较、写入或 Emby 刷新，owner 删除后由剩余候选中的最新文件接管。
 
-### `scrape_settings`
-
-全局刮削设置表。
-
-- `tmdb_url`：TMDB API 地址。
-- `tmdb_image_url`：TMDB 图片地址。
-- `tmdb_api_key`：TMDB API Key。
-- `tmdb_access_token`：TMDB Access Token。
-- `tmdb_language`：TMDB 语言。
-- `tmdb_image_language`：TMDB 图片语言。
-- `tmdb_enable_proxy`：是否启用 TMDB 代理。
-- `enable_ai`：AI 识别模式，`off` / `assist` / `enforce`。
-- `ai_base_url`：AI 服务基础地址。
-- `ai_api_key`：AI API Key。
-- `ai_model_name`：AI 模型名。
-- `ai_prompt`：AI 提示词。
-- `ai_timeout`：AI 超时时间，单位秒。
-- `fanart_api_key`：fanart.tv API Key。
-
-说明：
-
-- `tmdb_*` 和 `fanart_api_key` 会在运行时和 `helpers` 包里的默认值合并。
-- `tmdb_enable_proxy` 打开时会使用 `settings.http_proxy` 作为通用代理。
-
-### `scrape_paths`
-
-刮削目录表，保存扫描源、命名规则、分类规则和定时任务信息。
-
-基础字段：
-
-- `account_id`：账号 ID。
-- `source_type`：来源类型。
-- `media_type`：媒体类型，`movie` / `tvshow` / `other`。
-- `source_path`：源路径。
-- `source_path_id`：源路径 ID。
-- `dest_path`：目标路径。
-- `dest_path_id`：目标路径 ID。
-- `scrape_type`：刮削类型。
-- `rename_type`：重命名类型。
-- `folder_name_template`：文件夹模板。
-- `file_name_template`：文件名模板。
-
-规则字段：
-
-- `deleted_keyword`：要删除的关键词 JSON 字符串。
-- `enable_category`：是否启用分类。
-- `video_ext`：视频扩展名 JSON 字符串。
-- `min_video_file_size`：最小视频文件大小。
-- `exclude_no_image_actor`：是否排除没有图片的演员。
-- `enable_ai`：AI 识别模式。
-- `ai_prompt`：AI 提示词。
-- `force_delete_source_path`：是否强制删除源路径。
-- `enable_fanart_tv`：是否启用 fanart.tv。
-- `max_threads`：最大刮削线程数。
-
-定时字段：
-
-- `enable_cron`：是否启用定时任务。
-- `cron_expression`：Cron 表达式。
-- `cron_description`：Cron 描述。
-- `last_cron_run`：上次执行时间。
-- `next_cron_run`：下次执行时间。
-- `cron_enabled`：定时任务启用状态。
-
-状态字段：
-
-- `is_scraping`：是否正在刮削。
-
-运行时字段：
-
-- `delete_keyword`、`video_ext_list`：数组视图，不入库。
-- `v115_client`、`baidu_pan_client`、`openlist_client`：运行时客户端。
-- `exists_files`、`scrape_root_path`、`category`、`category_map`、`tvshow_renamed_cache`、`episode_finish_channel`、`running`、`mutex`、`is_task_running`：运行时状态。
-
-### `scrape_strm_paths`
-
-刮削目录和同步目录的关联表。
-
-- `scrape_path_id`：刮削目录 ID。
-- `strm_path_id`：同步目录 ID。
-
-### `movie_categories`
-
-电影分类表。
-
-- `name`：分类名称。
-- `genre_ids`：TMDB genre ID 的 JSON 数组。
-- `language`：语言过滤的 JSON 数组。
-
-### `tv_show_categories`
-
-剧集分类表。
-
-- `name`：分类名称。
-- `genre_ids`：TMDB genre ID 的 JSON 数组。
-- `countries`：国家过滤的 JSON 数组。
-
-### `scrape_path_categories`
-
-刮削目录与分类的映射表。
-
-- `scrape_path_id`：刮削目录 ID。
-- `category_id`：分类 ID。
-- `file_id`：分类对应的文件 ID。
-
-说明：
-
-- 115 场景下是文件 ID。
-- 123 场景下是文件夹 ID。
-- 本地和 OpenList 场景下是相对路径。
-
-### `scrape_media_files`
-
-待刮削媒体表，也是刮削流程中最复杂的一张表。
-
-关联与来源：
-
-- `scrape_path_id`：所属刮削目录。
-- `media_type`、`source_type`、`scrape_type`、`rename_type`：当前文件的业务类型。
-- `enable_category`：是否启用二级分类。
-- `source_path`、`source_path_id`、`dest_path`、`dest_path_id`：来源和目标路径信息。
-- `media_id`、`media_season_id`、`media_episode_id`：关联的媒体、季、集记录。
-
-识别与文件信息：
-
-- `name`、`year`、`tmdb_id`：基础媒体匹配信息。
-- `season_number`、`episode_number`：季 / 集编号。
-- `path`、`path_id`：媒体文件夹路径和路径 ID。
-- `tvshow_path`、`tvshow_path_id`：剧集根路径和路径 ID。
-- `video_filename`、`video_file_id`、`video_pick_code`：视频文件位置和识别码。
-- `nfo_path`、`nfo_file_name`、`nfo_file_id`、`nfo_pick_code`：NFO 文件信息。
-- `image_files_json`、`subtitle_file_json`：图片 / 字幕文件列表 JSON。
-- `tvshow_files_json`、`season_files_json`：剧集和季文件列表 JSON。
-
-媒体分析结果：
-
-- `resolution`、`resolution_level`、`is_hdr`：分辨率和 HDR 信息。
-- `video_codec_json`、`audio_codec_json`、`subtitle_codec_json`：ffprobe 结果。
-
-整理结果：
-
-- `status`：当前处理状态。
-- `failed_reason`：失败原因。
-- `scan_time`、`scrape_time`、`rename_time`、`re_scrape_time`：各阶段时间戳。
-- `category_name`、`scrape_path_category_id`：分类结果。
-- `new_path_name`、`new_season_path_name`、`new_path_id`、`new_season_path_id`：整理后的新路径。
-- `new_video_base_name`：整理后的视频文件名（不含扩展名）。
-- `video_ext`：视频扩展名。
-- `is_re_scrape`：是否重新刮削。
-- `batch_no`：同一次扫描的批次号。
-- `tv_is_rename`、`season_is_rename`：剧集 / 季重命名状态。
-
-运行时字段：
-
-- `tvshow_files`、`season_files`、`video_codec`、`audio_codec`、`subtitle_codec`、`media`、`media_season`、`media_episode`、`scrape_root_path`：运行时对象，不入库。
-- `v115_client`、`baidu_pan_client`、`openlist_client`、`exists_files`、`category`、`category_map`、`tvshow_renamed_cache`、`episode_finish_channel`、`running`、`mutex`、`is_task_running`：运行时状态，不入库。
-
 ### `media`
 
-刮削后的媒体主表，电影和剧集都对应一条记录。
+媒体信息主表，电影和剧集都对应一条记录，内容来自本地媒体信息提取。
 
 基础识别字段：
 
-- `scrape_path_id`：来源刮削目录。
 - `tmdb_id`、`imdb_id`、`name`、`year`、`original_name`：媒体基础标识。
 - `media_type`：电影、剧集或其他。
 - `release_date`：上映或首播时间。
@@ -604,7 +432,6 @@ STRM 相关字段：
 
 剧集季表。
 
-- `scrape_path_id`：来源刮削目录。
 - `media_id`：所属媒体 ID。
 - `season_number`：季号。
 - `season_name`：季名称。
@@ -621,7 +448,6 @@ STRM 相关字段：
 
 剧集集表。
 
-- `scrape_path_id`：来源刮削目录。
 - `media_id`：所属媒体 ID。
 - `media_season_id`：所属季 ID。
 - `episode_name`：集名称。
@@ -798,10 +624,9 @@ Emby 刷新任务表。旧媒体库刷新和 STRM 更新后的 item 定向刷新
 
 数据库上传队列表。
 
-- `source`：上传来源，`strm_sync`、`scrape_organize` 或 `directory_monitor`。
+- `source`：上传来源，`strm_sync` 或 `directory_monitor`。
 - `account_id`：账号 ID。
 - `sync_file_id`：同步文件 ID。
-- `scrape_media_file_id`：刮削文件 ID。
 - `sync_path_id`：同步目录 ID，目录监控上传和后续 STRM 生成使用。
 - `source_type`：任务来源账号类型，`115`、`local`、`123`、`openlist`、`baidupan` 或 `emby_media`。
 - `local_full_path`：本地完整路径。
@@ -842,7 +667,7 @@ Emby 刷新任务表。旧媒体库刷新和 STRM 更新后的 item 定向刷新
 
 - 115 上传任务完成后会保存 `upload_result`、`resume_state`、`uploaded_bytes`、远端文件 ID、PickCode 和远端确认的 SHA1。`upload_result=remote_exists` 表示远端同路径文件 SHA1 和大小均匹配，因此跳过真实上传；`upload_result=rapid_upload` 会在秒传成功后按 `file_id` 查询详情补齐远端 mtime 和可得 SHA1。115 官方秒传返回不包含 mtime；`strm_sync` 上传依赖详情查询同步本地元数据 mtime，目录监控上传在详情查询失败时可先用 `file_id` 兜底，但不得把本地 session SHA1 写入公开任务字段。目录监控上传任务还会保存上传前本地文件 mtime、纳秒级 mtime 和源文件 fingerprint，上传执行前和源文件清理前都会校验当前文件 fingerprint，防止同路径文件被替换后误传或误删。目录监控上传远端结果确认后，会先把上传任务置为 `remote_completed_pending_finalize`，收尾 worker 通过条件更新抢占到 `remote_completed_finalizing` 后会清除上一次收尾错误，再保存任务最终结果、创建 STRM 任务和推进 processed 账本；如果收尾失败，会退回 `remote_completed_pending_finalize` 供上传队列重试，进程重启时遗留的 `remote_completed_finalizing` 也会恢复为等待完成处理。目录监控上传完成并保存任务最终结果后，会按 `upload_result` 把对应 `directory_upload_processed_files.result` 标记为 `uploaded_pending_strm` 或 `remote_exists_pending_strm`；STRM 入队成功后才更新为 `uploaded` 或 `remote_exists` 终态；STRM 入队失败时更新为 `strm_enqueue_failed`，后续扫描会重试 STRM 入队而不是重新上传；`skipped_after_rapid_wait` 不会写入终态。
 - 所有上传入口保留应用层预检查以返回明确状态，但部分唯一索引才是并发创建的最终保证。失败任务可以保留为历史记录并创建替代任务；手动或自动重试失败任务时，若同一范围已有活跃替代任务，旧任务保持失败且不递增重试次数。
-- 115 上传任务成功后，`strm_sync` 和 `directory_monitor` 来源会按远端文件 ID / PickCode 创建 `strm_generation_tasks` 记录；刮削整理来源仍只执行原有后处理。历史 `strm_sync` 上传缺少完整路径时，只能在实际入队后处理时按其新完成文件 ID 查询一次详情，结果只用于该 STRM 任务，不能回写上传任务；查询失败必须显式失败，不能把文件 ID 当路径。
+- 115 上传任务成功后，`strm_sync` 和 `directory_monitor` 来源会按远端文件 ID / PickCode 创建 `strm_generation_tasks` 记录。历史 `strm_sync` 上传缺少完整路径时，只能在实际入队后处理时按其新完成文件 ID 查询一次详情，结果只用于该 STRM 任务，不能回写上传任务；查询失败必须显式失败，不能把文件 ID 当路径。
 
 ### `upload_sessions`
 
@@ -1058,5 +883,5 @@ Server酱 渠道配置表。
 通知规则表。
 
 - `channel_id`：关联的通知渠道 ID。
-- `event_type`：事件类型，`sync_finish`、`sync_error`、`scrape_finish`、`scrape_error`、`system_alert`、`media_added`、`media_removed`、`playback_start`、`playback_pause` 或 `playback_stop`。
+- `event_type`：事件类型，`sync_finish`、`sync_error`、`system_alert`、`media_added`、`media_removed`、`playback_start`、`playback_pause` 或 `playback_stop`。
 - `is_enabled`：是否启用。

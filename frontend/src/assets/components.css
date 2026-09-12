@@ -1,19 +1,22 @@
 /* 组件共享样式 */
 
-/* 与项目 768px 移动端断点一致，避免 Element Plus md（992px）断点混用。 */
-.hide-on-mobile {
-  display: block;
+/* 键盘焦点基线：自绘可交互元素与 Element Plus 组件统一使用主色轮廓。 */
+:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 2px;
 }
 
+/* 避免局部加载遮罩盖住移动导航，全屏加载仍使用 Element Plus 层级。 */
+.main-content .el-loading-mask:not(.is-fullscreen) {
+  z-index: 10;
+}
+
+/* 与项目 768px 移动端断点一致，避免 Element Plus md（992px）断点混用。 */
 .show-on-mobile {
   display: none !important;
 }
 
 @media (max-width: 768px) {
-  .hide-on-mobile {
-    display: none !important;
-  }
-
   .show-on-mobile {
     display: initial !important;
   }
@@ -40,12 +43,6 @@
   align-items: flex-start;
 }
 
-.header-info {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
 .header-actions {
   margin-top: 16px;
   display: flex;
@@ -56,20 +53,20 @@
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #303133;
+  color: var(--el-text-color-primary);
 }
 
 .card-subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
 }
 
 /* 表单样式 */
 .form-help {
   margin-top: 8px;
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
   line-height: 1.6;
 }
 
@@ -84,22 +81,6 @@
   margin-top: 24px;
 }
 
-/* 设置页面表单样式 */
-.settings-form {
-  margin-top: 20px;
-  width: 100%;
-}
-
-.settings-form .el-form-item {
-  margin-bottom: 24px;
-}
-
-.settings-form .el-form-item__label {
-  font-weight: 500;
-  color: #303133;
-  margin-bottom: 8px;
-}
-
 /* 示例样式 */
 .example-inline {
   margin-top: 8px;
@@ -110,17 +91,17 @@
 
 .example-label {
   font-size: 12px;
-  color: #606266;
+  color: var(--el-text-color-regular);
   font-weight: 500;
 }
 
 .example-url {
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 13px;
-  background: #f5f7fa;
+  background: var(--el-fill-color-light);
   padding: 4px 8px;
   border-radius: 4px;
-  color: #303133;
+  color: var(--el-text-color-primary);
 }
 
 /* 启用开关样式 */
@@ -133,6 +114,33 @@
 /* 有限宽度输入框 */
 .limited-width-input {
   max-width: 500px;
+}
+
+/* 名称、扩展名和 STRM 正则共用标签布局，文本解析仍由各组件负责。 */
+.tag-input-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+}
+
+.tag-input-tags .el-tag {
+  max-width: 100%;
+  min-height: 24px;
+  height: auto;
+  padding-block: 2px;
+  line-height: 18px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.tag-input-tags .el-tag__content {
+  min-width: 0;
+}
+
+.tag-input-tags + .el-input {
+  margin-top: 8px;
 }
 
 /* 适配移动设备的表单布局 */
@@ -169,7 +177,7 @@
 
 .telegram-form .el-form-item__label {
   font-weight: 500;
-  color: #303133;
+  color: var(--el-text-color-primary);
   margin-bottom: 8px;
 }
 
@@ -191,18 +199,6 @@
   gap: 8px;
 }
 
-.emby-actions {
-  display: flex;
-  gap: 12px;
-  margin-top: 24px;
-}
-
-/* 同步目录特定样式 */
-.sync-directories-container {
-  margin: 0;
-  padding: 0;
-}
-
 /* 全宽度容器，突破父容器的padding限制 */
 .full-width-container {
   margin: -20px !important;
@@ -222,60 +218,14 @@
   min-height: 250px;
 }
 
-.directories-table {
-  width: 100% !important;
-  margin-bottom: 20px;
-  overflow-x: auto;
-}
-
-/* 确保表格容器也占满宽度 */
-.directories-table .el-table {
-  width: 100% !important;
-}
-
-.directories-table .el-table__inner-wrapper {
-  width: 100% !important;
-}
-
-.table-cell-wrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.cell-label {
-  font-size: 12px;
-  color: #909399;
-  font-weight: 500;
-}
-
-.cid-text {
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-size: 13px;
-  color: #606266;
-  word-break: break-all;
-  background: #f5f7fa;
-  padding: 2px 6px;
-  border-radius: 4px;
-  display: inline-block;
-}
-
 .path-text {
-  color: #303133;
+  color: var(--el-text-color-primary);
   word-break: break-all;
   font-size: 13px;
   line-height: 1.4;
 }
 
 /* 卡片列表基础样式 */
-.directories-card-list {
-  margin-bottom: 20px;
-}
-
-.directory-card-col {
-  margin-bottom: 20px;
-}
-
 .directory-card {
   height: 100%;
   transition:
@@ -284,7 +234,7 @@
 }
 
 .directory-card:hover {
-  border-color: #409eff;
+  border-color: var(--el-color-primary);
 }
 
 .card-actions {
@@ -309,12 +259,12 @@
 
 .info-label {
   font-size: 12px;
-  color: #606266;
+  color: var(--el-text-color-regular);
 }
 
 .info-value {
   font-size: 16px;
-  color: #303133;
+  color: var(--el-text-color-primary);
   word-break: break-all;
   line-height: 1.5;
 }
@@ -328,7 +278,7 @@
   align-items: center;
   justify-content: center;
   min-height: 200px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
   background: #fafafa;
 }
 
@@ -349,12 +299,4 @@
 }
 .el-form-item__content {
   display: block !important;
-}
-
-.dir-item {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  cursor: pointer;
-  padding: 8px;
 }

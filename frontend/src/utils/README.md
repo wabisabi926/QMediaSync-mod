@@ -40,6 +40,15 @@
 const { isMobile } = useDeviceType()
 ```
 
+## directoryRunStatusUtils.ts
+
+同步目录与刮削目录运行状态的展示映射：
+
+- `getDirectoryRunStatusClass(row)`
+- `getDirectoryRunStatusText(row)`
+
+按 `is_running`（2 运行中 / 1 等待中 / 其他 空闲）返回状态类名或文本；类名对应的卡片样式由各页面自身定义。
+
 ## directoryUploadRules.ts
 
 目录监控上传规则的页面展示辅助：
@@ -85,6 +94,14 @@ const icon = getFileIconByName('movie.mp4')
 
 筛选函数返回传入列表中等级被选中的条目；空等级列表返回空数组。
 
+## messageBoxUtils.ts
+
+ElMessageBox 确认弹窗的取消判定：
+
+- `isMessageBoxCancelError(error)`
+
+同时兼容 ElMessageBox 默认 reject 的 `'cancel'` / `'close'` 和消息包含“用户取消操作”的包装错误；调用方据此跳过用户主动取消时的错误提示。
+
 ## notificationUtils.ts
 
 通知渠道、事件类型和展示文本辅助：
@@ -95,9 +112,7 @@ const icon = getFileIconByName('movie.mp4')
 - `NotificationConfig`
 - `NotificationRule`
 - `getChannelTypeName(type)`
-- `getChannelTypeColor(type)`
 - `getEventTypeName(type)`
-- `getEventTypeDescription(type)`
 - `WebhookHeaderRow`
 - `webhookHeaderRecordToRows(headers)`
 - `webhookHeaderRowsToRecord(rows)`
@@ -176,6 +191,15 @@ OAuth 回调参数收集：
 
 `123` 的展示配置仍以注释形式保留，当前不在选项、标签或名称映射中启用。完整存储来源类型和任务队列的展示差异见 [任务来源](../../../docs/reference/task-sources.md)。
 
+## strmRegex.ts
+
+STRM 正则输入的语法预检：
+
+- `precheckStrmRegex(pattern)`：返回可阻止添加的 `error`，或表示需交后端判断的 `notice`；不执行匹配，也不返回改写后的表达式。
+- `strmRegexListError(patterns)`：预检整个列表，返回第一条错误及面向用户的序号；空列表合法。
+
+原生 `RegExp` 只编译临时适配副本。语法兼容和后端最终校验边界见 [STRM 正则预检](../../../docs/engineering/request-validation.md#strm-正则预检)。
+
 ## syncRecordEvents.ts
 
 同步记录全局 SSE 事件的本地列表 patch：
@@ -198,6 +222,17 @@ OAuth 回调参数收集：
 - `resetSyncTaskEventSequences(sequences)`
 
 删除事件总会被接受并清除该任务水位；HTTP 快照重新收敛前必须清空水位，避免服务端 sequence 重置后丢弃新事件。
+
+## syncTaskStatusUtils.ts
+
+同步任务状态与子状态的展示映射：
+
+- `SyncTaskStatusTagType`
+- `getSyncTaskStatusTagType(status)`
+- `getSyncTaskStatusText(status)`
+- `getSyncTaskSubStatusText(subStatus)`
+
+状态机器值（0 待开始 / 1 运行中 / 2 已完成 / 3 失败）与子状态的稳定展示见 [任务来源](../../../docs/reference/task-sources.md)。
 
 ## syncRefreshDecision.ts
 
@@ -251,7 +286,7 @@ OAuth 回调参数收集：
 
 ## timeUtils.ts
 
-时间、存储空间和状态样式辅助。业务时间统一使用后端返回的 Unix 秒，并在前端按浏览器本地环境格式化；日志字符串保持原始日志格式，不强制转换。新接口如需毫秒时间或耗时，字段名必须使用 `_ms` 后缀，例如 `duration_ms`、`event_time_ms`。
+时间格式化辅助。业务时间统一使用后端返回的 Unix 秒，并在前端按浏览器本地环境格式化；日志字符串保持原始日志格式，不强制转换。新接口如需毫秒时间或耗时，字段名必须使用 `_ms` 后缀，例如 `duration_ms`、`event_time_ms`。
 
 完整时间字段策略见 [`docs/reference/database-schema.md`](../../../docs/reference/database-schema.md#时间字段策略)，Emby 同步状态字段说明见 [`docs/architecture/emby-library-sync.md`](../../../docs/architecture/emby-library-sync.md)。
 
@@ -265,12 +300,6 @@ OAuth 回调参数收集：
 - `formatTimestamp(timestamp)`
 - `formatDateTime(timestamp)`
 - `formatTime(timestamp)`
-- `formatStorage(bytes)`
-- `getStoragePercent(used, total)`
-- `getProgressColor(used, total)`
-- `getMemberClass(level)`
-- `formatExpireTime(expireTime)`
-- `getExpireClass(expireTime)`
 - `formatDuration(seconds)`
 
 兼容规则：

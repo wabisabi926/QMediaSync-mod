@@ -73,12 +73,12 @@ import { ElMessage } from 'element-plus'
 import { useHttpClient } from '@/http/client'
 import { SERVER_URL } from '@/const'
 import type { BackupConfig } from '@/typing'
-import { isMobile as checkIsMobile } from '@/utils/deviceUtils'
+import { useDeviceType } from '@/composables/useDeviceType'
 import PageHeader from '@/components/common/PageHeader.vue'
 import CronSelector from './CronSelector.vue'
 
 const http = useHttpClient()
-const isMobile = checkIsMobile()
+const { isMobile } = useDeviceType()
 const API_SUCCESS_CODE = 200
 
 const configForm = reactive({
@@ -194,7 +194,7 @@ onMounted(() => {
 .cron-next-times {
   margin-top: 12px;
   padding: 12px;
-  background-color: #f5f7fa;
+  background-color: var(--el-fill-color-light);
   border-radius: 4px;
 }
 
@@ -204,7 +204,7 @@ onMounted(() => {
 
 .cron-next-times p {
   margin: 0 0 8px 0;
-  color: #606266;
+  color: var(--el-text-color-regular);
 }
 
 .cron-times-list {

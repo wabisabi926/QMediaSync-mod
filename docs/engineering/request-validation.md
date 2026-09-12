@@ -73,6 +73,7 @@ DTO 负责：
 | `PortInRange` | 校验已解析 URL 的显式端口落在 1-65535，供上面三个 URL 规则共用。 |
 | `Cron` | 使用 `robfig/cron/v3` 的标准 5 段 Cron 解析。 |
 | `ExtList` | 扩展名数组可配置是否允许空；非空项必须以 `.` 开头，且不能包含空白字符。 |
+| `RegexList` | 数组允许为空；每项不能为空且必须能由 Go `regexp` 编译，保留原文，错误字段带数组下标。 |
 
 通用错误使用 `validation.Error`，错误文本格式为 `字段：原因`。新增规则时应同时补充 `backend/internal/validation` 的 table-driven 测试。
 
@@ -112,8 +113,8 @@ Emby 条目同步默认 Cron 为 `0 * * * *`，含义是每小时整点执行一
 | --- | --- | --- |
 | `requests/settings.go` | 线程配置、全局 STRM 配置 | 线程范围、页面大小范围、115 URL 有效性检查开关和 1 到 9 秒总超时、STRM Base URL、Cron、扩展名、STRM 开关枚举。 |
 | `requests/sync.go` | 同步路径创建和更新、自定义 STRM 配置 | 来源类型、非本地来源账号 ID、路径必填、自定义配置、继承值 `-1`、远程路径规范化。 |
-| `requests/scrape_path.go` | 刮削路径保存 | 创建和更新分场景校验；更新时使用旧记录补齐不可编辑的来源类型、账号和媒体类型；刮削类型、整理方式、源路径、按场景要求的目标路径、扩展名、最小文件大小、线程上限、Cron。 |
-| `requests/scrape_settings.go` | TMDB、AI、分类和 TMDB 搜索 | URL、语言代码、国家代码、AI 动作枚举、模型名长度、超时范围、分类名称、Genre ID、年份范围。 |
+| `requests/scrape_path.go` | 刮削路径保存 | 创建和更新分场景校验；更新时使用旧记录补齐不可编辑的来源类型、账号和媒体类型；刮削类型、整理方式、源路径、按场景要求的目标路径、扩展名、最小文件大小、线程上限、Cron；文件夹和文件命名模板拒绝绝对路径、反斜杠和 `..` 片段。 |
+| `requests/scrape_settings.go` | TMDB、AI、分类和 TMDB 搜索 | URL、语言代码、国家代码、AI 动作枚举、模型名长度、超时范围、分类名称必须是单层目录名、Genre ID、年份范围。 |
 | `requests/accounts.go` | 账号、账号授权更换/取消、OpenList 账号、API Key | 账号来源类型、名称长度、115 授权来源组合、更换授权的确认标志和来源字段、授权会话绑定、OpenList URL 规范化、用户名/密码或 Token、API Key 状态。 |
 | `requests/connections.go` | HTTP 代理、OAuth、二维码、远程直链、反代、请求队列限制和统计 | 代理 URL、`preserve_proxy_credentials` 的显式凭据保留意图、账号 ID、OAuth 回调 URL、`authorization_id` 长度、`data`/`payload` 条件必填、二维码 UID、PickCode、反代下载域名白名单、QPS/QPM/QPH、统计窗口和清理天数。 |
 | `requests/emby.go` | Emby 配置 | Emby URL、同步 Cron、布尔开关枚举、媒体库 JSON 字符串。 |
@@ -122,12 +123,13 @@ Emby 条目同步默认 Cron 为 `0 * * * *`，含义是每小时整点执行一
 | `requests/users.go` | 登录、启用/关闭两步验证、当前用户用户名/密码修改 | 登录校验用户名和密码非空，用户名 20 个字符上限；创建和修改使用严格用户名 / 密码规则，用户名去除首尾空白后长度为 3 到 20 个字符且只能包含英文和数字，密码长度至少 6 个字符且不能是纯数字或纯字母；两步验证码必填。 |
 | `requests/operations.go` | 分页、ID、路径浏览、网盘文件、目录操作、队列、同步/刮削关联、日志、临时图片、版本更新 | 分页默认值和范围、HTTP path 正 ID、ID 列表、CSV ID、来源类型、文件夹名、路径穿越防护、日志文件名限制、版本号格式、日期范围。 |
 
-迁移临时服务是启动期流程，不纳入公共 `backend/internal/requests` 目录。它在 `backend/internal/migrate` 包内使用私有 DTO 校验 PostgreSQL 测试连接和保存配置请求。
+首次数据库配置服务是启动期流程，不纳入公共 `backend/internal/requests` 目录；它只提供 SQLite 和PostgreSQL 配置，旧库迁移服务已移除。
 
 ## 重要兼容性规则
 
 - `SyncPathRequest` 同时支持计划中的嵌套 `setting` 字段和旧前端使用的顶层 STRM 字段；存在非零嵌套配置时优先使用 `setting`。
 - 同步路径自定义 STRM 配置使用 `-1` 表示继承全局值；全局 STRM 配置不接受 `-1`。
+- 全局 STRM 和同步目录自定义配置的 `exclude_name_regex_arr` 在现有保存接口中逐项用 Go `regexp` 校验；空规则、非法语法及 Go 不支持的表达式会被拒绝，并指出字段和规则序号。空数组合法。正则原文直接传入模型，不套用原名称列表的转小写，也不裁剪首尾空格；仅包含正则字段的嵌套 `setting` 同样优先于顶层兼容字段。
 - `SaveScrapePathRequest` 新增请求要求提供来源类型、账号和媒体类型；更新请求沿用旧记录中的这些不可编辑字段，避免旧前端编辑请求被误拒。
 - 刮削路径 `only_scrape` 模式不要求目标路径，整理方式只能为 `same`；需要整理或重命名时才要求目标路径。
 - 刮削路径本地来源支持移动、复制、软链接和硬链接整理；115、百度网盘和 OpenList 支持移动和复制整理；其他远程来源只保守允许移动整理。
@@ -148,7 +150,7 @@ Emby 条目同步默认 Cron 为 `0 * * * *`，含义是每小时整点执行一
 - 账号 `name` 与非空 `user_id` 的重复检查属于模型/数据库业务约束，不在 DTO 中猜测数据库状态；冲突时控制器返回面向用户的错误，授权替换事务保持旧字段不变。
 - `BackupListRequest` 保留旧分页兼容策略：页码小于 1 时回退为 1，每页数量小于 1 或大于 100 时回退为 20，类型为空时回退为 `all`。
 - 备份配置中 `backup_retention` 为 0 时表示不更新或使用既有值；大于 0 时限制为 1 到 365。
-- `internal/migrate` 的测试连接请求允许 `database` 为空，并继续固定连接 `dbname=postgres`；保存配置请求要求 `database` 非空。
+- 首次数据库配置保存只接受 `sqlite`、`postgres` 引擎；PostgreSQL 配置中遗留的 `postgresType: embedded` 或未知模式必须被拒绝，不得静默改成外部连接。旧 SQLite 配置中的该字段不参与连接。
 
 ## 安全敏感校验
 
@@ -157,6 +159,7 @@ Emby 条目同步默认 Cron 为 `0 * * * *`，含义是每小时整点执行一
 - 同步任务详情实时流 `/api/sync/tasks/:id/stream` 不接受客户端传入日志路径，只使用 `ParsePositiveIDRequest` 校验路径 `id`，再由后端根据 `sync_id` 派生同步任务日志路径。
 - 临时图片读取请求只接受相对路径，并拒绝绝对路径和路径穿越。
 - 创建目录请求拒绝空名称、`.`、`..`、路径分隔符和控制字符。
+- 刮削路径的文件夹和文件命名模板拒绝绝对路径、反斜杠和 `..` 片段；二级分类名必须是单层目录名，拒绝路径分隔符、`.`、`..` 和纯空白。模板渲染结果和分类名在参与目标路径拼接前仍会统一清理，本地落盘前还会校验目标路径仍在根目录内，完整契约见 [刮削命名模板与其他类型 NFO](../reference/scrape-rename-templates.md)。
 - Webhook JSON 模板会先替换内置变量再做 JSON 解析；Form 模板必须符合 `key=value&key2=value2` 格式。
 - Webhook 额外请求头使用 `headers` 对象传递，Header 名称会去除首尾空白，且必须是合法 HTTP token；空 Header 名会被拒绝。
 
@@ -177,7 +180,7 @@ STRM Webhook 的外部字段、鉴权、路径边界、批量规则和响应由 
 - 用户会话撤销使用 `session_id` 路径参数，当前直接从 `c.Param("session_id")` 读取。
 - 同步记录、同步任务详情 HTTP 查询、同步路径列表查询仍在 `controllers/sync.go` 使用控制器内局部 Request 结构；同步任务详情实时流在 `controllers/event_stream.go` 使用 `ParsePositiveIDRequest` 解析路径 `id`，不新增 DTO。
 - 备份上传恢复使用 multipart 文件流，文件读取、扩展名和临时文件处理仍保留在控制器中。
-- 迁移临时服务 `internal/migrate/server.go` 使用独立的启动期接口和包内私有 DTO，不纳入常规 API DTO 目录。
+- 首次数据库配置服务 `backend/main.go` 使用独立的启动期接口和私有请求结构，不纳入常规 API DTO 目录。
 - 部分只读或触发型接口没有外部参数，或只做运行状态检查，不需要 DTO。
 
 新增或改造接口时，不应继续扩大这些例外；如果改动触及上述接口，可以顺手迁移到 `backend/internal/requests`，但要保持外部响应兼容。
@@ -198,6 +201,14 @@ STRM Webhook 的外部字段、鉴权、路径边界、批量规则和响应由 
 备份定时策略选择器将当前生效的 Cron 和自定义 Cron 草稿拆成两个前端状态；提交配置时仍只保存 `backup_cron`，避免预设策略覆盖尚未提交的自定义表达式。
 
 调整后端范围或枚举时，必须同步检查该文件和相关表单组件，避免前后端提示不一致。
+
+### STRM 正则预检
+
+`strmRegex.ts` 使用原生 `RegExp` 预检临时副本，适配 `i/m/s/U` 标志及其组合、开关和局部作用域（如 `(?im-s)`、`(?i:abc)`），以及 `\A`、`\z`、Go 命名分组和 `\Q...\E`。这些转换只用于语法检查，不模拟 Go 匹配结果，也不得写回表单或提交数据。
+
+扫描时区分转义、字符组和引用区域，提示明确不支持的前后向断言、反向引用、原子组、占有量词和超过 1000 的单个重复次数。合法八进制转义和包含类似符号的字面量不能误报。Unicode 属性、POSIX 字符组等无法可靠预检的 Go 语法允许继续添加并提示后端校验；浏览器预检通过也不代表 Go 一定接受。
+
+全局设置和目录自定义设置共用正则输入与预检。输入每次整条添加，大小写、转义、逗号、分号和首尾空格保持不变；空字符串不允许作为规则，空列表合法。提交前再次预检列表，服务器仍通过原有保存接口做最终校验。全局设置显示保存接口的错误消息，目录表单将 `exclude_name_regex_arr[n]` 映射到正则字段并显示第 `n+1` 条错误。匹配和继承语义见 [STRM 名称排除](../operations/configuration.md#strm-名称排除)。
 
 ## 测试要求
 

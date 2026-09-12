@@ -85,7 +85,7 @@ import { ElMessage } from 'element-plus'
 import { Check } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
 import { useHttpClient } from '@/http/client'
-import { isMobile } from '@/utils/deviceUtils'
+import { useDeviceType } from '@/composables/useDeviceType'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import TwoFactorSettings from '@/components/user-settings/TwoFactorSettings.vue'
@@ -104,7 +104,7 @@ interface SaveStatus {
 }
 const authStore = useAuthStore()
 const router = useRouter()
-const checkIsMobile = shallowRef(isMobile())
+const { isMobile: checkIsMobile } = useDeviceType()
 const http = useHttpClient()
 const loading = shallowRef(false)
 const saveStatus = shallowRef<SaveStatus | null>(null)
@@ -254,13 +254,13 @@ const loadCurrentUsername = async () => {
   margin: 0 0 8px 0;
   font-size: 24px;
   font-weight: 600;
-  color: #303133;
+  color: var(--el-text-color-primary);
 }
 
 .card-subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
 }
 
 .user-form {
@@ -274,13 +274,13 @@ const loadCurrentUsername = async () => {
 
 .user-form .el-form-item__label {
   font-weight: 500;
-  color: #303133;
+  color: var(--el-text-color-primary);
   margin-bottom: 8px;
 }
 
 .form-help {
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
   margin-top: 4px;
   line-height: 1.4;
 }
@@ -305,7 +305,7 @@ const loadCurrentUsername = async () => {
 .security-tips {
   margin: 8px 0 0 0;
   padding-left: 20px;
-  color: #606266;
+  color: var(--el-text-color-regular);
 }
 
 .security-tips li {

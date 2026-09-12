@@ -10,59 +10,61 @@ export const useBackupStore = defineStore('backup', () => {
   const taskType = ref<BackupTaskType>(null)
   const showProgressDialog = ref(false)
   const pollingTimer = ref<number | null>(null)
+  const delayedPollingTimer = ref<number | null>(null)
+  const pollingGeneration = ref(0)
+  const pollInFlight = ref(false)
+  const pageVisible = ref(true)
+  let pollingHttp: AxiosInstance | null = null
   const errorRetryCount = ref(0)
 
   const MAX_RETRY_COUNT = 3
   const API_SUCCESS_CODE = 200
 
   const isRunning = computed(() => progress.value?.running === true)
-  const canCancel = computed(
-    () => taskType.value === 'backup' && progress.value?.status === 'running',
-  )
-
-  // const checkBackupStatus = async (http: AxiosInstance) => {
-  //   if (!http) return
-
-  //   try {
-  //     const res = await http.get(`${SERVER_URL}/backup/status`)
-  //     console.log(res.data)
-  //     if (res.data.code === API_SUCCESS_CODE && res.data.data.is_running) {
-  //       progress.value = { running: true, status: 'running' }
-  //       taskType.value = 'backup'
-  //       showProgressDialog.value = true
-  //       startProgressPolling('backup', undefined, http)
-  //     }
-  //   } catch (error) {
-  //     console.error('检查备份状态失败：', error)
-  //   }
-  // }
 
   const startProgressPolling = (
     type: 'backup' | 'restore',
     id: number | undefined,
     http: AxiosInstance,
   ) => {
+    void id
+    pollingHttp = http
+    pollingGeneration.value += 1
+    const generation = pollingGeneration.value
     taskType.value = type
     showProgressDialog.value = true
     errorRetryCount.value = 0
-
-    if (pollingTimer.value) {
-      clearInterval(pollingTimer.value)
-    }
-    // 三秒后再开始检查状态，防止服务端没更新状态
-    setTimeout(() => {
-      pollProgress(http)
-
+    stopProgressPolling(false)
+    const schedule = () => {
+      if (!pageVisible.value || generation !== pollingGeneration.value || pollingTimer.value) return
       pollingTimer.value = window.setInterval(() => {
-        pollProgress(http)
+        if (pageVisible.value && generation === pollingGeneration.value)
+          void pollProgress(http, generation)
       }, 2000)
-    }, 3000)
+    }
+    if (pageVisible.value && !document.hidden) {
+      delayedPollingTimer.value = window.setTimeout(() => {
+        delayedPollingTimer.value = null
+        if (generation !== pollingGeneration.value || !pageVisible.value || document.hidden) return
+        void pollProgress(http, generation)
+        schedule()
+      }, 3000)
+    }
   }
 
-  const pollProgress = async (http: AxiosInstance) => {
+  const pollProgress = async (http: AxiosInstance, generation = pollingGeneration.value) => {
+    if (
+      !pageVisible.value ||
+      document.hidden ||
+      generation !== pollingGeneration.value ||
+      pollInFlight.value
+    )
+      return
+    pollInFlight.value = true
     try {
       if (taskType.value === 'backup') {
         const res = await http.get(`${SERVER_URL}/backup/status`)
+        if (generation !== pollingGeneration.value || !pageVisible.value || document.hidden) return
         if (res.data.code === API_SUCCESS_CODE) {
           const statusData = res.data.data
 
@@ -85,6 +87,7 @@ export const useBackupStore = defineStore('backup', () => {
         }
       } else if (taskType.value === 'restore') {
         const res = await http.get(`${SERVER_URL}/backup/status`)
+        if (generation !== pollingGeneration.value || !pageVisible.value || document.hidden) return
         if (res.data.code === API_SUCCESS_CODE) {
           const statusData = res.data.data
           progress.value = {
@@ -109,6 +112,7 @@ export const useBackupStore = defineStore('backup', () => {
         }
       }
     } catch (error) {
+      if (generation !== pollingGeneration.value || !pageVisible.value) return
       console.error('轮询进度失败：', error)
       errorRetryCount.value++
 
@@ -119,6 +123,8 @@ export const useBackupStore = defineStore('backup', () => {
           location.reload()
         }, 2000)
       }
+    } finally {
+      pollInFlight.value = false
     }
   }
 
@@ -144,36 +150,36 @@ export const useBackupStore = defineStore('backup', () => {
     }, 1500)
   }
 
-  const stopProgressPolling = () => {
+  const stopProgressPolling = (invalidate = true) => {
+    if (invalidate) pollingGeneration.value += 1
+    if (delayedPollingTimer.value) {
+      clearTimeout(delayedPollingTimer.value)
+      delayedPollingTimer.value = null
+    }
     if (pollingTimer.value) {
       clearInterval(pollingTimer.value)
       pollingTimer.value = null
     }
   }
 
-  // const cancelBackupTask = async (http: AxiosInstance) => {
-  //   try {
-  //     const res = await http.post(`${SERVER_URL}/backup/cancel`)
-
-  //     if (res.data.code === API_SUCCESS_CODE) {
-  //       ElMessage.success(res.data.message || '备份任务已取消')
-  //       stopProgressPolling()
-  //       showProgressDialog.value = false
-  //       resetState()
-  //     } else {
-  //       ElMessage.error(res.data.message || '取消备份任务失败')
-  //     }
-  //   } catch (error: unknown) {
-  //     const errorMsg = error instanceof Error ? error.message : '取消备份任务失败'
-  //     ElMessage.error(errorMsg)
-  //   }
-  // }
+  const handleVisibilityChange = () => {
+    pageVisible.value = !document.hidden
+    if (!pageVisible.value) {
+      stopProgressPolling(false)
+    } else if (taskType.value && (!progress.value || isRunning.value) && pollingHttp) {
+      startProgressPolling(taskType.value, undefined, pollingHttp)
+    }
+  }
 
   const resetState = () => {
     progress.value = null
     taskType.value = null
+    pollingGeneration.value += 1
     errorRetryCount.value = 0
   }
+
+  if (typeof document !== 'undefined')
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
   return {
     progress,
@@ -181,11 +187,8 @@ export const useBackupStore = defineStore('backup', () => {
     showProgressDialog,
     errorRetryCount,
     isRunning,
-    canCancel,
-    // checkBackupStatus,
     startProgressPolling,
     stopProgressPolling,
-    // cancelBackupTask,
     resetState,
   }
 })

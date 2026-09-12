@@ -94,12 +94,12 @@ import { SERVER_URL } from '@/const'
 import { useBackupStore } from '@/stores/backup'
 import { formatFileSize } from '@/utils/fileSizeUtils'
 import { formatTimestamp } from '@/utils/timeUtils'
-import { isMobile as checkIsMobile } from '@/utils/deviceUtils'
+import { useDeviceType } from '@/composables/useDeviceType'
 import PageHeader from '@/components/common/PageHeader.vue'
 
 const http = useHttpClient()
 const backupStore = useBackupStore()
-const isMobile = checkIsMobile()
+const { isMobile } = useDeviceType()
 const API_SUCCESS_CODE = 200
 
 const uploadRef = useTemplateRef<UploadInstance>('uploadRef')
@@ -152,7 +152,7 @@ const startRestore = async () => {
     await ElMessageBox.confirm(
       `<div style="line-height: 1.8;">
         <p>此操作将覆盖当前数据库，数据库将暂时不可用，确认继续吗？</p>
-        <p style="color: #F56C6C; font-weight: bold; font-size: 16px; margin-top: 8px;">⚠️ 注意：恢复成功后请重启服务让所有数据和配置生效！</p>
+        <p style="color: var(--el-color-danger); font-weight: bold; font-size: 16px; margin-top: 8px;">⚠️ 注意：恢复成功后请重启服务让所有数据和配置生效！</p>
       </div>`,
       '危险操作确认',
       {

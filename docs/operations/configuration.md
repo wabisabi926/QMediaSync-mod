@@ -6,19 +6,52 @@
 >
 > 修改时机：修改配置字段、默认值、密钥来源、日志行为、Emby 302 TLS 选项或运行时监控指标时必须更新本文档和 `docs/examples/config.yaml`。
 >
-> 相关代码：`backend/internal/helpers/config.go`、`backend/internal/helpers/logger.go`、`backend/main.go`、`backend/emby302.yaml`、`docs/examples/config.yaml`。
+> 相关代码：`backend/internal/helpers/config.go`、`backend/internal/helpers/logger.go`、`backend/internal/models/settings.go`、`backend/internal/models/syncpath.go`、`backend/main.go`、`backend/emby302.yaml`、`docs/examples/config.yaml`。
 
 ## 配置文件与默认端口
 
-- 主配置为 `config/config.yaml`，兼容旧 `config.yml`。首次启动缺少主配置时会启动配置向导，当前可选择 SQLite 或外部 PostgreSQL，保存后生成 `config/config.yaml`。
+- 主配置为 `config/config.yaml`，兼容旧 `config.yml`。首次启动缺少主配置时会启动配置向导，当前可选择 SQLite 或PostgreSQL，保存后生成 `config/config.yaml`。
 - Web 默认端口：HTTP `12333`、HTTPS `12332`；Emby 302 代理默认端口：HTTP `8095`、HTTPS `8094`。
 - 完整字段示例见 [config.yaml](../examples/config.yaml)。示例仅说明字段，运行时以 `config/config.yaml` 为准。
-- 代码默认数据库配置为 `postgres + embedded`。Docker 镜像安装 `postgresql15`；裸二进制和本地开发环境不携带 PostgreSQL 二进制，使用 PostgreSQL 时应安装 PostgreSQL 15 及以上、配置外部数据库，或自行保证内嵌模式依赖的命令可用。
+- 默认数据库配置为 PostgreSQL。使用 PostgreSQL 时，应单独部署 PostgreSQL 15 及以上，并填写 `db.postgresConfig`；应用二进制和 Docker 镜像均不携带或启动 PostgreSQL 服务。
+- 新配置不再写入 `postgresType`。旧 PostgreSQL 配置中的 `external` 或缺省值均可继续使用；显式 `embedded` 会被拒绝。旧库和未完成迁移包的处理边界见 [数据库运维](database.md#旧内嵌数据库)。
+- 数据库连接信息只从主配置读取，旧 `DB_HOST`、`DB_PORT`、`DB_USER`、`DB_PASSWORD`、`DB_NAME`、`DB_SSLMODE` 环境变量不再作为数据库配置入口。
 - 数据库引擎、备份恢复和修复操作见 [数据库运维](database.md)；表、版本和迁移语义见 [数据库 schema 与迁移](../reference/database-schema.md)。
+
+管理员恢复使用二进制参数 `--reset-admin-password` 或 `--delete-admin --yes`，可通过 `--config-dir` 指定已有配置目录；这些参数不能写入长期运行的服务配置，不新增 YAML 字段。恢复只读取配置，不补写默认 JWT 密钥或本机加密密钥。操作命令和 Compose 自动识别规则见 [管理员恢复](deployment.md#管理员恢复)。
+
+## STRM 名称排除
+
+STRM 名称排除保存于数据库，由全局 STRM 设置和同步目录自定义设置管理，不增加 `config.yaml` 或环境变量字段。
+
+| 设置 | 匹配方式 | 大小写 |
+| --- | --- | --- |
+| 排除名称 | 完整匹配名称，保留原有行为 | 不区分大小写 |
+| 正则排除名称 | Go `regexp` 语法，默认部分匹配；使用 `^…$` 限定完整名称 | 默认区分，使用 `(?i)` 忽略 |
+
+完整同步和网盘文件管理手动生成以文件名（包含扩展名）及路径中的各级目录名为匹配对象；两类规则任意一项命中即排除，目录命中时排除其下内容。正则不跨路径分隔符匹配，表达式和待匹配名称都保留原始大小写。输入采用原始表达式，例如 `(?i)^extras$`，不使用 JavaScript 的 `/abc/i` 包装格式。
+
+两类列表分别继承：开启目录自定义配置后，非空列表覆盖相应全局列表，空列表继承相应全局列表。网盘文件管理的手动生成直接使用全局配置，单文件生成同样检查文件名和父目录。每次创建同步器时编译正则；修改配置对后续创建的同步器生效。
+
+规则通过现有保存接口由后端最终校验，正则原文落库。字段及升级行为见 [数据库 schema 与迁移](../reference/database-schema.md)，目录保存契约见 [同步目录聚合 API](../reference/sync-path-api.md)。
+
+前端每次按 Enter 或点击“添加”加入一条完整正则，不按逗号或分号拆分，也不裁剪首尾空格。“常用正则示例”可展开查看：
+
+| 表达式 | 用途 |
+| --- | --- |
+| `sample` | 排除名称中包含小写 sample 的文件或目录 |
+| `(?i)(sample\|trailer)` | 排除名称中包含 sample 或 trailer 的内容，忽略大小写 |
+| `(?i)^extras$` | 完整匹配 extras 名称，忽略大小写 |
+| `(?i)^sample\.[^.]+$` | 匹配 sample 加扩展名，忽略大小写 |
+| `^\.` | 匹配以点开头的名称 |
+
+浏览器会预检格式并提示明确不兼容的语法；遇到无法可靠预检的 Go 语法时允许添加，保存时再由服务器判断。前后端校验的具体边界见 [请求校验约定](../engineering/request-validation.md#strm-正则预检)。
 
 ## 115 运行参数
 
 - 首页「115 接口监控」的请求数、QPS、QPM、QPH、平均响应时间和限流次数来自 `request_stats` 表，重启后仍按时间窗口聚合展示。
+- 115 请求完成后只把统计记录放入有界内存队列，由固定 worker 每最多 32 条或每 500 毫秒批量写入 `request_stats`；队列容量为 2048，写入压力过高时会丢弃非关键统计并在关闭时记录丢弃数量，不阻塞 API、同步、上传或 Emby worker。统计展示因此属于尽力而为，数据库关闭前会尽量刷完已接收记录。
+- 「系统设置-接口速率」保存 `file_detail_threads` 后会立即更新进程内 115 请求队列；换算后的 QPS、QPM、QPH 对后续请求生效，不需要重启服务。正在处理或已经入队的请求不保证继续使用旧配置。
 - 当前是否限流、等待时间和剩余时间来自进程内 115 请求队列管理器。限流暂停时长为 1 分钟，重启后恢复为未限流。
 - 秒传等待策略保存于 `settings`，由 `upload_rapid_wait_interval_seconds`、`upload_rapid_wait_timeout_seconds`、`upload_rapid_wait_min_size`、`upload_rapid_wait_force_size` 和 `upload_rapid_wait_skip_upload` 控制。间隔只控制重试频率，超时字段才是最大等待上限。
 - 115 直链缓存有效性检查保存于 `settings`，默认开启，默认总超时为 3 秒、范围为 1 到 9 秒。它只影响缓存 URL 的 HEAD 检查；百度网盘和 OpenList 不使用这套机制。
@@ -71,7 +104,7 @@ emby302:
 
 历史 `log.file` 仍可读取；当 `log.app` 为空且 `log.file` 有值时使用旧路径，新保存统一写 `log.app`。全局日志按写入触发轮转并压缩旧文件；同步任务日志不轮转，随同步记录清理删除。`QLogger` 在写入前脱敏 `api_key`、Token、Cookie、密码、STS 密钥等常见敏感字段，脱敏值统一显示为 `******`。
 
-`QLogger` 的脱敏基于键值对匹配，不识别 URL 里的 `用户名:密码@` 段。凡是可能带凭据的 URL（例如出站代理地址），必须在调用点用 `validation.RedactProxyURL`（入参为原始字符串）或 `validation.RedactParsedProxyURL`（入参为已解析的 `*url.URL`）处理后再写日志或回传接口，不能依赖 `QLogger` 兜底。
+同步任务遍历本地文件时，正常的文件存在性对比和“无需处理”的原因使用 `DEBUG` 级别；实际删除本地 STRM、上传或重新下载元数据等动作使用 `INFO` 级别。对比命中远端文件时，`DEBUG` 日志会以带字段名的完整 `SyncFileCache` 结构输出，便于排查文件 ID、路径、大小、时间和来源等信息；未命中时只输出本地路径和不存在结论。`QLogger` 的脱敏基于键值对匹配，不识别 URL 里的 `用户名:密码@` 段。凡是可能带凭据的 URL（例如出站代理地址），必须在调用点用 `validation.RedactProxyURL`（入参为原始字符串）或 `validation.RedactParsedProxyURL`（入参为已解析的 `*url.URL`）处理后再写日志或回传接口，不能依赖 `QLogger` 兜底。
 
 不要使用标准库的 `url.URL.Redacted()`：它只替换密码，用户名仍是明文（企业代理常带域账号，形如 `http://DOMAIN\jsmith:pw@proxy.corp:8080`）；并且它对缺少 `//` 的 opaque 地址（形如 `socks5:user:secret@host:1080`）完全不生效，会把密码原样输出。上面两个函数同时遮蔽用户名和密码，覆盖 opaque 地址，并在 `url.Parse` 失败时返回占位符而不是原串。
 
@@ -82,6 +115,8 @@ emby302:
 `GET /setting/notification/channels/telegram/{id}` 回传的 `config.proxy_url` 同样脱敏：该字段由历史迁移从 `settings.http_proxy` 复制而来，可能带凭据。凡是把含 `proxy_url` 的配置结构体整体写进响应的接口都要先脱敏。
 
 `QMS_UNSAFE_SENSITIVE_LOG=1` 只在本地调试时临时启用 `SensitiveDebug` 日志；它可能写出 API Key、Token、Cookie 或密码，不能在生产环境长期使用或分享相关日志。`backend/emby302.yaml` 默认关闭 ANSI 颜色，避免控制字符进入日志。
+
+管理员恢复结果写入现有应用日志，成功记录不受日志等级过滤；新密码始终直接交付给终端或 Windows 系统窗口，不进入应用日志。Compose 恢复脚本还会关闭临时容器的 Docker 日志驱动。完整凭据交付契约见 [认证会话](../architecture/authentication-sessions.md#本地管理员恢复)。
 
 ## 第三方密钥与本机敏感数据
 

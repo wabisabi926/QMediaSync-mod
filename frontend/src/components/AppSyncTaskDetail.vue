@@ -24,8 +24,8 @@
           <el-descriptions :column="1" border>
             <el-descriptions-item label="任务 ID">{{ taskId }}</el-descriptions-item>
             <el-descriptions-item label="任务状态">
-              <el-tag v-if="taskInfo" :type="getStatusType(taskInfo.status)">
-                {{ getStatusText(taskInfo.status) }}
+              <el-tag v-if="taskInfo" :type="getSyncTaskStatusTagType(taskInfo.status)">
+                {{ getSyncTaskStatusText(taskInfo.status) }}
               </el-tag>
               <span v-else>-</span>
             </el-descriptions-item>
@@ -36,7 +36,7 @@
                 size="small"
                 effect="light"
               >
-                {{ getSubStatusText(taskInfo.sub_status) }}
+                {{ getSyncTaskSubStatusText(taskInfo.sub_status) }}
               </el-tag>
               <span v-else>-</span>
             </el-descriptions-item>
@@ -164,6 +164,11 @@ import { useLogFileActions } from '@/composables/useLogFileActions'
 import { useSyncTaskStream } from '@/composables/useSyncTaskStream'
 import { navigateBackOrReplace } from '@/utils/navigation'
 import { getEmbyRefreshDecision } from '@/utils/syncRefreshDecision'
+import {
+  getSyncTaskStatusTagType,
+  getSyncTaskStatusText,
+  getSyncTaskSubStatusText,
+} from '@/utils/syncTaskStatusUtils'
 import { formatDateTime } from '@/utils/timeUtils'
 
 // 任务详情数据结构
@@ -245,52 +250,6 @@ const embyRefreshDecision = computed(() =>
 // 返回上一页
 const goBack = () => {
   void navigateBackOrReplace(router, { name: 'sync-records' })
-}
-
-// 获取状态标签类型
-const getStatusType = (status: number) => {
-  switch (status) {
-    case 0:
-      return 'info' // 待开始
-    case 1:
-      return 'primary' // 运行中
-    case 2:
-      return 'success' // 完成
-    case 3:
-      return 'danger' // 失败
-    default:
-      return 'info'
-  }
-}
-
-// 获取状态文本
-const getStatusText = (status: number) => {
-  switch (status) {
-    case 0:
-      return '待开始'
-    case 1:
-      return '运行中'
-    case 2:
-      return '已完成'
-    case 3:
-      return '失败'
-    default:
-      return '未知'
-  }
-}
-
-// 获取子状态文本
-const getSubStatusText = (subStatus: number) => {
-  switch (subStatus) {
-    case 0:
-      return '待开始'
-    case 1:
-      return '正在处理网盘文件'
-    case 2:
-      return '正在处理本地文件'
-    default:
-      return '未知'
-  }
 }
 
 // 计算执行时长
@@ -447,7 +406,7 @@ const getTimelineItems = () => {
   margin: 0 0 16px 0;
   font-size: 18px;
   font-weight: 600;
-  color: #303133;
+  color: var(--el-text-color-primary);
 }
 
 .execution-timeline {
@@ -460,7 +419,7 @@ const getTimelineItems = () => {
 
 .emby-refresh-reason {
   margin-left: 8px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
   font-size: 13px;
 }
 
@@ -468,7 +427,7 @@ const getTimelineItems = () => {
   margin: 0 0 20px 0;
   font-size: 18px;
   font-weight: 600;
-  color: #303133;
+  color: var(--el-text-color-primary);
 }
 
 .horizontal-timeline {
@@ -489,21 +448,21 @@ const getTimelineItems = () => {
 }
 
 .timeline-step.completed .step-icon {
-  background-color: #67c23a;
-  border-color: #67c23a;
+  background-color: var(--el-color-success);
+  border-color: var(--el-color-success);
   color: #fff;
 }
 
 .timeline-step.current .step-icon {
-  background-color: #409eff;
-  border-color: #409eff;
+  background-color: var(--el-color-primary);
+  border-color: var(--el-color-primary);
   color: #fff;
   animation: pulse 2s infinite;
 }
 
 .timeline-step:not(.completed):not(.current) .step-icon {
-  background-color: #f5f7fa;
-  border-color: #dcdfe6;
+  background-color: var(--el-fill-color-light);
+  border-color: var(--el-border-color);
   color: #c0c4cc;
 }
 
@@ -540,7 +499,7 @@ const getTimelineItems = () => {
 .step-title {
   font-size: 14px;
   font-weight: 600;
-  color: #303133;
+  color: var(--el-text-color-primary);
   margin-bottom: 4px;
   line-height: 1.4;
   word-break: break-word;
@@ -552,7 +511,7 @@ const getTimelineItems = () => {
 
 .step-time {
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
   margin-bottom: 2px;
 }
 
@@ -562,7 +521,7 @@ const getTimelineItems = () => {
 
 .step-duration {
   font-size: 12px;
-  color: #67c23a;
+  color: var(--el-color-success);
   font-weight: 500;
 }
 
@@ -572,12 +531,12 @@ const getTimelineItems = () => {
   left: 50%;
   right: -50%;
   height: 2px;
-  background-color: #dcdfe6;
+  background-color: var(--el-border-color);
   z-index: 1;
 }
 
 .step-connector.active {
-  background-color: #67c23a;
+  background-color: var(--el-color-success);
 }
 
 .timeline-step:last-child .step-connector {
@@ -615,20 +574,20 @@ const getTimelineItems = () => {
 .timeline-title {
   font-size: 16px;
   font-weight: 600;
-  color: #303133;
+  color: var(--el-text-color-primary);
   margin-bottom: 4px;
 }
 
 .timeline-duration {
   font-size: 14px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
 }
 
 .file-compare-table h3 {
   margin: 0 0 16px 0;
   font-size: 18px;
   font-weight: 600;
-  color: #303133;
+  color: var(--el-text-color-primary);
 }
 
 .table-container {
@@ -643,7 +602,7 @@ const getTimelineItems = () => {
 
 /* 为表格列添加竖线分隔 */
 .compare-table :deep(.el-table__cell) {
-  border-right: 1px solid #ebeef5;
+  border-right: 1px solid var(--el-border-color-lighter);
 }
 
 .file-paths {
@@ -654,7 +613,7 @@ const getTimelineItems = () => {
 
 .file-path {
   font-size: 13px;
-  color: #606266;
+  color: var(--el-text-color-regular);
   word-break: break-all;
   line-height: 1.4;
 }
@@ -706,6 +665,15 @@ const getTimelineItems = () => {
 
   .step-connector {
     top: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .timeline-step.current .step-icon {
+    animation: none;
+  }
+
+  .step-icon .el-icon.loading {
+    animation: none;
   }
 }
 </style>

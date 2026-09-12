@@ -15,25 +15,37 @@
               type="warning"
               :size="queueControlSize"
               @click="pauseAllTasks"
-              :disabled="!canPauseAllTasks"
+              :disabled="isQueueMutationPending || !canPauseAllTasks"
               >全部暂停</el-button
             >
             <el-button
               type="success"
               :size="queueControlSize"
               @click="resumeAllTasks"
-              :disabled="!canResumeAllTasks"
+              :disabled="isQueueMutationPending || !canResumeAllTasks"
               >全部恢复</el-button
             >
           </div>
           <div class="queue-cleanup-actions">
-            <el-button type="warning" :size="queueControlSize" @click="retryFailedTasks"
+            <el-button
+              type="warning"
+              :size="queueControlSize"
+              :disabled="isQueueMutationPending"
+              @click="retryFailedTasks"
               >重试失败</el-button
             >
-            <el-button type="warning" :size="queueControlSize" @click="clearQueue"
+            <el-button
+              type="warning"
+              :size="queueControlSize"
+              :disabled="isQueueMutationPending"
+              @click="clearQueue"
               >清空等待</el-button
             >
-            <el-button type="danger" :size="queueControlSize" @click="clearSuccessAndFailedTasks"
+            <el-button
+              type="danger"
+              :size="queueControlSize"
+              :disabled="isQueueMutationPending"
+              @click="clearSuccessAndFailedTasks"
               >清空完成/失败</el-button
             >
           </div>
@@ -318,10 +330,12 @@ import ResponsivePagination from '@/components/common/ResponsivePagination.vue'
 import PageHeader from '@/components/common/PageHeader.vue'
 import QueueTaskExpandButton from '@/components/queue/QueueTaskExpandButton.vue'
 import QueueTaskDetails from '@/components/queue/QueueTaskDetails.vue'
-import { ElMessage, ElMessageBox, type TableInstance } from 'element-plus'
+import { ElMessage, type TableInstance } from 'element-plus'
 import { WarningFilled } from '@element-plus/icons-vue'
 import { SERVER_URL } from '@/const'
 import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
+import { useQueueMutationContext } from '@/composables/useQueueMutationContext'
+import { useQueueMutations } from '@/composables/useQueueMutations'
 import { useBackgroundRefresh } from '@/composables/useBackgroundRefresh'
 import { useHttpClient } from '@/http/client'
 import { mergeStableList, retainExistingKeys } from '@/composables/useStableList'
@@ -372,10 +386,6 @@ interface DownloadTask {
   last_retry_time: number
 }
 
-interface QueueMutationContextSnapshot {
-  contextVersion: number
-}
-
 const http = useHttpClient()
 
 // 数据状态
@@ -422,51 +432,16 @@ const hasActiveQueueWork = computed(
 // 定时器
 const refreshTimer = ref<number | null>(null)
 const pendingQueueDataRefresh = ref(false)
+let queueDataRefreshPromise: Promise<boolean> | null = null
 let isPageActive = false
 const queueDataRequestGate = createActiveRequestGate(() => isPageActive)
 const queueStatusRequestGate = createActiveRequestGate(() => isPageActive)
-const queueMutationContextVersion = ref(0)
-const activeQueueMutationContext = ref<QueueMutationContextSnapshot | null>(null)
-
-const invalidateQueueMutationContext = () => {
-  queueMutationContextVersion.value += 1
-  activeQueueMutationContext.value = null
-}
-
-const startQueueMutationContext = (): QueueMutationContextSnapshot => {
-  invalidateQueueMutationContext()
-  const snapshot = {
-    contextVersion: queueMutationContextVersion.value,
-  }
-  activeQueueMutationContext.value = snapshot
-  return snapshot
-}
-
-const isQueueMutationContextCurrent = (snapshot: QueueMutationContextSnapshot | null) => {
-  return (
-    isPageActive &&
-    !!snapshot &&
-    !!activeQueueMutationContext.value &&
-    activeQueueMutationContext.value.contextVersion === snapshot.contextVersion &&
-    snapshot.contextVersion === queueMutationContextVersion.value
-  )
-}
-
-const finishQueueMutationContext = (snapshot: QueueMutationContextSnapshot) => {
-  if (isQueueMutationContextCurrent(snapshot)) {
-    activeQueueMutationContext.value = null
-  }
-}
-
-const isMessageBoxCancelError = (error: unknown): boolean => {
-  if (error === 'cancel' || error === 'close') {
-    return true
-  }
-
-  const errorMessage = error instanceof Error ? error.message : String(error)
-  return errorMessage.includes('用户取消操作')
-}
-
+const {
+  invalidateQueueMutationContext,
+  startQueueMutationContext,
+  isQueueMutationContextCurrent,
+  finishQueueMutationContext,
+} = useQueueMutationContext({ isPageActive: () => isPageActive })
 const getDownloadTaskName = (task: DownloadTask): string => task.file_name || task.remote_file_id
 
 const getDownloadTaskTooltipContent = (task: DownloadTask): string =>
@@ -520,269 +495,85 @@ const pruneExpandedRowsAfterLoad = () => {
 }
 
 // 加载队列数据
-const loadQueueData = async () => {
+const loadQueueData = async (): Promise<boolean> => {
   if (!isPageActive) {
-    return
+    return false
   }
 
   const requestId = queueDataRequestGate.next()
 
   if (isRefreshing.value) {
     pendingQueueDataRefresh.value = true
-    return
+    return queueDataRefreshPromise ?? false
   }
 
-  try {
-    await runRefresh(async () => {
-      try {
-        const response = await http.get(`${SERVER_URL}/download/queue`, {
-          params: {
-            page: currentPage.value,
-            page_size: pageSize.value,
-            status: statusFilter.value,
-          },
-        })
+  const refreshPromise = (async () => {
+    let loaded = false
+    try {
+      const result = await runRefresh(async () => {
+        try {
+          const response = await http.get(`${SERVER_URL}/download/queue`, {
+            params: {
+              page: currentPage.value,
+              page_size: pageSize.value,
+              status: statusFilter.value,
+            },
+          })
 
-        if (!queueDataRequestGate.isCurrent(requestId)) {
-          return
-        }
-
-        if (response?.data.code === 200) {
-          const rows = response.data.data.list || []
-          queueData.value = mergeStableList(queueData.value, rows, (row) => row.id)
-          total.value = response.data.data.total
-          downloading.value = response.data.data.downloading || 0
-          queueStatusSnapshot.value = normalizeQueueStatusSnapshot(
-            response.data.data.queue_status,
-            queueStatusSnapshot.value.running,
-          )
-          pruneExpandedRowsAfterLoad()
-          if (hasActiveQueueWork.value) {
-            startAutoRefresh()
-          } else {
-            stopAutoRefresh()
+          if (!queueDataRequestGate.isCurrent(requestId)) {
+            return false
           }
-        } else {
+
+          if (response?.data.code === 200) {
+            const rows = response.data.data.list || []
+            queueData.value = mergeStableList(queueData.value, rows, (row) => row.id)
+            total.value = response.data.data.total
+            downloading.value = response.data.data.downloading || 0
+            queueStatusSnapshot.value = normalizeQueueStatusSnapshot(
+              response.data.data.queue_status,
+              queueStatusSnapshot.value.running,
+            )
+            pruneExpandedRowsAfterLoad()
+            if (hasActiveQueueWork.value) {
+              startAutoRefresh()
+            } else {
+              stopAutoRefresh()
+            }
+            return true
+          } else {
+            ElMessage.error('获取下载队列数据失败')
+            return false
+          }
+        } catch (error) {
+          if (!queueDataRequestGate.isCurrent(requestId)) {
+            return false
+          }
+          console.error('加载下载队列数据错误：', error)
           ElMessage.error('获取下载队列数据失败')
+          return false
         }
-      } catch (error) {
-        if (!queueDataRequestGate.isCurrent(requestId)) {
-          return
-        }
-        console.error('加载下载队列数据错误：', error)
-        ElMessage.error('获取下载队列数据失败')
+      })
+      loaded = result === true
+    } finally {
+      if (pendingQueueDataRefresh.value && isPageActive) {
+        pendingQueueDataRefresh.value = false
+        loaded = await loadQueueData()
       }
-    })
-  } finally {
-    if (pendingQueueDataRefresh.value && isPageActive) {
-      pendingQueueDataRefresh.value = false
-      await loadQueueData()
+      queryLoading.value = false
     }
-    queryLoading.value = false
+    return loaded
+  })()
+  queueDataRefreshPromise = refreshPromise
+  try {
+    return await refreshPromise
+  } finally {
+    if (queueDataRefreshPromise === refreshPromise) queueDataRefreshPromise = null
   }
 }
 
 // 刷新队列
 const refreshQueue = () => {
   loadQueueData()
-}
-
-// 清空队列
-const clearQueue = async () => {
-  const operationContext = startQueueMutationContext()
-
-  try {
-    await ElMessageBox.confirm('只能清空所有等待下载的数据，此操作不可恢复，是否继续？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning',
-    })
-
-    if (!isQueueMutationContextCurrent(operationContext)) {
-      return
-    }
-
-    const response = await http.post(`${SERVER_URL}/download/queue/clear-pending`)
-
-    if (!isQueueMutationContextCurrent(operationContext)) {
-      return
-    }
-
-    if (response?.data.code === 200) {
-      const beforeCount = queueData.value.length
-      queueData.value = removePendingQueueRows(queueData.value)
-      const removedCount = beforeCount - queueData.value.length
-      total.value = Math.max(0, total.value - removedCount)
-      queueStatusSnapshot.value = {
-        ...queueStatusSnapshot.value,
-        pending: 0,
-        total: Math.max(0, queueStatusSnapshot.value.total - removedCount),
-      }
-      ElMessage.success('队列已清空')
-      await loadQueueData()
-      await loadQueueStatus()
-    } else {
-      ElMessage.error('清空队列失败')
-    }
-  } catch (error) {
-    if (!isQueueMutationContextCurrent(operationContext)) {
-      return
-    }
-    if (!isMessageBoxCancelError(error)) {
-      console.error('清空队列失败：', error)
-      ElMessage.error('清空队列失败')
-    }
-  } finally {
-    if (isQueueMutationContextCurrent(operationContext)) {
-      finishQueueMutationContext(operationContext)
-    }
-  }
-}
-
-const clearSuccessAndFailedTasks = async () => {
-  const operationContext = startQueueMutationContext()
-
-  try {
-    await ElMessageBox.confirm(
-      '只能清空所有已完成和失败的数据，此操作不可恢复，是否继续？',
-      '提示',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning',
-      },
-    )
-
-    if (!isQueueMutationContextCurrent(operationContext)) {
-      return
-    }
-
-    const response = await http.post(`${SERVER_URL}/download/queue/clear-success-failed`)
-
-    if (!isQueueMutationContextCurrent(operationContext)) {
-      return
-    }
-
-    if (response?.data.code === 200) {
-      ElMessage.success('队列已清空')
-      loadQueueData()
-    } else {
-      ElMessage.error(`清空队列失败：${response?.data.message || ''}`)
-    }
-  } catch (error) {
-    if (!isQueueMutationContextCurrent(operationContext)) {
-      return
-    }
-    if (!isMessageBoxCancelError(error)) {
-      console.error('清空队列失败：', error)
-      ElMessage.error('清空队列失败')
-    }
-  } finally {
-    if (isQueueMutationContextCurrent(operationContext)) {
-      finishQueueMutationContext(operationContext)
-    }
-  }
-}
-
-const retryFailedTasks = async () => {
-  const operationContext = startQueueMutationContext()
-
-  try {
-    await ElMessageBox.confirm('是否重试所有失败任务？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning',
-    })
-
-    if (!isQueueMutationContextCurrent(operationContext)) {
-      return
-    }
-
-    const response = await http.post(`${SERVER_URL}/download/queue/retry-failed`)
-
-    if (!isQueueMutationContextCurrent(operationContext)) {
-      return
-    }
-
-    if (response?.data.code === 200) {
-      ElMessage.success('失败任务已重新加入队列')
-      loadQueueData()
-    } else {
-      ElMessage.error(response?.data.message || '重试失败任务时出错')
-    }
-  } catch (error) {
-    if (!isQueueMutationContextCurrent(operationContext)) {
-      return
-    }
-    if (!isMessageBoxCancelError(error)) {
-      console.error('重试失败任务时出错：', error)
-      ElMessage.error('重试失败任务时出错')
-    }
-  } finally {
-    if (isQueueMutationContextCurrent(operationContext)) {
-      finishQueueMutationContext(operationContext)
-    }
-  }
-}
-
-// 全局暂停所有任务
-const pauseAllTasks = async () => {
-  const operationContext = startQueueMutationContext()
-
-  try {
-    const response = await http.post(`${SERVER_URL}/download/queue/stop`)
-
-    if (!isQueueMutationContextCurrent(operationContext)) {
-      return
-    }
-
-    if (response?.data.code === 200) {
-      ElMessage.success('已暂停所有任务')
-      loadQueueData()
-    } else {
-      ElMessage.error(`暂停所有任务失败：${response?.data.message || ''}`)
-    }
-  } catch (error) {
-    if (!isQueueMutationContextCurrent(operationContext)) {
-      return
-    }
-    console.error('暂停所有任务失败：', error)
-    ElMessage.error('暂停所有任务失败')
-  } finally {
-    if (isQueueMutationContextCurrent(operationContext)) {
-      finishQueueMutationContext(operationContext)
-    }
-  }
-}
-
-// 全局继续所有任务
-const resumeAllTasks = async () => {
-  const operationContext = startQueueMutationContext()
-
-  try {
-    const response = await http.post(`${SERVER_URL}/download/queue/start`)
-
-    if (!isQueueMutationContextCurrent(operationContext)) {
-      return
-    }
-
-    if (response?.data.code === 200) {
-      ElMessage.success('已恢复所有任务')
-      loadQueueData()
-    } else {
-      ElMessage.error(`恢复所有任务失败：${response?.data.message || ''}`)
-    }
-  } catch (error) {
-    if (!isQueueMutationContextCurrent(operationContext)) {
-      return
-    }
-    console.error('恢复所有任务失败：', error)
-    ElMessage.error('恢复所有任务失败')
-  } finally {
-    if (isQueueMutationContextCurrent(operationContext)) {
-      finishQueueMutationContext(operationContext)
-    }
-  }
 }
 
 // 获取队列状态
@@ -793,7 +584,7 @@ const loadQueueStatus = async () => {
     const response = await http.get(`${SERVER_URL}/download/queue/status`)
 
     if (!queueStatusRequestGate.isCurrent(requestId)) {
-      return
+      return false
     }
 
     if (response?.data.code === 200) {
@@ -803,14 +594,84 @@ const loadQueueStatus = async () => {
       )
     } else {
       console.error('获取队列状态失败：', response?.data.message)
+      return false
     }
   } catch (error) {
     if (!queueStatusRequestGate.isCurrent(requestId)) {
-      return
+      return false
     }
     console.error('获取队列状态错误：', error)
+    return false
   }
+  return queueStatusRequestGate.isCurrent(requestId)
 }
+
+const {
+  isQueueMutationPending,
+  clearQueue: runClearQueue,
+  runMutation,
+} = useQueueMutations({
+  post: (endpoint) => http.post(endpoint),
+  reloadQueue: loadQueueData,
+  reloadQueueStatus: loadQueueStatus,
+  isContextCurrent: isQueueMutationContextCurrent,
+  startContext: startQueueMutationContext,
+  finishContext: finishQueueMutationContext,
+  onClearPendingSuccess: () => {
+    const beforeCount = queueData.value.length
+    queueData.value = removePendingQueueRows(queueData.value)
+    const removedCount = beforeCount - queueData.value.length
+    total.value = Math.max(0, total.value - removedCount)
+    queueStatusSnapshot.value = {
+      ...queueStatusSnapshot.value,
+      pending: 0,
+      total: Math.max(0, queueStatusSnapshot.value.total - removedCount),
+    }
+  },
+})
+
+const clearQueue = async () =>
+  runClearQueue({
+    endpoint: `${SERVER_URL}/download/queue/clear-pending`,
+    confirm: { message: '只能清空所有等待下载的数据，此操作不可恢复，是否继续？' },
+    successMessage: '队列已清空',
+    businessErrorMessage: () => '清空队列失败',
+    requestErrorMessage: '清空队列失败',
+  })
+
+const clearSuccessAndFailedTasks = () =>
+  runMutation({
+    endpoint: `${SERVER_URL}/download/queue/clear-success-failed`,
+    confirm: { message: '只能清空所有已完成和失败的数据，此操作不可恢复，是否继续？' },
+    successMessage: '队列已清空',
+    businessErrorMessage: (message) => `清空队列失败：${message || ''}`,
+    requestErrorMessage: '清空队列失败',
+  })
+
+const retryFailedTasks = () =>
+  runMutation({
+    endpoint: `${SERVER_URL}/download/queue/retry-failed`,
+    confirm: { message: '是否重试所有失败任务？' },
+    successMessage: '失败任务已重新加入队列',
+    businessErrorMessage: (message) => message || '重试失败任务时出错',
+    requestErrorMessage: '重试失败任务时出错',
+  })
+
+const pauseAllTasks = () =>
+  runMutation({
+    endpoint: `${SERVER_URL}/download/queue/stop`,
+    successMessage: '已暂停所有任务',
+    businessErrorMessage: (message) => `暂停所有任务失败：${message || ''}`,
+    requestErrorMessage: '暂停所有任务失败',
+  })
+
+const resumeAllTasks = () =>
+  runMutation({
+    endpoint: `${SERVER_URL}/download/queue/start`,
+    successMessage: '已恢复所有任务',
+    businessErrorMessage: (message) => `恢复所有任务失败：${message || ''}`,
+    requestErrorMessage: '恢复所有任务失败',
+  })
 
 // 处理每页数量变更
 const handleSizeChange = (val: number) => {
@@ -906,8 +767,18 @@ useRealtimeEvent('download_queue_changed', () => {
   }
 })
 
+const handleQueueVisibilityChange = () => {
+  if (!isPageActive || document.hidden) {
+    stopAutoRefresh()
+    return
+  }
+  if (hasActiveQueueWork.value) startAutoRefresh()
+  void loadQueueData()
+}
+
 // 页面生命周期
 onMounted(() => {
+  document.addEventListener('visibilitychange', handleQueueVisibilityChange)
   activateQueuePage()
 })
 
@@ -929,6 +800,7 @@ onActivated(() => {
 onDeactivated(deactivateQueuePage)
 
 onUnmounted(() => {
+  document.removeEventListener('visibilitychange', handleQueueVisibilityChange)
   isPageActive = false
   queryLoading.value = false
   pendingQueueDataRefresh.value = false
@@ -1120,11 +992,11 @@ onUnmounted(() => {
 }
 
 :deep(.error-row) {
-  background-color: #fef0f0;
+  background-color: var(--el-color-danger-light-9);
 }
 
 :deep(.cancelled-row) {
-  background-color: #f5f7fa;
+  background-color: var(--el-fill-color-light);
 }
 
 /* 移动端适配 */

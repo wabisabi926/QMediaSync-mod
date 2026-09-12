@@ -454,8 +454,8 @@ onUnmounted(() => {
 </script>
 
 <style>
+/* 正文字体统一由 main.css 声明。 */
 #app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
   color: #2c3e50;
   height: 100vh;
   overflow: hidden;
@@ -497,7 +497,7 @@ onUnmounted(() => {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background-color: #409eff;
+  background-color: var(--el-color-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -519,14 +519,14 @@ onUnmounted(() => {
 }
 
 .logout-btn {
-  color: #909399 !important;
+  color: var(--el-text-color-secondary) !important;
   font-size: 12px;
   padding: 0 !important;
   height: auto !important;
 }
 
 .logout-btn:hover {
-  color: #ffd04b !important;
+  color: var(--el-color-danger) !important;
 }
 
 .el-menu-vertical {
@@ -639,7 +639,7 @@ onUnmounted(() => {
     margin: 0;
     font-size: 18px;
     font-weight: 500;
-    color: #303133;
+    color: var(--el-text-color-primary);
     flex: 1 1 auto;
     overflow-wrap: anywhere;
     word-break: break-word;
@@ -715,20 +715,12 @@ onUnmounted(() => {
   }
 }
 
-nav {
-  padding: 30px;
+/* 滚动条样式统一，普通主内容容器使用 6px；日志容器在自身样式中覆盖为 8px。 */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: #c1c1c1 #f1f1f1;
 }
 
-nav a {
-  font-weight: bold;
-  color: #2c3e50;
-}
-
-nav a.router-link-exact-active {
-  color: #42b983;
-}
-
-/* 滚动条样式优化 */
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -757,13 +749,13 @@ nav a.router-link-exact-active {
   gap: 8px;
   margin-top: 20px;
   font-size: 14px;
-  color: #606266;
+  color: var(--el-text-color-regular);
 }
 
 .progress-tables {
   margin-top: 12px;
   font-size: 13px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
   text-align: center;
 }
 
@@ -772,7 +764,7 @@ nav a.router-link-exact-active {
   justify-content: space-around;
   margin-top: 16px;
   padding: 12px;
-  background-color: #f5f7fa;
+  background-color: var(--el-fill-color-light);
   border-radius: 4px;
 }
 
@@ -785,12 +777,12 @@ nav a.router-link-exact-active {
 
 .progress-time .label {
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
 }
 
 .progress-time .value {
   font-size: 16px;
   font-weight: 600;
-  color: #409eff;
+  color: var(--el-color-primary);
 }
 </style>

@@ -1,12 +1,12 @@
 # 账号授权与更换
 
-> 职责：定义云盘账号授权、更换授权的接口、来源边界、短时会话和落库语义。
+> 职责：定义云盘账号授权、更换授权的接口、来源边界、短时会话、访问凭证刷新和落库语义。
 >
-> 权威范围：本文档维护 115 账号更换授权的跨后端、前端和数据库契约；账号字段和迁移以 [数据库 schema 与迁移](database-schema.md) 为准，通用请求校验以 [请求校验约定](../engineering/request-validation.md) 为准。
+> 权威范围：本文档维护 115 账号更换授权的跨后端、前端和数据库契约，以及 115 访问凭证的定时刷新与失效边界；账号字段和迁移以 [数据库 schema 与迁移](database-schema.md) 为准，通用请求校验以 [请求校验约定](../engineering/request-validation.md) 为准。
 >
-> 修改时机：修改账号授权入口、`authorization_id` 传递、授权来源兼容性、确认提示、原子更新或失败回滚边界时必须更新本文档。
+> 修改时机：修改账号授权入口、`authorization_id` 传递、授权来源兼容性、确认提示、原子更新、访问凭证刷新策略或失败回滚边界时必须更新本文档。
 >
-> 相关代码：`backend/internal/controllers/account.go`、`backend/internal/controllers/open115.go`、`backend/internal/requests/accounts.go`、`backend/internal/requests/connections.go`、`backend/internal/v115auth/`、`backend/internal/models/account.go`、`frontend/src/components/AppCloudAccounts.vue`、`frontend/src/components/cloud-auth/`、`frontend/src/composables/useV115DeviceAuthorization.ts`。
+> 相关代码：`backend/internal/controllers/account.go`、`backend/internal/controllers/open115.go`、`backend/internal/requests/accounts.go`、`backend/internal/requests/connections.go`、`backend/internal/v115auth/`、`backend/internal/v115open/`、`backend/internal/synccron/synccron.go`、`backend/internal/models/account.go`、`frontend/src/components/AppCloudAccounts.vue`、`frontend/src/components/cloud-auth/`、`frontend/src/composables/useV115DeviceAuthorization.ts`。
 
 ## 账号关联语义
 
@@ -53,6 +53,7 @@
 - `POST /api/auth/115-qrcode-open` 接收 `account_id` 和可选 `authorization_id`。
 - `POST /api/auth/115-qrcode-status` 接收 `account_id`、`uid` 和可选 `authorization_id`。
 - 二维码状态绑定账号、二维码 UID 和会话 ID，有效期为 300 秒；轮询请求的会话 ID 必须与生成二维码时一致。
+- 前端在等待扫码阶段每 1 秒轮询一次；状态变为已扫码后轮询间隔放宽到 3 秒。已扫码后服务端要串行完成取令牌、查用户信息和写库，降低这一阶段的轮询频率可以减少同期数据库写入竞争。
 - 二维码状态过期或取消后会从内存清理；用户关闭二维码弹窗时前端会使飞行中的请求失效并通知后端取消会话。准备新的更换会话会清理旧的普通二维码状态，旧状态的最终提交和会话失效操作互斥。
 - 更换流程使用目标 APP ID 创建临时客户端，不提前覆盖旧账号的缓存客户端或数据库字段。页面刷新或关闭时即使卸载通知未送达，重新进入账号页也会读取当前标签页的暂存会话并回收服务端状态。
 
@@ -70,18 +71,63 @@
 
 ## 原子落库
 
-授权控制器先使用目标来源和新令牌请求 115 用户信息。只有用户信息请求成功后，`Account.ReplaceV115Authorization` 才在一个数据库事务中更新以下字段：
+授权控制器先使用目标来源和新令牌请求 115 用户信息。只有用户信息请求成功后，`Account.ReplaceV115Authorization` 才通过一条原子 `UPDATE` 同时更新以下字段：
 
 - `app_id`、`app_id_name`；
 - `auth_source_type`、`auth_provider`；
 - `token`、`refresh_token`、`token_expiries_time`；
 - `user_id`、`username`、`token_failed_reason`。
 
-事务不更新 `id`、`name` 或任何同步、刮削、任务关联表。事务提交成功后才刷新按账号 ID 缓存的 115 客户端，并消费 `authorization_id`。目标令牌无效、用户信息请求失败、事务失败、取消或超时都会保留旧授权的来源、应用、令牌和用户信息。
+该更新不修改 `id`、`name` 或任何同步、刮削、任务关联表。更新成功后才刷新按账号 ID 缓存的 115 客户端，并消费 `authorization_id`。目标令牌无效、用户信息请求失败、唯一性冲突、更新失败、取消或超时都会保留旧授权的来源、应用、令牌和用户信息。
 
 共享 115 客户端命中已有账号 ID 时必须同时更新 `AppId` 和令牌；待授权校验使用不进入共享缓存的临时客户端。
 
-百度网盘 OAuth 也遵循相同的失败保护：先使用新 access token 的临时客户端获取用户信息，再在一个事务中同时写入新凭据和 `user_id`/`username`。如果用户 ID 唯一性冲突或事务失败，旧凭据和旧用户信息保持不变。
+115 授权替换不再先查询 `user_id` 再更新目标行，而是依赖 `idx_account_user_id` 部分唯一索引作为并发冲突的最终判定；SQLite 下这条单语句更新没有读快照升级窗口。SQLite 连接池仍固定为一个连接，以串行化其他写事务；连接池边界见 [数据库运维](../operations/database.md)。数据库返回的账号身份唯一性错误会映射为稳定的模型错误，调用方可安全保留旧授权并提示重复账号。
+
+百度网盘 OAuth 也遵循相同的失败保护：先使用新 access token 的临时客户端获取用户信息，再用一条原子 `UPDATE` 同时写入新凭据和 `user_id`/`username`。如果用户 ID 唯一性冲突或更新失败，旧凭据和旧用户信息保持不变。
+
+## 访问凭证定时刷新与失效
+
+115 访问凭证由 `TokenCron` 每 5 分钟检查一次。账号在 `token_expiries_time` 前 30 分钟进入刷新窗口；access_token 过期后只要 refresh_token 仍存在，刷新会一直按 cron 节奏重试，直到成功或 refresh_token 被判定失效。刷新使用账号快照创建的临时客户端，成功后经带重试的条件写库落库并更新共享客户端；落库失败时保留待写记录等待补传（见下文），refresh_token 旋转语义下旧凭据不会被远端旧结果覆盖。
+
+刷新失败按 115 官方错误语义分流：
+
+| 失败类别 | 判定 | 行为 |
+| --- | --- | --- |
+| 凭证失效 | 业务码 40140116（已解除授权）、40140119（refresh_token 已过期）、40140114/40140115/40140120（格式/签名/校验失败） | 清空数据库与共享客户端凭据，写入 `token_failed_reason`，发布 `V115TokenInValidEvent` 并发送重新授权通知 |
+| 可重试失败 | 网络错误（DNS、超时、连接失败）、40140117（刷新太频繁）、40140121（刷新失败） | 保留数据库与客户端凭据，仅记录日志，等待下一轮 cron 重试 |
+
+- 刷新请求对网络类错误做请求内重试：最多 5 次、间隔 10 秒，让瞬时网络抖动在一轮内消化。
+- 40140117 与凭证失效码不做请求内重试，避免对着频控或已死亡的 refresh_token 连续发请求。
+- `v115open.IsRefreshTokenDead` 是凭证失效判定的唯一入口，`synccron` 和 `RefreshToken` 共用该判定；只有它返回 true 时才允许清空凭据或发布凭证失效事件。
+- 数据库凭据清空仍走 `ClearTokenIfCurrent` / `ClearTokenIfCredentialsMatch` 条件更新，事件处理器与定时任务并发时凭据已更新的一方获胜。
+
+### 百度网盘刷新
+
+百度网盘访问凭证由同一 `TokenCron` 检查，账号在 `token_expiries_time` 前 24 小时进入刷新窗口。refresh_token 官方有效期为 10 年，每次刷新返回新的 refresh_token。刷新不直连百度，而是经授权中转（`AuthServer` 的 `/baidupan/oauth-url?action=refresh`，refresh_token 加密在 state 参数中传递），本机不持有 App Secret。
+
+百度刷新失败按 OAuth 字符串错误码分流（`baidupan.IsRefreshTokenDead` 是唯一判定入口）：
+
+| 失败类别 | 判定 | 行为 |
+| --- | --- | --- |
+| 凭证失效 | OAuth 错误 `invalid_grant`（Refresh Token 无效或已撤销）、`expired_token`（已过期或已使用） | 清空数据库与共享客户端凭据，写入 `token_failed_reason`，发送重新授权通知 |
+| 可重试失败 | 网络错误（含中转不可达）、响应格式异常、`invalid_client` / `invalid_request` 等配置类错误 | 保留数据库与客户端凭据，仅记录日志，等待下一轮 cron 重试 |
+
+- 刷新请求对网络错误和响应格式异常做请求内重试：最多 5 次、间隔 10 秒，单次请求超时 60 秒；OAuth 业务错误不重试。
+- 缺少 `access_token` 或 `expires_in` 的响应按格式异常处理，禁止零值凭据写入数据库；中转未返回新 refresh_token 时沿用旧值，避免清空仍有效的凭据。
+- union 族接口（pan.baidu.com）的凭证类 errno（-6、20016、20017、31045）由 `handleError` 统一归类为 `TokenInvalidError`：它只代表 access_token 层面的问题，定时刷新成功后自动恢复，不触发重新授权。errno 111 在 union 族中是文件管理的异步任务语义；OAuth 族的 110/111 只出现在不经过 `ErrorMap` 的中转链路，两者均不参与凭证判断。
+
+### 轮换结果落库重试与待写补传
+
+115 和百度网盘的 refresh_token 都是单次有效的旋转式令牌：刷新成功的一刻服务端已消费旧 token，新 token 只存在于响应中。刷新成功后的落库失败等同于响应丢失，数据库残留的旧 refresh_token 下一轮会被判死并触发清空重授权。为收窄该窗口：
+
+- 刷新成功后的条件写库经 `persistTokenWithRetry` 重试：最多 5 次、间隔 10 秒。凭据已被并发覆盖（`models.IsTokenCredentialsChanged`，即守卫不匹配）时重试无意义，立即丢弃本轮轮换结果。
+- 重试仍失败时，轮换结果（轮换前后凭据快照、来源、有效期）记入 `synccron` 的内存待写表 `pendingTokenPersists`，本轮不再触碰该账号。
+- 后续每轮 TokenCron 对存在待写记录的账号优先补写：数据库凭据仍等于轮换前旧值时补写新值并同步共享客户端缓存；等于待写新值时视为已写入（同步客户端后清理记录）；其他情况（如待写期间用户重新授权）丢弃待写记录。补写仍失败时保留待写记录。补写按轮换时刻锚定 `token_expiries_time`，补写延迟不得延长凭证有效期。
+- 只要待写记录存在就不得对该账号发起刷新：旧的 refresh_token 已被服务端消费，再刷新只会判死清空。待写记录随账号删除一并清理；账号列表查询失败的本轮不清理任何待写记录。
+- 待写表只存在于内存，进程重启即丢失；这是旋转式 refresh_token 无法完全消除的残余风险（与响应在网络传输中丢失同源），重试加补传把暴露窗口压缩到"数据库故障持续整个进程生命周期"。
+
+`models.Account.TryUpdateTokenIfCurrent` 返回具体错误以区分守卫不匹配与写库失败；`UpdateToken` / `UpdateTokenIfCurrent` 的布尔语义与 `persistAccountTokenFields` 的守卫语义保持不变。
 
 ## 前端确认
 
@@ -98,20 +144,29 @@
 - 更换目标的 `source_type` 必须与原账号一致；已废弃来源不能作为带 `authorization_id` 的更换目标。
 - 后端必须校验 `confirmed=true`；前端复选框不能替代后端校验。
 - 新 `user_id` 可以不同，但非空值必须唯一；重复用户 ID 会拒绝本次提交且保留旧授权，不会查询、合并或修改其他账号。
-- `name` 和非空 `user_id` 由数据库部分唯一索引和模型层预检查共同约束；空值只用于未完成授权的临时账号。
+- `name` 和非空 `user_id` 由数据库部分唯一索引最终约束；新建和资料编辑保留模型层预检查以返回明确错误，授权替换直接依赖唯一索引；空值只用于未完成授权的临时账号。
 - 同一 OAuth state 和同一授权会话只能成功消费一次。
 - 同一账号同时只能有一个未完成的更换会话；新授权入口必须先取消旧 QR/OAuth 流程。
 - 更换会话创建成功后，旧的普通二维码状态不能在新授权提交后再次写入账号。
 - 更换会话创建成功后，旧的无会话 OAuth state 不能在新授权提交后再次写入账号；无会话旧授权提交必须通过同一账号会话锁。
 - 直接跳转 OAuth 的待处理会话在页面返回时必须与回调中的会话 ID 匹配；无回调或失败回调不能留下活动会话。
 - 授权结果必须在新令牌和用户信息都验证成功后原子写入；失败不能产生部分授权更新。
+- 网络错误、频控（40140117）和可重试失败（40140121）不得清空凭据、不得发布 `V115TokenInValidEvent`，也不得发送重新授权通知。
+- 只有 115 明确判定 refresh_token 无法继续使用（40140114/40140115/40140116/40140119/40140120）时才允许清空凭据并通知重新授权。
+- 百度网盘仅 OAuth 错误 `invalid_grant` / `expired_token` 允许清空凭据并通知重新授权；中转不可达、响应格式异常和 `invalid_client` 等配置类错误保留凭据等待重试。
+- 百度网盘刷新响应缺少有效凭据字段时禁止零值写入数据库；中转未返回新 refresh_token 时沿用旧值。
+- 刷新成功后的落库失败不得直接丢弃轮换结果：必须先重试（凭据被并发覆盖除外），仍失败时保留内存待写记录等待下轮补写。
+- 存在待写记录的账号不得发起刷新，必须先完成补写或确认凭据已被覆盖后丢弃记录；补写守卫必须使用轮换前的旧凭据。
+- 账号列表查询失败时不得清理待写记录；补写的 `token_expiries_time` 必须锚定轮换时刻而不是补写时刻。
+- access_token 过期不是清空凭据的条件；只要 refresh_token 仍在，刷新任务必须继续按 cron 节奏重试。
+- 授权落库不得因为 SQLite 并发写入返回 `database is locked`；SQLite 连接池必须保持单连接。
 - 不带 `authorization_id` 的既有授权请求保持原有行为。
 - 历史废弃来源仅禁止新建和带会话的更换目标，不阻断已有账号的无会话普通授权/重新授权入口。
 
 ## 验证方式
 
-- 后端：`cd backend && go test ./internal/requests ./internal/v115auth ./internal/v115open ./internal/models ./internal/controllers`。
+- 后端：`cd backend && go test ./internal/requests ./internal/v115auth ./internal/v115open ./internal/baidupan ./internal/models ./internal/controllers ./internal/db`。
 - 前端：`cd frontend && pnpm run test`、`pnpm run type-check`、`pnpm run build`、`pnpm run check:build`。
-- 契约测试位置：`backend/internal/v115auth/authorization_state_test.go`、`backend/internal/controllers/account_test.go`、`backend/internal/controllers/open115_auth_state_test.go`、`backend/internal/models/account_test.go`、`backend/internal/v115open/client_test.go`、`frontend/test/components/cloud-auth/V115AuthorizationChangeDialog.test.ts`、`frontend/test/composables/useV115DeviceAuthorization.test.ts`、`frontend/test/utils/v115AuthorizationSession.test.ts`。
+- 契约测试位置：`backend/internal/v115auth/authorization_state_test.go`、`backend/internal/controllers/account_test.go`、`backend/internal/controllers/open115_auth_state_test.go`、`backend/internal/models/account_test.go`、`backend/internal/v115open/client_test.go`、`backend/internal/v115open/auth_test.go`、`backend/internal/baidupan/refresh_test.go`、`backend/internal/baidupan/errors_test.go`、`backend/internal/synccron/synccron_test.go`、`backend/internal/db/db_test.go`、`frontend/test/components/cloud-auth/V115AuthorizationChangeDialog.test.ts`、`frontend/test/composables/useV115DeviceAuthorization.test.ts`、`frontend/test/utils/v115AuthorizationSession.test.ts`。
 - 前端授权生命周期回归：`frontend/test/regression/account-dialog-responsive.test.ts` 覆盖新入口取消旧流程和 OAuth 隐藏页面暂停约定。
 - 真实 115 二维码、第三方 OAuth 和跨用户远端路径有效性需要人工使用可撤销测试账号验证；自动化测试不访问真实云盘，也不能证明新用户下旧远端 ID 仍然存在。

@@ -1,9 +1,41 @@
 package validation
 
 import (
+	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 )
+
+func TestRegexListSharedBrowserCases(t *testing.T) {
+	data, err := os.ReadFile("testdata/strm_regex_cases.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cases []struct {
+		Name    string `json:"name"`
+		Pattern string `json:"pattern"`
+		Valid   bool   `json:"valid"`
+	}
+	if err := json.Unmarshal(data, &cases); err != nil {
+		t.Fatal(err)
+	}
+	if len(cases) == 0 {
+		t.Fatal("前后端共享正则用例不能为空")
+	}
+	for _, tt := range cases {
+		t.Run(tt.Name, func(t *testing.T) {
+			patterns := []string{tt.Pattern}
+			err := RegexList("exclude_name_regex_arr", patterns)
+			if (err == nil) != tt.Valid {
+				t.Fatalf("RegexList(%q) = %v，期望合法 = %v", tt.Pattern, err, tt.Valid)
+			}
+			if patterns[0] != tt.Pattern {
+				t.Fatalf("后端校验修改了原文：%q", patterns[0])
+			}
+		})
+	}
+}
 
 func TestRangeInt(t *testing.T) {
 	tests := []struct {
@@ -113,6 +145,38 @@ func TestExtList(t *testing.T) {
 	}
 	if err := ExtList("video_ext_arr", nil, true); err != nil {
 		t.Fatalf("ExtList() allow empty error = %v", err)
+	}
+}
+
+func TestRegexList(t *testing.T) {
+	tests := []struct {
+		name      string
+		patterns  []string
+		wantField string
+	}{
+		{name: "空列表"},
+		{name: "保留大小写与空格", patterns: []string{" (?i)AbC ", " "}},
+		{name: "合法 Go 表达式", patterns: []string{"(?im-s)^Sample$", "(?P<name>AbC)", "\\A\\Q(?=)\\E\\z", "\\123", "a{1,3}"}},
+		{name: "空条目定位", patterns: []string{"valid", ""}, wantField: "exclude_name_regex_arr[1]"},
+		{name: "无效语法定位", patterns: []string{"["}, wantField: "exclude_name_regex_arr[0]"},
+		{name: "前瞻不支持", patterns: []string{"(?=abc)"}, wantField: "exclude_name_regex_arr[0]"},
+		{name: "反向引用不支持", patterns: []string{"(a)\\1"}, wantField: "exclude_name_regex_arr[0]"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			before := strings.Join(tt.patterns, "\x00")
+			err := RegexList("exclude_name_regex_arr", tt.patterns)
+			if tt.wantField == "" {
+				if err != nil {
+					t.Fatalf("合法正则被拒绝：%v", err)
+				}
+			} else if err == nil || !strings.HasPrefix(err.Error(), tt.wantField+"：") {
+				t.Fatalf("错误 = %v，期望定位到 %s", err, tt.wantField)
+			}
+			if after := strings.Join(tt.patterns, "\x00"); after != before {
+				t.Fatalf("校验修改了正则原文：%q => %q", before, after)
+			}
+		})
 	}
 }
 

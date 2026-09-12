@@ -80,20 +80,49 @@ func ensureAccountIdentityAvailable(tx *gorm.DB, accountID uint, name string, us
 	return nil
 }
 
-func updateAccountWithIdentity(accountID uint, userID string, updateData map[string]any) error {
-	return db.Db.Transaction(func(tx *gorm.DB) error {
-		if err := ensureAccountIdentityAvailable(tx, accountID, "", userID); err != nil {
-			return err
-		}
-		result := tx.Model(&Account{}).Where("id = ?", accountID).Updates(updateData)
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected != 1 {
-			return gorm.ErrRecordNotFound
-		}
+func mapAccountIdentityError(err error, updateData map[string]any) error {
+	if err == nil {
 		return nil
-	})
+	}
+
+	errorText := strings.ToLower(err.Error())
+	isDuplicate := errors.Is(err, gorm.ErrDuplicatedKey) ||
+		strings.Contains(errorText, "unique constraint") ||
+		strings.Contains(errorText, "unique violation") ||
+		strings.Contains(errorText, "duplicate key")
+	if !isDuplicate {
+		return err
+	}
+
+	if strings.Contains(errorText, accountUserIDUniqueIndexName) || strings.Contains(errorText, "user_id") {
+		return ErrAccountUserIDTaken
+	}
+	if strings.Contains(errorText, accountNameUniqueIndexName) || strings.Contains(errorText, "account.name") {
+		return ErrAccountNameTaken
+	}
+
+	_, userIDChanged := updateData["user_id"]
+	_, nameChanged := updateData["name"]
+	if userIDChanged && !nameChanged {
+		return ErrAccountUserIDTaken
+	}
+	if nameChanged && !userIDChanged {
+		return ErrAccountNameTaken
+	}
+	return err
+}
+
+func updateAccountWithIdentity(accountID uint, updateData map[string]any) error {
+	// 账号授权字段在一条 UPDATE 中提交，唯一索引负责并发冲突判定。
+	// 不再先读后写，避免 SQLite 读快照升级为写事务时出现 SQLITE_BUSY_SNAPSHOT。
+	result := db.Db.Model(&Account{}).Where("id = ?", accountID).Updates(updateData)
+	if result.Error != nil {
+		return mapAccountIdentityError(result.Error, updateData)
+	}
+	if result.RowsAffected != 1 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 type accountTokenSnapshot struct {
@@ -123,7 +152,7 @@ func (account *Account) applyTokenFields(token string, refreshToken string, expi
 	account.TokenFailedReason = reason
 }
 
-func (account *Account) updateToken(token string, refreshToken string, expiresTime int64, expected *accountTokenSnapshot) bool {
+func (account *Account) updateToken(token string, refreshToken string, expiresTime int64, expected *accountTokenSnapshot) error {
 	expiresAt := time.Now().Unix() + expiresTime
 	if err := persistAccountTokenFields(account.ID, map[string]any{
 		"token":               token,
@@ -136,27 +165,39 @@ func (account *Account) updateToken(token string, refreshToken string, expiresTi
 		} else {
 			helpers.AppLogger.Errorf("更新开放平台登录凭据失败：%v", err)
 		}
-		return false
+		return err
 	}
 	account.applyTokenFields(token, refreshToken, expiresAt, "")
-	return true
+	return nil
 }
 
 // 更新 Token 和 refreshToken
 func (account *Account) UpdateToken(token string, refreshToken string, expiresTime int64) bool {
-	return account.updateToken(token, refreshToken, expiresTime, nil)
+	return account.updateToken(token, refreshToken, expiresTime, nil) == nil
 }
 
 // UpdateTokenIfCurrent 仅当数据库中的凭据仍与当前账号快照一致时更新 Token。
 // 用于远端刷新耗时较长的场景，避免旧刷新结果覆盖后续授权。
 func (account *Account) UpdateTokenIfCurrent(token string, refreshToken string, expiresTime int64) bool {
 	expected := &accountTokenSnapshot{token: account.Token, refreshToken: account.RefreshToken}
+	return account.updateToken(token, refreshToken, expiresTime, expected) == nil
+}
+
+// TryUpdateTokenIfCurrent 与 UpdateTokenIfCurrent 行为一致，但返回错误，
+// 便于调用方通过 IsTokenCredentialsChanged 区分凭据被并发覆盖和数据库写入失败。
+func (account *Account) TryUpdateTokenIfCurrent(token string, refreshToken string, expiresTime int64) error {
+	expected := &accountTokenSnapshot{token: account.Token, refreshToken: account.RefreshToken}
 	return account.updateToken(token, refreshToken, expiresTime, expected)
+}
+
+// IsTokenCredentialsChanged 判断凭据写入失败是否因数据库中的凭据已被并发修改，此类失败重试无意义。
+func IsTokenCredentialsChanged(err error) bool {
+	return err != nil && errors.Is(err, gorm.ErrRecordNotFound)
 }
 
 // 更新开放平台账号对应的用户信息
 func (account *Account) UpdateUser(userId string, username string) bool {
-	err := updateAccountWithIdentity(account.ID, userId, map[string]any{
+	err := updateAccountWithIdentity(account.ID, map[string]any{
 		"user_id":  userId,
 		"username": username,
 	})
@@ -213,7 +254,7 @@ func (account *Account) replaceV115Authorization(source v115auth.Source, token s
 		"token_failed_reason": "",
 	}
 
-	if err := updateAccountWithIdentity(account.ID, userId, updateData); err != nil {
+	if err := updateAccountWithIdentity(account.ID, updateData); err != nil {
 		helpers.AppLogger.Errorf("原子替换 115 账号授权失败：%v", err)
 		return err
 	}
@@ -234,7 +275,7 @@ func (account *Account) replaceV115Authorization(source v115auth.Source, token s
 }
 
 // ReplaceBaiDuPanAuthorization 原子更新百度网盘凭据和用户信息。
-// 先完成用户信息校验，再在同一事务中写入凭据与身份，避免唯一冲突留下半更新。
+// 依赖唯一索引判定用户身份冲突，在一条 UPDATE 中同时写入凭据与身份。
 func (account *Account) ReplaceBaiDuPanAuthorization(token string, refreshToken string, expiresTime int64, userId string, username string) error {
 	if account == nil || account.ID == 0 {
 		return fmt.Errorf("账号不存在")
@@ -255,7 +296,7 @@ func (account *Account) ReplaceBaiDuPanAuthorization(token string, refreshToken 
 		"username":            username,
 		"token_failed_reason": "",
 	}
-	if err := updateAccountWithIdentity(account.ID, userId, updateData); err != nil {
+	if err := updateAccountWithIdentity(account.ID, updateData); err != nil {
 		helpers.AppLogger.Errorf("原子更新百度网盘授权失败：%v", err)
 		return err
 	}

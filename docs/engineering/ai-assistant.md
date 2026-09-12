@@ -35,7 +35,7 @@ QMediaSync 是媒体同步和刮削系统，用于管理 115 网盘、百度网�
 
 - 语言：Go 1.25。
 - 后端：Gin、GORM，模块名为 `qmediasync`，位于 `backend/`。
-- 数据库：SQLite 或 PostgreSQL，支持内嵌和外部模式。
+- 数据库：SQLite 或 PostgreSQL，默认 PostgreSQL；不包含内嵌 PostgreSQL 和旧库自动迁移能力。
 - 前端：Vue 3、Vite、TypeScript，位于 `frontend/`；本地生产构建输出 `frontend/dist`，发布流程将其复制为 `backend/web_statics`，运行目录使用 `web_statics`。
 - 其他目录：`backend/emby302/` 是嵌入的 Emby 302 代理，`backend/openxpanapi/` 是自动生成的百度网盘 OpenAPI 客户端，`docker/` 存放容器脚本，`scripts/` 存放安装和发布辅助脚本。
 
@@ -56,6 +56,7 @@ QMediaSync 是媒体同步和刮削系统，用于管理 115 网盘、百度网�
 | 上传、目录监控、STRM 生成、源文件清理 | [上传与 STRM 处理](../architecture/upload-and-strm-processing.md) |
 | Emby 刷新、全量 / 增量同步、Webhook 同步 | [Emby 媒体库同步](../architecture/emby-library-sync.md) |
 | 任务来源、任务类型、展示映射或数据库机器值 | [任务来源](../reference/task-sources.md) |
+| 刮削命名模板、模板变量、NFO 解析或媒体类型为其他的信息来源 | [刮削命名模板与其他类型 NFO](../reference/scrape-rename-templates.md) |
 | 发布、CI、镜像标签或 FPK 打包 | [发布流程](../operations/release.md) |
 | 单个客户端或前端工具目录 | 对应代码目录内的 `README.md` |
 

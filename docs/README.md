@@ -6,7 +6,7 @@
 
 ## 架构契约
 
-- [认证与浏览器会话](architecture/authentication-sessions.md)：首次管理员、Cookie、CSRF、API Key、可信来源和下载代理安全边界。
+- [认证与浏览器会话](architecture/authentication-sessions.md)：首次管理员、本地管理员恢复、Cookie、CSRF、API Key、可信来源和下载代理安全边界。
 - [实时事件（SSE）](architecture/realtime-events.md)：全局事件、日志流、任务详情快照和回放边界。
 - [上传与 STRM 处理](architecture/upload-and-strm-processing.md)：115 上传、目录监控、STRM 后处理、源文件清理和上传后刷新。
 - [STRM 同步调度与任务记录](architecture/sync-orchestration.md)：同步目录、Cron、按来源队列、`sync` 记录、取消和完成后的下游协作。
@@ -25,7 +25,7 @@
 
 ## 运行维护
 
-- [部署与持久化](operations/deployment.md)：Docker、发布二进制和飞牛运行方式，以及端口、挂载目录和数据保留边界。
+- [部署与持久化](operations/deployment.md)：Docker、发布二进制和飞牛运行方式，以及端口、挂载目录、管理员恢复和数据保留边界。
 - [配置、密钥与日志](operations/configuration.md)：配置文件、端口、第三方密钥、日志和运行参数。
 - [反向代理与 SSE](operations/reverse-proxy.md)：同源部署、可信代理和 SSE 缓冲 / 超时配置。
 - [数据库运维](operations/database.md)：数据库初始化、修复、清库、备份和恢复。
@@ -34,6 +34,7 @@
 ## 参考资料
 
 - [数据库 schema 与迁移](reference/database-schema.md)：表、字段、索引、时间策略、稳定存储值和迁移版本。
+- [刮削命名模板与其他类型 NFO](reference/scrape-rename-templates.md)：命名模板渲染与回退规则、其他类型的 NFO 兼容范围和番号取值顺序。
 - [账号授权与更换](reference/account-authorization.md)：账号关联、同来源校验、授权会话、QR/OAuth 传递和原子落库契约。
 - [同步目录聚合 API](reference/sync-path-api.md)：同步目录和目录监控上传规则的原子写入、幂等与错误契约。
 - [STRM Webhook](reference/strm-webhook.md)：外部程序创建 STRM 任务的 API、字段、响应和幂等边界。

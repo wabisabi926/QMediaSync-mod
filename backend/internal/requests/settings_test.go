@@ -6,20 +6,12 @@ import (
 	"qmediasync/internal/models"
 )
 
-func intPtr(value int) *int {
-	return &value
-}
-
-func int64Ptr(value int64) *int64 {
-	return &value
-}
-
 func TestUpdateLogSettingRequestValidate(t *testing.T) {
 	valid := UpdateLogSettingRequest{
 		Level:      "info",
-		MaxSizeMB:  intPtr(10),
-		MaxBackups: intPtr(3),
-		MaxAgeDays: intPtr(7),
+		MaxSizeMB:  new(10),
+		MaxBackups: new(3),
+		MaxAgeDays: new(7),
 	}
 
 	tests := []struct {
@@ -34,12 +26,12 @@ func TestUpdateLogSettingRequestValidate(t *testing.T) {
 			r.MaxAgeDays = nil
 		}},
 		{name: "日志等级错误失败", mutate: func(r *UpdateLogSettingRequest) { r.Level = "verbose" }, wantErr: true},
-		{name: "单文件最大大小小于 1 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxSizeMB = intPtr(0) }, wantErr: true},
-		{name: "单文件最大大小大于 1024 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxSizeMB = intPtr(1025) }, wantErr: true},
-		{name: "备份数小于 1 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxBackups = intPtr(0) }, wantErr: true},
-		{name: "备份数大于 100 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxBackups = intPtr(101) }, wantErr: true},
-		{name: "保留天数小于 1 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxAgeDays = intPtr(0) }, wantErr: true},
-		{name: "保留天数大于 365 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxAgeDays = intPtr(366) }, wantErr: true},
+		{name: "单文件最大大小小于 1 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxSizeMB = new(0) }, wantErr: true},
+		{name: "单文件最大大小大于 1024 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxSizeMB = new(1025) }, wantErr: true},
+		{name: "备份数小于 1 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxBackups = new(0) }, wantErr: true},
+		{name: "备份数大于 100 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxBackups = new(101) }, wantErr: true},
+		{name: "保留天数小于 1 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxAgeDays = new(0) }, wantErr: true},
+		{name: "保留天数大于 365 失败", mutate: func(r *UpdateLogSettingRequest) { r.MaxAgeDays = new(366) }, wantErr: true},
 	}
 
 	for _, tt := range tests {
@@ -95,19 +87,20 @@ func TestCronRequestNormalized(t *testing.T) {
 func TestUpdateThreadsRequestValidate(t *testing.T) {
 	valid := UpdateThreadsRequest{
 		DownloadThreads:                1,
+		UploadThreads:                  new(1),
 		FileDetailThreads:              2,
 		OpenlistQPS:                    2,
 		OpenlistRetry:                  1,
 		OpenlistRetryDelay:             30,
 		FileListPageSize:               1150,
-		UploadRapidWaitEnabled:         intPtr(1),
-		UploadRapidWaitTimeoutSeconds:  intPtr(600),
-		UploadRapidWaitIntervalSeconds: intPtr(60),
-		UploadRapidWaitMinSize:         int64Ptr(1073741824),
-		UploadRapidWaitForceSize:       int64Ptr(5368709120),
-		UploadRapidWaitSkipUpload:      intPtr(0),
-		URLValidityCheckEnabled:        intPtr(1),
-		URLValidityCheckTimeoutSeconds: intPtr(3),
+		UploadRapidWaitEnabled:         new(1),
+		UploadRapidWaitTimeoutSeconds:  new(600),
+		UploadRapidWaitIntervalSeconds: new(60),
+		UploadRapidWaitMinSize:         new(int64(1073741824)),
+		UploadRapidWaitForceSize:       new(int64(5368709120)),
+		UploadRapidWaitSkipUpload:      new(0),
+		URLValidityCheckEnabled:        new(1),
+		URLValidityCheckTimeoutSeconds: new(3),
 	}
 
 	tests := []struct {
@@ -117,17 +110,22 @@ func TestUpdateThreadsRequestValidate(t *testing.T) {
 	}{
 		{name: "合法线程配置通过"},
 		{name: "下载 QPS 为 0 失败", mutate: func(r *UpdateThreadsRequest) { r.DownloadThreads = 0 }, wantErr: true},
+		{name: "兼容省略同时上传任务数", mutate: func(r *UpdateThreadsRequest) { r.UploadThreads = nil }},
+		{name: "同时上传任务数允许 10", mutate: func(r *UpdateThreadsRequest) { r.UploadThreads = new(10) }},
+		{name: "同时上传任务数为 0 失败", mutate: func(r *UpdateThreadsRequest) { r.UploadThreads = new(0) }, wantErr: true},
+		{name: "同时上传任务数为负数失败", mutate: func(r *UpdateThreadsRequest) { r.UploadThreads = new(-1) }, wantErr: true},
+		{name: "同时上传任务数大于 10 失败", mutate: func(r *UpdateThreadsRequest) { r.UploadThreads = new(11) }, wantErr: true},
 		{name: "网盘详情 QPS 小于 2 失败", mutate: func(r *UpdateThreadsRequest) { r.FileDetailThreads = 1 }, wantErr: true},
 		{name: "OpenList QPS 大于 10 失败", mutate: func(r *UpdateThreadsRequest) { r.OpenlistQPS = 11 }, wantErr: true},
 		{name: "重试间隔小于 30 失败", mutate: func(r *UpdateThreadsRequest) { r.OpenlistRetryDelay = 29 }, wantErr: true},
 		{name: "分页数量大于 1150 失败", mutate: func(r *UpdateThreadsRequest) { r.FileListPageSize = 1151 }, wantErr: true},
-		{name: "秒传等待开关非法失败", mutate: func(r *UpdateThreadsRequest) { r.UploadRapidWaitEnabled = intPtr(2) }, wantErr: true},
-		{name: "秒传等待间隔小于 1 失败", mutate: func(r *UpdateThreadsRequest) { r.UploadRapidWaitIntervalSeconds = intPtr(0) }, wantErr: true},
-		{name: "秒传等待超时小于 0 失败", mutate: func(r *UpdateThreadsRequest) { r.UploadRapidWaitTimeoutSeconds = intPtr(-1) }, wantErr: true},
-		{name: "秒传等待最小大小小于 0 失败", mutate: func(r *UpdateThreadsRequest) { r.UploadRapidWaitMinSize = int64Ptr(-1) }, wantErr: true},
-		{name: "URL 有效性检查开关非法失败", mutate: func(r *UpdateThreadsRequest) { r.URLValidityCheckEnabled = intPtr(2) }, wantErr: true},
-		{name: "URL 有效性检查超时小于 1 失败", mutate: func(r *UpdateThreadsRequest) { r.URLValidityCheckTimeoutSeconds = intPtr(0) }, wantErr: true},
-		{name: "URL 有效性检查超时大于 9 失败", mutate: func(r *UpdateThreadsRequest) { r.URLValidityCheckTimeoutSeconds = intPtr(10) }, wantErr: true},
+		{name: "秒传等待开关非法失败", mutate: func(r *UpdateThreadsRequest) { r.UploadRapidWaitEnabled = new(2) }, wantErr: true},
+		{name: "秒传等待间隔小于 1 失败", mutate: func(r *UpdateThreadsRequest) { r.UploadRapidWaitIntervalSeconds = new(0) }, wantErr: true},
+		{name: "秒传等待超时小于 0 失败", mutate: func(r *UpdateThreadsRequest) { r.UploadRapidWaitTimeoutSeconds = new(-1) }, wantErr: true},
+		{name: "秒传等待最小大小小于 0 失败", mutate: func(r *UpdateThreadsRequest) { r.UploadRapidWaitMinSize = new(int64(-1)) }, wantErr: true},
+		{name: "URL 有效性检查开关非法失败", mutate: func(r *UpdateThreadsRequest) { r.URLValidityCheckEnabled = new(2) }, wantErr: true},
+		{name: "URL 有效性检查超时小于 1 失败", mutate: func(r *UpdateThreadsRequest) { r.URLValidityCheckTimeoutSeconds = new(0) }, wantErr: true},
+		{name: "URL 有效性检查超时大于 9 失败", mutate: func(r *UpdateThreadsRequest) { r.URLValidityCheckTimeoutSeconds = new(10) }, wantErr: true},
 	}
 
 	for _, tt := range tests {
@@ -147,23 +145,27 @@ func TestUpdateThreadsRequestValidate(t *testing.T) {
 func TestUpdateThreadsRequestToModelIncludesRapidWaitPolicy(t *testing.T) {
 	req := UpdateThreadsRequest{
 		DownloadThreads:                1,
+		UploadThreads:                  new(3),
 		FileDetailThreads:              3,
 		OpenlistQPS:                    2,
 		OpenlistRetry:                  1,
 		OpenlistRetryDelay:             30,
 		FileListPageSize:               1150,
-		UploadRapidWaitEnabled:         intPtr(1),
-		UploadRapidWaitTimeoutSeconds:  intPtr(900),
-		UploadRapidWaitIntervalSeconds: intPtr(30),
-		UploadRapidWaitMinSize:         int64Ptr(1024),
-		UploadRapidWaitForceSize:       int64Ptr(2048),
-		UploadRapidWaitSkipUpload:      intPtr(1),
-		URLValidityCheckEnabled:        intPtr(0),
-		URLValidityCheckTimeoutSeconds: intPtr(9),
+		UploadRapidWaitEnabled:         new(1),
+		UploadRapidWaitTimeoutSeconds:  new(900),
+		UploadRapidWaitIntervalSeconds: new(30),
+		UploadRapidWaitMinSize:         new(int64(1024)),
+		UploadRapidWaitForceSize:       new(int64(2048)),
+		UploadRapidWaitSkipUpload:      new(1),
+		URLValidityCheckEnabled:        new(0),
+		URLValidityCheckTimeoutSeconds: new(9),
 	}
 
-	got := req.ToModel(models.SettingUploadRapidWait{}, models.SettingURLValidityCheck{})
+	got := req.ToModel(models.SettingThreadAndRapidWait{})
 
+	if got.UploadThreads != 3 {
+		t.Fatalf("UploadThreads = %d，期望 3", got.UploadThreads)
+	}
 	if got.UploadRapidWaitEnabled != 1 {
 		t.Fatalf("UploadRapidWaitEnabled = %d，期望 1", got.UploadRapidWaitEnabled)
 	}
@@ -212,13 +214,40 @@ func TestUpdateThreadsRequestToModelKeepsOptionalPoliciesWhenOmitted(t *testing.
 		URLValidityCheckTimeoutSeconds: 12,
 	}
 
-	got := req.ToModel(base, baseURLValidityCheck)
+	got := req.ToModel(models.SettingThreadAndRapidWait{
+		UploadThreads:           7,
+		SettingUploadRapidWait:  base,
+		SettingURLValidityCheck: baseURLValidityCheck,
+	})
 
+	if got.UploadThreads != 7 {
+		t.Fatalf("UploadThreads = %d，期望保留 7", got.UploadThreads)
+	}
 	if got.SettingUploadRapidWait != base {
 		t.Fatalf("SettingUploadRapidWait = %+v，期望 %+v", got.SettingUploadRapidWait, base)
 	}
 	if got.SettingURLValidityCheck != baseURLValidityCheck {
 		t.Fatalf("SettingURLValidityCheck = %+v，期望 %+v", got.SettingURLValidityCheck, baseURLValidityCheck)
+	}
+}
+
+func TestUpdateThreadsRequestToModelDefaultsUploadThreads(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		base int
+	}{
+		{name: "旧配置空值", base: 0},
+		{name: "旧配置负数", base: -1},
+		{name: "旧配置超出范围", base: 11},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := (UpdateThreadsRequest{}).ToModel(models.SettingThreadAndRapidWait{
+				UploadThreads: tt.base,
+			})
+			if got.UploadThreads != models.DefaultUploadThreads {
+				t.Fatalf("UploadThreads = %d，期望默认 1", got.UploadThreads)
+			}
+		})
 	}
 }
 
@@ -244,6 +273,12 @@ func TestUpdateStrmConfigRequestValidate(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "合法 STRM 配置通过"},
+		{name: "允许启用多端播放", mutate: func(r *UpdateStrmConfigRequest) { r.MultiPlaybackEnabled = 1 }},
+		{name: "本地代理保留多端播放选择", mutate: func(r *UpdateStrmConfigRequest) {
+			r.LocalProxy, r.MultiPlaybackEnabled = 1, 1
+		}},
+		{name: "多端播放不允许继承值", mutate: func(r *UpdateStrmConfigRequest) { r.MultiPlaybackEnabled = -1 }, wantErr: true},
+		{name: "多端播放枚举错误失败", mutate: func(r *UpdateStrmConfigRequest) { r.MultiPlaybackEnabled = 2 }, wantErr: true},
 		{name: "全局 STRM 允许完整路径", mutate: func(r *UpdateStrmConfigRequest) { r.AddPath = 1 }},
 		{name: "全局 STRM 允许只添加文件名", mutate: func(r *UpdateStrmConfigRequest) { r.AddPath = 2 }},
 		{name: "全局 STRM 允许不添加路径", mutate: func(r *UpdateStrmConfigRequest) { r.AddPath = 3 }},
@@ -252,7 +287,16 @@ func TestUpdateStrmConfigRequestValidate(t *testing.T) {
 		{name: "Cron 格式错误失败", mutate: func(r *UpdateStrmConfigRequest) { r.Cron = "bad" }, wantErr: true},
 		{name: "最小视频大小为负数失败", mutate: func(r *UpdateStrmConfigRequest) { r.MinVideoSize = -1 }, wantErr: true},
 		{name: "下载元数据枚举错误失败", mutate: func(r *UpdateStrmConfigRequest) { r.DownloadMeta = 2 }, wantErr: true},
+		{name: "空视频扩展名使用配置默认值", mutate: func(r *UpdateStrmConfigRequest) { r.VideoExtArr = []string{} }},
+		{name: "空元数据扩展名使用配置默认值", mutate: func(r *UpdateStrmConfigRequest) { r.MetaExtArr = []string{} }},
+		{name: "未提供扩展名使用配置默认值", mutate: func(r *UpdateStrmConfigRequest) {
+			r.VideoExtArr = nil
+			r.MetaExtArr = nil
+		}},
 		{name: "视频扩展名缺少点失败", mutate: func(r *UpdateStrmConfigRequest) { r.VideoExtArr = []string{"mp4"} }, wantErr: true},
+		{name: "元数据扩展名缺少点失败", mutate: func(r *UpdateStrmConfigRequest) { r.MetaExtArr = []string{"nfo"} }, wantErr: true},
+		{name: "视频扩展名包含空项失败", mutate: func(r *UpdateStrmConfigRequest) { r.VideoExtArr = []string{".mkv", ""} }, wantErr: true},
+		{name: "元数据扩展名包含空项失败", mutate: func(r *UpdateStrmConfigRequest) { r.MetaExtArr = []string{".nfo", ""} }, wantErr: true},
 		{name: "允许 Go 正则及原文空格", mutate: func(r *UpdateStrmConfigRequest) {
 			r.ExcludeNameRegexArr = []string{"(?i)^Sample\\.[^.]+$", " A{1,3};B "}
 		}},

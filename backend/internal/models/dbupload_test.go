@@ -3,6 +3,7 @@ package models
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"qmediasync/internal/db"
 	openapiclient "qmediasync/openxpanapi"
@@ -84,7 +85,7 @@ func TestAddUploadTaskFromSyncFileKeepsOnlyStableParentID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			setupQueueStatusTestDB(t)
 			file := &SyncFile{
-				BaseModel:  BaseModel{ID: uint(index + 1)},
+				ID:         uint(index + 1),
 				SourceType: tt.sourceType,
 				ParentId:   tt.parentID,
 				Path:       "/remote/target",
@@ -178,7 +179,7 @@ func TestAddUploadTaskFromSyncFileDeduplicatesActiveTasksWithinStorageScope(t *t
 
 	newFile := func(id uint, sourceType SourceType, accountID, syncPathID uint) *SyncFile {
 		return &SyncFile{
-			BaseModel:  BaseModel{ID: id},
+			ID:         id,
 			SourceType: sourceType,
 			AccountId:  accountID,
 			SyncPathId: syncPathID,
@@ -302,5 +303,54 @@ func TestRetryFailedUploadTasksSkipsTaskWithActiveTarget(t *testing.T) {
 	}
 	if gotUnrelated.Status != UploadStatusPending || gotUnrelated.RetryCount != 1 || gotUnrelated.Error != "" {
 		t.Fatalf("无冲突失败任务应被重试: %+v", gotUnrelated)
+	}
+}
+
+func TestClearExpireUploadTasksDeletesTasksOlderThanSevenDays(t *testing.T) {
+	setupQueueStatusTestDB(t)
+
+	now := time.Now().Unix()
+	seed := []*DbUploadTask{
+		{
+			CreatedAt:      now - 8*24*3600,
+			Source:         UploadSourceStrm,
+			SourceType:     SourceType115,
+			AccountId:      1,
+			RemoteFullPath: "/remote/old-pending.mkv",
+			Status:         UploadStatusPending,
+		},
+		{
+			CreatedAt:      now - 6*24*3600,
+			Source:         UploadSourceStrm,
+			SourceType:     SourceType115,
+			AccountId:      1,
+			RemoteFullPath: "/remote/recent-pending.mkv",
+			Status:         UploadStatusPending,
+		},
+		{
+			CreatedAt:      now - 8*24*3600,
+			Source:         UploadSourceStrm,
+			SourceType:     SourceType115,
+			AccountId:      1,
+			RemoteFullPath: "/remote/old-completed.mkv",
+			Status:         UploadStatusCompleted,
+		},
+	}
+	for _, task := range seed {
+		if err := db.Db.Create(task).Error; err != nil {
+			t.Fatalf("创建测试上传任务失败: %v", err)
+		}
+	}
+
+	if err := ClearExpireUploadTasks(); err != nil {
+		t.Fatalf("清理过期上传任务失败: %v", err)
+	}
+
+	var remaining []DbUploadTask
+	if err := db.Db.Order("id").Find(&remaining).Error; err != nil {
+		t.Fatalf("查询剩余上传任务失败: %v", err)
+	}
+	if len(remaining) != 1 || remaining[0].RemoteFullPath != "/remote/recent-pending.mkv" {
+		t.Fatalf("清理后剩余上传任务 = %+v，期望仅保留 7 天内的任务", remaining)
 	}
 }

@@ -3,9 +3,11 @@ package emby
 import (
 	"bytes"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -15,8 +17,10 @@ import (
 	"qmediasync/emby302/util/https"
 	"qmediasync/emby302/util/jsons"
 	"qmediasync/emby302/util/logs"
+	"qmediasync/emby302/web/cache"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/net/http/httpguts"
 )
 
 func ProxySocket() func(*gin.Context) {
@@ -31,11 +35,32 @@ func ProxySocket() func(*gin.Context) {
 			panic("转换 Emby Host 失败: " + err.Error())
 		}
 
-		proxy = httputil.NewSingleHostReverseProxy(u)
-
-		proxy.Director = func(r *http.Request) {
-			r.URL.Scheme = u.Scheme
-			r.URL.Host = u.Host
+		// WebSocket 直接连接 Emby，避免受系统代理环境变量影响。
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.Proxy = nil
+		proxy = &httputil.ReverseProxy{
+			Transport: transport,
+			Rewrite: func(r *httputil.ProxyRequest) {
+				r.Out.URL.Scheme = u.Scheme
+				r.Out.URL.Host = u.Host
+				// 保留原始路径、Host 和查询串，避免重编码认证参数。
+				r.Out.URL.RawQuery = r.In.URL.RawQuery
+				// 沿用既有转发头，但不能恢复被 Connection 指定为逐跳的字段。
+				for _, name := range []string{"Forwarded", "X-Forwarded-Host", "X-Forwarded-Proto", "X-Forwarded-For"} {
+					if values, ok := r.In.Header[name]; ok && !httpguts.HeaderValuesContainsToken(r.In.Header.Values("Connection"), name) {
+						r.Out.Header[name] = slices.Clone(values)
+					}
+				}
+				if clientIP, _, err := net.SplitHostPort(r.In.RemoteAddr); err == nil {
+					prior, ok := r.Out.Header["X-Forwarded-For"]
+					if !ok || prior != nil {
+						if len(prior) > 0 {
+							clientIP = strings.Join(prior, ", ") + ", " + clientIP
+						}
+						r.Out.Header.Set("X-Forwarded-For", clientIP)
+					}
+				}
+			},
 		}
 	}
 
@@ -47,14 +72,29 @@ func ProxySocket() func(*gin.Context) {
 
 // HandleImages 处理图片请求
 //
-// 修改图片质量参数为配置值
+// 按配置请求原图或覆盖图片质量参数
 // TODO 尝试跳转到 115 缩略图地址
 // 根据 ItemId 查询 SyncFile, 如果有 115 缩略图地址就跳转过去
 func HandleImages(c *gin.Context) {
 	q := c.Request.URL.Query()
-	q.Del("quality")
-	q.Del("Quality")
-	q.Set("Quality", strconv.Itoa(config.C.Emby.ImagesQuality))
+	if config.C.Emby.ImagesOriginal {
+		// 参数名与 Emby 一样不区分大小写，保留选图、版本和认证参数。
+		for key := range q {
+			switch strings.ToLower(key) {
+			case "maxwidth", "maxheight", "width", "height", "quality", "format",
+				"cropwhitespace", "enableimageenhancers", "addplayedindicator", "percentplayed",
+				"unplayedcount", "blur", "backgroundcolor", "foregroundlayer":
+				q.Del(key)
+			}
+		}
+		// Emby 缺省会裁剪 Logo/Art 并启用增强器，需要显式关闭。
+		q.Set("CropWhitespace", "false")
+		q.Set("EnableImageEnhancers", "false")
+	} else {
+		q.Del("quality")
+		q.Del("Quality")
+		q.Set("Quality", strconv.Itoa(config.C.Emby.ImagesQuality))
+	}
 	c.Request.RequestURI = c.Request.URL.Path + "?" + q.Encode()
 	ProxyOrigin(c)
 }
@@ -71,6 +111,7 @@ func ProxyOrigin(c *gin.Context) {
 	c.Request.Header.Set("X-Real-IP", c.ClientIP())
 
 	if err := https.ProxyPass(c.Request, c.Writer, origin); err != nil {
+		c.Header(cache.HeaderKeyExpired, "-1")
 		logs.Error("代理异常: %v", err)
 	}
 }

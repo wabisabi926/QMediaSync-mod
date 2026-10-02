@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -139,8 +140,19 @@ func TestStrmWebhookAuthSupportsHeaderAndQueryAPIKey(t *testing.T) {
 		t.Fatalf("query API Key 响应异常: code=%d body=%s", w.Code, w.Body.String())
 	}
 
+	w = performStrmWebhookRequest(t, router, "", "", payload)
+	if w.Code != http.StatusUnauthorized || !strings.Contains(w.Body.String(), `"error_code":"AUTHENTICATION_REQUIRED"`) {
+		t.Fatalf("缺少 API Key 状态码 = %d，期望 401，body=%s", w.Code, w.Body.String())
+	}
+
+	// 纯空白的 Key（URL 编码空格经查询参数传入）与缺失同等处理。
+	w = performStrmWebhookRequest(t, router, "", "%20%20%20", payload)
+	if w.Code != http.StatusUnauthorized || !strings.Contains(w.Body.String(), `"error_code":"AUTHENTICATION_REQUIRED"`) {
+		t.Fatalf("空白 API Key 状态码 = %d，期望 401，body=%s", w.Code, w.Body.String())
+	}
+
 	w = performStrmWebhookRequest(t, router, "bad-key", "", payload)
-	if w.Code != http.StatusUnauthorized {
+	if w.Code != http.StatusUnauthorized || !strings.Contains(w.Body.String(), `"error_code":"AUTHENTICATION_INVALID"`) {
 		t.Fatalf("无效 API Key 状态码 = %d，期望 401，body=%s", w.Code, w.Body.String())
 	}
 }
@@ -548,6 +560,37 @@ func TestStrmWebhookBatchFilesRetryReusesActiveParentAndChildren(t *testing.T) {
 	}
 }
 
+type sqliteLockTestError int
+
+func (e sqliteLockTestError) Error() string { return fmt.Sprintf("sqlite error %d", e) }
+func (e sqliteLockTestError) Code() int     { return int(e) }
+
+func TestIsRetryableSQLiteLockError(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "无错误"},
+		{name: "错误文本不能代替错误码", err: errors.New("database is locked")},
+		{name: "零错误码", err: sqliteLockTestError(0)},
+		{name: "busy", err: sqliteLockTestError(5), want: true},
+		{name: "locked", err: sqliteLockTestError(6), want: true},
+		{name: "busy 扩展码", err: sqliteLockTestError(5 | 2<<8), want: true},
+		{name: "locked 扩展码", err: sqliteLockTestError(6 | 1<<8), want: true},
+		{name: "其他扩展码", err: sqliteLockTestError(19 | 5<<8)},
+		{name: "包装错误", err: fmt.Errorf("transaction: %w", sqliteLockTestError(5)), want: true},
+		{name: "组合错误", err: errors.Join(errors.New("other"), sqliteLockTestError(6)), want: true},
+		{name: "首个匹配错误优先", err: errors.Join(sqliteLockTestError(19), sqliteLockTestError(5))},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isRetryableSQLiteLockError(tt.err); got != tt.want {
+				t.Fatalf("isRetryableSQLiteLockError(%v) = %v，期望 %v", tt.err, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestEnqueueStrmWebhookBatchConcurrentDuplicateRetriesSQLiteLock(t *testing.T) {
 	if helpers.AppLogger == nil {
 		helpers.AppLogger = &helpers.QLogger{Logger: log.New(io.Discard, "", 0)}
@@ -555,7 +598,7 @@ func TestEnqueueStrmWebhookBatchConcurrentDuplicateRetriesSQLiteLock(t *testing.
 	setupConcurrentControllerTestDB(t, &models.StrmGenerationTask{})
 
 	const callers = 2
-	syncPath := &models.SyncPath{BaseModel: models.BaseModel{ID: 10}, AccountId: 2}
+	syncPath := &models.SyncPath{ID: 10, AccountId: 2}
 	options := strmWebhookOptions{}
 	preparedFiles := []strmWebhookPreparedFile{
 		{index: 0, item: strmWebhookFileItem{FileID: "file-concurrent-1", FileName: "one.mkv", Path: "/remote"}},
@@ -592,18 +635,16 @@ func TestEnqueueStrmWebhookBatchConcurrentDuplicateRetriesSQLiteLock(t *testing.
 	outcomes := make(chan outcome, callers)
 	start := make(chan struct{})
 	var wg sync.WaitGroup
-	for i := 0; i < callers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range callers {
+		wg.Go(func() {
 			<-start
 			results := make([]strmWebhookItemResult, len(preparedFiles))
 			err := enqueueStrmWebhookBatch(syncPath, options, preparedFiles, results)
 			outcomes <- outcome{results: results, err: err}
-		}()
+		})
 	}
 	close(start)
-	for i := 0; i < callers; i++ {
+	for i := range callers {
 		select {
 		case <-ready:
 		case <-time.After(3 * time.Second):

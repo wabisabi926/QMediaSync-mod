@@ -13,7 +13,7 @@ import (
 	"qmediasync/internal/helpers"
 
 	"github.com/gin-gonic/gin"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v3"
 )
 
 func TestSyncPathAggregateWriteRoutesReplaceLegacyRoutes(t *testing.T) {

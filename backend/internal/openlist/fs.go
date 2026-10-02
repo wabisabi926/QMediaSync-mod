@@ -115,7 +115,7 @@ type DirRep struct {
 
 // 文件夹列表
 // /api/fs/dirs
-func (c *Client) DirList(path string, forceRoot bool) ([]DirRep, error) {
+func (c *Client) DirList(ctx context.Context, path string, forceRoot bool) ([]DirRep, error) {
 	path = strings.ReplaceAll(path, "\\", "/")
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
@@ -129,7 +129,7 @@ func (c *Client) DirList(path string, forceRoot bool) ([]DirRep, error) {
 		ForceRoot: forceRoot,
 	}
 	result := &Resp[[]DirRep]{}
-	req := c.client.R().SetBody(reqData).SetMethod(http.MethodPost).SetResult(result)
+	req := c.client.R().SetContext(ctx).SetBody(reqData).SetMethod(http.MethodPost).SetResult(result)
 	_, err := c.doRequest("/api/fs/dirs", req, nil)
 	if err != nil {
 		helpers.OpenListLog.Errorf("OpenList 获取文件夹列表失败：%s", err.Error())
@@ -240,7 +240,8 @@ func (c *Client) UploadUseHttp(filePath string, remotePath string) (*UploadResul
 	// URL 编码远程路径（保留斜杠，避免转义）
 	encodedPath := helpers.UrlEncode(remotePath)
 	// 构造上传请求 URL
-	reqURL := fmt.Sprintf("%s/api/fs/form", c.BaseUrl)
+	state := c.snapshot()
+	reqURL := strings.TrimRight(state.baseURL, "/") + "/api/fs/form"
 
 	// 创建 multipart/form-data 请求体
 	body := &bytes.Buffer{}
@@ -265,7 +266,7 @@ func (c *Client) UploadUseHttp(filePath string, remotePath string) (*UploadResul
 		return nil, fmt.Errorf("创建上传请求失败：%w", err)
 	}
 	// 设置请求头（Authorization、Content-Type、file-path）
-	req.Header.Set("Authorization", c.AccessToken)
+	req.Header.Set("Authorization", state.accessToken)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	req.Header.Set("File-Path", encodedPath)
 	// 延长上传超时（大文件上传可能需要更长时间，此处设 5 分钟）
@@ -335,6 +336,12 @@ func (c *Client) Mkdir(path string) error {
 }
 
 func (c *Client) Move(oldPath, newPath string, names []string) error {
+	_, err := c.MoveWithTasks(oldPath, newPath, names)
+	return err
+}
+
+// MoveWithTasks 返回已创建的后台任务 ID；空列表表示同步完成。
+func (c *Client) MoveWithTasks(oldPath, newPath string, names []string) ([]string, error) {
 	oldPath = strings.ReplaceAll(oldPath, "\\", "/")
 	if !strings.HasPrefix(oldPath, "/") {
 		oldPath = "/" + oldPath
@@ -353,20 +360,35 @@ func (c *Client) Move(oldPath, newPath string, names []string) error {
 		NewPath: newPath,
 		Names:   names,
 	}
-	result := &Resp[any]{}
+	result := &Resp[struct {
+		Tasks []struct {
+			ID string `json:"id"`
+		} `json:"tasks"`
+	}]{}
 	req := c.client.R().SetBody(reqData).SetMethod(http.MethodPost).SetResult(result)
-	_, err := c.doRequest("/api/fs/move", req, nil)
+	// 响应丢失时操作可能已生效，不自动重发写入；认证恢复沿用客户端逻辑。
+	_, err := c.doRequest("/api/fs/move", req, MakeRequestConfig(0, 0, 0))
 	if err != nil {
 		helpers.OpenListLog.Errorf("OpenList 移动文件失败：%s", err.Error())
-		return err
+		return nil, err
 	}
 	if result.Code != 200 {
-		return fmt.Errorf("%s", result.Message)
+		return nil, fmt.Errorf("%s", result.Message)
 	}
-	return nil
+	taskIDs := make([]string, 0, len(result.Data.Tasks))
+	for _, task := range result.Data.Tasks {
+		taskIDs = append(taskIDs, task.ID)
+	}
+	return taskIDs, nil
 }
 
 func (c *Client) Copy(oldPath, newPath string, names []string) error {
+	_, err := c.CopyWithTasks(oldPath, newPath, names)
+	return err
+}
+
+// CopyWithTasks 返回已创建的后台任务 ID；空列表表示同步完成。
+func (c *Client) CopyWithTasks(oldPath, newPath string, names []string) ([]string, error) {
 	oldPath = strings.ReplaceAll(oldPath, "\\", "/")
 	if !strings.HasPrefix(oldPath, "/") {
 		oldPath = "/" + oldPath
@@ -385,14 +407,46 @@ func (c *Client) Copy(oldPath, newPath string, names []string) error {
 		NewPath: newPath,
 		Names:   names,
 	}
-	result := &Resp[any]{}
+	result := &Resp[struct {
+		Tasks []struct {
+			ID string `json:"id"`
+		} `json:"tasks"`
+	}]{}
 	req := c.client.R().SetBody(reqData).SetMethod(http.MethodPost).SetResult(result)
-	_, err := c.doRequest("/api/fs/copy", req, nil)
+	// 响应丢失时操作可能已生效，不自动重发写入；认证恢复沿用客户端逻辑。
+	_, err := c.doRequest("/api/fs/copy", req, MakeRequestConfig(0, 0, 0))
 	if err != nil {
 		helpers.OpenListLog.Errorf("OpenList 复制文件失败：%s", err.Error())
-		return err
+		return nil, err
 	}
 	if result.Code != 200 {
+		return nil, fmt.Errorf("%s", result.Message)
+	}
+	taskIDs := make([]string, 0, len(result.Data.Tasks))
+	for _, task := range result.Data.Tasks {
+		taskIDs = append(taskIDs, task.ID)
+	}
+	return taskIDs, nil
+}
+
+// RenameNoReplace 使用单文件接口拒绝已有同名目标，不改变刮削使用的 Rename 语义。
+// ponytail: 上游先检查再改名；跨客户端的原子不覆盖保证需由存储驱动实现。
+func (c *Client) RenameNoReplace(path, newName string) error {
+	path = strings.ReplaceAll(path, "\\", "/")
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	data := struct {
+		Path      string `json:"path"`
+		Name      string `json:"name"`
+		Overwrite bool   `json:"overwrite"`
+	}{Path: path, Name: newName}
+	result := &Resp[any]{}
+	req := c.client.R().SetBody(data).SetMethod(http.MethodPost).SetResult(result)
+	if _, err := c.doRequest("/api/fs/rename", req, MakeRequestConfig(0, 0, 0)); err != nil {
+		return err
+	}
+	if result.Code != http.StatusOK {
 		return fmt.Errorf("%s", result.Message)
 	}
 	return nil

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"qmediasync/internal/db"
+	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
 	"qmediasync/internal/notification"
 	"qmediasync/internal/notificationmanager"
@@ -614,7 +615,7 @@ func UpdateCustomWebhookChannel(c *gin.Context) {
 	}
 
 	// 准备更新配置字段
-	updates := make(map[string]interface{})
+	updates := make(map[string]any)
 
 	if r.Endpoint != "" {
 		updates["endpoint"] = r.Endpoint
@@ -734,7 +735,7 @@ func UpdateTelegramChannel(c *gin.Context) {
 	}
 
 	// 准备更新配置字段
-	updates := make(map[string]interface{})
+	updates := make(map[string]any)
 	if r.BotToken != "" {
 		updates["bot_token"] = r.BotToken
 	}
@@ -816,7 +817,7 @@ func UpdateMeoWChannel(c *gin.Context) {
 	}
 
 	// 准备更新配置字段
-	updates := make(map[string]interface{})
+	updates := make(map[string]any)
 	if r.Nickname != "" {
 		updates["nickname"] = r.Nickname
 	}
@@ -900,7 +901,7 @@ func UpdateBarkChannel(c *gin.Context) {
 	}
 
 	// 准备更新配置字段
-	updates := make(map[string]interface{})
+	updates := make(map[string]any)
 	if r.DeviceKey != "" {
 		updates["device_key"] = r.DeviceKey
 	}
@@ -988,7 +989,7 @@ func UpdateServerChanChannel(c *gin.Context) {
 	}
 
 	// 准备更新配置字段
-	updates := make(map[string]interface{})
+	updates := make(map[string]any)
 	if r.SCKEY != "" {
 		updates["sckey"] = r.SCKEY
 	}
@@ -1501,6 +1502,7 @@ func TestChannelConnection(c *gin.Context) {
 
 	// 创建处理器并发送测试消息
 	var handler notificationmanager.ChannelHandler
+	var secrets []string
 
 	switch channel.ChannelType {
 	case "telegram":
@@ -1514,6 +1516,7 @@ func TestChannelConnection(c *gin.Context) {
 			return
 		}
 		handler = notificationmanager.NewTelegramChannelHandlerWithProxy(&config, models.SettingsGlobal.HttpProxy)
+		secrets = []string{config.BotToken}
 
 	case "meow":
 		var config models.MeoWChannelConfig
@@ -1526,6 +1529,7 @@ func TestChannelConnection(c *gin.Context) {
 			return
 		}
 		handler = notificationmanager.NewMeoWChannelHandler(&config)
+		secrets = []string{config.Nickname}
 
 	case "bark":
 		var config models.BarkChannelConfig
@@ -1538,6 +1542,7 @@ func TestChannelConnection(c *gin.Context) {
 			return
 		}
 		handler = notificationmanager.NewBarkChannelHandler(&config)
+		secrets = []string{config.DeviceKey}
 
 	case "serverchan":
 		var config models.ServerChanChannelConfig
@@ -1550,6 +1555,7 @@ func TestChannelConnection(c *gin.Context) {
 			return
 		}
 		handler = notificationmanager.NewServerChanChannelHandler(&config)
+		secrets = []string{config.SCKEY}
 
 	case "webhook":
 		var config models.CustomWebhookChannelConfig
@@ -1562,6 +1568,7 @@ func TestChannelConnection(c *gin.Context) {
 			return
 		}
 		handler = notificationmanager.NewCustomWebhookChannelHandler(&config)
+		secrets = []string{config.AuthToken, config.AuthPass}
 
 	default:
 		c.JSON(http.StatusOK, gin.H{
@@ -1579,7 +1586,7 @@ func TestChannelConnection(c *gin.Context) {
 	if err := handler.Send(ctx, testNotif); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"code":    1,
-			"message": "测试失败：" + err.Error(),
+			"message": "测试失败：" + helpers.RedactSensitiveLog(err.Error(), secrets...),
 			"data":    nil,
 		})
 		return

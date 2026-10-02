@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v3"
 )
 
 var Version = "0.0.1"
@@ -101,6 +101,7 @@ type ConfigStrm struct {
 // ConfigEmby302 表示 Emby 302 代理配置。
 type ConfigEmby302 struct {
 	InsecureSkipVerify bool `yaml:"insecure_skip_verify"` // 是否跳过 Emby 302 出站 HTTPS 证书校验
+	ImagesOriginal     bool `yaml:"images_original"`      // 是否请求 Emby 海报、背景等图片的原图
 }
 
 type Config struct {
@@ -264,7 +265,7 @@ func LoadEnvFromFile(envPath string) error {
 	return scanner.Err()
 }
 
-func loadYaml(configPath string, cfg interface{}) error {
+func loadYaml(configPath string, cfg any) error {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return fmt.Errorf("读取配置文件失败：%w", err)
@@ -427,6 +428,7 @@ func MakeDefaultConfig() *Config {
 		},
 		Emby302: ConfigEmby302{
 			InsecureSkipVerify: false,
+			ImagesOriginal:     false,
 		},
 	}
 }

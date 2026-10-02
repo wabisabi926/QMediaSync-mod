@@ -705,6 +705,15 @@ func (s *SyncStrm) compareLocalFilesWithTempTable() error {
 					s.Sync.Logger.Infof("跳过文件 %s，错误：%v", path, err)
 					return nil
 				}
+				if s.Account.SourceType == models.SourceType115 {
+					remotePath, relErr := filepath.Rel(s.TargetPath, path)
+					if relErr == nil && helpers.IsV115PlaybackPath(remotePath) {
+						if info.IsDir() {
+							return filepath.SkipDir
+						}
+						return nil
+					}
+				}
 				if info.IsDir() {
 					if s.Config.DelEmptyLocalDir {
 						// 如果目录是空的则删除目录
@@ -1023,7 +1032,7 @@ func (s *SyncStrm) handleTempTableDiff() error {
 			} else {
 				// 双方都有，更新 SyncFile 记录
 				// 主要更新 name、size、m_time、path、local_file_path 等数据
-				udpateData := map[string]interface{}{
+				udpateData := map[string]any{
 					"file_name":          syncFileCache.FileName,
 					"file_size":          syncFileCache.FileSize,
 					"m_time":             syncFileCache.MTime,
@@ -1072,10 +1081,7 @@ func (s *SyncStrm) handleTempTableDiff() error {
 		} else {
 			i = 0
 			for i := 0; i < len(waitDeleteIds); i += batchSize {
-				end := i + batchSize
-				if end > len(waitDeleteIds) {
-					end = len(waitDeleteIds)
-				}
+				end := min(i+batchSize, len(waitDeleteIds))
 				batchIds := waitDeleteIds[i:end]
 				err := db.Db.Where("id IN ?", batchIds).Delete(&models.SyncFile{}).Error
 				if err != nil {

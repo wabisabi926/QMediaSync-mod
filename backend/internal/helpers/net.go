@@ -2,18 +2,46 @@ package helpers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"qmediasync/internal/github"
 	"qmediasync/internal/validation"
 )
+
+// URLFileName 提取 URL 最后一个路径段的文件名，仅用于展示，不修改原链接。
+func URLFileName(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Path == "" || strings.HasSuffix(u.EscapedPath(), "/") {
+		return ""
+	}
+	name, err := url.PathUnescape(path.Base(u.EscapedPath()))
+	if err != nil {
+		return ""
+	}
+	return name
+}
+
+// URLRequestErrorForLog 去掉请求错误中的 URL，避免解析异常回显地址及凭据。
+func URLRequestErrorForLog(err error) error {
+	if urlErr, ok := errors.AsType[*url.Error](err); ok {
+		err = urlErr.Err
+	}
+	// net/http 的 Location 解析错误会嵌入完整地址，包括 //host 形式。
+	if err != nil && (strings.HasPrefix(err.Error(), "failed to parse Location header") || strings.Contains(err.Error(), "://")) {
+		return errors.New("HTTP 请求或跳转响应无法解析")
+	}
+	return err
+}
 
 // 获取本机网卡 IP
 func GetLocalIP() (ipv4 string, err error) {
@@ -46,6 +74,7 @@ func ReadFromUrl(targetUrl string, userAgent string) (content []byte, err error)
 
 	// 创建传输对象并配置代理
 	transport := &http.Transport{}
+	defer transport.CloseIdleConnections()
 
 	// // 设置代理
 	// proxyURL := "http://127.0.0.1:10808"
@@ -82,6 +111,7 @@ func ReadFromUrl(targetUrl string, userAgent string) (content []byte, err error)
 
 			// 为新请求创建传输对象
 			redirectTransport := &http.Transport{}
+			defer redirectTransport.CloseIdleConnections()
 			// // 设置代理（与原始请求相同）
 			// proxyURL := "http://127.0.0.1:10808"
 			// proxy, perr := url.Parse(proxyURL)
@@ -156,6 +186,7 @@ func DownloadFile(targetUrl string, filePath string, userAgent string) (err erro
 
 	// 创建传输对象并配置代理
 	transport := &http.Transport{}
+	defer transport.CloseIdleConnections()
 
 	// // 设置代理
 	// proxyURL := "http://127.0.0.1:10808"
@@ -193,6 +224,7 @@ func DownloadFile(targetUrl string, filePath string, userAgent string) (err erro
 
 			// 为新请求创建传输对象
 			redirectTransport := &http.Transport{}
+			defer redirectTransport.CloseIdleConnections()
 			// proxy, perr := url.Parse(proxyURL)
 			// if perr != nil {
 			// 	AppLogger.Warnf("[下载] 解析代理 URL 失败：%v", perr)
@@ -219,6 +251,7 @@ func DownloadFile(targetUrl string, filePath string, userAgent string) (err erro
 			}
 			// 检查重定向后的状态码
 			if resp.StatusCode != http.StatusOK {
+				resp.Body.Close()
 				AppLogger.Errorf("[下载] 重定向后下载失败，HTTP 状态码：%d", resp.StatusCode)
 				return fmt.Errorf("重定向后下载失败，HTTP 状态码：%d", resp.StatusCode)
 			}
@@ -264,6 +297,7 @@ func PostUrl(targetUrl string) error {
 	}
 	// 创建传输对象并配置代理
 	transport := &http.Transport{}
+	defer transport.CloseIdleConnections()
 	// 发送请求 - 禁用自动重定向，改为手动处理
 	client := &http.Client{
 		Transport: transport,
@@ -273,10 +307,11 @@ func PostUrl(targetUrl string) error {
 			return http.ErrUseLastResponse
 		},
 	}
-	_, err = client.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("发送 %s 的 HTTP POST 请求失败：%v", targetUrl, err)
 	}
+	resp.Body.Close()
 	return nil
 }
 
@@ -296,6 +331,7 @@ func DownloadFileWithProgress(ctx context.Context, proxyUrl, downloadUrl string,
 
 	// 创建传输对象
 	transport := &http.Transport{}
+	defer transport.CloseIdleConnections()
 
 	// 如果提供了代理 URL，则配置代理
 	if proxyUrl != "" {
@@ -420,6 +456,7 @@ func TestURLConnection(proxyUrl, testUrl string, timeout int) (bool, error) {
 
 	// 创建传输对象
 	transport := &http.Transport{}
+	defer transport.CloseIdleConnections()
 
 	// 如果提供了代理 URL，则配置代理
 	if proxyUrl != "" {

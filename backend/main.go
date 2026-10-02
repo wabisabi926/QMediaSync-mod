@@ -29,6 +29,7 @@ import (
 	"qmediasync/internal/github"
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
+	"qmediasync/internal/playback"
 	"qmediasync/internal/realtime"
 	"qmediasync/internal/synccron"
 	"qmediasync/internal/syncstrm"
@@ -128,6 +129,15 @@ func (app *App) Stop() {
 	syncstrm.StopStrmGenerationWorker()
 	// 关闭定时任务（包含备份定时任务）
 	synccron.GlobalCron.Stop()
+	// 播放清理退出后再释放共享连接池；未完成的目录由下次定时维护回收。
+	cleanupCtx, cancelCleanup := context.WithTimeout(context.Background(), 10*time.Second)
+	if err := playback.DefaultManager.Shutdown(cleanupCtx); err != nil {
+		helpers.AppLogger.Warnf("等待 115 多端播放清理退出失败：%v", err)
+	}
+	cancelCleanup()
+	if err := v115open.ClosePlaybackClient(); err != nil {
+		helpers.AppLogger.Warnf("关闭 115 播放客户端失败：%v", err)
+	}
 	// 停止统计写入 worker，并在关闭数据库前尽量刷完已入队记录。
 	if requestStatWriter != nil {
 		requestStatWriter.Close()
@@ -393,6 +403,7 @@ func startEmby302() {
 		helpers.AppLogger.RequiredWarnf("Emby 302 已开启 insecure_skip_verify，出站 HTTPS 请求将跳过证书校验，存在中间人攻击风险，仅建议在受控内网自签名证书场景临时使用")
 	}
 	config.C.Emby.Host = models.GlobalEmbyConfig.EmbyUrl
+	config.C.Emby.ImagesOriginal = helpers.GlobalConfig.Emby302.ImagesOriginal
 	config.C.Emby.EpisodesUnplayPrior = false // 关闭剧集排序
 	certFile := filepath.Join(dataRoot, "server.crt")
 	keyFile := filepath.Join(dataRoot, "server.key")
@@ -516,7 +527,7 @@ func setRouter(r *gin.Engine) {
 
 		// 获取应用版本与运行环境信息
 		api.GET("/version", func(c *gin.Context) {
-			c.JSON(http.StatusOK, map[string]interface{}{
+			c.JSON(http.StatusOK, map[string]any{
 				"version":    Version,
 				"build_time": parseBuildUnixTime(PublishDate),
 				"date":       PublishDate,
@@ -552,6 +563,7 @@ func setRouter(r *gin.Engine) {
 		api.POST("/user/two-factor/setup", controllers.SetupTwoFactor)                      // 创建两步验证配置草稿
 		api.POST("/user/two-factor/enable", controllers.EnableTwoFactor)                    // 启用两步验证
 		api.POST("/user/two-factor/disable", controllers.DisableTwoFactor)                  // 关闭两步验证
+		api.GET("/path/sort-options", controllers.GetBrowseSortOptions)                     // 浏览排序能力
 		api.GET("/path/list", controllers.GetPathList)                                      // 目录列表
 		api.POST("/path/create", controllers.CreateDir)                                     // 创建目录接口
 		api.DELETE("/path", controllers.DeleteDir)                                          // 删除目录接口

@@ -3,7 +3,8 @@ import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { AxiosInstance } from 'axios'
 import type { BackupTaskType, BackupProgress } from '@/typing'
-import { SERVER_URL } from '@/const'
+import { fetchBackupStatus, getBackupTaskStatus, backupPublicMessages } from '@/api/backup'
+import { parseHttpError } from '@/http/errors'
 
 export const useBackupStore = defineStore('backup', () => {
   const progress = ref<BackupProgress | null>(null)
@@ -18,7 +19,6 @@ export const useBackupStore = defineStore('backup', () => {
   const errorRetryCount = ref(0)
 
   const MAX_RETRY_COUNT = 3
-  const API_SUCCESS_CODE = 200
 
   const isRunning = computed(() => progress.value?.running === true)
 
@@ -62,64 +62,46 @@ export const useBackupStore = defineStore('backup', () => {
       return
     pollInFlight.value = true
     try {
-      if (taskType.value === 'backup') {
-        const res = await http.get(`${SERVER_URL}/backup/status`)
-        if (generation !== pollingGeneration.value || !pageVisible.value || document.hidden) return
-        if (res.data.code === API_SUCCESS_CODE) {
-          const statusData = res.data.data
-
-          progress.value = {
-            running: statusData.is_running,
-            status: statusData.is_running ? 'running' : 'completed',
-            progress: parseInt((statusData.count / statusData.total) * 100 + '', 10),
-            elapsed_seconds: statusData.elapsed,
-            estimated_seconds: 0,
-            current_step: statusData.desc,
-            processed_tables: statusData.count,
-            total_tables: statusData.total,
-          }
-          errorRetryCount.value = 0
-
-          if (!statusData.is_running) {
-            stopProgressPolling()
-            handleTaskComplete(progress.value.status)
-          }
-        }
-      } else if (taskType.value === 'restore') {
-        const res = await http.get(`${SERVER_URL}/backup/status`)
-        if (generation !== pollingGeneration.value || !pageVisible.value || document.hidden) return
-        if (res.data.code === API_SUCCESS_CODE) {
-          const statusData = res.data.data
-          progress.value = {
-            running: statusData.is_running,
-            status: statusData.is_running ? 'running' : 'completed',
-            progress:
-              statusData.count === 0
-                ? 0
-                : parseInt((statusData.count / statusData.total) * 100 + '', 10),
-            elapsed_seconds: statusData.elapsed,
-            estimated_seconds: 0,
-            current_step: statusData.desc,
-            processed_tables: statusData.count,
-            total_tables: statusData.total,
-          }
-          errorRetryCount.value = 0
-
-          if (!progress.value.running) {
-            stopProgressPolling()
-            showProgressDialog.value = false
-          }
-        }
+      const statusData = await fetchBackupStatus(http)
+      if (generation !== pollingGeneration.value || !pageVisible.value || document.hidden) return
+      const status = getBackupTaskStatus(statusData)
+      const ratio = statusData.total > 0 ? (statusData.count / statusData.total) * 100 : 0
+      progress.value = {
+        running: status === 'running',
+        status,
+        progress: Number.isFinite(ratio) ? Math.max(0, Math.min(100, Math.floor(ratio))) : 0,
+        elapsed_seconds: statusData.elapsed,
+        estimated_seconds: 0,
+        current_step: status === 'running' ? statusData.desc : taskResultMessage(status),
+        processed_tables: statusData.count,
+        total_tables: statusData.total,
+      }
+      errorRetryCount.value = 0
+      if (status !== 'running') {
+        stopProgressPolling()
+        handleTaskComplete(status)
       }
     } catch (error) {
-      if (generation !== pollingGeneration.value || !pageVisible.value) return
-      console.error('轮询进度失败：', error)
+      if (generation !== pollingGeneration.value || !pageVisible.value || document.hidden) return
+      const parsed = parseHttpError(error, {
+        fallbackMessage: '查询备份或恢复进度失败',
+        publicMessages: backupPublicMessages,
+      })
+      if (!parsed.shouldNotify) return
+      console.error('轮询进度失败', parsed.diagnostics)
       errorRetryCount.value++
 
       if (errorRetryCount.value >= MAX_RETRY_COUNT) {
         stopProgressPolling()
-        ElMessage.error('网络连接失败，页面即将刷新…')
+        ElMessage.error(`${parsed.message}。页面即将刷新…`)
+        const stoppedGeneration = pollingGeneration.value
         setTimeout(() => {
+          if (
+            stoppedGeneration !== pollingGeneration.value ||
+            !pageVisible.value ||
+            document.hidden
+          )
+            return
           location.reload()
         }, 2000)
       }
@@ -128,23 +110,32 @@ export const useBackupStore = defineStore('backup', () => {
     }
   }
 
-  const handleTaskComplete = (status?: string) => {
+  const taskResultMessage = (status: string) => {
+    const action = taskType.value === 'restore' ? '恢复' : '备份'
+    if (status === 'completed') return `${action}任务完成！`
+    if (status === 'failed')
+      return taskType.value === 'restore'
+        ? '恢复任务失败，部分数据可能已恢复，请查看服务日志并核验数据。'
+        : '备份任务失败，请查看服务日志。'
+    return `${action}任务结果尚未确认，请查看服务日志并核验结果。`
+  }
+
+  const handleTaskComplete = (status: string) => {
     switch (status) {
       case 'completed':
-        ElMessage.success('备份任务完成！')
-        break
-      case 'cancelled':
-        ElMessage.info('备份任务已取消')
-        break
-      case 'timeout':
-        ElMessage.warning('备份任务超时')
+        ElMessage.success(taskResultMessage(status))
         break
       case 'failed':
-        ElMessage.error('备份任务失败')
+        ElMessage.error(taskResultMessage(status))
+        break
+      default:
+        ElMessage.warning(taskResultMessage(status))
         break
     }
 
+    const completedGeneration = pollingGeneration.value
     setTimeout(() => {
+      if (completedGeneration !== pollingGeneration.value) return
       showProgressDialog.value = false
       resetState()
     }, 1500)

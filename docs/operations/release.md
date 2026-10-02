@@ -14,11 +14,29 @@
 
 ## 持续集成与预发布镜像
 
+后端工具链最低版本为 Go 1.27.1。CI 与正式发布通过 `backend/go.mod` 选择 Go 版本；两份源码 Dockerfile 使用 `golang:1.27-alpine`，跟随 1.27 系列补丁更新，升级 Go 系列时须一起更新。
+
+前端 CI、正式发布与两份源码 Dockerfile 统一使用 Node 26 和 pnpm 12，pnpm 只指定主版本。CI 与正式发布通过 `pnpm/action-setup` 安装 pnpm，两份 Dockerfile 使用 `npm install --global pnpm@12`。升级 pnpm 主版本时同步这些安装入口及本地开发命令；版本约束和发布时间要求见 [本地开发](../engineering/local-development.md#前端启动)。
+
 `ci.yaml` 在 pull request，以及 `main`、`dev`、`feature/**` 分支推送时执行。前端依次运行 `pnpm run test`、`pnpm run build`（包含类型检查）和 `pnpm run check:build`；后端依次运行 `go vet ./...`、`go test ./...` 和 `go build -trimpath -tags=nomsgpack`。CI 不运行前端 ESLint 或 Prettier；完整验证范围见 [验证说明](../engineering/verification.md)。
 
-前后端测试共用 STRM 正则兼容性样例，并覆盖标签输入交互、真实表单保存回读、原文落库、迁移重试与各同步入口的排除行为。Vitest 在测试配置中内联处理 Element Plus，确保真实表单校验的 CommonJS 互操作与浏览器构建一致。这些回归沿用上述命令，不增加依赖或单独的校验服务；覆盖边界见 [稳定回归验证](../engineering/verification.md#稳定回归验证)。
+前后端测试共用 STRM 正则兼容性样例，并覆盖标签输入交互、四类列表的合并导入和清空、真实表单保存回读、全局空扩展名默认值回退、原文落库、迁移重试与各同步入口的排除行为。Vitest 在测试模式下通过 Vite 环境配置内联处理 Element Plus，确保真实表单校验的 CommonJS 互操作与浏览器构建一致；配置方式见 [前端命令](../engineering/verification.md#前端命令)。这些回归沿用上述命令，不增加依赖或单独的校验服务；覆盖边界见 [稳定回归验证](../engineering/verification.md#稳定回归验证)。
 
 局部加载遮罩的导航层级契约随 Vitest 执行；浏览器中的绘制、点击命中及模态层级按 [稳定回归验证](../engineering/verification.md#稳定回归验证) 复核。
+
+下载、上传队列的全局剩余数、筛选分页、快照刷新，以及上传并发设置的保存和校验回归也随 Vitest 执行。后端同时覆盖上传并发调整、暂停恢复、任务领取和设置迁移，验证方式见 [稳定回归验证](../engineering/verification.md#稳定回归验证)。
+
+公共 HTTP 错误分类、业务响应校验和认证请求的兼容性与安全回归沿用上述 Vitest 命令；账号授权请求迁移同时验证失败反馈、成功判定、第三方连接测试结果和授权生命周期，覆盖边界见 [稳定回归验证](../engineering/verification.md#稳定回归验证)。
+
+设置页回归同时覆盖 Emby、代理、通知、STRM、线程、日志和用户安全设置的失败保护、初次加载保存门槛、Cron 时序、专用成功码与敏感数据处理，沿用上述 Vitest 和类型检查入口。
+
+同步目录和队列领域请求的回归沿用同一入口，保护聚合字段错误、警告、幂等键，以及写入成功后刷新失败的反馈；队列统计、请求合并和生命周期测试继续执行。
+
+其余领域请求（记录、API Key、分类和备份恢复等），以及日志和任务 HTTP 快照的错误兼容测试，也统一纳入 Vitest。OpenList 写入不重发与认证恢复、百度逐项错误、路径身份、同名保护和缓存失效的后端验证见 [验证说明](../engineering/verification.md)。原生 SSE 连接行为与构建产物检查继续沿用原有入口。业务错误默认消息与空值回退、同步任务降级遇到明确拒绝后停查均随 Vitest 执行。
+
+目录浏览的来源排序能力、偏好持久化、目录完整读取、共享缓存及动态图标回归沿用现有 Go／Vitest 入口。生产构建和 `check:build` 覆盖共享控件与图标集成，不新增发布步骤。真实账号及浏览器人工检查边界见 [验证说明](../engineering/verification.md#改动范围与最小验证)。
+
+发布前还须验证失败后的分页、设置初始化重试、账号列表变化后的旧请求失效。备份与恢复须覆盖真实失败终态、旧响应兼容和并发状态快照，命令与范围见 [稳定回归验证](../engineering/verification.md#稳定回归验证)。
 
 推送 `dev` 还会触发 `beta.yaml`，发布多架构镜像 `ghcr.io/<owner>/qmediasync:beta`。推送 `feature/**` 还会触发 `feature.yaml`，发布 `ghcr.io/<owner>/qmediasync:<branch-tag>`：分支名会去掉 `feature/` 前缀、转为小写，斜杠和非法字符替换为连字符，最长 120 个字符。`dev` 的同一分支构建会取消仍在运行的旧 beta 构建。
 
@@ -74,9 +92,11 @@ scripts/release/release.sh major
 
 后端发布二进制使用 `-trimpath -tags=nomsgpack -ldflags="-s -w"` 构建，默认关闭 Gin 的 MsgPack 绑定和渲染支持，以减少发布包体积。发布 Actions 从 GitHub Secrets 读取 `OAUTH_RELAY_ENCRYPTION_KEY` 注入二进制的 `ldflags`，并使用 `FNPACK_DOWNLOAD_URL` 作为飞牛 FPK 下载源。它们只是编译期默认值或构建参数；运行时 `config/.env` / 环境变量仍按现有规则覆盖编译期值，数据库中的 UI 配置优先级也不变。
 
+创建 GitHub Release 前，workflow 对 `release-assets/` 下全部文件执行 `sha256sum` 生成 `checksums.txt` 并一同上传。
+
 GitHub Release 的标题直接使用 `v<major>.<minor>.<patch>` tag，不额外添加 `Release` 前缀；正文取自上一步提交的 `.changes/v0.xx.xx.md`。release workflow 会拒绝重复 GitHub Release 和缺失 `.changes/<tag>.md` 的发布。
 
-发布二进制包按平台保留不同的运行文件：Linux `.tar.gz` 包包含 `scripts/docker-entrypoint.sh` 和 `scripts/watch_update.sh`，供 Docker 在线更新复用；Windows `.zip` 包只包含 `QMediaSync.exe`、`web_statics/` 和 `icon.ico`（存在时），不包含 Docker 脚本。Windows 在线更新由 `QMediaSync.exe -update <目录>` 完成，不执行这些 shell 脚本。
+发布二进制包按平台保留不同的运行文件：Linux `.tar.gz` 包包含 `scripts/docker-entrypoint.sh` 和 `scripts/watch_update.sh`；Windows `.zip` 包只包含 `QMediaSync.exe`、`web_statics/` 和 `icon.ico`（存在时），不包含 Docker 脚本。
 
 发布包不携带内嵌 PostgreSQL 二进制或旧库迁移页面；正常首次数据库配置向导仍嵌入应用。升级旧内嵌实例前的数据处理要求见 [数据库运维](database.md#旧内嵌数据库)。
 

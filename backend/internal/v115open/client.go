@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"qmediasync/internal/helpers"
@@ -14,11 +15,17 @@ import (
 
 // OpenClient HTTP 客户端
 type OpenClient struct {
-	AppId           string // 应用 ID
-	AccountId       uint   // 账号 ID
-	client          *resty.Client
-	AccessToken     string // 访问令牌
-	RefreshTokenStr string // 刷新令牌
+	AccountId   uint // 账号 ID
+	client      *resty.Client
+	credentials atomic.Pointer[clientCredentials]
+	playback    bool // 播放编排使用单次请求策略，构造后不再修改。
+}
+
+// clientCredentials 发布后不可修改，应用 ID 与令牌必须属于同一快照。
+type clientCredentials struct {
+	appID        string
+	accessToken  string
+	refreshToken string
 }
 
 // 全局 HTTP 客户端实例
@@ -43,10 +50,17 @@ func UpdateTokenIfCurrent(accountId uint, expectedToken string, expectedRefreshT
 	defer cachedClientsMutex.Unlock()
 	updated := false
 	for key, client := range cachedClients {
-		if client.AccountId != accountId || client.AccessToken != expectedToken || client.RefreshTokenStr != expectedRefreshToken {
+		if client.AccountId != accountId {
 			continue
 		}
-		client.SetAuthToken(token, refreshToken)
+		if !client.setAuthTokenIfCurrent(
+			expectedToken,
+			expectedRefreshToken,
+			token,
+			refreshToken,
+		) {
+			continue
+		}
 		helpers.AppLogger.Infof("条件更新 115 客户端 %s 的 Token 成功", key)
 		updated = true
 	}
@@ -58,10 +72,13 @@ func NewClient(accountId uint, appId string, token string, refreshToken string) 
 	client := resty.New()
 	openClient := &OpenClient{
 		client:    client,
-		AppId:     appId,
 		AccountId: accountId,
 	}
-	openClient.SetAuthToken(token, refreshToken)
+	openClient.credentials.Store(&clientCredentials{
+		appID:        appId,
+		accessToken:  token,
+		refreshToken: refreshToken,
+	})
 	return openClient
 }
 
@@ -71,8 +88,11 @@ func GetClient(accountId uint, appId string, token string, refreshToken string) 
 	defer cachedClientsMutex.Unlock()
 	clientKey := fmt.Sprintf("%d", accountId)
 	if client, exists := cachedClients[clientKey]; exists {
-		client.AppId = appId
-		client.SetAuthToken(token, refreshToken)
+		client.credentials.Store(&clientCredentials{
+			appID:        appId,
+			accessToken:  token,
+			refreshToken: refreshToken,
+		})
 		return client
 	}
 
@@ -95,10 +115,41 @@ func GetCachedClient(accountId uint, appId string, token string, refreshToken st
 	return openClient
 }
 
-// SetAuthToken 设置认证令牌
+func (c *OpenClient) credentialSnapshot() clientCredentials {
+	if current := c.credentials.Load(); current != nil {
+		return *current
+	}
+	return clientCredentials{}
+}
+
+// SetAuthToken 保留当前应用 ID，原子替换访问和刷新令牌。
 func (c *OpenClient) SetAuthToken(token string, refreshToken string) {
-	c.AccessToken = token
-	c.RefreshTokenStr = refreshToken
+	for {
+		current := c.credentials.Load()
+		next := &clientCredentials{accessToken: token, refreshToken: refreshToken}
+		if current != nil {
+			next.appID = current.appID
+		}
+		if c.credentials.CompareAndSwap(current, next) {
+			return
+		}
+	}
+}
+
+func (c *OpenClient) setAuthTokenIfCurrent(expectedToken, expectedRefreshToken, token, refreshToken string) bool {
+	current := c.credentials.Load()
+	if current == nil {
+		return false
+	}
+	if current.accessToken != expectedToken || current.refreshToken != expectedRefreshToken {
+		return false
+	}
+	next := &clientCredentials{
+		appID:        current.appID,
+		accessToken:  token,
+		refreshToken: refreshToken,
+	}
+	return c.credentials.CompareAndSwap(current, next)
 }
 
 // doRequest 带重试的请求方法（使用全局队列）
@@ -202,7 +253,14 @@ func (c *OpenClient) doRequest(url string, req *resty.Request, options *RequestC
 
 // doAuthRequest 带重试的认证请求方法（使用全局队列）
 func (c *OpenClient) doAuthRequest(ctx context.Context, url string, req *resty.Request, options *RequestConfig, respData any) (*resty.Response, []byte, error) {
-	if c.AccessToken == "" {
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
+	}
+	if c.playback {
+		return c.doPlaybackRequest(ctx, url, req, options, respData)
+	}
+	credentials := c.credentialSnapshot()
+	if credentials.accessToken == "" {
 		// 没有 Token，直接报错
 		return nil, nil, fmt.Errorf("115 账号授权失效，请在网盘账号管理中重新授权")
 	}
@@ -211,11 +269,14 @@ func (c *OpenClient) doAuthRequest(ctx context.Context, url string, req *resty.R
 	if req.Header.Get("User-Agent") == "" {
 		req.Header.Set("User-Agent", DEFAULTUA)
 	}
-	req.SetAuthToken(c.AccessToken).SetResponseDoNotParse(true)
+	req.SetAuthToken(credentials.accessToken).SetResponseDoNotParse(true)
 
 	var lastErr error
 	var lastRespBytes []byte
 	for attempt := 0; attempt <= options.MaxRetries; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, err
+		}
 		// 使用全局队列执行器处理请求
 		executor := GetGlobalExecutor()
 		respChan := make(chan *RequestResponse, 1)
@@ -234,7 +295,15 @@ func (c *OpenClient) doAuthRequest(ctx context.Context, url string, req *resty.R
 		executor.EnqueueRequest(queuedReq)
 
 		// 等待响应
-		queueResp := <-respChan
+		var queueResp *RequestResponse
+		select {
+		case <-ctx.Done():
+			return nil, nil, ctx.Err()
+		case queueResp = <-respChan:
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, nil, err
+		}
 
 		if queueResp.Error == nil && queueResp.RespData != nil {
 			// 请求成功
@@ -268,7 +337,9 @@ func (c *OpenClient) doAuthRequest(ctx context.Context, url string, req *resty.R
 		if queueResp.IsThrottled {
 			helpers.V115Log.Warn("检测到限流，等待 1 分钟后重试")
 			// 等待 1 分钟后重试
-			time.Sleep(1 * time.Minute)
+			if err := sleepWithTimer(ctx, time.Minute); err != nil {
+				return nil, nil, err
+			}
 			continue
 		}
 
@@ -276,7 +347,9 @@ func (c *OpenClient) doAuthRequest(ctx context.Context, url string, req *resty.R
 		if attempt < options.MaxRetries && lastErr != nil {
 			helpers.V115Log.Warnf("%s %s 请求失败：%+v", req.Method, url, lastErr)
 			helpers.V115Log.Warnf("%s %s 请求失败，%.0f 秒后重试（第 %d 次尝试）", req.Method, url, options.RetryDelay.Seconds(), attempt+1)
-			time.Sleep(options.RetryDelay)
+			if err := sleepWithTimer(ctx, options.RetryDelay); err != nil {
+				return nil, nil, err
+			}
 		}
 		lastRespBytes = queueResp.RespBytes
 	}

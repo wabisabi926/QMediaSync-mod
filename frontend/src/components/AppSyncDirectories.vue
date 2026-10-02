@@ -276,10 +276,23 @@
 </template>
 
 <script setup lang="ts">
-import { SERVER_URL } from '@/const'
+import {
+  deleteSyncPath,
+  fetchDirectoryUploadRules,
+  fetchSyncPaths,
+  scanSyncPathDirectoryUpload,
+  startSyncPath,
+  stopSyncPath,
+  syncPathPublicMessages,
+  toggleSyncPathCron,
+  type SyncPath,
+} from '@/api/syncPaths'
+import { notifyHttpError } from '@/utils/httpErrorNotification'
+import { isMessageBoxCancelError } from '@/utils/messageBoxUtils'
 import PageHeader from '@/components/common/PageHeader.vue'
 import PageStats from '@/components/common/PageStats.vue'
 import { useRealtimeEvent } from '@/composables/useRealtimeEvents'
+import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
 import { useHttpClient } from '@/http/client'
 import {
   Calendar,
@@ -304,7 +317,15 @@ import {
   Warning,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { computed, onMounted, ref, type Component } from 'vue'
+import {
+  computed,
+  onActivated,
+  onDeactivated,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  type Component,
+} from 'vue'
 import { useRouter } from 'vue-router'
 import {
   getDirectoryRunStatusClass,
@@ -324,23 +345,9 @@ import {
 } from '@/utils/directoryUploadRules'
 import type { DirectoryUploadRule } from '@/typing'
 
-interface SyncDirectory {
-  id: number
-  base_cid: string
-  local_path: string
-  remote_path: string
-  strm_path: string
-  created_at: number
-  updated_at: number
-  last_sync_at: number
+interface SyncDirectory extends SyncPath {
   deleting?: boolean
   starting?: boolean
-  source_type: string
-  account_id: number
-  account_name: string
-  enable_cron: boolean
-  directory_upload_enabled: boolean
-  is_running: number
   stopping?: boolean
 }
 
@@ -378,6 +385,27 @@ const loading = ref(false)
 const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(9999)
+let isPageActive = true
+const directoryRequestGate = createActiveRequestGate(() => isPageActive)
+const statusRequestGate = createActiveRequestGate(() => isPageActive)
+let statusRefreshInFlight = false
+let statusRefreshPending = false
+let statusErrorNotified = false
+
+const deactivateRequests = () => {
+  isPageActive = false
+  directoryRequestGate.invalidate()
+  statusRequestGate.invalidate()
+  statusRefreshPending = false
+}
+onDeactivated(deactivateRequests)
+onActivated(() => {
+  if (isPageActive) return
+  isPageActive = true
+  void loadDirectories()
+})
+
+onBeforeUnmount(deactivateRequests)
 const lastSyncPathEventSequence = new Map<number, number>()
 const lastSyncPathEventTime = new Map<number, number>()
 
@@ -532,65 +560,82 @@ const GetFullPath = (row: SyncDirectory) => {
   return `${row.local_path}/${row.remote_path}`
 }
 
+const reportRequestError = (error: unknown, fallbackMessage: string) => {
+  return notifyHttpError(error, fallbackMessage, {
+    publicMessages: syncPathPublicMessages,
+    fallbackMessage,
+  })
+}
+
 const loadDirectories = async () => {
+  if (!isPageActive) return
+  const requestId = directoryRequestGate.next()
+  statusRequestGate.invalidate()
   try {
     loading.value = true
-    const response = await http.get(`${SERVER_URL}/sync/path-list`, {
-      timeout: 5000,
-      params: {
+    const data = await fetchSyncPaths(
+      http,
+      {
         page: currentPage.value,
         page_size: pageSize.value,
       },
-    })
-
-    if (response?.data.code === 200) {
-      directories.value = response.data.data.list || []
-      total.value = response.data.data.total || 0
-      await loadDirectoryUploadRules()
-    } else {
-      ElMessage.error(response?.data.message || '加载同步目录失败')
-      directories.value = []
-      total.value = 0
-      directoryUploadRules.value = {}
-      directoryUploadRulesLoadFailed.value = false
-    }
-  } catch {
-    console.error('加载同步目录错误')
-    ElMessage.error('加载同步目录失败')
-    directories.value = []
-    total.value = 0
-    directoryUploadRules.value = {}
-    directoryUploadRulesLoadFailed.value = false
+      { timeout: 5000 },
+    )
+    if (!directoryRequestGate.isCurrent(requestId)) return
+    statusRequestGate.invalidate()
+    directories.value = data.list
+    total.value = data.total
+    statusErrorNotified = false
+    await loadDirectoryUploadRules(requestId)
+  } catch (error) {
+    if (directoryRequestGate.isCurrent(requestId)) reportRequestError(error, '加载同步目录失败')
   } finally {
-    loading.value = false
+    if (directoryRequestGate.isCurrent(requestId)) loading.value = false
   }
 }
 
-const loadDirectoryUploadRules = async () => {
+const loadDirectoryUploadRules = async (requestId: number) => {
   directoryUploadRulesLoadFailed.value = false
   try {
-    const response = await http.get(`${SERVER_URL}/directory-upload/rules`)
-    if (response?.data.code !== 200) {
+    const rules = await fetchDirectoryUploadRules(http)
+    if (!directoryRequestGate.isCurrent(requestId)) return
+    directoryUploadRules.value = groupDirectoryUploadRulesBySyncPath(rules)
+  } catch (error) {
+    if (!directoryRequestGate.isCurrent(requestId)) return
+    const failure = reportRequestError(error, '加载目录监控上传规则失败')
+    if (failure.shouldNotify) {
       directoryUploadRules.value = {}
       directoryUploadRulesLoadFailed.value = true
-      return
     }
-    directoryUploadRules.value = groupDirectoryUploadRulesBySyncPath(response.data.data?.list || [])
-  } catch {
-    directoryUploadRules.value = {}
-    directoryUploadRulesLoadFailed.value = true
   }
 }
 
 const updatePathesStatus = async () => {
-  const response = await http.get(`${SERVER_URL}/sync/path-list`)
-
-  if (response?.data.code === 200) {
-    for (const p of response.data.data.list || []) {
+  if (!isPageActive) return
+  if (statusRefreshInFlight) {
+    statusRefreshPending = true
+    return
+  }
+  const requestId = statusRequestGate.next()
+  statusRefreshInFlight = true
+  try {
+    const data = await fetchSyncPaths(http)
+    if (!statusRequestGate.isCurrent(requestId)) return
+    statusErrorNotified = false
+    for (const p of data.list) {
       const path = directories.value.find((pa) => pa.id === p.id)
-      if (path) {
-        path.is_running = p.is_running
-      }
+      if (path) path.is_running = p.is_running
+    }
+  } catch (error) {
+    if (!statusRequestGate.isCurrent(requestId)) return
+    if (!statusErrorNotified) {
+      statusErrorNotified = reportRequestError(error, '刷新同步目录状态失败').shouldNotify
+    }
+  } finally {
+    statusRefreshInFlight = false
+    if (isPageActive && statusRefreshPending) {
+      statusRefreshPending = false
+      void updatePathesStatus()
     }
   }
 }
@@ -676,27 +721,11 @@ const handleDelete = async (row: SyncDirectory, index: number) => {
 
     directories.value[index].deleting = true
 
-    const formData = {
-      id: row.id || '',
-    }
-
-    const response = await http.post(`${SERVER_URL}/sync/path-delete`, formData, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (response?.data.code === 200) {
-      ElMessage.success('删除同步目录成功')
-      loadDirectories()
-    } else {
-      ElMessage.error(response?.data.message || '删除同步目录失败')
-    }
+    await deleteSyncPath(http, row.id)
+    ElMessage.success('删除同步目录成功')
+    void loadDirectories()
   } catch (error) {
-    if (error !== 'cancel') {
-      console.error('删除同步目录错误')
-      ElMessage.error('删除同步目录失败')
-    }
+    if (!isMessageBoxCancelError(error)) reportRequestError(error, '删除同步目录失败')
   } finally {
     if (directories.value[index]) {
       directories.value[index].deleting = false
@@ -708,26 +737,11 @@ const handleFullStart = async (row: SyncDirectory, index: number) => {
   try {
     directories.value[index].starting = true
 
-    const formData = {
-      id: row.id || '',
-    }
-
-    const response = await http.post(`${SERVER_URL}/sync/path/full-start`, formData, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (response?.data.code === 200) {
-      const nextStatus = Number(response.data.data?.is_running ?? 1)
-      applySyncPathRunningStatus(row.id, nextStatus)
-      ElMessage.success(`同步目录“${row.local_path}”启动成功`)
-    } else {
-      ElMessage.error(response?.data.message || '启动同步目录失败')
-    }
-  } catch {
-    console.error('启动同步目录错误')
-    ElMessage.error('启动同步目录失败')
+    const data = await startSyncPath(http, row.id, true)
+    applySyncPathRunningStatus(row.id, Number(data?.is_running ?? 1))
+    ElMessage.success(`同步目录“${row.local_path}”启动成功`)
+  } catch (error) {
+    reportRequestError(error, '启动同步目录失败')
   } finally {
     if (directories.value[index]) {
       directories.value[index].starting = false
@@ -739,26 +753,11 @@ const handleStart = async (row: SyncDirectory, index: number) => {
   try {
     directories.value[index].starting = true
 
-    const formData = {
-      id: row.id || '',
-    }
-
-    const response = await http.post(`${SERVER_URL}/sync/path/start`, formData, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (response?.data.code === 200) {
-      const nextStatus = Number(response.data.data?.is_running ?? 1)
-      applySyncPathRunningStatus(row.id, nextStatus)
-      ElMessage.success(`同步目录“${row.local_path}”启动成功`)
-    } else {
-      ElMessage.error(response?.data.message || '启动同步目录失败')
-    }
-  } catch {
-    console.error('启动同步目录错误')
-    ElMessage.error('启动同步目录失败')
+    const data = await startSyncPath(http, row.id)
+    applySyncPathRunningStatus(row.id, Number(data?.is_running ?? 1))
+    ElMessage.success(`同步目录“${row.local_path}”启动成功`)
+  } catch (error) {
+    reportRequestError(error, '启动同步目录失败')
   } finally {
     if (directories.value[index]) {
       directories.value[index].starting = false
@@ -770,24 +769,10 @@ const handleStop = async (row: SyncDirectory, index: number) => {
   try {
     directories.value[index].stopping = true
 
-    const formData = {
-      id: row.id || '',
-    }
-
-    const response = await http.post(`${SERVER_URL}/sync/path/stop`, formData, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (response?.data.code === 200) {
-      ElMessage.success(`同步目录“${row.local_path}”停止成功`)
-    } else {
-      ElMessage.error(response?.data.message || '停止同步目录失败')
-    }
-  } catch {
-    console.error('停止同步目录错误')
-    ElMessage.error('停止同步目录失败')
+    await stopSyncPath(http, row.id)
+    ElMessage.success('已请求停止同步任务')
+  } catch (error) {
+    reportRequestError(error, '停止同步目录失败')
   } finally {
     if (directories.value[index]) {
       directories.value[index].stopping = false
@@ -819,17 +804,13 @@ const scanDirectoryUploadRule = async (row: SyncDirectory) => {
     enabledRules.forEach((rule) => {
       rule.scanning = true
     })
-    const response = await http.post(`${SERVER_URL}/directory-upload/sync-paths/${row.id}/scan`)
-    if (response?.data.code === 200) {
-      const accepted = response.data.data?.accepted
-      ElMessage.success(
-        typeof accepted === 'number' ? `扫描完成，已加入 ${accepted} 个候选文件` : '扫描已触发',
-      )
-    } else {
-      ElMessage.error(response?.data.message || '触发扫描失败')
-    }
-  } catch {
-    ElMessage.error('触发扫描失败')
+    const data = await scanSyncPathDirectoryUpload(http, row.id)
+    const accepted = data?.accepted
+    ElMessage.success(
+      typeof accepted === 'number' ? `扫描完成，已加入 ${accepted} 个候选文件` : '扫描已触发',
+    )
+  } catch (error) {
+    reportRequestError(error, '触发扫描失败')
   } finally {
     enabledRules.forEach((rule) => {
       rule.scanning = false
@@ -839,26 +820,11 @@ const scanDirectoryUploadRule = async (row: SyncDirectory) => {
 
 const toggleCron = async (row: SyncDirectory) => {
   try {
-    const formData = {
-      id: row.id || '',
-    }
-
-    const response = await http.post(`${SERVER_URL}/sync/path/toggle-cron`, formData, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (response?.data.code === 200) {
-      ElMessage.success(row.enable_cron ? '开启定时同步成功' : '关闭定时同步成功')
-    } else {
-      row.enable_cron = !row.enable_cron
-      ElMessage.error(response?.data.message || '切换定时同步状态失败')
-    }
-  } catch {
-    console.error('切换定时同步状态错误')
+    await toggleSyncPathCron(http, row.id)
+    ElMessage.success(row.enable_cron ? '开启定时同步成功' : '关闭定时同步成功')
+  } catch (error) {
     row.enable_cron = !row.enable_cron
-    ElMessage.error('切换定时同步状态失败')
+    reportRequestError(error, '切换定时同步状态失败')
   }
 }
 

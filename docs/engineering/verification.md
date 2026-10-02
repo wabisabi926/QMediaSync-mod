@@ -28,11 +28,39 @@
 | 本地管理员恢复与 Compose 脚本 | 本文“管理员恢复验证”的 Go、脚本和 PostgreSQL 检查；涉及 Windows 展示时交叉构建并人工确认窗口 | 认证会话、部署 |
 | Vue 组件、组合式函数或 HTTP 客户端 | `pnpm run test`、`pnpm lint`、`pnpm format:check`、`pnpm run type-check` | AI 协作说明、请求校验 |
 | 账号授权更换跨端流程 | `cd backend && go test ./internal/requests ./internal/v115auth ./internal/v115open ./internal/models ./internal/controllers ./internal/db`；`cd frontend && pnpm run test -- test/components/cloud-auth test/composables/useV115DeviceAuthorization.test.ts`、`pnpm run type-check`、`pnpm run build` | [账号授权与更换](../reference/account-authorization.md) |
+| 115 共享客户端凭据 | `cd backend && go test -race ./internal/v115open`；`cd backend && go test ./internal/models ./internal/controllers ./internal/synccron` | [账号授权与更换](../reference/account-authorization.md#访问凭证定时刷新与失效) |
+| 下载代理 Cookie 隔离 | `cd backend && go test -race ./internal/controllers -run '^TestProxy115'`；覆盖 115/百度首跳与重定向、Range/Referer/UA 保留 | [认证与浏览器会话](../architecture/authentication-sessions.md#api-key可信来源与下载代理) |
+| 115 STRM 直链解析与播放日志 | `cd backend && go test ./emby302/service/emby ./emby302/web/cache ./emby302/util/https ./internal/controllers ./internal/playback ./internal/helpers`；缓存联调运行 `go test -race ./emby302/service/emby ./emby302/web/cache`，覆盖 UA 分离、请求保真、签名安全期限、排队过期及失败回退不缓存 | [115 STRM 直链解析](../architecture/upload-and-strm-processing.md#115-strm-直链解析)、[日志行为与脱敏](../operations/configuration.md#日志行为与脱敏) |
+| Emby 302 回源、共享路径和 Web 兼容性 | `cd backend && go test -race ./emby302/config ./emby302/service/emby ./emby302/util/https ./emby302/web/cache ./emby302/util/jsons ./internal/helpers`；覆盖 HTTP 取消及不完整响应不缓存、完整字幕仍可命中缓存、WebSocket 直连及消息收发、本地 / SMB 路径、原图默认裁剪与增强显式关闭、主配置读写；脚本执行验证需要 Node.js | [Emby 302 回源连接](../operations/configuration.md#emby-302-回源连接)、[图片与自定义脚本](../operations/configuration.md#emby-302-图片与自定义脚本) |
+| Emby 302 随机列表缓存 | `cd backend && go test -race ./emby302/service/emby ./emby302/web/cache`；覆盖上游读取失败、下游写入失败、失败后重新回源、完整响应与随机重排缓存复用，以及关闭缓存的兼容性 | [Emby 302 缓存](../operations/configuration.md#emby-302-缓存) |
+| 115 多端播放 | `cd backend && go test ./internal/playback ./internal/controllers ./internal/v115open ./internal/synccron ./internal/models ./internal/requests ./internal/helpers ./internal/syncstrm`；相关播放、目录与回收站定时清理和过滤测试加 `-race`；涉及设置页交互时再运行前端检查 | [多端播放链路](../architecture/upload-and-strm-processing.md#115-多端播放链路) |
+| 多端副本失败保护与有限重试 | `cd backend && go test -race ./internal/controllers ./internal/playback ./internal/v115open`；覆盖原文件零取链、旧槽位保留、当前预留释放、一次取链重试、确认缺失后一次重建、共享预算与独立清理 | [多端播放链路](../architecture/upload-and-strm-processing.md#115-多端播放链路) |
+| 公共授权随机串 | `cd backend && go test -race ./internal/helpers ./internal/v115open`；`cd backend && go test ./internal/v115auth ./internal/controllers` | [账号授权与更换](../reference/account-authorization.md#授权流程传递) |
 | 前端生产集成 | `pnpm run test`、`pnpm run build`、`pnpm run check:build` | 本地开发、发布流程 |
 | 后端可执行文件或发布配置 | `go build` 或发布文档中的对应构建命令 | 发布流程 |
 | 正式 Markdown 文档 | `git diff --check`、相对链接检查；改动 AI 入口时确认兼容入口内容一致 | 文档治理 |
 
+目录浏览排序运行 `(cd backend && go test . ./internal/requests ./internal/controllers ./internal/v115open ./internal/openlist ./internal/baidupan)`，覆盖能力与参数映射、跟随网盘兼容、置顶缓存身份、115 当前层分页和原始 offset、系统目录计数、百度目录分页、OpenList 原生目录刷新及取消、本地可选修改时间。OpenList 公共取消／共享认证和缓存并发变化额外运行相应包的定向 `-race` 测试。
+
+共享浏览缓存回归同时覆盖 180 秒绝对过期且命中不续期、115 文件／目录双向命中且原始顺序与元数据保留、百度与 OpenList 不同列表语义隔离、刷新使所有排序／视图失效、115 祖先目录改名／移动后的路径失效、失败不缓存及失效代次阻止旧结果回填。并发测试覆盖同一批次合并、取消一个等待者不影响另一位、刷新后不加入旧请求；使用本地上游替身计数，不调用真实网盘。
+
+前端随 Vitest 验证能力控件、账号／场景／用户隔离、偏好损坏与存储失败、跟随意图、排序失败回滚、旧请求失效、新建后按序刷新以及本地未知时间；文件图标测试必须通过真实动态组件渲染出 SVG。排序展示替代旧的整体禁用契约；生产构建后运行 `check:build`。浏览器检查覆盖桌面和窄屏控件换行、长文件名下图标不收缩，以及路径选择底部按钮可达。上游替身和离线响应验证不代替真实百度／OpenList 账号联调；115 同值跨页稳定性及并发目录变更仍由上游决定。
+
 ## 后端命令
+
+Go 工具链或直接依赖升级须运行全部后端测试、`go vet ./...`、`go mod verify`，并按发布参数交叉构建 Linux / Windows 的 amd64、arm64。约 2 GiB 内存、4 个逻辑 CPU 的环境使用 `GOMAXPROCS=4 GOFLAGS=-p=1 GOMEMLIMIT=1GiB GOGC=100`，测试加 `-parallel=4`；允许单个进程使用 4 个 CPU，包级编译和独立验证命令仍串行执行。`GOMEMLIMIT` 是每进程的 Go 内存软限制，不是所有进程的内存总额上限；保留 `-p=1`，避免多个编译进程同时占用接近 1 GiB。`GOMAXPROCS` 不限制创建的 goroutine 总数，仍须观察 RSS；Linux 可额外用 `taskset` 限定 CPU。不要并行运行基准与其他编译任务。
+
+YAML 配置变更运行 `go test ./internal/helpers ./emby302/config ./internal/controllers .`，覆盖统一 v3 后的布尔字段、八进制、锚点合并、主配置保存回读和非法合并键返回错误；顶层与嵌套重复键必须报错，原文件保持不变，不能因解析失败退回旧 `config.yml`。同时保留首次配置、管理员恢复、JWT 自动保存、日志设置和可信来源配置回归；格式与兼容边界见 [配置文件](../operations/configuration.md#配置文件与默认端口)。反射转换回归运行 `go test ./emby302/util/jsons ./emby302/service/emby`，覆盖导出字段、嵌套对象、空值、指针和 map 键类型边界。
+
+性能比较使用同一工具链、CPU 和 GC 参数，至少重复 6 次并用 `benchstat` 比较：`go test ./emby302/util/jsons ./internal/helpers -run '^$' -bench 'Benchmark(FromObject|ConfigYAML)$' -benchmem -benchtime=200ms -count=6 -cpu=1`。以改动前工作区为对照，同时报告耗时与分配；无显著差异不得宣称提速，依赖维护收益与运行时性能收益分开记录。
+
+备份压缩回归通过 `go test ./internal/helpers ./internal/backup` 验证 Deflate 输出、备份恢复往返和旧版 Store 包兼容。性能测量可运行 `go test ./internal/helpers ./internal/embyclient-rest-go -run '^$' -bench 'Benchmark(ZipDir|FetchMediaItemsPage)$' -benchmem`；使用合成 JSON 数据，ZIP 结果包括文件 I/O，不代表真实数据库导出总耗时。
+
+网络升级回归覆盖非法百度 STRM 地址与转码 Host、WebSocket 原始请求语义，以及私有 HTTP transport 在成功、错误和重定向后的连接释放；运行 `go test -race ./internal/helpers ./internal/syncstrm ./emby302/service/emby`。密码与 NFO 的 Unicode 分类随工具链升级，分别由 `requests` 和 `helpers` 包测试保护；Windows 证书环境变量须按 [出站证书信任](../operations/configuration.md#emby-302-出站-https) 在目标机器验收。
+
+Pongo2 升级运行 `go test ./internal/models -run 'Test(NewSyntax|OldSyntax|BackwardCompatibility|SyntaxDetection|GenerateNameByTemplateOrKeep)'`，并对模型包运行 `-race`。覆盖普通变量转义、显式 `safe`、父块字面量与变量的原生继承输出，以及 `removetags` 正则元字符、无 `else` 的 `ifchanged` 不发生 panic。
+
+GitHub 私有连接池回收运行 `go test -race ./internal/github -run '^TestManagerRetiresPrivateConnections$'`，覆盖更新配置、清缓存、过期重探测、有效缓存复用，以及共享默认连接池隔离和重探测失败后的旧客户端回退。
 
 ```bash
 # 全部测试
@@ -56,6 +84,8 @@
 ```
 
 项目没有配置 Go lint 工具。Go 文件的 import 以 `goimports -local qmediasync` 的实际输出为准；仅在用户请求或本次变更确实需要格式化时运行会写入文件的命令，并检查不会带入无关改动。
+
+`TestProxyCustomJsWaitsForEmby` 通过 Node.js 执行处理器生成的脚本，验证等待初始化、单次执行及异常隔离。运行相关 Go 测试前确认 `node --version` 可用；没有 Node.js 时该项会明确跳过，不能据此声称脚本行为已验证。
 
 ## 数据库启动与部署验证
 
@@ -110,13 +140,13 @@ Windows 的窗口可见性和 `Ctrl+C` 复制不能由交叉编译证明，需�
 (cd frontend && pnpm run check:build)
 ```
 
-Vitest 对 `element-plus` 使用 Vite 内联依赖处理，让真实表单校验获得与浏览器构建一致的 `async-validator` CommonJS 互操作；否则 Node 的嵌套默认导出可能使校验异常被表单聚合逻辑忽略。该设置仅位于 `vite.config.ts` 的 `test` 配置中。
+Vitest 5 通过 `vite.config.ts` 中的 `environments.client.resolve.noExternal: ['element-plus']` 使用 Vite 内联依赖处理，让真实表单校验获得与浏览器构建一致的 `async-validator` CommonJS 互操作；否则 Node 的嵌套默认导出可能使校验异常被表单聚合逻辑忽略。该设置替代已弃用的 `test.server.deps.inline`，仅在 `mode === 'test'` 时启用；Vitest 会将环境中的内联规则汇总为项目级配置。调整此配置须回归真实 Element Plus 表单的非法输入拦截与保存行为。
 
 ## 构建和发布命令
 
 ```bash
-# 构建前端静态文件
-(cd frontend && corepack enable && corepack prepare pnpm@11 --activate && pnpm install --frozen-lockfile && pnpm run build)
+# 使用 Node 26 构建前端静态文件
+(cd frontend && npm install --global pnpm@12 && pnpm install --frozen-lockfile && pnpm run build)
 
 # 本地后端构建
 (cd backend && go build -o QMediaSync .)
@@ -139,11 +169,24 @@ docker build -f docker/source.local.Dockerfile -t qmediasync:local .
 ## 稳定回归验证
 
 - 长期回归风险优先由相关 Go 包内测试保护；新增或修改测试时遵循 table-driven 模式。
+- 上传后的 STRM 收尾与 OpenList 上传队列回归须覆盖生产 SQLite 单连接配置；信息准备、事务回滚和幂等边界见 [上传与 STRM 处理](../architecture/upload-and-strm-processing.md#验证方式)。
+- OpenList 凭据变更须验证内存与数据库两处的过时结果保护，并覆盖临时验证失败、条件保存冲突与正常刷新；认证重试变更还须验证一次独立认证恢复、完整 multipart 重发及普通网络重试次数不变。契约和回归范围见 [账号授权与更换](../reference/account-authorization.md#openlist-登录与-token-回写)。
 - 当前端行为或源码契约需要自动保护时，在 `frontend/test/` 下按 `components/`、`composables/`、`router/`、`unit/`、`utils/` 或 `regression/` 分类创建 `*.test.ts` / `*.test.mjs`，由 Vitest 统一运行；测试应断言公开行为或稳定契约，避免绑定组件内部实现细节。
-- 局部加载遮罩与导航的层级由 `frontend/test/regression/sidebar-menu-motion.test.ts` 保护样式契约；真实绘制和点击命中需在浏览器复核：分别使用移动和桌面视口，延迟首页、更新页及队列接口，确认移动菜单及背景遮罩可点击、关闭菜单后加载区域仍阻止操作、响应结束后遮罩消失，并确认模态对话框仍覆盖侧栏。路由模块加载骨架和全屏加载不得被局部遮罩规则改变。
+- 公共请求错误和认证 API 回归随 `pnpm run test` 执行，覆盖新旧错误码、HTTP `200` 业务失败、合法空值、取消／超时／无响应与普通异常的区别、诊断脱敏、默认业务消息与空值回退、字段文案改写、登录统一文案、匿名会话查询及并发 HTTP `401` 只处理一次。响应体数值 `code=401` 不单独使会话失效。后端 `controllers`、`helpers` 测试保护第三方错误中的已知密钥和常见凭据脱敏。业务页面迁入 API 模块时还须验证失败保留输入、不误报成功和不执行成功回调；契约见 [API 响应与请求错误](frontend-development.md#api-响应与请求错误)。
+- 账号请求与授权回归覆盖无响应、来源／CSRF、业务失败的提示和输入保留，以及 QR / OAuth 会话 ID、取消、隐藏／卸载、过期请求和 APP ID 搜索竞态。账号状态查询还须覆盖在途时删除或替换列表、同一行再次请求及卸载，确保旧请求不会抛出数组越界异常、写回过时状态、清除新加载状态或弹出过期错误。旧请求不得覆盖新授权或新搜索状态，错误诊断不得包含授权载荷和凭据；复用 [账号授权与更换](../reference/account-authorization.md#验证方式) 的前端验证入口。
+- 设置领域请求回归覆盖 Emby 轮询失败去重与成功后复位、配置和媒体库读取分离、Cron 字段错误及旧预览失效、代理凭据保留和脱敏回读、通知 `code=0` 的历史成功语义、STRM 安全校验提示、Emby 保存、提取与启动同步在途时互相禁用、通知规则切换渠道或关闭后重开同一渠道时旧规则与晚到结果失效，以及当前用户、两步验证和设备撤销失败不执行成功动作。保存失败保留输入、取消／已处理认证错误静默、回读失败不得被成功说明覆盖，错误与日志不含敏感载荷；均随 Vitest 执行。提取媒体信息同一时间只运行一轮由 `(cd backend && go test -race ./internal/emby)` 验证。
+- 同步目录与队列请求回归覆盖聚合保存的字段定位、成功警告和幂等键复用、详情与关联读取失败保护，以及队列操作成功后刷新失败只提示一次、取消／已处理认证错误静默。请求参数、分页统计、刷新合并和生命周期保护仍由 API、composable 与组件测试共同验证；原始版本对象另有 API 契约测试。
+- 剩余领域请求回归覆盖同步记录、API Key、分类、备份恢复和后台统计的业务成功校验与输入保护。日志及任务 HTTP 快照测试同时验证错误状态保留、HTML 响应、JSON 解析异常与传输故障区分、取消静默和旧结果失效；原生 SSE 错误不额外探测 HTTP 错误原因；任务流进入 CLOSED 时允许读取任务快照降级，明确认证／来源／CSRF 拒绝或 HTTP `401`、`403`、`404` 会停止轮询，包含首次请求失败的场景。备份下载额外验证 JSON 错误不生成下载文件。
+
+- 请求失败后的连续交互也必须验证：APP ID 新关键词失败后不能混用旧分页；AI、TMDB、代理、Emby、线程、日志及 STRM 首次读取失败时禁止默认配置写回，关闭提示仍不能保存，重试成功恢复保存。以上均纳入组件和 composable 的 Vitest 回归。
+- 备份与恢复终态运行 `(cd backend && go test -race ./internal/backup)` 及 `(cd backend && go test ./internal/controllers ./internal/helpers)`，覆盖并发任务占用、快照隔离、文件／数据库／ZIP 收尾失败及残缺归档清理、恢复部分失败和旧包缺表兼容。前端备份 store 测试保护明确成功、失败、旧响应未知结果和安全文案，不能把停止运行直接判为成功；契约见 [备份和恢复状态](../operations/database.md#备份和恢复状态)。
+- 下载、上传队列的统计由 `frontend/test/components/QueueTotals.test.ts` 覆盖全局“剩余 / 排队 / 处理中”、分页和筛选不改变统计口径、快照刷新与空队列归零；下载预取和上传完成处理均沿用后端 `processing` 口径。相关组件测试随 `pnpm run test` 执行。
+- 上传并发由 `frontend/test/components/AppThreadSettings.upload-concurrency.test.ts` 覆盖默认值、保存回读、整数范围及保存失败提示；后端 `requests`、`controllers` 和 `models` 测试覆盖旧请求兼容、写库失败不生效、默认设置和迁移重试。队列测试使用受控在途任务验证增减并发、暂停后保存与恢复、重复领取及清空后的旧任务，并额外运行相关 `models` 测试的 `-race` 检查。百度网盘和 OpenList 还须通过真实队列与本地 HTTP 替身验证驱动共享状态的并发安全，覆盖范围与命令见[上传和 STRM 处理的验证方式](../architecture/upload-and-strm-processing.md#验证方式)。
+- 局部加载遮罩与导航的层级由 `frontend/test/regression/sidebar-menu-motion.test.ts` 保护样式契约；真实绘制和点击命中需在浏览器复核：分别使用移动和桌面视口，延迟首页和队列接口，确认移动菜单及背景遮罩可点击、关闭菜单后加载区域仍阻止操作、响应结束后遮罩消失，并确认模态对话框仍覆盖侧栏。路由模块加载骨架和全屏加载不得被局部遮罩规则改变。
 - STRM 正则预检由 `frontend/test/utils/strmRegex.test.ts` 与 Go `validation` 包共同读取 [兼容性样例](../../backend/internal/validation/testdata/strm_regex_cases.json)，保护合法 Go 表达式不被前端误拦截、明确不兼容项能提示，以及无法可靠预检的语法交由后端判断。新增样例需同时通过两端测试。
 - STRM 原文输入和保存由 `frontend/test/components/StrmRegexInput.test.ts`、`frontend/test/components/StrmSettings.regex-save.test.ts` 保护，覆盖输入法组合、大小写、空白、分隔符、转义、桌面与移动表单保存回读、服务端错误展示和清空列表；随 `pnpm run test` 执行。后端 `controllers` 包以真实保存接口和 SQLite 覆盖原文落库、失败不改旧配置及清空；`models` 包覆盖旧库迁移和迁移重试，`syncstrm` 包覆盖手动文件 / 目录生成、全局继承与自定义覆盖、115 目录缓存 / 预取 / 路径补全中的祖先目录排除。
 - 标签输入的折叠、展开、添加和输入保留由 `frontend/test/components/MetadataExtInput.test.ts` 与 `frontend/test/components/StrmRegexInput.test.ts` 保护，同时保留普通名称 / 扩展名的规范化和正则原文的区别。浏览器检查需覆盖多个控件同时展开时的焦点、添加后的焦点恢复、桌面输入尺寸，以及移动端长名称 / 正则换行和删除操作可达性。
+- STRM 列表的清空确认、取消与草稿重置由上述输入组件测试保护；`StrmSettings.regex-save.test.ts` 同时覆盖桌面 / 移动表单四类列表的合并导入、去重、逐项清空、保存回读、导入失败保留原值及导入期间禁止保存。后端 `requests` 和 `controllers` 包覆盖全局扩展名空数组校验、默认值回退、空数组 / `null` / 字段省略时统一落库为空数组，以及保存失败不改内存；浏览器还需复核窄屏按钮换行与就地确认的可达性。
 - 仅依赖构建产物的检查使用 `*.check.mjs`，通过独立脚本在 `pnpm run build` 后执行，不能使用 Vitest 测试文件后缀。
 - 当包内 Go 测试、前端测试、lint、类型检查和生产构建都无法覆盖明确的长期风险时，优先补充对应测试；无法自动覆盖时，在对应契约文档中写明人工检查步骤和剩余风险。
 

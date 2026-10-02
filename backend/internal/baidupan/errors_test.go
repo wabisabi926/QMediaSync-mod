@@ -61,8 +61,7 @@ func TestHandleErrorClassifiesTokenErrno(t *testing.T) {
 			if err == nil {
 				t.Fatal("非零 errno 应返回错误")
 			}
-			var tokenErr *TokenInvalidError
-			isToken := errors.As(err, &tokenErr)
+			tokenErr, isToken := errors.AsType[*TokenInvalidError](err)
 			if isToken != tt.wantToken {
 				t.Fatalf("errno %d 的凭证错误判定 = %v，期望 %v（错误：%v）", tt.errno, isToken, tt.wantToken, err)
 			}
@@ -73,5 +72,16 @@ func TestHandleErrorClassifiesTokenErrno(t *testing.T) {
 				t.Fatal("TokenInvalidError 应携带错误描述")
 			}
 		})
+	}
+}
+
+func TestHandleErrorPreservesOtherAPIInfo(t *testing.T) {
+	ensureBaiduPanTestLoggers()
+	resp := &http.Response{
+		Body:    io.NopCloser(strings.NewReader(`{"errno":0,"info":{"errno":-9}}`)),
+		Request: &http.Request{Method: http.MethodGet, URL: &url.URL{RawQuery: "method=uinfo"}},
+	}
+	if err := (&Client{}).handleError(nil, resp, struct{}{}); err != nil {
+		t.Fatalf("其他接口的 info 不应按文件操作结果解析：%v", err)
 	}
 }

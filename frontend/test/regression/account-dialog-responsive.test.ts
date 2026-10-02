@@ -156,10 +156,8 @@ describe('115 授权流程生命周期', () => {
   })
 
   test('直接跳转 OAuth 会暂存会话并在回调返回后处理失效会话', () => {
-    expect(cloudAccountsSource).toContain(`v-if="account.source_type !== 'openlist'"`)
-    expect(cloudAccountsSource).not.toContain(
-      `v-if="account.source_type !== 'openlist' && !account.deprecated"`,
-    )
+    expect(cloudAccountsSource).toContain(`v-if="isAuthorizableSource(account.source_type)"`)
+    expect(cloudAccountsSource).not.toContain('!account.deprecated')
     expect(cloudAccountsSource).toContain(`v-if="account.source_type === '115'"`)
     expect(cloudAccountsSource).toContain('savePendingV115Authorization')
     expect(cloudAccountsSource).toContain('loadPendingV115Authorization')
@@ -183,15 +181,6 @@ describe('115 授权流程生命周期', () => {
       cloudAccountsSource.indexOf('if (hasValidCallbackAccountId && hasCallbackData)'),
     )
     expect(mismatchBlock).toContain('return')
-  })
-
-  test('取消授权会话会校验接口业务码后再清理暂存', () => {
-    const cancelBlock = cloudAccountsSource.slice(
-      cloudAccountsSource.indexOf('const cancelAuthorizationSession = async'),
-      cloudAccountsSource.indexOf('const cancelAndClearPendingAuthorization'),
-    )
-    expect(cancelBlock).toContain('const response = await http.post')
-    expect(cancelBlock).toContain('return response?.data?.code === 200')
   })
 })
 

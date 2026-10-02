@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
 
 	"qmediasync/internal/baidupan"
+	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
 	"qmediasync/internal/v115open"
 )
@@ -61,8 +63,14 @@ mainloop:
 			if len(resp.Data) == 0 {
 				break mainloop
 			}
+			if resp.PathStr != "" {
+				parentPath = resp.PathStr
+			}
 		fileloop:
 			for _, file := range resp.Data {
+				if helpers.IsV115PlaybackPath(filepath.Join(parentPath, file.FileName)) {
+					continue fileloop
+				}
 				if file.Aid != "1" {
 					d.s.Sync.Logger.Infof("文件 %s 已放入回收站或删除，跳过", file.FileName)
 					continue fileloop
@@ -114,7 +122,7 @@ func (d *open115Driver) CreateDirRecursively(ctx context.Context, path string) (
 	// 反向检查，找到哪一级不存在，再正向创建
 	notExistIndex := -1
 	lastExistsPathId := ""
-	for i := len(pathParts) - 1; i >= 0; i-- {
+	for i := range slices.Backward(pathParts) {
 		dir := filepath.Join(pathParts[:i+1]...)
 		fsDetail, err := d.client.GetFsDetailByPath(ctx, dir)
 		if err != nil || fsDetail == nil || fsDetail.FileId == "" {

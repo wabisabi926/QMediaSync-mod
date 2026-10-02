@@ -11,35 +11,61 @@ type TokenData struct {
 	Token string `json:"token"`
 }
 
+// TokenSaveEvent 携带登录开始前的配置，供账号层条件保存；不得记录其中的凭据。
+type TokenSaveEvent struct {
+	AccountID     uint
+	BaseURL       string
+	Username      string
+	Password      string
+	PreviousToken string
+	Token         string
+}
+
 // 获取开放平台 Token
 // 用于自动登录开放平台
 // POST /api/auth/login
 func (c *Client) GetToken() (*TokenData, error) {
+	return c.getToken(c.snapshot())
+}
+
+func (c *Client) getToken(state clientState) (*TokenData, error) {
 	type tokenReq struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
 	reqData := &tokenReq{
-		Username: c.Username,
-		Password: c.Password,
+		Username: state.username,
+		Password: state.password,
 	}
 	var result Resp[TokenData]
 	req := c.client.R().SetBody(reqData).SetMethod(http.MethodPost).SetResult(&result)
-	_, err := c.doRequest("/api/auth/login", req, MakeRequestConfig(0, 1, 5))
+	_, err := c.doRequestWithState("/api/auth/login", req, MakeRequestConfig(0, 1, 5), state)
 	if err != nil {
 		helpers.OpenListLog.Errorf("OpenList 获取访问凭证失败：%s", err.Error())
 		return nil, err
 	}
 	tokenData := result.Data
-	helpers.OpenListLog.Infof("OpenList 获取访问凭证成功：%s", tokenData.Token)
-	// 给客户端设置新的 Token
-	c.SetAuthToken(tokenData.Token)
-	// 通知 models 保存 Token 到数据库
-	helpers.PublishSync(helpers.SaveOpenListTokenEvent, map[string]any{
-		"account_id": c.AccountId,
-		"token":      tokenData.Token,
-	})
-	c.SetAuthToken(tokenData.Token)
+	helpers.OpenListLog.Infof("OpenList 获取访问凭证成功")
+	if c.snapshot() == state && state.accountID != 0 {
+		// 同步保存不持有客户端锁；数据库必须继续比较登录前的原始配置。
+		helpers.PublishSync(helpers.SaveOpenListTokenEvent, TokenSaveEvent{
+			AccountID:     state.accountID,
+			BaseURL:       state.baseURL,
+			Username:      state.username,
+			Password:      state.password,
+			PreviousToken: state.accessToken,
+			Token:         tokenData.Token,
+		})
+	}
+	// 回调期间也可能保存新配置，必须在回调结束后再次原子比较。
+	c.stateMu.Lock()
+	current := c.snapshotLocked()
+	if current == state {
+		c.AccessToken = tokenData.Token
+	} else if current.sameLogin(state) && current.accessToken != "" {
+		tokenData.Token = current.accessToken
+	}
+	c.stateMu.Unlock()
 	return &tokenData, nil
 }
 

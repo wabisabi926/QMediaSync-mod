@@ -3,13 +3,16 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
+	pathpkg "path"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
 
+	"qmediasync/internal/baidupan"
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
 	"qmediasync/internal/requests"
@@ -20,21 +23,24 @@ import (
 )
 
 type DirResp struct {
-	Id   string `json:"id"`
-	Name string `json:"name"`
-	Path string `json:"path"`
+	Id           string `json:"id"`
+	Name         string `json:"name"`
+	Path         string `json:"path"`
+	ModifiedTime *int64 `json:"modified_time,omitempty"`
 }
 
 // GetPathList 获取目录列表
 // @Summary 获取目录列表
-// @Description 按同步源类型获取本地、OpenList 或 115 的目录列表
+// @Description 获取当前层目录；远端顺序由来源接口决定，本地排序由调用方处理
 // @Tags 路径管理
 // @Accept json
 // @Produce json
-// @Param parent_id query string false "父目录 ID，仅 115 使用"
-// @Param parent_path query string false "父目录路径，本地或 OpenList 使用"
-// @Param source_type query integer true "同步源类型，0-本地 1-115 2-OpenList"
-// @Param account_id query integer false "账号 ID，115 或 OpenList 必填"
+// @Param parent_id query string false "父目录 ID（115）或路径（其他来源）"
+// @Param source_type query string true "来源类型：local、115、openlist、baidupan"
+// @Param account_id query integer false "账号 ID，远程来源必填"
+// @Param sort_by query string false "排序字段，以 sort-options 返回的目录能力为准"
+// @Param sort_order query string false "asc 或 desc；跟随网盘时省略"
+// @Param refresh query integer false "0 或 1，显式刷新当前父目录"
 // @Success 200 {object} object
 // @Failure 200 {object} object
 // @Router /path/list [get]
@@ -42,7 +48,7 @@ type DirResp struct {
 // @Security ApiKeyAuth
 func GetPathList(c *gin.Context) {
 	var req requests.PathListRequest
-	if err := c.ShouldBind(&req); err != nil {
+	if err := c.ShouldBindQuery(&req); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "参数错误", Data: nil})
 		return
 	}
@@ -52,22 +58,32 @@ func GetPathList(c *gin.Context) {
 	}
 	var pathes []DirResp
 	var err error
-	switch req.SourceType {
-	case models.SourceTypeLocal:
+	var account *models.Account
+	if req.SourceType == models.SourceTypeLocal {
 		pathes, err = GetLocalPath(req.ParentID)
-	case models.SourceTypeOpenList:
-		pathes, err = GetOpenListPath(req.ParentID, req.AccountID)
-	case models.SourceType115:
-		pathes, err = Get115PathList(req.ParentID, req.AccountID)
-	case models.SourceTypeBaiduPan:
-		pathes, err = GetBaiduPanPathList(req.ParentID, req.AccountID)
-	default:
-		// 报错
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "未知的同步源类型", Data: nil})
-		return
+	} else {
+		account, err = models.GetAccountById(req.AccountID)
+		if err == nil && account.SourceType != req.SourceType {
+			err = fmt.Errorf("账号与来源类型不匹配")
+		}
+		if err == nil {
+			switch req.SourceType {
+			case models.SourceTypeOpenList:
+				pathes, err = GetOpenListPath(c.Request.Context(), req.ParentID, account, req.Refresh == 1)
+			case models.SourceType115:
+				pathes, err = Get115PathList(c.Request.Context(), req, account)
+			case models.SourceTypeBaiduPan:
+				pathes, err = GetBaiduPanPathList(c.Request.Context(), req, account)
+			}
+		}
 	}
+
 	if err != nil {
-		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取目录列表失败：" + err.Error(), Data: nil})
+		message := helpers.RedactSensitiveLog(err.Error())
+		if account != nil {
+			message = helpers.RedactSensitiveLog(err.Error(), account.Token, account.RefreshToken, account.Password)
+		}
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取目录列表失败：" + message, Data: nil})
 		return
 	}
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取目录列表成功", Data: pathes})
@@ -120,8 +136,8 @@ func GetLocalPath(parentPath string) ([]DirResp, error) {
 					}
 					helpers.AppLogger.Debugf("合并后有权限访问的目录为：%s", accessiblePaths)
 					// 用冒号分割
-					paths := strings.Split(accessiblePaths, ":")
-					for _, path := range paths {
+					paths := strings.SplitSeq(accessiblePaths, ":")
+					for path := range paths {
 						// 去掉首尾空格
 						path = strings.TrimSpace(path)
 						// 加入列表
@@ -151,106 +167,498 @@ func GetLocalPath(parentPath string) ([]DirResp, error) {
 				continue
 			}
 			fullPath := filepath.ToSlash(filepath.Join(parentPath, entry.Name()))
-			pathes = append(pathes, DirResp{
-				Id:   fullPath,
-				Name: entry.Name(),
-				Path: fullPath,
-			})
+			directory := DirResp{Id: fullPath, Name: entry.Name(), Path: fullPath}
+			if info, infoErr := entry.Info(); infoErr == nil {
+				modified := info.ModTime().Unix()
+				directory.ModifiedTime = &modified
+			}
+			pathes = append(pathes, directory)
 		}
 	}
 
 	return pathes, nil
 }
 
-func GetOpenListPath(parentPath string, accountId uint) ([]DirResp, error) {
-	account, err := models.GetAccountById(accountId)
+// GetBrowseSortOptions 返回当前来源和浏览场景的排序能力。
+func GetBrowseSortOptions(c *gin.Context) {
+	var req requests.BrowseSortOptionsRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "参数错误", Data: nil})
+		return
+	}
+	options, err := requests.BrowseSortOptionsFor(req.SourceType, req.Scope)
 	if err != nil {
-		return nil, err
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+		return
 	}
-	// 去掉 parentPath 末尾的 /
-	parentPath = strings.TrimSuffix(parentPath, "/")
-	parentPath = strings.TrimSuffix(parentPath, "\\")
-
-	helpers.AppLogger.Debugf("开始获取 OpenList 目录列表，父目录路径：%s", parentPath)
-	client := account.GetOpenListClient()
-	resp, err := client.FileList(context.Background(), parentPath, 1, 100)
-	if err != nil {
-		return nil, err
-	}
-	// 只返回文件夹列表
-	folders := make([]DirResp, 0)
-	for _, item := range resp.Content {
-		if item.IsDir {
-			folders = append(folders, DirResp{
-				Id:   parentPath + "/" + item.Name,
-				Name: item.Name,
-				Path: parentPath + "/" + item.Name,
-			})
-		}
-	}
-	return folders, nil
+	c.JSON(http.StatusOK, APIResponse[requests.BrowseSortOptions]{Code: Success, Data: options})
 }
 
-func Get115PathList(parentId string, accountId uint) ([]DirResp, error) {
-	// 获取 115 目录列表
-	account, err := models.GetAccountById(accountId)
-	if err != nil {
-		return nil, err
+// GetOpenListPath 使用原生目录接口，保持上游顺序；显式刷新失败时不回退旧缓存。
+func GetOpenListPath(
+	ctx context.Context,
+	parentPath string,
+	account *models.Account,
+	refresh bool,
+) ([]DirResp, error) {
+	parentPath = normalizeNetFileCachePath(models.SourceTypeOpenList, parentPath)
+	key := netFileBatchCacheKey{
+		SourceType: string(models.SourceTypeOpenList), AccountID: account.ID, Path: parentPath,
+		SortBy: "default", SortOrder: "asc", Filter: "directories",
 	}
-	client := account.Get115Client()
-	helpers.AppLogger.Debugf("开始获取 115 目录列表，父目录 ID：%s", parentId)
-	ctx := context.Background()
-	resp, err := client.GetFsList(ctx, parentId, true, true, true, 0, 200)
-	if err != nil {
-		helpers.AppLogger.Warnf("获取 115 目录列表失败：父目录=%s，错误=%v", parentId, err)
-		return nil, err
+	if refresh {
+		netFileCache.InvalidatePath(key.SourceType, key.AccountID, key.Path)
 	}
-	helpers.AppLogger.Debugf("成功获取 115 目录列表，父目录 ID：%s，文件数量：%d", parentId, len(resp.Data))
+	batch, _, err := netFileCache.getOrFetch(ctx, key, refresh, func(fetchCtx context.Context) (netFileBatch, error) {
+		client := account.GetOpenListClient()
+		if refresh {
+			if _, err := client.FileListWithRefresh(fetchCtx, parentPath, 1, 1, true); err != nil {
+				return netFileBatch{}, err
+			}
+		}
+		items, err := client.DirList(fetchCtx, parentPath, false)
+		if err != nil {
+			return netFileBatch{}, err
+		}
+		folders := make([]DirResp, 0, len(items))
+		for _, item := range items {
+			path := joinOpenListPath(parentPath, item.Name)
+			folders = append(folders, DirResp{Id: path, Name: item.Name, Path: path})
+		}
+		return netFileBatch{Directories: folders}, nil
+	})
+	return batch.Directories, err
+}
+
+// Get115PathList 分页读取当前父目录，显式排序时采用 115 原生目录置顶。
+func Get115PathList(ctx context.Context, req requests.PathListRequest, account *models.Account) ([]DirResp, error) {
+	parentID := normalizeNetFileCachePath(models.SourceType115, req.ParentID)
+	sortOrder := req.SortOrder
+	if req.SortBy != "" && sortOrder == "" {
+		sortOrder = "asc"
+	}
+	foldersFirst := req.SortBy != "" && req.SortBy != "default"
+	if req.Refresh == 1 {
+		invalidateNetFileCacheForPath(models.SourceType115, account.ID, parentID)
+	}
+	return read115DirectoryPages(ctx, foldersFirst, func(offset int) (*v115open.FileListResp, error) {
+		key := netFileBatchCacheKey{
+			SourceType: string(models.SourceType115), AccountID: account.ID, Path: parentID,
+			SortBy: req.SortBy, SortOrder: sortOrder, FoldersFirst: foldersFirst,
+			Filter: "none", BatchStart: offset, BatchSize: 1000,
+		}
+		batch, _, err := netFileCache.getOrFetch(ctx, key, req.Refresh == 1, func(fetchCtx context.Context) (netFileBatch, error) {
+			return fetch115NetFileBatch(fetchCtx, account, parentID, offset, 1000, req.SortBy, sortOrder, nil)
+		})
+		return batch.Raw115, err
+	})
+}
+
+func read115DirectoryPages(
+	ctx context.Context,
+	foldersFirst bool,
+	fetch func(int) (*v115open.FileListResp, error),
+) ([]DirResp, error) {
 	folders := make([]DirResp, 0)
-	// 构建路径
+	seen := make(map[string]struct{})
+	for offset := 0; ; {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		resp, err := fetch(offset)
+		if err != nil {
+			return nil, err
+		}
+		if err := validate115BrowseBatch(resp, offset); err != nil {
+			return nil, err
+		}
+		foundFile := false
+		for _, item := range resp.Data {
+			if _, exists := seen[item.FileId]; exists || item.FileId == "" {
+				return nil, fmt.Errorf("115 目录分页出现重复或无效条目，请刷新重试")
+			}
+			seen[item.FileId] = struct{}{}
+			if item.FileCategory == v115open.TypeFile {
+				foundFile = true
+				continue
+			}
+			folders = append(folders, DirResp{
+				Id: item.FileId, Name: item.FileName,
+				Path: pathpkg.Join(resp.PathStr, item.FileName),
+			})
+		}
+		// count 已包含系统目录；offset 必须按原始条目数而非目录数推进。
+		offset += len(resp.Data)
+		if (foldersFirst && foundFile) || offset >= resp.Count {
+			return folders, ctx.Err()
+		}
+	}
+}
+
+// GetBaiduPanPathList 使用普通 list 的 folder=1 和 start/limit 分页。
+func GetBaiduPanPathList(ctx context.Context, req requests.PathListRequest, account *models.Account) ([]DirResp, error) {
+	options := baidupan.FileListOptions{}
+	if req.SortBy != "" {
+		order, desc, err := mapBaiduSort(req.SortBy, req.SortOrder)
+		if err != nil {
+			return nil, err
+		}
+		options = baidupan.FileListOptions{Order: order, Desc: &desc}
+	}
+	parentID := normalizeNetFileCachePath(models.SourceTypeBaiduPan, req.ParentID)
+	if req.Refresh == 1 {
+		invalidateNetFileCacheForPath(models.SourceTypeBaiduPan, account.ID, parentID)
+	}
+	folders := make([]DirResp, 0)
+	seen := make(map[string]struct{})
+	const limit = 1000
+	for start := 0; ; {
+		key := netFileBatchCacheKey{
+			SourceType: string(models.SourceTypeBaiduPan), AccountID: account.ID, Path: parentID,
+			SortBy: req.SortBy, SortOrder: req.SortOrder, Filter: "directories", BatchStart: start, BatchSize: limit,
+		}
+		batch, _, err := netFileCache.getOrFetch(ctx, key, req.Refresh == 1, func(fetchCtx context.Context) (netFileBatch, error) {
+			items, err := account.GetBaiDuPanClient().GetFileListWithOptions(fetchCtx, parentID, 1, 1, int32(start), limit, options)
+			if err != nil {
+				return netFileBatch{}, err
+			}
+			page := make([]DirResp, 0, len(items))
+			pageSeen := make(map[string]struct{}, len(items))
+			for _, item := range items {
+				if item == nil || item.Path == "" {
+					return netFileBatch{}, fmt.Errorf("百度网盘目录列表包含无效条目")
+				}
+				if _, exists := pageSeen[item.Path]; exists {
+					return netFileBatch{}, fmt.Errorf("百度网盘目录分页出现重复条目，请刷新重试")
+				}
+				pageSeen[item.Path] = struct{}{}
+				// folder=1 可只返回 path，不依赖 isdir 或时间字段。
+				path := strings.TrimPrefix(item.Path, "/")
+				page = append(page, DirResp{Id: path, Name: pathpkg.Base(path), Path: path})
+			}
+			return netFileBatch{Directories: page}, nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range batch.Directories {
+			if _, exists := seen[item.Id]; exists {
+				return nil, fmt.Errorf("百度网盘目录分页出现重复条目，请刷新重试")
+			}
+			seen[item.Id] = struct{}{}
+			folders = append(folders, item)
+		}
+		if len(batch.Directories) < limit {
+			return folders, ctx.Err()
+		}
+		if int64(start)+int64(len(batch.Directories)) > math.MaxInt32 {
+			return nil, fmt.Errorf("百度网盘目录分页超出接口范围")
+		}
+		start += len(batch.Directories)
+	}
+}
+
+type FileItem struct {
+	Id          string `json:"id"`
+	IsDirectory bool   `json:"is_directory"`
+	Name        string `json:"name"`
+	Size        int64  `json:"size"`
+	ModifiedAt  int64  `json:"modified_time"`
+}
+
+type netFileListQuery struct {
+	FoldersFirst *bool
+	Account      *models.Account
+	ParentID     string
+	Page         int
+	PageSize     int
+	Refresh      bool
+	SortBy       string
+	SortOrder    string
+}
+
+func getNetFileListPage(ctx context.Context, query netFileListQuery) (netFileListResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return netFileListResponse{}, err
+	}
+	if query.Account == nil {
+		return netFileListResponse{}, fmt.Errorf("账号不能为空")
+	}
+	sortBy := normalizeNetFileSort(query.Account.SourceType, query.SortBy)
+	sortOrder := query.SortOrder
+	if sortOrder == "" {
+		sortOrder = "asc"
+	}
+	if err := requests.ValidateBrowseSort(query.Account.SourceType, "files", sortBy, sortOrder, query.FoldersFirst); err != nil {
+		return netFileListResponse{}, err
+	}
+	foldersFirst := query.Account.SourceType == models.SourceType115 && sortBy != "default"
+	if query.FoldersFirst != nil {
+		foldersFirst = *query.FoldersFirst
+	}
+	capability, err := getNetFileSourceCapability(query.Account.SourceType, sortBy, sortOrder)
+	if err != nil {
+		return netFileListResponse{}, err
+	}
+	cachePath := normalizeNetFileCachePath(query.Account.SourceType, query.ParentID)
+	const filter = "none"
+	if query.Refresh {
+		netFileCache.InvalidatePath(string(query.Account.SourceType), query.Account.ID, cachePath)
+	}
+
+	ranges := computeNetFileBatchRanges(query.Page, query.PageSize, capability.BatchSize)
+	items := make([]*FileItem, 0, query.PageSize)
+	total := int64(0)
+	hasMore := false
+	status := netFileCacheHit
+	var firstBatch netFileBatch
+	hitCount := 0
+	missCount := 0
+
+	for _, batchRange := range ranges {
+		key := netFileBatchCacheKey{
+			SourceType:   string(query.Account.SourceType),
+			AccountID:    query.Account.ID,
+			Path:         cachePath,
+			SortBy:       sortBy,
+			SortOrder:    sortOrder,
+			FoldersFirst: foldersFirst,
+			Filter:       filter,
+			BatchStart:   batchRange.Start,
+			BatchSize:    batchRange.Size,
+		}
+		batch, hit, err := netFileCache.getOrFetch(ctx, key, query.Refresh, func(fetchCtx context.Context) (netFileBatch, error) {
+			return fetchNetFileBatch(fetchCtx, query.Account, cachePath, batchRange.Start, batchRange.Size, sortBy, sortOrder, query.Refresh, query.FoldersFirst)
+		})
+		if err != nil {
+			return netFileListResponse{}, err
+		}
+		if hit {
+			hitCount++
+		} else {
+			missCount++
+		}
+		if err := ctx.Err(); err != nil {
+			return netFileListResponse{}, err
+		}
+		if firstBatch.CachedAt == 0 {
+			firstBatch = batch
+		}
+		items = append(items, batch.fileItems()...)
+		if batch.Total > total {
+			total = batch.Total
+		}
+		hasMore = hasMore || batch.HasMore
+	}
+	if query.Refresh {
+		status = netFileCacheRefresh
+	} else if hitCount > 0 && missCount > 0 {
+		status = netFileCachePartialHit
+	} else if missCount > 0 {
+		status = netFileCacheMiss
+	}
+
+	batchStart := 0
+	if len(ranges) > 0 {
+		batchStart = ranges[0].Start
+	}
+	pageItems := sliceNetFileItems(items, batchStart, query.Page, query.PageSize)
+	return buildNetFileListResponse(netFileListResponseOptions{
+		List:       pageItems,
+		Total:      total,
+		TotalExact: capability.TotalExact,
+		HasMore:    hasMore,
+		Page:       query.Page,
+		PageSize:   query.PageSize,
+		SortBy:     sortBy,
+		SortOrder:  sortOrder,
+		Cache: netFileCacheMeta{
+			Status:     status,
+			BatchStart: batchStart,
+			BatchSize:  capability.BatchSize,
+			CachedAt:   firstBatch.CachedAt,
+			ExpiresAt:  firstBatch.ExpiresAt,
+		},
+	}), nil
+}
+
+func netFileSingleflightKey(key netFileBatchCacheKey) string {
+	return fmt.Sprintf(
+		"%s/%d/%s/%s/%s/%s/%t/%d/%d",
+		key.SourceType,
+		key.AccountID,
+		key.Path,
+		key.SortBy,
+		key.SortOrder,
+		key.Filter,
+		key.FoldersFirst,
+		key.BatchStart,
+		key.BatchSize,
+	)
+}
+
+func fetchNetFileBatch(
+	ctx context.Context,
+	account *models.Account,
+	parentID string,
+	start, size int,
+	sortBy, sortOrder string,
+	refresh bool,
+	foldersFirst *bool,
+) (netFileBatch, error) {
+	switch account.SourceType {
+	case models.SourceType115:
+		return fetch115NetFileBatch(ctx, account, parentID, start, size, sortBy, sortOrder, foldersFirst)
+	case models.SourceTypeBaiduPan:
+		return fetchBaiduNetFileBatch(ctx, account, parentID, start, size, sortBy, sortOrder)
+	case models.SourceTypeOpenList:
+		return fetchOpenListNetFileBatch(ctx, account, parentID, start, size, refresh)
+	default:
+		return netFileBatch{}, fmt.Errorf("未知的网盘类型")
+	}
+}
+
+func fetch115NetFileBatch(
+	ctx context.Context,
+	account *models.Account,
+	parentID string,
+	start, size int,
+	sortBy, sortOrder string,
+	foldersFirst *bool,
+) (netFileBatch, error) {
+	if parentID == "" {
+		parentID = "0"
+	}
+	options := v115open.FileListOptions{}
+	if sortBy != "" {
+		var err error
+		options, err = browse115Options(sortBy, sortOrder, foldersFirst)
+		if err != nil {
+			return netFileBatch{}, err
+		}
+	}
+	// 两个入口均读取当前层全部类型，没有筛选条件，不需要 stdir。
+	resp, err := account.Get115Client().GetFsListWithOptions(ctx, parentID, true, false, true, start, size, options)
+	if err != nil {
+		return netFileBatch{}, err
+	}
+	if err := validate115BrowseBatch(resp, start); err != nil {
+		return netFileBatch{}, err
+	}
+	return netFileBatch{
+		Raw115: resp, Total: int64(resp.Count), TotalExact: true,
+		HasMore: start+len(resp.Data) < resp.Count,
+	}, nil
+}
+
+func validate115BrowseBatch(resp *v115open.FileListResp, start int) error {
+	if resp == nil || !resp.State || resp.Count < 0 {
+		return fmt.Errorf("115 目录列表响应无效")
+	}
+	if len(resp.Data) == 0 && start < resp.Count {
+		return fmt.Errorf("115 目录列表未读取完整，请刷新重试")
+	}
+	if len(resp.Data) > 0 && (start > resp.Count || len(resp.Data) > resp.Count-start) {
+		return fmt.Errorf("115 目录列表条目数超出总数，请刷新重试")
+	}
+	seen := make(map[string]struct{}, len(resp.Data))
 	for _, item := range resp.Data {
-		parentPath := resp.PathStr
-		if parentPath == "" {
-			parentPath = ""
+		if _, exists := seen[item.FileId]; exists || item.FileId == "" {
+			return fmt.Errorf("115 目录分页出现重复或无效条目，请刷新重试")
 		}
-		helpers.AppLogger.Debugf("遍历 %s 的 115 目录列表，路径：%s", parentPath, item.FileName)
-		if item.FileCategory == v115open.TypeDir {
-			folders = append(folders, DirResp{
-				Id:   item.FileId,
-				Name: item.FileName,
-				Path: filepath.ToSlash(filepath.Join(parentPath, item.FileName)),
-			})
+		seen[item.FileId] = struct{}{}
+		if item.FileCategory != v115open.TypeDir && item.FileCategory != v115open.TypeFile {
+			return fmt.Errorf("115 目录分页包含无效条目类型，请刷新重试")
 		}
 	}
-	return folders, nil
+	return nil
 }
 
-func GetBaiduPanPathList(parentId string, accountId uint) ([]DirResp, error) {
-	// 获取百度网盘目录列表
-	account, err := models.GetAccountById(accountId)
+func fetchBaiduNetFileBatch(ctx context.Context, account *models.Account, parentID string, start int, size int, sortBy string, sortOrder string) (netFileBatch, error) {
+	if parentID == "" {
+		parentID = "/"
+	}
+	order, desc, err := mapBaiduSort(sortBy, sortOrder)
 	if err != nil {
-		return nil, err
+		return netFileBatch{}, err
 	}
 	client := account.GetBaiDuPanClient()
-	ctx := context.Background()
-	fileList, fileErr := client.GetFileList(ctx, parentId, 1, 1, 0, 1000)
-	if fileErr != nil {
-		helpers.AppLogger.Warnf("获取百度网盘目录列表失败：父目录=%s，错误=%v", parentId, fileErr)
-		return nil, fileErr
+	fileList, err := client.GetFileListWithOptions(ctx, parentID, 0, 1, int32(start), int32(size), baidupan.FileListOptions{Order: order, Desc: &desc})
+	if err != nil {
+		helpers.AppLogger.Warnf("获取百度网盘文件列表失败：父目录=%s，错误=%v", parentID, err)
+		return netFileBatch{}, err
 	}
-	// helpers.AppLogger.Infof("成功获取百度网盘文件列表，父目录 ID：%s，文件数量：%d", parentId, len(resp.Data))
-	items := make([]DirResp, 0)
-	// 构建路径
+	items := make([]*FileItem, 0, len(fileList))
 	for _, item := range fileList {
-		// 去掉 item.Path 开头的 /
-		item.Path = strings.TrimPrefix(item.Path, "/")
-		items = append(items, DirResp{
-			Id:   item.Path,
-			Name: filepath.Base(item.Path),
-			Path: item.Path,
+		name := item.ServerFilename
+		if name == "" {
+			name = filepath.Base(item.Path)
+		}
+		items = append(items, &FileItem{
+			Id:          item.Path,
+			IsDirectory: item.IsDir == 1,
+			Name:        name,
+			Size:        int64(item.Size),
+			ModifiedAt:  int64(item.ServerMtime),
 		})
 	}
-	return items, nil
+	total, hasMore := buildBaiduSyntheticTotal(start, len(fileList), size)
+	return netFileBatch{
+		Items:      items,
+		Total:      total,
+		TotalExact: false,
+		HasMore:    hasMore,
+	}, nil
+}
+
+func fetchOpenListNetFileBatch(ctx context.Context, account *models.Account, parentPath string, start int, size int, refresh bool) (netFileBatch, error) {
+	parentPath = normalizeOpenListPath(parentPath)
+	if parentPath == "" {
+		parentPath = "/"
+	}
+	client := account.GetOpenListClient()
+	const perPage = 100
+	firstPage := start/perPage + 1
+	maxPages := size / perPage
+	if size%perPage != 0 {
+		maxPages++
+	}
+	items := make([]*FileItem, 0, size)
+	total := int64(0)
+	for i := 0; i < maxPages; i++ {
+		resp, err := client.FileListWithRefresh(ctx, parentPath, firstPage+i, perPage, refresh && i == 0)
+		if err != nil {
+			return netFileBatch{}, err
+		}
+		if resp.Total > 0 || total == 0 {
+			total = resp.Total
+		}
+		if len(resp.Content) == 0 {
+			break
+		}
+		for _, item := range resp.Content {
+			modifiedAt := int64(0)
+			if parsedAt, parseErr := time.Parse(time.RFC3339, item.Modified); parseErr == nil {
+				modifiedAt = parsedAt.Unix()
+			}
+			items = append(items, &FileItem{
+				Id:          joinOpenListPath(parentPath, item.Name),
+				IsDirectory: item.IsDir,
+				Name:        item.Name,
+				Size:        item.Size,
+				ModifiedAt:  modifiedAt,
+			})
+		}
+		if len(items) >= size || int64(start+len(items)) >= total {
+			break
+		}
+	}
+	return netFileBatch{
+		Items:      items,
+		Total:      total,
+		TotalExact: true,
+		HasMore:    int64(start+len(items)) < total,
+	}, nil
 }
 
 // 创建文件夹
@@ -284,6 +692,9 @@ func CreateDir(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "创建目录失败：" + err.Error(), Data: nil})
 		return
 	}
+	if req.SourceType != models.SourceTypeLocal {
+		invalidateNetFileCacheForPath(req.SourceType, req.AccountID, req.ParentID)
+	}
 	dirResp := DirResp{
 		Id:   pathId,
 		Name: req.Name,
@@ -304,7 +715,7 @@ func makeLocalPath(parentId string, folderName string) (string, error) {
 	if err := os.Mkdir(newDir, 0755); err != nil {
 		return "", fmt.Errorf("创建目录失败：%s，错误：%v", newDir, err)
 	}
-	return newDir, nil
+	return filepath.ToSlash(newDir), nil
 }
 
 // 创建 OpenList 目录
@@ -432,6 +843,7 @@ func DeleteDir(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取账号失败：" + err.Error(), Data: nil})
 		return
 	}
+	invalidateParentID := req.ParentID
 	switch account.SourceType {
 	case models.SourceType115:
 		client := account.Get115Client()
@@ -441,7 +853,13 @@ func DeleteDir(c *gin.Context) {
 		err = client.Del(context.Background(), []string{req.FileID})
 	case models.SourceTypeOpenList:
 		client := account.GetOpenListClient()
-		err = client.Del(req.ParentID, []string{filepath.Base(req.FileID)})
+		var names []string
+		invalidateParentID, names, err = buildOpenListRemoveTarget(req.ParentID, req.FileID)
+		if err != nil {
+			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
+			return
+		}
+		err = client.Del(invalidateParentID, names)
 	default:
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "不支持的文件系统", Data: nil})
 		return
@@ -450,5 +868,6 @@ func DeleteDir(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "删除目录失败：" + err.Error(), Data: nil})
 		return
 	}
+	invalidateNetFileCacheForDeletedPath(account.SourceType, req.AccountID, invalidateParentID, req.FileID)
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "删除目录成功", Data: nil})
 }

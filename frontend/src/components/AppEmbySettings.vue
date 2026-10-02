@@ -346,7 +346,7 @@
           <el-divider class="feature-divider" />
 
           <div class="feature-item" :class="{ 'is-disabled': !embyData.sync_enabled }">
-            <el-form-item label="同步时间" prop="sync_cron">
+            <el-form-item label="同步时间" prop="sync_cron" :error="cronError">
               <el-input
                 v-model="embyData.sync_cron"
                 :placeholder="`请输入 Cron 表达式，如：${CRON_DEFAULTS.embySync}`"
@@ -513,18 +513,22 @@
               type="success"
               @click="saveEmbyConfig"
               :loading="embyLoading"
+              :disabled="!embyConfigLoaded || syncStartLoading"
               :icon="Check"
               size="large"
               class="save-btn"
             >
               保存设置
             </el-button>
+            <el-button v-if="!embyConfigLoaded" :loading="embyLoading" @click="loadEmbySettings">
+              重试加载
+            </el-button>
             <el-button
               type="primary"
               @click="praseEmby"
               :loading="embyLoading"
               :icon="Refresh"
-              :disabled="!embyData.emby_url || !embyData.emby_api_key"
+              :disabled="!embyData.emby_url || !embyData.emby_api_key || syncStartLoading"
               size="large"
               class="extract-btn"
             >
@@ -549,7 +553,8 @@
         :title="embyStatus.title"
         :type="embyStatus.type"
         :description="embyStatus.description"
-        :closable="false"
+        closable
+        @close="clearEmbyStatus"
         show-icon
         class="emby-status-alert"
       />
@@ -682,7 +687,7 @@
             </div>
             <div class="stat-content">
               <div class="stat-label">最近错误</div>
-              <div class="stat-value error-text">{{ syncInfo.last_error }}</div>
+              <div class="stat-value error-text">上次同步失败，请查看服务日志</div>
             </div>
           </div>
         </div>
@@ -712,6 +717,21 @@
 
 <script setup lang="ts">
 import { SERVER_URL } from '@/const'
+import {
+  embyPublicMessages,
+  extractEmbyMediaInfo,
+  fetchEmbyConfig,
+  fetchEmbyLibraries,
+  fetchEmbySyncStatus,
+  saveEmbyConfig as persistEmbyConfig,
+  startEmbySync,
+  type EmbyConfig,
+  type EmbyLibraryOption,
+  type EmbySyncInfo,
+  type EmbySyncMode,
+} from '@/api/emby'
+import { fetchCronTimes, systemSettingsPublicMessages } from '@/api/systemSettings'
+import { parseHttpError } from '@/http/errors'
 import { CRON_DEFAULTS, HTTP_URL_PATTERN } from '@/constants/validation'
 import { useHttpClient } from '@/http/client'
 import {
@@ -732,10 +752,11 @@ import {
   Calendar,
 } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { computed, onMounted, ref, reactive, onBeforeUnmount, useTemplateRef } from 'vue'
+import { computed, onMounted, ref, reactive, onBeforeUnmount, useTemplateRef, watch } from 'vue'
 import PageHeader from '@/components/common/PageHeader.vue'
 import ResponsiveActionBar from '@/components/common/ResponsiveActionBar.vue'
 import { useDeviceType } from '@/composables/useDeviceType'
+import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
 import { copyText } from '@/utils/clipboard'
 import { formatMaybeUnixDateTime, formatRelativeTime } from '@/utils/timeUtils'
 
@@ -746,33 +767,17 @@ const formRef = useTemplateRef<FormInstance>('formRef')
 const { isMobile } = useDeviceType()
 
 const embyLoading = ref(false)
+const embyConfigLoaded = ref(false)
 
 const syncStartLoading = ref(false)
 const syncPolling = ref(false)
-type EmbySyncMode = 'idle' | 'full' | 'incremental' | 'webhook' | 'refresh_library' | ''
-
-interface EmbySyncInfo {
-  sync_enabled: boolean
-  sync_cron: string
-  total_items: number
-  last_sync_time: number | null
-  last_full_sync_at?: number | null
-  last_incremental_sync_at?: number | null
-  last_saved_cursor_at?: number | null
-  last_processed_count?: number | null
-  last_success_sync_mode?: EmbySyncMode
-  last_error?: string
-  is_running?: boolean
-  sync_mode?: EmbySyncMode
-  started_at?: number | null
-}
-
 const syncInfo = ref<EmbySyncInfo | null>(null)
 let syncPollTimer: number | null = null
 let syncPollInFlight = false
 let syncPollPending = false
 let syncPollingGeneration = 0
 let syncPageActive = true
+let syncPollErrorNotified = false
 
 const syncModeLabels: Record<Exclude<EmbySyncMode, ''>, string> = {
   idle: '空闲',
@@ -809,13 +814,16 @@ const lastSuccessSyncHelper = computed(() => {
     .join(' · ')
 })
 
+// 保存、提取与启动同步共用提示条，彼此在途时互相禁用，避免后到的成功说明覆盖另一操作的失败。
 const isStartSyncDisabled = computed(
-  () => !embyData.emby_url || !embyData.sync_enabled || isSyncRunning.value,
+  () => embyLoading.value || !embyData.emby_url || !embyData.sync_enabled || isSyncRunning.value,
 )
 
 const cronNextTimes = ref<string[]>([])
+const cronError = ref('')
+const cronRequestGate = createActiveRequestGate(() => syncPageActive)
 
-const embyData = reactive({
+const embyData = reactive<EmbyConfig>({
   emby_url: '',
   emby_api_key: '',
   sync_enabled: 1,
@@ -830,11 +838,6 @@ const embyData = reactive({
   enable_playback_overview: 0,
   enable_playback_progress: 0,
 })
-
-interface EmbyLibraryOption {
-  library_id: string
-  name: string
-}
 
 // 媒体库选择相关数据
 const availableLibraries = ref<EmbyLibraryOption[]>([])
@@ -858,6 +861,33 @@ const embyStatus = ref<{
   type: 'success' | 'warning' | 'error' | 'info'
   description: string
 } | null>(null)
+let embyStatusTimer: number | null = null
+
+const clearEmbyStatus = () => {
+  if (embyStatusTimer !== null) {
+    window.clearTimeout(embyStatusTimer)
+    embyStatusTimer = null
+  }
+  embyStatus.value = null
+}
+
+const showEmbyFailure = (error: unknown, title: string, preserveTitle = false) => {
+  const failure = parseHttpError(error, {
+    publicMessages: embyPublicMessages,
+    fallbackMessage: title,
+  })
+  if (!failure.shouldNotify) return false
+  console.error(title, failure.diagnostics)
+  clearEmbyStatus()
+  const qmsRejected = failure.kind === 'origin' || failure.kind === 'csrf'
+  embyStatus.value = {
+    title: !preserveTitle && qmsRejected ? '请求被 QMS 拒绝' : title,
+    type: 'error',
+    description:
+      preserveTitle && qmsRejected ? `请求被 QMS 拒绝：${failure.message}` : failure.message,
+  }
+  return true
+}
 
 const formRules: FormRules = {
   emby_url: [
@@ -887,65 +917,70 @@ const defaultConfig = {
   enable_daily_first_full_sync: 1,
 }
 
-const loadEmbyConfig = async () => {
+// 配置读取与第三方媒体库请求分开，读取成功即可允许保存。
+const loadEmbyConfig = async (refreshFailureTitle?: string) => {
   try {
-    embyLoading.value = true
-    const response = await http.get(`${SERVER_URL}/setting/emby-config`)
+    const data = await fetchEmbyConfig(http)
 
-    if (response?.data.code === 200) {
-      if (response.data.data?.exists && response.data.data?.config) {
-        const config = response.data.data.config
-        embyData.emby_url = config.emby_url || ''
-        embyData.emby_api_key = config.emby_api_key || ''
-        embyData.sync_enabled = config.sync_enabled ?? 1
-        embyData.sync_cron = config.sync_cron || CRON_DEFAULTS.embySync
-        embyData.enable_refresh_library = config.enable_refresh_library ?? 1
-        embyData.enable_extract_media_info = config.enable_extract_media_info ?? 1
-        embyData.enable_delete_netdisk = config.enable_delete_netdisk ?? 0
-        embyData.enable_auth = config.enable_auth ?? 1
-        embyData.sync_all_libraries = config.sync_all_libraries ?? 1
-        embyData.selected_libraries = config.selected_libraries || '[]'
-        embyData.enable_daily_first_full_sync = config.enable_daily_first_full_sync ?? 1
-        embyData.enable_playback_overview = config.enable_playback_overview ?? 0
-        embyData.enable_playback_progress = config.enable_playback_progress ?? 0
+    if (data?.exists && data.config) {
+      const config = data.config
+      embyData.emby_url = config.emby_url || ''
+      embyData.emby_api_key = config.emby_api_key || ''
+      embyData.sync_enabled = config.sync_enabled ?? 1
+      embyData.sync_cron = config.sync_cron || CRON_DEFAULTS.embySync
+      embyData.enable_refresh_library = config.enable_refresh_library ?? 1
+      embyData.enable_extract_media_info = config.enable_extract_media_info ?? 1
+      embyData.enable_delete_netdisk = config.enable_delete_netdisk ?? 0
+      embyData.enable_auth = config.enable_auth ?? 1
+      embyData.sync_all_libraries = config.sync_all_libraries ?? 1
+      embyData.selected_libraries = config.selected_libraries || '[]'
+      embyData.enable_daily_first_full_sync = config.enable_daily_first_full_sync ?? 1
+      embyData.enable_playback_overview = config.enable_playback_overview ?? 0
+      embyData.enable_playback_progress = config.enable_playback_progress ?? 0
 
-        // 解析选中的媒体库 ID 列表
-        try {
-          selectedLibraryIds.value = JSON.parse(embyData.selected_libraries)
-        } catch {
-          selectedLibraryIds.value = []
-        }
-
-        // 加载媒体库列表
-        await loadEmbyLibraries()
-      } else {
-        Object.assign(embyData, defaultConfig)
+      // 解析选中的媒体库 ID 列表
+      try {
+        selectedLibraryIds.value = JSON.parse(embyData.selected_libraries)
+      } catch {
+        selectedLibraryIds.value = []
       }
     } else {
       Object.assign(embyData, defaultConfig)
-      ElMessage.warning('加载 Emby 配置失败，使用默认配置')
     }
+    embyConfigLoaded.value = true
+    return true
   } catch (error) {
-    console.error('加载 Emby 配置错误：', error)
-    Object.assign(embyData, defaultConfig)
-    ElMessage.error('加载 Emby 配置失败')
-  } finally {
-    embyLoading.value = false
+    showEmbyFailure(error, refreshFailureTitle ?? '加载 Emby 配置失败', !!refreshFailureTitle)
+    return false
   }
 }
 
 // 加载 Emby 媒体库列表
-const loadEmbyLibraries = async () => {
+const loadEmbyLibraries = async (afterSave = false) => {
+  if (embyData.sync_all_libraries !== 0) return
   try {
-    const response = await http.get(`${SERVER_URL}/emby/libraries`)
-    if (response?.data.code === 200 && response?.data.data) {
-      availableLibraries.value = (response.data.data as EmbyLibraryOption[]).map((lib) => ({
-        library_id: lib.library_id,
-        name: lib.name,
-      }))
-    }
+    const libraries = await fetchEmbyLibraries(http)
+    availableLibraries.value = libraries.map((lib) => ({
+      library_id: lib.library_id,
+      name: lib.name,
+    }))
   } catch (error) {
-    console.error('加载媒体库列表错误：', error)
+    showEmbyFailure(
+      error,
+      afterSave ? 'Emby 配置已保存，但无法获取媒体库' : '无法获取 Emby 媒体库',
+      afterSave,
+    )
+  }
+}
+
+const loadEmbySettings = async () => {
+  if (embyLoading.value) return
+  embyLoading.value = true
+  clearEmbyStatus()
+  try {
+    if (await loadEmbyConfig()) await loadEmbyLibraries()
+  } finally {
+    embyLoading.value = false
   }
 }
 
@@ -958,63 +993,45 @@ const handleSyncModeChange = (value: number) => {
 }
 
 const saveEmbyConfig = async () => {
+  if (!embyConfigLoaded.value || embyLoading.value) return
   if (!formRef.value) return
-
   try {
     await formRef.value.validate()
+  } catch {
+    return
+  }
+
+  try {
     embyLoading.value = true
-
-    const response = await http.post(
-      `${SERVER_URL}/setting/emby-config`,
-      {
-        emby_url: embyData.emby_url.trim(),
-        emby_api_key: embyData.emby_api_key.trim(),
-        sync_enabled: embyData.sync_enabled,
-        sync_cron: embyData.sync_cron,
-        enable_refresh_library: embyData.enable_refresh_library,
-        enable_extract_media_info: embyData.enable_extract_media_info,
-        enable_delete_netdisk: embyData.enable_delete_netdisk,
-        enable_auth: embyData.enable_auth,
-        sync_all_libraries: embyData.sync_all_libraries,
-        selected_libraries: JSON.stringify(selectedLibraryIds.value),
-        enable_daily_first_full_sync: embyData.enable_daily_first_full_sync,
-        enable_playback_overview: embyData.enable_playback_overview,
-        enable_playback_progress: embyData.enable_playback_progress,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      },
-    )
-
-    if (response?.data.code === 200) {
-      embyStatus.value = {
-        title: '保存成功',
-        type: 'success',
-        description: 'Emby 配置已成功保存',
-      }
-      await loadEmbyConfig()
-    } else {
-      embyStatus.value = {
-        title: '保存失败',
-        type: 'error',
-        description: response?.data.message || '保存 Emby 配置失败',
-      }
-      ElMessage.error(response?.data.message || '保存失败')
-    }
-
-    setTimeout(() => {
-      embyStatus.value = null
-    }, 3000)
-  } catch (error) {
-    console.error('保存 Emby 配置错误：', error)
+    clearEmbyStatus()
+    await persistEmbyConfig(http, {
+      emby_url: embyData.emby_url.trim(),
+      emby_api_key: embyData.emby_api_key.trim(),
+      sync_enabled: embyData.sync_enabled,
+      sync_cron: embyData.sync_cron,
+      enable_refresh_library: embyData.enable_refresh_library,
+      enable_extract_media_info: embyData.enable_extract_media_info,
+      enable_delete_netdisk: embyData.enable_delete_netdisk,
+      enable_auth: embyData.enable_auth,
+      sync_all_libraries: embyData.sync_all_libraries,
+      selected_libraries: JSON.stringify(selectedLibraryIds.value),
+      enable_daily_first_full_sync: embyData.enable_daily_first_full_sync,
+      enable_playback_overview: embyData.enable_playback_overview,
+      enable_playback_progress: embyData.enable_playback_progress,
+    })
+    if (!(await loadEmbyConfig('Emby 配置已保存，但刷新失败'))) return
     embyStatus.value = {
-      title: '保存失败',
-      type: 'error',
-      description: '保存 Emby 配置时出现错误',
+      title: '保存成功',
+      type: 'success',
+      description: 'Emby 配置已成功保存',
     }
-    ElMessage.error('保存失败')
+    embyStatusTimer = window.setTimeout(() => {
+      embyStatus.value = null
+      embyStatusTimer = null
+    }, 3000)
+    await loadEmbyLibraries(true)
+  } catch (error) {
+    showEmbyFailure(error, '保存 Emby 配置失败')
   } finally {
     embyLoading.value = false
   }
@@ -1023,42 +1040,15 @@ const saveEmbyConfig = async () => {
 const praseEmby = async () => {
   try {
     embyLoading.value = true
-    const response = await http.post(
-      `${SERVER_URL}/setting/emby/parse`,
-      {
-        emby_url: embyData.emby_url.trim(),
-        emby_api_key: embyData.emby_api_key.trim(),
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      },
-    )
-
-    if (response?.data.code === 200) {
-      embyStatus.value = {
-        title: '触发提取媒体信息成功',
-        type: 'success',
-        description: '已成功触发提取媒体信息',
-      }
-      ElMessage.success('已成功触发提取媒体信息')
-    } else {
-      embyStatus.value = {
-        title: '触发提取媒体信息失败',
-        type: 'error',
-        description: response?.data.message || '触发提取媒体信息失败',
-      }
-      ElMessage.error(response?.data.message || '触发提取媒体信息失败')
+    clearEmbyStatus()
+    await extractEmbyMediaInfo(http)
+    embyStatus.value = {
+      title: '触发提取媒体信息成功',
+      type: 'success',
+      description: '已成功触发提取媒体信息',
     }
   } catch (error) {
-    console.error('触发提取媒体信息错误：', error)
-    embyStatus.value = {
-      title: '触发提取媒体信息失败',
-      type: 'error',
-      description: '触发提取媒体信息时出现错误',
-    }
-    ElMessage.error('触发提取媒体信息失败')
+    showEmbyFailure(error, '触发提取媒体信息失败')
   } finally {
     embyLoading.value = false
   }
@@ -1075,48 +1065,55 @@ const copyWebhookUrl = async () => {
 }
 
 const fetchCronNextTimes = async () => {
+  const requestId = cronRequestGate.next()
+  cronError.value = ''
   if (!embyData.sync_cron || !embyData.sync_cron.trim()) {
     cronNextTimes.value = []
     return
   }
 
   try {
-    const response = await http.get(`${SERVER_URL}/setting/cron`, {
-      params: { cron: embyData.sync_cron.trim() },
-    })
-
-    if (response?.data.code === 200 && response.data.data) {
-      cronNextTimes.value = response.data.data.map((value: string | number) =>
-        formatMaybeUnixDateTime(value),
-      )
-    } else {
-      cronNextTimes.value = []
-      if (response?.data.message) {
-        ElMessage.warning(response.data.message)
-      }
-    }
+    const times = await fetchCronTimes(http, embyData.sync_cron.trim())
+    if (!cronRequestGate.isCurrent(requestId)) return
+    cronNextTimes.value = times.map(formatMaybeUnixDateTime)
   } catch (error) {
-    console.error('获取 Cron 执行时间错误：', error)
+    if (!cronRequestGate.isCurrent(requestId)) return
     cronNextTimes.value = []
-    ElMessage.error('获取 Cron 执行时间失败，请检查表达式格式')
+    const failure = parseHttpError(error, {
+      fallbackMessage: '获取 Cron 执行时间失败',
+      publicMessages: systemSettingsPublicMessages,
+    })
+    if (!failure.shouldNotify) return
+    console.error('获取 Cron 执行时间失败', failure.diagnostics)
+    cronError.value = failure.message
   }
 }
+
+watch(
+  () => embyData.sync_cron,
+  () => {
+    cronRequestGate.invalidate()
+    cronNextTimes.value = []
+    cronError.value = ''
+  },
+  { flush: 'sync' },
+)
 
 const startSync = async () => {
   try {
     syncStartLoading.value = true
-    const response = await http.post(`${SERVER_URL}/emby/sync/start`)
-
-    if (response?.data.code === 200) {
-      ElMessage.success('同步已启动')
-      syncPolling.value = true
-      await querySyncStatus()
-    } else {
-      ElMessage.error(response?.data.message || '启动同步失败')
+    clearEmbyStatus()
+    await startEmbySync(http)
+    if (!syncPageActive) return
+    embyStatus.value = {
+      title: '同步已启动',
+      type: 'success',
+      description: 'Emby 条目同步任务已启动',
     }
+    syncPolling.value = true
+    await querySyncStatus()
   } catch (error) {
-    console.error('启动同步错误：', error)
-    ElMessage.error('启动同步失败')
+    if (syncPageActive) showEmbyFailure(error, '启动 Emby 同步失败')
   } finally {
     syncStartLoading.value = false
   }
@@ -1131,24 +1128,26 @@ const querySyncStatus = async (generation = syncPollingGeneration) => {
   syncPollInFlight = true
   syncPollPending = false
   try {
-    const response = await http.get(`${SERVER_URL}/emby/sync/status`)
+    const data = await fetchEmbySyncStatus(http)
 
     if (generation !== syncPollingGeneration || !syncPageActive || document.hidden) {
       return
     }
 
-    if (response?.data.code === 200) {
-      syncInfo.value = response.data.data
-      syncPolling.value = response.data.data?.is_running
-      if (syncPolling.value) {
-        startSyncPolling()
-      } else {
-        stopSyncPolling()
-      }
+    syncPollErrorNotified = false
+    syncInfo.value = data
+    syncPolling.value = Boolean(data?.is_running)
+    if (syncPolling.value) {
+      startSyncPolling()
+    } else {
+      stopSyncPolling()
     }
   } catch (error) {
-    if (generation === syncPollingGeneration && syncPageActive)
-      console.error('查询同步状态错误：', error)
+    if (generation === syncPollingGeneration && syncPageActive && !document.hidden) {
+      if (!syncPollErrorNotified)
+        syncPollErrorNotified = showEmbyFailure(error, '查询 Emby 同步状态失败')
+      if (isSyncRunning.value) startSyncPolling()
+    }
   } finally {
     syncPollInFlight = false
     if (syncPollPending && syncPageActive && !document.hidden) {
@@ -1204,12 +1203,13 @@ const formatSyncAbsoluteTime = (timestamp: number | null | undefined) => {
 
 onMounted(() => {
   document.addEventListener('visibilitychange', handleSyncVisibilityChange)
-  loadEmbyConfig()
+  loadEmbySettings()
   querySyncStatus()
   updateWebhookUrl()
 })
 
 onBeforeUnmount(() => {
+  clearEmbyStatus()
   syncPageActive = false
   document.removeEventListener('visibilitychange', handleSyncVisibilityChange)
   stopSyncPolling()

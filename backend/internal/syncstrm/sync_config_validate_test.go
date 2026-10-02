@@ -1,8 +1,10 @@
 package syncstrm
 
 import (
+	"fmt"
 	"io"
 	"log"
+	"strings"
 	"testing"
 
 	"qmediasync/internal/helpers"
@@ -33,6 +35,30 @@ func TestValidFileHonorsNameAndParentExclusions(t *testing.T) {
 			file := tt.file
 			if got := syncer.ValidFile(&file); got != tt.want {
 				t.Fatalf("ValidFile(%+v) = %v，期望 %v", tt.file, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPlaybackDirectoryExclusionOnlyAppliesTo115(t *testing.T) {
+	for _, source := range []models.SourceType{
+		models.SourceType115, models.SourceTypeBaiduPan, models.SourceTypeOpenList, models.SourceTypeLocal,
+	} {
+		t.Run(string(source), func(t *testing.T) {
+			syncer := &SyncStrm{
+				Account: &models.Account{SourceType: source},
+				Sync:    &models.Sync{Logger: &helpers.QLogger{Logger: log.New(io.Discard, "", 0)}},
+				Config:  SyncStrmConfig{VideoExt: []string{".mkv"}},
+			}
+			for _, parent := range []string{"/多端播放", "多端播放/child", "/Media/多端播放"} {
+				file := &SyncFileCache{FileName: "movie.mkv", Path: parent, ParentId: parent, SourceType: source}
+				wantExcluded := source == models.SourceType115 && parent != "/Media/多端播放"
+				if got := syncer.IsExcludePath(parent); got != wantExcluded {
+					t.Errorf("IsExcludePath(%q) = %v，期望 %v", parent, got, wantExcluded)
+				}
+				if got := syncer.ValidFile(file); got == wantExcluded {
+					t.Errorf("ValidFile(%q) = %v，期望 %v", parent, got, !wantExcluded)
+				}
 			}
 		})
 	}
@@ -90,5 +116,32 @@ func TestNewSyncStrmRejectsInvalidRegex(t *testing.T) {
 				t.Fatalf("非法正则 %q 不应创建同步器", pattern)
 			}
 		})
+	}
+}
+
+func TestSyncStrmConfigStringOmitsCompiledRegexCache(t *testing.T) {
+	config := SyncStrmConfig{
+		StrmBaseUrl:           "http://127.0.0.1:12333",
+		EnableDownloadMeta:    1,
+		NetNotFoundFileAction: models.SyncTreeItemMetaActionUpload,
+		VideoExt:              []string{".mp4", ".mkv"},
+		MetaExt:               []string{".jpg", ".nfo"},
+		ExcludeNameRegexes:    []string{`(?i)^eXtras( \d+)?$`},
+		StrmUrlNeedPath:       2,
+		DelEmptyLocalDir:      true,
+		CheckMetaMtime:        1,
+	}
+	// 先填充编译缓存，确保 %+v 输出不会把缓存字段带成内存地址。
+	if err := config.compileExcludeNameRegexes(); err != nil {
+		t.Fatalf("编译排除正则失败: %v", err)
+	}
+
+	got := fmt.Sprintf("%+v", config)
+	want := "{StrmBaseUrl:http://127.0.0.1:12333 MinVideoSize:0 EnableDownloadMeta:1 NetNotFoundFileAction:1 VideoExt:[.mp4 .mkv] MetaExt:[.jpg .nfo] ExcludeNames:[] ExcludeNameRegexes:[(?i)^eXtras( \\d+)?$] StrmUrlNeedPath:2 DelEmptyLocalDir:true CheckMetaMtime:1}"
+	if got != want {
+		t.Fatalf("配置日志格式 = %q，期望 %q", got, want)
+	}
+	if strings.Contains(got, "excludeNameRegexes") {
+		t.Fatalf("配置日志不应包含编译缓存字段: %q", got)
 	}
 }

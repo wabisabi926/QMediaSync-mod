@@ -170,11 +170,10 @@ func ParseEmby(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请先填写 Emby URL 和 Emby API Key，才能提取媒体信息", Data: nil})
 		return
 	}
-	if emby.EmbyMediaInfoStart {
+	if !emby.StartParseEmbyMediaInfo() {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "Emby 媒体信息解析任务正在运行，请稍后再试", Data: nil})
 		return
 	}
-	emby.StartParseEmbyMediaInfo()
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "Emby 媒体信息解析任务已开始", Data: nil})
 }
 
@@ -383,20 +382,20 @@ func TestHttpProxy(c *gin.Context) {
 		// 使用高级测试，返回详细结果
 		result, err := helpers.TestHttpProxyAdvancedWithContext(c.Request.Context(), httpProxy)
 		if err != nil {
-			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "连接失败：" + err.Error(), Data: nil})
+			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "连接失败：" + helpers.RedactSensitiveLog(err.Error()), Data: nil})
 			return
 		}
 
 		if result.Success {
 			c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "出站代理连接测试成功", Data: result})
 		} else {
-			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "连接失败：" + result.ErrorMessage, Data: nil})
+			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "连接失败：" + helpers.RedactSensitiveLog(result.ErrorMessage), Data: nil})
 		}
 	} else {
 		// 使用简单测试
 		success, err := helpers.TestHttpProxyWithContext(c.Request.Context(), httpProxy)
 		if err != nil {
-			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "连接失败：" + err.Error(), Data: nil})
+			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "连接失败：" + helpers.RedactSensitiveLog(err.Error()), Data: nil})
 			return
 		}
 
@@ -448,7 +447,7 @@ func TestHttpProxy(c *gin.Context) {
 // 	// 测试 Telegram 机器人连接
 // 	err := helpers.TestTelegramBot(token, chatId, models.SettingsGlobal.HttpProxy)
 // 	if err != nil {
-// 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "连接失败：" + err.Error(), Data: nil})
+// 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "连接失败：" + helpers.RedactSensitiveLog(err.Error()), Data: nil})
 // 		return
 // 	}
 
@@ -469,7 +468,10 @@ func TestHttpProxy(c *gin.Context) {
 func GetStrmConfig(c *gin.Context) {
 	// 获取设置
 	models.LoadSettings() // 确保设置已加载
-	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取 STRM 配置成功", Data: models.SettingsGlobal.SettingStrm.ToMap(false, true)})
+	strm, multiPlaybackEnabled := models.SettingsGlobal.StrmSnapshot()
+	data := strm.ToMap(false, true)
+	data["multi_playback_enabled"] = multiPlaybackEnabled
+	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取 STRM 配置成功", Data: data})
 }
 
 // UpdateStrmConfig 更新 STRM 配置
@@ -480,12 +482,13 @@ func GetStrmConfig(c *gin.Context) {
 // @Produce json
 // @Param strm_base_url body string true "STRM 基础 URL"
 // @Param cron body string true "Cron 表达式"
-// @Param meta_ext body []string true "元数据扩展名"
-// @Param video_ext body []string true "视频扩展名"
+// @Param meta_ext_arr body []string false "元数据扩展名，空列表使用配置默认扩展名"
+// @Param video_ext_arr body []string false "视频扩展名，空列表使用配置默认扩展名"
 // @Param min_video_size body integer false "最小视频大小（MB）"
 // @Param upload_meta body integer false "是否上传元数据，1 上传 0 不上传"
 // @Param delete_dir body integer false "是否删除空目录，1 删除 0 不删除"
 // @Param local_proxy body integer false "是否启用本地代理，1 启用 0 禁用"
+// @Param multi_playback_enabled body integer false "是否启用 115 多端直链播放，1 启用 0 禁用；实际代理请求自动跳过"
 // @Param exclude_name body []string false "排除的文件名"
 // @Param download_meta body integer false "是否下载元数据，1 下载 0 不下载"
 // @Param add_path body integer false "是否添加路径，1 添加 2 不添加"
@@ -506,13 +509,14 @@ func UpdateStrmConfig(c *gin.Context) {
 		return
 	}
 	modelReq := req.ToModel()
-	oldCron := models.SettingsGlobal.Cron
+	previousStrm, _ := models.SettingsGlobal.StrmSnapshot()
 	// 更新设置
-	if !models.SettingsGlobal.UpdateStrm(modelReq) {
+	if !models.SettingsGlobal.UpdateStrm(modelReq, req.MultiPlaybackEnabled) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "更新 STRM 配置失败", Data: nil})
 		return
 	}
-	if oldCron != models.SettingsGlobal.Cron {
+	currentStrm, _ := models.SettingsGlobal.StrmSnapshot()
+	if previousStrm.Cron != currentStrm.Cron {
 		// 如果 Cron 发生变化，重启任务
 		synccron.InitCron()
 	}
@@ -581,7 +585,7 @@ func ValidateCron(c *gin.Context) {
 
 // GetThreads 获取线程配置
 // @Summary 获取线程数配置
-// @Description 获取当前下载和文件详情查询的线程数配置
+// @Description 获取当前下载、同时上传任务数和文件详情查询的配置
 // @Tags 系统设置
 // @Accept json
 // @Produce json
@@ -596,11 +600,12 @@ func GetThreads(c *gin.Context) {
 
 // UpdateThreads 更新线程配置
 // @Summary 更新线程数配置
-// @Description 更新下载和文件详情查询的线程数，115 接口速率保存后立即生效
+// @Description 更新下载、同时上传任务数和文件详情查询的配置；上传并发及 115 接口速率保存后生效，无需重启程序
 // @Tags 系统设置
 // @Accept json
 // @Produce json
 // @Param download_threads body integer true "下载 QPS"
+// @Param upload_threads body integer false "同时上传任务数，1 到 10；省略时保留当前值"
 // @Param file_detail_threads body integer true "115 接口 QPS"
 // @Success 200 {object} object
 // @Failure 200 {object} object
@@ -617,7 +622,7 @@ func UpdateThreads(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
-	modelReq := req.ToModel(models.SettingsGlobal.SettingUploadRapidWait, models.SettingsGlobal.SettingURLValidityCheck)
+	modelReq := req.ToModel(models.SettingsGlobal.ThreadAndRapidWait())
 	downloadThreads := modelReq.DownloadThreads
 	// 更新设置，传递当前的百度网盘限速值
 	if !models.SettingsGlobal.UpdateThreads(modelReq) {
@@ -627,6 +632,9 @@ func UpdateThreads(c *gin.Context) {
 
 	// 动态更新下载队列的并发数
 	models.UpdateGlobalDownloadQueueConcurrency(downloadThreads)
+	if models.GlobalUploadQueue != nil {
+		models.GlobalUploadQueue.UpdateConcurrency(modelReq.UploadThreads)
+	}
 	// 保存成功后立即更新 115 请求队列，后续请求使用新的接口速率配置。
 	fileDetailThreads := modelReq.FileDetailThreads
 	setGlobalExecutorConfig(fileDetailThreads, fileDetailThreads*60, fileDetailThreads*3600)

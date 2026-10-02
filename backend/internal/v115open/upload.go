@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"qmediasync/internal/helpers"
 )
@@ -23,9 +24,17 @@ type DownloadUrlResp struct {
 	RespBaseBool[map[string]DownloadUrlData]
 }
 
-// DownloadUrlResult 是 115 下载地址接口返回、可供队列持久化的非敏感文件信息。
+// DownloadUrlResult 包含下载地址及远端文件身份；URL 带签名，不得写入日志或持久化。
+// 115 返回的签名直链还会在查询参数中携带服务端校验信息：
+//   - t：链接过期时间戳；
+//   - u: 115 账号 ID
+//   - c：允许同时打开的连接数，0 表示不限制；
+//   - f：请求头要求。1 表示 CDN 请求必须使用生成链接时的同一个 User-Agent；
+//     3 表示在此基础上还必须携带生成链接响应返回的 Cookie。
 type DownloadUrlResult struct {
 	URL      string
+	FileID   string
+	FileSize json.Number
 	FileName string
 	PickCode string
 	Sha1     string
@@ -145,6 +154,19 @@ func (c *OpenClient) GetDownloadUrl(ctx context.Context, pickCode string, userAg
 
 // GetDownloadUrlResult 获取下载地址及 115 明确返回的文件身份信息。
 func (c *OpenClient) GetDownloadUrlResult(ctx context.Context, pickCode string, userAgent string, bypassRateLimit bool) *DownloadUrlResult {
+	result, err := c.GetDownloadURLWithError(ctx, pickCode, userAgent, bypassRateLimit)
+	if err != nil {
+		helpers.V115Log.Errorf("获取文件下载地址失败：%v", err)
+		return nil
+	}
+	return result
+}
+
+// GetDownloadURLWithError 返回下载地址和可分类错误，供播放编排控制短重试。
+func (c *OpenClient) GetDownloadURLWithError(ctx context.Context, pickCode, userAgent string, bypassRateLimit bool) (*DownloadUrlResult, error) {
+	if strings.TrimSpace(pickCode) == "" {
+		return nil, fmt.Errorf("115 文件提取码不能为空")
+	}
 	params := map[string]string{
 		"pick_code": pickCode,
 	}
@@ -155,29 +177,40 @@ func (c *OpenClient) GetDownloadUrlResult(ctx context.Context, pickCode string, 
 	config.BypassRateLimit = bypassRateLimit
 	_, respBytes, err := c.doAuthRequest(ctx, url, req, config, nil)
 	if err != nil {
-		helpers.V115Log.Errorf("获取文件下载地址失败：%v", err)
-		return nil
+		return nil, err
 	}
 	jsonErr := json.Unmarshal(respBytes, &respData)
-	if jsonErr != nil || !respData.State {
-		helpers.V115Log.Errorf("获取文件下载地址失败：%v", jsonErr)
-		return nil
+	if jsonErr != nil {
+		return nil, fmt.Errorf("解析 115 下载地址失败：%w", jsonErr)
+	}
+	if !respData.State {
+		return nil, NewOpenAPIResponseError(respData.Code, respData.Errno, respData.Message, respData.Error, "115 下载地址获取失败")
 	}
 	data := respData.Data
+	if c.playback && len(data) > 1 {
+		return nil, fmt.Errorf("115 下载地址返回了多个文件")
+	}
 	var first DownloadUrlData
-	for _, v := range data {
+	var fileID string
+	for id, v := range data {
 		first = v
+		fileID = id
 		break
 	}
 	if first.Url.Url == "" {
-		return nil
+		return nil, ErrDownloadURLNotReady
+	}
+	if c.playback && first.PickCode != "" && first.PickCode != pickCode {
+		return nil, fmt.Errorf("115 下载地址的文件身份不匹配")
 	}
 	return &DownloadUrlResult{
 		URL:      first.Url.Url,
+		FileID:   fileID,
+		FileSize: first.FileSize,
 		FileName: first.FileName,
 		PickCode: first.PickCode,
 		Sha1:     first.Sha1,
-	}
+	}, nil
 }
 
 // 获取视频播放链接

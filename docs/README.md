@@ -10,7 +10,7 @@
 
 - [实时事件（SSE）](architecture/realtime-events.md)：全局事件、日志流、任务详情快照和回放边界。
 
-- [上传与 STRM 处理](architecture/upload-and-strm-processing.md)：115 上传、目录监控、STRM 后处理、源文件清理和上传后刷新。
+- [上传与 STRM 处理](architecture/upload-and-strm-processing.md)：115 上传、目录监控、STRM 后处理与直链解析、源文件清理、上传后刷新和多端播放副本。
 
 - [STRM 同步调度与任务记录](architecture/sync-orchestration.md)：同步目录、Cron、按来源队列、`sync` 记录、取消和完成后的下游协作。
 
@@ -50,7 +50,7 @@
 
 - [数据库 schema 与迁移](reference/database-schema.md)：表、字段、索引、时间策略、稳定存储值和迁移版本。
 
-- [账号授权与更换](reference/account-authorization.md)：账号关联、同来源校验、授权会话、QR/OAuth 传递和原子落库契约。
+- [账号授权与更换](reference/account-authorization.md)：账号关联、同来源校验、授权会话、QR/OAuth 传递、OpenList 凭据回写和原子落库契约。
 
 - [同步目录聚合 API](reference/sync-path-api.md)：同步目录和目录监控上传规则的原子写入、幂等与错误契约。
 

@@ -17,6 +17,12 @@
 
 该文件由 `frontend/src/http/client.ts` 使用。Cookie、请求头和服务端校验的安全契约见 [认证与浏览器会话](../../../docs/architecture/authentication-sessions.md)。
 
+## httpErrorNotification.ts
+
+HTTP 错误的展示层提示：
+
+- `notifyHttpError(error, label, options)`：调用 `parseHttpError`；`shouldNotify` 为真时以 `label` 输出筛选后的诊断并 `ElMessage.error`，`messagePrefix` 用于显示“操作：原因”，与最终消息相同时不重复拼接。返回解析结果。`http/` 本身不弹窗。
+
 ## cloudAccountUtils.ts
 
 云盘账号和 115 开放平台应用信息展示辅助：
@@ -62,7 +68,7 @@ const { isMobile } = useDeviceType()
 
 ## fileIconUtils.ts
 
-文件类型识别和 Element Plus 图标名称映射：
+文件类型识别和 Element Plus 图标组件映射：
 
 - `getFileType(filename)`
 - `getFileIcon(type, isDirectory)`
@@ -71,6 +77,8 @@ const { isMobile } = useDeviceType()
 ```typescript
 const icon = getFileIconByName('movie.mp4')
 ```
+
+图标函数通过 `components/common/iconRegistry.ts` 返回实际 Vue 组件，可直接交给 `<component :is="icon">`，无需全局注册图标名称。目录判断优先于扩展名；文件夹使用 `Folder`，视频使用 `VideoPlay`，图片使用 `Picture`，NFO 和未知文件使用 `Document`。这些分类只用于展示及现有筛选，不替代网盘的原生类型排序。
 
 支持的视频扩展名：`mp4`、`mkv`、`avi`、`mov`、`wmv`、`flv`、`m4v`、`webm`、`ts`、`rmvb`、`rm`、`3gp`、`mpg`、`mpeg`。
 

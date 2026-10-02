@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"qmediasync/internal/db"
 )
@@ -176,7 +177,7 @@ func TestAddDownloadTaskFromSyncFileSeparatesRemoteIdentity(t *testing.T) {
 func TestDownloadTasksWithoutStableIDDeduplicateByHiddenLocator(t *testing.T) {
 	setupQueueStatusTestDB(t)
 	openListFile := &SyncFile{
-		BaseModel:     BaseModel{ID: 1},
+		ID:            1,
 		SourceType:    SourceTypeOpenList,
 		FileId:        "/remote/movie.mkv",
 		PickCode:      "https://openlist.example/d/remote/movie.mkv?sign=secret",
@@ -205,7 +206,7 @@ func TestAddDownloadTaskFromSyncFileDeduplicatesWithinRemoteScope(t *testing.T) 
 
 	newFile := func(id uint, sourceType SourceType, accountID, syncPathID uint, localPath string) *SyncFile {
 		file := &SyncFile{
-			BaseModel:     BaseModel{ID: id},
+			ID:            id,
 			SourceType:    sourceType,
 			AccountId:     accountID,
 			SyncPathId:    syncPathID,
@@ -306,8 +307,8 @@ func TestCreateDownloadTaskWithDBRejectsActiveDuplicateAtInsert(t *testing.T) {
 		RemoteFileId: "115-file-id",
 		Status:       DownloadStatusPending,
 	}
-	if err := createDownloadTaskWithDB(db.Db, duplicate); !errors.Is(err, errActiveDownloadTaskExists) {
-		t.Fatalf("活跃下载目标冲突错误 = %v，期望 errActiveDownloadTaskExists", err)
+	if err := createDownloadTaskWithDB(db.Db, duplicate); !errors.Is(err, ErrActiveDownloadTaskExists) {
+		t.Fatalf("活跃下载目标冲突错误 = %v，期望 ErrActiveDownloadTaskExists", err)
 	}
 
 	if err := createDownloadTaskWithDB(db.Db, &DbDownloadTask{
@@ -392,8 +393,8 @@ func TestCreateDownloadTaskWithDBUsesSourceSpecificDeduplicationLocator(t *testi
 			if err := createDownloadTaskWithDB(db.Db, &tt.task); err != nil {
 				t.Fatalf("创建基准下载任务失败: %v", err)
 			}
-			if err := createDownloadTaskWithDB(db.Db, &tt.other); !errors.Is(err, errActiveDownloadTaskExists) {
-				t.Fatalf("活跃下载目标冲突错误 = %v，期望 errActiveDownloadTaskExists", err)
+			if err := createDownloadTaskWithDB(db.Db, &tt.other); !errors.Is(err, ErrActiveDownloadTaskExists) {
+				t.Fatalf("活跃下载目标冲突错误 = %v，期望 ErrActiveDownloadTaskExists", err)
 			}
 		})
 	}
@@ -421,8 +422,8 @@ func TestCreateDownloadTaskWithDBSeparatesTemporaryLocalTargets(t *testing.T) {
 	if err := createDownloadTaskWithDB(db.Db, newTask("/temporary-b/meta.nfo")); err != nil {
 		t.Fatalf("不同本地目标的临时下载任务不应冲突: %v", err)
 	}
-	if err := createDownloadTaskWithDB(db.Db, newTask("/temporary-a/meta.nfo")); !errors.Is(err, errActiveDownloadTaskExists) {
-		t.Fatalf("相同本地目标的临时下载任务冲突错误 = %v，期望 errActiveDownloadTaskExists", err)
+	if err := createDownloadTaskWithDB(db.Db, newTask("/temporary-a/meta.nfo")); !errors.Is(err, ErrActiveDownloadTaskExists) {
+		t.Fatalf("相同本地目标的临时下载任务冲突错误 = %v，期望 ErrActiveDownloadTaskExists", err)
 	}
 }
 
@@ -432,7 +433,7 @@ func TestCreateDownloadTaskWithDBAllowsTasksWithoutReliableLocator(t *testing.T)
 		t.Fatalf("创建活跃下载任务唯一索引失败: %v", err)
 	}
 
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		task := &DbDownloadTask{
 			Source:     DownloadSourceStrm,
 			SourceType: SourceType115,
@@ -503,5 +504,33 @@ func TestRetryFailedDownloadTasksSkipsTaskWithActiveTarget(t *testing.T) {
 	}
 	if gotUnrelated.Status != DownloadStatusPending || gotUnrelated.RetryCount != 1 || gotUnrelated.Error != "" {
 		t.Fatalf("无冲突失败任务应被重试: %+v", gotUnrelated)
+	}
+}
+
+func TestClearExpireDownloadTasksDeletesTasksOlderThanSevenDays(t *testing.T) {
+	setupQueueStatusTestDB(t)
+
+	now := time.Now().Unix()
+	seed := []*DbDownloadTask{
+		{CreatedAt: now - 8*24*3600, Status: DownloadStatusPending},
+		{CreatedAt: now - 6*24*3600, Status: DownloadStatusPending},
+		{CreatedAt: now - 8*24*3600, Status: DownloadStatusCompleted},
+	}
+	for _, task := range seed {
+		if err := db.Db.Create(task).Error; err != nil {
+			t.Fatalf("创建测试下载任务失败: %v", err)
+		}
+	}
+
+	if err := ClearExpireDownloadTasks(); err != nil {
+		t.Fatalf("清理过期下载任务失败: %v", err)
+	}
+
+	var remaining []DbDownloadTask
+	if err := db.Db.Order("id").Find(&remaining).Error; err != nil {
+		t.Fatalf("查询剩余下载任务失败: %v", err)
+	}
+	if len(remaining) != 1 || remaining[0].Status != DownloadStatusPending {
+		t.Fatalf("清理后剩余下载任务 = %+v，期望仅保留 7 天内的任务", remaining)
 	}
 }

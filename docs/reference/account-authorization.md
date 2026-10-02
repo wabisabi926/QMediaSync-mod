@@ -2,17 +2,17 @@
 
 > 职责：定义云盘账号授权、更换授权的接口、来源边界、短时会话、访问凭证刷新和落库语义。
 >
-> 权威范围：本文档维护 115 账号更换授权的跨后端、前端和数据库契约，以及 115 访问凭证的定时刷新与失效边界；账号字段和迁移以 [数据库 schema 与迁移](database-schema.md) 为准，通用请求校验以 [请求校验约定](../engineering/request-validation.md) 为准。
+> 权威范围：本文档维护 115 账号更换授权的跨后端、前端和数据库契约、115 与百度网盘访问凭证的定时刷新，以及 OpenList 登录和 Token 回写边界；账号字段和迁移以 [数据库 schema 与迁移](database-schema.md) 为准，通用请求校验以 [请求校验约定](../engineering/request-validation.md) 为准。
 >
 > 修改时机：修改账号授权入口、`authorization_id` 传递、授权来源兼容性、确认提示、原子更新、访问凭证刷新策略或失败回滚边界时必须更新本文档。
 >
-> 相关代码：`backend/internal/controllers/account.go`、`backend/internal/controllers/open115.go`、`backend/internal/requests/accounts.go`、`backend/internal/requests/connections.go`、`backend/internal/v115auth/`、`backend/internal/v115open/`、`backend/internal/synccron/synccron.go`、`backend/internal/models/account.go`、`frontend/src/components/AppCloudAccounts.vue`、`frontend/src/components/cloud-auth/`、`frontend/src/composables/useV115DeviceAuthorization.ts`。
+> 相关代码：`backend/internal/controllers/account.go`、`backend/internal/controllers/open115.go`、`backend/internal/requests/accounts.go`、`backend/internal/requests/connections.go`、`backend/internal/v115auth/`、`backend/internal/v115open/`、`backend/internal/synccron/synccron.go`、`backend/internal/models/account.go`、`backend/internal/openlist/`、`frontend/src/components/AppCloudAccounts.vue`、`frontend/src/components/cloud-auth/`、`frontend/src/composables/useV115DeviceAuthorization.ts`。
 
 ## 账号关联语义
 
 账号表的 `id` 是本地关联的稳定主键。同步目录、任务历史和同步文件等数据只关联这个 ID；成功更换授权不会创建新账号，也不会迁移或复制这些记录。
 
-更换授权只允许在原 `source_type` 内进行。当前完整 UI 覆盖 115：115 账号可以选择有效的 115 APP ID、内置中转或受支持的第三方服务，但不能切换为百度网盘、OpenList 或其他来源。已废弃来源仍可解析和展示已有账号，但不能作为新建或更换目标；已有账号仍保留不带 `authorization_id` 的普通授权/重新授权入口，以兼容历史账号。
+更换授权只允许在原 `source_type` 内进行。当前完整 UI 覆盖 115：115 账号可以选择有效的 115 APP ID、内置中转或受支持的第三方服务，但不能切换为百度网盘、OpenList 或其他来源。已废弃来源仍可解析和展示已有账号，但不能作为新建或更换目标；115 和百度网盘的已有账号仍保留不带 `authorization_id` 的普通授权/重新授权入口，以兼容历史账号。其他来源不显示授权入口：OpenList 使用账号密码或令牌直接认证，已下线的 123 网盘账号只展示；从其他路径触发 123 网盘授权时提示“不支持该网盘类型的授权”，不发起请求。
 
 新授权的 `user_id` 不需要等于旧值，但非空 `user_id` 在本地账号表中必须唯一；`name` 也必须唯一。临时账号尚未完成授权时允许使用空值，不会因为空 `name` 或空 `user_id` 互相冲突。已有账号按 `account_id` 复用，不会按 `user_id` 自动合并或迁移。
 
@@ -48,6 +48,8 @@
 
 准备会话成功后，前端把 `authorization_id` 原样传给对应授权流程。后端不信任后续请求中自行修改的应用字段，而是从会话读取目标来源。
 
+115 的 PKCE `code_verifier` 和 115 / 百度中转 OAuth state 内的随机字段使用密码学安全随机源，允许多个请求并发生成。`code_verifier` 保持 64 个字符，state 内的随机字段保持 16 个字符，字符集均为 ASCII 大小写字母和数字。
+
 ### QR 授权
 
 - `POST /api/auth/115-qrcode-open` 接收 `account_id` 和可选 `authorization_id`。
@@ -80,7 +82,7 @@
 
 该更新不修改 `id`、`name` 或任何同步、任务关联表。更新成功后才刷新按账号 ID 缓存的 115 客户端，并消费 `authorization_id`。目标令牌无效、用户信息请求失败、唯一性冲突、更新失败、取消或超时都会保留旧授权的来源、应用、令牌和用户信息。
 
-共享 115 客户端命中已有账号 ID 时必须同时更新 `AppId` 和令牌；待授权校验使用不进入共享缓存的临时客户端。
+115 共享客户端按账号 ID 复用。授权提交成功后通过 `GetClient` 一次发布 APP ID、access_token 和 refresh_token 的完整凭据；普通业务通过 `GetCachedClient` 复用已有客户端，不用旧账号快照覆盖新凭据。待授权校验使用不进入共享缓存的临时客户端。
 
 115 授权替换不再先查询 `user_id` 再更新目标行，而是依赖 `idx_account_user_id` 部分唯一索引作为并发冲突的最终判定；SQLite 下这条单语句更新没有读快照升级窗口。SQLite 连接池仍固定为一个连接，以串行化其他写事务；连接池边界见 [数据库运维](../operations/database.md)。数据库返回的账号身份唯一性错误会映射为稳定的模型错误，调用方可安全保留旧授权并提示重复账号。
 
@@ -89,6 +91,8 @@
 ## 访问凭证定时刷新与失效
 
 115 访问凭证由 `TokenCron` 每 5 分钟检查一次。账号在 `token_expiries_time` 前 30 分钟进入刷新窗口；access_token 过期后只要 refresh_token 仍存在，刷新会一直按 cron 节奏重试，直到成功或 refresh_token 被判定失效。刷新使用账号快照创建的临时客户端，成功后经带重试的条件写库落库并更新共享客户端；落库失败时保留待写记录等待补传（见下文），refresh_token 旋转语义下旧凭据不会被远端旧结果覆盖。
+
+共享客户端的 APP ID、access_token 与 refresh_token 作为不可变整体原子发布。业务请求在入队前读取一次凭据快照，该请求及其重试使用同一 access_token；后续请求可以读取刷新或授权替换后的新凭据。共享客户端的条件刷新与清空必须原子比较旧凭据后替换，不能拆成独立检查和赋值；仅更新令牌时保留当前 APP ID。网络请求不持有客户端缓存锁。
 
 刷新失败按 115 官方错误语义分流：
 
@@ -105,6 +109,8 @@
 ### 百度网盘刷新
 
 百度网盘访问凭证由同一 `TokenCron` 检查，账号在 `token_expiries_time` 前 24 小时进入刷新窗口。refresh_token 官方有效期为 10 年，每次刷新返回新的 refresh_token。刷新不直连百度，而是经授权中转（`AuthServer` 的 `/baidupan/oauth-url?action=refresh`，refresh_token 加密在 state 参数中传递），本机不持有 App Secret。
+
+百度客户端按账号复用，上传、浏览和同步的每次 HTTP 请求都读取独立的 Token 快照；已持有客户端的后续请求（包括后续上传分片和创建文件）能读取新发布的凭据。缓存命中、直接设置、刷新和清空必须统一原子读写 Token，网络请求不持有缓存锁；条件刷新与清空须原子比较旧 Token 后替换，不能拆成独立检查和赋值，以免覆盖已经更换的凭据。
 
 百度刷新失败按 OAuth 字符串错误码分流（`baidupan.IsRefreshTokenDead` 是唯一判定入口）：
 
@@ -129,7 +135,17 @@
 
 `models.Account.TryUpdateTokenIfCurrent` 返回具体错误以区分守卫不匹配与写库失败；`UpdateToken` / `UpdateTokenIfCurrent` 的布尔语义与 `persistAccountTokenFields` 的守卫语义保持不变。
 
+## OpenList 登录与 Token 回写
+
+OpenList 登录使用请求开始时的地址、用户名、密码和 Token 快照。登录结果只有在共享客户端仍匹配这份快照时才更新其 Token；保存事件携带同一份预期配置，数据库通过条件更新确认账号来源、地址、用户名、密码和旧 Token 未变后才落库。配置已经更换或账号已经删除时，迟到的结果不能覆盖或重建账号。旧请求仍可使用原地址与自身登录结果完成，但不能改写新配置。
+
+账号创建和编辑先使用独立的临时客户端验证候选凭据及用户信息，验证阶段不更新原账号或共享客户端。编辑保存时还需匹配原授权快照；验证失败、保存失败或原授权已被并发替换时保留现有配置。验证通过后将配置、用户信息与实际使用的 Token 一起保存，再更新共享客户端；最终写库与缓存安装保持同序，避免较早提交的配置最后覆盖缓存。网络请求及同步保存事件都在客户端状态锁之外执行，客户端锁只保护短暂的状态比较和赋值。同配置已有更新的 Token 时，迟到的 `401` 复用新 Token。
+
+每个逻辑业务请求最多执行一次认证恢复：远端明确返回业务码 `401` 且配置了用户名和密码时，刷新或复用已更新的 Token，并额外重发一次。这次认证重发不消耗普通 `MaxRetries` 预算；再次返回 `401` 时立即报告“访问凭证刷新后仍被拒绝”，不再登录。登录接口自身的 `401`、缺少登录凭据或刷新失败时直接返回凭据失效错误。网络错误、超时及其他错误仍遵循原来的普通重试预算；预算耗尽时返回实际失败原因，内部认证控制信号不得成为对外错误。
+
 ## 前端确认
+
+账号和授权底层请求由 `frontend/src/api/accounts.ts` 集中封装并检查业务结果。页面和 composable 保留原有状态、轮询及取消责任；失败不得提前更新账号或执行授权成功回调。来源、CSRF、认证与传输失败使用 [公共请求错误约定](../engineering/frontend-development.md#api-响应与请求错误)，取消和已统一处理的认证失败不再重复提示，诊断不包含授权凭据。
 
 所有 115 账号卡片都提供“授权/重新授权”和“更换授权”入口，未授权或授权失效的账号也可以直接选择新的有效授权来源。目标选择复用新建账号的应用选择器，因此已废弃 APP ID 不进入新建或更换目标列表；历史账号的普通授权入口仍保留，用于兼容旧来源。提交准备接口前，弹窗必须要求用户勾选确认，并明确说明：
 
@@ -151,6 +167,8 @@
 - 更换会话创建成功后，旧的无会话 OAuth state 不能在新授权提交后再次写入账号；无会话旧授权提交必须通过同一账号会话锁。
 - 直接跳转 OAuth 的待处理会话在页面返回时必须与回调中的会话 ID 匹配；无回调或失败回调不能留下活动会话。
 - 授权结果必须在新令牌和用户信息都验证成功后原子写入；失败不能产生部分授权更新。
+- OpenList 登录结果回写内存与数据库时均校验发起时的配置；保存回调不能用重新读取的最新配置替代原快照。
+- OpenList 单次认证恢复独立于普通重试预算；同一逻辑请求第二次被拒绝后不得继续刷新，网络重试次数也不得因此增加。
 - 网络错误、频控（40140117）和可重试失败（40140121）不得清空凭据、不得发布 `V115TokenInValidEvent`，也不得发送重新授权通知。
 - 只有 115 明确判定 refresh_token 无法继续使用（40140114/40140115/40140116/40140119/40140120）时才允许清空凭据并通知重新授权。
 - 百度网盘仅 OAuth 错误 `invalid_grant` / `expired_token` 允许清空凭据并通知重新授权；中转不可达、响应格式异常和 `invalid_client` 等配置类错误保留凭据等待重试。
@@ -165,6 +183,10 @@
 
 ## 验证方式
 
+- 授权随机串：`cd backend && go test -race ./internal/helpers ./internal/v115open`，验证长度、字符集与并发生成；二维码回归让多个请求同时生成 PKCE 校验码，并与共享客户端凭据更新交错。OAuth 和 Webhook 调用方同时运行 `v115auth`、`controllers` 包测试。
+- 115 客户端：`cd backend && go test -race ./internal/v115open`，并运行相关 `models`、`controllers` 与 `synccron` 测试。覆盖真实请求队列与凭据更新并发、完整凭据快照、过时条件更新拒绝、临时客户端隔离、旧账号快照不回退凭据，以及清空与恢复后的请求行为。
+- 百度客户端：`cd backend && go test -race ./internal/baidupan`，覆盖所有 Token 写入入口与请求并发、过时刷新结果拒绝、条件清空与恢复，以及长上传后续请求读取新 Token；真实上传队列回归见[上传和 STRM 处理](../architecture/upload-and-strm-processing.md#验证方式)。
+- OpenList：`cd backend && go test -race ./internal/openlist`，并运行相关 `models` 与 `controllers` 测试。覆盖登录在途和保存回调在途时的配置更换、Token 相同但地址或密码改变、正常刷新落库、候选凭据验证或保存失败、并发编辑与临时客户端隔离，以及并发刷新去重与回调重入。回归位于 `backend/internal/openlist/auth_test.go`、`backend/internal/openlist/client_test.go`、`backend/internal/models/account_openlist_test.go` 和 `backend/internal/models/account_openlist_commit_test.go`。
 - 后端：`cd backend && go test ./internal/requests ./internal/v115auth ./internal/v115open ./internal/baidupan ./internal/models ./internal/controllers ./internal/db`。
 - 前端：`cd frontend && pnpm run test`、`pnpm run type-check`、`pnpm run build`、`pnpm run check:build`。
 - 契约测试位置：`backend/internal/v115auth/authorization_state_test.go`、`backend/internal/controllers/account_test.go`、`backend/internal/controllers/open115_auth_state_test.go`、`backend/internal/models/account_test.go`、`backend/internal/v115open/client_test.go`、`backend/internal/v115open/auth_test.go`、`backend/internal/baidupan/refresh_test.go`、`backend/internal/baidupan/errors_test.go`、`backend/internal/synccron/synccron_test.go`、`backend/internal/db/db_test.go`、`frontend/test/components/cloud-auth/V115AuthorizationChangeDialog.test.ts`、`frontend/test/composables/useV115DeviceAuthorization.test.ts`、`frontend/test/utils/v115AuthorizationSession.test.ts`。

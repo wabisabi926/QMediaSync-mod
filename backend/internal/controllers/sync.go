@@ -73,7 +73,7 @@ func GetSyncRecords(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取同步记录成功", Data: map[string]interface{}{
+	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取同步记录成功", Data: map[string]any{
 		"records": records,
 		"total":   total,
 	}})
@@ -586,7 +586,7 @@ func resolve115ManualSyncPath(detail *v115open.FileDetail) string {
 // normalizeOpenListPath 把用户输入或接口返回的 OpenList 路径归一化：
 // 统一为以 / 开头、无尾斜杠、使用正斜杠的规范路径，供手动同步与路径解析使用。
 func normalizeOpenListPath(value string) string {
-	value = strings.ReplaceAll(strings.TrimSpace(value), "\\", "/")
+	value = strings.ReplaceAll(value, "\\", "/")
 	if value == "" {
 		return ""
 	}

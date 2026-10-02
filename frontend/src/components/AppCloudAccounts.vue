@@ -114,7 +114,7 @@
                       text
                       :icon="RefreshRight"
                       :loading="account.statusLoading"
-                      @click="loadAccountStatus(account)"
+                      @click="loadAccountStatus(account, true)"
                     >
                       刷新
                     </el-button>
@@ -260,7 +260,7 @@
                 :icon="Key"
                 :disabled="authorizationFlowBusy"
                 @click="handleAuthorize(account)"
-                v-if="account.source_type !== 'openlist'"
+                v-if="isAuthorizableSource(account.source_type)"
               >
                 {{ account.authorized ? '重新授权' : '授权' }}
               </el-button>
@@ -527,13 +527,30 @@
 </template>
 
 <script setup lang="ts">
-import { SERVER_URL } from '@/const'
+import {
+  authorizationPublicMessages,
+  cancelAccountAuthorization,
+  confirmBaiduOAuth,
+  confirmV115OAuth,
+  createAccount,
+  deleteAccount,
+  fetchAccountStatus,
+  fetchBaiduOAuthURL,
+  fetchV115OAuthStatus,
+  fetchV115OAuthURL,
+  listAccounts,
+  prepareAccountAuthorization,
+  saveOpenListAccount,
+  updateAccount,
+  type CloudAccount as AccountData,
+  type CloudDiskStatus,
+  type CreateAccountPayload,
+} from '@/api/accounts'
 import PageHeader from '@/components/common/PageHeader.vue'
 import PageStats from '@/components/common/PageStats.vue'
 import V115AuthorizationDialog from '@/components/cloud-auth/V115AuthorizationDialog.vue'
 import V115AuthorizationChangeDialog from '@/components/cloud-auth/V115AuthorizationChangeDialog.vue'
 import V115AppSelector from '@/components/cloud-auth/V115AppSelector.vue'
-import type { AxiosError } from 'axios'
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 
 import {
@@ -561,6 +578,10 @@ import { formatTimestamp } from '@/utils/timeUtils'
 import { sourceTypeMap, sourceTypeOptions, sourceTypeTagMap } from '@/utils/sourceTypeUtils'
 import { useDeviceType } from '@/composables/useDeviceType'
 import { useHttpClient } from '@/http/client'
+import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
+import { parseHttpError } from '@/http/errors'
+import { notifyHttpError } from '@/utils/httpErrorNotification'
+import { isMessageBoxCancelError } from '@/utils/messageBoxUtils'
 import { getV115AppInfoRows, isCustomV115App } from '@/utils/cloudAccountUtils'
 import { collectOAuthCallbackParams } from '@/utils/oauthCallback'
 import {
@@ -574,55 +595,29 @@ import {
   getV115AuthAction,
   type V115CreatePayload,
   type V115AuthMode,
-  type V115AuthProvider,
-  type V115AuthSourceType,
   type V115SelectedQrApp,
 } from '@/components/cloud-auth/v115AuthSources'
 
 const { isMobile } = useDeviceType()
 
-interface CloudDiskStatus {
-  user_id: string
-  username: string
-  used_space: number
-  total_space: number
-  member_level: string
-  expire_time: string
-}
-
-interface CloudAccount {
-  id: number
-  source_type: string
-  name: string
-  user_id: string
-  username: string
-  password: string
-  base_url: string
-  created_at: number
-  authorized: boolean
-  auth_type?: string
-  app_id_name?: string
-  app_name?: string
-  display_name?: string
-  app_id?: string
-  auth_source_type?: V115AuthSourceType
-  auth_provider?: V115AuthProvider
-  requires_encryption_key?: boolean
-  deprecated?: boolean
-  token_failed_reason?: string
+interface CloudAccount extends AccountData {
   status?: CloudDiskStatus
   statusLoading?: boolean
 }
 
-interface V115OAuthURLData {
-  auth_url?: string
-  state?: string
-  polling?: boolean
-}
-
 const http = useHttpClient()
 
+const reportError = (error: unknown, fallbackMessage: string) => {
+  notifyHttpError(error, fallbackMessage, {
+    publicMessages: authorizationPublicMessages,
+    fallbackMessage,
+  })
+}
+
 const accounts = ref<CloudAccount[]>([])
+const accountStatusRequests = new WeakMap<CloudAccount, symbol>()
+const pageRequestGate = createActiveRequestGate(() => true)
+const pageRequestId = pageRequestGate.next()
 const loading = ref(false)
 const showAddAccountDialog = ref(false)
 const addAccountLoading = ref(false)
@@ -658,8 +653,6 @@ const editAccountForm = ref({
   app_id_name: '',
 })
 
-const selectedAccountId = ref<number | undefined>(undefined)
-const show123AuthDialog = ref(false)
 const selectedV115Account = ref<CloudAccount | null>(null)
 const showV115AuthDialog = ref(false)
 const selectedV115AuthorizationId = ref<string | null>(null)
@@ -675,13 +668,11 @@ let oauthPollingVisibilityHandler: (() => void) | null = null
 const cancelAuthorizationSession = async (accountId: number, authorizationId?: string) => {
   if (!authorizationId) return true
   try {
-    const response = await http.post(`${SERVER_URL}/account/authorization/cancel`, {
-      account_id: accountId,
-      authorization_id: authorizationId,
-    })
-    return response?.data?.code === 200
+    await cancelAccountAuthorization(http, accountId, authorizationId)
+    return true
   } catch (error) {
-    console.error('取消 115 授权会话失败：', error)
+    const failure = parseHttpError(error)
+    if (failure.shouldNotify) console.error('取消 115 授权会话失败', failure.diagnostics)
     return false
   }
 }
@@ -819,82 +810,85 @@ const getCardStatusClass = (account: CloudAccount) => {
 }
 
 const loadAccounts = async () => {
+  if (!pageRequestGate.isCurrent(pageRequestId)) return
   try {
     loading.value = true
-    const response = await http.get(`${SERVER_URL}/account/list`)
-
-    if (response?.data.code === 200) {
-      const data = response.data.data
-      accounts.value = data.map((item: CloudAccount) => ({
-        id: item.id,
-        source_type: item.source_type,
-        name: item.name,
-        user_id: item.user_id,
-        username: item.username,
-        created_at: item.created_at,
-        authorized: item.authorized,
-        base_url: item.base_url,
-        password: item.password,
-        auth_type: item.auth_type,
-        app_id_name: item.app_id_name,
-        app_name: item.app_name,
-        display_name: item.display_name,
-        app_id: item.app_id,
-        auth_source_type: item.auth_source_type,
-        auth_provider: item.auth_provider,
-        requires_encryption_key: item.requires_encryption_key,
-        deprecated: item.deprecated,
-        token_failed_reason: item.token_failed_reason || '',
-        status: undefined,
-        statusLoading: false,
-      }))
-      accounts.value.forEach((account) => {
-        if (
-          (account.source_type === '115' || account.source_type === 'baidupan') &&
-          account.authorized
-        ) {
-          loadAccountStatus(account)
-        }
-      })
-    } else {
-      console.error('加载账号列表失败：', response?.data.message || '未知错误')
-      accounts.value = []
-    }
+    const data = await listAccounts(http)
+    if (!pageRequestGate.isCurrent(pageRequestId)) return
+    accounts.value = data.map((item) => ({
+      id: item.id,
+      source_type: item.source_type,
+      name: item.name,
+      user_id: item.user_id,
+      username: item.username,
+      created_at: item.created_at,
+      authorized: item.authorized,
+      base_url: item.base_url,
+      password: item.password,
+      auth_type: item.auth_type,
+      app_id_name: item.app_id_name,
+      app_name: item.app_name,
+      display_name: item.display_name,
+      app_id: item.app_id,
+      auth_source_type: item.auth_source_type,
+      auth_provider: item.auth_provider,
+      requires_encryption_key: item.requires_encryption_key,
+      deprecated: item.deprecated,
+      token_failed_reason: item.token_failed_reason || '',
+      status: undefined,
+      statusLoading: false,
+    }))
+    accounts.value.forEach((account) => {
+      if (
+        (account.source_type === '115' || account.source_type === 'baidupan') &&
+        account.authorized
+      ) {
+        loadAccountStatus(account)
+      }
+    })
   } catch (error) {
-    console.error('加载账号列表失败：', error)
+    if (!pageRequestGate.isCurrent(pageRequestId)) return
+    reportError(error, '加载账号列表失败')
     accounts.value = []
   } finally {
-    loading.value = false
+    if (pageRequestGate.isCurrent(pageRequestId)) loading.value = false
   }
 }
 
-const loadAccountStatus = async (account: CloudAccount) => {
-  const index = accounts.value.findIndex((a) => a.id === account.id)
-  if (index === -1) return
+const loadAccountStatus = async (account: CloudAccount, notify = false) => {
+  if (
+    !pageRequestGate.isCurrent(pageRequestId) ||
+    !accounts.value.includes(account) ||
+    (account.source_type !== '115' && account.source_type !== 'baidupan')
+  ) {
+    return
+  }
 
-  accounts.value[index].statusLoading = true
+  const requestId = Symbol()
+  accountStatusRequests.set(account, requestId)
+  // 列表刷新会替换行对象，同一行的新请求也会使旧请求失效。
+  const isCurrentRequest = () =>
+    pageRequestGate.isCurrent(pageRequestId) &&
+    accounts.value.includes(account) &&
+    accountStatusRequests.get(account) === requestId
+  account.statusLoading = true
 
   try {
-    let url = ''
-    if (account.source_type === '115') {
-      url = `${SERVER_URL}/115/status`
-    } else if (account.source_type === 'baidupan') {
-      url = `${SERVER_URL}/baidupan/status`
-    } else {
-      return
-    }
-
-    const response = await http.get(url, {
-      params: { account_id: account.id },
-    })
-
-    if (response?.data.code === 200 && response.data.data) {
-      accounts.value[index].status = response.data.data
-    }
+    const status = await fetchAccountStatus(http, account.source_type, account.id)
+    if (isCurrentRequest()) account.status = status
   } catch (error) {
-    console.error(`获取 ${account.source_type} 状态失败：`, error)
+    if (!isCurrentRequest()) return
+    if (notify) {
+      reportError(error, '获取网盘状态失败')
+    } else {
+      const failure = parseHttpError(error)
+      if (failure.shouldNotify) console.error('获取网盘状态失败', failure.diagnostics)
+    }
   } finally {
-    accounts.value[index].statusLoading = false
+    if (isCurrentRequest()) {
+      account.statusLoading = false
+      accountStatusRequests.delete(account)
+    }
   }
 }
 
@@ -952,26 +946,12 @@ const handleDelete = async (row: CloudAccount) => {
       type: 'warning',
     })
 
-    const response = await http.post(
-      `${SERVER_URL}/account/delete`,
-      { id: row.id },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      },
-    )
-
-    if (response?.data.code === 200) {
-      ElMessage.success('账号删除成功')
-      loadAccounts()
-    } else {
-      ElMessage.error(response?.data.message || '删除账号失败')
-    }
+    await deleteAccount(http, row.id)
+    ElMessage.success('账号删除成功')
+    loadAccounts()
   } catch (error) {
-    if (error !== 'cancel' && error !== 'close') {
-      console.error('删除账号失败：', error)
-      ElMessage.error('删除账号失败')
+    if (!isMessageBoxCancelError(error)) {
+      reportError(error, '删除账号失败')
     }
   }
 }
@@ -1063,52 +1043,32 @@ const handleUpdateAccount = async () => {
             }),
       }
 
-      const openListResponse = await http.post(
-        `${SERVER_URL}/account/openlist`,
-        openListRequestData,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        },
-      )
-
-      if (openListResponse?.data.code !== 200) {
-        console.error('更新 OpenList 账号失败：', openListResponse?.data.message || '未知错误')
-        ElMessage.error(openListResponse?.data.message || '更新账号失败')
-        return
-      }
+      await saveOpenListAccount(http, openListRequestData)
     }
 
-    const response = await http.post(
-      `${SERVER_URL}/account/update`,
-      {
-        id: editAccountForm.value.id,
-        name: editAccountForm.value.name,
-        app_id_name: editAccountForm.value.app_id_name,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      },
-    )
+    await updateAccount(http, {
+      id: editAccountForm.value.id,
+      name: editAccountForm.value.name,
+      app_id_name: editAccountForm.value.app_id_name,
+    })
 
-    if (response?.data.code === 200) {
-      showEditAccountDialog.value = false
-      loadAccounts()
-      ElMessage.success('账号更新成功')
-    } else {
-      console.error('更新账号失败：', response?.data.message || '未知错误')
-      ElMessage.error(response?.data.message || '更新账号失败')
-    }
+    showEditAccountDialog.value = false
+    loadAccounts()
+    ElMessage.success('账号更新成功')
   } catch (error) {
-    console.error('更新账号错误：', error)
-    ElMessage.error('更新账号失败')
+    reportError(error, '更新账号失败')
   }
 }
 
+// 只有 115 和百度网盘有授权流程；123 网盘已下线，仅保留历史账号。
+const isAuthorizableSource = (sourceType: CloudAccount['source_type']) =>
+  sourceType === '115' || sourceType === 'baidupan'
+
 const handleAuthorize = async (row: CloudAccount) => {
+  if (!isAuthorizableSource(row.source_type)) {
+    ElMessage.error('不支持该网盘类型的授权')
+    return
+  }
   await cancelActiveAuthorizationFlow()
   if (row.source_type === '115') {
     authorizationFlowBusy.value = true
@@ -1127,14 +1087,7 @@ const handleAuthorize = async (row: CloudAccount) => {
     authorizationFlowBusy.value = false
     return
   }
-  if (row.source_type === '123') {
-    selectedAccountId.value = row.id
-    show123AuthDialog.value = true
-    return
-  }
-  if (row.source_type === 'baidupan') {
-    void handleBaiduOAuth(row.id)
-  }
+  void handleBaiduOAuth(row.id)
 }
 
 const handleChangeAuthorization = async (row: CloudAccount) => {
@@ -1147,18 +1100,17 @@ const prepareV115AuthorizationChange = async (payload: V115CreatePayload) => {
   const account = selectedV115AuthorizationAccount.value
   if (!account) return
   authorizationFlowBusy.value = true
+  const runId = oauthPollingRunId
 
   try {
-    const response = await http.post(`${SERVER_URL}/account/authorization/prepare`, {
+    const { authorization_id: authorizationId } = await prepareAccountAuthorization(http, {
       account_id: account.id,
       source_type: account.source_type,
       confirmed: true,
       ...payload,
     })
-    const authorizationId = response?.data?.data?.authorization_id
-    if (response?.data?.code !== 200 || typeof authorizationId !== 'string') {
-      authorizationFlowBusy.value = false
-      ElMessage.error(response?.data?.message || '准备更换授权失败')
+    if (runId !== oauthPollingRunId) {
+      void cancelAndClearPendingAuthorization(account.id, authorizationId)
       return
     }
 
@@ -1171,13 +1123,14 @@ const prepareV115AuthorizationChange = async (payload: V115CreatePayload) => {
     }
     await handle115OAuth(account.id, authorizationId, false)
   } catch (error) {
+    if (runId !== oauthPollingRunId) return
     authorizationFlowBusy.value = false
-    console.error('准备更换 115 授权失败：', error)
-    ElMessage.error('准备更换授权失败')
+    reportError(error, '准备更换授权失败')
   }
 }
 
-const handle115OAuth = async (accountId?: number, authorizationId?: string, showPrompt = true) => {
+const handle115OAuth = async (accountId: number, authorizationId?: string, showPrompt = true) => {
+  const runId = oauthPollingRunId
   const cancelOnFailure = () => {
     if (accountId && authorizationId) {
       void cancelAndClearPendingAuthorization(accountId, authorizationId)
@@ -1197,49 +1150,43 @@ const handle115OAuth = async (accountId?: number, authorizationId?: string, show
         },
       )
     }
+    if (runId !== oauthPollingRunId) return
 
     const redirectUrl = window.location.href.split('?')[0]
-    const response = await http.get(`${SERVER_URL}/115/oauth-url`, {
-      params: {
-        account_id: accountId,
-        redirect_url: redirectUrl,
-        ...(authorizationId ? { authorization_id: authorizationId } : {}),
-      },
+    const data = await fetchV115OAuthURL(http, {
+      account_id: accountId,
+      redirect_url: redirectUrl,
+      ...(authorizationId ? { authorization_id: authorizationId } : {}),
     })
+    if (runId !== oauthPollingRunId) return
 
-    if (response?.data.code === 200 && response.data.data) {
-      const data = response.data.data as V115OAuthURLData | string
-      if (typeof data === 'string') {
-        if (accountId && authorizationId) {
-          savePendingV115Authorization({ accountId, authorizationId })
-        }
-        window.location.href = data
-        return
+    if (typeof data === 'string' && data) {
+      if (accountId && authorizationId) {
+        savePendingV115Authorization({ accountId, authorizationId })
       }
-      if (data.polling && data.state) {
-        if (data.auth_url) {
-          window.open(data.auth_url, '_blank', 'noopener,noreferrer')
-        }
-        poll115OAuthStatus(accountId, data.state, authorizationId)
-        return
-      }
-      if (data.auth_url) {
-        if (accountId && authorizationId) {
-          savePendingV115Authorization({ accountId, authorizationId })
-        }
-        window.location.href = data.auth_url
-        return
-      }
-      ElMessage.error('授权服务未返回授权地址')
-      cancelOnFailure()
-    } else {
-      ElMessage.error(response?.data.message || '获取授权地址失败')
-      cancelOnFailure()
+      window.location.href = data
+      return
     }
+    if (typeof data !== 'string' && data.polling && data.state) {
+      if (data.auth_url) {
+        window.open(data.auth_url, '_blank', 'noopener,noreferrer')
+      }
+      poll115OAuthStatus(accountId, data.state, authorizationId)
+      return
+    }
+    if (typeof data !== 'string' && data.auth_url) {
+      if (accountId && authorizationId) {
+        savePendingV115Authorization({ accountId, authorizationId })
+      }
+      window.location.href = data.auth_url
+      return
+    }
+    ElMessage.error('授权服务未返回授权地址')
+    cancelOnFailure()
   } catch (error) {
-    if (error !== 'cancel' && error !== 'close') {
-      console.error('115 OAuth 授权错误：', error)
-      ElMessage.error('获取授权地址失败')
+    if (runId !== oauthPollingRunId) return
+    if (!isMessageBoxCancelError(error)) {
+      reportError(error, '获取 115 授权地址失败')
     }
     cancelOnFailure()
   }
@@ -1273,23 +1220,16 @@ const poll115OAuthStatus = (
     inFlight = true
     retries += 1
     try {
-      const response = await http.get(`${SERVER_URL}/115/oauth-status`, {
-        params: {
-          account_id: accountId,
-          state,
-          ...(authorizationId ? { authorization_id: authorizationId } : {}),
-        },
+      const result = await fetchV115OAuthStatus(http, {
+        account_id: accountId,
+        state,
+        ...(authorizationId ? { authorization_id: authorizationId } : {}),
       })
       if (runId !== oauthPollingRunId) return
-      if (response?.data.code === 200 && response.data.data?.done) {
+      if (result.done) {
         finishOAuthPolling(false)
         ElMessage.success('授权成功')
         await loadAccounts()
-        return
-      }
-      if (response?.data.code !== 200) {
-        finishOAuthPolling(true)
-        ElMessage.error(response?.data.message || '授权状态查询失败')
         return
       }
       if (retries >= maxRetries) {
@@ -1299,8 +1239,7 @@ const poll115OAuthStatus = (
     } catch (error) {
       if (runId !== oauthPollingRunId) return
       finishOAuthPolling(true)
-      console.error('115 OAuth 状态查询错误：', error)
-      ElMessage.error('授权状态查询失败')
+      reportError(error, '授权状态查询失败')
     } finally {
       inFlight = false
     }
@@ -1328,7 +1267,8 @@ const poll115OAuthStatus = (
   startPolling()
 }
 
-const handleBaiduOAuth = async (accountId?: number) => {
+const handleBaiduOAuth = async (accountId: number) => {
+  const runId = oauthPollingRunId
   try {
     await ElMessageBox.confirm(
       '即将跳转到百度网盘授权页面，请在新页面完成授权后返回本页面。',
@@ -1339,24 +1279,24 @@ const handleBaiduOAuth = async (accountId?: number) => {
         type: 'info',
       },
     )
+    if (runId !== oauthPollingRunId) return
 
     const redirectUrl = window.location.href.split('?')[0]
-    const response = await http.get(`${SERVER_URL}/baidupan/oauth-url`, {
-      params: {
-        account_id: accountId,
-        redirect_url: redirectUrl,
-      },
+    const url = await fetchBaiduOAuthURL(http, {
+      account_id: accountId,
+      redirect_url: redirectUrl,
     })
+    if (runId !== oauthPollingRunId) return
 
-    if (response?.data.code === 200 && response.data.data) {
-      window.location.href = response.data.data
+    if (url) {
+      window.location.href = url
     } else {
-      ElMessage.error(response?.data.message || '获取授权地址失败')
+      ElMessage.error('授权服务未返回授权地址')
     }
   } catch (error) {
-    if (error !== 'cancel') {
-      console.error('百度网盘 OAuth 授权错误：', error)
-      ElMessage.error('获取授权地址失败')
+    if (runId !== oauthPollingRunId) return
+    if (!isMessageBoxCancelError(error)) {
+      reportError(error, '获取百度网盘授权地址失败')
     }
   }
 }
@@ -1412,6 +1352,8 @@ const getAddAccountValidationMessage = (): string | null => {
 }
 
 const handleAddAccount = async () => {
+  if (addAccountLoading.value) return
+  addAccountLoading.value = true
   try {
     const validationMessage = getAddAccountValidationMessage()
     if (validationMessage) {
@@ -1419,11 +1361,10 @@ const handleAddAccount = async () => {
       return
     }
 
-    const data: Record<string, string | number> = {
+    const data: CreateAccountPayload = {
       source_type: newAccountForm.value.type,
       name: newAccountForm.value.name,
     }
-    let url = `${SERVER_URL}/account/add`
     if (newAccountForm.value.type === '115') {
       Object.assign(data, {
         ...buildV115CreatePayload({
@@ -1434,39 +1375,32 @@ const handleAddAccount = async () => {
           customAppName: newAccountForm.value.custom_v115_app_name,
         }),
       })
-    } else if (newAccountForm.value.type === 'openlist') {
-      url = `${SERVER_URL}/account/openlist`
-      Object.assign(data, {
+    }
+
+    if (newAccountForm.value.type === 'openlist') {
+      await saveOpenListAccount(http, {
+        ...data,
         base_url: newAccountForm.value.base_url,
         auth_type: newAccountForm.value.auth_type,
+        ...(newAccountForm.value.auth_type === 'token'
+          ? { token: newAccountForm.value.token }
+          : {
+              username: newAccountForm.value.username,
+              password: newAccountForm.value.password,
+            }),
       })
-      if (newAccountForm.value.auth_type === 'token') {
-        data.token = newAccountForm.value.token
-      } else {
-        data.username = newAccountForm.value.username
-        data.password = newAccountForm.value.password
-      }
-    }
-
-    const response = await http.post(url, data)
-
-    if (response?.data.code === 200) {
-      ElMessage.success('添加账号成功')
-      showAddAccountDialog.value = false
-      loadAccounts()
-      resetForm()
     } else {
-      ElMessage.error(`添加账号失败：${response?.data.message || '未知错误'}`)
+      await createAccount(http, data)
     }
+
+    ElMessage.success('添加账号成功')
+    showAddAccountDialog.value = false
+    loadAccounts()
+    resetForm()
   } catch (error) {
-    console.error('添加账号失败：', error)
-    const err: AxiosError = error as AxiosError
-    const errData = err.response?.data as { message?: string }
-    const status = err.response?.status || err.status
-    const message = status
-      ? `HTTP ${status}，${errData.message || err.message}`
-      : errData.message || err.message
-    ElMessage.error(`添加账号失败：${message}`)
+    reportError(error, '添加账号失败')
+  } finally {
+    addAccountLoading.value = false
   }
 }
 
@@ -1477,11 +1411,11 @@ const confirmOAuth = async (
   payload: Record<string, string> = {},
 ): Promise<void> => {
   try {
-    let url = ''
+    let confirm
     if (source === '' || source === '115') {
-      url = `${SERVER_URL}/115/oauth-confirm`
+      confirm = confirmV115OAuth
     } else if (source === 'baidupan') {
-      url = `${SERVER_URL}/baidupan/oauth-confirm`
+      confirm = confirmBaiduOAuth
     } else {
       if (payload.authorization_id) {
         void cancelAndClearPendingAuthorization(accountId, payload.authorization_id)
@@ -1490,40 +1424,24 @@ const confirmOAuth = async (
       return
     }
 
-    const response = await http.post(
-      url,
-      {
-        account_id: accountId,
-        ...(tokenData ? { data: tokenData } : { payload }),
-        ...(payload.authorization_id ? { authorization_id: payload.authorization_id } : {}),
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      },
-    )
+    await confirm(http, {
+      account_id: accountId,
+      ...(tokenData ? { data: tokenData } : { payload }),
+      ...(payload.authorization_id ? { authorization_id: payload.authorization_id } : {}),
+    })
 
-    if (response?.data.code === 200) {
-      clearPendingV115Authorization(payload.authorization_id)
-      ElMessage.success({ message: '授权成功，2 秒后将自动刷新页面', duration: 2000 })
-      setTimeout(() => {
-        const hash = window.location.hash
-        const cleanHash = hash.split('?')[0]
-        window.location.href = window.location.origin + cleanHash
-      }, 2000)
-    } else {
-      if (payload.authorization_id) {
-        void cancelAndClearPendingAuthorization(accountId, payload.authorization_id)
-      }
-      ElMessage.error(response?.data.message || '授权确认失败')
-    }
+    clearPendingV115Authorization(payload.authorization_id)
+    ElMessage.success({ message: '授权成功，2 秒后将自动刷新页面', duration: 2000 })
+    setTimeout(() => {
+      const hash = window.location.hash
+      const cleanHash = hash.split('?')[0]
+      window.location.href = window.location.origin + cleanHash
+    }, 2000)
   } catch (error) {
     if (payload.authorization_id) {
       void cancelAndClearPendingAuthorization(accountId, payload.authorization_id)
     }
-    console.error('OAuth 确认错误：', error)
-    ElMessage.error('授权确认失败')
+    reportError(error, '授权确认失败')
   }
 }
 
@@ -1574,6 +1492,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  pageRequestGate.invalidate()
   const qrAccountId = selectedV115Account.value?.id
   const qrAuthorizationId = selectedV115AuthorizationId.value
   const oauthContext = oauthPollingContext

@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
 )
 
@@ -40,6 +41,26 @@ type SyncStrmConfig struct {
 	CheckMetaMtime        int                           `json:"check_meta_mtime"`          // 是否检查元数据文件修改时间，默认 0；如果为 1，网盘新则下载，本地新则上传（UploadMeta=1 时）
 
 	excludeNameRegexes []*regexp.Regexp
+}
+
+// String 供 %v 日志格式化使用，只输出导出配置项，与结构体字段保持一致；
+// 编译后的正则缓存不参与格式化，避免日志把正则对象打印成内存地址。
+// 新增配置字段时需同步更新本方法。
+func (config SyncStrmConfig) String() string {
+	return fmt.Sprintf(
+		"{StrmBaseUrl:%s MinVideoSize:%d EnableDownloadMeta:%d NetNotFoundFileAction:%d VideoExt:%v MetaExt:%v ExcludeNames:%v ExcludeNameRegexes:%v StrmUrlNeedPath:%d DelEmptyLocalDir:%t CheckMetaMtime:%d}",
+		config.StrmBaseUrl,
+		config.MinVideoSize,
+		config.EnableDownloadMeta,
+		config.NetNotFoundFileAction,
+		config.VideoExt,
+		config.MetaExt,
+		config.ExcludeNames,
+		config.ExcludeNameRegexes,
+		config.StrmUrlNeedPath,
+		config.DelEmptyLocalDir,
+		config.CheckMetaMtime,
+	)
 }
 
 func (config *SyncStrmConfig) compileExcludeNameRegexes() error {
@@ -127,9 +148,12 @@ func (s *SyncStrm) IsExcludeName(filename string) bool {
 }
 
 func (s *SyncStrm) IsExcludePath(path string) bool {
+	if s.Account != nil && s.Account.SourceType == models.SourceType115 && helpers.IsV115PlaybackPath(path) {
+		return true
+	}
 	// 分隔路径
-	pathParts := strings.Split(filepath.ToSlash(path), "/")
-	for _, part := range pathParts {
+	pathParts := strings.SplitSeq(filepath.ToSlash(path), "/")
+	for part := range pathParts {
 		// 根路径的空段和路径导航符不是实际目录名称。
 		if part == "" || part == "." || part == ".." {
 			continue

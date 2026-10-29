@@ -3,10 +3,12 @@ package synccron
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"qmediasync/internal/baidupan"
+	"qmediasync/internal/db"
 	"qmediasync/internal/emby"
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
@@ -60,6 +62,7 @@ type pendingToken struct {
 var pendingTokenPersists = make(map[uint]pendingToken)
 
 var GlobalCron *cron.Cron
+var globalCronMu sync.Mutex
 var SyncCron *cron.Cron
 var TokenCron *cron.Cron
 
@@ -394,6 +397,11 @@ func InitTokenCron() {
 
 // 初始化定时任务
 func InitCron() {
+	globalCronMu.Lock()
+	defer globalCronMu.Unlock()
+	if db.IsMaintenance(db.Db) {
+		return
+	}
 	if GlobalCron != nil {
 		GlobalCron.Stop()
 	}
@@ -443,18 +451,12 @@ func InitCron() {
 	})
 	GlobalCron.AddFunc("0 4 * * *", func() {
 		// 每天 4 点补齐数据库表结构，并检查 PostgreSQL 主键序列
-		err := models.BatchCreateTable()
+		err := models.RepairDatabase(db.Db)
 		if err != nil {
 			helpers.AppLogger.Errorf("修复数据库失败：%v", err)
 			return
-		} else {
-			helpers.AppLogger.Infof("已补齐数据库表结构（不影响已存在的表和数据）")
 		}
-		if err := models.BatchRepairTableSeq(); err != nil {
-			helpers.AppLogger.Errorf("修复数据库表的主键序列失败：%v", err)
-		} else {
-			helpers.AppLogger.Infof("已完成数据库表主键序列检查")
-		}
+		helpers.AppLogger.Infof("已补齐数据库结构并检查主键序列；传输去重修复可能取消重复的活跃任务")
 	})
 
 	addBackupCron()

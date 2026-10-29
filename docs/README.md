@@ -22,6 +22,8 @@
 
 - [文档治理](engineering/documentation-governance.md)：正式文档职责、命名、唯一权威来源和迁移规则。
 
+- [Wiki 用户手册维护](engineering/wiki-maintenance.md)：用户手册写法、主仓库来源与 Wiki 页面的对应关系，以及同步和发布检查。
+
 - [本地开发](engineering/local-development.md)：本地后端、前端启动和调试入口。
 
 - [前端开发约定](engineering/frontend-development.md)：HTTP 客户端、状态刷新、路由、响应式布局和交互反馈。

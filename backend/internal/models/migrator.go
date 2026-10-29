@@ -20,7 +20,7 @@ type Migrator struct {
 	VersionCode int `json:"version_code"` // 版本号
 }
 
-var MaxVersionCode = 64
+var MaxVersionCode = 68
 
 const (
 	activeDownloadTaskUniqueIndexName = "idx_db_download_tasks_active_target"
@@ -33,9 +33,10 @@ var AllTables = []any{
 	Migrator{},
 	BackupConfig{}, BackupRecord{},
 	ApiKey{}, UserSession{}, Settings{}, Sync{}, User{}, Account{},
-	SyncPath{}, SyncFile{}, DirectoryUploadRule{}, DirectoryUploadProcessedFile{}, SyncPathIdempotencyRecord{},
+	SyncPath{}, SyncFile{}, SyncRootEvidence{}, DirectoryUploadRule{}, DirectoryUploadProcessedFile{}, SyncPathIdempotencyRecord{},
 	Media{}, MediaSeason{}, MediaEpisode{},
 	RequestStat{}, EmbyConfig{}, EmbyMediaItem{}, EmbyMediaSyncFile{}, EmbyLibrary{}, EmbyLibrarySyncPath{}, EmbyLibraryRefreshTask{},
+	EmbyIndexState{}, EmbyItemState{}, EmbyItemEvidence{}, EmbyWebhookRecord{}, EmbyWebhookTarget{}, EmbyObservedEvidenceIndex{}, EmbyItemMembership{},
 	DbDownloadTask{}, DbUploadTask{}, UploadSession{}, StrmGenerationTask{}, NotificationChannel{}, TelegramChannelConfig{}, MeoWChannelConfig{}, BarkChannelConfig{},
 	ServerChanChannelConfig{}, CustomWebhookChannelConfig{}, NotificationRule{},
 }
@@ -44,22 +45,26 @@ func (*Migrator) TableName() string {
 	return "migrator"
 }
 
-// 数据库迁移
-// 如果没有数据则创建
-// 如果已有数据库则从数据库中获取版本，根据版本执行变更
-func Migrate() {
-	// sqliteDb := db.InitSqlite3(dbFile)
-	// 先初始化所有表和基础数据
-	if !InitDB() {
-		// 初始化数据库版本表
-		helpers.AppLogger.Info("已完成数据库初始化")
-		return
-	}
-	var migrator Migrator = Migrator{}
-	err := db.Db.Model(&migrator).First(&migrator).Error
+// Migrate 初始化空库或执行已有库迁移，传播初始化、版本元数据和备份文本迁移错误。
+// 历史版本迁移仍保留原有日志和失败处理，不在此统一其错误契约。
+func Migrate() error {
+	finishPosition := BeginSyncPositionMutation()
+	defer finishPosition()
+	existing, err := InitDB()
 	if err != nil {
-		helpers.AppLogger.Errorf("获取数据库迁移表失败：%v", err)
+		return err
 	}
+	if existing {
+		migrator, err := readMigrationRecord(db.Db)
+		if err != nil {
+			return err
+		}
+		return migrateExistingDB(migrator)
+	}
+	return nil
+}
+
+func migrateExistingDB(migrator Migrator) (migrationErr error) {
 	db.Db.Statement.PrepareStmt = true
 	if migrator.VersionCode == 1 {
 		// 数据库版本低于最大版本，需要升级
@@ -628,6 +633,82 @@ func Migrate() {
 		helpers.AppLogger.Info("已添加同时上传任务数和 115 多端播放设置")
 		migrator.UpdateVersionCode(db.Db)
 	}
+	if migrator.VersionCode == 64 {
+		if db.Db.Migrator().HasTable(&StrmGenerationTask{}) {
+			for _, field := range []string{"SkipReason", "SkippedItems"} {
+				if !db.Db.Migrator().HasColumn(&StrmGenerationTask{}, field) {
+					if err := db.Db.Migrator().AddColumn(&StrmGenerationTask{}, field); err != nil {
+						helpers.AppLogger.Errorf("添加 STRM 跳过结果字段失败：%v", err)
+						return
+					}
+				}
+			}
+		}
+
+		if db.Db.Migrator().HasTable(&DbDownloadTask{}) {
+			for _, field := range []string{"ReplaceBaseline", "PublishedSHA256"} {
+				if !db.Db.Migrator().HasColumn(&DbDownloadTask{}, field) {
+					if err := db.Db.Migrator().AddColumn(&DbDownloadTask{}, field); err != nil {
+						helpers.AppLogger.Errorf("添加元数据下载字段失败：%v", err)
+						return
+					}
+				}
+			}
+		}
+		if db.Db.Migrator().HasTable(&Sync{}) {
+			for _, field := range []string{"ScanResult", "LedgerStatus", "LedgerFinishedAt", "LedgerError"} {
+				if !db.Db.Migrator().HasColumn(&Sync{}, field) {
+					if err := db.Db.Migrator().AddColumn(&Sync{}, field); err != nil {
+						helpers.AppLogger.Errorf("补齐同步任务结果字段 %s 失败：%v", field, err)
+						return
+					}
+				}
+			}
+		}
+		if err := EnsureSyncFileLookupIndexes(db.Db); err != nil {
+			helpers.AppLogger.Errorf("创建同步文件查询索引失败：%v", err)
+			return
+		}
+		if err := EnsureStrmGenerationQueueIndex(db.Db); err != nil {
+			helpers.AppLogger.Errorf("创建 STRM 队列排序索引失败：%v", err)
+			return
+		}
+		migrator.UpdateVersionCode(db.Db)
+	}
+	if migrator.VersionCode == 65 {
+		if err := db.Db.Transaction(func(tx *gorm.DB) error {
+			if err := MigrateEmbyDeletionSchema(tx); err != nil {
+				return err
+			}
+			return tx.Model(&migrator).Update("version_code", 66).Error
+		}); err != nil {
+			helpers.AppLogger.Errorf("迁移 Emby 删除记录的数据结构失败：%v", err)
+			return
+		}
+		migrator.VersionCode = 66
+	}
+	if migrator.VersionCode == 66 {
+		if err := db.Db.Transaction(func(tx *gorm.DB) error {
+			if err := MigrateBackupTextColumns(tx); err != nil {
+				return err
+			}
+			return tx.Model(&migrator).Update("version_code", 67).Error
+		}); err != nil {
+			return fmt.Errorf("迁移备份兼容文本字段失败：%w", err)
+		}
+		migrator.VersionCode = 67
+	}
+	if migrator.VersionCode == 67 {
+		if err := db.Db.Transaction(func(tx *gorm.DB) error {
+			if err := MigrateEmbySyncEvidenceSchema(tx); err != nil {
+				return err
+			}
+			return tx.Model(&migrator).Update("version_code", 68).Error
+		}); err != nil {
+			return fmt.Errorf("迁移同步目录资料和 Emby 路径映射失败：%w", err)
+		}
+		migrator.VersionCode = 68
+	}
 	if migrator.VersionCode == MaxVersionCode {
 		if !accountIdentityIndexesEnsured {
 			if err := ensureAccountIdentityUniqueIndexes(db.Db); err != nil {
@@ -641,6 +722,23 @@ func Migrate() {
 		}
 	}
 	helpers.AppLogger.Infof("当前数据库版本 %d", migrator.VersionCode)
+	return nil
+}
+
+// MigrateEmbyDeletionSchema 补齐 Emby 索引、身份及持久删除结构，不从旧媒体行生成可信证据。
+// 已有库由调用方在同一事务内执行结构变更和版本推进。
+func MigrateEmbyDeletionSchema(tx *gorm.DB) error {
+	return tx.AutoMigrate(
+		&EmbyMediaItem{},
+		&EmbyMediaSyncFile{},
+		&EmbyIndexState{},
+		&EmbyItemState{},
+		&EmbyItemEvidence{},
+		&EmbyWebhookRecord{},
+		&EmbyWebhookTarget{},
+		&EmbyObservedEvidenceIndex{},
+		&EmbyItemMembership{},
+	)
 }
 
 func findDuplicateAccountValues(dbConn *gorm.DB, column string) ([]string, error) {
@@ -767,14 +865,7 @@ func ensureActiveDownloadTaskUniqueIndex(dbConn *gorm.DB) error {
 		if err := cancelDuplicateActiveDownloadTasks(tx); err != nil {
 			return err
 		}
-		if err := tx.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_db_download_tasks_active_target
-			ON db_download_tasks (source, source_type, account_id, dedup_scope_hash, dedup_locator_hash)
-			WHERE dedup_scope_hash IS NOT NULL AND dedup_scope_hash <> ''
-				AND dedup_locator_hash IS NOT NULL AND dedup_locator_hash <> ''
-				AND status IN (0, 1)`).Error; err != nil {
-			return fmt.Errorf("创建活跃下载任务唯一索引失败：%w", err)
-		}
-		return nil
+		return createActiveDownloadTaskUniqueIndex(tx)
 	})
 }
 
@@ -902,12 +993,7 @@ func ensureActiveUploadTaskUniqueIndex(dbConn *gorm.DB) error {
 		if err := cancelDuplicateActiveUploadTasks(tx); err != nil {
 			return err
 		}
-		if err := tx.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_db_upload_tasks_active_target
-			ON db_upload_tasks (source, source_type, account_id, remote_full_path)
-			WHERE remote_full_path IS NOT NULL AND remote_full_path <> '' AND status IN (0, 1, 5, 6)`).Error; err != nil {
-			return fmt.Errorf("创建活跃上传任务唯一索引失败：%w", err)
-		}
-		return nil
+		return createActiveUploadTaskUniqueIndex(tx)
 	})
 }
 
@@ -1182,43 +1268,112 @@ func migrateEmbyLibraryRefreshTaskKeys(dbConn *gorm.DB) error {
 
 // 补齐缺失的表、字段和索引
 func BatchCreateTable() error {
-	db.Db.Statement.PrepareStmt = true
+	return batchCreateTable(db.Db, false)
+}
+
+// 空库事务遇错立即返回；公开修复入口仍尝试其余表并返回最后一项错误。
+func batchCreateTable(conn *gorm.DB, stopOnError bool) error {
+	conn.Statement.PrepareStmt = true
 
 	var err error
 	var lastErr error
 	for _, table := range AllTables {
-		err = db.Db.AutoMigrate(table)
+		switch table.(type) {
+		case EmbyObservedEvidenceIndex, *EmbyObservedEvidenceIndex, EmbyItemMembership, *EmbyItemMembership:
+			// 派生表须与回填原子发布，修复缺表时不能先暴露空索引。
+			continue
+		}
+		err = conn.AutoMigrate(table)
 		if err != nil {
+			if stopOnError {
+				return err
+			}
 			lastErr = err
 		}
 	}
 	if lastErr != nil {
 		return lastErr
 	}
-	return ensureActiveTransferTaskUniqueIndexes(db.Db)
+	if err := ensureActiveTransferTaskUniqueIndexes(conn); err != nil {
+		return err
+	}
+	if err := EnsureSyncFileLookupIndexes(conn); err != nil {
+		return err
+	}
+	if err := EnsureEmbySyncFileLookupIndexes(conn); err != nil {
+		return err
+	}
+	if err := EnsureEmbyMediaLookupIndexes(conn); err != nil {
+		return err
+	}
+	if err := EnsureStrmGenerationQueueIndex(conn); err != nil {
+		return err
+	}
+	return conn.Transaction(func(tx *gorm.DB) error {
+		for _, table := range AllTables {
+			switch table.(type) {
+			case EmbyObservedEvidenceIndex, *EmbyObservedEvidenceIndex:
+				if err := RebuildEmbyObservedEvidenceIndex(tx); err != nil {
+					return err
+				}
+			case EmbyItemMembership, *EmbyItemMembership:
+				if err := RebuildEmbyItemMembership(tx); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
 }
 
 func InitMigrationTable(version int) {
-	var migrator Migrator = Migrator{}
-	migrator = Migrator{ID: 1, VersionCode: version} // 初始版本为 version
-	db.Db.Save(&migrator)
+	if err := initMigrationTable(db.Db, version); err != nil {
+		helpers.AppLogger.Errorf("初始化数据库版本表失败：%v", err)
+		return
+	}
 	helpers.AppLogger.Infof("初始化数据库版本表，当前版本为 %d", version)
 }
 
-func InitDB() bool {
-	// 初始化
+func initMigrationTable(conn *gorm.DB, version int) error {
+	var migrator Migrator = Migrator{}
+	migrator = Migrator{ID: 1, VersionCode: version} // 初始版本为 version
+	return conn.Save(&migrator).Error
+}
+
+// InitDB 将空库结构、默认数据及版本放入同一事务；existing 表示已存在版本表。
+func InitDB() (existing bool, err error) {
 	if db.Db.Migrator().HasTable(Migrator{}) {
+		if _, err := readMigrationRecord(db.Db); err != nil {
+			return true, err
+		}
 		helpers.AppLogger.Info("数据库版本表已存在，跳过初始化数据库过程")
-		return true
+		return true, nil
 	}
-	BatchCreateTable()
-	InitMigrationTable(MaxVersionCode)
-	// 初始化默认配置
-	InitSettings()
-	// 初始化 Emby 配置
-	InitEmbyConfig()
+	for _, table := range AllTables {
+		if db.Db.Migrator().HasTable(table) {
+			return false, fmt.Errorf("数据库版本表 migrator 缺失，但已存在业务表 %s，无法确定迁移起点", GetTableName(table))
+		}
+	}
+	err = db.Db.Transaction(func(tx *gorm.DB) error {
+		if err := batchCreateTable(tx, true); err != nil {
+			return fmt.Errorf("初始化数据库结构失败：%w", err)
+		}
+		if _, err := initSettings(tx); err != nil {
+			return fmt.Errorf("初始化默认配置失败：%w", err)
+		}
+		if err := initEmbyConfig(tx); err != nil {
+			return fmt.Errorf("初始化 Emby 配置失败：%w", err)
+		}
+		if err := initMigrationTable(tx, MaxVersionCode); err != nil {
+			return fmt.Errorf("初始化数据库版本表失败：%w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
 	helpers.AppLogger.Info("已完成数据库初始化")
-	return false
+	return false, nil
 }
 
 func (m *Migrator) UpdateVersionCode(txOrDb *gorm.DB) {
@@ -1298,10 +1453,24 @@ func backfillDirectoryUploadEnabled(dbConn *gorm.DB) error {
 }
 
 func InitSettings() {
-	defaultSettings := Settings{}
-	serr := db.Db.Model(&Settings{}).First(&defaultSettings).Error
-	if !errors.Is(serr, gorm.ErrRecordNotFound) {
+	created, err := initSettings(db.Db)
+	if err != nil {
+		helpers.AppLogger.Errorf("初始化默认配置失败：%v", err)
 		return
+	}
+	if created {
+		helpers.AppLogger.Info("已默认添加配置")
+	}
+}
+
+func initSettings(conn *gorm.DB) (bool, error) {
+	defaultSettings := Settings{}
+	serr := conn.Model(&Settings{}).First(&defaultSettings).Error
+	if serr == nil {
+		return false, nil
+	}
+	if !errors.Is(serr, gorm.ErrRecordNotFound) {
+		return false, serr
 	}
 	// 插入默认值
 	metaExtStr, _ := json.Marshal(helpers.GlobalConfig.Strm.MetaExt)
@@ -1335,11 +1504,21 @@ func InitSettings() {
 		URLValidityCheckEnabled:        DefaultURLValidityCheckEnabled,
 		URLValidityCheckTimeoutSeconds: DefaultURLValidityCheckTimeoutSeconds,
 	}
-	db.Db.Save(&defaultSettings)
-	helpers.AppLogger.Info("已默认添加配置")
+	if err := conn.Save(&defaultSettings).Error; err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func InitEmbyConfig() {
+	if err := initEmbyConfig(db.Db); err != nil {
+		helpers.AppLogger.Errorf("初始化 Emby 配置失败：%v", err)
+		return
+	}
+	helpers.AppLogger.Info("已默认添加 Emby 配置")
+}
+
+func initEmbyConfig(conn *gorm.DB) error {
 	embyConfig := &EmbyConfig{
 		EmbyUrl:                  "",
 		EmbyApiKey:               "",
@@ -1354,9 +1533,7 @@ func InitEmbyConfig() {
 		LastSyncTime:             0,
 		SyncMode:                 EmbySyncModeIdle,
 	}
-	db.Db.Save(embyConfig)
-	helpers.AppLogger.Info("已默认添加 Emby 配置")
-
+	return conn.Save(embyConfig).Error
 }
 
 func migrateEmbyConfig(dbConn *gorm.DB) {
@@ -1553,6 +1730,8 @@ func fillSyncPathIdInEmbyMediaSyncFile(dbConn *gorm.DB) {
 }
 
 func BatchDropTable() error {
+	finishPosition := BeginSyncPositionMutation()
+	defer finishPosition()
 	var err, lastErr error
 	// 删除所有表
 	for _, table := range AllTables {
@@ -1571,7 +1750,7 @@ func BatchDropTable() error {
 // 批量更新表的主键序列
 // 只处理 PostgreSQL 的修复
 func BatchRepairTableSeq() error {
-	if helpers.GlobalConfig.Db.Engine != "postgres" {
+	if db.Db.Dialector.Name() != "postgres" {
 		return nil
 	}
 	var err, lastErr error
@@ -1591,16 +1770,7 @@ func BatchRepairTableSeq() error {
 }
 
 func ResetSequence(tableName string, columnName string) error {
-	var maxId int64
-	// 获取当前最大 ID，如果表为空则从 1 开始
-	if err := db.Db.Table(tableName).Select(fmt.Sprintf("COALESCE(MAX(%s), 0)", columnName)).Scan(&maxId).Error; err != nil {
-		return err
-	}
-	if maxId == 0 {
-		// 如果没有值则不修复
-		return nil
-	}
-	// 重置序列
-	sequenceName := fmt.Sprintf("%s_%s_seq", tableName, columnName)
-	return db.Db.Exec(fmt.Sprintf("SELECT setval('%s', ?)", sequenceName), maxId).Error
+	return db.Db.Transaction(func(tx *gorm.DB) error {
+		return ResetSequenceTx(tx, tableName, columnName)
+	})
 }

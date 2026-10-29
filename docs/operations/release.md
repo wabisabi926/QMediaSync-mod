@@ -18,7 +18,7 @@
 
 前端 CI、正式发布与两份源码 Dockerfile 统一使用 Node 26 和 pnpm 12，pnpm 只指定主版本。CI 与正式发布通过 `pnpm/action-setup` 安装 pnpm，两份 Dockerfile 使用 `npm install --global pnpm@12`。升级 pnpm 主版本时同步这些安装入口及本地开发命令；版本约束和发布时间要求见 [本地开发](../engineering/local-development.md#前端启动)。
 
-`ci.yaml` 在 pull request，以及 `main`、`dev`、`feature/**` 分支推送时执行。前端依次运行 `pnpm run test`、`pnpm run build`（包含类型检查）和 `pnpm run check:build`；后端依次运行 `go vet ./...`、`go test ./...` 和 `go build -trimpath -tags=nomsgpack`。CI 不运行前端 ESLint 或 Prettier；完整验证范围见 [验证说明](../engineering/verification.md)。
+`ci.yaml` 在 pull request，以及 `dev`、`feature/**` 分支推送时执行。前端依次运行 `pnpm run test`、`pnpm run build`（包含类型检查）和 `pnpm run check:build`；后端依次运行 `go vet ./...`、`go test ./...` 和 `go build -trimpath -tags=nomsgpack`。独立的 `docs` job 使用 Lychee 最新正式版（`lycheeVersion: latest`） 离线检查 Git 文件列表中的 Markdown 本地链接和锚点，跳过网络链接与未跟踪的忽略文件。CI 与 Wiki 发布前检查都使用 `git -c core.quotepath=false ls-files` 生成列表，避免中文文件名被 Git 转义后无法由 Lychee 找到。CI 不运行前端 ESLint 或 Prettier；完整验证范围见 [验证说明](../engineering/verification.md)。
 
 前后端测试共用 STRM 正则兼容性样例，并覆盖标签输入交互、四类列表的合并导入和清空、真实表单保存回读、全局空扩展名默认值回退、原文落库、迁移重试与各同步入口的排除行为。Vitest 在测试模式下通过 Vite 环境配置内联处理 Element Plus，确保真实表单校验的 CommonJS 互操作与浏览器构建一致；配置方式见 [前端命令](../engineering/verification.md#前端命令)。这些回归沿用上述命令，不增加依赖或单独的校验服务；覆盖边界见 [稳定回归验证](../engineering/verification.md#稳定回归验证)。
 
@@ -30,13 +30,17 @@
 
 设置页回归同时覆盖 Emby、代理、通知、STRM、线程、日志和用户安全设置的失败保护、初次加载保存门槛、Cron 时序、专用成功码与敏感数据处理，沿用上述 Vitest 和类型检查入口。
 
+Emby 设置页暂不挂载手工 STRM 映射组件；入口隐藏、隐藏组件不发起目录加载、普通设置保存保留既有映射及失败保护随 Vitest 执行。后端另验证 QMS／外部 STRM 自动定位、冻结路径与账号校验、空库 STRM → 重启 → Emby → 联动删除、schema 67 → 68 和旧备份恢复。隔离 PostgreSQL、race 与两万条数据的受控性能对照不由普通 CI 自动覆盖，发布前按 [Emby 本地资料与外部 STRM 验证](../engineering/verification.md#emby-本地资料与外部-strm-验证) 执行。
+
 同步目录和队列领域请求的回归沿用同一入口，保护聚合字段错误、警告、幂等键，以及写入成功后刷新失败的反馈；队列统计、请求合并和生命周期测试继续执行。
 
-其余领域请求（记录、API Key、分类和备份恢复等），以及日志和任务 HTTP 快照的错误兼容测试，也统一纳入 Vitest。OpenList 写入不重发与认证恢复、百度逐项错误、路径身份、同名保护和缓存失效的后端验证见 [验证说明](../engineering/verification.md)。原生 SSE 连接行为与构建产物检查继续沿用原有入口。业务错误默认消息与空值回退、同步任务降级遇到明确拒绝后停查均随 Vitest 执行。
+STRM 生成结果与后台账本的独立状态、双耗时、详情 SSE／HTTP 延续、旧任务后台事件不覆盖新任务目录运行态，以及普通进度事件不增加在途 HTTP 补读、旧列表快照不覆盖较新的生成或后台终态，均随 Vitest 回归执行；后端同时验证通知、日志、退出与迁移，定向命令及真实环境边界见 [验证说明](../engineering/verification.md)。
+
+记录、备份恢复、API Key 等其余请求，以及日志和任务 HTTP 快照的错误兼容测试，也统一纳入 Vitest。OpenList 写入不重发与认证恢复、百度逐项错误、路径身份、同名保护和缓存失效的后端验证见 [验证说明](../engineering/verification.md)。原生 SSE 连接行为与构建产物检查继续沿用原有入口。业务错误默认消息与空值回退、同步任务降级遇到明确拒绝后停查均随 Vitest 执行。
 
 目录浏览的来源排序能力、偏好持久化、目录完整读取、共享缓存及动态图标回归沿用现有 Go／Vitest 入口。生产构建和 `check:build` 覆盖共享控件与图标集成，不新增发布步骤。真实账号及浏览器人工检查边界见 [验证说明](../engineering/verification.md#改动范围与最小验证)。
 
-发布前还须验证失败后的分页、设置初始化重试、账号列表变化后的旧请求失效。备份与恢复须覆盖真实失败终态、旧响应兼容和并发状态快照，命令与范围见 [稳定回归验证](../engineering/verification.md#稳定回归验证)。
+发布前还须验证失败后的分页、设置初始化重试、账号列表变化后的旧请求失效。备份与恢复须覆盖原子回滚、会话清空后的回执查询、重启授权与重复请求、手动检查服务就绪、维护错误提示、查询失败重试与页面可见性切换。须验证格式 2 的 `tables/` 布局与无清单旧包兼容路径、归档历史校验而目标历史保留、启动中断状态收敛、服务器文件列表与选择恢复、上传校验后保存及再次恢复；SQLite 导出期间的业务池读写、ZIP 权限和 Docker 纯重启入口须有回归。备份还须覆盖导出前按保留策略清理及失败边界、原子发布不覆盖、归档与上传资源边界、禁用后撤销 Cron、TOTP 密钥预检，以及回滚／提交结果在前端准确展示。Windows 重启除交叉编译外还需在实际桌面核验。SQLite ↔ PostgreSQL ZIP 互转及驱动门禁需要额外的隔离 PostgreSQL 集成验证，普通 CI 的无 DSN 测试不能替代；命令与范围见 [稳定回归验证](../engineering/verification.md#稳定回归验证)。
 
 推送 `dev` 还会触发 `beta.yaml`，发布多架构镜像 `ghcr.io/<owner>/qmediasync:beta`。推送 `feature/**` 还会触发 `feature.yaml`，发布 `ghcr.io/<owner>/qmediasync:<branch-tag>`：分支名会去掉 `feature/` 前缀、转为小写，斜杠和非法字符替换为连字符，最长 120 个字符。`dev` 的同一分支构建会取消仍在运行的旧 beta 构建。
 
@@ -50,7 +54,7 @@
 
 发版步骤推荐使用脚本：
 
-1. 确认当前工作区干净，并确认 `dev` 是准备发布的内容。
+1. 按 [Wiki 用户手册维护](../engineering/wiki-maintenance.md) 核对本次用户可见变化对应的操作页、导航和适用版本；用户手册在主仓库 `wiki/` 维护；以下脚本不直接同步 Wiki，但推送 `main` 中的 Wiki 变更会触发 `wiki.yaml` 自动发布。确认当前工作区干净，并确认 `dev` 是准备发布的内容。
 2. 执行发布脚本（需先安装 git-cliff，见其 [安装文档](https://git-cliff.org/docs/installation/)）：
 
    ```bash
@@ -65,26 +69,41 @@ scripts/release/release.sh minor
 scripts/release/release.sh major
 ```
 
-使用 `patch`、`minor`、`major` 时，脚本会先显示推导出的发布版本，并提供确认输入框。直接回车会使用推导版本；也可以输入 `v<major>.<minor>.<patch>` 手动覆盖，手动输入的版本会走同一套格式和递增关系校验。
+使用 `patch`、`minor`、`major` 时，脚本会先显示推导出的发布版本并进入确认菜单：直接回车使用推导版本，也可以输入 `v<major>.<minor>.<patch>` 覆盖，覆盖输入走同一套格式和递增关系校验。
+
+首次使用或调整脚本后，可先只读预览或在沙箱中完整演练：
+
+```bash
+# 只执行检查并预览发布说明，不修改任何文件、分支或远端；显式 tag 时无需交互
+scripts/release/release.sh --dry-run v0.xx.xx
+
+# 在临时沙箱克隆中完整走一遍发布流程（含提交、打 tag 和推送到沙箱远端），真实仓库与远端不受影响
+scripts/release/release.sh --simulate patch
+```
+
+`--simulate` 会把仓库镜像克隆到临时目录并在其中原样运行同一段流程，结束时询问是否删除沙箱：回车默认删除，输入 `k` 保留，便于检查沙箱内生成的 `CHANGELOG.md` 与 `.changes/`。模拟基于本地引用，不校验与真实远端的竞争状态，也不会触发 GitHub workflow。
 
 ## 发布脚本行为
 
 `scripts/release/release.sh` 和 `scripts/release/gen-changelog.sh` 共享 `scripts/release/lib.sh` 中的 tag、版本号和重复发布校验逻辑。
 
+交互遵循统一约定：所有确认步骤回车即为安全默认；无效输入（如格式错误的覆盖版本）提示后重试，不会终止脚本；`q` 随时中止；仅在最后执行提交、打 tag、推送等外部动作前需要输入完整 `yes`。major/minor 发布不再单独输入 `minor yes` / `major yes`，改为在版本确认和最终确认中展示醒目警示。
+
+输出使用轻量配色：阶段标题与输入提示为粗体青色，成功结果为绿色，警示与回滚提示为黄色，错误为红色。在非交互终端（管道、CI）或设置了 `NO_COLOR` 时自动禁用，输出保持纯文本。
+
 该脚本会：
 
-- 校验 tag 格式必须为 `v<major>.<minor>.<patch>`，例如 `v0.15.3`。
-- 使用 `patch`、`minor`、`major` 推导版本时，提示确认推导版本；直接回车继续，也可输入合法 tag 覆盖。
-- 校验 tag 必须大于当前最新版本；如果 minor 或 major 版本增加，还会分别要求输入 `minor yes` 或 `major yes` 额外确认。
+- 前置执行全部零成本检查：命令存在性、工作区干净、本地与远端分支存在、本地 `dev` 包含 `origin/dev`、远端无同名 tag。
+- 校验 tag 格式必须为 `v<major>.<minor>.<patch>`，例如 `v0.15.3`，且必须大于当前最新版本。
 - 同步 `main`，并把本地 `dev` 快进合入 `main`。
-- 读取上一个 `v*` 标签至今的提交，按类型分组生成 `.changes/v0.xx.xx.md`，作为 GitHub Release 正文。
-- 把本版本段落插入 `CHANGELOG.md` 顶部，保留历史内容。
+- 读取上一个 `v*` 标签至今的提交，按类型分组生成 `.changes/v0.xx.xx.md`，作为 GitHub Release 正文；把本版本段落插入 `CHANGELOG.md` 顶部，保留历史内容。
 - 拒绝重复版本：如果本地已存在同名 git tag、`.changes/<tag>.md`，或 `CHANGELOG.md` 已包含该版本段落，命令会直接失败。
-- 展示 `CHANGELOG.md` 和 `.changes/<tag>.md` 的 diff，等待输入 `yes` 确认。
-- 在 `main` 上提交 `chore: release <tag>`。
-- 创建 annotated tag：`git tag -a <tag> -m "Release <tag>"`。
-- 推送 `main` 和 tag 触发 release workflow。
-- 将 release commit 快进同步回 `dev` 并推送 `dev`。
+- 展示 `CHANGELOG.md` 与 `.changes/<tag>.md` 的 diff 进入审查菜单：输入 `e` 编辑发布说明（优先 `VISUAL` / `EDITOR`，缺省回退 `GIT_EDITOR` / `core.editor`，最后探测 vi / nano / vim）并自动同步回 `CHANGELOG.md`；推导模式下输入 `v` 可返回重新选择版本；最终确认输入 `b` 可返回审查。
+- 在 `main` 上提交 `chore: release <tag>`，创建 annotated tag：`git tag -a <tag> -m "Release <tag>"`，推送 `main` 和 tag 触发 release workflow，最后将 release commit 快进同步回 `dev` 并推送 `dev`。
+- 中止发布（`q` 或输入流关闭）会还原 `CHANGELOG.md`、删除自动生成的发布说明并切回原分支；手动编辑过的发布说明保留在 `.changes/<tag>.md`。
+- 提交之后的步骤失败时，打印当前分支、`main` / tag / `dev` 的推送状态和对应的恢复或回退命令。
+
+`--dry-run` 执行上述全部检查，并临时检出 `dev` 让 git-cliff 预览发布说明（显示后切回），不写入 `.changes/`、不修改 `CHANGELOG.md`、不创建或推送任何分支、提交或 tag；`main` 无法快进合并 `dev` 时会直接报错。
 
 ## GitHub Actions 发布
 
@@ -115,3 +134,9 @@ GHCR 镜像同时构建 `linux/amd64` 和 `linux/arm64`。Dockerfile 中的 `TAR
 未配置该 Secret 时，`fpk` job 和 `scripts/release/package-fnos.sh` 会自动跳过 FPK 打包，其余 Windows / Linux 发布包、Docker 镜像不受影响；若希望缺少工具时直接报错（而非静默跳过），可在脚本环境设置 `REQUIRE_FNPACK=1`。
 
 调整 changelog 的分组、过滤规则可编辑仓库根目录的 `cliff.toml`。
+
+## Wiki 发布
+
+`.github/workflows/wiki.yaml` 在 `main` 的 `wiki/**` 或自身工作流变更时运行，支持在 `main` 手动触发；`dev` 和其他分支不发布。任务串行执行并检出最新 `main`，先通过与 CI 相同的 Lychee 检查，再用现成 Wiki Action 转换链接并镜像同步。使用自带 `GITHUB_TOKEN` 的 `contents: write` 权限，无需新增 Secret。
+
+提交标题取实际检出版本历史中最近一次修改 `wiki/` 的提交标题，正文记录实际发布的主仓库 SHA；无差异不提交。源文件与线上编辑边界、Action 的强制推送行为及验收方式见 [Wiki 自动发布契约](../engineering/wiki-maintenance.md#自动发布契约)。

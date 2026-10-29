@@ -281,6 +281,17 @@ func (qe *QueueExecutor) handleRequest(req *QueuedRequest) {
 		return
 	}
 
+	if req.BeforeSend != nil {
+		if err := req.BeforeSend(); err != nil {
+			replyRequestError(req, err)
+			return
+		}
+		if err := req.Ctx.Err(); err != nil {
+			replyRequestError(req, err)
+			return
+		}
+	}
+
 	// 发送请求
 	if req.Playback && qe.throttleManager.IsThrottled() {
 		replyRequestError(req, NewOpenAPIError(REQUEST_MAX_LIMIT_CODE, "115 接口正在限流"))
@@ -344,6 +355,8 @@ func (qe *QueueExecutor) handleRequest(req *QueuedRequest) {
 
 // executeRequest 执行 HTTP 请求
 func (qe *QueueExecutor) executeRequest(req *QueuedRequest) (*resty.Response, *RespBaseBool[json.RawMessage], []byte, error) {
+	// 调用方取消等待后，实际请求可能仍在执行；直到 HTTP 结束才恢复复用。
+	defer beginRequestDirectoryWrite(req.AccountID, req.URL, req.Request)()
 	req.Request.SetResponseForceContentType("application/json")
 
 	var response *resty.Response
@@ -365,6 +378,10 @@ func (qe *QueueExecutor) executeRequest(req *QueuedRequest) (*resty.Response, *R
 
 	// 解析响应
 	defer response.Body.Close()
+	if !req.Playback && response.StatusCode() == http.StatusUnauthorized {
+		return response, nil, nil, &OpenAPIError{HTTPStatus: http.StatusUnauthorized, Message: "115 账号授权失败"}
+	}
+
 	resBytes, ioErr := io.ReadAll(response.Body)
 	if ioErr != nil {
 		// 响应体损坏不能抹掉已收到的明确 HTTP 拒绝状态。
@@ -396,6 +413,13 @@ func (qe *QueueExecutor) executeRequest(req *QueuedRequest) (*resty.Response, *R
 			Data:    respBase.Data,
 		}
 	}
+	if !req.Playback && (response.StatusCode() < http.StatusOK || response.StatusCode() >= http.StatusMultipleChoices) {
+		code := resp.Code
+		if code == 0 {
+			code = resp.Errno
+		}
+		return response, resp, resBytes, &OpenAPIError{Code: code, HTTPStatus: response.StatusCode(), Message: "115 HTTP 请求未成功"}
+	}
 	if req.Playback {
 		if response.StatusCode() >= http.StatusBadRequest || !resp.State || resp.Code != 0 || resp.Errno != 0 {
 			return response, resp, resBytes, playbackResponseError(response.StatusCode(), resp)
@@ -403,17 +427,22 @@ func (qe *QueueExecutor) executeRequest(req *QueuedRequest) (*resty.Response, *R
 		return response, resp, resBytes, nil
 	}
 
-	helpers.V115Log.Infof("队列执行 %s %s\nstate=%v, code=%d, msg=%s, data=%s\n",
-		req.Request.Method, req.URL, resp.State, resp.Code, resp.Message, string(resp.Data))
+	if req.DeletionDetail && IsAlreadyDeleted(deletionDetailAbsenceError(resBytes,
+		NewOpenAPIResponseError(resp.Code, resp.Errno, resp.Message, resp.Error, "115 文件详情未成功"))) {
+		helpers.V115Log.Infof("115 删除核验：确认目标已不存在，账号=%d，file_id=%.128q", req.AccountID, req.Request.QueryParams.Get("file_id"))
+	} else {
+		helpers.V115Log.Infof("队列执行 %s %s\nstate=%v, code=%d, msg=%s, data=%s\n",
+			req.Request.Method, req.URL, resp.State, resp.Code, resp.Message, string(resp.Data))
+	}
 
 	// 检查错误码
 	switch resp.Code {
 	case ACCESS_TOKEN_AUTH_FAIL, ACCESS_AUTH_INVALID, ACCESS_TOKEN_EXPIRY_CODE:
 		helpers.V115Log.Warn("访问凭证已过期")
-		return response, resp, resBytes, fmt.Errorf("token expired")
+		return response, resp, resBytes, NewOpenAPIError(resp.Code, "访问凭证（Token）过期")
 	case REFRESH_TOKEN_INVALID:
 		helpers.V115Log.Error("访问凭证无效，请重新登录")
-		return response, resp, resBytes, fmt.Errorf("token expired")
+		return response, resp, resBytes, NewOpenAPIError(resp.Code, "访问凭证（Token）过期")
 	case REQUEST_MAX_LIMIT_CODE:
 		helpers.V115Log.Warn("检测到限流响应")
 		return response, resp, resBytes, fmt.Errorf("访问频率过高")

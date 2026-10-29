@@ -379,7 +379,7 @@ func TestQueueExecutorUnsentRepliesPreserveCause(t *testing.T) {
 	}
 }
 
-func TestQueueExecutorNonPlaybackReadFailureUnchanged(t *testing.T) {
+func TestQueueExecutorNonPlaybackReadFailurePreservesAuthorizationStatus(t *testing.T) {
 	ensureOpenAPITestLoggers()
 	for _, status := range []int{401, 429} {
 		t.Run(fmt.Sprint(status), func(t *testing.T) {
@@ -395,8 +395,37 @@ func TestQueueExecutorNonPlaybackReadFailureUnchanged(t *testing.T) {
 				Request: client.client.R().SetMethod(http.MethodPost).SetContext(t.Context()).
 					SetResponseDoNotParse(true),
 			})
-			if err != io.ErrUnexpectedEOF {
+			if status == http.StatusUnauthorized {
+				if apiErr, ok := errors.AsType[*OpenAPIError](err); !ok || apiErr.HTTPStatus != status {
+					t.Errorf("明确授权失败被读取错误掩盖：%v", err)
+				}
+			} else if err != io.ErrUnexpectedEOF {
 				t.Errorf("普通请求的读取错误被改变：%v", err)
+			}
+		})
+	}
+}
+
+func TestQueueExecutorRejectsHTTPFailureDespiteSuccessBody(t *testing.T) {
+	ensureOpenAPITestLoggers()
+	for _, tc := range []struct{ name, body string }{
+		{name: "success body", body: `{"state":true,"code":0}`},
+		{name: "not found body", body: `{"state":false,"code":430004}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(500)
+				_, _ = io.WriteString(w, tc.body)
+			}))
+			defer server.Close()
+			c := resty.New()
+			defer c.Close()
+			request := c.R().SetContext(t.Context()).SetMethod(http.MethodPost).SetResponseDoNotParse(true)
+			_, _, _, err := (&QueueExecutor{}).executeRequest(&QueuedRequest{URL: server.URL, Request: request})
+			apiErr, ok := errors.AsType[*OpenAPIError](err)
+			if !ok || apiErr.HTTPStatus != 500 || IsAlreadyDeleted(err) {
+				t.Fatalf("HTTP failure misclassified: %v", err)
 			}
 		})
 	}

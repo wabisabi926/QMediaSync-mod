@@ -64,6 +64,9 @@ func IsRefreshTokenDead(err error) bool {
 // ErrDownloadURLNotReady 表示成功响应暂未包含可用下载地址。
 var ErrDownloadURLNotReady = errors.New("115 下载地址尚未就绪")
 
+// ErrEmptyPathDetail 表示路径查询成功但返回空数组，不能据此确认目录已删除。
+var ErrEmptyPathDetail = errors.New("115 未返回目录详情")
+
 // ErrPlaybackRequestNotSent 表示播放请求在发送 HTTP 前已退出，远端操作尚未执行。
 var ErrPlaybackRequestNotSent = errors.New("115 播放请求未发送")
 
@@ -146,4 +149,13 @@ func IsPlaybackRetryable(err error) bool {
 	}
 	_, ok := errors.AsType[net.Error](err)
 	return ok
+}
+
+// IsDeletionBusy 判断 115 是否仍在执行上一项删除操作。
+func IsDeletionBusy(err error) bool {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	apiErr, ok := errors.AsType[*OpenAPIError](err)
+	return ok && apiErr.Code == 990019 && (apiErr.HTTPStatus == 0 || (apiErr.HTTPStatus >= 200 && apiErr.HTTPStatus < 300))
 }

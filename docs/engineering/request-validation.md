@@ -32,7 +32,7 @@
 
 同步目录聚合接口暂时保留 `data.error_code`、`data.field_errors` 和成功响应中的 `warnings`，精确语义见 [同步目录聚合 API](../reference/sync-path-api.md)。这属于存量响应兼容，不是另一套永久的错误码层级；客户端解析时顶层错误码优先，已知旧接口可回退到嵌套字段。不得将其所有错误都当作字段校验失败。
 
-异步备份和恢复的状态查询成功不等于任务成功，任务结果由 `data.status` 判定；字段和旧响应兼容见 [备份和恢复状态](../operations/database.md#备份和恢复状态)。
+异步备份和恢复的状态查询成功不等于任务成功，任务结果由 `data.status` 判定；任务内的 `data.error_code` 表示异步失败原因，`data.restore_outcome` 表示已确认的数据库结果，不能与查询接口的顶层错误码混淆。字段和旧响应兼容见 [备份和恢复状态](../operations/database.md#备份和恢复状态)。
 
 ## 控制器流程
 
@@ -131,7 +131,7 @@ Emby 条目同步默认 Cron 为 `0 * * * *`，含义是每小时整点执行一
 | `requests/sync.go` | 同步路径创建和更新、自定义 STRM 配置 | 来源类型、非本地来源账号 ID、路径必填、自定义配置、继承值 `-1`、远程路径规范化。 |
 | `requests/accounts.go` | 账号、账号授权更换/取消、OpenList 账号、API Key | 账号来源类型、名称长度、115 授权来源组合、更换授权的确认标志和来源字段、授权会话绑定、OpenList URL 规范化、用户名/密码或 Token、API Key 状态。 |
 | `requests/connections.go` | HTTP 代理、OAuth、二维码、远程直链、反代、请求队列限制和统计 | 代理 URL、`preserve_proxy_credentials` 的显式凭据保留意图、账号 ID、OAuth 回调 URL、`authorization_id` 长度、`data`/`payload` 条件必填、二维码 UID、PickCode、反代下载域名白名单、QPS/QPM/QPH、统计窗口和清理天数。 |
-| `requests/emby.go` | Emby 配置 | Emby URL、同步 Cron、布尔开关枚举、媒体库 JSON 字符串。 |
+| `requests/emby.go` | Emby 配置 | Emby URL、同步 Cron、布尔开关枚举、媒体库 JSON 字符串及 STRM 根路径映射。 |
 | `requests/backup.go` | 备份创建、列表、记录 ID、恢复和配置 | 手动备份原因默认值、分页默认值、备份记录 ID、启用开关、Cron、保留天数、最大备份数、压缩开关。 |
 | `requests/notification.go` | Telegram、MeoW、Bark、ServerChan、自定义 Webhook 渠道 | 渠道名称、必填凭据、URL、Webhook 方法、格式、认证方式和模板格式。 |
 | `requests/users.go` | 登录、启用/关闭两步验证、当前用户用户名/密码修改 | 登录校验用户名和密码非空，用户名 20 个字符上限；创建和修改使用严格用户名 / 密码规则，用户名去除首尾空白后长度为 3 到 20 个字符且只能包含英文和数字，密码长度至少 6 个字符且不能是纯数字或纯字母；两步验证码必填。 |
@@ -141,6 +141,7 @@ Emby 条目同步默认 Cron 为 `0 * * * *`，含义是每小时整点执行一
 
 ## 重要兼容性规则
 
+- `UpdateEmbyConfigRequest.path_mappings` 省略或为 `null` 时保留原映射，显式 `[]` 清空。DTO 校验绝对根、路径分段及重复／重叠映射；控制器核验所选同步目录、来源及账号主体，失败不写配置。普通配置保存不覆盖同步状态，普通状态写入不清空映射。字段与两种映射用途见 [Emby 路径映射](../operations/configuration.md#emby-外部-strm-路径映射)。
 - `SyncPathRequest` 同时支持计划中的嵌套 `setting` 字段和旧前端使用的顶层 STRM 字段；存在非零嵌套配置时优先使用 `setting`。
 - 同步路径自定义 STRM 配置使用 `-1` 表示继承全局值；全局 STRM 配置不接受 `-1`。
 - 全局 `/api/setting/strm-config` 的 `multi_playback_enabled` 只接受整数 `0/1`，省略时按现有整表单保存语义取 `0`。它直接保存到 `Settings`，不属于同步目录可继承字段；与其他 STRM 字段同次落库，失败不替换运行时配置。本地代理开启时前端仅禁用编辑，仍提交保留值；实际播放请求的智能跳过见 [115 多端播放](../operations/configuration.md#115-多端播放)。
@@ -162,6 +163,14 @@ Emby 条目同步默认 Cron 为 `0 * * * *`，含义是每小时整点执行一
 - `BackupListRequest` 保留旧分页兼容策略：页码小于 1 时回退为 1，每页数量小于 1 或大于 100 时回退为 20，类型为空时回退为 `all`。
 - 备份配置中 `backup_retention` 为 0 时表示不更新或使用既有值；大于 0 时限制为 1 到 365。
 - 首次数据库配置保存只接受 `sqlite`、`postgres` 引擎；PostgreSQL 配置中遗留的 `postgresType: embedded` 或未知模式必须被拒绝，不得静默改成外部连接。旧 SQLite 配置中的该字段不参与连接。
+
+### 备份文件与恢复请求
+
+`GET /api/backup/files` 沿用备份接口的鉴权与维护门禁，无需客户端传目录。成功的 `data` 为 `{ directory, files }`：`directory` 是当前进程实际使用的备份目录，每项包含 `file_name`、`file_size`（字节）、`modified_at`（Unix 秒）。仅列出该目录根层的普通 `.zip` 文件，扩展名不区分大小写；不递归、跟随符号链接或读取归档内容。目录为空或尚未创建时返回空数组，其他目录访问故障返回业务失败，不能伪装为空列表。该入口独立于仍只返回目录的 `/api/path/list`。
+
+`POST /api/backup/restore` 的 `BackupRestoreRequest` 接受二选一：正数 `record_id` 或非空 `file_name`，同时指定或同时缺失均拒绝。保留原记录恢复调用；文件名方式只允许备份目录根层 ZIP 名称，拒绝绝对路径、目录分隔符、路径穿越和 Windows 盘符。服务器根据实际目录解析，并在启动时重新检查文件类型及可用性，不能直接使用客户端路径。接受后仍返回 `restore_receipt`，通过原状态、恢复和重启流程执行。
+
+备份记录列表及详情在原字段之外返回即时 `file_status`：`available` 表示普通文件存在，`missing` 表示已确认不存在，`unavailable` 表示未记录文件路径、路径不受支持或无法确认可用。它不入库，不改变历史任务 `status`，也不代表内容校验通过；恢复前仍完整校验所选 ZIP。上传保存和重复恢复的生命周期见 [恢复与风险边界](../operations/database.md#恢复与风险边界)。
 
 ### 文件与目录浏览排序
 
@@ -216,13 +225,21 @@ OSS multipart 的 part size 必须由后端计算，不接受外部传入：默�
 
 STRM Webhook 的外部字段、鉴权、路径边界、批量规则和响应由 [STRM Webhook](../reference/strm-webhook.md) 维护；本文只约束其控制器使用的输入校验边界。
 
+## Emby Webhook 入站边界
+
+`POST /emby/webhook` 沿用 `EnableAuth` 和现有 API Key 鉴权，优先 `X-API-Key` 请求头，兼容 `api_key` 查询参数。鉴权后读取最多 `4 MiB` 的 JSON，使用 `requests.ParseEmbyWebhook` 进行严格解析；该入口需要检查重复键，不能直接用会静默覆盖同名键的普通绑定代替。关键字段名沿用 Emby 原始大小写；重复键、关键字段类型错误、非法条目 ID、多份 JSON、超过 64 层嵌套或无效编码都被拒绝。日期支持 RFC3339Nano，仅用于诊断。
+
+官方 `library.new`、兼容的 `library.modified`、`library.deleted` 和受支持的 `deep.delete` 保存为有限、脱敏的持久输入。缺少服务器身份、服务器字段冲突或删除通知缺少原始路径时，记录阻断原因，不把它们升级为可执行删除。`Item.Path` 保留文件名内真实换行和空格；增强通知正文的目录路径不能覆盖 JSON 文件路径。只从已识别的单行完整 Mount Paths 提取未核验候选，多行或不受支持正文仅保存原因，不盲拆文件或保留可能含凭据的自由文本。不记录原始 body，URL 用户信息、认证查询参数和片段不进入新收件记录；pickcode 作为独立候选字段保留。
+
+持久保存成功后维持 HTTP `200`、`{"message":"webhook"}` 响应，表示已保存，后续同步和删除由应用生命周期内的 worker 处理。JSON 格式错误返回 `400`，超过大小限制返回 `413`；配置不完整、读取／保存失败或备份恢复期间暂停收件返回 `503`，不确认已接收。未配置连接时，无关事件沿用忽略并返回 `200` 的旧行为；启用的鉴权仍先于请求体解析。原有新增通知、媒体信息提取和播放通知路径保留。服务器身份、接收时删除授权、历史文件代际和执行前核验属于模型／服务层，不由解析器裁定；完整行为见 [Emby 媒体库同步](../architecture/emby-library-sync.md)。
+
 ## 当前例外
 
 以下接口或参数仍是特殊实现，不应作为新增接口的默认写法：
 
 - 用户会话撤销使用 `session_id` 路径参数，当前直接从 `c.Param("session_id")` 读取。
 - 同步记录、同步任务详情 HTTP 查询、同步路径列表查询仍在 `controllers/sync.go` 使用控制器内局部 Request 结构；同步任务详情实时流在 `controllers/event_stream.go` 使用 `ParsePositiveIDRequest` 解析路径 `id`，不新增 DTO。
-- 备份上传恢复使用 multipart 文件流，文件读取、扩展名和临时文件处理仍保留在控制器中。
+- 备份上传恢复在解析 multipart 前限制请求体，并单独限制实际文件大小；超限返回 HTTP `413`、顶层 `error_code=BACKUP_ARCHIVE_LIMIT`，清理 multipart 和本轮上传临时文件。文件读取、扩展名和暂存处理保留在控制器中，具体限额见[数据库运维](../operations/database.md#恢复与风险边界)。
 - 首次数据库配置服务 `backend/main.go` 使用独立的启动期接口和私有请求结构，不纳入常规 API DTO 目录。
 - 部分只读或触发型接口没有外部参数，或只做运行状态检查，不需要 DTO。
 

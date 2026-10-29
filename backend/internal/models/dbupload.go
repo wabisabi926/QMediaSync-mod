@@ -455,7 +455,7 @@ func (task *DbUploadTask) Upload() {
 	}
 	claimed, err := task.claimPendingUpload()
 	if err != nil {
-		helpers.AppLogger.Warnf("[上传] 领取待上传任务失败：task_id=%d err=%v", task.ID, err)
+		helpers.AppLogger.Warnf("[上传] 获取待上传任务失败：task_id=%d err=%v", task.ID, err)
 		return
 	}
 	if !claimed {
@@ -780,16 +780,16 @@ func (task *DbUploadTask) UploadLocalFile() bool {
 	return true
 }
 
-func CheckCanUploadByLocalPath(source UploadSource, localPath string) bool {
-	var total int64
-	err := db.Db.Model(&DbUploadTask{}).
+// CheckCanUploadByLocalPath 检查本地路径是否没有同来源的活跃上传任务。
+func CheckCanUploadByLocalPath(ctx context.Context, source UploadSource, localPath string) (bool, error) {
+	var task struct{ ID uint }
+	result := db.Db.WithContext(ctx).Model(&DbUploadTask{}).Select("id").
 		Where("source = ? AND local_full_path = ? AND status IN ?", source, localPath, activeUploadTaskStatuses()).
-		Count(&total).Error
-	if err != nil {
-		helpers.AppLogger.Warnf("检查本地路径上传任务失败：source=%s, local_path=%s, err=%v", source, localPath, err)
-		return true
+		Limit(1).Find(&task)
+	if result.Error != nil {
+		return false, fmt.Errorf("检查本地路径上传任务失败：source=%s, local_path=%s: %w", source, localPath, result.Error)
 	}
-	return total == 0
+	return result.RowsAffected == 0, nil
 }
 
 // 检查同一存储范围内是否存在活跃的上传任务。

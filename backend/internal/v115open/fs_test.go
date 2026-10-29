@@ -1,14 +1,18 @@
 package v115open
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -147,6 +151,173 @@ func mustParseURLPath(t *testing.T, rawURL string) string {
 	return parsedURL.Path
 }
 
+func TestGetFsDetailByPathEmptyArray(t *testing.T) {
+	withUnlimitedOpenAPIRequests(t)
+	for _, playback := range []bool{false, true} {
+		for _, body := range []string{
+			`{"state":true,"code":0,"data":[]}`,
+			`{"state":true,"code":0,"errno":0,"data":[ ]}`,
+			`{"state":1,"data":[]}`,
+		} {
+			t.Run(fmt.Sprintf("playback=%t/%s", playback, body), func(t *testing.T) {
+				var logs bytes.Buffer
+				original := helpers.V115Log.Writer()
+				helpers.V115Log.SetOutput(&logs)
+				t.Cleanup(func() { helpers.V115Log.SetOutput(original) })
+				transport := newCaptureOpenAPITransport(body)
+				client := newTestOpenClient(transport)
+				if playback {
+					client = NewPlaybackClient(1, "app", "token", "refresh")
+					setPlaybackTestTransport(t, client, transport)
+				}
+				detail, err := client.GetFsDetailByPath(t.Context(), `media\旧目录`)
+				if detail != nil || !errors.Is(err, ErrEmptyPathDetail) || IsAlreadyDeleted(err) {
+					t.Fatalf("空路径查询应要求补查，不能确认删除：detail=%+v error=%v", detail, err)
+				}
+				wrapped := fmt.Errorf("查询父目录：%w", err)
+				if !errors.Is(wrapped, ErrEmptyPathDetail) || IsAlreadyDeleted(wrapped) {
+					t.Fatalf("包装后错误分类变化：%v", wrapped)
+				}
+				if len(transport.requests) != 1 {
+					t.Fatalf("空数组不应重试路径请求：requests=%d", len(transport.requests))
+				}
+				request := receiveCapturedRequest(t, transport)
+				form, parseErr := url.ParseQuery(request.Body)
+				if parseErr != nil || request.Method != http.MethodPost || mustParseURLPath(t, request.URL) != "/open/folder/get_info" || form.Get("path") != "/media/旧目录" {
+					t.Fatalf("路径查询请求错误：request=%+v form=%v error=%v", request, form, parseErr)
+				}
+				if strings.Contains(logs.String(), "cannot unmarshal") || strings.Contains(logs.String(), "解包响应数据失败") {
+					t.Fatalf("空数组不应产生 JSON 解码错误日志：%s", logs.String())
+				}
+			})
+		}
+	}
+}
+
+func TestGetFsDetailByPathValidatesResponse(t *testing.T) {
+	withUnlimitedOpenAPIRequests(t)
+	const detailJSON = `{"file_id":"9001","file_name":"电影","file_category":"0","paths":[{"file_id":0,"file_name":"根目录"},{"file_id":"7001","file_name":"media"}],"utime":"200","count":1}`
+	for _, tt := range []struct {
+		name    string
+		body    string
+		wantOK  bool
+		wantAPI int
+	}{
+		{name: "normal detail", body: `{"state":true,"code":0,"data":` + detailJSON + `}`, wantOK: true},
+		{name: "numeric success", body: `{"state":1,"code":0,"data":` + detailJSON + `}`, wantOK: true},
+		{name: "empty object", body: `{"state":true,"data":{}}`},
+		{name: "null data", body: `{"state":true,"data":null}`},
+		{name: "missing data", body: `{"state":true}`},
+		{name: "empty file ID", body: `{"state":true,"data":{"file_id":"","file_name":"电影"}}`},
+		{name: "nonempty array", body: `{"state":true,"data":[` + detailJSON + `]}`},
+		{name: "null array item", body: `{"state":true,"data":[null]}`},
+		{name: "string", body: `{"state":true,"data":"[]"}`},
+		{name: "number", body: `{"state":true,"data":1}`},
+		{name: "boolean", body: `{"state":true,"data":false}`},
+		{name: "invalid object field", body: `{"state":true,"data":{"file_id":"9001","count":{}}}`},
+		{name: "null response", body: `null`},
+		{name: "false state", body: `{"state":false,"code":0,"data":[]}`},
+		{name: "missing state", body: `{"code":0,"data":[]}`},
+		{name: "null state", body: `{"state":null,"code":0,"data":[]}`},
+		{name: "failed detail", body: `{"state":false,"data":` + detailJSON + `}`},
+		{name: "detail without state", body: `{"data":` + detailJSON + `}`},
+		{name: "success with missing code", body: `{"state":true,"code":430004,"data":[]}`},
+		{name: "success with deleted errno", body: `{"state":true,"errno":231011,"data":[]}`},
+		{name: "missing state with missing code", body: `{"code":430004,"data":[]}`},
+		{name: "conflicting absence codes", body: `{"state":false,"code":430004,"errno":20018,"data":[]}`},
+		{name: "errno failure", body: `{"state":false,"errno":20018,"message":"无权访问","data":[]}`, wantAPI: 20018},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			client := newTestOpenClient(newCaptureOpenAPITransport(tt.body))
+			detail, err := client.GetFsDetailByPath(t.Context(), "/media/电影")
+			if tt.wantOK {
+				if err != nil || detail == nil || detail.FileId != "9001" || detail.FileName != "电影" || detail.Path != "media" || detail.Count != "1" || detail.ModifiedAt() != 200 {
+					t.Fatalf("正常详情未保真：detail=%+v error=%v", detail, err)
+				}
+				return
+			}
+			if detail != nil || err == nil || errors.Is(err, ErrEmptyPathDetail) || IsAlreadyDeleted(err) {
+				t.Fatalf("不确定响应被当成正常、空查询或删除：detail=%+v error=%v", detail, err)
+			}
+			if tt.wantAPI != 0 {
+				apiErr, ok := errors.AsType[*OpenAPIError](err)
+				if !ok || apiErr.Code != tt.wantAPI {
+					t.Fatalf("丢失业务错误码 %d：%v", tt.wantAPI, err)
+				}
+			}
+		})
+	}
+}
+
+func TestGetFsDetailByPathPreservesFailures(t *testing.T) {
+	withUnlimitedOpenAPIRequests(t)
+	for _, tt := range []struct {
+		name         string
+		body         string
+		status       int
+		wantAPI      int
+		wantDeleted  bool
+		emptyToken   bool
+		transportErr error
+		cancel       bool
+	}{
+		{name: "missing", body: `{"state":false,"code":430004}`, wantAPI: 430004, wantDeleted: true},
+		{name: "deleted", body: `{"state":false,"code":231011}`, wantAPI: 231011, wantDeleted: true},
+		{name: "missing errno", body: `{"state":false,"errno":430004}`, wantAPI: 430004, wantDeleted: true},
+		{name: "numeric missing", body: `{"state":0,"code":430004}`, wantAPI: 430004, wantDeleted: true},
+		{name: "business failure", body: `{"state":false,"code":20018}`, wantAPI: 20018},
+		{name: "authentication", body: `{"state":false,"code":40140125}`, wantAPI: ACCESS_TOKEN_EXPIRY_CODE},
+		{name: "missing credentials", emptyToken: true, wantAPI: ACCESS_AUTH_INVALID},
+		{name: "http unauthorized", status: http.StatusUnauthorized},
+		{name: "http forbidden", status: http.StatusForbidden, body: `{"state":true,"data":[]}`},
+		{name: "http missing", status: http.StatusNotFound, body: `{"state":false,"code":430004}`, wantAPI: 430004},
+		{name: "http unavailable", status: http.StatusServiceUnavailable, body: `{"state":true,"data":[]}`},
+		{name: "malformed response", body: `not json`},
+		{name: "network failure", transportErr: io.ErrUnexpectedEOF},
+		{name: "cancelled", cancel: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var calls atomic.Int64
+			client := NewClient(1, "app", "token", "refresh")
+			client.client.SetTransport(playbackTransportFunc(func(req *http.Request) (*http.Response, error) {
+				calls.Add(1)
+				if tt.transportErr != nil {
+					return nil, tt.transportErr
+				}
+				status := tt.status
+				if status == 0 {
+					status = http.StatusOK
+				}
+				return playbackTestResponse(req, status, tt.body), nil
+			}))
+			if tt.emptyToken {
+				client.SetAuthToken("", "")
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			if tt.cancel {
+				cancel()
+			}
+			detail, err := client.GetFsDetailByPath(ctx, "/media/电影")
+			if detail != nil || err == nil || errors.Is(err, ErrEmptyPathDetail) || IsAlreadyDeleted(err) != tt.wantDeleted {
+				t.Fatalf("失败分类错误：detail=%+v error=%v", detail, err)
+			}
+			if tt.wantAPI != 0 || tt.status != 0 {
+				apiErr, ok := errors.AsType[*OpenAPIError](err)
+				if !ok || apiErr.Code != tt.wantAPI || apiErr.HTTPStatus != tt.status {
+					t.Fatalf("类型化错误未保真：error=%+v code=%d status=%d", err, tt.wantAPI, tt.status)
+				}
+			}
+			if tt.transportErr != nil && !errors.Is(err, tt.transportErr) || tt.cancel && !errors.Is(err, context.Canceled) {
+				t.Fatalf("原错误链丢失：%v", err)
+			}
+			if (tt.emptyToken || tt.cancel) && calls.Load() != 0 {
+				t.Fatalf("取消或无凭据时仍发出 %d 次请求", calls.Load())
+			}
+		})
+	}
+}
+
 func TestGetFsListWithOptionsEnablesExplicitOrdering(t *testing.T) {
 	follow, mixed := 0, 2
 	withUnlimitedOpenAPIRequests(t)
@@ -163,7 +334,7 @@ func TestGetFsListWithOptionsEnablesExplicitOrdering(t *testing.T) {
 		{name: "仅排序方向", options: FileListOptions{Asc: "1"}, customOrder: "1"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			transport := newCaptureOpenAPITransport(`{"state":true,"data":[]}`)
+			transport := newCaptureOpenAPITransport(`{"state":true,"data":[],"count":0}`)
 			client := newTestOpenClient(transport)
 			if _, err := client.GetFsListWithOptions(t.Context(), "123", true, false, true, 0, 20, tt.options); err != nil {
 				t.Fatal(err)
@@ -310,8 +481,8 @@ func TestOpenClientCopyKeepsLegacyDuplicateFlag(t *testing.T) {
 		response  string
 		wantFlag  string
 	}{
-		{name: "允许重复", overwrite: true, state: true, response: `{"state":true,"data":[]}`, wantFlag: "0"},
-		{name: "禁止重复", state: true, response: `{"state":true,"data":[]}`, wantFlag: "1"},
+		{name: "允许重复", overwrite: true, state: true, response: `{"state":true,"data":[],"count":0}`, wantFlag: "0"},
+		{name: "禁止重复", state: true, response: `{"state":true,"data":[],"count":0}`, wantFlag: "1"},
 		{name: "保留失败布尔值", response: `{"state":false,"data":[]}`, wantFlag: "1"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -355,11 +526,88 @@ func TestFileListRejectsInvalidCustomOrdering(t *testing.T) {
 		{name: "负数", custom: -1}, {name: "未知模式", custom: 3}, {name: "跟随同时指定字段", custom: 0, order: "file_name"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			transport := newCaptureOpenAPITransport(`{"state":true,"data":[]}`)
+			transport := newCaptureOpenAPITransport(`{"state":true,"data":[],"count":0}`)
 			client := newTestOpenClient(transport)
 			if _, err := client.GetFsListWithOptions(t.Context(), "0", true, false, true, 0, 1000, FileListOptions{Order: tc.order, CustomOrder: &tc.custom}); err == nil {
 				t.Fatal("非法排序参数应在发起请求前拒绝")
 			}
 		})
+	}
+}
+
+func TestGetFsListRejectsFailedResponseWithoutCode(t *testing.T) {
+	withUnlimitedOpenAPIRequests(t)
+	for _, body := range []string{`{"state":false,"count":0,"data":[]}`, `{"state":true,"errno":40140125,"count":0,"data":[]}`} {
+		t.Run(body, func(t *testing.T) {
+			client := newRefreshTestClient(&refreshStubTransport{response: body})
+			files, err := client.GetFsList(t.Context(), "root", false, false, false, 0, 1)
+			if err == nil || files != nil {
+				t.Fatalf("failed response accepted as empty view: files=%+v error=%v", files, err)
+			}
+		})
+	}
+}
+
+func TestDelOnceNeverReplaysUnknownResult(t *testing.T) {
+	withUnlimitedOpenAPIRequests(t)
+	for _, tc := range []struct {
+		name, body string
+		wantOK     bool
+	}{
+		{name: "success", body: `{"state":true,"code":0}`, wantOK: true},
+		{name: "false", body: `{"state":false,"code":123456,"message":"unknown"}`},
+		{name: "bad response", body: `not json`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			transport := newCaptureOpenAPITransport(tc.body)
+			client := newTestOpenClient(transport)
+			ok, err := client.DelOnce(t.Context(), []string{"9001"}, "7001")
+			if ok != tc.wantOK || (!ok && err == nil) {
+				t.Fatalf("ok=%v err=%v", ok, err)
+			}
+			req := receiveCapturedRequest(t, transport)
+			values, parseErr := url.ParseQuery(req.Body)
+			if parseErr != nil || values.Get("file_ids") != "9001" || values.Get("parent_id") != "7001" {
+				t.Fatalf("wrong params %s %v", req.Body, parseErr)
+			}
+			if len(transport.requests) != 0 {
+				t.Fatal("destructive request retried")
+			}
+		})
+	}
+}
+
+func TestGetFsListRejectsIncompleteResponse(t *testing.T) {
+	withUnlimitedOpenAPIRequests(t)
+	for _, tc := range []struct {
+		name, body string
+		wantErr    bool
+	}{
+		{name: "empty", body: `{"state":true,"count":0,"data":[]}`},
+		{name: "explicit empty null", body: `{"state":true,"count":0,"data":null}`},
+		{name: "missing count", body: `{"state":true,"data":[]}`, wantErr: true},
+		{name: "missing data", body: `{"state":true,"count":0}`, wantErr: true},
+		{name: "null with nonzero count", body: `{"state":true,"count":1,"data":null}`, wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client := newTestOpenClient(newCaptureOpenAPITransport(tc.body))
+			_, err := client.GetFsList(t.Context(), "7", true, true, true, 0, 1000)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err=%v", err)
+			}
+		})
+	}
+}
+
+func TestDelOnceTransportFailureDoesNotReplay(t *testing.T) {
+	withUnlimitedOpenAPIRequests(t)
+	client := NewClient(1, "test-app", "test-token", "test-refresh")
+	calls := 0
+	client.client.SetTransport(playbackTransportFunc(func(r *http.Request) (*http.Response, error) { calls++; return nil, io.ErrUnexpectedEOF }))
+	if ok, err := client.DelOnce(t.Context(), []string{"10"}, "7"); ok || err == nil {
+		t.Fatalf("ok=%v err=%v", ok, err)
+	}
+	if calls != 1 {
+		t.Fatalf("transport calls=%d", calls)
 	}
 }

@@ -22,47 +22,21 @@ import (
 	"qmediasync/internal/models"
 	"qmediasync/internal/notification"
 	"qmediasync/internal/notificationmanager"
+	"qmediasync/internal/requests"
 
 	"github.com/gin-gonic/gin"
 )
 
 const embyTempImagePrefix = "qms_emby_"
 
-type EmbyEvent struct {
-	Title    string `json:"Title"`
-	Date     string `json:"Date"`
-	Event    string `json:"Event"`
-	Severity string `json:"Severity"`
-	Server   struct {
-		Name    string `json:"Name"`
-		ID      string `json:"Id"`
-		Version string `json:"Version"`
-	} `json:"Server"`
-	Item struct {
-		Name              string            `json:"Name"`
-		ID                string            `json:"Id"`
-		Type              string            `json:"Type"`
-		IsFolder          bool              `json:"IsFolder"`
-		FileName          string            `json:"FileName"`
-		Path              string            `json:"Path"`
-		Overview          string            `json:"Overview"`
-		SeriesName        string            `json:"SeriesName"`
-		SeasonName        string            `json:"SeasonName"`
-		SeriesId          string            `json:"SeriesId"`
-		SeasonId          string            `json:"SeasonId"`
-		IndexNumber       int               `json:"IndexNumber"`
-		ParentIndexNumber int               `json:"ParentIndexNumber"`
-		ProductionYear    int               `json:"ProductionYear"`
-		Genres            []string          `json:"Genres"`
-		ImageTags         map[string]string `json:"ImageTags"`
-	} `json:"Item"`
-}
+type EmbyEvent = requests.EmbyWebhookRequest
 
 type newSeries struct {
-	ID          string        // 剧的 ID
-	Name        string        // 剧的名称
-	Seasons     map[int][]int // 季的集 ID 列表
-	LastUpdated time.Time     // 最后更新时间
+	ID          string               // 剧的 ID
+	Name        string               // 剧的名称
+	Seasons     map[int][]int        // 季的集 ID 列表
+	Episodes    map[string]time.Time // 单集 ID 与事件或接收时间
+	LastUpdated time.Time            // 最后更新时间
 }
 
 var newSeriesBuffer = make(map[string]newSeries)
@@ -82,29 +56,25 @@ var newSeriesBufferTickerStartedMu = sync.Mutex{}
 
 // Webhook Emby 事件回调（公开接口）
 // @Summary Emby Webhook
-// @Description 接收 Emby 的事件回调（library.new）并触发通知或元数据提取
+// @Description 持久接收条目同步与删除事件；成功仅表示已保存，后台核验后执行
 // @Tags Emby 管理
 // @Accept json
 // @Produce json
 // @Success 200 {object} object
-// @Failure 200 {object} object
+// @Failure 400 {object} object
+// @Failure 401 {object} object
+// @Failure 413 {object} object
+// @Failure 503 {object} object
 // @Router /emby/webhook [post]
 func Webhook(ctx *gin.Context) {
-	// 将请求的 body 内容完整打印到日志
-	var body []byte
-	if ctx.Request.Body != nil {
-		body, _ = io.ReadAll(ctx.Request.Body)
-		helpers.AppLogger.Infof("Emby Webhook body：%s", string(body))
-	}
-	if body == nil || (models.GlobalEmbyConfig != nil && (models.GlobalEmbyConfig.EmbyUrl == "" || models.GlobalEmbyConfig.EmbyApiKey == "")) {
-		ctx.JSON(http.StatusOK, gin.H{
-			"message": "webhook",
-		})
+	receivedAt := time.Now()
+	config, err := models.ReadEmbyConfigSnapshot()
+	if err != nil {
+		ctx.JSON(http.StatusServiceUnavailable, gin.H{"message": "Webhook 配置读取失败"})
 		return
 	}
-
 	// 检查是否启用鉴权
-	if models.GlobalEmbyConfig.EnableAuth == 1 {
+	if config.EnableAuth == 1 {
 		// 优先从 X-API-Key 请求头读取，保留 api_key 查询参数兼容 Emby Webhook 配置。
 		apiKey := apiKeyFromRequest(ctx)
 		if apiKey == "" {
@@ -125,37 +95,61 @@ func Webhook(ctx *gin.Context) {
 		}
 	}
 
-	// 处理 body 内容，解析成 JSON。
-	var event EmbyEvent
-	// 如果解析失败，记录错误日志并返回
-	err := json.Unmarshal(body, &event)
+	// 鉴权后读取有限 JSON，不打印可能带播放凭据的原始 body。
+	if ctx.Request.Body == nil {
+		ctx.Request.Body = http.NoBody
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(ctx.Writer, ctx.Request.Body, requests.EmbyWebhookMaxBytes))
 	if err != nil {
-		helpers.AppLogger.Errorf("Emby Webhook 解析 JSON 失败：%v", err)
-		ctx.JSON(http.StatusOK, gin.H{
-			"message": "webhook",
-		})
+		status := http.StatusBadRequest
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			status = http.StatusRequestEntityTooLarge
+		}
+		ctx.JSON(status, gin.H{"message": "Webhook 请求体读取失败"})
 		return
 	}
+	event, err := requests.ParseEmbyWebhook(body)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+	if config.EmbyUrl == "" || config.EmbyApiKey == "" {
+		if event.Managed() {
+			ctx.JSON(http.StatusServiceUnavailable, gin.H{"message": "Webhook 配置不完整"})
+		} else {
+			ctx.JSON(http.StatusOK, gin.H{"message": "webhook"})
+		}
+		return
+	}
+	if event.Managed() {
+		if _, err := emby.ReceiveWebhook(ctx.Request.Context(), event.ToEnvelope()); err != nil {
+			helpers.AppLogger.Warnf("收到 Emby 通知但保存失败，本次通知不会被处理：%v", err)
+			ctx.JSON(http.StatusServiceUnavailable, gin.H{"message": "Webhook 保存失败"})
+			return
+		}
+		// 同步 Emby 条目到本地与联动删除均交给应用生命周期内的持久 worker。
+	}
 	if event.Event == "library.new" {
+		fallbackTime := parseEmbyNotificationTime(event.Date, receivedAt)
 		// 新入库通知
 		// 如果是 Episode 就先存起来，等待 10 秒；如果后续有同 series 的 library.new 事件，就合并通知。
 		// 触发通知
 		go func() {
 			if event.Item.Type == "Episode" {
-				addItemToEpisodeBuffer(event.Item.SeriesId, event.Item.ParentIndexNumber, event.Item.IndexNumber)
+				addItemToEpisodeBuffer(event.Item.SeriesId, event.Item.ParentIndexNumber, event.Item.IndexNumber, event.Item.ID, fallbackTime)
 				return
 			}
 			if event.Item.Type == "Movie" {
-				sendNewMovieNotification(event.Item.ID)
+				sendNewMovieNotification(event.Item.ID, fallbackTime)
 			}
 
 		}()
 		if event.Item.Type == "Movie" || event.Item.Type == "Episode" {
 			// 触发媒体信息提取
-			if models.GlobalEmbyConfig != nil && models.GlobalEmbyConfig.EnableExtractMediaInfo == 1 {
+			if config.EnableExtractMediaInfo == 1 {
 				go func() {
 					// 获取 Emby 地址和 Emby API Key。
-					url := fmt.Sprintf("%s/emby/Items/%s/PlaybackInfo?api_key=%s", models.GlobalEmbyConfig.EmbyUrl, event.Item.ID, models.GlobalEmbyConfig.EmbyApiKey)
+					url := fmt.Sprintf("%s/emby/Items/%s/PlaybackInfo?api_key=%s", config.EmbyUrl, event.Item.ID, config.EmbyApiKey)
 					if err := models.AddDownloadTaskFromEmbyMedia(url, event.Item.ID, event.Item.Name); err != nil && !errors.Is(err, models.ErrActiveDownloadTaskExists) {
 						helpers.AppLogger.Errorf("触发 Emby 信息提取失败：%v", err)
 					}
@@ -165,21 +159,7 @@ func Webhook(ctx *gin.Context) {
 			}
 		}
 	}
-	if event.Event == "library.new" || event.Event == "library.modified" {
-		// 同步 Emby 条目到本地，用于更新 QMediaSync 本地索引。
-		go func() {
-			if changed, err := emby.SyncEmbyItemByID(event.Item.ID); err != nil {
-				helpers.AppLogger.Warnf("Webhook 单条同步 Emby 条目失败，Item ID=%s，错误=%v", event.Item.ID, err)
-			} else if changed {
-				helpers.AppLogger.Infof("Webhook 单条同步 Emby 条目完成，Item ID=%s", event.Item.ID)
-			}
-		}()
-	}
 	if event.Event == "library.deleted" {
-		// 删除媒体通知
-		if helpers.IsRelease {
-			helpers.AppLogger.Infof("Emby 媒体已删除 %+v", event.Item)
-		}
 		// 触发通知
 		// 删除消息也应该按照新入库消息一样对剧集进行分组
 		go func() {
@@ -191,39 +171,8 @@ func Webhook(ctx *gin.Context) {
 				sendDeletedMovieNotification(event.Item.ID, event.Item.Name)
 			}
 		}()
-		if event.Item.Type == "Movie" || event.Item.Type == "Episode" || event.Item.Type == "Season" || event.Item.Type == "Series" {
-			// 触发联动删除
-			if models.GlobalEmbyConfig != nil && models.GlobalEmbyConfig.EnableDeleteNetdisk == 1 {
-				// 检查是否允许删除媒体库
-				// if !models.IsDeleteNetdiskLibraryEnabled(event.) {
-				// 	helpers.AppLogger.Infof("Emby 媒体库 %s 未配置允许删除，跳过删除", event.Item.LibraryId)
-				// 	return
-				// }
-				switch event.Item.Type {
-				case "Movie":
-					// 电影：在网盘中将视频文件的父目录一起删除
-					// 查找 Item.ID 对应的 SyncFileID。
-					models.DeleteNetdiskMovieByEmbyItemId(event.Item.ID)
-				case "Episode":
-					// 集：删除视频文件和元数据（NFO、封面）。
-					// 查找 Item.ID 对应的 SyncFileID。
-					models.DeleteNetdiskEpisodeByEmbyItemId(event.Item.ID)
-				case "Season":
-					// 季：先检查视频文件的父目录。如果父目录是季文件夹，则删除该文件夹；如果父目录有 tvshow.nfo，则只删除该季所有集对应的视频文件和元数据（NFO、封面）。
-					// 查找 EmbyMediaItem.SeasonID = Item.ID 的记录，取其中一条记录的 SyncFile.Path 作为季目录来处理。
-					models.DeleteNetdiskSeasonByItemId(event.Item.ID)
-				case "Series":
-					// 剧：在网盘中删除 tvshow.nfo 的父目录。
-					// 查找 EmbyMediaItem.SeriesID = Item.ID 的记录，取其中一条记录的 SyncFile.Path 作为剧目录来处理。
-					models.DeleteNetdiskTvshowByItemId(event.Item.ID)
-				default:
-				}
-			}
-			if err := deleteLocalEmbyItemForWebhook(event.Item.Type, event.Item.ID); err != nil {
-				helpers.AppLogger.Warnf("Webhook 删除本地 Emby 条目索引失败，Item ID=%s，类型=%s，错误=%v", event.Item.ID, event.Item.Type, err)
-			}
-		}
 	}
+
 	// 处理播放事件（playback.start、playback.pause、playback.stop）
 	if event.Event == "playback.start" || event.Event == "playback.pause" || event.Event == "playback.stop" {
 		go handlePlaybackEvent(body, event)
@@ -232,19 +181,6 @@ func Webhook(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{
 		"message": "webhook",
 	})
-}
-
-func deleteLocalEmbyItemForWebhook(itemType string, itemID string) error {
-	switch itemType {
-	case "Movie", "Video", "Episode":
-		return models.DeleteLocalEmbyItemByID(itemID)
-	case "Season":
-		return models.DeleteLocalEmbyItemsBySeasonID(itemID)
-	case "Series":
-		return models.DeleteLocalEmbyItemsBySeriesID(itemID)
-	default:
-		return nil
-	}
 }
 
 func createEmbyTempImagePath(itemID string) (string, error) {
@@ -299,13 +235,14 @@ func isEmbyTempImageName(name string) bool {
 	return len(body[65:]) > 0
 }
 
-func addItemToEpisodeBuffer(seriesId string, seasonNumber, episodeNumber int) {
+func addItemToEpisodeBuffer(seriesId string, seasonNumber, episodeNumber int, itemID string, fallbackTime time.Time) {
 	newSeriesBufferMu.Lock()
 	defer newSeriesBufferMu.Unlock()
 	if _, exists := newSeriesBuffer[seriesId]; !exists {
 		newSeriesBuffer[seriesId] = newSeries{
 			ID:          seriesId,
 			Seasons:     make(map[int][]int),
+			Episodes:    make(map[string]time.Time),
 			LastUpdated: time.Now(),
 		}
 	}
@@ -314,6 +251,9 @@ func addItemToEpisodeBuffer(seriesId string, seasonNumber, episodeNumber int) {
 		series.Seasons[seasonNumber] = make([]int, 0)
 	}
 	series.Seasons[seasonNumber] = append(series.Seasons[seasonNumber], episodeNumber)
+	if fallbackTime.After(series.Episodes[itemID]) {
+		series.Episodes[itemID] = fallbackTime
+	}
 	series.LastUpdated = time.Now()
 	newSeriesBuffer[seriesId] = series
 	helpers.AppLogger.Infof("已将剧集添加到新剧集缓冲区，seriesID=%s，season=%d，episode=%d", seriesId, seasonNumber, episodeNumber)
@@ -344,7 +284,7 @@ func addItemToDeletedEpisodeBuffer(seriesId string, seasonNumber, episodeNumber 
 	series.Seasons[seasonNumber] = append(series.Seasons[seasonNumber], episodeNumber)
 	series.LastUpdated = time.Now()
 	deletedSeriesBuffer[seriesId] = series
-	helpers.AppLogger.Infof("已将剧集添加到删除剧集缓冲区，seriesID=%s，season=%d，episode=%d", seriesId, seasonNumber, episodeNumber)
+	helpers.AppLogger.Debugf("已将剧集添加到删除剧集缓冲区，seriesID=%s，season=%d，episode=%d", seriesId, seasonNumber, episodeNumber)
 	// 启动轮询协程
 	newSeriesBufferTickerStartedMu.Lock()
 	defer newSeriesBufferTickerStartedMu.Unlock()
@@ -363,16 +303,16 @@ func TestAddItemToEpisodeBuffer() {
 
 	// 测试添加第一个剧集
 	seriesId := "64647"
-	addItemToEpisodeBuffer(seriesId, 1, 9)
-	addItemToEpisodeBuffer(seriesId, 1, 8)
-	addItemToEpisodeBuffer(seriesId, 1, 5)
-	addItemToEpisodeBuffer(seriesId, 1, 4)
-	addItemToEpisodeBuffer(seriesId, 1, 3)
-	addItemToEpisodeBuffer(seriesId, 1, 1)
+	addItemToEpisodeBuffer(seriesId, 1, 9, "649479", time.Now())
+	addItemToEpisodeBuffer(seriesId, 1, 8, "649478", time.Now())
+	addItemToEpisodeBuffer(seriesId, 1, 5, "649475", time.Now())
+	addItemToEpisodeBuffer(seriesId, 1, 4, "649474", time.Now())
+	addItemToEpisodeBuffer(seriesId, 1, 3, "649473", time.Now())
+	addItemToEpisodeBuffer(seriesId, 1, 1, "649471", time.Now())
 	time.Sleep(3 * time.Second)
-	addItemToEpisodeBuffer(seriesId, 2, 1)
-	addItemToEpisodeBuffer(seriesId, 2, 2)
-	addItemToEpisodeBuffer(seriesId, 2, 3)
+	addItemToEpisodeBuffer(seriesId, 2, 1, "649481", time.Now())
+	addItemToEpisodeBuffer(seriesId, 2, 2, "649482", time.Now())
+	addItemToEpisodeBuffer(seriesId, 2, 3, "649483", time.Now())
 }
 
 func startNewSeriesBufferTicker() {
@@ -380,7 +320,9 @@ func startNewSeriesBufferTicker() {
 	defer ticker.Stop()
 	for {
 		<-ticker.C
-		helpers.AppLogger.Infof("检查剧集缓冲区，新增缓冲区大小=%d，删除缓冲区大小=%d", len(newSeriesBuffer), len(deletedSeriesBuffer))
+		newSeriesBufferMu.Lock()
+		deletedSeriesBufferMu.Lock()
+		helpers.AppLogger.Debugf("检查剧集缓冲区，新增缓冲区大小=%d，删除缓冲区大小=%d", len(newSeriesBuffer), len(deletedSeriesBuffer))
 		now := time.Now()
 
 		// 处理新增缓冲区
@@ -389,7 +331,7 @@ func startNewSeriesBufferTicker() {
 			if now.Sub(series.LastUpdated) >= 10*time.Second {
 				helpers.AppLogger.Infof("新剧集缓冲区达到触发时间，发送入库通知，seriesID=%s，季数=%d", series.ID, len(series.Seasons))
 				// 触发通知
-				go sendNewSeriesNotification(series.ID, series.Seasons)
+				go sendNewSeriesNotification(series.ID, series.Seasons, series.Episodes)
 				// 从缓冲区删除，锁定
 				delete(newSeriesBuffer, series.ID)
 			} else {
@@ -402,25 +344,29 @@ func startNewSeriesBufferTicker() {
 		for _, series := range deletedSeriesBuffer {
 			helpers.AppLogger.Infof("检查删除剧集，seriesID=%s，最后更新时间=%s", series.ID, series.LastUpdated.Format("2006-01-02 15:04:05"))
 			if now.Sub(series.LastUpdated) >= 10*time.Second {
-				helpers.AppLogger.Infof("删除剧集缓冲区达到触发时间，发送删除通知，seriesID=%s，季数=%d", series.ID, len(series.Seasons))
+				helpers.AppLogger.Debugf("删除剧集缓冲区达到触发时间，发送删除通知，seriesID=%s，季数=%d", series.ID, len(series.Seasons))
 				// 触发通知
 				go sendDeletedSeriesNotification(series.ID, series.Name, series.Seasons)
 				// 从缓冲区删除，锁定
 				delete(deletedSeriesBuffer, series.ID)
 			} else {
 				// 还没到时间，继续等待
-				helpers.AppLogger.Infof("等待更多剧集删除通知，seriesID=%s，已缓存季数=%d", series.ID, len(series.Seasons))
+				helpers.AppLogger.Debugf("等待更多剧集删除通知，seriesID=%s，已缓存季数=%d", series.ID, len(series.Seasons))
 			}
 		}
 
 		// 检查是否还有数据需要处理，如果没有则退出协程
 		if len(newSeriesBuffer) == 0 && len(deletedSeriesBuffer) == 0 {
-			helpers.AppLogger.Infof("剧集缓冲区已清空，停止轮询协程")
+			helpers.AppLogger.Debugf("剧集缓冲区已清空，停止轮询协程")
 			newSeriesBufferTickerStartedMu.Lock()
 			newSeriesBufferTickerStarted = false
 			newSeriesBufferTickerStartedMu.Unlock()
+			deletedSeriesBufferMu.Unlock()
+			newSeriesBufferMu.Unlock()
 			return
 		}
+		deletedSeriesBufferMu.Unlock()
+		newSeriesBufferMu.Unlock()
 	}
 }
 
@@ -437,7 +383,7 @@ var notificationTemplate = `
 `
 
 // 发送新电影消息
-func sendNewMovieNotification(itemId string) {
+func sendNewMovieNotification(itemId string, fallbackTime time.Time) {
 	detail := emby.GetEmbyItemDetail(itemId)
 	if detail == nil {
 		helpers.AppLogger.Errorf("获取 Emby 媒体 %s 详情失败，无法发送新电影通知", itemId)
@@ -474,13 +420,7 @@ func sendNewMovieNotification(itemId string) {
 		actors = "暂无数据"
 	}
 	content = strings.ReplaceAll(content, "{{actors}}", actors)
-	// 通过格式化 detail.DateCreated 字段得到入库时间，格式：2025-12-10T16:00:00.0000000Z
-	addedTime := time.Now().Format("2006-01-02 15:04:05")
-	if detail.DateCreated != "" {
-		if parsedTime, err := time.Parse(time.RFC3339, detail.DateCreated); err == nil {
-			addedTime = parsedTime.Format("2006-01-02 15:04:05")
-		}
-	}
+	addedTime := parseEmbyNotificationTime(detail.DateCreated, fallbackTime).Format("2006-01-02 15:04:05")
 	content = strings.ReplaceAll(content, "{{addedTime}}", addedTime)
 	// 简介
 	overview := detail.Overview
@@ -494,7 +434,49 @@ func sendNewMovieNotification(itemId string) {
 	sendNewItemNotification(content, detail, "电影")
 }
 
-func sendNewSeriesNotification(seriesId string, seasons map[int][]int) {
+func parseEmbyNotificationTime(value string, fallback time.Time) time.Time {
+	if parsed, err := time.Parse(time.RFC3339, value); err == nil && !parsed.IsZero() {
+		return parsed.In(time.Local)
+	}
+	return fallback.In(time.Local)
+}
+
+func newSeriesAddedTime(ctx context.Context, episodes map[string]time.Time) time.Time {
+	ids := make([]string, 0, len(episodes))
+	for id := range episodes {
+		if id != "" {
+			ids = append(ids, id)
+		}
+	}
+	sort.Strings(ids)
+	created := make(map[string]string, len(ids))
+	client := embyclientrestgo.NewClient(models.GlobalEmbyConfig.EmbyUrl, models.GlobalEmbyConfig.EmbyApiKey)
+	for start := 0; start < len(ids); start += 100 {
+		query := embyclientrestgo.EmbyItemsQuery{
+			IDs:              strings.Join(ids[start:min(start+100, len(ids))], ","),
+			Fields:           "DateCreated",
+			IncludeItemTypes: "Episode",
+		}
+		err := client.FetchMediaItemsByLibraryID(ctx, query, func(item embyclientrestgo.BaseItemDtoV2) error {
+			if item.Type == "Episode" {
+				created[item.Id] = item.DateCreated
+			}
+			return nil
+		})
+		if err != nil {
+			helpers.AppLogger.Warnf("查询入库单集时间失败，缺失的时间使用事件或接收时间")
+		}
+	}
+	var latest time.Time
+	for id, fallback := range episodes {
+		if added := parseEmbyNotificationTime(created[id], fallback); added.After(latest) {
+			latest = added
+		}
+	}
+	return latest
+}
+
+func sendNewSeriesNotification(seriesId string, seasons map[int][]int, episodes map[string]time.Time) {
 	detail := emby.GetEmbyItemDetail(seriesId)
 	if detail == nil {
 		helpers.AppLogger.Errorf("获取 Emby 媒体 %s 详情失败，无法发送新剧集通知", seriesId)
@@ -538,7 +520,9 @@ func sendNewSeriesNotification(seriesId string, seasons map[int][]int) {
 	}
 
 	// 入库时间
-	addedTime := time.Now().Format("2006-01-02 15:04:05")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	addedTime := newSeriesAddedTime(ctx, episodes).Format("2006-01-02 15:04:05")
 	content = strings.ReplaceAll(content, "{{addedTime}}", addedTime)
 	// 简介
 	overview := detail.Overview

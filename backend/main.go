@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"errors"
 	"flag"
 	"fmt"
 	"html/template"
@@ -13,6 +14,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -26,6 +28,7 @@ import (
 	"qmediasync/internal/db"
 	"qmediasync/internal/db/database"
 	"qmediasync/internal/directoryupload"
+	"qmediasync/internal/emby"
 	"qmediasync/internal/github"
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
@@ -96,7 +99,7 @@ func (app *App) Start() {
 			signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 			<-quit
 			log.Println("收到 Ctrl+C 信号")
-			helpers.ExitChan <- struct{}{}
+			helpers.StopApp()
 		}()
 		<-helpers.ExitChan
 		log.Println("收到停止信号")
@@ -118,8 +121,19 @@ func (app *App) Start() {
 func (app *App) Stop() {
 	realtime.GlobalLifecycle.Shutdown()
 	app.shutdownHTTPServers()
+	webhookCtx, cancelWebhook := context.WithTimeout(context.Background(), 10*time.Second)
+	if err := emby.ShutdownWebhookWorker(webhookCtx); err != nil {
+		helpers.AppLogger.Warnf("等待 Emby 通知后台处理结束失败：%v", err)
+	}
+	cancelWebhook()
 	// 关闭同步任务执行队列
 	synccron.PauseAllNewSyncQueues()
+	// 已交接账本使用独立生命周期；在日志关闭前有界取消和保存已知退出结果。
+	ledgerCtx, cancelLedger := context.WithTimeout(context.Background(), 10*time.Second)
+	if err := syncstrm.StopSyncBackgroundService(ledgerCtx); err != nil {
+		helpers.AppLogger.Warnf("等待 STRM 同步文件记录更新结束失败：%v", err)
+	}
+	cancelLedger()
 	// 关闭上传下载队列
 	models.GlobalDownloadQueue.Stop()
 	models.GlobalUploadQueue.Stop()
@@ -215,7 +229,9 @@ func (app *App) StartDatabase() error {
 		sqliteFile := filepath.Join(helpers.ConfigDir, helpers.GlobalConfig.Db.SqliteFile)
 		helpers.AppLogger.Infof("SQLite 数据库文件路径：%s", sqliteFile)
 		db.Db = db.InitSqlite3(sqliteFile)
-		models.Migrate()
+		if err := models.Migrate(); err != nil {
+			return err
+		}
 		if err := models.ResetStaleEmbySyncRunOnStartup(); err != nil {
 			return err
 		}
@@ -239,7 +255,9 @@ func (app *App) StartDatabase() error {
 	if err := db.ConnectPostgres(dbConfig); err != nil {
 		return err
 	}
-	models.Migrate()
+	if err := models.Migrate(); err != nil {
+		return err
+	}
 	if err := models.ResetStaleEmbySyncRunOnStartup(); err != nil {
 		return err
 	}
@@ -458,6 +476,11 @@ func initOthers() {
 	helpers.SubscribeSync(helpers.V115TokenInValidEvent, models.HandleV115TokenInvalid)
 	helpers.SubscribeSync(helpers.SaveOpenListTokenEvent, models.HandleOpenListTokenSaveSync)
 	models.FailAllRunningSyncTasks() // 将所有运行中的同步任务设置为失败状态
+	ledgerCtx, cancelLedger := context.WithTimeout(context.Background(), 10*time.Second)
+	if err := syncstrm.InitSyncBackgroundService(ledgerCtx); err != nil {
+		helpers.AppLogger.Errorf("标记上次未结束的 STRM 同步文件记录更新任务失败：%v", err)
+	}
+	cancelLedger()
 
 	// 设置 115 请求队列的非阻塞统计写入回调。
 	requestStatWriter = models.NewRequestStatWriter()
@@ -482,12 +505,13 @@ func initOthers() {
 	// 下载中的任务改为待下载
 	models.UpdateDownloadingToPending()
 	helpers.Subscribe(helpers.BackupCronEevent, func(event helpers.Event) {
-		backup.Backup("定时", "定时备份")
+		backup.Backup(models.BackupTypeAuto, "定时备份")
 	})
 }
 
 // 设置路由
 func setRouter(r *gin.Engine) {
+	r.Use(controllers.RestoreMaintenanceMiddleware())
 	webStatisPath := filepath.Join(helpers.RootDir, "web_statics")
 	// if helpers.IsFnOS {
 	// 	webStatisPath = filepath.Join(helpers.RootDir, "www")
@@ -517,6 +541,7 @@ func setRouter(r *gin.Engine) {
 	// 需要 JWT 验证的 API 路由
 	api := r.Group("/api")
 	api.Use(controllers.JWTAuthMiddleware())
+	api.GET("/strm/tasks", controllers.ListStrmResults)
 	{
 		api.GET("/logs/stream", controllers.LogStream)                // SSE 日志查看
 		api.GET("/events/stream", controllers.EventStream)            // SSE 事件推送
@@ -664,6 +689,7 @@ func setRouter(r *gin.Engine) {
 
 		// 备份与恢复相关路由
 		api.GET("/backup/list", controllers.GetBackupList)               // 获取备份列表
+		api.GET("/backup/files", controllers.GetBackupFiles)             // 获取本地备份文件列表
 		api.GET("/backup/records/:id", controllers.GetBackupRecord)      // 获取备份记录详情
 		api.POST("/backup/create", controllers.CreateBackup)             // 创建手动备份
 		api.DELETE("/backup/records/:id", controllers.DeleteBackup)      // 删除备份记录
@@ -727,6 +753,9 @@ func initEnv() bool {
 		log.Printf("数据库状态不支持：%v", err)
 		return false
 	}
+	if err := backup.CleanupTemporaryFiles(helpers.ConfigDir); err != nil {
+		log.Printf("清理备份临时文件失败，保留未清理项：%v", err)
+	}
 	ipv4, _ := helpers.GetLocalIP()
 	log.Printf("本机 IPv4 地址：%s\n", ipv4)
 	// 检查配置文件是否存在
@@ -758,9 +787,20 @@ func initEnv() bool {
 		helpers.AppLogger.Errorf("数据库启动失败：%v", err)
 		return false
 	}
+	// 后台任务和 Cron 启动前归并旧进程的备份状态，避免误改本次运行的任务。
+	if err := models.ReconcileInterruptedBackups(); err != nil {
+		helpers.AppLogger.Errorf("更新上次未结束的备份状态失败：%v", err)
+		return false
+	}
 
 	db.InitCache() // 初始化内存缓存
 	initOthers()
+	// 托盘和 HTTP 启动前完成恢复，失败时清理已启动的队列并交给主流程退出。
+	if err := emby.StartWebhookWorker(); err != nil {
+		helpers.AppLogger.Errorf("启动 Emby 通知后台处理失败：%v", err)
+		QMSApp.Stop()
+		return false
+	}
 	return true
 }
 
@@ -800,6 +840,13 @@ func parseParams() {
 // @in query
 // @name api_key
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "--restart-parent" {
+		if err := runRestartProcess(os.Args[2:]); err != nil {
+			log.Printf("重启失败：%v", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if handled, code := runAdminRecoveryCommand(os.Args[1:]); handled {
 		os.Exit(code)
 	}
@@ -827,6 +874,17 @@ func main() {
 	} else {
 		QMSApp.Start()
 	}
+}
+
+func runRestartProcess(args []string) error {
+	if len(args) < 2 || args[1] != "--" {
+		return errors.New("重启参数不足")
+	}
+	pid, err := strconv.Atoi(args[0])
+	if err != nil || pid <= 0 {
+		return errors.New("重启父进程参数无效")
+	}
+	return helpers.RunAppRestart(pid, args[2:])
 }
 
 func isInRestrictedDirectory() (bool, string) {
@@ -941,7 +999,7 @@ func StartConfigWebServer() {
 		}
 		connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=postgres sslmode=%s",
 			req.Host, req.Port, req.User, req.Password, sslMode)
-		sqlDB, err := sql.Open("postgres", connStr)
+		sqlDB, err := sql.Open("pgx", connStr)
 		if err != nil {
 			c.JSON(200, gin.H{"success": false, "error": "连接失败：" + err.Error()})
 			return
@@ -970,7 +1028,7 @@ func StartConfigWebServer() {
 
 		connStrDb := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 			req.Host, req.Port, req.User, req.Password, req.Database, sslMode)
-		sqlDBDb, err := sql.Open("postgres", connStrDb)
+		sqlDBDb, err := sql.Open("pgx", connStrDb)
 		if err != nil {
 			c.JSON(200, gin.H{"success": true, "message": "数据库连接成功", "dbExists": true, "hasOtherTables": false})
 			return
@@ -1015,7 +1073,7 @@ func StartConfigWebServer() {
 				}
 				connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=postgres sslmode=%s",
 					req.Host, req.Port, req.User, req.Password, sslMode)
-				sqlDB, err := sql.Open("postgres", connStr)
+				sqlDB, err := sql.Open("pgx", connStr)
 				if err == nil {
 					ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 					defer cancel()
@@ -1030,7 +1088,20 @@ func StartConfigWebServer() {
 			return
 		}
 
-		c.JSON(200, gin.H{"success": true, "message": "配置已保存，配置服务已退出。重启后请在 Web 页面创建首个管理员。"})
+		autoRestart, err := prepareInitialConfigRestart()
+		if err != nil {
+			log.Printf("配置已保存，但准备 Docker 重启失败：%v", err)
+			c.JSON(200, gin.H{
+				"success": true,
+				"message": "配置已保存，但自动重启准备失败，请手动重启服务。服务启动后请在 Web 页面创建首个管理员。",
+			})
+			return
+		}
+		message := "配置已保存，配置服务即将退出。请按当前部署方式重启服务，启动后请在 Web 页面创建首个管理员。"
+		if autoRestart {
+			message = "配置已保存，正在自动重启并进入正式服务。服务启动后请在 Web 页面创建首个管理员。"
+		}
+		c.JSON(200, gin.H{"success": true, "message": message})
 		go func() {
 			time.Sleep(1 * time.Second)
 			os.Exit(0)
@@ -1046,4 +1117,15 @@ func StartConfigWebServer() {
 	if err := r.Run(":12333"); err != nil {
 		log.Fatalf("启动配置服务失败：%v", err)
 	}
+}
+
+// prepareInitialConfigRestart 仅为支持纯重启的 Docker 入口交付首次配置重启请求。
+func prepareInitialConfigRestart() (bool, error) {
+	if os.Getenv("DOCKER") != "1" || !helpers.SupportsAppRestart() {
+		return false, nil
+	}
+	if err := helpers.PrepareAppRestart(); err != nil {
+		return false, err
+	}
+	return true, nil
 }

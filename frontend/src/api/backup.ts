@@ -18,8 +18,28 @@ export interface BackupStatusResponse {
   total: number
   count: number
   error_msg: string
+  error_code?: string
+  restore_outcome?: '' | 'not_started' | 'rolled_back' | 'committed' | 'uncertain'
   is_running: boolean
   elapsed: number
+  restart_required?: boolean
+  restart_supported?: boolean
+  restart_requested?: boolean
+}
+
+export interface RestoreStartResponse {
+  restore_receipt: string
+}
+
+export interface BackupFile {
+  file_name: string
+  file_size: number
+  modified_at: number
+}
+
+export interface BackupFilesResponse {
+  directory: string
+  files: BackupFile[]
 }
 
 export function getBackupTaskStatus(
@@ -65,30 +85,69 @@ export async function createBackup(http: AxiosInstance, reason: string): Promise
   unwrapResponse(await http.post<APIResponse<null>>(`${SERVER_URL}/backup/create`, { reason }))
 }
 
+export async function fetchBackupFiles(http: AxiosInstance): Promise<BackupFilesResponse> {
+  return unwrapResponse(
+    await http.get<APIResponse<BackupFilesResponse>>(`${SERVER_URL}/backup/files`),
+  )
+}
+
 export async function deleteBackup(http: AxiosInstance, recordId: number): Promise<void> {
   unwrapResponse(await http.delete<APIResponse<null>>(`${SERVER_URL}/backup/records/${recordId}`))
 }
 
-export async function restoreBackup(http: AxiosInstance, recordId: number): Promise<void> {
-  unwrapResponse(
-    await http.post<APIResponse<null>>(`${SERVER_URL}/backup/restore`, { record_id: recordId }),
+export async function restoreBackup(
+  http: AxiosInstance,
+  source: number | { file_name: string },
+): Promise<RestoreStartResponse | null> {
+  return unwrapResponse(
+    await http.post<APIResponse<RestoreStartResponse | null>>(
+      `${SERVER_URL}/backup/restore`,
+      typeof source === 'number' ? { record_id: source } : { file_name: source.file_name },
+    ),
   )
 }
 
-export async function uploadAndRestoreBackup(http: AxiosInstance, file: File): Promise<void> {
+export async function uploadAndRestoreBackup(
+  http: AxiosInstance,
+  file: File,
+): Promise<RestoreStartResponse | null> {
   const form = new FormData()
   form.append('file', file)
-  unwrapResponse(
-    await http.post<APIResponse<null>>(`${SERVER_URL}/backup/upload-restore`, form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 600000,
-    }),
+  return unwrapResponse(
+    await http.post<APIResponse<RestoreStartResponse | null>>(
+      `${SERVER_URL}/backup/upload-restore`,
+      form,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 600000,
+      },
+    ),
   )
 }
 
-export async function fetchBackupStatus(http: AxiosInstance): Promise<BackupStatusResponse> {
+export async function fetchBackupStatus(
+  http: AxiosInstance,
+  restoreReceipt?: string,
+): Promise<BackupStatusResponse> {
   return unwrapResponse(
-    await http.get<APIResponse<BackupStatusResponse>>(`${SERVER_URL}/backup/status`),
+    await http.get<APIResponse<BackupStatusResponse>>(
+      `${SERVER_URL}/backup/status`,
+      restoreReceipt
+        ? { headers: { 'X-Restore-Receipt': restoreReceipt }, skipAuthInvalidation: true }
+        : undefined,
+    ),
+  )
+}
+
+export async function restartAfterRestore(
+  http: AxiosInstance,
+  restoreReceipt: string,
+): Promise<BackupStatusResponse> {
+  return unwrapResponse(
+    await http.post<APIResponse<BackupStatusResponse>>(`${SERVER_URL}/backup/restart`, null, {
+      headers: { 'X-Restore-Receipt': restoreReceipt },
+      skipAuthInvalidation: true,
+    }),
   )
 }
 

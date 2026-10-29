@@ -343,7 +343,8 @@ func TestOpenClientRequestsConcurrentWithCredentialUpdates(t *testing.T) {
 							nil,
 						)
 						if err != nil {
-							expectedEmpty := tt.allowEmpty && err.Error() == "115 账号授权失效，请在网盘账号管理中重新授权"
+							apiErr, ok := errors.AsType[*OpenAPIError](err)
+							expectedEmpty := tt.allowEmpty && ok && apiErr.Code == ACCESS_AUTH_INVALID
 							if !expectedEmpty {
 								t.Errorf("并发请求失败：%v", err)
 								return
@@ -487,5 +488,136 @@ func TestDoAuthRequestCancellationStopsRetryWait(t *testing.T) {
 		&RequestConfig{BypassRateLimit: true, Timeout: time.Second}, nil)
 	if !errors.Is(err, context.Canceled) || transport.requests.Load() != 1 {
 		t.Fatal("已取消请求不能再次进入队列")
+	}
+}
+
+func TestOpenClientSourceReadCancellationStopsHTTP(t *testing.T) {
+	withUnlimitedOpenAPIRequests(t)
+	for _, operation := range []struct {
+		name     string
+		endpoint string
+		call     func(context.Context, *OpenClient) error
+	}{
+		{
+			name:     "download_url",
+			endpoint: "/open/ufile/downurl",
+			call: func(ctx context.Context, client *OpenClient) error {
+				_, err := client.GetDownloadURLWithError(ctx, "pick", "agent", false)
+				return err
+			},
+		},
+		{
+			name:     "deletion_detail",
+			endpoint: "/open/folder/get_info",
+			call: func(ctx context.Context, client *OpenClient) error {
+				_, err := client.GetFsDetailByCidForDeletion(ctx, "9001")
+				return err
+			},
+		},
+	} {
+		for _, timing := range []struct {
+			name   string
+			before bool
+		}{
+			{name: "before_send", before: true},
+			{name: "in_flight"},
+		} {
+			t.Run(operation.name+"/"+timing.name, func(t *testing.T) {
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				if timing.before {
+					cancel()
+				}
+				var calls atomic.Int32
+				transportDone := make(chan error, 1)
+				client := NewClient(1, "app", "token", "refresh")
+				client.SetTransport(playbackTransportFunc(func(req *http.Request) (*http.Response, error) {
+					if calls.Add(1) > 1 {
+						return nil, errors.New("取消后的来源请求发生重试")
+					}
+					if req.URL.Path != operation.endpoint {
+						t.Errorf("来源读取端点 = %s，期望 %s", req.URL.Path, operation.endpoint)
+					}
+					cancel()
+					var transportErr error
+					select {
+					case <-req.Context().Done():
+						transportErr = req.Context().Err()
+					case <-time.After(3 * time.Second):
+						transportErr = errors.New("来源读取取消未传播至 HTTP 请求")
+					}
+					transportDone <- transportErr
+					return nil, transportErr
+				}))
+				if err := operation.call(ctx, client); !errors.Is(err, context.Canceled) {
+					t.Fatalf("来源读取取消错误 = %v", err)
+				}
+				wantCalls := int32(0)
+				if !timing.before {
+					wantCalls = 1
+					select {
+					case err := <-transportDone:
+						if !errors.Is(err, context.Canceled) {
+							t.Error(err)
+						}
+					case <-time.After(5 * time.Second):
+						t.Fatal("取消后来源 HTTP 请求未退出")
+					}
+				}
+				if calls.Load() != wantCalls {
+					t.Fatalf("来源读取 HTTP 请求数 = %d，期望 %d", calls.Load(), wantCalls)
+				}
+			})
+		}
+	}
+}
+
+func TestDoAuthRequestPreservesAuthenticationErrors(t *testing.T) {
+	withUnlimitedOpenAPIRequests(t)
+	for _, tt := range []struct {
+		name         string
+		code, status int
+		emptyToken   bool
+	}{
+		{name: "missing_credentials", code: ACCESS_AUTH_INVALID, emptyToken: true},
+		{name: "expired", code: ACCESS_TOKEN_EXPIRY_CODE},
+		{name: "invalid_access", code: ACCESS_AUTH_INVALID},
+		{name: "auth_failed", code: ACCESS_TOKEN_AUTH_FAIL},
+		{name: "invalid_refresh", code: REFRESH_TOKEN_INVALID},
+		{name: "http_unauthorized", status: http.StatusUnauthorized},
+		{name: "directory_unavailable", code: 430004},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var calls atomic.Int64
+			transport := playbackTransportFunc(func(req *http.Request) (*http.Response, error) {
+				calls.Add(1)
+				status := tt.status
+				if status == 0 {
+					status = http.StatusOK
+				}
+				body := fmt.Sprintf(`{"state":false,"code":%d,"message":"fixture failure"}`, tt.code)
+				if tt.status == http.StatusUnauthorized {
+					body = "unauthorized"
+				}
+				return playbackTestResponse(req, status, body), nil
+			})
+			client := newRefreshTestClient(transport)
+			if tt.emptyToken {
+				client.SetAuthToken("", "")
+			}
+			_, _, err := client.doAuthRequest(t.Context(), OPEN_BASE_URL+"/open/ufile/files", client.client.R().SetMethod("GET"),
+				&RequestConfig{BypassRateLimit: true, Timeout: time.Second}, nil)
+			apiErr, ok := errors.AsType[*OpenAPIError](err)
+			if !ok || apiErr.Code != tt.code || apiErr.HTTPStatus != tt.status {
+				t.Fatalf("error=%+v; want code=%d status=%d", err, tt.code, tt.status)
+			}
+			want := int64(1)
+			if tt.emptyToken {
+				want = 0
+			}
+			if calls.Load() != want {
+				t.Fatalf("requests=%d, want=%d", calls.Load(), want)
+			}
+		})
 	}
 }

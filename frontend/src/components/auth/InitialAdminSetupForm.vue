@@ -24,7 +24,7 @@ const emit = defineEmits<{
 const formRef = useTemplateRef<FormInstance>('formRef')
 const validating = shallowRef(false)
 const form = reactive({
-  username: 'admin',
+  username: '',
   password: '',
   passwordConfirm: '',
 })

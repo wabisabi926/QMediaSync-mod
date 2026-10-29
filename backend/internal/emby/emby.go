@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"slices"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -19,9 +18,12 @@ import (
 
 var embySyncRunning atomic.Int32
 
+// ErrEmbySyncBusy 让持久 Webhook 工作保留待处理状态。
+var ErrEmbySyncBusy = errors.New("Emby 条目同步任务已在运行")
+
 const (
 	embyIncrementalCursorOverlapSeconds int64 = 600
-	embyIncrementalFields                     = "DateCreated,DateModified,ParentId,PremiereDate,MediaStreams,Path,MediaSources,SeriesId,SeasonId,SeriesName,SeasonName,IndexNumber,ParentIndexNumber"
+	embyIncrementalFields                     = embyclientrestgo.EmbySnapshotFields
 )
 
 // IsEmbySyncRunning 检查是否有 Emby 条目同步任务正在运行。
@@ -37,20 +39,15 @@ func SetEmbySyncRunning(running bool) {
 	}
 }
 
-type embySyncTask struct {
-	LibraryId   string
-	LibraryName string
-	Item        embyclientrestgo.BaseItemDtoV2
-}
-
 // PerformEmbySync 全量同步 Emby 条目到本地数据库。
 func PerformEmbySync() (result int, err error) {
+	startedAt := time.Now()
 	// 检查是否已有任务在运行，避免并发执行
 	if IsEmbySyncRunning() {
 		helpers.AppLogger.Warnf("已有 Emby 条目同步任务正在运行，跳过本次执行")
 		return 0, nil
 	}
-	config, cerr := models.GetEmbyConfigFromDB()
+	config, cerr := models.ReadEmbyConfigSnapshot()
 	if cerr != nil {
 		return 0, cerr
 	}
@@ -63,7 +60,8 @@ func PerformEmbySync() (result int, err error) {
 	if !embySyncRunning.CompareAndSwap(0, 1) {
 		return 0, errors.New("Emby 条目同步任务已在运行")
 	}
-	started, serr := models.StartEmbySyncRun(models.EmbySyncModeFull, helpers.NowUnix())
+	scanStartedAt := helpers.NowUnix()
+	started, serr := models.StartEmbySyncRun(models.EmbySyncModeFull, scanStartedAt)
 	if serr != nil {
 		embySyncRunning.Store(0)
 		return 0, serr
@@ -74,13 +72,23 @@ func PerformEmbySync() (result int, err error) {
 		return 0, nil
 	}
 	var processed int64
+	var token models.EmbyIndexToken
+	completed := false
+	selectedLibrariesComplete := true
 	defer func() {
-		embySyncRunning.Store(0)
-		if ferr := models.FinishEmbySyncRun(models.EmbySyncModeFull, processed, helpers.NowUnix(), err); ferr != nil {
+		defer embySyncRunning.Store(0)
+		var cursorAt int64
+		if completed && selectedLibrariesComplete {
+			cursorAt = scanStartedAt
+		}
+		if ferr := models.FinishEmbyIndexSyncRun(token, models.EmbySyncModeFull, processed, helpers.NowUnix(), cursorAt, err); ferr != nil {
 			helpers.AppLogger.Warnf("更新 Emby 同步状态失败：%v", ferr)
 			if err == nil {
 				err = ferr
 			}
+		}
+		if completed && err == nil {
+			helpers.AppLogger.Infof("全量同步 Emby 条目到本地完成，处理 %d 个项目，耗时 %s，网盘查询 0 次", processed, time.Since(startedAt).Round(time.Millisecond))
 		}
 	}()
 
@@ -101,7 +109,7 @@ func PerformEmbySync() (result int, err error) {
 		return 0, errors.New("未获取到任何 Emby 媒体库")
 	}
 	if err := models.UpsertEmbyLibraries(libs); err != nil {
-		helpers.AppLogger.Warnf("保存媒体库信息失败：%v", err)
+		return 0, err
 	}
 
 	// 根据配置过滤媒体库
@@ -119,6 +127,8 @@ func PerformEmbySync() (result int, err error) {
 			for _, id := range selectedLibIds {
 				if lib, ok := libMap[id]; ok {
 					filteredLibs = append(filteredLibs, lib)
+				} else {
+					selectedLibrariesComplete = false
 				}
 			}
 			libs = filteredLibs
@@ -128,113 +138,39 @@ func PerformEmbySync() (result int, err error) {
 			// 	helpers.AppLogger.Warnf("清理未选中媒体库数据失败：%v", err)
 			// }
 		} else {
-			helpers.AppLogger.Warnf("解析选中的媒体库列表失败：%v", err)
+			return 0, err
 		}
 	}
 
+	token, _, err = prepareEmbyIndexForSync(context.Background(), client, config)
+	if err != nil {
+		return 0, err
+	}
 	if len(libs) == 0 {
 		helpers.AppLogger.Info("没有选中任何媒体库，跳过同步")
 		return 0, nil
 	}
 
-	workerCount := 2
-	syncRunID := fmt.Sprintf("full-%d", helpers.NowUnix())
+	syncRunID := fmt.Sprintf("full-%d", time.Now().UnixNano())
 	lastSeenAt := helpers.NowUnix()
-
-	processTask := func(task embySyncTask) {
-		pickCode, mediaPath, err := extractPickCode(task.Item.MediaSources)
-		// pickCode, mediaPath := "", ""
-		if err != nil {
-			// helpers.AppLogger.Warnf("从 MediaSource 中查询 PickCode 失败，item=%s，name=%s，path=%s，err=%v", task.Item.Id, task.Item.Name, mediaPath, err)
-			// 没有 PickCode 不入库
-			return
-		}
-		pathStr := mediaPath
-		if pathStr == "" {
-			pathStr = task.Item.Path
-		}
-		mediaItem := &models.EmbyMediaItem{
-			ItemId:            task.Item.Id,
-			ItemIdInt:         helpers.StringToInt64(task.Item.Id),
-			ServerId:          "",
-			Name:              task.Item.Name,
-			Type:              task.Item.Type,
-			ParentId:          task.Item.ParentId,
-			SeriesId:          task.Item.SeriesId,
-			SeasonId:          task.Item.SeasonId,
-			SeasonName:        task.Item.SeasonName,
-			SeriesName:        task.Item.SeriesName,
-			LibraryId:         task.LibraryId,
-			Path:              pathStr,
-			PickCode:          pickCode,
-			MediaSourcePath:   mediaPath,
-			IndexNumber:       task.Item.IndexNumber,
-			ParentIndexNumber: task.Item.ParentIndexNumber,
-			ProductionYear:    task.Item.ProductionYear,
-			PremiereDate:      task.Item.PremiereDate,
-			DateCreated:       task.Item.DateCreated,
-			DateModified:      task.Item.DateModified,
-			IsFolder:          task.Item.IsFolder,
-			LastSeenSyncRun:   syncRunID,
-			LastSeenAt:        lastSeenAt,
-		}
-		// 将 DateCreated 转成时间戳赋值给 DateCreatedTime
-		if mediaItem.DateCreated != "" {
-			if t, err := time.Parse(time.RFC3339, mediaItem.DateCreated); err == nil {
-				mediaItem.DateCreatedTime = t.Unix()
-			}
-		}
-		// 将 DateModified 转成时间戳赋值给 DateModifiedTime
-		if mediaItem.DateModified != "" {
-			if t, err := time.Parse(time.RFC3339, mediaItem.DateModified); err == nil {
-				mediaItem.DateModifiedTime = t.Unix()
-			}
-		}
-		if err := models.CreateOrUpdateEmbyMediaItem(mediaItem); err != nil {
-			helpers.AppLogger.Errorf("保存 Emby 媒体项失败，ID=%s，名称=%s，错误=%v", task.Item.Id, task.Item.Name, err)
-			return
-		}
-		atomic.AddInt64(&processed, 1)
-		if pickCode != "" {
-			if sf := models.GetFileByPickCode(pickCode); sf != nil {
-				if err := models.CreateEmbyMediaSyncFile(task.Item.Id, sf.ID, pickCode, sf.SyncPathId); err != nil {
-					helpers.AppLogger.Warnf("关联 SyncFile 失败，Item ID=%s，PickCode=%s，错误=%v", task.Item.Id, pickCode, err)
-				}
-				models.CreateOrUpdateEmbyLibrarySyncPath(task.LibraryId, sf.SyncPathId, task.LibraryName)
-			}
-		}
-	}
-
+	handled := make(map[string]bool)
+	var runErrors []error
 	for _, lib := range libs {
-		jobs := make(chan embySyncTask, workerCount*2)
-		var wg sync.WaitGroup
-		for range workerCount {
-			wg.Go(func() {
-				for task := range jobs {
-					processTask(task)
-				}
-			})
+		count, gerr := syncEmbyLibrary(context.Background(), client,
+			embyclientrestgo.EmbyItemsQuery{LibraryID: lib.ID, Fields: embyIncrementalFields},
+			lib.Name, syncRunID, lastSeenAt, token, handled)
+		processed += count
+		if gerr == nil {
+			gerr = models.CleanupEmbyLibrarySnapshot(token, lib.ID, syncRunID)
 		}
-
-		gerr := client.FetchMediaItemsByLibraryID(
-			context.Background(),
-			embyclientrestgo.EmbyItemsQuery{LibraryID: lib.ID},
-			func(item embyclientrestgo.BaseItemDtoV2) error {
-				jobs <- embySyncTask{LibraryId: lib.ID, LibraryName: lib.Name, Item: item}
-				return nil
-			},
-		)
-		close(jobs)
-		wg.Wait()
 		if gerr != nil {
-			helpers.AppLogger.Warnf("获取媒体库 %s 失败：%v", lib.Name, gerr)
-			continue
-		}
-		if err := models.CleanupStaleEmbyMediaItemsByLibrarySyncRun(lib.ID, syncRunID); err != nil {
-			helpers.AppLogger.Warnf("清理媒体库 %s 过期 Emby 条目失败：%v", lib.Name, err)
+			runErrors = append(runErrors, fmt.Errorf("媒体库 %s 同步失败：%w", lib.ID, gerr))
 		}
 	}
-	helpers.AppLogger.Infof("全量同步 Emby 条目到本地完成，处理 %d 个项目", processed)
+	if len(runErrors) > 0 {
+		return int(processed), errors.Join(runErrors...)
+	}
+	completed = true
 	return int(processed), nil
 }
 
@@ -252,11 +188,12 @@ func buildMinDateLastSaved(cursor int64, overlapSeconds int64) string {
 
 // PerformEmbyIncrementalSync 增量同步 Emby 条目到本地数据库。
 func PerformEmbyIncrementalSync() (result int, err error) {
+	startedAt := time.Now()
 	if IsEmbySyncRunning() {
 		helpers.AppLogger.Warnf("已有 Emby 条目同步任务正在运行，跳过本次执行")
 		return 0, nil
 	}
-	config, cerr := models.GetEmbyConfigFromDB()
+	config, cerr := models.ReadEmbyConfigSnapshot()
 	if cerr != nil {
 		return 0, cerr
 	}
@@ -281,13 +218,18 @@ func PerformEmbyIncrementalSync() (result int, err error) {
 		return 0, nil
 	}
 	var processed int64
+	var token models.EmbyIndexToken
+	completed := false
 	defer func() {
-		embySyncRunning.Store(0)
-		if ferr := models.FinishEmbyIncrementalSyncRun(processed, helpers.NowUnix(), scanStartedAt, err); ferr != nil {
+		defer embySyncRunning.Store(0)
+		if ferr := models.FinishEmbyIndexSyncRun(token, models.EmbySyncModeIncremental, processed, helpers.NowUnix(), scanStartedAt, err); ferr != nil {
 			helpers.AppLogger.Warnf("更新 Emby 增量同步状态失败：%v", ferr)
 			if err == nil {
 				err = ferr
 			}
+		}
+		if completed && err == nil {
+			helpers.AppLogger.Infof("增量同步 Emby 条目到本地完成，处理 %d 个项目，耗时 %s，网盘查询 0 次", processed, time.Since(startedAt).Round(time.Millisecond))
 		}
 	}()
 
@@ -297,7 +239,7 @@ func PerformEmbyIncrementalSync() (result int, err error) {
 		return 0, err
 	}
 	if err := models.UpsertEmbyLibraries(libs); err != nil {
-		helpers.AppLogger.Warnf("保存媒体库信息失败：%v", err)
+		return 0, err
 	}
 	if config.SyncAllLibraries == 0 {
 		var selectedLibIds []string
@@ -314,15 +256,24 @@ func PerformEmbyIncrementalSync() (result int, err error) {
 			}
 			libs = filteredLibs
 		} else {
-			helpers.AppLogger.Warnf("解析选中的媒体库列表失败：%v", err)
+			return 0, err
 		}
 	}
 
+	var recoveredSurvivors bool
+	token, recoveredSurvivors, err = prepareEmbyIndexForSync(context.Background(), client, config)
+	if err != nil {
+		return 0, err
+	}
 	minDateLastSaved := buildMinDateLastSaved(config.LastSavedCursorAt, embyIncrementalCursorOverlapSeconds)
-	handledItemIDs := make(map[string]struct{})
+	if recoveredSurvivors {
+		// 失败删除后的存活项可能没有新的 DateLastSaved；本轮从头读取，但仍不清旧。
+		minDateLastSaved = buildMinDateLastSaved(0, embyIncrementalCursorOverlapSeconds)
+	}
+	handledItemIDs := make(map[string]bool)
 	for _, lib := range libs {
-		gerr := client.FetchMediaItemsByLibraryID(
-			context.Background(),
+		count, gerr := syncEmbyLibrary(
+			context.Background(), client,
 			embyclientrestgo.EmbyItemsQuery{
 				LibraryID:         lib.ID,
 				Limit:             100,
@@ -333,87 +284,34 @@ func PerformEmbyIncrementalSync() (result int, err error) {
 				Fields:            embyIncrementalFields,
 				LastDateCreatedAt: 0,
 			},
-			func(item embyclientrestgo.BaseItemDtoV2) error {
-				if _, ok := handledItemIDs[item.Id]; ok {
-					return nil
-				}
-				handledItemIDs[item.Id] = struct{}{}
-
-				pickCode, mediaPath, err := extractPickCode(item.MediaSources)
-				if err != nil {
-					return nil
-				}
-				pathStr := mediaPath
-				if pathStr == "" {
-					pathStr = item.Path
-				}
-				mediaItem := &models.EmbyMediaItem{
-					ItemId:            item.Id,
-					ItemIdInt:         helpers.StringToInt64(item.Id),
-					ServerId:          "",
-					Name:              item.Name,
-					Type:              item.Type,
-					ParentId:          item.ParentId,
-					SeriesId:          item.SeriesId,
-					SeasonId:          item.SeasonId,
-					SeasonName:        item.SeasonName,
-					SeriesName:        item.SeriesName,
-					LibraryId:         lib.ID,
-					Path:              pathStr,
-					PickCode:          pickCode,
-					MediaSourcePath:   mediaPath,
-					IndexNumber:       item.IndexNumber,
-					ParentIndexNumber: item.ParentIndexNumber,
-					ProductionYear:    item.ProductionYear,
-					PremiereDate:      item.PremiereDate,
-					DateCreated:       item.DateCreated,
-					DateModified:      item.DateModified,
-					IsFolder:          item.IsFolder,
-					LastSeenAt:        scanStartedAt,
-				}
-				if item.DateCreated != "" {
-					if t, err := time.Parse(time.RFC3339, item.DateCreated); err == nil {
-						mediaItem.DateCreatedTime = t.Unix()
-					}
-				}
-				if item.DateModified != "" {
-					if t, err := time.Parse(time.RFC3339, item.DateModified); err == nil {
-						mediaItem.DateModifiedTime = t.Unix()
-					}
-				}
-				if err := models.CreateOrUpdateEmbyMediaItem(mediaItem); err != nil {
-					return err
-				}
-				processed++
-				if pickCode != "" {
-					if sf := models.GetFileByPickCode(pickCode); sf != nil {
-						if err := models.CreateEmbyMediaSyncFile(item.Id, sf.ID, pickCode, sf.SyncPathId); err != nil {
-							helpers.AppLogger.Warnf("关联 SyncFile 失败，Item ID=%s，PickCode=%s，错误=%v", item.Id, pickCode, err)
-						}
-						models.CreateOrUpdateEmbyLibrarySyncPath(lib.ID, sf.SyncPathId, lib.Name)
-					}
-				}
-				return nil
-			},
+			lib.Name, "", scanStartedAt, token, handledItemIDs,
 		)
+		processed += count
 		if gerr != nil {
 			return int(processed), gerr
 		}
 	}
-	helpers.AppLogger.Infof("增量同步 Emby 条目到本地完成，处理 %d 个项目", processed)
+	completed = true
 	return int(processed), nil
 }
 
 // SyncEmbyItemByID 按 item ID 从 Emby 查询并同步单个条目。
 func SyncEmbyItemByID(itemID string) (changed bool, err error) {
+	return SyncEmbyItemByIDContext(context.Background(), itemID)
+}
+
+// SyncEmbyItemByIDContext 允许后台服务停止时取消远端单条同步。
+func SyncEmbyItemByIDContext(ctx context.Context, itemID string) (changed bool, err error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
 	if strings.TrimSpace(itemID) == "" {
 		return false, nil
 	}
 	if IsEmbySyncRunning() {
-		helpers.AppLogger.Warnf("已有 Emby 条目同步任务正在运行，跳过 Webhook 单条同步：%s", itemID)
-		return false, nil
+		return false, ErrEmbySyncBusy
 	}
-	config, cerr := models.GetEmbyConfigFromDB()
+	config, cerr := models.ReadEmbyConfigSnapshot()
 	if cerr != nil {
 		return false, cerr
 	}
@@ -424,7 +322,7 @@ func SyncEmbyItemByID(itemID string) (changed bool, err error) {
 		return false, errors.New("Emby 条目同步未启用")
 	}
 	if !embySyncRunning.CompareAndSwap(0, 1) {
-		return false, errors.New("Emby 条目同步任务已在运行")
+		return false, ErrEmbySyncBusy
 	}
 	started, serr := models.StartEmbySyncRun(models.EmbySyncModeWebhook, helpers.NowUnix())
 	if serr != nil {
@@ -433,14 +331,14 @@ func SyncEmbyItemByID(itemID string) (changed bool, err error) {
 	}
 	if !started {
 		embySyncRunning.Store(0)
-		helpers.AppLogger.Warnf("已有 Emby 条目同步任务正在运行，跳过 Webhook 单条同步：%s", itemID)
-		return false, nil
+		return false, ErrEmbySyncBusy
 	}
 
 	var processed int64
+	var token models.EmbyIndexToken
 	defer func() {
 		embySyncRunning.Store(0)
-		if ferr := models.FinishEmbySyncRun(models.EmbySyncModeWebhook, processed, helpers.NowUnix(), err); ferr != nil {
+		if ferr := models.FinishEmbyIndexSyncRun(token, models.EmbySyncModeWebhook, processed, helpers.NowUnix(), 0, err); ferr != nil {
 			helpers.AppLogger.Warnf("更新 Emby Webhook 同步状态失败：%v", ferr)
 			if err == nil {
 				err = ferr
@@ -449,35 +347,17 @@ func SyncEmbyItemByID(itemID string) (changed bool, err error) {
 	}()
 
 	client := embyclientrestgo.NewClient(config.EmbyUrl, config.EmbyApiKey)
-	var found *embyclientrestgo.BaseItemDtoV2
-	err = client.FetchMediaItemsByLibraryID(
-		context.Background(),
-		embyclientrestgo.EmbyItemsQuery{
-			IDs:              itemID,
-			Limit:            1,
-			IncludeItemTypes: "Movie,Video,Episode",
-			Fields:           embyIncrementalFields,
-		},
-		func(item embyclientrestgo.BaseItemDtoV2) error {
-			if item.Id == itemID {
-				itemCopy := item
-				found = &itemCopy
-			}
-			return nil
-		},
-	)
+	var snapshots []models.EmbyItemSnapshot
+	var rootID string
+	token, rootID, snapshots, err = prepareEmbyItemSnapshots(ctx, client, config, itemID)
 	if err != nil {
 		return false, err
 	}
-	if found == nil {
+	if len(snapshots) == 0 {
 		helpers.AppLogger.Warnf("Webhook 单条同步未找到 Emby 条目：%s", itemID)
 		return false, nil
 	}
-	if found.Type != "Movie" && found.Type != "Video" && found.Type != "Episode" {
-		helpers.AppLogger.Warnf("Webhook 单条同步跳过不支持的 Emby 条目类型：%s %s", itemID, found.Type)
-		return false, nil
-	}
-	libraryID, libraryName, err := resolveEmbyItemLibrary(client, found.Id)
+	libraryID, libraryName, err := resolveEmbyItemLibraryContext(ctx, client, rootID)
 	if err != nil {
 		return false, err
 	}
@@ -486,68 +366,32 @@ func SyncEmbyItemByID(itemID string) (changed bool, err error) {
 		return false, nil
 	}
 
-	pickCode, mediaPath, err := extractPickCode(found.MediaSources)
-	if err != nil {
-		helpers.AppLogger.Warnf("Webhook 单条同步未解析到 PickCode，跳过条目：%s", itemID)
-		return false, nil
+	seenAt := helpers.NowUnix()
+	for i := range snapshots {
+		snapshots[i].Item.LibraryId = libraryID
+		snapshots[i].LibraryName = libraryName
+		snapshots[i].Item.LastSeenAt = seenAt
 	}
-	pathStr := mediaPath
-	if pathStr == "" {
-		pathStr = found.Path
-	}
-	mediaItem := &models.EmbyMediaItem{
-		ItemId:            found.Id,
-		ItemIdInt:         helpers.StringToInt64(found.Id),
-		ServerId:          "",
-		Name:              found.Name,
-		Type:              found.Type,
-		ParentId:          found.ParentId,
-		SeriesId:          found.SeriesId,
-		SeasonId:          found.SeasonId,
-		SeasonName:        found.SeasonName,
-		SeriesName:        found.SeriesName,
-		LibraryId:         libraryID,
-		Path:              pathStr,
-		PickCode:          pickCode,
-		MediaSourcePath:   mediaPath,
-		IndexNumber:       found.IndexNumber,
-		ParentIndexNumber: found.ParentIndexNumber,
-		ProductionYear:    found.ProductionYear,
-		PremiereDate:      found.PremiereDate,
-		DateCreated:       found.DateCreated,
-		DateModified:      found.DateModified,
-		IsFolder:          found.IsFolder,
-		LastSeenAt:        helpers.NowUnix(),
-	}
-	if found.DateCreated != "" {
-		if t, err := time.Parse(time.RFC3339, found.DateCreated); err == nil {
-			mediaItem.DateCreatedTime = t.Unix()
-		}
-	}
-	if found.DateModified != "" {
-		if t, err := time.Parse(time.RFC3339, found.DateModified); err == nil {
-			mediaItem.DateModifiedTime = t.Unix()
-		}
-	}
-	if err := models.CreateOrUpdateEmbyMediaItem(mediaItem); err != nil {
+	if err := enrichEmbyCleanupEvidence(ctx, client, snapshots); err != nil {
 		return false, err
 	}
-	processed = 1
-	if sf := models.GetFileByPickCode(pickCode); sf != nil {
-		if err := models.CreateEmbyMediaSyncFile(found.Id, sf.ID, pickCode, sf.SyncPathId); err != nil {
-			helpers.AppLogger.Warnf("关联 SyncFile 失败，Item ID=%s，PickCode=%s，错误=%v", found.Id, pickCode, err)
+	if err := models.ApplyEmbySnapshots(token, snapshots); err != nil {
+		if errors.Is(err, models.ErrEmbyItemDeleted) {
+			// 重读时物理组可能新增仍受保护的成员，交回现有读冲突重试，不继续准入。
+			return false, fmt.Errorf("%w: %v", models.ErrEmbySnapshotStale, err)
 		}
-		if mediaItem.LibraryId != "" {
-			if err := models.CreateOrUpdateEmbyLibrarySyncPath(mediaItem.LibraryId, sf.SyncPathId, libraryName); err != nil {
-				helpers.AppLogger.Warnf("关联 Emby 媒体库与同步目录失败，Library ID=%s，SyncPath ID=%d，错误=%v", mediaItem.LibraryId, sf.SyncPathId, err)
-			}
-		}
+		return false, err
 	}
+	processed = int64(len(snapshots))
 	return true, nil
 }
 
 func resolveEmbyItemLibrary(client *embyclientrestgo.Client, itemID string) (libraryID string, libraryName string, err error) {
-	libraries, err := client.GetItemLibraryId(itemID)
+	return resolveEmbyItemLibraryContext(context.Background(), client, itemID)
+}
+
+func resolveEmbyItemLibraryContext(ctx context.Context, client *embyclientrestgo.Client, itemID string) (libraryID string, libraryName string, err error) {
+	libraries, err := client.GetItemLibraryIDContext(ctx, itemID)
 	if err != nil {
 		return "", "", err
 	}
@@ -591,142 +435,9 @@ func isEmbyLibrarySelected(config *models.EmbyConfig, libraryID string) bool {
 }
 
 // IncrementalSyncEmbyMediaItems 按 item ID 同步 Emby 条目到本地。
-func IncrementalSyncEmbyMediaItems(itemId string) (err error) {
-	// 检查是否已有任务在运行，避免并发执行
-	if IsEmbySyncRunning() {
-		helpers.AppLogger.Warnf("已有 Emby 条目同步任务正在运行，跳过本次执行")
-		return nil
-	}
-	config, cerr := models.GetEmbyConfigFromDB()
-	if cerr != nil {
-		return cerr
-	}
-	if config.EmbyUrl == "" || config.EmbyApiKey == "" {
-		return errors.New("Emby URL 或 API Key 为空")
-	}
-	if config.SyncEnabled != 1 {
-		return errors.New("Emby 条目同步未启用")
-	}
-	if !embySyncRunning.CompareAndSwap(0, 1) {
-		return errors.New("Emby 条目同步任务已在运行")
-	}
-	started, serr := models.StartEmbySyncRun(models.EmbySyncModeWebhook, helpers.NowUnix())
-	if serr != nil {
-		embySyncRunning.Store(0)
-		return serr
-	}
-	if !started {
-		embySyncRunning.Store(0)
-		helpers.AppLogger.Warnf("已有 Emby 条目同步任务正在运行，跳过本次执行")
-		return nil
-	}
-	var processed int64
-	defer func() {
-		embySyncRunning.Store(0)
-		if ferr := models.FinishEmbySyncRun(models.EmbySyncModeWebhook, processed, helpers.NowUnix(), err); ferr != nil {
-			helpers.AppLogger.Warnf("更新 Emby 同步状态失败：%v", ferr)
-			if err == nil {
-				err = ferr
-			}
-		}
-	}()
-
-	client := embyclientrestgo.NewClient(config.EmbyUrl, config.EmbyApiKey)
-	users, err := client.GetUsersWithAllLibrariesAccess()
-	if err != nil {
-		return err
-	}
-	if len(users) == 0 {
-		return errors.New("没有找到可访问全部媒体库的 Emby 用户")
-	}
-	// 查询 item ID 所属的媒体库
-	librarys, err := client.GetItemLibraryId(itemId)
-	if err != nil {
-		return err
-	}
-	if len(librarys) == 0 {
-		return errors.New("没有找到可访问的媒体库")
-	}
-	for _, lib := range librarys {
-		lastDateCreatedTime := models.GetLastItemDateCreatedTimeByLibraryID(lib.ID)
-		if lastDateCreatedTime == 0 {
-			helpers.AppLogger.Warnf("获取媒体库 %s 最后一次同步时间失败，可能是因为没有同步过任何媒体项", lib.ID)
-			continue
-		}
-		gerr := client.FetchMediaItemsByLibraryID(
-			context.Background(),
-			embyclientrestgo.EmbyItemsQuery{
-				LibraryID:         lib.ID,
-				LastDateCreatedAt: lastDateCreatedTime,
-			},
-			func(item embyclientrestgo.BaseItemDtoV2) error {
-				pickCode, mediaPath, err := extractPickCode(item.MediaSources)
-				// pickCode, mediaPath := "", ""
-				if err != nil {
-					return nil
-				}
-				pathStr := mediaPath
-				if pathStr == "" {
-					pathStr = item.Path
-				}
-				mediaItem := &models.EmbyMediaItem{
-					ItemId:            item.Id,
-					ItemIdInt:         helpers.StringToInt64(item.Id),
-					ServerId:          "",
-					Name:              item.Name,
-					Type:              item.Type,
-					ParentId:          item.ParentId,
-					SeriesId:          item.SeriesId,
-					SeasonId:          item.SeasonId,
-					SeasonName:        item.SeasonName,
-					SeriesName:        item.SeriesName,
-					LibraryId:         lib.ID,
-					Path:              pathStr,
-					PickCode:          pickCode,
-					MediaSourcePath:   mediaPath,
-					IndexNumber:       item.IndexNumber,
-					ParentIndexNumber: item.ParentIndexNumber,
-					ProductionYear:    item.ProductionYear,
-					PremiereDate:      item.PremiereDate,
-					DateCreated:       item.DateCreated,  // 2026-01-21T16:00:00.0000000Z
-					DateModified:      item.DateModified, // 2026-01-21T16:00:00.0000000Z
-					IsFolder:          item.IsFolder,
-				}
-				// 将 DateCreated 转成时间戳赋值给 DateCreatedTime
-				if item.DateCreated != "" {
-					if t, err := time.Parse(time.RFC3339, item.DateCreated); err == nil {
-						mediaItem.DateCreatedTime = t.Unix()
-					}
-				}
-				// 将 DateModified 转成时间戳赋值给 DateModifiedTime
-				if item.DateModified != "" {
-					if t, err := time.Parse(time.RFC3339, item.DateModified); err == nil {
-						mediaItem.DateModifiedTime = t.Unix()
-					}
-				}
-				if err := models.CreateOrUpdateEmbyMediaItem(mediaItem); err != nil {
-					helpers.AppLogger.Errorf("保存 Emby 媒体项失败，ID=%s，名称=%s，错误=%v", item.Id, item.Name, err)
-					return nil
-				}
-				processed++
-				if pickCode != "" {
-					if sf := models.GetFileByPickCode(pickCode); sf != nil {
-						if err := models.CreateEmbyMediaSyncFile(item.Id, sf.ID, pickCode, sf.SyncPathId); err != nil {
-							helpers.AppLogger.Warnf("关联 SyncFile 失败，Item ID=%s，PickCode=%s，错误=%v", item.Id, pickCode, err)
-						}
-						models.CreateOrUpdateEmbyLibrarySyncPath(lib.ID, sf.SyncPathId, lib.Name)
-					}
-				}
-				return nil
-			},
-		)
-		if gerr != nil {
-			helpers.AppLogger.Warnf("获取媒体库 %s 失败：%v", lib.ID, gerr)
-			continue
-		}
-	}
-
-	return nil
+func IncrementalSyncEmbyMediaItems(itemId string) error {
+	_, err := SyncEmbyItemByID(itemId)
+	return err
 }
 
 func extractPickCode(ms []embyclientrestgo.MediaSource) (string, string, error) {

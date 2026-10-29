@@ -16,7 +16,8 @@ import (
 	"resty.dev/v3"
 )
 
-var errTokenExpired = errors.New("token expired")
+// ErrTokenExpired 表示访问凭证失效，或既有认证恢复后仍无法继续请求。
+var ErrTokenExpired = errors.New("token expired")
 
 // Client OpenList 客户端
 // 共享后通过 NewClient 和 Token 方法读写配置，避免直接访问可变字段。
@@ -155,13 +156,16 @@ func (c *Client) doRequestWithState(path string, req *resty.Request, options *Re
 			return resp, nil
 		}
 		lastErr = err
-		if errors.Is(err, errTokenExpired) {
+		if errors.Is(err, ErrTokenExpired) {
+			if options.skipAuthRetry {
+				return resp, ErrTokenExpired
+			}
 			if path == "/api/auth/login" || state.username == "" || state.password == "" {
 				return nil, err
 			}
 			// 每个业务请求仅允许一次认证恢复，不消耗普通重试预算。
 			if authRetried {
-				return nil, errors.New("访问凭证刷新后仍被拒绝")
+				return nil, fmt.Errorf("访问凭证刷新后仍被拒绝：%w", ErrTokenExpired)
 			}
 			// 同一客户端按地址和登录凭据合并并发刷新，避免跨地址复用 Token。
 			key := strings.TrimRight(state.baseURL, "/") + "\x00" + state.username + "\x00" + state.password
@@ -178,7 +182,7 @@ func (c *Client) doRequestWithState(path string, req *resty.Request, options *Re
 				return nil, req.Context().Err()
 			case refreshed := <-refresh:
 				if refreshed.Err != nil {
-					return nil, errTokenExpired
+					return nil, ErrTokenExpired
 				}
 				state.accessToken = refreshed.Val.(*TokenData).Token
 			}
@@ -207,6 +211,7 @@ func (c *Client) request(path string, req *resty.Request, state *clientState) (*
 	// req.SetResponseForceContentType("application/json")
 	var response *resty.Response
 	var err error
+	req.SetResponseBodyUnlimitedReads(true)
 	// URL 和凭据来自同一快照，锁不跨 HTTP 请求或同步事件回调。
 	url := strings.TrimRight(state.baseURL, "/") + path
 	if state.accessToken != "" {
@@ -225,31 +230,35 @@ func (c *Client) request(path string, req *resty.Request, state *clientState) (*
 	if err != nil {
 		return response, err
 	}
-	result := response.Result()
-	data, err := json.Marshal(result)
-	if err != nil {
-		helpers.OpenListLog.Errorf("OpenList 请求 %s %s 序列化失败：%+v", req.Method, req.URL, err)
-		return response, err
+	if response.StatusCode() == http.StatusUnauthorized {
+		return response, ErrTokenExpired
 	}
-	var jsonResult map[string]any
-	err = json.Unmarshal(data, &jsonResult)
-	if err != nil {
-		helpers.OpenListLog.Errorf("OpenList 请求 %s %s 反序列化失败：%+v", req.Method, req.URL, err)
-		return response, err
+	if response.StatusCode() < http.StatusOK || response.StatusCode() >= http.StatusMultipleChoices {
+		return response, fmt.Errorf("OpenList HTTP 状态异常：%d", response.StatusCode())
 	}
-	// helpers.OpenListLog.Infof("认证访问 %s %s\nstate=%v, code=%d, msg=%s, data=%s\n", req.Method, req.URL, resp.State, resp.Code, resp.Message, string(resp.Data))
+	data := response.Bytes()
+	var envelope struct {
+		Code    *int   `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(data, &envelope); err != nil {
+		return response, fmt.Errorf("OpenList 响应格式无效：%w", err)
+	}
 	if path != "/api/auth/login" {
 		helpers.OpenListLog.Infof("%s %s 请求数据：%+v 返回值：%s\n", req.Method, req.URL, req.Body, string(data))
 	}
-	if data != nil && jsonResult != nil {
-		switch jsonResult["code"].(float64) {
-		case http.StatusUnauthorized:
-			return response, errTokenExpired
-		}
-		if jsonResult["code"].(float64) != http.StatusOK {
-			helpers.OpenListLog.Errorf("OpenList 请求 %s %s 失败：%s", req.Method, req.URL, jsonResult["message"].(string))
-			return response, fmt.Errorf("%s", jsonResult["message"].(string))
-		}
+	if envelope.Code == nil {
+		return response, fmt.Errorf("OpenList 响应缺少业务状态")
 	}
+	if *envelope.Code == http.StatusUnauthorized {
+		return response, ErrTokenExpired
+	}
+	if *envelope.Code != http.StatusOK {
+		if envelope.Message != "" {
+			return response, fmt.Errorf("%s", envelope.Message)
+		}
+		return response, fmt.Errorf("OpenList 业务状态异常：%d", *envelope.Code)
+	}
+
 	return response, nil
 }

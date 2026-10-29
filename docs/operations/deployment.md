@@ -16,6 +16,8 @@
 | 发布二进制 | Windows 或直接管理 Linux 进程 | 可执行文件同级的 `config/` |
 | 飞牛 FPK | 飞牛系统 | 平台的应用共享目录下 `config/`，由安装向导和 `TRIM_*` 环境变量管理 |
 
+正常启动在取得配置目录实例锁后、后台任务和 HTTP 服务启动前，会清理备份功能明确命名的遗留临时文件；正式 ZIP、配置和无法确认归属的旧目录保留。清理范围和文件发布保证见[数据库运维](database.md#备份)。
+
 配置文件、SQLite 数据库、备份、日志、本机加密密钥和用户设置都依赖配置目录。升级、迁移或重建容器前必须备份并保留该目录；不能只保留可执行文件或镜像层。旧实例遗留的内嵌 PostgreSQL 数据也应保留，升级前按 [数据库运维](database.md#旧内嵌数据库) 完成数据处理；当前版本不提供自动迁移。
 
 默认 HTTP 端口为 `12333`。Docker 和发布二进制部署中，主程序只有在运行目录 `config/server.crt` 和 `config/server.key` 都存在时才额外监听 HTTPS `12332`。Emby 302 服务使用 `8095`（HTTP）和 `8094`（HTTPS）；仅在已配置 Emby 时启动。端口、证书和代理层细节分别见 [配置、密钥与日志](configuration.md) 与 [反向代理与 SSE](reverse-proxy.md)。
@@ -76,14 +78,32 @@ docker build -f docker/source.local.Dockerfile -t qmediasync:local .
 
 发布包解压后，从包含 `QMediaSync` 和 `web_statics/` 的目录启动程序。Linux 与 Windows 都把运行配置保存在可执行文件同级的 `config/`；因此替换程序和静态资源时不得覆盖该目录。
 
-`scripts/install/linux-init.sh` 是 Linux 上的PostgreSQL 与 systemd 辅助脚本：它可安装或初始化 PostgreSQL、创建数据库和用户，并用 `-i` 创建 `qmediasync.service`。脚本要求在发布二进制所在目录运行，并要求 root 与 systemd；它不是 Docker 或飞牛的安装入口。
+`scripts/install/linux-init.sh` 是 Linux 上的 PostgreSQL 与 systemd 辅助脚本：它会先安装或初始化 PostgreSQL、创建数据库和用户，使用 `-i` 时还会创建 `qmediasync.service`。发布压缩包不包含此脚本，须从主仓库另行取得；运行时的工作目录必须是发布二进制所在目录，并要求 root 与 systemd。仅为 SQLite 实例配置开机启动时应自行创建服务，不能把此脚本当作通用 systemd 安装入口。
 
 ```bash
-sudo scripts/install/linux-init.sh -i
+# 在发布二进制所在目录运行；替换为已取得脚本的实际路径。
+sudo bash /实际脚本路径/linux-init.sh -i
 systemctl status qmediasync
 ```
 
 脚本创建的服务从当前目录执行 `QMediaSync`，不依赖旧 `postgres.env`，也不向 shell 启动文件写入 `DB_*` 环境变量。脚本不会生成应用数据库配置；新实例应通过首次配置向导或 `config/config.yaml` 填写数据库连接信息，SSL 同样由 YAML 配置。
+
+## 恢复后重启应用
+
+数据库恢复进入维护后，程序保持暂停直到重启。恢复结果页面保留成功或失败说明，由用户点击“重启服务”；预检失败尚未进入维护时无需重启。回执授权和结果语义见[备份和恢复状态](database.md#备份和恢复状态)。
+
+| 运行方式 | 页面重启方式 |
+| --- | --- |
+| `linux-init.sh` 创建、带 `Restart=always` 的 systemd 服务 | 程序优雅退出，由 systemd 重新拉起 |
+| 支持纯重启的新 Docker 默认入口 | 程序向入口交付本轮 PID 的重启信号，入口重新启动应用；不依赖容器的外层重启策略 |
+| Windows 发布版 | 独立子进程等待原进程退出，使用原启动参数和工作目录启动程序，不替换文件 |
+| 旧 Docker 入口、手动运行、自定义托管或飞牛 | 页面提示使用对应部署管理方式手动重启 |
+
+首次数据库配置保存后，支持纯重启的 Docker 默认入口会收到当前进程 PID 的重启请求；配置服务交付响应并延迟退出后，由入口重新启动正式服务，不依赖容器外层重启策略。请求准备失败时保留配置服务并提示手动重启；旧 Docker 入口和非 Docker 运行方式仍按原流程退出并等待外部重启。保存成功提示须引导用户等待服务启动完成，再刷新页面创建首个管理员；配置页面不会自动刷新或跳转。
+
+Docker 入口在主进程退出后检查重启请求；无有效请求时退出容器，后续是否自动重启由容器重启策略决定。
+
+Docker 的 `QMS_DOCKER_RESTART=1` 由支持此机制的入口脚本声明，不应手工给旧入口补这个环境变量。重启准备成功后约 3 秒开始退出，关闭超过 60 秒则强制退出。准备失败时当前服务继续保持维护，页面可重试；重新上线后再登录并核验结果。
 
 ## 飞牛 FPK
 

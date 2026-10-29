@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -61,7 +62,7 @@ func UpdateTokenIfCurrent(accountId uint, expectedToken string, expectedRefreshT
 		) {
 			continue
 		}
-		helpers.AppLogger.Infof("条件更新 115 客户端 %s 的 Token 成功", key)
+		helpers.AppLogger.Debugf("条件更新 115 客户端 %s 的 Token 成功", key)
 		updated = true
 	}
 	return updated
@@ -80,6 +81,12 @@ func NewClient(accountId uint, appId string, token string, refreshToken string) 
 		refreshToken: refreshToken,
 	})
 	return openClient
+}
+
+// SetTransport 在首次请求前配置当前实例的 HTTP 传输层。
+// 缓存客户端由同账号调用方共享，开始请求后不得替换。
+func (c *OpenClient) SetTransport(transport http.RoundTripper) {
+	c.client.SetTransport(transport)
 }
 
 // GetClient 获取按账号 ID 缓存的 HTTP 客户端。
@@ -168,6 +175,7 @@ func (c *OpenClient) doRequest(url string, req *resty.Request, options *RequestC
 		respChan := make(chan *RequestResponse, 1)
 
 		queuedReq := &QueuedRequest{
+			AccountID:       c.AccountId,
 			URL:             url,
 			Method:          req.Method,
 			Request:         req,
@@ -253,6 +261,7 @@ func (c *OpenClient) doRequest(url string, req *resty.Request, options *RequestC
 
 // doAuthRequest 带重试的认证请求方法（使用全局队列）
 func (c *OpenClient) doAuthRequest(ctx context.Context, url string, req *resty.Request, options *RequestConfig, respData any) (*resty.Response, []byte, error) {
+	defer beginRequestDirectoryWrite(c.AccountId, url, req)()
 	if err := ctx.Err(); err != nil {
 		return nil, nil, err
 	}
@@ -262,7 +271,7 @@ func (c *OpenClient) doAuthRequest(ctx context.Context, url string, req *resty.R
 	credentials := c.credentialSnapshot()
 	if credentials.accessToken == "" {
 		// 没有 Token，直接报错
-		return nil, nil, fmt.Errorf("115 账号授权失效，请在网盘账号管理中重新授权")
+		return nil, nil, NewOpenAPIError(ACCESS_AUTH_INVALID, "115 账号授权失效，请在网盘账号管理中重新授权")
 	}
 	req.SetTimeout(options.Timeout)
 	// 设置默认头
@@ -270,6 +279,7 @@ func (c *OpenClient) doAuthRequest(ctx context.Context, url string, req *resty.R
 		req.Header.Set("User-Agent", DEFAULTUA)
 	}
 	req.SetAuthToken(credentials.accessToken).SetResponseDoNotParse(true)
+	req.SetContext(ctx)
 
 	var lastErr error
 	var lastRespBytes []byte
@@ -282,6 +292,7 @@ func (c *OpenClient) doAuthRequest(ctx context.Context, url string, req *resty.R
 		respChan := make(chan *RequestResponse, 1)
 
 		queuedReq := &QueuedRequest{
+			AccountID:       c.AccountId,
 			URL:             url,
 			Method:          req.Method,
 			Request:         req,
@@ -289,6 +300,8 @@ func (c *OpenClient) doAuthRequest(ctx context.Context, url string, req *resty.R
 			ResponseChan:    respChan,
 			CreatedAt:       time.Now(),
 			Ctx:             ctx,
+			BeforeSend:      options.BeforeSend,
+			DeletionDetail:  options.DeletionDetail,
 		}
 
 		// 将请求加入队列
@@ -326,11 +339,15 @@ func (c *OpenClient) doAuthRequest(ctx context.Context, url string, req *resty.R
 			switch queueResp.RespData.Code {
 			case ACCESS_TOKEN_AUTH_FAIL, ACCESS_AUTH_INVALID, ACCESS_TOKEN_EXPIRY_CODE:
 				helpers.V115Log.Errorf("访问凭证过期，等待自动刷新后下次重试")
-				lastErr = fmt.Errorf("访问凭证（Token）过期")
+				lastErr = NewOpenAPIError(queueResp.RespData.Code, "访问凭证（Token）过期")
 			case REFRESH_TOKEN_INVALID:
-				lastErr = fmt.Errorf("访问凭证（Token）无效，请重新登录")
+				lastErr = NewOpenAPIError(queueResp.RespData.Code, "访问凭证（Token）无效，请重新登录")
 				return queueResp.Response, queueResp.RespBytes, lastErr
 			}
+		}
+
+		if options.RetryIf != nil && lastErr != nil && !options.RetryIf(lastErr) {
+			return queueResp.Response, queueResp.RespBytes, lastErr
 		}
 
 		// 如果是限流错误，不重试

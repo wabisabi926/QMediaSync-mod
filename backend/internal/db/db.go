@@ -12,7 +12,7 @@ import (
 	"qmediasync/internal/helpers"
 
 	"github.com/glebarez/sqlite"
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -20,13 +20,31 @@ import (
 
 var Db *gorm.DB
 
+// newDatabaseLogger 统一数据库日志，忽略正常缺失并保留慢查询和真实错误。
+func newDatabaseLogger() logger.Interface {
+	return logger.New(
+		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
+		logger.Config{
+			SlowThreshold:             200 * time.Millisecond, // 慢 SQL 阈值
+			LogLevel:                  logger.Warn,            // 日志级别
+			IgnoreRecordNotFoundError: true,                   // 忽略 ErrRecordNotFound（记录未找到）错误
+			Colorful:                  true,                   // 保持现有彩色输出
+		},
+	)
+}
+
 // 获取一个数据库连接
 func InitSqlite3(dbFile string) *gorm.DB {
 	// if !helpers.PathExists(dbFile) {
 	// 	return nil
 	// }
-	sqliteDb, err := gorm.Open(sqlite.Open(dbFile+"?_pragma=busy_timeout(10000)&_pragma=journal_mode(WAL)"), &gorm.Config{
+	pool, err := OpenMaintenanceSQL(sqlite.DriverName, dbFile+"?_pragma=busy_timeout(10000)&_pragma=journal_mode(WAL)")
+	if err != nil {
+		panic(fmt.Errorf("创建 SQLite 连接失败：%w", err))
+	}
+	sqliteDb, err := gorm.Open(sqlite.Dialector{Conn: pool}, &gorm.Config{
 		SkipDefaultTransaction: true,
+		Logger:                 newDatabaseLogger(),
 	})
 	if err != nil {
 		panic(fmt.Sprintf("failed to connect database: %v", err))
@@ -47,11 +65,11 @@ func InitSqlite3(dbFile string) *gorm.DB {
 	sqlDB.SetConnMaxIdleTime(0)
 	helpers.AppLogger.Infof("设置 SQLite 连接池成功：最大连接数 %d", 1)
 
-	// 2. 设置 busy_timeout (例如 5000 毫秒)
+	// 2. 设置 busy_timeout 为 10000 毫秒
 	if tx := sqliteDb.Exec("PRAGMA busy_timeout = 10000"); tx.Error != nil {
 		panic(fmt.Errorf("设置 busy_timeout 失败：%w", tx.Error))
 	} else {
-		helpers.AppLogger.Infof("设置 busy_timeout 成功：%d 毫秒", 5000)
+		helpers.AppLogger.Infof("设置 busy_timeout 成功：%d 毫秒", 10000)
 	}
 
 	// 3. 启用 WAL 模式
@@ -73,16 +91,6 @@ func InitSqlite3(dbFile string) *gorm.DB {
 
 // 连接 PostgreSQL 数据库
 func ConnectPostgres(dbConfig *database.Config) error {
-	// 配置 Logger
-	newLogger := logger.New(
-		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
-		logger.Config{
-			SlowThreshold:             200 * time.Millisecond, // 慢 SQL 阈值
-			LogLevel:                  logger.Warn,            // 日志级别
-			IgnoreRecordNotFoundError: true,                   // 忽略 ErrRecordNotFound（记录未找到）错误
-			Colorful:                  true,                   // 禁用彩色打印
-		},
-	)
 	var connStr string = ""
 	var sqlDB *sql.DB
 	var err error
@@ -91,9 +99,12 @@ func ConnectPostgres(dbConfig *database.Config) error {
 		connStr = fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 			dbConfig.Host, dbConfig.Port, dbConfig.User, dbConfig.Password, dbConfig.DBName, dbConfig.SSLMode)
 		helpers.AppLogger.Infof("连接数据库：%s", connStr)
-		sqlDB, _ = sql.Open("postgres", connStr)
-		pg := postgres.New(postgres.Config{Conn: sqlDB})
-		Db, err = gorm.Open(pg, &gorm.Config{})
+		sqlDB, err = OpenMaintenanceSQL("pgx", connStr)
+		if err != nil {
+			return fmt.Errorf("创建 PostgreSQL 连接失败：%w", err)
+		}
+		pg := postgres.New(postgres.Config{DriverName: "pgx", Conn: sqlDB})
+		Db, err = gorm.Open(pg, &gorm.Config{Logger: newDatabaseLogger()})
 		if err != nil {
 			helpers.AppLogger.Errorf("连接数据库失败：%v", err)
 			if strings.Contains(err.Error(), "does not exist") {
@@ -116,12 +127,9 @@ func ConnectPostgres(dbConfig *database.Config) error {
 	}
 	// 配置连接池
 	sqlDB.SetMaxOpenConns(dbConfig.MaxOpenConns) // 最多打开 25 个连接
-	sqlDB.SetMaxIdleConns(dbConfig.MaxIdleConns) // 最多 5 个空闲连接
+	sqlDB.SetMaxIdleConns(dbConfig.MaxIdleConns) // 最多 25 个空闲连接
 	sqlDB.SetConnMaxLifetime(60 * time.Minute)   // 连接最多使用 60 分钟
 	sqlDB.SetConnMaxIdleTime(1 * time.Minute)    // 空闲超过 1 分钟则关闭
-
-	// 设置全局 Logger
-	Db.Logger = newLogger
 
 	go keepGormAlive()
 	helpers.AppLogger.Info("成功初始化数据库组件")
@@ -140,7 +148,7 @@ func CreatePostgresDatabase(dbConfig *database.Config) error {
 	connStr = fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=postgres sslmode=%s",
 		dbConfig.Host, dbConfig.Port, dbConfig.User, dbConfig.Password, dbConfig.SSLMode)
 	helpers.AppLogger.Infof("连接数据库：%s", connStr)
-	sqlDB, cerr = sql.Open("postgres", connStr)
+	sqlDB, cerr = sql.Open("pgx", connStr)
 	if cerr != nil {
 		helpers.AppLogger.Errorf("连接数据库失败：%v", cerr)
 		return cerr

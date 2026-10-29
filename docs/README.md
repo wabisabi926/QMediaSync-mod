@@ -22,7 +22,7 @@
 
 - [文档治理](engineering/documentation-governance.md)：正式文档职责、命名、唯一权威来源和迁移规则。
 
-- [Wiki 用户手册维护](engineering/wiki-maintenance.md)：用户手册写法、主仓库来源与 Wiki 页面的对应关系，以及同步和发布检查。
+- [Wiki 用户手册维护](engineering/wiki-maintenance.md)：用户手册的内容与文风、页面分工、来源映射及发布检查。
 
 - [本地开发](engineering/local-development.md)：本地后端、前端启动和调试入口。
 
@@ -44,6 +44,8 @@
 
 - [反向代理与 SSE](operations/reverse-proxy.md)：同源部署、可信代理和 SSE 缓冲 / 超时配置。
 
+- [飞牛影视](operations/fnos-proxy.md)：网页保存并应用、固定端口、路径映射、自动 HTTPS、播放限制和排障。
+
 - [数据库运维](operations/database.md)：数据库初始化、修复、清库、备份和恢复。
 
 - [发布流程](operations/release.md)：版本发布、GitHub Actions、changelog 和 FPK 打包。
@@ -57,6 +59,8 @@
 - [同步目录聚合 API](reference/sync-path-api.md)：同步目录和目录监控上传规则的原子写入、幂等与错误契约。
 
 - [STRM Webhook](reference/strm-webhook.md)：外部程序创建 STRM 任务的 API、字段、响应和幂等边界。
+
+- [飞牛影视反代 API](reference/fnos-proxy-api.md)：保存与应用、实际运行状态、兼容协议与原生网页接管、来源缓存与内部转交契约。
 
 - [任务来源](reference/task-sources.md)：下载、上传和同步队列的机器值与前端映射。
 

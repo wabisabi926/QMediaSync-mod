@@ -22,7 +22,7 @@
 - 中文文案、注释、日志和展示性描述遵循中英文排版习惯；品牌名、产品名和协议名使用官方名称、大小写和空格。
 - 修改代码、配置、接口、命令或流程时必须同步更新权威文档；确认无需更新时，在最终回复中说明已检查且无需更新。
 - 正式文档以 [文档治理](documentation-governance.md) 为准。
-- 用户可见行为、安装、配置或恢复流程变化时，按 [Wiki 用户手册维护](wiki-maintenance.md) 的集中来源映射检查并同步主仓库 `wiki/` 源文件。用户需要的说明应在 Wiki 内完整提供，不缩成主仓库文档外链；新增或改名页面同时更新映射与 Wiki 导航。
+- 用户可见行为、安装、配置或恢复流程变化时，按 [Wiki 用户手册维护](wiki-maintenance.md) 的来源映射检查并同步主仓库 `wiki/` 源文件；修改 Wiki 正文、页面或导航时，遵循该文档的编写规则。
 
 ## 前端测试
 
@@ -34,7 +34,7 @@
 
 QMediaSync 是媒体同步系统，用于管理 115 网盘、百度网盘、OpenList 等云存储与 Emby 媒体服务器之间的文件同步和 STRM 生成。
 
-- 语言：Go 1.27.1。
+- 语言：Go 1.27.3。
 - 后端：Gin、GORM，模块名为 `qmediasync`，位于 `backend/`。
 - 数据库：SQLite 或 PostgreSQL，默认 PostgreSQL；不包含内嵌 PostgreSQL 和旧库自动迁移能力。
 - 前端：Vue 3、Vite、TypeScript，位于 `frontend/`；本地生产构建输出 `frontend/dist`，发布流程将其复制为 `backend/web_statics`，运行目录使用 `web_statics`。
@@ -67,7 +67,7 @@ QMediaSync 是媒体同步系统，用于管理 115 网盘、百度网盘、Open
 
 按改动范围选择最小必要验证，不为了无关验证运行全量构建。完整命令、前端测试约定和稳定验证规则见 [验证说明](verification.md)。
 
-新增行为必须有相应验证。无法运行时，最终回复中说明未运行的命令、原因和剩余风险。纯文档改动至少运行 `git diff --check` 和相对链接检查，不强行构建后端或前端。
+新增行为必须有相应验证。无法运行时，最终回复中说明未运行的命令、原因和剩余风险。纯文档改动至少运行 `git diff --check` 和相对链接检查，不强行构建后端或前端。涉及 Wiki 时，按 [Wiki 用户手册维护](wiki-maintenance.md) 的发布前自查逐项核对。
 
 ## Go 约定
 
@@ -95,6 +95,7 @@ QMediaSync 是媒体同步系统，用于管理 115 网盘、百度网盘、Open
 
 ## 配置、密钥和日志
 
+- fnOS 模板位于 `backend/fnos/`，安装钩子不得生成或覆盖业务配置；首次配置交接与数据保留边界见 [部署](../operations/deployment.md#飞牛-fpk)。正式版 manifest 版本随 release 提交更新，打包只校验；Beta 仅在临时打包副本写入测试版本，源码 manifest 不回写或提交，见 [发布](../operations/release.md#飞牛-fpk)。
 - 主配置为 `config/config.yaml`，兼容旧 `config.yml`；敏感变量文件从程序根目录的 `config/.env` 加载并覆盖真实环境变量，不随飞牛共享配置目录改变，路径区别见 [配置](../operations/configuration.md#第三方密钥与本机敏感数据)。
 - 默认 API 密钥为 `SC_API_KEY`，可由 ldflags 或运行环境设置。取值优先级为 UI 配置（DB）> 环境变量 / `config/.env` > ldflags。
 - 本机敏感数据密钥由 `helpers.InitEncryptionKey()` 每实例生成并保存到 `config/encryption.key`，不使用 `ENCRYPTION_KEY` 环境变量或 ldflags。

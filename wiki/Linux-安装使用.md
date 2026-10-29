@@ -89,7 +89,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now qmediasync
 ```
 
-`User` 使用执行上述命令的用户，`sudo` 只用于写入服务文件和管理服务。请从普通用户终端执行，安装目录建议不含空格；如果原来用 root 运行过程序，先按 [文件权限相关问题](文件权限相关问题.md) 核对该用户对 `config/` 和媒体目录的读写权限。
+`User` 使用执行上述命令的用户，`sudo` 只用于写入服务文件和管理服务；`TimeoutStopSec` 给程序留足保存退出的时间，保持 70 即可。请从普通用户终端执行，安装目录建议不含空格；如果原来用 root 运行过程序，先按 [文件权限相关问题](文件权限相关问题.md) 核对该用户对 `config/` 和媒体目录的读写权限。
 
 查看状态和日志：
 
@@ -111,8 +111,6 @@ sudo journalctl -u qmediasync -f
 | 取消开机自启并停止 | `sudo systemctl disable --now qmediasync` |
 
 这份自建服务采用手动更新：停止服务，替换发布包中的 `QMediaSync` 和 `web_statics/`，保留 `config/` 后再启动。完整步骤见 [更新与旧版迁移](更新与旧版迁移.md)。页面提示不支持在线更新或重启时，使用上面的 systemd 命令即可。
-
-仓库另有 `linux-init.sh` 辅助脚本，它会安装或初始化 PostgreSQL，并创建服务；Linux 发布包不包含该脚本。本页的 SQLite 或已有数据库安装方式无需运行它。
 
 ## 安装后检查
 

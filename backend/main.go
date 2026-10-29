@@ -9,26 +9,35 @@ import (
 	"fmt"
 	"html/template"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	"qmediasync/emby302/config"
+	embypreload "qmediasync/emby302/service/emby"
 	emby302https "qmediasync/emby302/util/https"
 	"qmediasync/emby302/util/logs/colors"
 	"qmediasync/emby302/web"
+	"qmediasync/emby302/web/webport"
 	"qmediasync/internal/backup"
 	"qmediasync/internal/controllers"
 	"qmediasync/internal/db"
 	"qmediasync/internal/db/database"
 	"qmediasync/internal/directoryupload"
 	"qmediasync/internal/emby"
+	"qmediasync/internal/fnosproxy"
 	"qmediasync/internal/github"
 	"qmediasync/internal/helpers"
 	"qmediasync/internal/models"
@@ -74,22 +83,28 @@ func parseBuildUnixTime(value string) int64 {
 }
 
 type App struct {
-	isRelease   bool
-	httpServer  *http.Server
-	httpsServer *http.Server
-	version     string
-	publishDate string
+	isRelease       bool
+	httpServer      *http.Server
+	httpsServer     *http.Server
+	fnosProxy       *fnosproxy.Service
+	version         string
+	publishDate     string
+	preloadCancel   context.CancelFunc
+	preloadOrigins  atomic.Pointer[trustedPreloadOrigins]
+	stopEmbyPreload func()
 }
 
 func (app *App) Start() {
+	app.startPlaybackPreloading(context.Background())
 	// 启动外网 302 服务
-	startEmby302()
+	app.startEmby302()
 	if helpers.IsRelease {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	r := gin.New()
 	r.Use(controllers.Cors())
 	setRouter(r)
+	app.startFnosProxy(r)
 	app.StartHttpServer(r)
 	app.StartHttpsServer(r)
 	if runtime.GOOS == "windows" {
@@ -119,7 +134,16 @@ func (app *App) Start() {
 }
 
 func (app *App) Stop() {
+	// 先停止后台取链，再关闭代理、播放管理器及共享连接池。
+	app.stopPlaybackPreloading()
 	realtime.GlobalLifecycle.Shutdown()
+	if app.fnosProxy != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := app.fnosProxy.Stop(ctx); err != nil {
+			helpers.AppLogger.Warnf("停止飞牛影视反代失败：%v", err)
+		}
+		cancel()
+	}
 	app.shutdownHTTPServers()
 	webhookCtx, cancelWebhook := context.WithTimeout(context.Background(), 10*time.Second)
 	if err := emby.ShutdownWebhookWorker(webhookCtx); err != nil {
@@ -365,23 +389,8 @@ func getDataAndConfigDir() error {
 			} else {
 				configDir = filepath.Join(configDir, "config")
 				needMk = true
-				// 检查是否需要迁移文件
-				// oldConfigDir 必须存在且不为空
-				if helpers.PathExists(oldConfigDir) && oldConfigDir != configDir {
-					// 检查 oldConfigDir 是否为空目录
-					if !helpers.IsDirEmpty(oldConfigDir) {
-						err := os.MkdirAll(configDir, 0755)
-						if err != nil {
-							log.Printf("创建配置目录失败：%v\n", err)
-							panic("创建配置目录失败")
-						}
-						// 迁移旧配置
-						err = helpers.MoveConfigDir(oldConfigDir, configDir)
-						if err != nil {
-							return fmt.Errorf("迁移旧配置目录失败：%w", err)
-						}
-						needMk = false
-					}
+				if err := migrateFnOSConfig(oldConfigDir, configDir); err != nil {
+					return err
 				}
 			}
 			helpers.ConfigDir = configDir
@@ -397,11 +406,222 @@ func getDataAndConfigDir() error {
 	return nil
 }
 
+const fnOSConfigMigrationPendingFile = ".fnos-config-migration-pending"
+
+// migrateFnOSConfig 仅向空共享目录迁移；中断后停止启动，避免把部分文件当成完整实例。
+func migrateFnOSConfig(src, dst string) (err error) {
+	pending := filepath.Join(dst, fnOSConfigMigrationPendingFile)
+	if _, err := os.Lstat(pending); err == nil {
+		return fmt.Errorf("fnOS 配置迁移尚未完成，已停止启动以保护原数据；请先备份旧目录 %s 和共享目录 %s，确认配置、密钥和数据库完整后再移除标记 %s", src, dst, pending)
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("检查 fnOS 配置迁移状态失败：%w", err)
+	}
+	if filepath.Clean(src) == filepath.Clean(dst) {
+		return nil
+	}
+	source, err := os.ReadDir(src)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("读取 fnOS 旧配置目录失败：%w", err)
+	}
+	hasData := func(entries []os.DirEntry) bool {
+		for _, entry := range entries {
+			if entry.Name() != ".qmediasync.lock" {
+				return true
+			}
+		}
+		return false
+	}
+	if !hasData(source) {
+		return nil
+	}
+	for _, name := range []string{"config.yaml", "config.yml"} {
+		if _, err := os.Stat(filepath.Join(dst, name)); err == nil {
+			log.Printf("继续使用 fnOS 共享目录 %s 中的配置；旧目录 %s 中的数据已保留，确认备份后可手工整理。", dst, src)
+			return nil
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf("检查 fnOS 共享配置失败：%w", err)
+		}
+	}
+	target, err := os.ReadDir(dst)
+	if err != nil {
+		return fmt.Errorf("读取 fnOS 共享目录失败：%w", err)
+	}
+	if hasData(target) {
+		return fmt.Errorf("fnOS 旧目录 %s 和共享目录 %s 均有数据，已停止迁移以避免覆盖；请先备份并确认要使用的完整配置目录", src, dst)
+	}
+	lock, err := helpers.AcquireInstanceLock(src)
+	if err != nil {
+		return fmt.Errorf("锁定 fnOS 旧配置目录失败：%w", err)
+	}
+	defer func() { err = errors.Join(err, lock.Close()) }()
+	// 取得源锁后才记录迁移开始，逐文件移动中断时不能用 YAML 判断完成。
+	if err := os.WriteFile(pending, []byte(src+"\n"), 0o600); err != nil {
+		return fmt.Errorf("记录 fnOS 配置迁移状态失败：%w", err)
+	}
+	if err := helpers.MoveDir(src, dst, ".qmediasync.lock"); err != nil {
+		return fmt.Errorf("迁移 fnOS 旧配置失败，已保留现有数据，请检查两个目录：%w", err)
+	}
+	if err := os.Remove(pending); err != nil {
+		return fmt.Errorf("清除 fnOS 配置迁移标记失败，已停止启动：%w", err)
+	}
+	return nil
+}
+
 //go:embed emby302.yaml
 //go:embed assets/db_config.html
 var embedFiles embed.FS
 
-func startEmby302() {
+func fnosPlaybackHandler(mainHandler http.Handler) http.Handler {
+	videoProxy := gin.New()
+	videoProxy.Match([]string{http.MethodGet, http.MethodHead}, "/proxy-115", func(c *gin.Context) {
+		release, admitted := backup.AcquireRuntimeRequest()
+		if !admitted {
+			c.String(http.StatusServiceUnavailable, "QMediaSync 正在恢复数据库，请重启后再试")
+			return
+		}
+		// 视频转发不访问数据库，重新检查准入后立即释放，避免恢复等待整个视频流。
+		release()
+		controllers.Proxy115(c)
+	})
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/proxy-115" && (r.Method == http.MethodGet || r.Method == http.MethodHead) {
+			videoProxy.ServeHTTP(w, r)
+			return
+		}
+		mainHandler.ServeHTTP(w, r)
+	})
+}
+
+func (app *App) startFnosProxy(mainHandler *gin.Engine) {
+	httpsHost := helpers.GlobalConfig.HttpsHost
+	if !helpers.IsRelease {
+		httpsHost = "localhost:12332"
+	}
+	var reservedPorts []int
+	for _, address := range []string{helpers.GlobalConfig.HttpHost, httpsHost} {
+		if _, port, err := net.SplitHostPort(address); err == nil {
+			if value, err := strconv.Atoi(port); err == nil && value > 0 {
+				reservedPorts = append(reservedPorts, value)
+			}
+		}
+	}
+	for _, port := range []string{webport.HTTP, webport.HTTPS} {
+		if value, err := strconv.Atoi(port); err == nil && value > 0 {
+			reservedPorts = append(reservedPorts, value)
+		}
+	}
+	app.fnosProxy = fnosproxy.NewService(fnosproxy.Options{
+		MainHandler: fnosPlaybackHandler(mainHandler), ReservedPorts: reservedPorts,
+		HTTPHost: helpers.GlobalConfig.HttpHost, HTTPSHost: httpsHost,
+		CertificateFile: filepath.Join(helpers.RootDir, "config", "server.crt"),
+		KeyFile:         filepath.Join(helpers.RootDir, "config", "server.key"),
+		OutputRoots:     fnosOutputRoots, KnownOrigins: fnosKnownOrigins,
+		OpenListOrigins: fnosOpenListOrigins, IdentityCandidates: fnosIdentityCandidates,
+		Preloader: playback.DefaultPreloader, NewPreload: newPlaybackPreload,
+	})
+	controller := controllers.NewFnosProxyController(app.fnosProxy.Status, app.fnosProxy.Apply, reservedPorts...)
+	api := mainHandler.Group("/api", controllers.JWTAuthMiddleware())
+	api.GET("/setting/fnos-proxy", controller.GetConfig)
+	api.POST("/setting/fnos-proxy", controller.SaveConfig)
+	config, err := models.ReadFnosProxyConfig(context.Background())
+	if err != nil {
+		helpers.AppLogger.Errorf("读取飞牛影视反代启动配置失败：%v", err)
+		return
+	}
+	if err := app.fnosProxy.Start(config); err != nil {
+		helpers.AppLogger.Warnf("飞牛影视反代未能完全启动：%v", err)
+	}
+}
+
+func fnosOutputRoots(ctx context.Context) ([]string, error) {
+	var paths []models.SyncPath
+	if err := db.Db.WithContext(ctx).Select("local_path", "remote_path", "source_type").Find(&paths).Error; err != nil {
+		return nil, err
+	}
+	roots := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if path.LocalPath != "" {
+			roots = append(roots, path.GetFullLocalPath())
+		}
+	}
+	return roots, nil
+}
+
+func fnosKnownOrigins(ctx context.Context) ([]string, error) {
+	var paths []models.SyncPath
+	if err := db.Db.WithContext(ctx).Select("strm_base_url").Find(&paths).Error; err != nil {
+		return nil, err
+	}
+	var origins []string
+	if models.SettingsGlobal != nil {
+		settings, _ := models.SettingsGlobal.StrmSnapshot()
+		origins = append(origins, settings.StrmBaseUrl)
+	}
+	for _, path := range paths {
+		if path.StrmBaseUrl != "" {
+			origins = append(origins, path.StrmBaseUrl)
+		}
+	}
+	return origins, nil
+}
+
+func fnosOpenListOrigins(ctx context.Context) ([]string, error) {
+	var accounts []models.Account
+	if err := db.Db.WithContext(ctx).Select("base_url").Where("source_type = ?", models.SourceTypeOpenList).Find(&accounts).Error; err != nil {
+		return nil, err
+	}
+	origins := make([]string, 0, len(accounts))
+	for _, account := range accounts {
+		origins = append(origins, account.BaseUrl)
+	}
+	return origins, nil
+}
+
+func fnosIdentityCandidates(ctx context.Context, source fnosproxy.Source) ([]fnosproxy.Candidate, error) {
+	identity, err := models.ResolveEmbySnapshotSourceIdentity(ctx, models.EmbySnapshotSource{Path: source.URL})
+	if err != nil || identity.AccountID == 0 || identity.ObjectID == "" {
+		return nil, err
+	}
+	query := db.Db.WithContext(ctx).Where("source_type = ? AND account_id = ? AND is_video = ?", identity.SourceType, identity.AccountID, true)
+	if identity.SourceType == models.SourceTypeOpenList {
+		query = query.Where("file_id = ?", identity.ObjectID)
+	} else if identity.SourceType == models.SourceType115 || identity.SourceType == models.SourceTypeBaiduPan {
+		query = query.Where("pick_code = ?", identity.ObjectID)
+	} else {
+		return nil, nil
+	}
+	var files []models.SyncFile
+	if err := query.Limit(257).Find(&files).Error; err != nil {
+		return nil, err
+	}
+	if len(files) > 256 {
+		return nil, errors.New("飞牛影视 STRM 候选过多，请填写路径映射")
+	}
+	candidates := make([]fnosproxy.Candidate, 0, len(files))
+	for _, file := range files {
+		if file.SyncPathId == 0 || file.LocalFilePath == "" {
+			continue
+		}
+		var path models.SyncPath
+		if err := db.Db.WithContext(ctx).First(&path, file.SyncPathId).Error; err != nil {
+			return nil, err
+		}
+		if path.SourceType != identity.SourceType || path.AccountId != identity.AccountID {
+			continue
+		}
+		candidates = append(candidates, fnosproxy.Candidate{Root: path.GetFullLocalPath(), Path: file.LocalFilePath, URL: source.URL})
+	}
+	return candidates, nil
+}
+
+func (app *App) startEmby302() {
+	if app.stopEmbyPreload != nil {
+		app.stopEmbyPreload()
+		app.stopEmbyPreload = nil
+	}
 	dataRoot := helpers.ConfigDir
 	data, err := embedFiles.ReadFile("emby302.yaml")
 	if err != nil {
@@ -435,12 +655,205 @@ func startEmby302() {
 	config.C.Emby.LocalMediaRoot = "/"
 	config.C.VideoPreview.Enable = true
 	config.C.VideoPreview.Containers = []string{"strm"}
+	app.stopEmbyPreload = embypreload.ConfigurePreloading(embypreload.PreloadOptions{
+		Instance: "emby302", TrustedOrigin: app.isTrustedPreloadOrigin,
+		Resolve: app.newEmbyPlaybackPreload, Coordinator: playback.DefaultPreloader,
+		Account: app.playbackPreloadAccount,
+	})
 	go func() {
 		if err := web.Listen(); err != nil {
 			log.Fatal(colors.ToRed(err.Error()))
 		}
 	}()
 
+}
+
+type trustedPreloadOrigins struct {
+	baseURL    string
+	generation uint64
+	origins    map[string][]string
+}
+
+func newPlaybackPreload(rawURL, ua string, forceDirect bool) (string, func(context.Context, *playback.PreloadTask) playback.PreloadResult, bool) {
+	return controllers.NewPlaybackPreload(controllers.PlaybackPreloadSource{URL: rawURL, UA: ua, ForceDirect: forceDirect})
+}
+
+func (app *App) newEmbyPlaybackPreload(rawURL, ua string, forceDirect bool) (string, func(context.Context, *playback.PreloadTask) playback.PreloadResult, bool) {
+	normalized, origins := app.normalizePreloadSource(rawURL)
+	if origins == nil {
+		return "", nil, false
+	}
+	identity, run, ok := newPlaybackPreload(normalized, ua, forceDirect)
+	if !ok {
+		return "", nil, false
+	}
+	return identity, func(ctx context.Context, task *playback.PreloadTask) playback.PreloadResult {
+		// 来源通知与提交交错时，也不能让撤销前解析的地址启动新作业。
+		if app.preloadOrigins.Load() != origins || models.GetPlaybackSettingsSnapshot().Generation != origins.generation {
+			return playback.PreloadResult{Outcome: playback.PreloadSkipped}
+		}
+		return run(ctx, task)
+	}, true
+}
+
+func (app *App) playbackPreloadAccount(rawURL string) playback.PreloadAccount {
+	normalized, origins := app.normalizePreloadSource(rawURL)
+	if origins == nil {
+		return playback.PreloadAccount{}
+	}
+	return controllers.PlaybackPreloadAccount(normalized)
+}
+
+func (app *App) normalizePreloadSource(rawURL string) (string, *trustedPreloadOrigins) {
+	target, err := url.Parse(rawURL)
+	if err != nil || target.Opaque != "" || target.Fragment != "" || target.RawPath != "" ||
+		path.Clean(target.Path) != target.Path || strings.ContainsAny(target.Path, "\\\x00") {
+		return "", nil
+	}
+	current := app.preloadOrigins.Load()
+	settings := models.GetPlaybackSettingsSnapshot()
+	if current == nil || !settings.PreloadEnabled || current.generation != settings.Generation || current.baseURL != settings.StrmBaseURL {
+		return "", nil
+	}
+	prefixes, trusted := current.origins[preloadOriginKey(target)]
+	if !trusted {
+		return "", nil
+	}
+	query, err := url.ParseQuery(target.RawQuery)
+	if err != nil {
+		return "", nil
+	}
+	for _, values := range query {
+		if len(values) != 1 {
+			return "", nil
+		}
+	}
+	if !preloadEndpoint(target.Path) {
+		endpoint, longest := "", -1
+		for _, prefix := range prefixes {
+			if candidate, matched := strings.CutPrefix(target.Path, prefix); matched && len(prefix) > longest && preloadEndpoint(candidate) {
+				endpoint, longest = candidate, len(prefix)
+			}
+		}
+		if endpoint == "" {
+			return "", nil
+		}
+		target.Path = endpoint
+	}
+	return target.String(), current
+}
+
+func preloadEndpoint(endpoint string) bool {
+	return endpoint == "/115/newurl" ||
+		strings.HasPrefix(endpoint, "/115/url/") && len(endpoint) > len("/115/url/") ||
+		strings.HasPrefix(endpoint, "/baidupan/url/") && len(endpoint) > len("/baidupan/url/")
+}
+
+func (app *App) startPlaybackPreloading(ctx context.Context) {
+	ctx, app.preloadCancel = context.WithCancel(ctx)
+	playback.DefaultPreloader.Start(ctx)
+	models.SetPlaybackSettingsChangeHook(func(models.PlaybackSettingsSnapshot) {
+		// 通知可能交错，始终以最新一次成功发布的完整设置为准。
+		settings := models.GetPlaybackSettingsSnapshot()
+		playback.DefaultPreloader.Apply(settings.PreloadEnabled, settings.Generation)
+		origins := app.preloadOrigins.Load()
+		if origins == nil || origins.generation != settings.Generation || origins.baseURL != settings.StrmBaseURL || (settings.PreloadEnabled && origins.origins == nil) || (!settings.PreloadEnabled && origins.origins != nil) {
+			app.refreshPreloadOrigins(ctx)
+		}
+	})
+	models.SetStrmOriginsChangeHook(func() { app.refreshPreloadOrigins(ctx) })
+	app.refreshPreloadOrigins(ctx)
+	settings := models.GetPlaybackSettingsSnapshot()
+	playback.DefaultPreloader.Apply(settings.PreloadEnabled, settings.Generation)
+}
+
+func (app *App) stopPlaybackPreloading() {
+	models.SetPlaybackSettingsChangeHook(nil)
+	models.SetStrmOriginsChangeHook(nil)
+	app.preloadOrigins.Store(nil)
+	if app.preloadCancel != nil {
+		app.preloadCancel()
+	}
+	if app.stopEmbyPreload != nil {
+		app.stopEmbyPreload()
+		app.stopEmbyPreload = nil
+	}
+	playback.DefaultPreloader.Stop()
+}
+
+// 来源列表只在配置提交时重建；先关闭旧准入，再用 CAS 防止迟到的查询覆盖新配置。
+func (app *App) refreshPreloadOrigins(ctx context.Context) {
+	settings := models.GetPlaybackSettingsSnapshot()
+	invalid := &trustedPreloadOrigins{baseURL: settings.StrmBaseURL, generation: settings.Generation}
+	for {
+		previous := app.preloadOrigins.Load()
+		if previous != nil && previous.generation > settings.Generation {
+			return
+		}
+		if app.preloadOrigins.CompareAndSwap(previous, invalid) {
+			break
+		}
+	}
+	playback.DefaultPreloader.CancelAll()
+	if !settings.PreloadEnabled || db.Db == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	var paths []models.SyncPath
+	if err := db.Db.WithContext(ctx).Select("strm_base_url").Find(&paths).Error; err != nil {
+		if ctx.Err() == nil && helpers.AppLogger != nil {
+			helpers.AppLogger.Warnf("暂时无法读取 STRM 来源配置，已跳过 Emby 预加载，播放仍按正常流程处理")
+		}
+		return
+	}
+	origins := make(map[string][]string, len(paths)+1)
+	add := func(raw string) {
+		parsed, err := url.Parse(raw)
+		if err != nil || parsed.Opaque != "" || parsed.Fragment != "" || parsed.RawQuery != "" || parsed.RawPath != "" {
+			return
+		}
+		prefix := strings.TrimRight(parsed.Path, "/")
+		if prefix != "" && path.Clean(prefix) != prefix || strings.ContainsAny(prefix, "\\\x00") {
+			return
+		}
+		if key := preloadOriginKey(parsed); key != "" {
+			if !slices.Contains(origins[key], prefix) {
+				origins[key] = append(origins[key], prefix)
+			}
+		}
+	}
+	add(settings.StrmBaseURL)
+	for _, path := range paths {
+		add(path.StrmBaseUrl)
+	}
+	if ctx.Err() == nil {
+		app.preloadOrigins.CompareAndSwap(invalid, &trustedPreloadOrigins{baseURL: settings.StrmBaseURL, generation: settings.Generation, origins: origins})
+	}
+}
+
+func (app *App) isTrustedPreloadOrigin(target *url.URL) bool {
+	current := app.preloadOrigins.Load()
+	settings := models.GetPlaybackSettingsSnapshot()
+	if current == nil || !settings.PreloadEnabled || current.generation != settings.Generation || current.baseURL != settings.StrmBaseURL {
+		return false
+	}
+	_, found := current.origins[preloadOriginKey(target)]
+	return found
+}
+
+func preloadOriginKey(target *url.URL) string {
+	if target == nil || target.User != nil || (target.Scheme != "http" && target.Scheme != "https") || target.Hostname() == "" {
+		return ""
+	}
+	port := target.Port()
+	if port == "" {
+		port = "80"
+		if target.Scheme == "https" {
+			port = "443"
+		}
+	}
+	return target.Scheme + "://" + net.JoinHostPort(strings.ToLower(target.Hostname()), port)
 }
 
 func initLogger() {
@@ -955,7 +1368,7 @@ func (req databaseConfigRequest) toConfig() (*helpers.Config, error) {
 	return config, nil
 }
 
-func StartConfigWebServer() {
+func newConfigRouter(prepareRestart func() (bool, error), exit func()) *gin.Engine {
 	if helpers.IsRelease {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -1045,67 +1458,107 @@ func StartConfigWebServer() {
 		c.JSON(200, gin.H{"success": true, "message": "数据库连接成功", "dbExists": true, "hasOtherTables": tableCount > 0})
 	})
 
+	var saveMu sync.Mutex
+	var configSaved, restartPrepared bool
+	var clearedDatabaseConfig *helpers.Config
+	var savedMessage string
 	r.POST("/api/config/save", func(c *gin.Context) {
-		var req databaseConfigRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(400, gin.H{"error": err.Error()})
+		saveMu.Lock()
+		defer saveMu.Unlock()
+		if restartPrepared {
+			c.JSON(200, gin.H{"success": true, "message": savedMessage})
 			return
 		}
-		yamlConfig, err := req.toConfig()
-		if err != nil {
-			c.JSON(400, gin.H{"error": err.Error()})
-			return
-		}
-		if err := checkLegacyDatabaseState(); err != nil {
-			c.JSON(409, gin.H{"error": err.Error()})
-			return
-		}
-		if req.Engine == helpers.DbEnginePostgres {
-			quotedDatabase, err := database.QuotePostgresIdentifier(req.Database)
-			if err != nil {
-				c.JSON(200, gin.H{"error": "数据库名不合法：" + err.Error()})
+		if !configSaved {
+			yamlConfig := clearedDatabaseConfig
+			var req databaseConfigRequest
+			if yamlConfig == nil {
+				if err := c.ShouldBindJSON(&req); err != nil {
+					c.JSON(400, gin.H{"error": err.Error()})
+					return
+				}
+				var err error
+				yamlConfig, err = req.toConfig()
+				if err != nil {
+					c.JSON(400, gin.H{"error": err.Error()})
+					return
+				}
+			}
+			if err := checkLegacyDatabaseState(); err != nil {
+				c.JSON(409, gin.H{"error": err.Error()})
 				return
 			}
-			if req.DropDatabase {
-				sslMode := "disable"
-				if req.SSL {
-					sslMode = "require"
+			if clearedDatabaseConfig == nil && req.Engine == helpers.DbEnginePostgres {
+				quotedDatabase, err := database.QuotePostgresIdentifier(req.Database)
+				if err != nil {
+					c.JSON(200, gin.H{"error": "数据库名不合法：" + err.Error()})
+					return
 				}
-				connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=postgres sslmode=%s",
-					req.Host, req.Port, req.User, req.Password, sslMode)
-				sqlDB, err := sql.Open("pgx", connStr)
-				if err == nil {
-					ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-					defer cancel()
-					sqlDB.ExecContext(ctx, "DROP DATABASE IF EXISTS "+quotedDatabase)
-					sqlDB.Close()
+				if req.DropDatabase {
+					sslMode := "disable"
+					if req.SSL {
+						sslMode = "require"
+					}
+					connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=postgres sslmode=%s",
+						req.Host, req.Port, req.User, req.Password, sslMode)
+					sqlDB, err := sql.Open("pgx", connStr)
+					if err != nil {
+						c.JSON(200, gin.H{"error": "连接数据库失败：" + err.Error()})
+						return
+					}
+					ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+					_, dropErr := sqlDB.ExecContext(ctx, "DROP DATABASE IF EXISTS "+quotedDatabase)
+					cancel()
+					if dropErr == nil {
+						// 清库后固定本次设置，落盘失败的重试不能再次删除数据库。
+						clearedDatabaseConfig = yamlConfig
+					}
+					if err := errors.Join(dropErr, sqlDB.Close()); err != nil {
+						c.JSON(200, gin.H{"error": "清空数据库失败：" + err.Error()})
+						return
+					}
 				}
 			}
+
+			if err := helpers.SaveConfig(yamlConfig); err != nil {
+				message := "保存配置失败：" + err.Error()
+				if clearedDatabaseConfig != nil {
+					message = "数据库已清空，但" + message + "。修复后再次保存将沿用本次数据库设置。"
+				}
+				c.JSON(500, gin.H{"error": message})
+				return
+			}
+
+			configSaved = true
 		}
 
-		if err := helpers.SaveConfig(yamlConfig); err != nil {
-			c.JSON(500, gin.H{"error": "保存配置失败：" + err.Error()})
-			return
-		}
-
-		autoRestart, err := prepareInitialConfigRestart()
+		autoRestart, err := prepareRestart()
 		if err != nil {
-			log.Printf("配置已保存，但准备 Docker 重启失败：%v", err)
+			log.Printf("配置已保存，但准备自动启动失败：%v", err)
 			c.JSON(200, gin.H{
-				"success": true,
-				"message": "配置已保存，但自动重启准备失败，请手动重启服务。服务启动后请在 Web 页面创建首个管理员。",
+				"success":        true,
+				"restartPending": true,
+				"message":        "配置已保存，但未能自动启动。可点击保存重试；仍失败时，请按当前部署方式停止后重新启动 QMediaSync。启动完成后，请刷新此页面创建管理员账号。",
 			})
 			return
 		}
 		message := "配置已保存，配置服务即将退出。请按当前部署方式重启服务，启动后请在 Web 页面创建首个管理员。"
 		if autoRestart {
-			message = "配置已保存，正在自动重启并进入正式服务。服务启动后请在 Web 页面创建首个管理员。"
+			message = "配置已保存，正在启动 QMediaSync。启动完成后，请刷新此页面创建管理员账号。"
 		}
+		restartPrepared = true
+		savedMessage = message
 		c.JSON(200, gin.H{"success": true, "message": message})
-		go func() {
-			time.Sleep(1 * time.Second)
-			os.Exit(0)
-		}()
+		go exit()
+	})
+
+	return r
+}
+
+func StartConfigWebServer() {
+	r := newConfigRouter(helpers.PrepareInitialConfigRestart, func() {
+		time.Sleep(time.Second)
+		os.Exit(0)
 	})
 
 	fmt.Printf("配置服务已启动，请在浏览器中访问：http://ip:12333\n")
@@ -1117,15 +1570,4 @@ func StartConfigWebServer() {
 	if err := r.Run(":12333"); err != nil {
 		log.Fatalf("启动配置服务失败：%v", err)
 	}
-}
-
-// prepareInitialConfigRestart 仅为支持纯重启的 Docker 入口交付首次配置重启请求。
-func prepareInitialConfigRestart() (bool, error) {
-	if os.Getenv("DOCKER") != "1" || !helpers.SupportsAppRestart() {
-		return false, nil
-	}
-	if err := helpers.PrepareAppRestart(); err != nil {
-		return false, err
-	}
-	return true, nil
 }

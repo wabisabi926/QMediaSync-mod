@@ -1,24 +1,26 @@
 # 发布流程
 
-> 职责：说明持续集成、预发布镜像、版本发布、changelog 生成、GitHub Actions 和 FPK 打包流程。
+> 职责：说明持续集成、预发布镜像与安装包、版本发布、changelog 生成、GitHub Actions 和 FPK 打包流程。
 >
 > 权威范围：本文档维护 CI/CD、镜像标签、发布操作和产物；运行时镜像挂载与启动参数见 [部署与持久化](deployment.md)，日常开发构建与验证见 [验证说明](../engineering/verification.md)。
 >
 > 修改时机：修改发布脚本、tag 规则、CI 工作流、镜像标签、changelog 或 FPK 打包时必须更新本文档。
 >
-> 相关代码：`scripts/release/`、`.github/workflows/release.yaml`、`cliff.toml`、`backend/FNOS/`。
+> 相关代码：`scripts/release/`、`.github/workflows/beta.yaml`、`.github/workflows/release.yaml`、`cliff.toml`、`backend/fnos/`。
 
 更新日志由 [git-cliff](https://git-cliff.org/) 从 git 提交记录自动生成，因此提交信息需遵循 [Conventional Commits](https://www.conventionalcommits.org/)。
 
 当前 `cliff.toml` 把 `feat:`、`fix:`、`perf:`、`refactor:`、`style:` 和 `revert:` 写入 changelog；`docs:`、`chore:`、`ci:`、`test:` 等其余开发类提交不会进入发布说明，除非调整 `cliff.toml`。不规范的提交（如 `Merge`、自由文案）会被自动忽略。
 
-## 持续集成与预发布镜像
+## 持续集成与预发布交付
 
-后端工具链最低版本为 Go 1.27.1。CI 与正式发布通过 `backend/go.mod` 选择 Go 版本；两份源码 Dockerfile 使用 `golang:1.27-alpine`，跟随 1.27 系列补丁更新，升级 Go 系列时须一起更新。
+后端工具链最低版本为 Go 1.27.3。CI、Beta 安装包与正式发布通过 `backend/go.mod` 选择 Go 版本；两份源码 Dockerfile 使用 `golang:1.27-alpine`，自动跟随 1.27 系列补丁更新，升级 Go 系列时须一起更新。
 
-前端 CI、正式发布与两份源码 Dockerfile 统一使用 Node 26 和 pnpm 12，pnpm 只指定主版本。CI 与正式发布通过 `pnpm/action-setup` 安装 pnpm，两份 Dockerfile 使用 `npm install --global pnpm@12`。升级 pnpm 主版本时同步这些安装入口及本地开发命令；版本约束和发布时间要求见 [本地开发](../engineering/local-development.md#前端启动)。
+前端 CI、Beta 安装包、正式发布与两份源码 Dockerfile 统一使用 Node 26 和 pnpm 12，按主版本自动跟随更新；Docker 使用 `node:26-alpine`。CI、Beta 安装包与正式发布通过 `pnpm/action-setup` 安装 pnpm，两份 Dockerfile 使用 `npm install --global pnpm@12`。升级 Node 或 pnpm 主版本时同步这些安装入口及本地开发命令。版本约束和发布时间要求见 [本地开发](../engineering/local-development.md#前端启动)。
 
 `ci.yaml` 在 pull request，以及 `dev`、`feature/**` 分支推送时执行。前端依次运行 `pnpm run test`、`pnpm run build`（包含类型检查）和 `pnpm run check:build`；后端依次运行 `go vet ./...`、`go test ./...` 和 `go build -trimpath -tags=nomsgpack`。独立的 `docs` job 使用 Lychee 最新正式版（`lycheeVersion: latest`） 离线检查 Git 文件列表中的 Markdown 本地链接和锚点，跳过网络链接与未跟踪的忽略文件。CI 与 Wiki 发布前检查都使用 `git -c core.quotepath=false ls-files` 生成列表，避免中文文件名被 Git 转义后无法由 Lychee 找到。CI 不运行前端 ESLint 或 Prettier；完整验证范围见 [验证说明](../engineering/verification.md)。
+
+CI 另有 `release-scripts` job，在 Linux 运行安装、发版、fnpack 获取、FPK 打包与 fnOS 生命周期的 Python 隔离测试和 shell 语法检查；`windows-restart` job 在 Windows 原生运行首次配置重启、参数/工作目录与实例锁定向回归，不靠 Linux 交叉编译推断 Windows 行为。
 
 前后端测试共用 STRM 正则兼容性样例，并覆盖标签输入交互、四类列表的合并导入和清空、真实表单保存回读、全局空扩展名默认值回退、原文落库、迁移重试与各同步入口的排除行为。Vitest 在测试模式下通过 Vite 环境配置内联处理 Element Plus，确保真实表单校验的 CommonJS 互操作与浏览器构建一致；配置方式见 [前端命令](../engineering/verification.md#前端命令)。这些回归沿用上述命令，不增加依赖或单独的校验服务；覆盖边界见 [稳定回归验证](../engineering/verification.md#稳定回归验证)。
 
@@ -42,9 +44,27 @@ STRM 生成结果与后台账本的独立状态、双耗时、详情 SSE／HTTP 
 
 发布前还须验证失败后的分页、设置初始化重试、账号列表变化后的旧请求失效。备份与恢复须覆盖原子回滚、会话清空后的回执查询、重启授权与重复请求、手动检查服务就绪、维护错误提示、查询失败重试与页面可见性切换。须验证格式 2 的 `tables/` 布局与无清单旧包兼容路径、归档历史校验而目标历史保留、启动中断状态收敛、服务器文件列表与选择恢复、上传校验后保存及再次恢复；SQLite 导出期间的业务池读写、ZIP 权限和 Docker 纯重启入口须有回归。备份还须覆盖导出前按保留策略清理及失败边界、原子发布不覆盖、归档与上传资源边界、禁用后撤销 Cron、TOTP 密钥预检，以及回滚／提交结果在前端准确展示。Windows 重启除交叉编译外还需在实际桌面核验。SQLite ↔ PostgreSQL ZIP 互转及驱动门禁需要额外的隔离 PostgreSQL 集成验证，普通 CI 的无 DSN 测试不能替代；命令与范围见 [稳定回归验证](../engineering/verification.md#稳定回归验证)。
 
-推送 `dev` 还会触发 `beta.yaml`，发布多架构镜像 `ghcr.io/<owner>/qmediasync:beta`。推送 `feature/**` 还会触发 `feature.yaml`，发布 `ghcr.io/<owner>/qmediasync:<branch-tag>`：分支名会去掉 `feature/` 前缀、转为小写，斜杠和非法字符替换为连字符，最长 120 个字符。`dev` 的同一分支构建会取消仍在运行的旧 beta 构建。
+推送 `dev` 还会触发 `beta.yaml`，发布多架构镜像 `ghcr.io/<owner>/qmediasync:beta`，并生成 Windows / Linux 各两种架构的安装包及两种飞牛 FPK。Beta 也支持手动运行；同一分支的新构建会取消仍在运行的旧 Beta 构建。推送 `feature/**` 还会触发 `feature.yaml`，发布 `ghcr.io/<owner>/qmediasync:<branch-tag>`：分支名会去掉 `feature/` 前缀、转为小写，斜杠和非法字符替换为连字符，最长 120 个字符。
 
 这些镜像使用 `docker/source.Dockerfile` 从源码构建，目标为 `linux/amd64` 和 `linux/arm64`。它们是预发布交付物；运行时挂载、端口和权限参数见 [部署与持久化](deployment.md)。
+
+### Beta 安装包与保留期
+
+Beta 的 metadata job 调用 `scripts/release/beta-metadata.py`，从两份源码 manifest 读取并校验一致的基础版本，一次生成 `<基础版本>-beta.<UTC年月日时分秒>.g<7位提交号>`，例如 `0.14.15-beta.20261025103000.g1a2b3c4`。程序、镜像、FPK、Linux 构建记录和下载文件名共用该版本，构建时间另以 UTC ISO 8601 格式注入程序。
+
+镜像与安装包链路在 metadata 后并行；安装包链路只构建一次前端，按正式版相同参数编译 Windows / Linux 的 `amd64`、`arm64`，再复用 Linux 二进制生成 FPK。任何安装包失败使 workflow 失败，但不阻断独立的镜像 job。缺少 fnpack 或 FPK、版本、架构、哈希或成品内容不符时均失败。Beta 不创建 Git tag、GitHub Release 或发布说明，当前在线更新也不从 Actions 获取安装包。
+
+对外安装包命名如下，`<版本>` 使用上述完整 Beta 版本：
+
+| 平台 | x86-64 | ARM64 |
+| --- | --- | --- |
+| Windows | `QMediaSync_<版本>_windows_x86_64.zip` | `QMediaSync_<版本>_windows_arm64.zip` |
+| Linux | `QMediaSync_<版本>_linux_x86_64.tar.gz` | `QMediaSync_<版本>_linux_arm64.tar.gz` |
+| fnOS | `QMediaSync_<版本>_fnos_x86_64.fpk` | `QMediaSync_<版本>_fnos_arm64.fpk` |
+
+安装包复用正式打包脚本及包内布局；Linux 解压后的顶层目录仍为 `QMediaSync_linux_<架构>`。每份安装包通过 `upload-artifact` 的 `archive: false` 单独上传，直接下载原始 ZIP、tar.gz 或 FPK。登录 GitHub 并拥有仓库读取权限后，在 Actions → beta → 对应运行 → Artifacts 下载。列表中还包含供 job 间传递的 `web-statics`、`linux-binary-*` 中间产物，用户下载上表中的完整安装包。
+
+所有 Beta artifacts 的保留天数按“手动运行的 `retention_days` 输入 > 仓库变量 `BETA_ARTIFACT_RETENTION_DAYS` > 90 天”解析。手动输入框留空时继续读取变量；自动推送只读取变量及默认值。输入和变量均仅在被选中时校验，要求 1～90 的整数，非法值停止构建，不静默回退。变量在仓库 Settings → Secrets and variables → Actions → Variables 设置。保留期仍受仓库及组织策略上限约束，到期自动清理；调整变量只影响后续构建。
 
 源码镜像、正式发布镜像和本地镜像均只携带应用运行依赖，不安装 PostgreSQL 服务端、不预置旧 `DB_*` 数据库环境变量，也不创建内嵌数据库专用账号。`su-exec` 和 `inotify-tools` 仍分别用于容器运行身份和在线更新。修改运行依赖时必须同步三份 Dockerfile。
 
@@ -81,7 +101,7 @@ scripts/release/release.sh --dry-run v0.xx.xx
 scripts/release/release.sh --simulate patch
 ```
 
-`--simulate` 会把仓库镜像克隆到临时目录并在其中原样运行同一段流程，结束时询问是否删除沙箱：回车默认删除，输入 `k` 保留，便于检查沙箱内生成的 `CHANGELOG.md` 与 `.changes/`。模拟基于本地引用，不校验与真实远端的竞争状态，也不会触发 GitHub workflow。
+`--simulate` 会把仓库镜像克隆到临时目录并在其中原样运行同一段流程，结束时询问是否删除沙箱：回车默认删除，输入 `k` 保留，便于检查沙箱内生成的 `CHANGELOG.md`、`.changes/` 和两份 manifest。模拟基于本地引用，不校验与真实远端的竞争状态，也不会触发 GitHub workflow。
 
 ## 发布脚本行为
 
@@ -98,22 +118,24 @@ scripts/release/release.sh --simulate patch
 - 同步 `main`，并把本地 `dev` 快进合入 `main`。
 - 读取上一个 `v*` 标签至今的提交，按类型分组生成 `.changes/v0.xx.xx.md`，作为 GitHub Release 正文；把本版本段落插入 `CHANGELOG.md` 顶部，保留历史内容。
 - 拒绝重复版本：如果本地已存在同名 git tag、`.changes/<tag>.md`，或 `CHANGELOG.md` 已包含该版本段落，命令会直接失败。
-- 展示 `CHANGELOG.md` 与 `.changes/<tag>.md` 的 diff 进入审查菜单：输入 `e` 编辑发布说明（优先 `VISUAL` / `EDITOR`，缺省回退 `GIT_EDITOR` / `core.editor`，最后探测 vi / nano / vim）并自动同步回 `CHANGELOG.md`；推导模式下输入 `v` 可返回重新选择版本；最终确认输入 `b` 可返回审查。
+- 将 `backend/fnos/qmediasync-amd64/manifest` 和 `qmediasync-arm64/manifest` 的唯一 `version` 更新为 tag 去掉 `v`；两者与 changelog、发布说明一起进入同一个 release 提交，tag 指向此提交，并随原流程快进回 `dev`。
+- 展示 `CHANGELOG.md`、`.changes/<tag>.md` 与两份 manifest 的 diff 进入审查菜单：输入 `e` 编辑发布说明（优先 `VISUAL` / `EDITOR`，缺省回退 `GIT_EDITOR` / `core.editor`，最后探测 vi / nano / vim）并自动同步回 `CHANGELOG.md`；推导模式下输入 `v` 可返回重新选择版本；最终确认输入 `b` 可返回审查。
 - 在 `main` 上提交 `chore: release <tag>`，创建 annotated tag：`git tag -a <tag> -m "Release <tag>"`，推送 `main` 和 tag 触发 release workflow，最后将 release commit 快进同步回 `dev` 并推送 `dev`。
-- 中止发布（`q` 或输入流关闭）会还原 `CHANGELOG.md`、删除自动生成的发布说明并切回原分支；手动编辑过的发布说明保留在 `.changes/<tag>.md`。
+- 重选版本时还原两份 manifest 后按新 tag 生成，只编辑发布说明时保持当前版本；准备任一 manifest 失败时恢复两份，不留下半更新。
+- 中止发布（`q` 或输入流关闭）会还原 `CHANGELOG.md` 与两份 manifest、删除自动生成的发布说明并切回原分支；手动编辑过的发布说明保留在 `.changes/<tag>.md`。
 - 提交之后的步骤失败时，打印当前分支、`main` / tag / `dev` 的推送状态和对应的恢复或回退命令。
 
-`--dry-run` 执行上述全部检查，并临时检出 `dev` 让 git-cliff 预览发布说明（显示后切回），不写入 `.changes/`、不修改 `CHANGELOG.md`、不创建或推送任何分支、提交或 tag；`main` 无法快进合并 `dev` 时会直接报错。
+`--dry-run` 执行上述全部检查，并临时检出 `dev` 让 git-cliff 预览发布说明（显示后切回），只展示两份 manifest 的目标版本，不写入 `.changes/`、不修改 `CHANGELOG.md` 或 manifest、不创建或推送任何分支、提交或 tag；`main` 无法快进合并 `dev` 时会直接报错。
 
 ## GitHub Actions 发布
 
-推送 `v*` 标签会触发 GitHub Actions 的 release 流程，生成 Windows / Linux 发布包、可选的飞牛 FPK，并创建 GitHub Release。
+推送 `v*` 标签会触发 GitHub Actions 的 release 流程，生成 Windows / Linux 发布包及 fnOS FPK，并创建 GitHub Release。
 
 后端发布二进制使用 `-trimpath -tags=nomsgpack -ldflags="-s -w"` 构建，默认关闭 Gin 的 MsgPack 绑定和渲染支持，以减少发布包体积。发布 Actions 从 GitHub Secrets 读取 `OAUTH_RELAY_ENCRYPTION_KEY` 注入二进制的 `ldflags`，并使用 `FNPACK_DOWNLOAD_URL` 作为飞牛 FPK 下载源。它们只是编译期默认值或构建参数；运行时 `config/.env` / 环境变量仍按现有规则覆盖编译期值，数据库中的 UI 配置优先级也不变。
 
 创建 GitHub Release 前，workflow 对 `release-assets/` 下全部文件执行 `sha256sum` 生成 `checksums.txt` 并一同上传。
 
-GitHub Release 的标题直接使用 `v<major>.<minor>.<patch>` tag，不额外添加 `Release` 前缀；正文取自上一步提交的 `.changes/v0.xx.xx.md`。release workflow 会拒绝重复 GitHub Release 和缺失 `.changes/<tag>.md` 的发布。
+GitHub Release 的标题直接使用 `v<major>.<minor>.<patch>` tag，不额外添加 `Release` 前缀；正文取自上一步提交的 `.changes/v0.xx.xx.md`。release workflow 会拒绝重复 GitHub Release、缺失 `.changes/<tag>.md` 或任一源码 manifest 与 tag 版本不符的发布。
 
 发布二进制包按平台保留不同的运行文件：Linux `.tar.gz` 包包含 `scripts/docker-entrypoint.sh` 和 `scripts/watch_update.sh`；Windows `.zip` 包只包含 `QMediaSync.exe`、`web_statics/` 和 `icon.ico`（存在时），不包含 Docker 脚本。
 
@@ -129,10 +151,27 @@ GHCR 镜像同时构建 `linux/amd64` 和 `linux/arm64`。Dockerfile 中的 `TAR
 
 ## 飞牛 FPK
 
-飞牛 FPK 打包依赖飞牛官方工具 `fnpack`（不公开分发）。release workflow 通过仓库 Secret `FNPACK_DOWNLOAD_URL`（指向可下载 `fnpack` 可执行文件的地址）下载安装，再用 `backend/FNOS/` 下的素材执行 `fnpack build` 生成 `*.fpk`。
+`scripts/release/install-fnpack.sh <安装目录>` 默认从 [官方 fnpack 下载页](https://developer.fnnas.com/docs/cli/fnpack/) 解析当前构建机平台的最新稳定版本，按数字版本排序，下载一次供两种应用架构共用。工具架构是构建机架构，与 FPK 的目标架构分开。
 
-未配置该 Secret 时，`fpk` job 和 `scripts/release/package-fnos.sh` 会自动跳过 FPK 打包，其余 Windows / Linux 发布包、Docker 镜像不受影响；若希望缺少工具时直接报错（而非静默跳过），可在脚本环境设置 `REQUIRE_FNPACK=1`。
+覆盖优先级为 `FNPACK_DOWNLOAD_URL` > `FNPACK_VERSION` > 官网最新。工作流保留同名 URL Secret，并可通过仓库变量 `FNPACK_VERSION` 指定稳定版本以复现；默认无需配置。脚本执行工具核对版本，记录实际版本、来源和下载文件 SHA-256 到日志及 `fnpack-source.txt`，自定义 URL 隐去，避免暴露凭据。自行计算哈希只是记录下载内容，不代表官方签名验证。页面解析、下载或工具运行失败均停止发布，不回退旧版或悄悄跳过。
 
+FPK 的正式发布版本在 `scripts/release/release.sh` 的 `chore: release vX.Y.Z` 提交中写入两份源码 manifest，和 `CHANGELOG.md`、`.changes/vX.Y.Z.md` 一起审查、提交、打 tag，并同步 main/dev。正式版 CI metadata 和 `package-fnos.sh` 只校验 `version=X.Y.Z`，不覆写 staging 或源码以掩盖版本错误。实际提交/推送后失败时保留这个完整提交并报告状态，不能只回滚 manifest。
+
+Beta 打包使用不带 `v` 的完整 Beta 版本，先校验两份源码 manifest 与该版本的基础版本一致，再仅在临时打包副本中写入 Beta manifest 版本，保留 `appname=qmediasync` 和现有数据目录。源码 manifest 始终不回写、不提交、不推送；工作流打包后另用 `git diff --exit-code` 确认两份源码 manifest 未变化。成品 manifest 必须匹配本次二进制构建记录的完整 Beta 版本，不能用基础版本代替。
+
+`package-fnos.sh <tag或Beta版本> <amd64|arm64> <binary> <web_statics> <out_dir>` 在独立临时目录复制 `backend/fnos/` 模板、二进制、前端和共享运行脚本，再执行 `fnpack build`。输入和输出路径支持从不同工作目录调用；正式版两架构顺序构建，Beta 使用架构矩阵。同一构建步骤为 Linux 二进制生成 `<binary>.build.json`，记录 tag、Go 平台/架构和二进制 SHA-256，随内部 artifact 传给打包阶段；它不进入 FPK 或对外附件。脚本核对这份记录与实际输入的哈希及 tag，防止混用旧程序或错误架构，并核对新归档、版本、平台、二进制架构与内容、全部前端文件、平台权限/UI/钩子/向导及公共脚本，工具返回 0 但未正确产包也失败。构建不回写源码、不携带旧业务配置样例。Go 的 `-trimpath` 构建不在 BuildInfo 保留 ldflags，因此这份记录证明同次构建来源，不声称独立读取程序变量；程序版本仍由同一构建命令的 `-X main.Version=${TAG}` 注入。手工打包也需在该构建命令成功后生成同格式记录。
+
+| 发布平台 | x86-64 | ARM64 |
+| --- | --- | --- |
+| Linux | `QMediaSync_linux_x86_64.tar.gz` | `QMediaSync_linux_arm64.tar.gz` |
+| Windows | `QMediaSync_windows_x86_64.zip` | `QMediaSync_windows_arm64.zip` |
+| fnOS | `QMediaSync_fnos_x86_64.fpk` | `QMediaSync_fnos_arm64.fpk` |
+
+内部 Go 架构仍为 `amd64`，模板仍为 `qmediasync-amd64`；manifest 的 `platform=x86` / `arm` 遵循 fnOS 格式。附件名变化不改变 `appname=qmediasync` 或数据目录。作者与发布者均为 `chen8945`，链接为本仓库，显示名称为 QMediaSync。
+
+正式 workflow 设置 `REQUIRE_FNPACK=1`，要求两个 FPK 都生成；缺工具或缺产物使发布失败。手工脚本保留缺工具可选跳过模式，需要严格验证时也设置该变量。临时文件不放入源码模板，局部职责见 [原生包说明](../../backend/fnos/README.md)。
+
+FPK 与其余附件统一写入 `checksums.txt`，用户可手工核对 SHA-256。QMS 网页不在原生 fnOS 下载或安装更新；平台更新使用自身生命周期，不读取这份 GitHub 清单。构建成功不代表应用商店已提供该版本，实际平台安装、升级与保留数据重装另行验收。脚本和平台验证入口见 [验证说明](../engineering/verification.md#数据库启动与部署验证)。
 调整 changelog 的分组、过滤规则可编辑仓库根目录的 `cliff.toml`。
 
 ## Wiki 发布

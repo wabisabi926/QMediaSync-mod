@@ -208,6 +208,20 @@
         </div>
       </el-form-item>
 
+      <el-form-item label="启用 STRM 预加载" prop="strm_preload_enabled">
+        <el-radio-group v-model="strmData.strm_preload_enabled" :disabled="strmLoading">
+          <el-radio-button :value="1">启用</el-radio-button>
+          <el-radio-button :value="0">关闭</el-radio-button>
+        </el-radio-group>
+        <div class="form-help">
+          <p>
+            提前准备播放链接，减少点击播放和接着看下一集时的等待。适用于 Emby 302
+            和飞牛影视反代，默认关闭，会增加少量网盘请求。
+          </p>
+          <p>部分播放器无法提前准备，仍可正常点击播放。</p>
+        </div>
+      </el-form-item>
+
       <el-form-item label="启用 115 多端播放" prop="multi_playback_enabled">
         <el-radio-group
           v-model="strmData.multi_playback_enabled"
@@ -274,6 +288,7 @@
       <!-- STRM 配置状态显示 -->
       <el-alert
         v-if="strmStatus"
+        ref="feedbackRef"
         :title="strmStatus.title"
         :type="strmStatus.type"
         :description="strmStatus.description"
@@ -302,6 +317,7 @@ import { Check } from '@element-plus/icons-vue'
 import { onBeforeUnmount, onMounted, reactive, ref, watch, useTemplateRef } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useDeviceType } from '@/composables/useDeviceType'
+import { useFeedbackScroll } from '@/composables/useFeedbackScroll'
 import { createActiveRequestGate } from '@/composables/useActiveRequestGate'
 import PageHeader from '@/components/common/PageHeader.vue'
 import MetadataExtInput from './MetadataExtInput.vue'
@@ -332,6 +348,7 @@ const formRef = useTemplateRef<FormInstance>('formRef')
 const strmLoading = ref(false)
 const strmConfigLoaded = ref(false)
 const strmStatus = ref<StrmStatus | null>(null)
+const { feedbackRef, revealFeedback } = useFeedbackScroll(strmStatus)
 const strmExample = ref('')
 
 // Cron 下次执行时间相关状态
@@ -352,6 +369,7 @@ const defaultStrmData: StrmSettings = {
   upload_meta: 0, // 默认保留
   download_meta: 1, // 默认下载元数据
   delete_dir: 0, // 默认不删除
+  strm_preload_enabled: 0,
   multi_playback_enabled: 0,
   local_proxy: 0, // 是否启用本地代理
   exclude_name_arr: [], // 排除名称列表，默认为空
@@ -453,6 +471,7 @@ const saveStrmConfig = async () => {
     }
   } finally {
     strmLoading.value = false
+    void revealFeedback()
   }
 }
 
@@ -473,6 +492,7 @@ const loadStrmConfig = async () => {
       strmData.download_meta = config.download_meta
       strmData.upload_meta = config.upload_meta
       strmData.delete_dir = config.delete_dir
+      strmData.strm_preload_enabled = config.strm_preload_enabled ?? 0
       strmData.multi_playback_enabled = config.multi_playback_enabled ?? 0
       strmData.local_proxy = config.local_proxy
       strmData.exclude_name_arr = config.exclude_name_arr

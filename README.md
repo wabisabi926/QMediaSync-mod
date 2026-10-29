@@ -4,7 +4,7 @@
 
 <h1 align="center">QMediaSync</h1>
 
-<p align="center">连接网盘与 Emby，让媒体同步与刮削更简单。</p>
+<p align="center">连接网盘与 Emby，让媒体同步更简单。</p>
 
 <p align="center">
   <a href="https://github.com/chen8945/QMediaSync/wiki">📖 使用手册</a> ·
@@ -14,7 +14,7 @@
 
 ---
 
-QMediaSync 是一个媒体同步和刮削系统，用于管理 115 网盘、百度网盘、OpenList 等云存储与 Emby 媒体服务器之间的文件同步、STRM 生成和媒体刮削等流程。
+QMediaSync 是一个开源的媒体同步工具，支持 115 网盘、百度网盘、OpenList 及本地挂载目录，提供文件同步和 STRM 生成，并支持与 Emby、飞牛影视联动。
 
 ## Docker 镜像
 

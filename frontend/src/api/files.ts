@@ -105,3 +105,7 @@ export async function generateManualStrm(
 ): Promise<void> {
   unwrapResponse(await http.post<APIResponse<null>>(`${SERVER_URL}/sync/manual`, payload))
 }
+
+export async function fetchIsFnOS(http: AxiosInstance): Promise<boolean> {
+  return unwrapResponse(await http.get<APIResponse<boolean>>(`${SERVER_URL}/path/is-fn-os`))
+}
